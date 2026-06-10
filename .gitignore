@@ -1,0 +1,29 @@
+# Go
+bin/
+*.exe
+*.test
+*.out
+vendor/
+
+# 4x runtime
+.4x/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Dashboard build
+dashboard/macos/build/
+dashboard/macos/.build/
+dashboard/electron/dist/
+dashboard/electron/node_modules/
+dashboard/web/node_modules/
+
+# Test
+coverage.out

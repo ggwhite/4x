@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "4x State",
+  "description": "Authoritative state of a feature run",
+  "type": "object",
+  "required": ["featureId", "phase", "round"],
+  "properties": {
+    "featureId": { "type": "string" },
+    "phase": {
+      "type": "string",
+      "enum": ["init", "designing", "coding", "reviewing", "testing", "amending", "accepting", "done", "blocked", "needs-attention"]
+    },
+    "role": {
+      "type": "string",
+      "enum": ["designer", "coder", "reviewer", "deep-reviewer", "tester", "acceptor"]
+    },
+    "round": { "type": "integer", "minimum": 0 },
+    "maxRounds": { "type": "integer", "minimum": 1 },
+    "active": { "type": "boolean" },
+    "runner": { "type": "string" },
+    "label": { "type": "string" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "since": { "type": "string", "format": "date-time" },
+    "consecutiveNoProgress": { "type": "integer" },
+    "lastFailCount": { "type": "integer" },
+    "stopReason": { "type": ["string", "null"] }
+  }
+}

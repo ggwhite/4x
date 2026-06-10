@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "4x Event",
+  "description": "A single event in events.jsonl",
+  "type": "object",
+  "required": ["ts", "type"],
+  "properties": {
+    "ts": { "type": "string", "format": "date-time" },
+    "phase": { "type": "string" },
+    "type": {
+      "type": "string",
+      "enum": ["run-start", "run-end", "phase-start", "phase-end", "transition", "step", "verify", "scope-check", "escalation", "blocked", "heartbeat", "subtask-done"]
+    },
+    "role": { "type": "string" },
+    "round": { "type": "integer" },
+    "action": { "type": "string" },
+    "cmd": { "type": "string" },
+    "status": { "type": "string" },
+    "detail": { "type": "string" }
+  }
+}
