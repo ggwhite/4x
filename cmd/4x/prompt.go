@@ -113,12 +113,40 @@ func roleInstructions(cfg protocol.Config, r protocol.Role) []string {
 	return nil
 }
 
+// designDocPath 嘗試找 docs/design/{featureID}{suffix}，
+// 找不到時 fallback 去掉 FNNN- prefix 再找一次
+func designDocPath(root, featureID, suffix string) string {
+	p := filepath.Join(root, "docs", "design", featureID+suffix)
+	if _, err := os.Stat(p); err == nil {
+		return p
+	}
+	slug := stripFeaturePrefix(featureID)
+	if slug != featureID {
+		p = filepath.Join(root, "docs", "design", slug+suffix)
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return ""
+}
+
+// stripFeaturePrefix 移除 FNNN- prefix（如 F022-multi-project → multi-project）
+func stripFeaturePrefix(id string) string {
+	if len(id) > 5 && id[0] == 'F' && id[4] == '-' {
+		return id[5:]
+	}
+	return id
+}
+
 // loadPlanningDocs 嘗試讀取 docs/design/{featureID}-spec.md 和 -plan.md
 // 檔案不存在時跳過，不報錯
 func loadPlanningDocs(root, featureID string) string {
 	var parts []string
 	for _, suffix := range []string{"-spec.md", "-plan.md"} {
-		p := filepath.Join(root, "docs", "design", featureID+suffix)
+		p := designDocPath(root, featureID, suffix)
+		if p == "" {
+			continue
+		}
 		data, err := os.ReadFile(p)
 		if err != nil {
 			continue

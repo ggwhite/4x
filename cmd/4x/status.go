@@ -44,6 +44,8 @@ type featureRow struct {
 	round    string
 	active   bool
 	category int // 0=running, 1=pending, 2=todo, 3=done
+	hasSpec  bool
+	hasPlan  bool
 }
 
 func categorize(f protocol.Feature, active bool) int {
@@ -81,12 +83,16 @@ func showAllFeatures(ws *protocol.Workspace, pendingOnly bool) error {
 			round = fmt.Sprintf("%d/%d", s.Round, s.MaxRounds)
 			active = s.Active
 		}
+		hasSpec := designDocPath(ws.Root, f.ID, "-spec.md") != ""
+		hasPlan := designDocPath(ws.Root, f.ID, "-plan.md") != ""
 		rows = append(rows, featureRow{
 			feature:  f,
 			phase:    phase,
 			round:    round,
 			active:   active,
 			category: categorize(f, active),
+			hasSpec:  hasSpec,
+			hasPlan:  hasPlan,
 		})
 	}
 
@@ -142,14 +148,15 @@ func showAllFeatures(ws *protocol.Workspace, pendingOnly bool) error {
 
 		fmt.Printf("── %s (%d) ──\n", cl.label, counts[cl.cat])
 		w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-		fmt.Fprintf(w, "  PRI\tID\tNAME\tPHASE\tROUND\n")
-		fmt.Fprintf(w, "  ───\t──\t────\t─────\t─────\n")
+		fmt.Fprintf(w, "  PRI\tID\tNAME\tDOCS\tPHASE\tROUND\n")
+		fmt.Fprintf(w, "  ───\t──\t────\t────\t─────\t─────\n")
 		for _, r := range group {
 			pri := "-"
 			if r.feature.Priority > 0 {
 				pri = fmt.Sprintf("P%d", r.feature.Priority)
 			}
-			fmt.Fprintf(w, "  %s\t%s\t%s\t%s\t%s\n", pri, r.feature.ID, r.feature.Name, r.phase, r.round)
+			docs := docsLabel(r.hasSpec, r.hasPlan)
+			fmt.Fprintf(w, "  %s\t%s\t%s\t%s\t%s\t%s\n", pri, r.feature.ID, r.feature.Name, docs, r.phase, r.round)
 		}
 		w.Flush()
 		if truncated > 0 {
@@ -160,6 +167,19 @@ func showAllFeatures(ws *protocol.Workspace, pendingOnly bool) error {
 
 	printBacklogWarnings(ws, "")
 	return nil
+}
+
+func docsLabel(hasSpec, hasPlan bool) string {
+	switch {
+	case hasSpec && hasPlan:
+		return "S+P"
+	case hasSpec:
+		return "S"
+	case hasPlan:
+		return "P"
+	default:
+		return "-"
+	}
 }
 
 func showFeatureDetail(ws *protocol.Workspace, id string) error {
