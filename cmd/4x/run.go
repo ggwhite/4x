@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -71,6 +72,21 @@ func newRunCmd() *cobra.Command {
 				return fmt.Errorf("feature %s has unmet dependencies", featureID)
 			}
 
+			// worktree isolation：runner 在獨立 worktree 內執行
+			var runnerWs *protocol.Workspace
+			var wtPath string
+			if cfg.Isolation == "worktree" {
+				var err error
+				wtPath, err = setupWorktree(ws.Root, featureID)
+				if err != nil {
+					return fmt.Errorf("worktree setup: %w", err)
+				}
+				runnerWs = &protocol.Workspace{Root: wtPath}
+				fmt.Printf("worktree: %s\n", wtPath)
+			} else {
+				runnerWs = ws
+			}
+
 			if err := ws.InitFeatureDir(featureID); err != nil {
 				return err
 			}
@@ -107,8 +123,14 @@ func newRunCmd() *cobra.Command {
 				return dryRunLoop(ws, feature, cfg, s)
 			}
 
-			r := runner.NewRunner(ws, runnerName, runnerCfg, time.Duration(timeout)*time.Second)
-			return runLoop(ws, feature, cfg, s, r)
+			r := runner.NewRunner(runnerWs, runnerName, runnerCfg, time.Duration(timeout)*time.Second)
+			loopErr := runLoop(ws, feature, cfg, s, r)
+
+			if wtPath != "" && s.Phase == protocol.PhaseDone {
+				cleanupWorktree(ws.Root, featureID, wtPath)
+			}
+
+			return loopErr
 		},
 	}
 
@@ -448,4 +470,68 @@ func dryRunLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.C
 		fmt.Println()
 	}
 	return nil
+}
+
+// setupWorktree 為 feature 建立 git worktree，回傳 worktree 路徑。
+// branch 命名 4x/<featureID>，worktree 放在 .worktrees/4x/<featureID>/。
+// worktree 內建 .4x symlink 指回主 worktree 的 .4x/。
+func setupWorktree(root, featureID string) (string, error) {
+	wtDir := filepath.Join(root, ".worktrees", "4x", featureID)
+	branch := "4x/" + featureID
+
+	ensureGitignore(root, ".worktrees/")
+
+	if _, err := os.Stat(wtDir); err == nil {
+		dotLink := filepath.Join(wtDir, protocol.DirName)
+		if _, err := os.Lstat(dotLink); os.IsNotExist(err) {
+			os.Symlink(filepath.Join(root, protocol.DirName), dotLink)
+		}
+		return wtDir, nil
+	}
+
+	if err := os.MkdirAll(filepath.Dir(wtDir), 0o755); err != nil {
+		return "", err
+	}
+
+	out, err := exec.Command("git", "-C", root, "worktree", "add", wtDir, "-b", branch).CombinedOutput()
+	if err != nil {
+		out2, err2 := exec.Command("git", "-C", root, "worktree", "add", wtDir, branch).CombinedOutput()
+		if err2 != nil {
+			return "", fmt.Errorf("git worktree add: %s\n%s", string(out), string(out2))
+		}
+	}
+
+	dotDir := filepath.Join(root, protocol.DirName)
+	link := filepath.Join(wtDir, protocol.DirName)
+	os.RemoveAll(link)
+	if err := os.Symlink(dotDir, link); err != nil {
+		return "", fmt.Errorf("symlink .4x: %w", err)
+	}
+
+	return wtDir, nil
+}
+
+func cleanupWorktree(root, featureID, wtPath string) {
+	os.Remove(filepath.Join(wtPath, protocol.DirName))
+	exec.Command("git", "-C", root, "worktree", "remove", wtPath).Run()
+	fmt.Printf("worktree removed: %s (branch 4x/%s preserved)\n", wtPath, featureID)
+}
+
+func ensureGitignore(root, pattern string) {
+	path := filepath.Join(root, ".gitignore")
+	data, _ := os.ReadFile(path)
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.TrimSpace(line) == pattern {
+			return
+		}
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	if len(data) > 0 && data[len(data)-1] != '\n' {
+		f.WriteString("\n")
+	}
+	f.WriteString(pattern + "\n")
 }
