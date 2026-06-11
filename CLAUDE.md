@@ -1,3 +1,5 @@
+@.4x/plugins/CLAUDE.md
+
 # 4x — Multi-Role AI Development Loop
 
 ## Quick Start
@@ -13,15 +15,22 @@ make lint           # go vet ./...
 三層架構，CLI 層不呼叫 LLM：
 
 ```
-cmd/4x/             CLI entry point (Cobra)
+cmd/4x/             CLI entry point (Cobra)，每個 subcommand 一個檔案
 internal/
   protocol/          .4x/ 檔案格式、Workspace 讀寫、型別定義
   state/             狀態機（phase transition）
   guard/             Guardrail 檢查（scope/baseline/required files）
   batch/             Batch DAG 排程
-  server/            WebSocket server（Dashboard 用）
+  runner/            Runner 介面與子程序執行
+  server/            SSE + REST server（Dashboard 用）
 plugins/
   claude-code/       Claude Code skill + workflow.js
+  gemini/            Gemini CLI runner instructions
+  codex/             Codex CLI runner instructions
+  agy/               Antigravity CLI runner instructions
+  copilot/           Copilot CLI runner instructions + workflow.js
+  cursor/            Cursor rules (.cursorrules)
+  embed.go           go:embed 將 plugin 檔嵌入 binary
 dashboard/
   macos/             Swift native app
 schemas/             JSON Schema（state/event/feature）

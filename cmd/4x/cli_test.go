@@ -124,7 +124,7 @@ func TestNew_CreatesFeatureYAML(t *testing.T) {
 		t.Fatalf("new failed: %v\n%s", err, out)
 	}
 
-	path := filepath.Join(dir, ".4x", "features", "my-test-feature.yaml")
+	path := filepath.Join(dir, ".4x", "features", "F001-my-test-feature.yaml")
 	if _, err := os.Stat(path); err != nil {
 		t.Errorf("feature YAML not created at %s", path)
 	}
@@ -135,16 +135,16 @@ func TestNew_FeatureContent(t *testing.T) {
 	run4x(dir, "init")
 	run4x(dir, "new", "Content check feature")
 
-	data, err := os.ReadFile(filepath.Join(dir, ".4x", "features", "content-check-feature.yaml"))
+	data, err := os.ReadFile(filepath.Join(dir, ".4x", "features", "F001-content-check-feature.yaml"))
 	if err != nil {
 		t.Fatalf("read feature: %v", err)
 	}
 
 	content := string(data)
-	if !strings.Contains(content, "id: content-check-feature") {
+	if !strings.Contains(content, "id: F001-content-check-feature") {
 		t.Error("missing id field")
 	}
-	if !strings.Contains(content, "name: Content check feature") {
+	if !strings.Contains(content, "name: 'F001: Content check feature'") {
 		t.Error("missing name field")
 	}
 	if !strings.Contains(content, "status: not-started") {
@@ -156,16 +156,16 @@ func TestStatus_ShowsBacklogDriftWarning(t *testing.T) {
 	dir := t.TempDir()
 	run4x(dir, "init")
 	run4x(dir, "new", "Backlog drift")
-	writeCLIFile(t, filepath.Join(dir, protocol.BacklogFile), `{"version":1,"features":[{"id":"backlog-drift","name":"Backlog drift","status":"done"}]}`)
+	writeCLIFile(t, filepath.Join(dir, protocol.BacklogFile), `{"version":1,"features":[{"id":"F001-backlog-drift","name":"Backlog drift","status":"done"}]}`)
 
 	out, err := run4x(dir, "status")
 	if err != nil {
 		t.Fatalf("status failed: %v\n%s", err, out)
 	}
-	if !strings.Contains(out, `WARN: feature_list.json mismatch for feature "backlog-drift" field "status": canonical "not-started", mirror "done"`) {
+	if !strings.Contains(out, `WARN: feature_list.json mismatch for feature "F001-backlog-drift" field "status": canonical "not-started", mirror "done"`) {
 		t.Fatalf("output = %q, want backlog drift warning", out)
 	}
-	if !strings.Contains(out, "backlog-drift") || !strings.Contains(out, "not-started") {
+	if !strings.Contains(out, "F001-backlog-drift") || !strings.Contains(out, "not-started") {
 		t.Fatalf("output = %q, want status from feature YAML", out)
 	}
 }
@@ -174,13 +174,13 @@ func TestStatusPending_ShowsBacklogDriftWarning(t *testing.T) {
 	dir := t.TempDir()
 	run4x(dir, "init")
 	run4x(dir, "new", "Pending drift")
-	writeCLIFile(t, filepath.Join(dir, protocol.BacklogFile), `{"version":1,"features":[{"id":"pending-drift","name":"Pending drift","status":"done"}]}`)
+	writeCLIFile(t, filepath.Join(dir, protocol.BacklogFile), `{"version":1,"features":[{"id":"F001-pending-drift","name":"Pending drift","status":"done"}]}`)
 
 	out, err := run4x(dir, "status", "--pending")
 	if err != nil {
 		t.Fatalf("status --pending failed: %v\n%s", err, out)
 	}
-	if !strings.Contains(out, `WARN: feature_list.json mismatch for feature "pending-drift" field "status": canonical "not-started", mirror "done"`) {
+	if !strings.Contains(out, `WARN: feature_list.json mismatch for feature "F001-pending-drift" field "status": canonical "not-started", mirror "done"`) {
 		t.Fatalf("output = %q, want backlog drift warning", out)
 	}
 }
@@ -189,21 +189,22 @@ func TestCheckJSON_IncludesBacklogDriftWarning(t *testing.T) {
 	dir := t.TempDir()
 	run4x(dir, "init")
 	run4x(dir, "new", "Check drift")
-	checkDriftDir := filepath.Join(dir, protocol.DirName, "check-drift")
+	featureID := "F001-check-drift"
+	checkDriftDir := filepath.Join(dir, protocol.DirName, featureID)
 	if err := os.MkdirAll(checkDriftDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	writeCLIFile(t, filepath.Join(checkDriftDir, protocol.StateFile), `{"featureId":"check-drift","phase":"init","role":"","round":0,"maxRounds":5,"active":false,"runner":"mock"}`)
-	writeCLIFile(t, filepath.Join(dir, protocol.BacklogFile), `{"version":1,"features":[{"id":"check-drift","name":"Check drift","description":"Check drift","status":"done"}]}`)
+	writeCLIFile(t, filepath.Join(checkDriftDir, protocol.StateFile), `{"featureId":"F001-check-drift","phase":"init","role":"","round":0,"maxRounds":5,"active":false,"runner":"mock"}`)
+	writeCLIFile(t, filepath.Join(dir, protocol.BacklogFile), `{"version":1,"features":[{"id":"F001-check-drift","name":"Check drift","description":"Check drift","status":"done"}]}`)
 
-	out, err := run4x(dir, "check", "check-drift", "--json")
+	out, err := run4x(dir, "check", featureID, "--json")
 	if err != nil {
 		t.Fatalf("check --json failed: %v\n%s", err, out)
 	}
 	if !strings.Contains(out, `"warnings"`) {
 		t.Fatalf("output = %q, want warnings key", out)
 	}
-	if !strings.Contains(out, `feature_list.json mismatch for feature \"check-drift\" field \"status\": canonical \"not-started\", mirror \"done\"`) {
+	if !strings.Contains(out, `feature_list.json mismatch for feature \"F001-check-drift\" field \"status\": canonical \"not-started\", mirror \"done\"`) {
 		t.Fatalf("output = %q, want JSON backlog drift warning", out)
 	}
 }
@@ -309,14 +310,14 @@ func TestTransition_TestingToAcceptingRequiresTesterArtifacts(t *testing.T) {
 	run4x(dir, "init")
 	run4x(dir, "new", "Manual gate")
 
-	featureID := "manual-gate"
+	featureID := "F001-manual-gate"
 	featureDir := filepath.Join(dir, protocol.DirName, featureID)
 	roundDir := filepath.Join(featureDir, protocol.RoundsDir, "round-1")
 	if err := os.MkdirAll(roundDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 
-	state := `{"featureId":"manual-gate","phase":"testing","role":"tester","round":1,"maxRounds":5,"active":true,"runner":"mock"}`
+	state := `{"featureId":"F001-manual-gate","phase":"testing","role":"tester","round":1,"maxRounds":5,"active":true,"runner":"mock"}`
 	os.WriteFile(filepath.Join(featureDir, protocol.StateFile), []byte(state), 0o644)
 	os.WriteFile(filepath.Join(roundDir, protocol.VerifyFile), []byte(`{"passed":true,"round":1}`), 0o644)
 	os.WriteFile(filepath.Join(roundDir, protocol.TestReport), []byte("# Test"), 0o644)

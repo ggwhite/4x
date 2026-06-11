@@ -5,6 +5,7 @@ import (
 	"os"
 	"sort"
 	"text/tabwriter"
+	"time"
 
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/spf13/cobra"
@@ -43,13 +44,14 @@ func newStatusCmd() *cobra.Command {
 }
 
 type featureRow struct {
-	feature  protocol.Feature
-	phase    string
-	round    string
-	active   bool
-	category int // 0=running, 1=pending, 2=todo, 3=done
-	hasSpec  bool
-	hasPlan  bool
+	feature   protocol.Feature
+	phase     string
+	round     string
+	active    bool
+	category  int // 0=running, 1=pending, 2=todo, 3=done
+	hasSpec   bool
+	hasPlan   bool
+	updatedAt time.Time
 }
 
 func categorize(f protocol.Feature, active bool) int {
@@ -81,28 +83,34 @@ func showAllFeatures(ws *protocol.Workspace, pendingOnly bool) error {
 		phase := "-"
 		round := "-"
 		active := false
+		var updatedAt time.Time
 		s, err := ws.ReadState(f.ID)
 		if err == nil {
 			phase = string(s.Phase)
 			round = fmt.Sprintf("%d/%d", s.Round, s.MaxRounds)
 			active = s.Active
+			updatedAt = s.UpdatedAt
 		}
 		hasSpec := designDocPath(ws.Root, f.ID, "-spec.md") != ""
 		hasPlan := designDocPath(ws.Root, f.ID, "-plan.md") != ""
 		rows = append(rows, featureRow{
-			feature:  f,
-			phase:    phase,
-			round:    round,
-			active:   active,
-			category: categorize(f, active),
-			hasSpec:  hasSpec,
-			hasPlan:  hasPlan,
+			feature:   f,
+			phase:     phase,
+			round:     round,
+			active:    active,
+			category:  categorize(f, active),
+			hasSpec:   hasSpec,
+			hasPlan:   hasPlan,
+			updatedAt: updatedAt,
 		})
 	}
 
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].category != rows[j].category {
 			return rows[i].category < rows[j].category
+		}
+		if rows[i].category == 3 {
+			return rows[j].updatedAt.Before(rows[i].updatedAt)
 		}
 		pi, pj := rows[i].feature.Priority, rows[j].feature.Priority
 		if pi != pj {

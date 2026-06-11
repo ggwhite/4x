@@ -40,7 +40,7 @@ The result: features that survive contact with production.
 |  Claude Code skill | Copilot ext | Cursor rules  |
 |  Each uses native platform capabilities          |
 +--------+-----------------------------------------+
-         |  WebSocket events
+         |  SSE events
          v
 +--------------------------------------------------+
 |  4x Live (Dashboard)                             |
@@ -261,11 +261,16 @@ Available as a macOS native app (Swift), Windows desktop app (Electron), or web 
     protocol/           # .4x/ file format, state machine
     runner/             # Plugin runner interface
     batch/              # Dependency graph, parallel scheduler
-    prompt/             # Role prompt templates
-    server/             # WebSocket server for Live dashboard
+    server/             # SSE + REST server for Live dashboard
     state/              # Feature state management
   plugins/
     claude-code/        # Reference plugin: Claude Code skill
+    gemini/             # Gemini CLI runner
+    codex/              # Codex CLI runner
+    agy/                # Antigravity CLI runner
+    copilot/            # Copilot CLI runner
+    cursor/             # Cursor rules
+    embed.go            # go:embed plugin files into binary
   dashboard/
     macos/              # Swift native app
     electron/           # Windows/Linux desktop

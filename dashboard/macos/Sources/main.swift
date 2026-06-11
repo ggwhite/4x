@@ -1,14 +1,19 @@
 import AppKit
 import WebKit
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScriptMessageHandler {
     var window: NSWindow!
     var webView: WKWebView!
     var serverPort: Int = 4567
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        parseArgs()
+
         let config = WKWebViewConfiguration()
+        let userContent = config.userContentController
+        userContent.add(self, name: "nativeOpenFolder")
         webView = WKWebView(frame: .zero, configuration: config)
+        webView.navigationDelegate = self
 
         window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1200, height: 800),
@@ -19,14 +24,80 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.title = "4x Live"
         window.contentView = webView
         window.center()
+        window.setFrameAutosaveName("4xLiveWindow")
         window.makeKeyAndOrderFront(nil)
-
-        if let url = URL(string: "http://localhost:\(serverPort)") {
-            webView.load(URLRequest(url: url))
-        }
 
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+
+        pollServerAndLoad()
+    }
+
+    func parseArgs() {
+        let args = CommandLine.arguments
+        for (i, arg) in args.enumerated() {
+            if arg.starts(with: "--port="), let p = Int(arg.replacingOccurrences(of: "--port=", with: "")) {
+                serverPort = p
+            } else if arg == "--port", i + 1 < args.count, let p = Int(args[i + 1]) {
+                serverPort = p
+            }
+        }
+    }
+
+    func pollServerAndLoad() {
+        let url = URL(string: "http://localhost:\(serverPort)/api/projects")!
+        let task = URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
+            guard let self = self else { return }
+            if let httpResp = response as? HTTPURLResponse, httpResp.statusCode == 200 {
+                DispatchQueue.main.async {
+                    let pageURL = URL(string: "http://localhost:\(self.serverPort)")!
+                    self.webView.load(URLRequest(url: pageURL))
+                }
+            } else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    self.pollServerAndLoad()
+                }
+            }
+        }
+        task.resume()
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        if message.name == "nativeOpenFolder" {
+            let panel = NSOpenPanel()
+            panel.canChooseDirectories = true
+            panel.canChooseFiles = false
+            panel.allowsMultipleSelection = false
+            panel.message = "Select a 4x project folder"
+
+            if panel.runModal() == .OK, let url = panel.url {
+                let path = url.path
+                let js = "addProjectFromNative('\(path.replacingOccurrences(of: "'", with: "\\'"))')"
+                webView.evaluateJavaScript(js, completionHandler: nil)
+            }
+        }
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        injectNativeBridge()
+        startTitleSync()
+    }
+
+    func injectNativeBridge() {
+        let js = "window._isNativeApp = true;"
+        webView.evaluateJavaScript(js, completionHandler: nil)
+    }
+
+    func startTitleSync() {
+        Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            self?.webView.evaluateJavaScript("activeProjectId ? (openTabs.find(t=>t.id===activeProjectId)||{}).name || '4x Live' : '4x Live'") { result, _ in
+                if let name = result as? String {
+                    DispatchQueue.main.async {
+                        self?.window.title = name == "4x Live" ? name : "\(name) — 4x Live"
+                    }
+                }
+            }
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

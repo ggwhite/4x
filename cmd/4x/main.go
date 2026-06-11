@@ -32,7 +32,6 @@ Like 4X strategy games, 4x conquers codebases through four phases.`,
 		newPromptCmd(),
 		newBatchCmd(),
 		newLiveCmd(),
-		newMonitorCmd(),
 		newConfigCmd(),
 	)
 
