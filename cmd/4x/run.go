@@ -220,6 +220,7 @@ func runLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.Conf
 	s.Active = false
 	s.StopReason = "done"
 	ws.WriteState(featureID, s)
+	syncFeatureStatus(ws, featureID, protocol.PhaseDone)
 	ws.AppendEvent(featureID, protocol.Event{
 		Type:   "transition",
 		Phase:  protocol.PhaseDone,

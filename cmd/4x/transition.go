@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/state"
@@ -28,9 +29,23 @@ func newTransitionCmd() *cobra.Command {
 			}
 
 			featureID := args[0]
+
 			s, err := ws.ReadState(featureID)
 			if err != nil {
-				return fmt.Errorf("read state: %w", err)
+				if err := ws.InitFeatureDir(featureID); err != nil {
+					return err
+				}
+				s = protocol.State{
+					FeatureID: featureID,
+					Phase:     protocol.PhaseInit,
+					MaxRounds: 5,
+					Active:    true,
+					Runner:    "claude",
+					CreatedAt: time.Now(),
+				}
+				if err := ws.WriteState(featureID, s); err != nil {
+					return err
+				}
 			}
 
 			toPhase := protocol.Phase(to)
@@ -44,9 +59,15 @@ func newTransitionCmd() *cobra.Command {
 				return err
 			}
 
+			if toPhase == protocol.PhaseDone || toPhase == protocol.PhaseBlocked {
+				newState.Active = false
+			}
+
 			if err := ws.WriteState(featureID, newState); err != nil {
 				return err
 			}
+
+			syncFeatureStatus(ws, featureID, toPhase)
 
 			ws.AppendEvent(featureID, protocol.Event{
 				Phase: toPhase,
@@ -64,4 +85,24 @@ func newTransitionCmd() *cobra.Command {
 	cmd.Flags().StringVar(&role, "role", "", "override role (optional)")
 	cmd.MarkFlagRequired("to")
 	return cmd
+}
+
+func syncFeatureStatus(ws *protocol.Workspace, featureID string, phase protocol.Phase) {
+	f, err := ws.LoadFeature(featureID)
+	if err != nil {
+		return
+	}
+
+	switch phase {
+	case protocol.PhaseDone:
+		f.Status = "done"
+	case protocol.PhaseBlocked:
+		f.Status = "blocked"
+	case protocol.PhaseInit:
+		f.Status = "not-started"
+	default:
+		f.Status = "in-progress"
+	}
+
+	ws.SaveFeature(f)
 }
