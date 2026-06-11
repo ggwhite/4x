@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ggwhite/4x/internal/protocol"
@@ -357,6 +358,102 @@ func TestCheckRequiredFiles_DonePhaseWithoutRoundDir(t *testing.T) {
 	result := Check(ws, "feat-1")
 	if !result.Pass {
 		t.Errorf("done phase without round dir should pass (legacy feature), got errors: %v", result.Errors)
+	}
+}
+
+func TestCheckDependencies_NoDeps(t *testing.T) {
+	ws := setupGuardWorkspace(t, "feat-1")
+	writeState(t, ws, "feat-1", protocol.State{Phase: protocol.PhaseInit})
+	ws.SaveFeature(protocol.Feature{ID: "feat-1", Name: "No deps"})
+
+	result := CheckDependencies(ws, "feat-1")
+	if !result.Pass {
+		t.Errorf("feature with no deps should pass, got errors: %v", result.Errors)
+	}
+}
+
+func TestCheckDependencies_AllDone(t *testing.T) {
+	ws := setupGuardWorkspace(t, "feat-a")
+	ws.SaveFeature(protocol.Feature{ID: "feat-a", Name: "A", Depends: []string{"feat-b", "feat-c"}})
+	ws.SaveFeature(protocol.Feature{ID: "feat-b", Name: "B", Status: "done"})
+	ws.SaveFeature(protocol.Feature{ID: "feat-c", Name: "C", Status: "done"})
+
+	result := CheckDependencies(ws, "feat-a")
+	if !result.Pass {
+		t.Errorf("all deps done should pass, got errors: %v", result.Errors)
+	}
+}
+
+func TestCheckDependencies_NotDone(t *testing.T) {
+	ws := setupGuardWorkspace(t, "feat-a")
+	ws.SaveFeature(protocol.Feature{ID: "feat-a", Name: "A", Depends: []string{"feat-b", "feat-c"}})
+	ws.SaveFeature(protocol.Feature{ID: "feat-b", Name: "B", Status: "done"})
+	ws.SaveFeature(protocol.Feature{ID: "feat-c", Name: "C", Status: "coding"})
+
+	result := CheckDependencies(ws, "feat-a")
+	if result.Pass {
+		t.Error("dep not done should fail")
+	}
+	found := false
+	for _, e := range result.Errors {
+		if strings.Contains(e, "feat-c") && strings.Contains(e, "coding") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected error mentioning feat-c with status coding, got %v", result.Errors)
+	}
+}
+
+func TestCheckDependencies_MissingDep(t *testing.T) {
+	ws := setupGuardWorkspace(t, "feat-a")
+	ws.SaveFeature(protocol.Feature{ID: "feat-a", Name: "A", Depends: []string{"nonexistent"}})
+
+	result := CheckDependencies(ws, "feat-a")
+	if result.Pass {
+		t.Error("missing dep should fail")
+	}
+	found := false
+	for _, e := range result.Errors {
+		if strings.Contains(e, "nonexistent") && strings.Contains(e, "cannot load") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected error about missing dep, got %v", result.Errors)
+	}
+}
+
+func TestCheckDependencies_NoFeatureYAML(t *testing.T) {
+	ws := setupGuardWorkspace(t, "feat-a")
+
+	result := CheckDependencies(ws, "feat-a")
+	if !result.Pass {
+		t.Errorf("missing feature YAML should warn, not fail: errors=%v", result.Errors)
+	}
+	if len(result.Warns) == 0 {
+		t.Error("expected warning about missing feature YAML")
+	}
+}
+
+func TestCheck_IncludesDependencyCheck(t *testing.T) {
+	ws := setupGuardWorkspace(t, "feat-a")
+	writeState(t, ws, "feat-a", protocol.State{Phase: protocol.PhaseInit})
+	ws.SaveFeature(protocol.Feature{ID: "feat-a", Name: "A", Depends: []string{"feat-b"}})
+	ws.SaveFeature(protocol.Feature{ID: "feat-b", Name: "B", Status: "coding"})
+
+	result := Check(ws, "feat-a")
+	if result.Pass {
+		t.Error("Check() should include dependency gate")
+	}
+	found := false
+	for _, e := range result.Errors {
+		if strings.Contains(e, "dependencies not done") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected dependency error in Check(), got errors: %v", result.Errors)
 	}
 }
 

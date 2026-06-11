@@ -60,6 +60,14 @@ func newRunCmd() *cobra.Command {
 				maxRounds = 5
 			}
 
+			depResult := guard.CheckDependencies(ws, featureID)
+			if !depResult.Pass {
+				for _, e := range depResult.Errors {
+					fmt.Fprintf(os.Stderr, "  blocked: %s\n", e)
+				}
+				return fmt.Errorf("feature %s has unmet dependencies", featureID)
+			}
+
 			if err := ws.InitFeatureDir(featureID); err != nil {
 				return err
 			}

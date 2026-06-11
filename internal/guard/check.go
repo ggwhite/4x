@@ -25,9 +25,45 @@ func Check(ws *protocol.Workspace, featureID string) CheckResult {
 	checkRequiredFiles(ws, featureID, &r)
 	checkBaseline(ws, featureID, &r)
 	checkScope(ws, featureID, &r)
+	checkDependencies(ws, featureID, &r)
 	checkBacklogDrift(ws, featureID, &r)
 
 	return r
+}
+
+// CheckDependencies 檢查 feature 的所有 dependency 是否已完成，用於 run 啟動前的 gate
+func CheckDependencies(ws *protocol.Workspace, featureID string) CheckResult {
+	r := CheckResult{Pass: true}
+	checkDependencies(ws, featureID, &r)
+	return r
+}
+
+func checkDependencies(ws *protocol.Workspace, featureID string, r *CheckResult) {
+	feature, err := ws.LoadFeature(featureID)
+	if err != nil {
+		r.Warns = append(r.Warns, fmt.Sprintf("cannot load feature YAML: %v", err))
+		return
+	}
+	if len(feature.Depends) == 0 {
+		return
+	}
+
+	var notDone []string
+	for _, depID := range feature.Depends {
+		dep, err := ws.LoadFeature(depID)
+		if err != nil {
+			r.Pass = false
+			r.Errors = append(r.Errors, fmt.Sprintf("dependency %q: cannot load feature: %v", depID, err))
+			continue
+		}
+		if dep.Status != "done" {
+			notDone = append(notDone, fmt.Sprintf("%s (status: %s)", depID, dep.Status))
+		}
+	}
+	if len(notDone) > 0 {
+		r.Pass = false
+		r.Errors = append(r.Errors, fmt.Sprintf("dependencies not done: %s", strings.Join(notDone, ", ")))
+	}
 }
 
 func checkBacklogDrift(ws *protocol.Workspace, featureID string, r *CheckResult) {
