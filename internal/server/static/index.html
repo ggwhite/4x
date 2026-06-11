@@ -180,7 +180,7 @@ async function loadMessages(id) {
 
 function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
 load();
-setInterval(load, 3000);
+setInterval(() => { load(); if (current) loadMessages(current); }, 3000);
 </script>
 </body>
 </html>
