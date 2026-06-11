@@ -14,10 +14,10 @@ import (
 
 const (
 	DirName        = ".4x"
-	UserConfigDir  = "4x"
-	UserConfigFile = "config.yaml"
+	UserConfigDir  = ".4x"
+	UserConfigFile = "settings.json"
 	BacklogFile    = "feature_list.json"
-	ConfigFile     = "config.yaml"
+	ConfigFile     = "settings.json"
 	FeaturesDir    = "features"
 	StateFile      = "state.json"
 	EventsFile     = "events.jsonl"
@@ -81,7 +81,7 @@ func (w *Workspace) RoundDir(featureID string, round int) string {
 	return filepath.Join(w.FeatureDir(featureID), RoundsDir, fmt.Sprintf("round-%d", round))
 }
 
-// ReadConfig 讀取 .4x/config.yaml
+// ReadConfig 讀取 .4x/settings.json
 func (w *Workspace) ReadConfig() (Config, error) {
 	return ReadConfig(w.DotDir())
 }
@@ -306,38 +306,38 @@ func (w *Workspace) AppendEvent(featureID string, evt Event) error {
 	return err
 }
 
-// ReadConfig 讀取 config.yaml
+// ReadConfig 讀取 .4x/settings.json
 func ReadConfig(dotDir string) (Config, error) {
 	data, err := os.ReadFile(filepath.Join(dotDir, ConfigFile))
 	if err != nil {
 		return Config{}, err
 	}
 	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
+	if err := json.Unmarshal(data, &cfg); err != nil {
 		return Config{}, err
 	}
 	return cfg, nil
 }
 
-// WriteConfig 寫入 config.yaml
+// WriteConfig 寫入 .4x/settings.json
 func WriteConfig(dotDir string, cfg Config) error {
-	data, err := yaml.Marshal(cfg)
+	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(dotDir, ConfigFile), data, 0o644)
+	return os.WriteFile(filepath.Join(dotDir, ConfigFile), append(data, '\n'), 0o644)
 }
 
-// UserConfigPath 回傳 ~/.config/4x/config.yaml 的路徑
+// UserConfigPath 回傳 ~/.4x/settings.json 的路徑
 func UserConfigPath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".config", UserConfigDir, UserConfigFile), nil
+	return filepath.Join(home, UserConfigDir, UserConfigFile), nil
 }
 
-// ReadUserConfig 讀取 ~/.config/4x/config.yaml，不存在時回傳零值
+// ReadUserConfig 讀取 ~/.4x/settings.json，不存在時回傳零值
 func ReadUserConfig() (UserConfig, error) {
 	path, err := UserConfigPath()
 	if err != nil {
@@ -351,13 +351,13 @@ func ReadUserConfig() (UserConfig, error) {
 		return UserConfig{}, fmt.Errorf("read user config: %w", err)
 	}
 	var cfg UserConfig
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
+	if err := json.Unmarshal(data, &cfg); err != nil {
 		return UserConfig{}, fmt.Errorf("parse user config: %w", err)
 	}
 	return cfg, nil
 }
 
-// WriteUserConfig 寫入 ~/.config/4x/config.yaml
+// WriteUserConfig 寫入 ~/.4x/settings.json
 func WriteUserConfig(cfg UserConfig) error {
 	path, err := UserConfigPath()
 	if err != nil {
@@ -366,9 +366,9 @@ func WriteUserConfig(cfg UserConfig) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	data, err := yaml.Marshal(cfg)
+	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0o644)
+	return os.WriteFile(path, append(data, '\n'), 0o644)
 }

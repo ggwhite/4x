@@ -73,7 +73,7 @@ func newInitCmd() *cobra.Command {
 			}
 			fmt.Println()
 			fmt.Println("Next steps:")
-			fmt.Println("  Edit .4x/config.yaml to customize project profile")
+			fmt.Println("  Edit .4x/settings.json to customize project profile")
 			fmt.Println("  4x new \"feature name\"    Create a feature")
 			fmt.Println("  4x run <feature-id>      Run the loop")
 			fmt.Println("  4x live                  Open dashboard")

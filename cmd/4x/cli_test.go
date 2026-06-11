@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -9,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/ggwhite/4x/internal/protocol"
-	"gopkg.in/yaml.v3"
 )
 
 var binaryPath string
@@ -47,8 +47,8 @@ func TestInit_CreatesWorkspace(t *testing.T) {
 		t.Fatalf("init failed: %v\n%s", err, out)
 	}
 
-	if _, err := os.Stat(filepath.Join(dir, ".4x", "config.yaml")); err != nil {
-		t.Error(".4x/config.yaml not created")
+	if _, err := os.Stat(filepath.Join(dir, ".4x", "settings.json")); err != nil {
+		t.Error(".4x/settings.json not created")
 	}
 	if _, err := os.Stat(filepath.Join(dir, ".4x", "features")); err != nil {
 		t.Error(".4x/features/ not created")
@@ -65,14 +65,14 @@ func TestInit_DetectsGo(t *testing.T) {
 		t.Fatalf("init failed: %v\n%s", err, out)
 	}
 
-	data, _ := os.ReadFile(filepath.Join(dir, ".4x", "config.yaml"))
+	data, _ := os.ReadFile(filepath.Join(dir, ".4x", "settings.json"))
 	cfg := struct {
 		Project struct {
-			Language string   `yaml:"language"`
-			Build    []string `yaml:"build"`
-		} `yaml:"project"`
+			Language string   `json:"language"`
+			Build    []string `json:"build"`
+		} `json:"project"`
 	}{}
-	yaml.Unmarshal(data, &cfg)
+	json.Unmarshal(data, &cfg)
 
 	if cfg.Project.Language != "go" {
 		t.Errorf("language = %q, want go", cfg.Project.Language)
@@ -92,13 +92,13 @@ func TestInit_DetectsNode(t *testing.T) {
 		t.Fatalf("init failed: %v\n%s", err, out)
 	}
 
-	data, _ := os.ReadFile(filepath.Join(dir, ".4x", "config.yaml"))
+	data, _ := os.ReadFile(filepath.Join(dir, ".4x", "settings.json"))
 	cfg := struct {
 		Project struct {
-			Language string `yaml:"language"`
-		} `yaml:"project"`
+			Language string `json:"language"`
+		} `json:"project"`
 	}{}
-	yaml.Unmarshal(data, &cfg)
+	json.Unmarshal(data, &cfg)
 
 	if cfg.Project.Language != "typescript" {
 		t.Errorf("language = %q, want typescript", cfg.Project.Language)

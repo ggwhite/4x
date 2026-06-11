@@ -190,43 +190,43 @@ type Escalation struct {
 	Detail string `json:"detail"`
 }
 
-// Config 是 .4x/config.yaml 的專案設定
+// Config 是 .4x/settings.json 的專案設定
 type Config struct {
-	Project  ProjectConfig           `yaml:"project"`
-	Runners  map[string]RunnerConfig `yaml:"runners"`
-	Default  string                  `yaml:"default_runner"`
-	Roles    map[string]RoleConfig   `yaml:"roles,omitempty"`
-	Rules    []string                `yaml:"rules,omitempty"`
-	HubRepos []string                `yaml:"hub_repos,omitempty"`
+	Project  ProjectConfig           `json:"project"`
+	Runners  map[string]RunnerConfig `json:"runners"`
+	Default  string                  `json:"default_runner"`
+	Roles    map[string]RoleConfig   `json:"roles,omitempty"`
+	Rules    []string                `json:"rules,omitempty"`
+	HubRepos []string                `json:"hub_repos,omitempty"`
 }
 
 // ProjectConfig 是專案基本設定，包含既有工具鏈的描述
 type ProjectConfig struct {
-	Name        string   `yaml:"name"`
-	Description string   `yaml:"description,omitempty"`
-	Language    string   `yaml:"language,omitempty"`
-	Setup       []string `yaml:"setup,omitempty"`
-	Build       []string `yaml:"build,omitempty"`
-	Test        []string `yaml:"test,omitempty"`
-	Lint        []string `yaml:"lint,omitempty"`
-	Docs        []string `yaml:"docs,omitempty"`
-	Rules       []string `yaml:"rules,omitempty"`
+	Name        string   `json:"name"`
+	Description string   `json:"description,omitempty"`
+	Language    string   `json:"language,omitempty"`
+	Setup       []string `json:"setup,omitempty"`
+	Build       []string `json:"build,omitempty"`
+	Test        []string `json:"test,omitempty"`
+	Lint        []string `json:"lint,omitempty"`
+	Docs        []string `json:"docs,omitempty"`
+	Rules       []string `json:"rules,omitempty"`
 }
 
 // RunnerConfig 是 LLM runner 的設定
 type RunnerConfig struct {
-	Command string   `yaml:"command"`
-	Args    []string `yaml:"args"`
-	Model   string   `yaml:"model,omitempty"`
+	Command string   `json:"command"`
+	Args    []string `json:"args"`
+	Model   string   `json:"model,omitempty"`
 }
 
 // RoleConfig 是各角色的模型設定
 type RoleConfig struct {
-	Model     string `yaml:"model,omitempty"`
-	DeepModel string `yaml:"deep_model,omitempty"`
+	Model     string `json:"model,omitempty"`
+	DeepModel string `json:"deep_model,omitempty"`
 }
 
-// UserConfig 是 ~/.config/4x/config.yaml 的使用者層級設定
+// UserConfig 是 ~/.4x/settings.json 的使用者層級設定
 type UserConfig struct {
-	Locale string `yaml:"locale,omitempty"`
+	Locale string `json:"locale,omitempty"`
 }

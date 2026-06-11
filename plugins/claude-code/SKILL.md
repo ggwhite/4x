@@ -40,10 +40,10 @@ Confirm feature exists and status is not `done`.
 
 ### Step 3: Load Model Config
 
-Read `.4x/config.yaml` and extract the `roles` section. Map to workflow model names:
+Read `.4x/settings.json` and extract the `roles` section. Map to workflow model names:
 
 ```yaml
-# .4x/config.yaml example
+# .4x/settings.json example
 roles:
   designer:
     model: opus           # task-brief, acceptance-criteria, amend
@@ -82,10 +82,10 @@ If no `roles` section exists, all defaults apply.
 
 Use the Workflow tool to orchestrate the four roles.
 
-**Important**: Read `.4x/config.yaml` and extract `project` and `roles` sections. Pass them as `args.project` and `args.models` — do NOT hardcode values.
+**Important**: Read `.4x/settings.json` and extract `project` and `roles` sections. Pass them as `args.project` and `args.models` — do NOT hardcode values.
 
 ```
-// 1. Read .4x/config.yaml
+// 1. Read .4x/settings.json
 // 2. Extract config.project → pass as args.project
 // 3. Extract config.roles  → map to args.models (see Step 3)
 

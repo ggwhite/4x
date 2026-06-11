@@ -26,7 +26,7 @@ dashboard/
   macos/             Swift native app
 schemas/             JSON Schema（state/event/feature）
 templates/           Role prompt templates（.md.tmpl）
-docs/design.md       權威設計規格
+docs/                權威設計規格（見 docs/AGENTS.md 索引）
 ```
 
 ## State Machine
@@ -50,7 +50,7 @@ any → blocked / needs-attention
 - Cobra 作為 CLI 框架，每個 subcommand 一個檔案 `cmd/4x/{cmd}.go`
 - 內部 package 放 `internal/`，不 export 給外部
 - CLI 層嚴禁呼叫 LLM — 所有 AI 互動由 plugin 負責
-- `docs/design.md` 是權威規格，實作與規格衝突時以規格為準
+- `docs/` 是權威設計規格，索引見 `docs/AGENTS.md`；實作與規格衝突時以規格為準
 - 測試用 Go 標準 testing package，測試檔放與被測程式同目錄
 
 ## Verification
@@ -63,7 +63,7 @@ go build ./cmd/4x && go vet ./... && go test ./...
 
 ## Plugin Development
 
-Plugin 合約見 `docs/design.md` §9。Claude Code plugin 在 `plugins/claude-code/`：
+Plugin 合約見 `docs/reference/plugin-contract.md`。Claude Code plugin 在 `plugins/claude-code/`：
 - `SKILL.md` — skill 定義（觸發方式、流程）
 - `workflow.js` — Claude Code Workflow 腳本
 

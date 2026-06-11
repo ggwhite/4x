@@ -80,7 +80,7 @@ func TestInit_CreatesStructure(t *testing.T) {
 		t.Errorf(".4x/features/ not created: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(dotDir, ConfigFile)); err != nil {
-		t.Errorf(".4x/config.yaml not created: %v", err)
+		t.Errorf(".4x/settings.json not created: %v", err)
 	}
 }
 

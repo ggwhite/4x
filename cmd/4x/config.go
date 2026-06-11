@@ -1,17 +1,17 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 )
 
 func newConfigCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
-		Short: "Manage user-level configuration (~/.config/4x/config.yaml)",
+		Short: "Manage user-level configuration (~/.4x/settings.json)",
 	}
 
 	cmd.AddCommand(
@@ -31,7 +31,7 @@ func newConfigListCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			data, err := yaml.Marshal(cfg)
+			data, err := json.MarshalIndent(cfg, "", "  ")
 			if err != nil {
 				return err
 			}
