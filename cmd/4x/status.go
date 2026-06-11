@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"sort"
 	"text/tabwriter"
 
 	"github.com/ggwhite/4x/internal/protocol"
@@ -37,6 +38,27 @@ func newStatusCmd() *cobra.Command {
 	return cmd
 }
 
+type featureRow struct {
+	feature  protocol.Feature
+	phase    string
+	round    string
+	active   bool
+	category int // 0=running, 1=pending, 2=todo, 3=done
+}
+
+func categorize(f protocol.Feature, active bool) int {
+	if f.Status == "in-progress" && active {
+		return 0 // running
+	}
+	if f.Status == "in-progress" {
+		return 1 // pending (in-progress but not actively running)
+	}
+	if f.Status == "done" {
+		return 3
+	}
+	return 2 // not-started = todo
+}
+
 func showAllFeatures(ws *protocol.Workspace, pendingOnly bool) error {
 	features, err := ws.ListFeatures()
 	if err != nil {
@@ -48,50 +70,95 @@ func showAllFeatures(ws *protocol.Workspace, pendingOnly bool) error {
 		return nil
 	}
 
-	var done, inProgress, notStarted int
+	var rows []featureRow
 	for _, f := range features {
-		switch f.Status {
-		case "done":
-			done++
-		case "in-progress":
-			inProgress++
-		default:
-			notStarted++
-		}
-	}
-	fmt.Printf("Total: %d features — %d done, %d in-progress, %d pending\n\n",
-		len(features), done, inProgress, notStarted)
-
-	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(w, "ID\tNAME\tSTATUS\tPHASE\tROUND")
-	fmt.Fprintln(w, "──\t────\t──────\t─────\t─────")
-
-	for _, f := range features {
-		if pendingOnly && f.Status == "done" {
-			continue
-		}
 		phase := "-"
 		round := "-"
+		active := false
 		s, err := ws.ReadState(f.ID)
 		if err == nil {
 			phase = string(s.Phase)
 			round = fmt.Sprintf("%d/%d", s.Round, s.MaxRounds)
+			active = s.Active
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", f.ID, f.Name, f.Status, phase, round)
+		rows = append(rows, featureRow{
+			feature:  f,
+			phase:    phase,
+			round:    round,
+			active:   active,
+			category: categorize(f, active),
+		})
 	}
-	if err := w.Flush(); err != nil {
-		return err
+
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].category != rows[j].category {
+			return rows[i].category < rows[j].category
+		}
+		pi, pj := rows[i].feature.Priority, rows[j].feature.Priority
+		if pi != pj {
+			return pi > pj
+		}
+		return rows[i].feature.ID < rows[j].feature.ID
+	})
+
+	counts := map[int]int{}
+	for _, r := range rows {
+		counts[r.category]++
 	}
-	if pendingOnly {
-		// --pending 模式下只顯示被列出之 feature 的 drift 警告
-		for _, f := range features {
-			if f.Status != "done" {
-				printBacklogWarnings(ws, f.ID)
+	fmt.Printf("Total: %d features — %d running, %d pending, %d todo, %d done\n\n",
+		len(features), counts[0], counts[1], counts[2], counts[3])
+
+	categoryLabels := []struct {
+		cat   int
+		label string
+	}{
+		{0, "Running"},
+		{1, "Pending"},
+		{2, "Todo"},
+		{3, "Done"},
+	}
+
+	const maxDone = 5
+
+	for _, cl := range categoryLabels {
+		var group []featureRow
+		for _, r := range rows {
+			if r.category == cl.cat {
+				group = append(group, r)
 			}
 		}
-	} else {
-		printBacklogWarnings(ws, "")
+		if len(group) == 0 {
+			continue
+		}
+		if pendingOnly && cl.cat == 3 {
+			continue
+		}
+
+		truncated := 0
+		if cl.cat == 3 && len(group) > maxDone {
+			truncated = len(group) - maxDone
+			group = group[:maxDone]
+		}
+
+		fmt.Printf("── %s (%d) ──\n", cl.label, counts[cl.cat])
+		w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+		fmt.Fprintf(w, "  PRI\tID\tNAME\tPHASE\tROUND\n")
+		fmt.Fprintf(w, "  ───\t──\t────\t─────\t─────\n")
+		for _, r := range group {
+			pri := "-"
+			if r.feature.Priority > 0 {
+				pri = fmt.Sprintf("P%d", r.feature.Priority)
+			}
+			fmt.Fprintf(w, "  %s\t%s\t%s\t%s\t%s\n", pri, r.feature.ID, r.feature.Name, r.phase, r.round)
+		}
+		w.Flush()
+		if truncated > 0 {
+			fmt.Printf("  ... and %d more\n", truncated)
+		}
+		fmt.Println()
 	}
+
+	printBacklogWarnings(ws, "")
 	return nil
 }
 
