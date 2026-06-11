@@ -34,7 +34,7 @@ func newInitCmd() *cobra.Command {
 				Runners: map[string]protocol.RunnerConfig{
 					"claude": {
 						Command: "claude",
-						Args:    []string{"-p", "{prompt}"},
+						Args:    []string{"--dangerously-skip-permissions", "-p", "{prompt}"},
 						Model:   "opus",
 					},
 					"codex": {

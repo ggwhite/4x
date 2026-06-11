@@ -55,6 +55,21 @@ The result: features that survive contact with production.
 
 **Layer 3 — Live** is the dashboard. Watch your AI agents work in real-time, see phase transitions, catch problems early. macOS native app, Windows Electron, or web UI.
 
+## ⚠️ Permission Model
+
+**4x runs AI agents in non-interactive (yolo) mode.** During `4x init`, all configured runners are set up to skip permission prompts so the Design→Code→Review→Test loop can run autonomously without human intervention:
+
+| Runner | Flag / Mechanism |
+|--------|-----------------|
+| Claude Code | `--dangerously-skip-permissions` + `.claude/settings.json` allowlist |
+| Codex | `codex.json` with `approval: full-auto` |
+| Gemini | `-y` flag + `.gemini/settings.json` sandbox |
+| Antigravity | `--dangerously-skip-permissions` + `.gemini/settings.json` sandbox |
+
+This means agents can read, write, and execute commands within your project **without asking for confirmation**. The CLI's deterministic guardrails (scope lock, baseline snapshots, state machine) provide the safety boundary — not LLM-level permission prompts.
+
+**Run 4x only in projects and environments where you are comfortable with autonomous AI agent execution.** Review the generated permission files (`.claude/settings.json`, `.gemini/settings.json`, `codex.json`) after `4x init` and adjust allowlists as needed.
+
 ## Quick Start
 
 ```bash
