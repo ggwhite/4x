@@ -69,9 +69,13 @@ Plugin 合約見 `docs/reference/plugin-contract.md`。Claude Code plugin 在 `p
 
 ## Docs Routing
 
-- superpowers brainstorming spec 存到 `docs/design/`，不存到 `docs/superpowers/`
-- superpowers plan 存到 `docs/design/`，不存到 `docs/superpowers/plans/`
-- 功能設計文件：`docs/design/`
+```
+docs/design/
+├── {feature-id}-spec.md    ← 設計規格（brainstorming 產出）
+├── {feature-id}-plan.md    ← 實作計畫（brainstorming 產出）
+```
+
+- superpowers brainstorming spec/plan 存到 `docs/design/`，不存到 `docs/superpowers/`
 - 架構文件：`docs/architecture/`
 - 參考資料：`docs/reference/`
 
