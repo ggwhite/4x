@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -84,6 +85,37 @@ func (w *Workspace) RoundDir(featureID string, round int) string {
 // ReadConfig 讀取 .4x/settings.json
 func (w *Workspace) ReadConfig() (Config, error) {
 	return ReadConfig(w.DotDir())
+}
+
+// ResolveFeatureID 用前綴比對找出唯一 feature ID（大小寫不敏感）
+func (w *Workspace) ResolveFeatureID(prefix string) (string, error) {
+	dir := filepath.Join(w.DotDir(), FeaturesDir)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", fmt.Errorf("read features dir: %w", err)
+	}
+	lower := strings.ToLower(prefix)
+	var matches []string
+	for _, e := range entries {
+		if e.IsDir() || filepath.Ext(e.Name()) != ".yaml" {
+			continue
+		}
+		id := e.Name()[:len(e.Name())-5]
+		if strings.ToLower(id) == lower {
+			return id, nil
+		}
+		if strings.HasPrefix(strings.ToLower(id), lower) {
+			matches = append(matches, id)
+		}
+	}
+	switch len(matches) {
+	case 0:
+		return "", fmt.Errorf("no feature matching %q", prefix)
+	case 1:
+		return matches[0], nil
+	default:
+		return "", fmt.Errorf("ambiguous prefix %q matches: %s", prefix, strings.Join(matches, ", "))
+	}
 }
 
 // LoadFeature 讀取 .4x/features/{id}.yaml

@@ -30,7 +30,10 @@ func newPromptCmd() *cobra.Command {
 				return err
 			}
 
-			featureID := args[0]
+			featureID, err := ws.ResolveFeatureID(args[0])
+			if err != nil {
+				return err
+			}
 			feature, err := ws.LoadFeature(featureID)
 			if err != nil {
 				return err

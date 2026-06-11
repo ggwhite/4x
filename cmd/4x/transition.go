@@ -30,7 +30,10 @@ func newTransitionCmd() *cobra.Command {
 				return err
 			}
 
-			featureID := args[0]
+			featureID, err := ws.ResolveFeatureID(args[0])
+			if err != nil {
+				return err
+			}
 
 			s, err := ws.ReadState(featureID)
 			if err != nil {

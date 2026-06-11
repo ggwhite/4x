@@ -27,7 +27,12 @@ func newCheckCmd() *cobra.Command {
 				return err
 			}
 
-			result := guard.Check(ws, args[0])
+			featureID, err := ws.ResolveFeatureID(args[0])
+			if err != nil {
+				return err
+			}
+
+			result := guard.Check(ws, featureID)
 
 			if jsonOutput {
 				data, _ := json.MarshalIndent(result, "", "  ")

@@ -29,6 +29,11 @@ func newEventCmd() *cobra.Command {
 				return err
 			}
 
+			featureID, err := ws.ResolveFeatureID(args[0])
+			if err != nil {
+				return err
+			}
+
 			evt := protocol.Event{
 				Phase:  protocol.Phase(""),
 				Type:   eventType,
@@ -38,12 +43,11 @@ func newEventCmd() *cobra.Command {
 				Detail: detail,
 			}
 
-			// 從 state 取 phase（如果有的話）
-			if s, err := ws.ReadState(args[0]); err == nil {
+			if s, err := ws.ReadState(featureID); err == nil {
 				evt.Phase = s.Phase
 			}
 
-			if err := ws.AppendEvent(args[0], evt); err != nil {
+			if err := ws.AppendEvent(featureID, evt); err != nil {
 				return err
 			}
 

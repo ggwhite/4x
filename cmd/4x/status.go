@@ -28,7 +28,11 @@ func newStatusCmd() *cobra.Command {
 			}
 
 			if len(args) == 1 {
-				return showFeatureDetail(ws, args[0])
+				featureID, err := ws.ResolveFeatureID(args[0])
+				if err != nil {
+					return err
+				}
+				return showFeatureDetail(ws, featureID)
 			}
 			return showAllFeatures(ws, pending)
 		},
