@@ -7,14 +7,67 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script>tailwind.config={theme:{extend:{fontFamily:{mono:['ui-monospace','SFMono-Regular','Menlo','monospace']}}}}</script>
 <style>
-  body { background: #0f0f0f; color: #e5e5e5; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  :root {
+    --bg-body: #0f0f0f; --bg-card: rgba(24,24,27,.5); --bg-sidebar: #0f0f0f;
+    --bg-hover: rgba(39,39,42,.3); --bg-input: rgba(39,39,42,.6);
+    --text-1: #e5e5e5; --text-2: #a1a1aa; --text-3: #71717a; --text-4: #52525b;
+    --border: rgba(39,39,42,.8); --border-light: rgba(63,63,70,.5);
+    --accent: #10b981; --font-content: 15px; --font-code: 13px;
+  }
+  [data-theme="midnight"] {
+    --bg-body: #0a0e1a; --bg-card: rgba(15,23,42,.6); --bg-sidebar: #0a0e1a;
+    --bg-hover: rgba(30,41,59,.4); --bg-input: rgba(30,41,59,.6);
+    --border: rgba(30,41,59,.8); --border-light: rgba(51,65,85,.5); --accent: #3b82f6;
+  }
+  [data-theme="noir"] {
+    --bg-body: #000; --bg-card: rgba(15,15,15,.8); --bg-sidebar: #000;
+    --bg-hover: rgba(25,25,25,.6); --bg-input: rgba(25,25,25,.8);
+    --border: rgba(30,30,30,.8); --border-light: rgba(40,40,40,.5); --accent: #a1a1aa;
+  }
+  [data-theme="frost"] {
+    --bg-body: #0f172a; --bg-card: rgba(30,41,59,.5); --bg-sidebar: #0f172a;
+    --bg-hover: rgba(51,65,85,.3); --bg-input: rgba(51,65,85,.5);
+    --text-1: #e2e8f0; --text-2: #94a3b8; --text-3: #64748b; --text-4: #475569;
+    --border: rgba(51,65,85,.6); --border-light: rgba(71,85,105,.4); --accent: #38bdf8;
+  }
+  [data-theme="light"] {
+    --bg-body: #f5f5f5; --bg-card: rgba(255,255,255,.8); --bg-sidebar: #fff;
+    --bg-hover: rgba(0,0,0,.04); --bg-input: rgba(0,0,0,.05);
+    --text-1: #18181b; --text-2: #3f3f46; --text-3: #71717a; --text-4: #a1a1aa;
+    --border: rgba(0,0,0,.08); --border-light: rgba(0,0,0,.06); --accent: #059669;
+  }
+  [data-theme="paper"] {
+    --bg-body: #faf8f5; --bg-card: rgba(255,255,255,.9); --bg-sidebar: #f5f0eb;
+    --bg-hover: rgba(0,0,0,.03); --bg-input: rgba(0,0,0,.04);
+    --text-1: #1c1917; --text-2: #44403c; --text-3: #78716c; --text-4: #a8a29e;
+    --border: rgba(0,0,0,.07); --border-light: rgba(0,0,0,.05); --accent: #b45309;
+  }
+  body { background: var(--bg-body); color: var(--text-1); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--font-content); }
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   .fade-in { animation: fadeIn .2s ease-in; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
   .pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); backdrop-filter: blur(8px); z-index: 50; display: none; justify-content: center; align-items: flex-start; padding-top: 15vh; }
+  .modal-backdrop.open { display: flex; }
+  .modal-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; width: 640px; max-height: 70vh; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,.5); backdrop-filter: blur(20px); }
+  .search-item { padding: 8px 16px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: background .1s; }
+  .search-item:hover, .search-item.active { background: var(--bg-hover); }
+  .search-item.active { border-left: 2px solid var(--accent); }
+  .settings-section { padding: 0 24px 20px; }
+  .settings-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text-3); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .stepper { display: flex; align-items: center; gap: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .stepper button { padding: 6px 12px; background: none; border: none; color: var(--text-2); cursor: pointer; font-size: 14px; }
+  .stepper button:hover { background: var(--bg-hover); }
+  .stepper span { padding: 6px 16px; min-width: 56px; text-align: center; font-size: 13px; color: var(--text-1); border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
+  .theme-card { width: 100%; aspect-ratio: 16/10; border-radius: 8px; border: 2px solid var(--border); cursor: pointer; position: relative; overflow: hidden; transition: border-color .15s; }
+  .theme-card.selected { border-color: var(--accent); }
+  .theme-card .dots { position: absolute; top: 6px; left: 8px; display: flex; gap: 3px; }
+  .theme-card .dots span { width: 5px; height: 5px; border-radius: 50%; }
+  .theme-card .lines { position: absolute; top: 18px; left: 8px; right: 8px; }
+  .theme-card .lines span { display: block; height: 3px; border-radius: 1px; margin-bottom: 3px; }
 </style>
 </head>
 <body class="min-h-screen">
@@ -49,11 +102,249 @@
   </div>
 </div>
 
+<!-- Cmd+K Search Palette -->
+<div id="search-modal" class="modal-backdrop" onclick="if(event.target===this)closeSearch()">
+  <div class="modal-panel fade-in">
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-3)"><circle cx="7" cy="7" r="5"/><path d="M11 11l3.5 3.5"/></svg>
+      <input id="search-input" type="text" placeholder="Search features..." autocomplete="off"
+        style="flex:1;background:none;border:none;outline:none;color:var(--text-1);font-size:15px;font-family:inherit"
+        oninput="onSearchInput()" onkeydown="onSearchKey(event)">
+    </div>
+    <div id="search-results" style="overflow-y:auto;max-height:calc(70vh - 100px)"></div>
+    <div style="padding:8px 16px;border-top:1px solid var(--border);display:flex;gap:16px;font-size:11px;color:var(--text-4)">
+      <span><kbd style="padding:1px 5px;border:1px solid var(--border);border-radius:3px;font-size:10px">↑↓</kbd> navigate</span>
+      <span><kbd style="padding:1px 5px;border:1px solid var(--border);border-radius:3px;font-size:10px">Enter</kbd> select</span>
+      <span><kbd style="padding:1px 5px;border:1px solid var(--border);border-radius:3px;font-size:10px">Esc</kbd> close</span>
+    </div>
+  </div>
+</div>
+
+<!-- Cmd+, Settings Panel -->
+<div id="settings-modal" class="modal-backdrop" onclick="if(event.target===this)closeSettings()">
+  <div class="modal-panel fade-in" style="width:520px;max-height:80vh;overflow-y:auto">
+    <div style="padding:20px 24px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-3)"><circle cx="9" cy="9" r="3"/><path d="M9 1v2m0 12v2m-6.36-2.64 1.42-1.42m9.9-9.9 1.42-1.42M1 9h2m12 0h2M2.64 2.64l1.42 1.42m9.9 9.9 1.42 1.42"/></svg>
+      <span style="font-size:16px;font-weight:700">Settings</span>
+    </div>
+
+    <div style="padding-top:20px">
+      <!-- APPEARANCE -->
+      <div class="settings-section">
+        <div class="settings-label">🎨 Appearance</div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div style="display:flex;align-items:center;gap:8px"><span style="color:var(--text-3)">📝</span><span style="font-size:13px">Content Font</span></div>
+            <div class="stepper"><button onclick="adjFont('content',-1)">−</button><span id="font-content-val">15px</span><button onclick="adjFont('content',1)">+</button></div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div style="display:flex;align-items:center;gap:8px"><span style="color:var(--text-3)">&lt;/&gt;</span><span style="font-size:13px">Code Font</span></div>
+            <div class="stepper"><button onclick="adjFont('code',-1)">−</button><span id="font-code-val">13px</span><button onclick="adjFont('code',1)">+</button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- THEME -->
+      <div class="settings-section">
+        <div class="settings-label">✨ Theme</div>
+        <div id="theme-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px"></div>
+      </div>
+
+      <!-- BEHAVIOR -->
+      <div class="settings-section">
+        <div class="settings-label">⚙️ Behavior</div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div><span style="font-size:13px">Refresh</span><div style="font-size:11px;color:var(--text-4)">Polling interval</div></div>
+          <div class="stepper"><button onclick="adjRefresh(-1)">−</button><span id="refresh-val">3s</span><button onclick="adjRefresh(1)">+</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 let current = null;
 let lastTasks = [];
 let lastMsgCount = 0;
 let sseSource = null;
+let searchIdx = 0;
+let searchFiltered = [];
+let refreshTimer = null;
+
+// ── Settings persistence ──
+const DEFAULTS = { theme: 'apple-dark', fontContent: 15, fontCode: 13, refresh: 3 };
+let settings = { ...DEFAULTS, ...JSON.parse(localStorage.getItem('4x-settings') || '{}') };
+
+function saveSettings() { localStorage.setItem('4x-settings', JSON.stringify(settings)); }
+
+// ── Theme definitions ──
+const THEMES = [
+  { id: 'apple-dark', name: 'Apple Dark', bg: '#0f0f0f', fg: '#e5e5e5', line: '#333' },
+  { id: 'midnight',   name: 'Midnight',   bg: '#0a0e1a', fg: '#c8d6e5', line: '#1e3a5f' },
+  { id: 'noir',       name: 'Noir',       bg: '#000000', fg: '#a0a0a0', line: '#222' },
+  { id: 'frost',      name: 'Frost',      bg: '#0f172a', fg: '#e2e8f0', line: '#334155' },
+  { id: 'light',      name: 'Light',      bg: '#f5f5f5', fg: '#18181b', line: '#ddd' },
+  { id: 'paper',      name: 'Paper',      bg: '#faf8f5', fg: '#1c1917', line: '#d6cfc7' },
+];
+
+function applyTheme(id) {
+  settings.theme = id;
+  const attr = id === 'apple-dark' ? '' : id;
+  document.documentElement.setAttribute('data-theme', attr);
+  saveSettings();
+  renderThemeGrid();
+}
+
+function renderThemeGrid() {
+  const el = document.getElementById('theme-grid');
+  el.innerHTML = THEMES.map(t => `
+    <div style="text-align:center">
+      <div class="theme-card ${settings.theme === t.id ? 'selected' : ''}" onclick="applyTheme('${t.id}')" style="background:${t.bg}">
+        <div class="dots"><span style="background:#ff5f57"></span><span style="background:#febc2e"></span><span style="background:#28c840"></span></div>
+        <div class="lines"><span style="background:${t.line};width:70%"></span><span style="background:${t.line};width:50%"></span><span style="background:${t.line};width:60%"></span></div>
+      </div>
+      <div style="font-size:11px;color:var(--text-3);margin-top:6px">${t.name}</div>
+    </div>`).join('');
+}
+
+function applyFont() {
+  document.documentElement.style.setProperty('--font-content', settings.fontContent + 'px');
+  document.documentElement.style.setProperty('--font-code', settings.fontCode + 'px');
+  document.getElementById('font-content-val').textContent = settings.fontContent + 'px';
+  document.getElementById('font-code-val').textContent = settings.fontCode + 'px';
+}
+
+function adjFont(type, delta) {
+  if (type === 'content') { settings.fontContent = Math.min(24, Math.max(12, settings.fontContent + delta)); }
+  else { settings.fontCode = Math.min(20, Math.max(10, settings.fontCode + delta)); }
+  saveSettings(); applyFont();
+}
+
+function adjRefresh(delta) {
+  settings.refresh = Math.min(30, Math.max(1, settings.refresh + delta));
+  saveSettings();
+  document.getElementById('refresh-val').textContent = settings.refresh + 's';
+  startRefreshTimer();
+}
+
+function startRefreshTimer() {
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(() => { load(); if (current) loadMessages(current); }, settings.refresh * 1000);
+}
+
+// ── Simplified ↔ Traditional Chinese normalization ──
+const S2T_S = '万与丑专业丛东丝丢两严丧个丰临为丽举么义乌乐乔习书买乱争亏云亘亚产亩亲亿仅从仑仓仪们价众优伙会伛伞伟传伤伥伦伧伪伫体余佣佥侠侣侥侦侧侨侩侪侬俣俦俭债倾偬偻偾傥傧储催傻像僵党兜兰关兴兹养兽冁内冈冉写军农冯冲决况冻净凉凌减凑凤凫凭凯击凿刍划刘则刚创删别刬刭刮制刹券刺刻剀剂剑剥剧劝办务劢动励劲劳势勋勐勚匀匦匮区医华协单卖卢卤卧卫却卺厂厅历厉压厌厍厕厘厢厣厦厩厮县叁参双发变叙叠只台叹叽吁后吓吕吗吣吨听启吴呐呒呓呕呖呗员呙呛呜咏咙咛咝咤咸响哑哒哓哔哕哗哙哜哝哟唛唝唠唡唢唣唤唦唿啧啬啭啮啯啰啴啸喂喷嗫嗳嘘嘤嘱噜噼嚣嚯园困围囱坏坚坛坜坝坞坟坠垄垅垆垒垦垧垩垫垭垯垲垴埘埙埚埝域堑堕塆墙壮声壳壶壸处备复够头夸夹夺奁奂奋奖奥妆妇妈妩妪姗姜娄娅娆娇娈娱婴婵婶媪嫒嫔嫱嬷孙学孪宁宝实宠审宪宫宽宾寝对寻导寿将尔尘尝尧尴层屃屉届属屡屦屿岁岂岖岗岘岙岚岛岭岽岿峃峄峡峣峤峥崂崃崄崭崱嵘嵚嵝巅巩巯币帅师帏帐帘帜帧帮帱帻帼幂干并广庄庆庇床庐庑库应庙庞废廪开异弃弑张弥弦弯弹强归当录彝彟彦彩彻径徕御忆忏忧忾怀态怂怃怄怅怆怜总怼怿恋恳恶恸恹恻恼恽悍悦悫悬悭悯惊惧惨惩惫惬惭惮惯愠愤愦愿慑慭憷懑懒懔懵戆戋戏戗战戬户扑扦执扩扪扫扬扰找承抚抟抠抡抢护报担拟拢拣拥拦拧拨择挂挚挛挜挝挞挟挠挡挣挤挥挦捞损捡换捣据捻掳掴掷掸掺掼揽搀搁搂搅携摄摅摆摇摈摊撑撵撷撸撺擞攒敌敛数斋斓斩断无旧时旷旸昙昼显晋晒晓晔晕晖暂暧术朮杂权条来杨杩杰极构枞枢枣枥枧枨枪枫枭柜柠柽栀栅标栈栉栊栋栌栎栏树栖样栾桠桡桢档桤桥桦桧桨桩梦梼梾检棁棂椁椟椠椤椭楼榄榆榇榈榉槚槛槟槠横樯樱橥橱橹机杀杂权杆条杰板松极构析枪果柜某样根格桂档案桥梁梦检楼标横模';
+const S2T_T = '萬與醜專業叢東絲丟兩嚴喪個豐臨為麗舉麼義烏樂喬習書買亂爭虧雲亙亞產畝親億僅從崙倉儀們價眾優夥會傴傘偉傳傷倀倫傖偽佇體餘傭僉俠侶僥偵側僑儈儕儂俁儔儉債傾傯僂憤傖儲催傻像僵黨兜蘭關興茲養獸囅內岡冉寫軍農馮衝決況凍淨涼凌減湊鳳鳧憑凱擊鑿芻劃劉則剛創刪別剗剄刮製剎券刺刻剴劑劍剝劇勸辦務勱動勵勁勞勢勳猛勚勻匭匱區醫華協單賣盧鹵臥衛卻卺廠廳歷厲壓厭厙廁釐廂厴廈廄廝縣參參雙發變敘疊隻臺嘆嘰籲後嚇呂嗎吣噸聽啟吳吶嘸囈嘔嚦唄員咼嗆嗚詠嚨嚀噝吒鹹響啞噠嘵嗶噦嘩嘖噲嚌噥唲嘜嚜嘮嗊嗩嚸喚唰呼嘖嗇囀齧噯囉嘽嘯餵噴囁噯噓嚶囑嚕劈囂謔園困圍囪壞堅壇壢壩塢墳墜壟壟壚壘墾坰堊墊埡垯塏堖塒塤堝埝域塹墮塆牆壯聲殼壺壼處備複夠頭誇夾奪奩奐奮獎奧妝婦媽嫵嫗姍薑婁婭嬈嬌孌娛嬰嬋嬸媼嬡嬪嬙嬤孫學孿寧寶實寵審憲宮寬賓寢對尋導壽將爾塵嘗堯尷層屓屜屆屬屢屨嶼歲豈嶇崗峴嶴嵐島嶺崠嶸峃嶧峽嶢嶠崢嶗崍嶄嶄崱嶸嶔嶁巔鞏巰幣帥師幃帳簾幟幀幫幬幘幗冪乾並廣莊慶庇床廬廡庫應廟龐廢廩開異棄弒張彌弦彎彈強歸當錄彝彠彥彩徹徑徠禦憶懺憂愾懷態慫憮慪悵愴憐總懟懌戀懇惡慟懨惻惱惲悍悅愨懸慳憫驚懼慘懲憊愜慚憚慣慍憤憒願懾慭憷懣懶懍懵戇戔戲戧戰戩戶撲扦執擴捫掃揚擾找承撫摶摳掄搶護報擔擬攏揀擁攔擰撥擇掛摯攣挾撾撻挾撓擋掙擠揮攈撈損撿換擣據撚擄摑擲撣摻摜攬攙擱摟攪攜攝攄擺搖擯攤撐攆擷擼攛擻攢敵斂數齋斕斬斷無舊時曠暘曇晝顯晉曬曉曄暈暉暫曖術術雜權條來楊榪傑極構樅樞棗櫪梘棖槍楓梟櫃檸檉梔柵標棧櫛櫳棟櫨櫟欄樹棲樣欒椏橈楨檔榿橋樺檜槳樁夢檮棶檢棁欞槨櫝槧欏橢樓欖榆櫬櫚櫸檟檻櫫櫧橫檣櫻櫫櫥櫓機殺雜權桿條傑板鬆極構析槍果櫃某樣根格桂檔案橋樑夢檢樓標橫模';
+
+const _cjkMap = {};
+for (let i = 0; i < S2T_S.length && i < S2T_T.length; i++) {
+  _cjkMap[S2T_T[i]] = S2T_S[i];
+  if (!_cjkMap[S2T_S[i]]) _cjkMap[S2T_S[i]] = S2T_S[i];
+}
+
+function normCJK(str) {
+  let out = '';
+  for (const ch of str) out += _cjkMap[ch] || ch;
+  return out.toLowerCase();
+}
+
+function fuzzyMatch(query, text) {
+  const nq = normCJK(query), nt = normCJK(text);
+  if (nt.includes(nq)) return true;
+  let qi = 0;
+  for (let ti = 0; ti < nt.length && qi < nq.length; ti++) {
+    if (nt[ti] === nq[qi]) qi++;
+  }
+  return qi === nq.length;
+}
+
+// ── Search ──
+function openSearch() {
+  document.getElementById('search-modal').classList.add('open');
+  const inp = document.getElementById('search-input');
+  inp.value = '';
+  inp.focus();
+  searchIdx = 0;
+  renderSearchResults('');
+}
+
+function closeSearch() {
+  document.getElementById('search-modal').classList.remove('open');
+}
+
+function onSearchInput() {
+  const q = document.getElementById('search-input').value;
+  searchIdx = 0;
+  renderSearchResults(q);
+}
+
+function renderSearchResults(query) {
+  const el = document.getElementById('search-results');
+  const g = classify(lastTasks);
+  const ordered = [...g.running, ...g.pending, ...g.done];
+  searchFiltered = query ? ordered.filter(t => fuzzyMatch(query, t.id + ' ' + t.name)) : ordered;
+  if (searchIdx >= searchFiltered.length) searchIdx = Math.max(0, searchFiltered.length - 1);
+
+  el.innerHTML = searchFiltered.map((t, i) => {
+    const isActive = t.active && t.phase && t.phase !== 'done';
+    let badgeHtml;
+    if (isActive) badgeHtml = '<span style="padding:2px 8px;font-size:10px;font-weight:600;background:rgba(16,185,129,.15);color:#34d399;border:1px solid rgba(16,185,129,.3);border-radius:99px">In Progress</span>';
+    else if (t.status === 'done') badgeHtml = '<span style="padding:2px 8px;font-size:10px;color:var(--text-3);border:1px solid var(--border);border-radius:99px">Done</span>';
+    else if (t.status === 'blocked') badgeHtml = '<span style="padding:2px 8px;font-size:10px;color:#f87171;border:1px solid rgba(248,113,113,.3);border-radius:99px">Blocked</span>';
+    else badgeHtml = '<span style="padding:2px 8px;font-size:10px;color:var(--text-4);border:1px solid var(--border);border-radius:99px">Not Started</span>';
+
+    return `<div class="search-item ${i === searchIdx ? 'active' : ''}" onclick="selectSearch(${i})" onmouseenter="searchIdx=${i};renderSearchResults(document.getElementById('search-input').value)">
+      <span style="font-size:13px;font-weight:600;color:${isActive ? '#34d399' : 'var(--accent)'};min-width:80px">${esc(t.id)}</span>
+      <span style="flex:1;font-size:13px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.name)}</span>
+      ${badgeHtml}
+    </div>`;
+  }).join('');
+}
+
+function selectSearch(idx) {
+  const t = searchFiltered[idx];
+  if (!t) return;
+  closeSearch();
+  current = t.id;
+  load();
+  loadDetail(t);
+}
+
+function onSearchKey(e) {
+  if (e.key === 'ArrowDown') { e.preventDefault(); searchIdx = Math.min(searchIdx + 1, searchFiltered.length - 1); renderSearchResults(document.getElementById('search-input').value); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); searchIdx = Math.max(searchIdx - 1, 0); renderSearchResults(document.getElementById('search-input').value); }
+  else if (e.key === 'Enter') { e.preventDefault(); selectSearch(searchIdx); }
+  else if (e.key === 'Escape') { closeSearch(); }
+}
+
+// ── Settings ──
+function openSettings() {
+  document.getElementById('settings-modal').classList.add('open');
+  renderThemeGrid();
+  applyFont();
+  document.getElementById('refresh-val').textContent = settings.refresh + 's';
+}
+
+function closeSettings() {
+  document.getElementById('settings-modal').classList.remove('open');
+}
+
+// ── Global keyboard shortcuts ──
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); openSearch(); }
+  else if ((e.metaKey || e.ctrlKey) && e.key === ',') { e.preventDefault(); openSettings(); }
+  else if (e.key === 'Escape') {
+    if (document.getElementById('search-modal').classList.contains('open')) closeSearch();
+    else if (document.getElementById('settings-modal').classList.contains('open')) closeSettings();
+  }
+});
+
+// ── Init settings on load ──
+function initSettings() {
+  applyTheme(settings.theme);
+  applyFont();
+  startRefreshTimer();
+}
 
 const ROLES = {
   designer:       { name: 'Designer',     color: '#a855f7', bg: 'rgba(168,85,247,.08)' },
@@ -363,7 +654,7 @@ async function loadMessages(id) {
 
 function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
 load();
-setInterval(() => { load(); if (current) loadMessages(current); }, 3000);
+initSettings();
 </script>
 </body>
 </html>
