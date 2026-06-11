@@ -80,9 +80,15 @@ If no `roles` section exists, all defaults apply.
 
 ### Step 5: Launch Workflow
 
-Use the Workflow tool to orchestrate the four roles. Pass models from Step 3 and project profile.
+Use the Workflow tool to orchestrate the four roles.
+
+**Important**: Read `.4x/config.yaml` and extract `project` and `roles` sections. Pass them as `args.project` and `args.models` — do NOT hardcode values.
 
 ```
+// 1. Read .4x/config.yaml
+// 2. Extract config.project → pass as args.project
+// 3. Extract config.roles  → map to args.models (see Step 3)
+
 Workflow({
   scriptPath: "<path-to-this-plugin>/workflow.js",
   args: {
@@ -91,22 +97,8 @@ Workflow({
     dotDir: ".4x",
     only: null,
     resume: null,
-    models: {
-      designer: "opus",
-      coder: "sonnet",
-      reviewer: "sonnet",
-      deep_reviewer: "opus",
-      tester: "sonnet",
-      acceptor: "opus"
-    },
-    project: {
-      setup: ["docker compose up -d"],
-      build: ["make build"],
-      test: ["make test"],
-      lint: ["make lint"],
-      docs: ["docs/architecture.md"],
-      rules: ["All APIs must have integration tests"]
-    }
+    models: { /* from config.roles — see Step 3 mapping table */ },
+    project: { /* from config.project — pass setup/build/test/lint/docs/rules as-is */ }
   }
 })
 ```
