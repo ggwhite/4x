@@ -138,6 +138,7 @@ func generatePrompt(ws *protocol.Workspace, feature protocol.Feature, cfg protoc
 		RoleInstructions: roleInstructions(cfg, role),
 		ProjectIncludes:  loadIncludes(ws.Root, cfg.Project.Includes),
 		RoleIncludes:     loadIncludes(ws.Root, roleInc),
+		PlanningDoc:      loadPlanningDocs(ws.Root, feature.ID),
 	}
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {

@@ -22,6 +22,12 @@ Include:
 - Summary of what you did
 - Subtask progress updates (if applicable)
 
+{{- if .PlanningDoc }}
+
+## Planning Document (design context)
+{{ .PlanningDoc }}
+{{- end }}
+
 {{- if .Project.Setup }}
 
 ## Dev Environment Setup

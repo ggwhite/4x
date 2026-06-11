@@ -25,6 +25,12 @@ Analyze requirements, explore the codebase, and produce three artifacts that wil
 {{- end }}
 {{- end }}
 
+{{- if .PlanningDoc }}
+
+## Planning Document (pre-design analysis — follow this closely)
+{{ .PlanningDoc }}
+{{- end }}
+
 {{- if .Feature.Rules }}
 
 ## Feature-Level Rules

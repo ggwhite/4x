@@ -215,6 +215,95 @@ func writeCLIFile(t *testing.T, path, content string) {
 	}
 }
 
+func TestUpgrade_NoWorkspace(t *testing.T) {
+	dir := t.TempDir()
+	out, err := run4x(dir, "upgrade")
+	if err == nil {
+		t.Fatal("expected error when no workspace exists")
+	}
+	if !strings.Contains(out, "找不到 .4x/") {
+		t.Fatalf("output = %q, want workspace not found message", out)
+	}
+}
+
+func TestUpgrade_DeploysPlugins(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := run4x(dir, "init"); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	pluginFile := filepath.Join(dir, ".4x", "plugins", "CLAUDE.md")
+	if err := os.Remove(pluginFile); err != nil {
+		t.Fatalf("remove plugin: %v", err)
+	}
+
+	out, err := run4x(dir, "upgrade")
+	if err != nil {
+		t.Fatalf("upgrade failed: %v\n%s", err, out)
+	}
+
+	if _, err := os.Stat(pluginFile); err != nil {
+		t.Error("plugin file not restored after upgrade")
+	}
+}
+
+func TestUpgrade_PreservesUserContent(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := run4x(dir, "init"); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	claudeFile := filepath.Join(dir, "CLAUDE.md")
+	data, err := os.ReadFile(claudeFile)
+	if err != nil {
+		t.Fatalf("read CLAUDE.md: %v", err)
+	}
+
+	userContent := "\n## My Custom Section\nCustom content here\n"
+	if err := os.WriteFile(claudeFile, append(data, []byte(userContent)...), 0o644); err != nil {
+		t.Fatalf("write CLAUDE.md: %v", err)
+	}
+
+	out, err := run4x(dir, "upgrade")
+	if err != nil {
+		t.Fatalf("upgrade failed: %v\n%s", err, out)
+	}
+
+	after, _ := os.ReadFile(claudeFile)
+	content := string(after)
+	if !strings.Contains(content, "@.4x/plugins/CLAUDE.md") {
+		t.Error("@import line missing after upgrade")
+	}
+	if !strings.Contains(content, "My Custom Section") {
+		t.Error("user content was removed by upgrade")
+	}
+}
+
+func TestUpgrade_UpdatesStaleFiles(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := run4x(dir, "init"); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	pluginFile := filepath.Join(dir, ".4x", "plugins", "CLAUDE.md")
+	if err := os.WriteFile(pluginFile, []byte("stale content"), 0o644); err != nil {
+		t.Fatalf("write stale plugin: %v", err)
+	}
+
+	out, err := run4x(dir, "upgrade")
+	if err != nil {
+		t.Fatalf("upgrade failed: %v\n%s", err, out)
+	}
+
+	data, _ := os.ReadFile(pluginFile)
+	if string(data) == "stale content" {
+		t.Error("plugin file not updated after upgrade")
+	}
+	if len(data) == 0 {
+		t.Error("plugin file is empty after upgrade")
+	}
+}
+
 func TestTransition_TestingToAcceptingRequiresTesterArtifacts(t *testing.T) {
 	dir := t.TempDir()
 	run4x(dir, "init")

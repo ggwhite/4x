@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/template"
 
 	"github.com/ggwhite/4x/internal/protocol"
@@ -67,6 +68,7 @@ func newPromptCmd() *cobra.Command {
 				RoleInstructions: roleInstructions(cfg, r),
 				ProjectIncludes:  loadIncludes(ws.Root, cfg.Project.Includes),
 				RoleIncludes:     loadIncludes(ws.Root, roleInc),
+				PlanningDoc:      loadPlanningDocs(ws.Root, feature.ID),
 			}
 
 			tmpl, err := loadRoleTemplate(r)
@@ -95,6 +97,7 @@ type promptData struct {
 	RoleInstructions []string
 	ProjectIncludes  []includeContent
 	RoleIncludes     []includeContent
+	PlanningDoc      string
 }
 
 type includeContent struct {
@@ -108,6 +111,21 @@ func roleInstructions(cfg protocol.Config, r protocol.Role) []string {
 		return rc.Instructions
 	}
 	return nil
+}
+
+// loadPlanningDocs 嘗試讀取 docs/design/{featureID}-spec.md 和 -plan.md
+// 檔案不存在時跳過，不報錯
+func loadPlanningDocs(root, featureID string) string {
+	var parts []string
+	for _, suffix := range []string{"-spec.md", "-plan.md"} {
+		p := filepath.Join(root, "docs", "design", featureID+suffix)
+		data, err := os.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		parts = append(parts, string(data))
+	}
+	return strings.Join(parts, "\n\n---\n\n")
 }
 
 // loadIncludes 讀取指定路徑的檔案內容，路徑相對於 root 解析
@@ -242,6 +260,11 @@ Subtasks:
   - {{.ID}}: {{.Name}}{{if .Description}} — {{.Description}}{{end}}
 {{- end}}
 {{- end}}
+{{- if .PlanningDoc}}
+
+== Planning Document (pre-design analysis — follow this closely) ==
+{{.PlanningDoc}}
+{{- end}}
 {{- if .Project.Docs}}
 
 == Project Documentation (read these for context) ==
@@ -331,6 +354,11 @@ Use the Write tool to create the file. Do NOT just print the content — write t
 Read your task brief: {{.DotDir}}/{{.Feature.ID}}/task-brief.md
 {{- if gt .Round 1}}
 Read the previous test report: {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{(sub .Round 1)}}/test-report.md
+{{- end}}
+{{- if .PlanningDoc}}
+
+== Planning Document (design context) ==
+{{.PlanningDoc}}
 {{- end}}
 {{- if .Project.Setup}}
 
