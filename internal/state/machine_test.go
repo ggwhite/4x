@@ -13,24 +13,28 @@ func TestCanTransition_Valid(t *testing.T) {
 	}{
 		{protocol.PhaseInit, protocol.PhaseDesigning},
 		{protocol.PhaseDesigning, protocol.PhaseCoding},
-		{protocol.PhaseDesigning, protocol.PhaseBlocked},
 		{protocol.PhaseCoding, protocol.PhaseReviewing},
-		{protocol.PhaseCoding, protocol.PhaseAmending},
-		{protocol.PhaseCoding, protocol.PhaseBlocked},
-		{protocol.PhaseReviewing, protocol.PhaseCoding},
 		{protocol.PhaseReviewing, protocol.PhaseTesting},
-		{protocol.PhaseReviewing, protocol.PhaseBlocked},
-		{protocol.PhaseTesting, protocol.PhaseCoding},
-		{protocol.PhaseTesting, protocol.PhaseAmending},
+		{protocol.PhaseReviewing, protocol.PhaseAmending},
+		{protocol.PhaseAmending, protocol.PhaseReviewing},
 		{protocol.PhaseTesting, protocol.PhaseAccepting},
-		{protocol.PhaseTesting, protocol.PhaseBlocked},
-		{protocol.PhaseAmending, protocol.PhaseCoding},
-		{protocol.PhaseAmending, protocol.PhaseBlocked},
+		{protocol.PhaseTesting, protocol.PhaseAmending},
 		{protocol.PhaseAccepting, protocol.PhaseDone},
-		{protocol.PhaseAccepting, protocol.PhaseBlocked},
 		{protocol.PhaseBlocked, protocol.PhaseDesigning},
 		{protocol.PhaseBlocked, protocol.PhaseCoding},
 		{protocol.PhaseBlocked, protocol.PhaseTesting},
+		{protocol.PhaseNeedsAttention, protocol.PhaseDesigning},
+		{protocol.PhaseNeedsAttention, protocol.PhaseCoding},
+		{protocol.PhaseInit, protocol.PhaseBlocked},
+		{protocol.PhaseDesigning, protocol.PhaseBlocked},
+		{protocol.PhaseCoding, protocol.PhaseBlocked},
+		{protocol.PhaseReviewing, protocol.PhaseBlocked},
+		{protocol.PhaseTesting, protocol.PhaseBlocked},
+		{protocol.PhaseAmending, protocol.PhaseBlocked},
+		{protocol.PhaseAccepting, protocol.PhaseBlocked},
+		{protocol.PhaseCoding, protocol.PhaseNeedsAttention},
+		{protocol.PhaseReviewing, protocol.PhaseNeedsAttention},
+		{protocol.PhaseTesting, protocol.PhaseNeedsAttention},
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.from)+"→"+string(tt.to), func(t *testing.T) {
@@ -53,11 +57,15 @@ func TestCanTransition_Invalid(t *testing.T) {
 		{protocol.PhaseDesigning, protocol.PhaseDone},
 		{protocol.PhaseCoding, protocol.PhaseDone},
 		{protocol.PhaseCoding, protocol.PhaseAccepting},
+		{protocol.PhaseCoding, protocol.PhaseAmending},
 		{protocol.PhaseReviewing, protocol.PhaseDone},
 		{protocol.PhaseReviewing, protocol.PhaseAccepting},
+		{protocol.PhaseReviewing, protocol.PhaseCoding},
 		{protocol.PhaseTesting, protocol.PhaseDesigning},
+		{protocol.PhaseTesting, protocol.PhaseCoding},
 		{protocol.PhaseAmending, protocol.PhaseTesting},
 		{protocol.PhaseAmending, protocol.PhaseDone},
+		{protocol.PhaseAmending, protocol.PhaseCoding},
 		{protocol.PhaseAccepting, protocol.PhaseCoding},
 		{protocol.PhaseDone, protocol.PhaseInit},
 		{protocol.PhaseDone, protocol.PhaseCoding},
@@ -94,25 +102,47 @@ func TestTransition_InvalidReturnsError(t *testing.T) {
 	}
 }
 
-func TestTransition_RoundIncrement(t *testing.T) {
+func TestTransition_FirstCodingRound(t *testing.T) {
 	s := protocol.State{Phase: protocol.PhaseDesigning, Round: 0}
 	got, err := Transition(s, protocol.PhaseCoding, protocol.RoleCoder)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if got.Round != 1 {
-		t.Errorf("Round = %d, want 1 (first coding round)", got.Round)
+		t.Errorf("Round = %d, want 1", got.Round)
 	}
 }
 
-func TestTransition_AmendingToCodingShouldNotIncrementRound(t *testing.T) {
-	s := protocol.State{Phase: protocol.PhaseAmending, Round: 2}
-	got, err := Transition(s, protocol.PhaseCoding, protocol.RoleCoder)
+func TestTransition_AmendingIncrementsRound(t *testing.T) {
+	s := protocol.State{Phase: protocol.PhaseReviewing, Round: 1}
+	got, err := Transition(s, protocol.PhaseAmending, protocol.RoleCoder)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if got.Round != 2 {
-		t.Errorf("Round = %d, want 2 (amending→coding should not increment)", got.Round)
+		t.Errorf("Round = %d, want 2", got.Round)
+	}
+}
+
+func TestTransition_TestingToAmendingIncrementsRound(t *testing.T) {
+	s := protocol.State{Phase: protocol.PhaseTesting, Round: 1}
+	got, err := Transition(s, protocol.PhaseAmending, protocol.RoleCoder)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Round != 2 {
+		t.Errorf("Round = %d, want 2", got.Round)
+	}
+}
+
+func TestTransition_AmendingToReviewingNoIncrement(t *testing.T) {
+	s := protocol.State{Phase: protocol.PhaseAmending, Round: 2}
+	got, err := Transition(s, protocol.PhaseReviewing, protocol.RoleReviewer)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Round != 2 {
+		t.Errorf("Round = %d, want 2", got.Round)
 	}
 }
 
@@ -123,7 +153,18 @@ func TestTransition_RoundNotIncrementedForNonCoding(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if got.Round != 1 {
-		t.Errorf("Round = %d, want 1 (reviewing should not increment)", got.Round)
+		t.Errorf("Round = %d, want 1", got.Round)
+	}
+}
+
+func TestTransition_BlockedToCodingKeepsRound(t *testing.T) {
+	s := protocol.State{Phase: protocol.PhaseBlocked, Round: 2}
+	got, err := Transition(s, protocol.PhaseCoding, protocol.RoleCoder)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Round != 2 {
+		t.Errorf("Round = %d, want 2", got.Round)
 	}
 }
 
@@ -133,14 +174,15 @@ func TestPhaseToRole(t *testing.T) {
 		want  protocol.Role
 	}{
 		{protocol.PhaseDesigning, protocol.RoleDesigner},
-		{protocol.PhaseAmending, protocol.RoleDesigner},
 		{protocol.PhaseAccepting, protocol.RoleDesigner},
 		{protocol.PhaseCoding, protocol.RoleCoder},
+		{protocol.PhaseAmending, protocol.RoleCoder},
 		{protocol.PhaseReviewing, protocol.RoleReviewer},
 		{protocol.PhaseTesting, protocol.RoleTester},
 		{protocol.PhaseInit, ""},
 		{protocol.PhaseDone, ""},
 		{protocol.PhaseBlocked, ""},
+		{protocol.PhaseNeedsAttention, ""},
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.phase), func(t *testing.T) {

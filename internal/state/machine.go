@@ -6,20 +6,25 @@ import (
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
-// 合法的 phase 轉換表
+// 合法的 phase 轉換表（對齊 docs/design.md §4）
+// blocked 和 needs-attention 是 universal target，由 CanTransition 特殊處理
 var transitions = map[protocol.Phase][]protocol.Phase{
-	protocol.PhaseInit:      {protocol.PhaseDesigning},
-	protocol.PhaseDesigning: {protocol.PhaseCoding, protocol.PhaseBlocked},
-	protocol.PhaseCoding:    {protocol.PhaseReviewing, protocol.PhaseAmending, protocol.PhaseBlocked},
-	protocol.PhaseReviewing: {protocol.PhaseCoding, protocol.PhaseTesting, protocol.PhaseBlocked},
-	protocol.PhaseTesting:   {protocol.PhaseCoding, protocol.PhaseAmending, protocol.PhaseAccepting, protocol.PhaseBlocked},
-	protocol.PhaseAmending:  {protocol.PhaseCoding, protocol.PhaseBlocked},
-	protocol.PhaseAccepting: {protocol.PhaseDone, protocol.PhaseBlocked},
-	protocol.PhaseBlocked:   {protocol.PhaseDesigning, protocol.PhaseCoding, protocol.PhaseTesting},
+	protocol.PhaseInit:           {protocol.PhaseDesigning},
+	protocol.PhaseDesigning:      {protocol.PhaseCoding},
+	protocol.PhaseCoding:         {protocol.PhaseReviewing},
+	protocol.PhaseReviewing:      {protocol.PhaseTesting, protocol.PhaseAmending},
+	protocol.PhaseAmending:       {protocol.PhaseReviewing},
+	protocol.PhaseTesting:        {protocol.PhaseAccepting, protocol.PhaseAmending},
+	protocol.PhaseAccepting:      {protocol.PhaseDone},
+	protocol.PhaseBlocked:        {protocol.PhaseDesigning, protocol.PhaseCoding, protocol.PhaseTesting},
+	protocol.PhaseNeedsAttention: {protocol.PhaseDesigning, protocol.PhaseCoding},
 }
 
 // CanTransition 檢查從 from 到 to 是否合法
 func CanTransition(from, to protocol.Phase) bool {
+	if to == protocol.PhaseBlocked || to == protocol.PhaseNeedsAttention {
+		return true
+	}
 	allowed, ok := transitions[from]
 	if !ok {
 		return false
@@ -37,10 +42,12 @@ func Transition(s protocol.State, to protocol.Phase, role protocol.Role) (protoc
 	if !CanTransition(s.Phase, to) {
 		return s, fmt.Errorf("invalid transition: %s → %s", s.Phase, to)
 	}
-	from := s.Phase
 	s.Phase = to
 	s.Role = role
-	if to == protocol.PhaseCoding && from != protocol.PhaseAmending {
+	switch {
+	case to == protocol.PhaseCoding && s.Round == 0:
+		s.Round = 1
+	case to == protocol.PhaseAmending:
 		s.Round++
 	}
 	return s, nil
@@ -49,9 +56,9 @@ func Transition(s protocol.State, to protocol.Phase, role protocol.Role) (protoc
 // PhaseToRole 回傳某 phase 預設對應的 role
 func PhaseToRole(p protocol.Phase) protocol.Role {
 	switch p {
-	case protocol.PhaseDesigning, protocol.PhaseAmending, protocol.PhaseAccepting:
+	case protocol.PhaseDesigning, protocol.PhaseAccepting:
 		return protocol.RoleDesigner
-	case protocol.PhaseCoding:
+	case protocol.PhaseCoding, protocol.PhaseAmending:
 		return protocol.RoleCoder
 	case protocol.PhaseReviewing:
 		return protocol.RoleReviewer

@@ -98,6 +98,8 @@ func syncFeatureStatus(ws *protocol.Workspace, featureID string, phase protocol.
 		f.Status = "done"
 	case protocol.PhaseBlocked:
 		f.Status = "blocked"
+	case protocol.PhaseNeedsAttention:
+		f.Status = "needs-attention"
 	case protocol.PhaseInit:
 		f.Status = "not-started"
 	default:

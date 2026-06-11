@@ -8,16 +8,17 @@
       "Bash(4x *)",
       "Bash(./bin/4x *)",
       "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
       "Bash(ls *)",
+      "Bash(find *)",
       "Bash(mkdir *)",
       "Bash(grep *)",
+      "Bash(git *)",
+      "Bash(wc *)",
       "Read",
-      "Write(.4x/**)",
-      "Write(internal/**)",
-      "Write(cmd/**)",
-      "Write(templates/**)",
-      "Write(plugins/**)",
-      "Edit"
+      "Edit",
+      "Write"
     ]
   }
 }

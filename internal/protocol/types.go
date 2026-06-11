@@ -6,15 +6,16 @@ import "time"
 type Phase string
 
 const (
-	PhaseInit      Phase = "init"
-	PhaseDesigning Phase = "designing"
-	PhaseCoding    Phase = "coding"
-	PhaseReviewing Phase = "reviewing"
-	PhaseTesting   Phase = "testing"
-	PhaseAmending  Phase = "amending"
-	PhaseAccepting Phase = "accepting"
-	PhaseDone      Phase = "done"
-	PhaseBlocked   Phase = "blocked"
+	PhaseInit           Phase = "init"
+	PhaseDesigning      Phase = "designing"
+	PhaseCoding         Phase = "coding"
+	PhaseReviewing      Phase = "reviewing"
+	PhaseTesting        Phase = "testing"
+	PhaseAmending       Phase = "amending"
+	PhaseAccepting      Phase = "accepting"
+	PhaseDone           Phase = "done"
+	PhaseBlocked        Phase = "blocked"
+	PhaseNeedsAttention Phase = "needs-attention"
 )
 
 // Role 表示 4x 的四個角色
@@ -108,6 +109,7 @@ type BaselineRepo struct {
 
 // VerifyEvidence 是 rounds/round-N/verify.json 的結構
 type VerifyEvidence struct {
+	Passed   bool            `json:"passed"`
 	Round    int             `json:"round"`
 	Role     Role            `json:"role"`
 	Commands []VerifyCommand `json:"commands"`
@@ -138,6 +140,12 @@ type ReviewIssue struct {
 	Rule     string   `json:"rule"`
 	File     string   `json:"file"`
 	Detail   string   `json:"detail"`
+}
+
+// ReviewResult 是 review verdict 的結構化結果，包含通過與否及 critical issue 計數
+type ReviewResult struct {
+	Passed        bool `json:"passed"`
+	CriticalCount int  `json:"criticalCount"`
 }
 
 // Escalation 是 Coder/Tester 觸發 Designer 重新介入

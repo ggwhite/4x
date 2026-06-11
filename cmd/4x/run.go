@@ -3,8 +3,11 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/ggwhite/4x/internal/guard"
@@ -129,150 +132,231 @@ func runLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.Conf
 	featureID := feature.ID
 	ctx := context.Background()
 
-	phases := []struct {
-		phase protocol.Phase
-		role  protocol.Role
-	}{
-		{protocol.PhaseDesigning, protocol.RoleDesigner},
-		{protocol.PhaseCoding, protocol.RoleCoder},
-		{protocol.PhaseReviewing, protocol.RoleReviewer},
-		{protocol.PhaseTesting, protocol.RoleTester},
-		{protocol.PhaseAccepting, protocol.RoleDesigner},
+	if s.Phase == protocol.PhaseInit {
+		var err error
+		s, err = state.Transition(s, protocol.PhaseDesigning, protocol.RoleDesigner)
+		if err != nil {
+			return err
+		}
+		ws.WriteState(featureID, s)
+		syncFeatureStatus(ws, featureID, s.Phase)
 	}
 
-	startIdx := 0
-	for i, p := range phases {
-		if s.Phase == p.phase {
-			startIdx = i
+	for s.Active {
+		phase := s.Phase
+		role := state.PhaseToRole(phase)
+
+		if phase == protocol.PhaseDone || phase == protocol.PhaseBlocked || phase == protocol.PhaseNeedsAttention {
 			break
 		}
-	}
-	if s.Phase == protocol.PhaseInit {
-		startIdx = 0
-	}
 
-	for round := s.Round; round <= s.MaxRounds; round++ {
-		for i := startIdx; i < len(phases); i++ {
-			p := phases[i]
-
-			newState, err := state.Transition(s, p.phase, p.role)
-			if err != nil {
-				fmt.Printf("  skip %s→%s: %v\n", s.Phase, p.phase, err)
-				continue
-			}
-			s = newState
-
-			if err := ws.WriteState(featureID, s); err != nil {
-				return err
-			}
-			syncFeatureStatus(ws, featureID, p.phase)
-
-			ws.AppendEvent(featureID, protocol.Event{
-				Type:  "phase-start",
-				Phase: p.phase,
-				Role:  p.role,
-				Round: s.Round,
-			})
-
-			prompt, err := generatePrompt(ws, feature, cfg, p.role, s.Round)
-			if err != nil {
-				fmt.Printf("  warning: %v, using minimal prompt\n", err)
-				prompt = fmt.Sprintf("You are the %s for feature %s, round %d. Read .4x/%s/ for context.", p.role, featureID, s.Round, featureID)
-			}
-
-			fmt.Printf("[round %d] %s (%s) — invoking %s\n", s.Round, p.phase, p.role, cfg.Default)
-
-			result, err := r.Run(ctx, prompt)
-			if err != nil {
-				fmt.Printf("  error: %v\n", err)
-				s.Active = false
-				s.StopReason = "runner-error"
-				ws.WriteState(featureID, s)
-				ws.AppendEvent(featureID, protocol.Event{
-					Type:   "run-end",
-					Phase:  p.phase,
-					Role:   p.role,
-					Round:  s.Round,
-					Status: "error",
-					Detail: err.Error(),
-				})
-				return err
-			}
-
-			ws.AppendEvent(featureID, protocol.Event{
-				Type:   "run-end",
-				Phase:  p.phase,
-				Role:   p.role,
-				Round:  s.Round,
-				Status: fmt.Sprintf("exit-%d", result.ExitCode),
-			})
-
-			if runner.IsHardError(result) {
-				s.Active = false
-				s.StopReason = "hard-error"
-				ws.WriteState(featureID, s)
-				return fmt.Errorf("runner returned hard error (exit 2)")
-			}
-
-			if runner.IsSoftFail(result) {
-				s.Phase = protocol.PhaseBlocked
-				s.Active = false
-				s.StopReason = "soft-fail"
-				ws.WriteState(featureID, s)
-				syncFeatureStatus(ws, featureID, protocol.PhaseBlocked)
-				fmt.Printf("  soft fail — feature blocked\n")
-				return nil
-			}
-
-			check := guard.Check(ws, featureID)
-			if !check.Pass {
-				fmt.Printf("  ❌ guardrails failed:\n")
-				for _, e := range check.Errors {
-					fmt.Printf("    ERROR: %s\n", e)
-				}
-				s.Active = false
-				s.StopReason = "guardrail-fail"
-				ws.WriteState(featureID, s)
-				syncFeatureStatus(ws, featureID, protocol.PhaseBlocked)
-				ws.AppendEvent(featureID, protocol.Event{
-					Type:   "run-end",
-					Phase:  p.phase,
-					Role:   p.role,
-					Round:  s.Round,
-					Status: "guardrail-fail",
-					Detail: check.Errors[0],
-				})
-				return fmt.Errorf("guardrails failed after %s phase — feature blocked", p.phase)
-			}
-			for _, w := range check.Warns {
-				fmt.Printf("  ⚠ %s\n", w)
-			}
-
-			if stop, reason := state.ShouldStop(s); stop {
-				s.Active = false
-				s.StopReason = reason
-				ws.WriteState(featureID, s)
-				fmt.Printf("  stopped: %s\n", reason)
-				return nil
-			}
+		if stop, reason := state.ShouldStop(s); stop {
+			s.Active = false
+			s.StopReason = reason
+			s.Phase = protocol.PhaseNeedsAttention
+			ws.WriteState(featureID, s)
+			syncFeatureStatus(ws, featureID, s.Phase)
+			ws.AppendEvent(featureID, protocol.Event{Type: "escalation", Phase: s.Phase, Detail: reason})
+			fmt.Printf("  stopped: %s\n", reason)
+			return nil
 		}
 
-		startIdx = 1
+		if phase == protocol.PhaseCoding && s.Round == 1 {
+			guard.CaptureBaseline(ws, featureID, repoPathsFromFeature(feature))
+		}
+
+		ws.AppendEvent(featureID, protocol.Event{
+			Type: "phase-start", Phase: phase, Role: role, Round: s.Round,
+		})
+
+		prompt, err := generatePrompt(ws, feature, cfg, role, s.Round)
+		if err != nil {
+			prompt = fmt.Sprintf("You are the %s for feature %s, round %d. Read .4x/%s/ for context.", role, featureID, s.Round, featureID)
+		}
+
+		fmt.Printf("[round %d] %s (%s) — invoking %s\n", s.Round, phase, role, s.Runner)
+
+		result, err := r.Run(ctx, prompt)
+		if err != nil {
+			s.Active = false
+			s.StopReason = "runner-error"
+			ws.WriteState(featureID, s)
+			ws.AppendEvent(featureID, protocol.Event{
+				Type: "run-end", Phase: phase, Role: role, Round: s.Round,
+				Status: "error", Detail: err.Error(),
+			})
+			return err
+		}
+
+		ws.AppendEvent(featureID, protocol.Event{
+			Type: "run-end", Phase: phase, Role: role, Round: s.Round,
+			Status: fmt.Sprintf("exit-%d", result.ExitCode),
+		})
+
+		if runner.IsHardError(result) {
+			s.Active = false
+			s.StopReason = "hard-error"
+			ws.WriteState(featureID, s)
+			return fmt.Errorf("runner returned hard error (exit 2)")
+		}
+
+		if runner.IsSoftFail(result) {
+			s.Phase = protocol.PhaseBlocked
+			s.Active = false
+			s.StopReason = "soft-fail"
+			ws.WriteState(featureID, s)
+			syncFeatureStatus(ws, featureID, protocol.PhaseBlocked)
+			return nil
+		}
+
+		next, nextRole, stopReason := nextPhaseAfter(ws, featureID, s)
+
+		newState, err := state.Transition(s, next, nextRole)
+		if err != nil {
+			return fmt.Errorf("loop transition %s→%s: %w", s.Phase, next, err)
+		}
+		s = newState
+		if stopReason != "" {
+			s.Active = false
+			s.StopReason = stopReason
+		}
+		ws.WriteState(featureID, s)
+		syncFeatureStatus(ws, featureID, s.Phase)
+
+		ws.AppendEvent(featureID, protocol.Event{
+			Type: "transition", Phase: s.Phase, Role: s.Role, Round: s.Round,
+		})
 	}
 
-	s.Phase = protocol.PhaseDone
-	s.Active = false
-	s.StopReason = "done"
-	ws.WriteState(featureID, s)
-	syncFeatureStatus(ws, featureID, protocol.PhaseDone)
-	ws.AppendEvent(featureID, protocol.Event{
-		Type:   "transition",
-		Phase:  protocol.PhaseDone,
-		Status: "done",
-	})
-
-	fmt.Printf("\n✅ Feature %s complete (%d rounds)\n", featureID, s.Round)
+	switch s.Phase {
+	case protocol.PhaseDone:
+		s.Active = false
+		s.StopReason = "done"
+		ws.WriteState(featureID, s)
+		syncFeatureStatus(ws, featureID, protocol.PhaseDone)
+		fmt.Printf("\nFeature %s complete (%d rounds)\n", featureID, s.Round)
+	case protocol.PhaseNeedsAttention, protocol.PhaseBlocked:
+		if s.Active {
+			s.Active = false
+			if s.StopReason == "" {
+				s.StopReason = "escalation"
+			}
+			ws.WriteState(featureID, s)
+		}
+	}
 	return nil
+}
+
+// nextPhaseAfter 根據目前 phase 和 artifacts 決定下一個 phase，第三個回傳值為 escalation 停止原因
+func nextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) (protocol.Phase, protocol.Role, string) {
+	switch s.Phase {
+	case protocol.PhaseDesigning:
+		return protocol.PhaseCoding, protocol.RoleCoder, ""
+
+	case protocol.PhaseCoding, protocol.PhaseAmending:
+		if esc := readEscalation(ws, featureID, s.Round); esc.Needed {
+			return protocol.PhaseNeedsAttention, "", esc.Reason
+		}
+		return protocol.PhaseReviewing, protocol.RoleReviewer, ""
+
+	case protocol.PhaseReviewing:
+		if reviewPassed(ws, featureID, s.Round) {
+			return protocol.PhaseTesting, protocol.RoleTester, ""
+		}
+		return protocol.PhaseAmending, protocol.RoleCoder, ""
+
+	case protocol.PhaseTesting:
+		if esc := readEscalation(ws, featureID, s.Round); esc.Needed {
+			return protocol.PhaseNeedsAttention, "", esc.Reason
+		}
+		if testPassed(ws, featureID, s.Round) {
+			return protocol.PhaseAccepting, protocol.RoleDesigner, ""
+		}
+		return protocol.PhaseAmending, protocol.RoleCoder, ""
+
+	case protocol.PhaseAccepting:
+		return protocol.PhaseDone, "", ""
+
+	default:
+		return protocol.PhaseDone, "", ""
+	}
+}
+
+func reviewPassed(ws *protocol.Workspace, featureID string, round int) bool {
+	roundDir := ws.RoundDir(featureID, round)
+	data, err := os.ReadFile(filepath.Join(roundDir, protocol.ReviewReport))
+	if err != nil {
+		return false
+	}
+	result := parseReviewVerdict(string(data))
+	return result.Passed && result.CriticalCount == 0
+}
+
+// parseReviewVerdict 從 review-report.md 擷取 verdict 與 critical issue 計數
+func parseReviewVerdict(content string) protocol.ReviewResult {
+	lines := strings.Split(content, "\n")
+	var result protocol.ReviewResult
+	inVerdict := false
+	verdictFound := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		upper := strings.ToUpper(trimmed)
+
+		if strings.Contains(upper, "[CRITICAL]") {
+			result.CriticalCount++
+		}
+
+		if strings.HasPrefix(trimmed, "## Verdict") {
+			inVerdict = true
+			continue
+		}
+		if inVerdict && !verdictFound && trimmed != "" {
+			if strings.HasPrefix(upper, "FAIL") {
+				result.Passed = false
+			} else {
+				result.Passed = true
+			}
+			verdictFound = true
+		}
+	}
+
+	return result
+}
+
+func testPassed(ws *protocol.Workspace, featureID string, round int) bool {
+	roundDir := ws.RoundDir(featureID, round)
+	data, err := os.ReadFile(filepath.Join(roundDir, protocol.VerifyFile))
+	if err != nil {
+		return false
+	}
+	var ve protocol.VerifyEvidence
+	if err := json.Unmarshal(data, &ve); err != nil {
+		return false
+	}
+	return ve.Passed
+}
+
+func readEscalation(ws *protocol.Workspace, featureID string, round int) protocol.Escalation {
+	roundDir := ws.RoundDir(featureID, round)
+	data, err := os.ReadFile(filepath.Join(roundDir, protocol.EscalationFile))
+	if err != nil {
+		return protocol.Escalation{}
+	}
+	var esc protocol.Escalation
+	json.Unmarshal(data, &esc)
+	return esc
+}
+
+func repoPathsFromFeature(f protocol.Feature) []string {
+	if len(f.Repos) == 0 {
+		return []string{"."}
+	}
+	var paths []string
+	for _, p := range f.Repos {
+		paths = append(paths, p)
+	}
+	return paths
 }
 
 func dryRunLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s protocol.State) error {

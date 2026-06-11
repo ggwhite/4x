@@ -23,6 +23,10 @@ const (
 	TaskBrief      = "task-brief.md"
 	Criteria       = "acceptance-criteria.md"
 	TestStratFile  = "test-strategy.yaml"
+	ReviewReport   = "review-report.md"
+	CoderReport    = "coder-report.md"
+	VerifyFile     = "verify.json"
+	EscalationFile = "escalation.json"
 )
 
 // Workspace 管理 .4x/ 目錄的讀寫
