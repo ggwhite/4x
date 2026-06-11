@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -12,6 +14,7 @@ import (
 
 const (
 	DirName        = ".4x"
+	BacklogFile    = "feature_list.json"
 	ConfigFile     = "config.yaml"
 	FeaturesDir    = "features"
 	StateFile      = "state.json"
@@ -25,6 +28,7 @@ const (
 	TestStratFile  = "test-strategy.yaml"
 	ReviewReport   = "review-report.md"
 	CoderReport    = "coder-report.md"
+	TestReport     = "test-report.md"
 	VerifyFile     = "verify.json"
 	EscalationFile = "escalation.json"
 )
@@ -116,7 +120,124 @@ func (w *Workspace) ListFeatures() ([]Feature, error) {
 		}
 		features = append(features, f)
 	}
+	sort.Slice(features, func(i, j int) bool {
+		return features[i].ID < features[j].ID
+	})
 	return features, nil
+}
+
+// ReadBacklogMirror 讀取根目錄 feature_list.json；不存在時回傳 present=false。
+func (w *Workspace) ReadBacklogMirror() (BacklogMirror, bool, error) {
+	path := filepath.Join(w.Root, BacklogFile)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return BacklogMirror{}, false, nil
+		}
+		return BacklogMirror{}, false, fmt.Errorf("read %s: %w", BacklogFile, err)
+	}
+
+	var mirror BacklogMirror
+	if err := json.Unmarshal(data, &mirror); err != nil {
+		return BacklogMirror{}, true, fmt.Errorf("parse %s: %w", BacklogFile, err)
+	}
+	return mirror, true, nil
+}
+
+// CompareBacklogMirror 比對 canonical feature YAML 與 legacy feature_list.json mirror。
+func (w *Workspace) CompareBacklogMirror() ([]BacklogDrift, error) {
+	mirror, present, err := w.ReadBacklogMirror()
+	if err != nil || !present {
+		return nil, err
+	}
+	features, err := w.ListFeatures()
+	if err != nil {
+		return nil, err
+	}
+	return CompareBacklogMirror(features, mirror), nil
+}
+
+// CompareBacklogMirror 比對 feature YAML 清單與 legacy backlog mirror，並以 feature ID 穩定排序。
+func CompareBacklogMirror(features []Feature, mirror BacklogMirror) []BacklogDrift {
+	canonical := make(map[string]Feature, len(features))
+	for _, f := range features {
+		canonical[f.ID] = f
+	}
+
+	backlog := make(map[string]BacklogFeature, len(mirror.Features))
+	for _, f := range mirror.Features {
+		backlog[f.ID] = f
+	}
+
+	var drift []BacklogDrift
+	for _, f := range features {
+		entry, ok := backlog[f.ID]
+		if !ok {
+			drift = append(drift, BacklogDrift{
+				Kind:      BacklogDriftMissing,
+				FeatureID: f.ID,
+				Message:   fmt.Sprintf("%s missing entry for feature %q", BacklogFile, f.ID),
+			})
+			continue
+		}
+		drift = appendFieldDrift(drift, f.ID, "name", f.Name, entry.Name)
+		drift = appendFieldDrift(drift, f.ID, "description", f.Description, entry.Description)
+		drift = appendFieldDrift(drift, f.ID, "status", f.Status, entry.Status)
+		drift = appendPriorityDrift(drift, f, entry)
+	}
+
+	for _, entry := range mirror.Features {
+		if _, ok := canonical[entry.ID]; !ok {
+			drift = append(drift, BacklogDrift{
+				Kind:      BacklogDriftExtra,
+				FeatureID: entry.ID,
+				Message:   fmt.Sprintf("%s has extra entry %q", BacklogFile, entry.ID),
+			})
+		}
+	}
+
+	sort.Slice(drift, func(i, j int) bool {
+		if drift[i].FeatureID != drift[j].FeatureID {
+			return drift[i].FeatureID < drift[j].FeatureID
+		}
+		if drift[i].Kind != drift[j].Kind {
+			return drift[i].Kind < drift[j].Kind
+		}
+		return drift[i].Field < drift[j].Field
+	})
+	return drift
+}
+
+func appendFieldDrift(drift []BacklogDrift, featureID, field, canonical, mirror string) []BacklogDrift {
+	if canonical == mirror {
+		return drift
+	}
+	return append(drift, BacklogDrift{
+		Kind:      BacklogDriftMismatch,
+		FeatureID: featureID,
+		Field:     field,
+		Canonical: canonical,
+		Mirror:    mirror,
+		Message: fmt.Sprintf(
+			"%s mismatch for feature %q field %q: canonical %q, mirror %q",
+			BacklogFile,
+			featureID,
+			field,
+			canonical,
+			mirror,
+		),
+	})
+}
+
+func appendPriorityDrift(drift []BacklogDrift, feature Feature, mirror BacklogFeature) []BacklogDrift {
+	if feature.Priority == 0 && mirror.Priority == nil {
+		return drift
+	}
+	canonical := strconv.Itoa(feature.Priority)
+	if mirror.Priority == nil {
+		return appendFieldDrift(drift, feature.ID, "priority", canonical, "")
+	}
+	return appendFieldDrift(drift, feature.ID, "priority", canonical, strconv.Itoa(*mirror.Priority))
 }
 
 // SaveFeature 寫入 feature YAML

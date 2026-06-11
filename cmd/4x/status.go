@@ -79,7 +79,11 @@ func showAllFeatures(ws *protocol.Workspace, pendingOnly bool) error {
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", f.ID, f.Name, f.Status, phase, round)
 	}
-	return w.Flush()
+	if err := w.Flush(); err != nil {
+		return err
+	}
+	printBacklogWarnings(ws, "")
+	return nil
 }
 
 func showFeatureDetail(ws *protocol.Workspace, id string) error {
@@ -134,5 +138,19 @@ func showFeatureDetail(ws *protocol.Workspace, id string) error {
 		}
 	}
 
+	printBacklogWarnings(ws, id)
 	return nil
+}
+
+func printBacklogWarnings(ws *protocol.Workspace, featureID string) {
+	drift, err := ws.CompareBacklogMirror()
+	if err != nil {
+		fmt.Printf("\nWARN: cannot compare %s: %v\n", protocol.BacklogFile, err)
+		return
+	}
+	for _, d := range drift {
+		if featureID == "" || d.FeatureID == featureID {
+			fmt.Printf("\nWARN: %s\n", d.Message)
+		}
+	}
 }

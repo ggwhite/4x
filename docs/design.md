@@ -198,6 +198,8 @@ dashboard:
 
 One file per feature. Created by `4x new`. This is the human-editable specification for the feature.
 
+`.4x/features/*.yaml` is the canonical source of truth for feature identity, name, description, status, priority, repos, subtasks, rules, and dependencies. The root `feature_list.json` file is a legacy backlog mirror only; it may be useful for older tooling, but the CLI and dashboard must not treat it as authoritative feature state. Commands that display or validate feature state read from `.4x/features/*.yaml` and may warn when `feature_list.json` is present but drifts from the canonical YAML files.
+
 **Full example:**
 
 ```yaml

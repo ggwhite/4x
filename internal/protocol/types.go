@@ -52,6 +52,41 @@ type Feature struct {
 	Depends     []string          `yaml:"depends,omitempty" json:"depends,omitempty"`
 }
 
+// BacklogMirror 是根目錄 feature_list.json 的 legacy mirror 結構。
+type BacklogMirror struct {
+	Version  int              `json:"version"`
+	Features []BacklogFeature `json:"features"`
+}
+
+// BacklogFeature 表示 feature_list.json 中單一 legacy backlog entry。
+type BacklogFeature struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Status      string `json:"status"`
+	Area        string `json:"area,omitempty"`
+	Description string `json:"description,omitempty"`
+	Priority    *int   `json:"priority,omitempty"`
+}
+
+// BacklogDriftKind 表示 feature_list.json 與 .4x/features/*.yaml 的差異類型。
+type BacklogDriftKind string
+
+const (
+	BacklogDriftMissing  BacklogDriftKind = "missing"
+	BacklogDriftExtra    BacklogDriftKind = "extra"
+	BacklogDriftMismatch BacklogDriftKind = "mismatch"
+)
+
+// BacklogDrift 表示一筆 feature_list.json legacy mirror 漂移結果。
+type BacklogDrift struct {
+	Kind      BacklogDriftKind `json:"kind"`
+	FeatureID string           `json:"featureId"`
+	Field     string           `json:"field,omitempty"`
+	Canonical string           `json:"canonical,omitempty"`
+	Mirror    string           `json:"mirror,omitempty"`
+	Message   string           `json:"message"`
+}
+
 // Subtask 是 feature 內的子任務
 type Subtask struct {
 	ID          string   `yaml:"id" json:"id"`
@@ -63,20 +98,20 @@ type Subtask struct {
 
 // State 是 .4x/{feature-id}/state.json 的權威狀態
 type State struct {
-	FeatureID              string     `json:"featureId"`
-	Phase                  Phase      `json:"phase"`
-	Role                   Role       `json:"role"`
-	Round                  int        `json:"round"`
-	MaxRounds              int        `json:"maxRounds"`
-	Active                 bool       `json:"active"`
-	Runner                 string     `json:"runner"`
-	Label                  string     `json:"label,omitempty"`
-	CreatedAt              time.Time  `json:"createdAt"`
-	UpdatedAt              time.Time  `json:"updatedAt"`
-	Since                  time.Time  `json:"since,omitempty"`
-	ConsecutiveNoProgress  int        `json:"consecutiveNoProgress"`
-	LastFailCount          int        `json:"lastFailCount"`
-	StopReason             string     `json:"stopReason,omitempty"`
+	FeatureID             string    `json:"featureId"`
+	Phase                 Phase     `json:"phase"`
+	Role                  Role      `json:"role"`
+	Round                 int       `json:"round"`
+	MaxRounds             int       `json:"maxRounds"`
+	Active                bool      `json:"active"`
+	Runner                string    `json:"runner"`
+	Label                 string    `json:"label,omitempty"`
+	CreatedAt             time.Time `json:"createdAt"`
+	UpdatedAt             time.Time `json:"updatedAt"`
+	Since                 time.Time `json:"since,omitempty"`
+	ConsecutiveNoProgress int       `json:"consecutiveNoProgress"`
+	LastFailCount         int       `json:"lastFailCount"`
+	StopReason            string    `json:"stopReason,omitempty"`
 }
 
 // Event 是 events.jsonl 的一行
@@ -100,10 +135,10 @@ type Baseline struct {
 
 // BaselineRepo 是 baseline 中每個 repo 的快照
 type BaselineRepo struct {
-	Name       string `json:"name"`
-	Path       string `json:"path"`
-	Branch     string `json:"branch"`
-	Head       string `json:"head"`
+	Name       string   `json:"name"`
+	Path       string   `json:"path"`
+	Branch     string   `json:"branch"`
+	Head       string   `json:"head"`
 	DirtyFiles []string `json:"dirtyFiles"`
 }
 
@@ -157,12 +192,12 @@ type Escalation struct {
 
 // Config 是 .4x/config.yaml 的專案設定
 type Config struct {
-	Project  ProjectConfig            `yaml:"project"`
-	Runners  map[string]RunnerConfig  `yaml:"runners"`
-	Default  string                   `yaml:"default_runner"`
-	Roles    map[string]RoleConfig    `yaml:"roles,omitempty"`
-	Rules    []string                 `yaml:"rules,omitempty"`
-	HubRepos []string                 `yaml:"hub_repos,omitempty"`
+	Project  ProjectConfig           `yaml:"project"`
+	Runners  map[string]RunnerConfig `yaml:"runners"`
+	Default  string                  `yaml:"default_runner"`
+	Roles    map[string]RoleConfig   `yaml:"roles,omitempty"`
+	Rules    []string                `yaml:"rules,omitempty"`
+	HubRepos []string                `yaml:"hub_repos,omitempty"`
 }
 
 // ProjectConfig 是專案基本設定，包含既有工具鏈的描述

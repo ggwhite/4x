@@ -25,8 +25,22 @@ func Check(ws *protocol.Workspace, featureID string) CheckResult {
 	checkRequiredFiles(ws, featureID, &r)
 	checkBaseline(ws, featureID, &r)
 	checkScope(ws, featureID, &r)
+	checkBacklogDrift(ws, featureID, &r)
 
 	return r
+}
+
+func checkBacklogDrift(ws *protocol.Workspace, featureID string, r *CheckResult) {
+	drift, err := ws.CompareBacklogMirror()
+	if err != nil {
+		r.Warns = append(r.Warns, fmt.Sprintf("cannot compare %s: %v", protocol.BacklogFile, err))
+		return
+	}
+	for _, d := range drift {
+		if d.FeatureID == featureID {
+			r.Warns = append(r.Warns, d.Message)
+		}
+	}
 }
 
 // checkRequiredFiles 確認必要的協議檔案存在
@@ -52,14 +66,63 @@ func checkRequiredFiles(ws *protocol.Workspace, featureID string, r *CheckResult
 	if needsDesignOutputs[state.Phase] {
 		required = append(required, protocol.TaskBrief, protocol.Criteria)
 	}
+	if state.Phase == protocol.PhaseAccepting || state.Phase == protocol.PhaseDone {
+		checkTestingToAccepting(ws, featureID, state.Round, r)
+	}
 
 	for _, f := range required {
 		path := filepath.Join(dir, f)
-		if _, err := os.Stat(path); os.IsNotExist(err) {
+		if missingOrEmpty(path) {
 			r.Pass = false
 			r.Errors = append(r.Errors, fmt.Sprintf("required file missing: %s", f))
 		}
 	}
+}
+
+// CheckTestingToAccepting 驗證 Tester 交付物完整，供 testing 進 accepting 前使用。
+func CheckTestingToAccepting(ws *protocol.Workspace, featureID string, round int) CheckResult {
+	r := CheckResult{Pass: true}
+	checkTestingToAccepting(ws, featureID, round, &r)
+	return r
+}
+
+func checkTestingToAccepting(ws *protocol.Workspace, featureID string, round int, r *CheckResult) {
+	roundDir := ws.RoundDir(featureID, round)
+	featureDir := ws.FeatureDir(featureID)
+
+	required := map[string]string{
+		filepath.Join(roundDir, protocol.VerifyFile):    filepath.Join(protocol.RoundsDir, fmt.Sprintf("round-%d", round), protocol.VerifyFile),
+		filepath.Join(roundDir, protocol.TestReport):    filepath.Join(protocol.RoundsDir, fmt.Sprintf("round-%d", round), protocol.TestReport),
+		filepath.Join(featureDir, protocol.FinalReport): protocol.FinalReport,
+		filepath.Join(featureDir, protocol.CommitPlan):  protocol.CommitPlan,
+	}
+	for path, label := range required {
+		if missingOrEmpty(path) {
+			r.Pass = false
+			r.Errors = append(r.Errors, fmt.Sprintf("required file missing: %s", label))
+		}
+	}
+
+	verifyPath := filepath.Join(roundDir, protocol.VerifyFile)
+	data, err := os.ReadFile(verifyPath)
+	if err != nil {
+		return
+	}
+	var evidence protocol.VerifyEvidence
+	if err := json.Unmarshal(data, &evidence); err != nil {
+		r.Pass = false
+		r.Errors = append(r.Errors, fmt.Sprintf("invalid verify.json: %v", err))
+		return
+	}
+	if !evidence.Passed {
+		r.Pass = false
+		r.Errors = append(r.Errors, "verify.json did not pass")
+	}
+}
+
+func missingOrEmpty(path string) bool {
+	info, err := os.Stat(path)
+	return err != nil || info.IsDir() || info.Size() == 0
 }
 
 // checkBaseline 確認沒有 baseline 之前就存在的 dirty files 被混入

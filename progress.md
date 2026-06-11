@@ -4,14 +4,14 @@
 
 | Area | Done | In Progress | Todo |
 |---|---|---|---|
-| CLI | init, new, status, check, transition, event, prompt, batch, live | — | run (needs plugin runner integration) |
-| Plugin | runner interface, claude-code workflow.js | — | copilot, cursor, codex adapters |
+| CLI | init, new, status, check, transition, event, prompt, batch, live, run | — | dependency gate, backlog sync guard |
+| Plugin | runner interface, claude-code workflow.js, codex subprocess config | — | copilot, cursor adapters |
 | Dashboard | web UI (SSE + REST API) | — | macOS native (Swift), Electron |
-| Tests | state (56), protocol (11), guard (11), batch (10), server (6), runner (8) = **102 total** | — | cmd/ integration tests |
+| Tests | state, protocol, guard, batch, server, runner, cmd integration = **passing via `go test ./...`** | — | broaden e2e with live LLM only when explicitly needed |
 
 ## Active Feature
 
-None — see `.4x/features/` for backlog.
+None
 
 ## Last Session (2026-06-11)
 
@@ -45,9 +45,16 @@ None — see `.4x/features/` for backlog.
 - Shell-based e2e test exercising full Design→Code→Review→Test→Accept→Done flow
 - Model config passthrough in workflow.js (hardcoded → `args.models`)
 
+### WS-8: Backlog source-of-truth sync
+- `.4x/features/*.yaml` 為 canonical source of truth，`feature_list.json` 為 legacy mirror
+- `CompareBacklogMirror()` drift detection（missing/extra/mismatch）
+- `4x status` 和 `4x check` 顯示 drift warnings
+- `testing→accepting` transition gate：要求 verify.json / test-report.md / final-report.md / commit-plan.md
+- Tester prompt 更新：要求產出 verify.json 及 final/commit 文件
+
 ## Next Steps
 
-1. Wire `internal/runner/` into a new `4x run` CLI command
+1. Add dependency gating before `4x run`
 2. Build real e2e test with Claude Code plugin (requires live LLM)
 3. macOS native dashboard (Swift)
-4. Additional plugins (Copilot, Cursor, Codex)
+4. Additional plugins (Copilot, Cursor)

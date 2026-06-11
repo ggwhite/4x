@@ -299,10 +299,16 @@ PASS / FAIL / CONDITIONAL PASS
 
 const testerTemplate = `You are the Tester for feature "{{.Feature.Name}}" ({{.Feature.ID}}), round {{.Round}}.
 
-== MANDATORY — write this file or the task fails ==
-You MUST create this file before finishing:
+== MANDATORY — write these files or the task fails ==
+You MUST create these files before finishing:
 
   {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/test-report.md
+  {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/verify.json
+
+If and only if all acceptance criteria pass, also create:
+
+  {{.DotDir}}/{{.Feature.ID}}/final-report.md
+  {{.DotDir}}/{{.Feature.ID}}/commit-plan.md
 
 Use the Write tool. Do NOT just print the content — write to disk.
 
@@ -323,6 +329,8 @@ Use the Write tool. Do NOT just print the content — write to disk.
 2. Run verify_commands from test-strategy.yaml
 3. For each AC item, collect evidence (command output, file check, etc.)
 4. Write test-report.md
+5. Write verify.json with pass/fail and command evidence
+6. If all criteria pass, write final-report.md and commit-plan.md
 
 == test-report.md format ==
 # Test Report — Round {{.Round}}
@@ -335,9 +343,27 @@ PASS / FAIL — N/N criteria met
 ## Verdict
 PASS / FAIL
 
+== verify.json format ==
+{
+  "passed": true,
+  "round": {{.Round}},
+  "role": "tester",
+  "commands": [
+    {
+      "command": "make test",
+      "exitCode": 0,
+      "durationMs": 1234,
+      "summary": "short factual result",
+      "startedAt": "RFC3339 timestamp",
+      "finishedAt": "RFC3339 timestamp"
+    }
+  ]
+}
+
 == Constraints ==
 - Do NOT modify source code — only run tests and report
 - Each AC item must have: status + evidence
 - SKIP > 30%% of items blocks acceptance
 - Do NOT fabricate results — mark SKIP if you cannot test
+- final-report.md and commit-plan.md are only allowed when verify.json passed is true
 `

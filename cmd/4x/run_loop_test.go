@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ggwhite/4x/internal/protocol"
@@ -17,6 +18,7 @@ type mockOutcome struct {
 	criticalIssues int
 	testPassed     bool
 	escalation     bool
+	omitCommitPlan bool
 }
 
 type mockRunner struct {
@@ -75,8 +77,12 @@ func (m *mockRunner) Run(_ context.Context, _ string) (*runner.Result, error) {
 		ve := protocol.VerifyEvidence{Passed: outcome.testPassed, Round: s.Round}
 		data, _ := json.Marshal(ve)
 		os.WriteFile(filepath.Join(roundDir, protocol.VerifyFile), data, 0o644)
+		os.WriteFile(filepath.Join(roundDir, protocol.TestReport), []byte("# Test"), 0o644)
 		if outcome.testPassed {
 			os.WriteFile(filepath.Join(featureDir, protocol.FinalReport), []byte("# Final"), 0o644)
+			if !outcome.omitCommitPlan {
+				os.WriteFile(filepath.Join(featureDir, protocol.CommitPlan), []byte("# Commit Plan"), 0o644)
+			}
 		}
 		if outcome.escalation {
 			data, _ := json.Marshal(protocol.Escalation{Needed: true, Reason: "criteria-wrong"})
@@ -144,6 +150,45 @@ func TestRunLoop_HappyPath(t *testing.T) {
 	for i, p := range wantPhases {
 		if mock.phases[i] != p {
 			t.Errorf("phase[%d] = %s, want %s", i, mock.phases[i], p)
+		}
+	}
+}
+
+func TestRunLoop_TestPassMissingArtifactsStopsBeforeAccepting(t *testing.T) {
+	ws := setupLoopWorkspace(t, "feat-missing-test-artifacts")
+	feature, _ := ws.LoadFeature("feat-missing-test-artifacts")
+	cfg, _ := ws.ReadConfig()
+
+	s := protocol.State{
+		FeatureID: "feat-missing-test-artifacts", Phase: protocol.PhaseInit,
+		MaxRounds: 5, Active: true, Runner: "mock",
+	}
+	ws.WriteState("feat-missing-test-artifacts", s)
+
+	mock := &mockRunner{ws: ws, featureID: "feat-missing-test-artifacts", outcomes: []mockOutcome{
+		{}, {}, {reviewVerdict: "PASS"}, {testPassed: true, omitCommitPlan: true},
+	}}
+
+	if err := runLoop(ws, feature, cfg, s, mock); err != nil {
+		t.Fatalf("runLoop error: %v", err)
+	}
+
+	final, _ := ws.ReadState("feat-missing-test-artifacts")
+	if final.Phase != protocol.PhaseNeedsAttention {
+		t.Errorf("phase = %s, want needs-attention", final.Phase)
+	}
+	if final.Active {
+		t.Error("feature should stop when tester artifacts are incomplete")
+	}
+	if !strings.Contains(final.StopReason, protocol.CommitPlan) {
+		t.Errorf("stopReason = %q, want missing commit-plan detail", final.StopReason)
+	}
+	if len(mock.phases) != 4 {
+		t.Fatalf("ran %d phases, want 4 before accepting: %v", len(mock.phases), mock.phases)
+	}
+	for _, phase := range mock.phases {
+		if phase == protocol.PhaseAccepting {
+			t.Fatal("accepting runner should not execute when tester artifacts are incomplete")
 		}
 	}
 }

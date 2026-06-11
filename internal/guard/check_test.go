@@ -93,6 +93,74 @@ func TestCheckRequiredFiles_CodingPhaseWithFiles(t *testing.T) {
 	}
 }
 
+func TestCheckTestingToAccepting_AllArtifactsPresent(t *testing.T) {
+	ws := setupGuardWorkspace(t, "feat-1")
+	roundDir := ws.RoundDir("feat-1", 1)
+	featureDir := ws.FeatureDir("feat-1")
+
+	data, _ := json.Marshal(protocol.VerifyEvidence{Passed: true, Round: 1})
+	writeFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))
+	writeFile(t, filepath.Join(roundDir, protocol.TestReport), "# Test")
+	writeFile(t, filepath.Join(featureDir, protocol.FinalReport), "# Final")
+	writeFile(t, filepath.Join(featureDir, protocol.CommitPlan), "# Commit Plan")
+
+	result := CheckTestingToAccepting(ws, "feat-1", 1)
+	if !result.Pass {
+		t.Fatalf("complete tester artifacts should pass, got errors: %v", result.Errors)
+	}
+}
+
+func TestCheckTestingToAccepting_MissingCommitPlan(t *testing.T) {
+	ws := setupGuardWorkspace(t, "feat-1")
+	roundDir := ws.RoundDir("feat-1", 1)
+	featureDir := ws.FeatureDir("feat-1")
+
+	data, _ := json.Marshal(protocol.VerifyEvidence{Passed: true, Round: 1})
+	writeFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))
+	writeFile(t, filepath.Join(roundDir, protocol.TestReport), "# Test")
+	writeFile(t, filepath.Join(featureDir, protocol.FinalReport), "# Final")
+
+	result := CheckTestingToAccepting(ws, "feat-1", 1)
+	if result.Pass {
+		t.Fatal("missing commit-plan.md should fail")
+	}
+	found := false
+	for _, err := range result.Errors {
+		if err == "required file missing: "+protocol.CommitPlan {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected missing commit-plan error, got %v", result.Errors)
+	}
+}
+
+func TestCheckTestingToAccepting_VerifyFailed(t *testing.T) {
+	ws := setupGuardWorkspace(t, "feat-1")
+	roundDir := ws.RoundDir("feat-1", 1)
+	featureDir := ws.FeatureDir("feat-1")
+
+	data, _ := json.Marshal(protocol.VerifyEvidence{Passed: false, Round: 1})
+	writeFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))
+	writeFile(t, filepath.Join(roundDir, protocol.TestReport), "# Test")
+	writeFile(t, filepath.Join(featureDir, protocol.FinalReport), "# Final")
+	writeFile(t, filepath.Join(featureDir, protocol.CommitPlan), "# Commit Plan")
+
+	result := CheckTestingToAccepting(ws, "feat-1", 1)
+	if result.Pass {
+		t.Fatal("verify.json with passed=false should fail")
+	}
+	found := false
+	for _, err := range result.Errors {
+		if err == "verify.json did not pass" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected verify failure error, got %v", result.Errors)
+	}
+}
+
 func TestCheckBaseline_Missing(t *testing.T) {
 	ws := setupGuardWorkspace(t, "feat-1")
 	writeState(t, ws, "feat-1", protocol.State{Phase: protocol.PhaseInit})
@@ -106,6 +174,48 @@ func TestCheckBaseline_Missing(t *testing.T) {
 	}
 	if !foundWarn {
 		t.Error("expected warning about missing baseline.json")
+	}
+}
+
+func TestCheck_BacklogDriftWarning(t *testing.T) {
+	ws := setupGuardWorkspace(t, "feat-1")
+	writeState(t, ws, "feat-1", protocol.State{Phase: protocol.PhaseInit})
+	if err := ws.SaveFeature(protocol.Feature{ID: "feat-1", Name: "Feature One", Status: "done"}); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(ws.Root, protocol.BacklogFile), `{"version":1,"features":[{"id":"feat-1","name":"Feature One","status":"todo"}]}`)
+
+	result := Check(ws, "feat-1")
+	if !result.Pass {
+		t.Fatalf("backlog drift should warn without failing: %v", result.Errors)
+	}
+	found := false
+	for _, w := range result.Warns {
+		if w == `feature_list.json mismatch for feature "feat-1" field "status": canonical "done", mirror "todo"` {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("warnings = %v, want backlog drift warning", result.Warns)
+	}
+}
+
+func TestCheck_BacklogDriftIgnoresOtherFeatures(t *testing.T) {
+	ws := setupGuardWorkspace(t, "feat-1")
+	writeState(t, ws, "feat-1", protocol.State{Phase: protocol.PhaseInit})
+	if err := ws.SaveFeature(protocol.Feature{ID: "feat-1", Name: "Feature One", Status: "done"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := ws.SaveFeature(protocol.Feature{ID: "feat-2", Name: "Feature Two", Status: "done"}); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(ws.Root, protocol.BacklogFile), `{"version":1,"features":[{"id":"feat-1","name":"Feature One","status":"done"},{"id":"feat-2","name":"Feature Two","status":"todo"}]}`)
+
+	result := Check(ws, "feat-1")
+	for _, w := range result.Warns {
+		if w == `feature_list.json mismatch for feature "feat-2" field "status": canonical "done", mirror "todo"` {
+			t.Fatalf("warnings = %v, should not include drift for unrelated feature", result.Warns)
+		}
 	}
 }
 

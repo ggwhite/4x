@@ -3,8 +3,10 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/ggwhite/4x/internal/guard"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/state"
 	"github.com/spf13/cobra"
@@ -52,6 +54,13 @@ func newTransitionCmd() *cobra.Command {
 			toRole := protocol.Role(role)
 			if toRole == "" {
 				toRole = state.PhaseToRole(toPhase)
+			}
+
+			if s.Phase == protocol.PhaseTesting && toPhase == protocol.PhaseAccepting {
+				result := guard.CheckTestingToAccepting(ws, featureID, s.Round)
+				if !result.Pass {
+					return fmt.Errorf("testing → accepting blocked: %s", strings.Join(result.Errors, "; "))
+				}
 			}
 
 			newState, err := state.Transition(s, toPhase, toRole)

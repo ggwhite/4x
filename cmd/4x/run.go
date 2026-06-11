@@ -272,6 +272,10 @@ func nextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) 
 			return protocol.PhaseNeedsAttention, "", esc.Reason
 		}
 		if testPassed(ws, featureID, s.Round) {
+			result := guard.CheckTestingToAccepting(ws, featureID, s.Round)
+			if !result.Pass {
+				return protocol.PhaseNeedsAttention, "", strings.Join(result.Errors, "; ")
+			}
 			return protocol.PhaseAccepting, protocol.RoleDesigner, ""
 		}
 		return protocol.PhaseAmending, protocol.RoleCoder, ""
