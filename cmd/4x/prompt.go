@@ -50,6 +50,7 @@ func newPromptCmd() *cobra.Command {
 
 			data := promptData{
 				Feature: feature,
+				Project: cfg.Project,
 				Role:    r,
 				Round:   round,
 				Config:  cfg,
@@ -72,10 +73,15 @@ func newPromptCmd() *cobra.Command {
 
 type promptData struct {
 	Feature protocol.Feature
+	Project protocol.ProjectConfig
 	Role    protocol.Role
 	Round   int
 	Config  protocol.Config
 	DotDir  string
+}
+
+var tmplFuncs = template.FuncMap{
+	"sub": func(a, b int) int { return a - b },
 }
 
 func loadRoleTemplate(r protocol.Role) (*template.Template, error) {
@@ -91,7 +97,7 @@ func loadRoleTemplate(r protocol.Role) (*template.Template, error) {
 		return nil, fmt.Errorf("unknown role: %s", r)
 	}
 
-	return template.New(string(r)).Parse(tmplStr)
+	return template.New(string(r)).Funcs(tmplFuncs).Parse(tmplStr)
 }
 
 const designerTemplate = `You are the Designer for feature "{{.Feature.Name}}" ({{.Feature.ID}}).
@@ -108,10 +114,31 @@ Repos:
   - {{$repo}}{{if $desc}}: {{$desc}}{{end}}
 {{- end}}
 {{- end}}
+{{- if .Project.Docs}}
+
+== Project Documentation (read for context) ==
+{{- range .Project.Docs}}
+- {{.}}
+{{- end}}
+{{- end}}
+{{- if .Project.Rules}}
+
+== Project Rules (Coder must follow, Reviewer will check) ==
+{{- range .Project.Rules}}
+- {{.}}
+{{- end}}
+{{- end}}
 {{- if .Feature.Rules}}
 
-== Project Rules ==
+== Feature Rules ==
 {{- range .Feature.Rules}}
+- {{.}}
+{{- end}}
+{{- end}}
+{{- if .Project.Test}}
+
+== Existing Test Commands (use for verify_commands) ==
+{{- range .Project.Test}}
 - {{.}}
 {{- end}}
 {{- end}}
@@ -133,6 +160,33 @@ Read your task brief: {{.DotDir}}/{{.Feature.ID}}/task-brief.md
 {{- if gt .Round 1}}
 Read the test report from last round: {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{(sub .Round 1)}}/test-report.md
 {{- end}}
+{{- if .Project.Setup}}
+
+== Dev Environment Setup ==
+{{- range .Project.Setup}}
+- {{.}}
+{{- end}}
+{{- end}}
+{{- if or .Project.Build .Project.Test .Project.Lint}}
+
+== Verify Commands (run after every change) ==
+{{- range .Project.Build}}
+- Build: {{.}}
+{{- end}}
+{{- range .Project.Lint}}
+- Lint: {{.}}
+{{- end}}
+{{- range .Project.Test}}
+- Test: {{.}}
+{{- end}}
+{{- end}}
+{{- if .Project.Rules}}
+
+== Project Rules ==
+{{- range .Project.Rules}}
+- {{.}}
+{{- end}}
+{{- end}}
 
 == Constraints ==
 - Only modify files in allowed repos
@@ -149,10 +203,20 @@ Read:
 1. The diff of changed files
 2. {{.DotDir}}/{{.Feature.ID}}/task-brief.md
 3. {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/coder-report.md
-{{- if .Feature.Rules}}
+{{- if or .Project.Rules .Feature.Rules}}
 
-== Project Rules to Check ==
+== Rules to Check ==
+{{- range .Project.Rules}}
+- [project] {{.}}
+{{- end}}
 {{- range .Feature.Rules}}
+- [feature] {{.}}
+{{- end}}
+{{- end}}
+{{- if .Project.Docs}}
+
+== Project Documentation ==
+{{- range .Project.Docs}}
 - {{.}}
 {{- end}}
 {{- end}}
@@ -171,6 +235,13 @@ Read:
 1. {{.DotDir}}/{{.Feature.ID}}/acceptance-criteria.md
 2. {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/coder-report.md
 3. {{.DotDir}}/{{.Feature.ID}}/test-strategy.yaml
+{{- if .Project.Test}}
+
+== Project Test Commands ==
+{{- range .Project.Test}}
+- {{.}}
+{{- end}}
+{{- end}}
 
 == Workflow ==
 1. Read acceptance criteria

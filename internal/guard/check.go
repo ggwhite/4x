@@ -41,7 +41,15 @@ func checkRequiredFiles(ws *protocol.Workspace, featureID string, r *CheckResult
 		return
 	}
 
-	if state.Phase >= protocol.PhaseCoding {
+	needsDesignOutputs := map[protocol.Phase]bool{
+		protocol.PhaseCoding:    true,
+		protocol.PhaseReviewing: true,
+		protocol.PhaseTesting:   true,
+		protocol.PhaseAmending:  true,
+		protocol.PhaseAccepting: true,
+		protocol.PhaseDone:      true,
+	}
+	if needsDesignOutputs[state.Phase] {
 		required = append(required, protocol.TaskBrief, protocol.Criteria)
 	}
 

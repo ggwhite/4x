@@ -26,6 +26,14 @@ Each AC item must have:
 - **Evidence**: what you observed (command output, screenshot, DB query result)
 - **Detail**: for fail/skip, describe what went wrong
 
+{{- if .Project.Test }}
+
+## Project Test Commands
+{{- range .Project.Test }}
+- `{{ . }}`
+{{- end }}
+{{- end }}
+
 ## Rules
 
 - SKIP > 30% of total items → blocks acceptance

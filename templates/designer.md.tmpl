@@ -27,10 +27,35 @@ Analyze requirements, explore the codebase, and produce three artifacts that wil
 
 {{- if .Feature.Rules }}
 
-## Project Rules (Coder must follow)
+## Feature-Level Rules
 {{- range .Feature.Rules }}
 - {{ . }}
 {{- end }}
+{{- end }}
+
+{{- if .Project.Rules }}
+
+## Project Rules (Coder must follow, Reviewer will check)
+{{- range .Project.Rules }}
+- {{ . }}
+{{- end }}
+{{- end }}
+
+{{- if .Project.Docs }}
+
+## Project Documentation (read for context)
+{{- range .Project.Docs }}
+- `{{ . }}`
+{{- end }}
+{{- end }}
+
+{{- if .Project.Test }}
+
+## Existing Test Infrastructure
+{{- range .Project.Test }}
+- `{{ . }}`
+{{- end }}
+Use these as the basis for `verify_commands` in test-strategy.yaml.
 {{- end }}
 
 ## Outputs

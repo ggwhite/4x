@@ -37,9 +37,10 @@ func Transition(s protocol.State, to protocol.Phase, role protocol.Role) (protoc
 	if !CanTransition(s.Phase, to) {
 		return s, fmt.Errorf("invalid transition: %s → %s", s.Phase, to)
 	}
+	from := s.Phase
 	s.Phase = to
 	s.Role = role
-	if to == protocol.PhaseCoding && s.Phase != protocol.PhaseAmending {
+	if to == protocol.PhaseCoding && from != protocol.PhaseAmending {
 		s.Round++
 	}
 	return s, nil

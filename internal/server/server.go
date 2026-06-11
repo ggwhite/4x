@@ -1,18 +1,20 @@
 package server
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
-// Start 啟動 dashboard web server
-func Start(ws *protocol.Workspace, port int) error {
+// NewMux 建立 dashboard 的 HTTP handler（方便測試）
+func NewMux(ws *protocol.Workspace) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/tasks", func(w http.ResponseWriter, r *http.Request) {
@@ -26,12 +28,21 @@ func Start(ws *protocol.Workspace, port int) error {
 		featureID := strings.TrimPrefix(r.URL.Path, "/api/events/")
 		handleEvents(ws, featureID, w)
 	})
+	mux.HandleFunc("/sse/events/", func(w http.ResponseWriter, r *http.Request) {
+		featureID := strings.TrimPrefix(r.URL.Path, "/sse/events/")
+		handleSSE(ws, featureID, w, r)
+	})
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
 		fmt.Fprint(w, indexHTML)
 	})
 
-	return http.ListenAndServe(fmt.Sprintf(":%d", port), mux)
+	return mux
+}
+
+// Start 啟動 dashboard web server
+func Start(ws *protocol.Workspace, port int) error {
+	return http.ListenAndServe(fmt.Sprintf(":%d", port), NewMux(ws))
 }
 
 type taskInfo struct {
@@ -169,6 +180,59 @@ func handleEvents(ws *protocol.Workspace, featureID string, w http.ResponseWrite
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(events)
+}
+
+// handleSSE 用 polling 方式 tail events.jsonl 並以 SSE 推送
+func handleSSE(ws *protocol.Workspace, featureID string, w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	flusher.Flush()
+
+	path := filepath.Join(ws.FeatureDir(featureID), protocol.EventsFile)
+	var lastOffset int64
+
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ticker.C:
+			info, err := os.Stat(path)
+			if err != nil {
+				continue
+			}
+			if info.Size() <= lastOffset {
+				continue
+			}
+			f, err := os.Open(path)
+			if err != nil {
+				continue
+			}
+			if lastOffset > 0 {
+				f.Seek(lastOffset, 0)
+			}
+			scanner := bufio.NewScanner(f)
+			for scanner.Scan() {
+				line := scanner.Text()
+				if line == "" {
+					continue
+				}
+				fmt.Fprintf(w, "data: %s\n\n", line)
+			}
+			lastOffset = info.Size()
+			f.Close()
+			flusher.Flush()
+		}
+	}
 }
 
 func readIfExists(path string) string {

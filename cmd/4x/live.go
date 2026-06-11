@@ -27,6 +27,7 @@ func newLiveCmd() *cobra.Command {
 
 			fmt.Printf("4x Live — http://localhost:%d\n", port)
 			fmt.Printf("Watching: %s\n", ws.DotDir())
+			fmt.Println("SSE stream: /sse/events/{feature-id}")
 			return server.Start(ws, port)
 		},
 	}

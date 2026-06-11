@@ -10,11 +10,22 @@ Review the Coder's changes for correctness, safety, and quality.
 2. Task brief: `{{ .DotDir }}/{{ .Feature.ID }}/task-brief.md`
 3. Coder report: `{{ .DotDir }}/{{ .Feature.ID }}/rounds/round-{{ .Round }}/coder-report.md`
 
-{{- if .Feature.Rules }}
+{{- if or .Feature.Rules .Project.Rules }}
 
-## Project Rules to Check
+## Rules to Check
+{{- range .Project.Rules }}
+- [project] {{ . }}
+{{- end }}
 {{- range .Feature.Rules }}
-- {{ . }}
+- [feature] {{ . }}
+{{- end }}
+{{- end }}
+
+{{- if .Project.Docs }}
+
+## Project Documentation (read for architectural context)
+{{- range .Project.Docs }}
+- `{{ . }}`
 {{- end }}
 {{- end }}
 

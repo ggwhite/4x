@@ -27,3 +27,4 @@ dashboard/web/node_modules/
 
 # Test
 coverage.out
+/4x

@@ -22,6 +22,38 @@ Include:
 - Summary of what you did
 - Subtask progress updates (if applicable)
 
+{{- if .Project.Setup }}
+
+## Dev Environment Setup
+Run these commands before starting if the environment is not ready:
+{{- range .Project.Setup }}
+- `{{ . }}`
+{{- end }}
+{{- end }}
+
+{{- if or .Project.Build .Project.Test .Project.Lint }}
+
+## Verify Commands
+Run after every significant change:
+{{- range .Project.Build }}
+- Build: `{{ . }}`
+{{- end }}
+{{- range .Project.Lint }}
+- Lint: `{{ . }}`
+{{- end }}
+{{- range .Project.Test }}
+- Test: `{{ . }}`
+{{- end }}
+{{- end }}
+
+{{- if .Project.Rules }}
+
+## Project Rules
+{{- range .Project.Rules }}
+- {{ . }}
+{{- end }}
+{{- end }}
+
 ## Constraints
 
 - Run verify commands after **every** significant change

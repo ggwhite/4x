@@ -157,11 +157,17 @@ type Config struct {
 	HubRepos []string                 `yaml:"hub_repos,omitempty"`
 }
 
-// ProjectConfig 是專案基本設定
+// ProjectConfig 是專案基本設定，包含既有工具鏈的描述
 type ProjectConfig struct {
-	Name        string `yaml:"name"`
-	Description string `yaml:"description,omitempty"`
-	Workspace   string `yaml:"workspace,omitempty"`
+	Name        string   `yaml:"name"`
+	Description string   `yaml:"description,omitempty"`
+	Language    string   `yaml:"language,omitempty"`
+	Setup       []string `yaml:"setup,omitempty"`
+	Build       []string `yaml:"build,omitempty"`
+	Test        []string `yaml:"test,omitempty"`
+	Lint        []string `yaml:"lint,omitempty"`
+	Docs        []string `yaml:"docs,omitempty"`
+	Rules       []string `yaml:"rules,omitempty"`
 }
 
 // RunnerConfig 是 LLM runner 的設定

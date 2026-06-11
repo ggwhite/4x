@@ -38,16 +38,49 @@ Extract from user message:
 
 Confirm feature exists and status is not `done`.
 
-### Step 3: Initialize State
+### Step 3: Load Model Config
+
+Read `.4x/config.yaml` and extract the `roles` section. Map to workflow model names:
+
+```yaml
+# .4x/config.yaml example
+roles:
+  designer:
+    model: opus           # task-brief, acceptance-criteria, amend
+  coder:
+    model: sonnet         # implementation, fix review/test issues
+  reviewer:
+    model: sonnet         # checklist review
+    deep_model: opus      # adversarial deep review
+  tester:
+    model: sonnet         # run tests, report evidence
+  acceptor:
+    model: opus           # final-report, commit-plan
+```
+
+Build the `models` object from config:
+
+| Config key | models field | Default |
+|---|---|---|
+| `roles.designer.model` | `designer` | `opus` |
+| `roles.coder.model` | `coder` | `sonnet` |
+| `roles.reviewer.model` | `reviewer` | `sonnet` |
+| `roles.reviewer.deep_model` | `deep_reviewer` | `opus` |
+| `roles.tester.model` | `tester` | `sonnet` |
+| `roles.acceptor.model` | `acceptor` | `opus` |
+
+If no `roles` section exists, all defaults apply.
+
+### Step 4: Initialize State
 
 ```bash
 4x transition <featureId> --to init
 4x event <featureId> --type run-start --role designer
 ```
 
-### Step 4: Launch Workflow
+### Step 5: Launch Workflow
 
-Use the Workflow tool to orchestrate the four roles.
+Use the Workflow tool to orchestrate the four roles. Pass models from Step 3 and project profile.
 
 ```
 Workflow({
@@ -57,12 +90,28 @@ Workflow({
     maxRounds: 5,
     dotDir: ".4x",
     only: null,
-    resume: null
+    resume: null,
+    models: {
+      designer: "opus",
+      coder: "sonnet",
+      reviewer: "sonnet",
+      deep_reviewer: "opus",
+      tester: "sonnet",
+      acceptor: "opus"
+    },
+    project: {
+      setup: ["docker compose up -d"],
+      build: ["make build"],
+      test: ["make test"],
+      lint: ["make lint"],
+      docs: ["docs/architecture.md"],
+      rules: ["All APIs must have integration tests"]
+    }
   }
 })
 ```
 
-### Step 5: Report Results
+### Step 6: Report Results
 
 Read `.4x/<featureId>/final-report.md` and `.4x/<featureId>/commit-plan.md`.
 Display to user:

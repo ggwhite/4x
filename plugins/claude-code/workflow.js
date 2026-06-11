@@ -2,12 +2,12 @@ export const meta = {
   name: '4x-loop',
   description: 'Designer-Coder-Reviewer-Tester multi-role development loop',
   phases: [
-    { title: 'Design', detail: 'Analyze requirements, produce spec + acceptance criteria' },
-    { title: 'Code', detail: 'Implement per task-brief' },
-    { title: 'Review', detail: 'Checklist + adversarial code review' },
-    { title: 'Test', detail: 'Validate against acceptance criteria' },
-    { title: 'Amend', detail: 'Designer adjusts spec (on escalation)' },
-    { title: 'Accept', detail: 'Final acceptance + commit plan' }
+    { title: 'Design', detail: 'Analyze requirements, produce spec + acceptance criteria', model: 'opus' },
+    { title: 'Code', detail: 'Implement per task-brief', model: 'sonnet' },
+    { title: 'Review', detail: 'Checklist (sonnet) + adversarial (opus) code review' },
+    { title: 'Test', detail: 'Validate against acceptance criteria', model: 'sonnet' },
+    { title: 'Amend', detail: 'Designer adjusts spec (on escalation)', model: 'opus' },
+    { title: 'Accept', detail: 'Final acceptance + commit plan', model: 'opus' }
   ]
 }
 
@@ -131,6 +131,39 @@ const dotDir = parsed.dotDir || '.4x'
 const onlyPhase = parsed.only || null
 const featureDir = `${dotDir}/${featureId}`
 
+// ── Model config (from .4x/config.yaml roles, passed via args) ──
+
+const models = parsed.models || {}
+const MODEL_DESIGNER      = models.designer      || 'opus'
+const MODEL_CODER         = models.coder          || 'sonnet'
+const MODEL_REVIEWER      = models.reviewer       || 'sonnet'
+const MODEL_DEEP_REVIEWER = models.deep_reviewer  || 'opus'
+const MODEL_TESTER        = models.tester         || 'sonnet'
+const MODEL_ACCEPTOR      = models.acceptor       || 'opus'
+
+log(`Models — designer:${MODEL_DESIGNER} coder:${MODEL_CODER} reviewer:${MODEL_REVIEWER} deep:${MODEL_DEEP_REVIEWER} tester:${MODEL_TESTER} acceptor:${MODEL_ACCEPTOR}`)
+
+// ── Project profile (from .4x/config.yaml project, passed via args) ──
+
+const project = parsed.project || {}
+const PROJECT_SETUP = (project.setup || []).map(c => `- \`${c}\``).join('\n')
+const PROJECT_BUILD = (project.build || []).map(c => `- Build: \`${c}\``).join('\n')
+const PROJECT_TEST  = (project.test  || []).map(c => `- Test: \`${c}\``).join('\n')
+const PROJECT_LINT  = (project.lint  || []).map(c => `- Lint: \`${c}\``).join('\n')
+const PROJECT_DOCS  = (project.docs  || []).map(d => `- \`${d}\``).join('\n')
+const PROJECT_RULES = (project.rules || []).map(r => `- ${r}`).join('\n')
+
+function profileSection() {
+  const parts = []
+  if (PROJECT_DOCS) parts.push(`\n## Project Documentation\n${PROJECT_DOCS}`)
+  if (PROJECT_RULES) parts.push(`\n## Project Rules\n${PROJECT_RULES}`)
+  if (PROJECT_SETUP) parts.push(`\n## Dev Setup\n${PROJECT_SETUP}`)
+  if (PROJECT_BUILD || PROJECT_TEST || PROJECT_LINT) {
+    parts.push(`\n## Verify Commands\n${[PROJECT_BUILD, PROJECT_LINT, PROJECT_TEST].filter(Boolean).join('\n')}`)
+  }
+  return parts.join('\n')
+}
+
 // ── Helper: guardrail check via CLI ──
 
 function guardrailPrompt() {
@@ -163,6 +196,7 @@ const designResult = await agent(`You are the Designer.
 
 Read the feature definition: ${featureYaml}
 Read any existing docs, specs, or analysis related to this feature.
+${profileSection()}
 
 ${stateUpdate('designer', 'design', 0)}
 
@@ -181,7 +215,7 @@ ${stateEnd('designer', 'design', 0)}
 `, {
   label: `designer:${featureId}`,
   phase: 'Design',
-  model: 'opus',
+  model: MODEL_DESIGNER,
   schema: DESIGN_SCHEMA
 })
 
@@ -213,6 +247,7 @@ ${stateUpdate('coder', 'code', round)}
 
 Read your task brief: ${featureDir}/task-brief.md
 ${prevTestReport ? `Read the previous test report: ${prevTestReport}` : ''}
+${profileSection()}
 
 Implement the required changes. After each change:
 1. Run verify commands (build, test, lint)
@@ -225,7 +260,7 @@ ${stateEnd('coder', 'code', round)}
 `, {
     label: `coder:${featureId}:r${round}`,
     phase: 'Code',
-    model: 'sonnet',
+    model: MODEL_CODER,
     schema: CODER_SCHEMA
   })
 
@@ -253,7 +288,7 @@ Write changes to the same files. Document what changed in ${featureDir}/spec-ame
 `, {
       label: `amend:${featureId}:r${round}`,
       phase: 'Amend',
-      model: 'opus'
+      model: MODEL_DESIGNER
     })
 
     continue
@@ -274,8 +309,8 @@ Read:
 1. The git diff of changed files
 2. ${featureDir}/task-brief.md
 3. ${featureDir}/rounds/round-${round}/coder-report.md
-
-Check against any project rules defined in the feature YAML or config.yaml.
+${PROJECT_RULES ? `\n## Project Rules to Check\n${PROJECT_RULES}` : ''}
+${PROJECT_DOCS ? `\n## Project Documentation\n${PROJECT_DOCS}` : ''}
 
 Severity:
 - critical: violates project rules, causes bugs or security issues
@@ -288,7 +323,7 @@ ${stateEnd('reviewer', 'review', round)}
 `, {
     label: `reviewer:${featureId}:r${round}`,
     phase: 'Review',
-    model: 'sonnet',
+    model: MODEL_REVIEWER,
     schema: REVIEW_SCHEMA
   })
 
@@ -308,7 +343,7 @@ Run verify commands after fixes.
 `, {
       label: `coder-fix:${featureId}:r${round}`,
       phase: 'Code',
-      model: 'sonnet',
+      model: MODEL_CODER,
       schema: CODER_SCHEMA
     })
   } else {
@@ -338,7 +373,7 @@ ${stateEnd('deep-reviewer', 'deep-review', round)}
 `, {
       label: `deep-review:${featureId}:r${round}`,
       phase: 'Review',
-      model: 'opus',
+      model: MODEL_DEEP_REVIEWER,
       schema: REVIEW_SCHEMA
     })
 
@@ -353,7 +388,7 @@ ${deepReview.issues.filter(i => i.severity !== 'low').map(i =>
 `, {
         label: `coder-deep-fix:${featureId}:r${round}`,
         phase: 'Code',
-        model: 'sonnet',
+        model: MODEL_CODER,
         schema: CODER_SCHEMA
       })
     }
@@ -371,6 +406,7 @@ Read:
 1. ${featureDir}/acceptance-criteria.md
 2. ${featureDir}/rounds/round-${round}/coder-report.md
 3. ${featureDir}/test-strategy.yaml
+${PROJECT_TEST ? `\n## Project Test Commands\n${PROJECT_TEST}` : ''}
 
 Workflow:
 1. Read acceptance criteria
@@ -388,7 +424,7 @@ ${stateEnd('tester', 'test', round)}
 `, {
     label: `tester:${featureId}:r${round}`,
     phase: 'Test',
-    model: 'sonnet',
+    model: MODEL_TESTER,
     schema: TEST_SCHEMA
   })
 
@@ -405,7 +441,7 @@ ${stateEnd('tester', 'test', round)}
 Amend task-brief/criteria in ${featureDir}/.`, {
       label: `amend-test:${featureId}:r${round}`,
       phase: 'Amend',
-      model: 'opus'
+      model: MODEL_DESIGNER
     })
     continue
   }
@@ -460,7 +496,7 @@ echo '{"active":false,"phase":"${finalStatus}"}' > ${featureDir}/state.json
 `, {
   label: `acceptor:${featureId}`,
   phase: 'Accept',
-  model: 'opus'
+  model: MODEL_ACCEPTOR
 })
 
 log(`${featureId}: Complete — ${finalStatus}`)
