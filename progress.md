@@ -5,7 +5,7 @@
 | Area | Done | In Progress | Todo |
 |---|---|---|---|
 | CLI | init, new, status, check, transition, event, prompt, batch, live, run, dependency gate | — | backlog sync guard |
-| Plugin | runner interface, claude-code (SKILL.md + workflow.js), codex (AGENTS.md), gemini (GEMINI.md), copilot (AGENTS.md), cursor (.cursorrules) | — | — |
+| Plugin | runner interface, claude-code (SKILL.md + workflow.js), codex (AGENTS.md), gemini (GEMINI.md), agy (AGY.md), copilot (AGENTS.md), cursor (.cursorrules) | — | — |
 | Dashboard | web UI (SSE + REST API) | — | macOS native (Swift), Electron |
 | Tests | state, protocol, guard, batch, server, runner, cmd integration = **passing via `go test ./...`** | — | broaden e2e with live LLM only when explicitly needed |
 

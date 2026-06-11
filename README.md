@@ -183,7 +183,8 @@ The batch planner uses a dependency graph to determine which features can run in
 | Copilot extension | Planned | GitHub Copilot |
 | Cursor rules | Planned | Cursor IDE |
 | Codex runner | Planned | OpenAI Codex CLI |
-| Gemini adapter | Planned | Google Gemini CLI |
+| Gemini adapter | Available | Google Gemini CLI |
+| Antigravity adapter | Available | Antigravity CLI |
 
 ### Writing a Plugin
 

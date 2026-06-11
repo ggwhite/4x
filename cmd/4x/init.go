@@ -43,7 +43,11 @@ func newInitCmd() *cobra.Command {
 					},
 					"gemini": {
 						Command: "gemini",
-						Args:    []string{"-p", "{prompt}"},
+						Args:    []string{"-y", "-p", "{prompt}"},
+					},
+					"agy": {
+						Command: "agy",
+						Args:    []string{"--dangerously-skip-permissions", "-p", "{prompt}"},
 					},
 				},
 				Default: "claude",
@@ -168,7 +172,7 @@ func setupRunnerPermissions(root string, cfg protocol.Config) {
 			setupClaudePermissions(root, cfg)
 		case "codex":
 			setupCodexPermissions(root, cfg)
-		case "gemini":
+		case "gemini", "agy":
 			setupGeminiPermissions(root, cfg)
 		}
 	}
@@ -241,7 +245,7 @@ func setupCodexPermissions(root string, cfg protocol.Config) {
 	fmt.Printf("Runner:   codex → codex.json\n")
 }
 
-// Gemini CLI: .gemini/settings.json
+// Gemini/Agy CLI: .gemini/settings.json
 func setupGeminiPermissions(root string, cfg protocol.Config) {
 	dir := filepath.Join(root, ".gemini")
 	settingsPath := filepath.Join(dir, "settings.json")
@@ -259,5 +263,5 @@ func setupGeminiPermissions(root string, cfg protocol.Config) {
 		},
 	}, "", "  ")
 	os.WriteFile(settingsPath, data, 0o644)
-	fmt.Printf("Runner:   gemini → .gemini/settings.json\n")
+	fmt.Printf("Runner:   gemini/agy → .gemini/settings.json\n")
 }

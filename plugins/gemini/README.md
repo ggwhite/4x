@@ -25,7 +25,7 @@ Add to `.4x/settings.json`:
 
 ## Setup
 
-1. Install Gemini CLI: `npm install -g @anthropic-ai/gemini-cli` or via Google's distribution
+1. Install Gemini CLI: `npm install -g @google/gemini-cli` or via Google's distribution
 2. Copy `GEMINI.md` to your project root, or symlink this plugin's `GEMINI.md`
 3. Add the runner config above to `.4x/settings.json`
 4. Run: `4x run <feature-id> --runner gemini`
