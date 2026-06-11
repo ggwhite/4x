@@ -12,7 +12,7 @@ Initialize a `.4x/` workspace in the current directory.
 4x init [--name <name>] [--runner <runner>]
 ```
 
-Creates `.4x/config.yaml` with defaults. Does not overwrite if already exists.
+Creates `.4x/settings.json` with defaults. Does not overwrite if already exists.
 
 ---
 

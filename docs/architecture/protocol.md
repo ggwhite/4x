@@ -35,51 +35,28 @@ Workspace-level configuration. Created by `4x init`.
 
 **Full example:**
 
-```yaml
-# .4x/settings.json
-
-version: "1"
-
-workspace:
-  name: todo-api
-  description: >
-    RESTful todo API with user authentication, built with Go + PostgreSQL.
-
-# Repositories that this workspace covers.
-# Each entry corresponds to a directory the CLI may scope-check.
-repos:
-  - id: backend
-    path: ./backend
-    language: go
-    primary: true
-  - id: frontend
-    path: ./frontend
-    language: typescript
-  - id: infra
-    path: ./infra
-    language: hcl
-
-# Default runner plugin. Can be overridden per feature or per CLI invocation.
-runner:
-  default: claude
-  timeout: 3600          # seconds; hard kill after this
-
-# Guardrails applied before every role transition.
-guardrails:
-  scope_check: true        # no edits outside declared repos
-  baseline_check: true     # baseline.json must exist for Tester phase
-  require_files: true      # required output files must be present
-  verify_evidence: true    # verify.json must record passing results
-
-# Batch scheduling configuration.
-batch:
-  max_chain_length: 4      # longest allowed dependency chain
-  parallel_slots: 2        # how many features may run concurrently
-
-# Dashboard settings.
-dashboard:
-  port: 4567
-  auto_open: false
+```json
+{
+  "project": {
+    "name": "todo-api",
+    "description": "RESTful todo API with user authentication, built with Go + PostgreSQL.",
+    "language": "go",
+    "build": ["make build"],
+    "test": ["make test"],
+    "lint": ["make lint"]
+  },
+  "default_runner": "claude",
+  "runners": {
+    "claude": { "command": "claude", "model": "opus" }
+  },
+  "roles": {
+    "designer": { "model": "opus" },
+    "coder": { "model": "sonnet" },
+    "reviewer": { "model": "sonnet", "deep_model": "opus" },
+    "tester": { "model": "sonnet" },
+    "acceptor": { "model": "opus" }
+  }
+}
 ```
 
 ## 3.2 `features/*.yaml`

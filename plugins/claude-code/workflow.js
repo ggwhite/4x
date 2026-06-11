@@ -131,7 +131,7 @@ const dotDir = parsed.dotDir || '.4x'
 const onlyPhase = parsed.only || null
 const featureDir = `${dotDir}/${featureId}`
 
-// ── Model config (from .4x/config.yaml roles, passed via args) ──
+// ── Model config (from .4x/settings.json roles, passed via args) ──
 
 const models = parsed.models || {}
 const MODEL_DESIGNER      = models.designer      || 'opus'
@@ -143,7 +143,7 @@ const MODEL_ACCEPTOR      = models.acceptor       || 'opus'
 
 log(`Models — designer:${MODEL_DESIGNER} coder:${MODEL_CODER} reviewer:${MODEL_REVIEWER} deep:${MODEL_DEEP_REVIEWER} tester:${MODEL_TESTER} acceptor:${MODEL_ACCEPTOR}`)
 
-// ── Project profile (from .4x/config.yaml project, passed via args) ──
+// ── Project profile (from .4x/settings.json project, passed via args) ──
 
 const project = parsed.project || {}
 const PROJECT_SETUP = (project.setup || []).map(c => `- \`${c}\``).join('\n')

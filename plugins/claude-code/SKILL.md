@@ -42,20 +42,16 @@ Confirm feature exists and status is not `done`.
 
 Read `.4x/settings.json` and extract the `roles` section. Map to workflow model names:
 
-```yaml
-# .4x/settings.json example
-roles:
-  designer:
-    model: opus           # task-brief, acceptance-criteria, amend
-  coder:
-    model: sonnet         # implementation, fix review/test issues
-  reviewer:
-    model: sonnet         # checklist review
-    deep_model: opus      # adversarial deep review
-  tester:
-    model: sonnet         # run tests, report evidence
-  acceptor:
-    model: opus           # final-report, commit-plan
+```json
+{
+  "roles": {
+    "designer": { "model": "opus" },
+    "coder": { "model": "sonnet" },
+    "reviewer": { "model": "sonnet", "deep_model": "opus" },
+    "tester": { "model": "sonnet" },
+    "acceptor": { "model": "opus" }
+  }
+}
 ```
 
 Build the `models` object from config:

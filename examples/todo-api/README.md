@@ -10,7 +10,7 @@ The focus is on the 4x workflow itself; the API code is intentionally simple.
 ```
 examples/todo-api/
 ├── .4x/                          # created by 4x init
-│   ├── config.yaml
+│   ├── settings.json
 │   ├── features/
 │   │   └── rest-api-for-todo-items.yaml
 │   └── rest-api-for-todo-items/  # created when run starts
