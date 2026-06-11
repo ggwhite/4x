@@ -10,7 +10,9 @@ import (
 )
 
 func newStatusCmd() *cobra.Command {
-	return &cobra.Command{
+	var pending bool
+
+	cmd := &cobra.Command{
 		Use:   "status [feature-id]",
 		Short: "Show feature status",
 		Args:  cobra.MaximumNArgs(1),
@@ -27,12 +29,15 @@ func newStatusCmd() *cobra.Command {
 			if len(args) == 1 {
 				return showFeatureDetail(ws, args[0])
 			}
-			return showAllFeatures(ws)
+			return showAllFeatures(ws, pending)
 		},
 	}
+
+	cmd.Flags().BoolVar(&pending, "pending", false, "show only non-done features")
+	return cmd
 }
 
-func showAllFeatures(ws *protocol.Workspace) error {
+func showAllFeatures(ws *protocol.Workspace, pendingOnly bool) error {
 	features, err := ws.ListFeatures()
 	if err != nil {
 		return err
@@ -43,17 +48,34 @@ func showAllFeatures(ws *protocol.Workspace) error {
 		return nil
 	}
 
+	var done, inProgress, notStarted int
+	for _, f := range features {
+		switch f.Status {
+		case "done":
+			done++
+		case "in-progress":
+			inProgress++
+		default:
+			notStarted++
+		}
+	}
+	fmt.Printf("Total: %d features — %d done, %d in-progress, %d pending\n\n",
+		len(features), done, inProgress, notStarted)
+
 	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
 	fmt.Fprintln(w, "ID\tNAME\tSTATUS\tPHASE\tROUND")
 	fmt.Fprintln(w, "──\t────\t──────\t─────\t─────")
 
 	for _, f := range features {
+		if pendingOnly && f.Status == "done" {
+			continue
+		}
 		phase := "-"
 		round := "-"
-		state, err := ws.ReadState(f.ID)
+		s, err := ws.ReadState(f.ID)
 		if err == nil {
-			phase = string(state.Phase)
-			round = fmt.Sprintf("%d/%d", state.Round, state.MaxRounds)
+			phase = string(s.Phase)
+			round = fmt.Sprintf("%d/%d", s.Round, s.MaxRounds)
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", f.ID, f.Name, f.Status, phase, round)
 	}
