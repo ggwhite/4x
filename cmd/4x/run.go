@@ -162,7 +162,9 @@ func runLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.Conf
 		}
 
 		if phase == protocol.PhaseCoding && s.Round == 1 {
-			guard.CaptureBaseline(ws, featureID, repoPathsFromFeature(feature))
+			if err := captureBaselineOnce(ws, featureID, repoPathsFromFeature(feature)); err != nil {
+				return err
+			}
 		}
 
 		ws.AppendEvent(featureID, protocol.Event{
@@ -346,6 +348,24 @@ func readEscalation(ws *protocol.Workspace, featureID string, round int) protoco
 	var esc protocol.Escalation
 	json.Unmarshal(data, &esc)
 	return esc
+}
+
+func captureBaselineOnce(ws *protocol.Workspace, featureID string, repoPaths []string) error {
+	path := filepath.Join(ws.FeatureDir(featureID), protocol.BaselineFile)
+	info, err := os.Stat(path)
+	if err == nil {
+		if info.IsDir() {
+			return fmt.Errorf("baseline path is a directory: %s", path)
+		}
+		return nil
+	}
+	if !os.IsNotExist(err) {
+		return fmt.Errorf("check baseline: %w", err)
+	}
+	if err := guard.CaptureBaseline(ws, featureID, repoPaths); err != nil {
+		return fmt.Errorf("capture baseline: %w", err)
+	}
+	return nil
 }
 
 func repoPathsFromFeature(f protocol.Feature) []string {

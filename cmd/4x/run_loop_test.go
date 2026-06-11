@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -19,16 +20,22 @@ type mockOutcome struct {
 }
 
 type mockRunner struct {
-	ws        *protocol.Workspace
-	featureID string
-	outcomes  []mockOutcome
-	idx       int
-	phases    []protocol.Phase
+	ws               *protocol.Workspace
+	featureID        string
+	outcomes         []mockOutcome
+	idx              int
+	phases           []protocol.Phase
+	baselineAtCoding []bool
 }
 
 func (m *mockRunner) Run(_ context.Context, _ string) (*runner.Result, error) {
 	s, _ := m.ws.ReadState(m.featureID)
 	m.phases = append(m.phases, s.Phase)
+	if s.Phase == protocol.PhaseCoding {
+		baselinePath := filepath.Join(m.ws.FeatureDir(m.featureID), protocol.BaselineFile)
+		_, err := os.Stat(baselinePath)
+		m.baselineAtCoding = append(m.baselineAtCoding, err == nil)
+	}
 
 	outcome := mockOutcome{testPassed: true, reviewVerdict: "PASS"}
 	if m.idx < len(m.outcomes) {
@@ -341,14 +348,198 @@ func TestRunLoop_BaselineCaptured(t *testing.T) {
 	if _, err := os.Stat(baselinePath); os.IsNotExist(err) {
 		t.Error("baseline.json should be created before first coding")
 	}
+	if len(mock.baselineAtCoding) != 1 {
+		t.Fatalf("coding invocations = %d, want 1", len(mock.baselineAtCoding))
+	}
+	if !mock.baselineAtCoding[0] {
+		t.Error("baseline.json should exist before Coder runner starts")
+	}
+}
+
+func TestRunLoop_BaselinePreservesExistingRoundOne(t *testing.T) {
+	ws := setupLoopWorkspace(t, "feat-existing")
+	feature, _ := ws.LoadFeature("feat-existing")
+	cfg, _ := ws.ReadConfig()
+
+	baselinePath := filepath.Join(ws.FeatureDir("feat-existing"), protocol.BaselineFile)
+	const existingBaseline = `{"repos":[{"name":"sentinel"}]}`
+	if err := os.WriteFile(baselinePath, []byte(existingBaseline), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	s := protocol.State{
+		FeatureID: "feat-existing", Phase: protocol.PhaseCoding, Role: protocol.RoleCoder,
+		Round: 1, MaxRounds: 5, Active: true, Runner: "mock",
+	}
+	ws.WriteState("feat-existing", s)
+
+	mock := &mockRunner{ws: ws, featureID: "feat-existing", outcomes: []mockOutcome{
+		{}, {reviewVerdict: "PASS"}, {testPassed: true}, {},
+	}}
+
+	if err := runLoop(ws, feature, cfg, s, mock); err != nil {
+		t.Fatalf("runLoop error: %v", err)
+	}
+
+	data, err := os.ReadFile(baselinePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != existingBaseline {
+		t.Errorf("baseline overwritten: %s", string(data))
+	}
+	if len(mock.baselineAtCoding) != 1 || !mock.baselineAtCoding[0] {
+		t.Fatalf("baseline should be available to coder, got %v", mock.baselineAtCoding)
+	}
+}
+
+func TestRunLoop_BaselineNotRepeatedAfterRoundOne(t *testing.T) {
+	ws := setupLoopWorkspace(t, "feat-round-2")
+	feature, _ := ws.LoadFeature("feat-round-2")
+	cfg, _ := ws.ReadConfig()
+
+	baselinePath := filepath.Join(ws.FeatureDir("feat-round-2"), protocol.BaselineFile)
+	const existingBaseline = `{"repos":[{"name":"round-one"}]}`
+	if err := os.WriteFile(baselinePath, []byte(existingBaseline), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	s := protocol.State{
+		FeatureID: "feat-round-2", Phase: protocol.PhaseAmending, Role: protocol.RoleCoder,
+		Round: 2, MaxRounds: 5, Active: true, Runner: "mock",
+	}
+	ws.WriteState("feat-round-2", s)
+
+	mock := &mockRunner{ws: ws, featureID: "feat-round-2", outcomes: []mockOutcome{
+		{}, {reviewVerdict: "PASS"}, {testPassed: true}, {},
+	}}
+
+	if err := runLoop(ws, feature, cfg, s, mock); err != nil {
+		t.Fatalf("runLoop error: %v", err)
+	}
+
+	data, err := os.ReadFile(baselinePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != existingBaseline {
+		t.Errorf("baseline overwritten after round 1: %s", string(data))
+	}
+}
+
+func TestRunLoop_BaselineUsesFeatureRepoScope(t *testing.T) {
+	root := t.TempDir()
+	repoDir := filepath.Join(root, "backend")
+	os.MkdirAll(repoDir, 0o755)
+
+	gitRun := func(dir string, args ...string) {
+		t.Helper()
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(),
+			"GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@test.com",
+			"GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@test.com",
+		)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %s - %v", args, out, err)
+		}
+	}
+
+	gitRun(repoDir, "git", "init")
+	os.WriteFile(filepath.Join(repoDir, "main.go"), []byte("package main"), 0o644)
+	gitRun(repoDir, "git", "add", ".")
+	gitRun(repoDir, "git", "commit", "-m", "init")
+
+	cfg := protocol.Config{
+		Project: protocol.ProjectConfig{Name: "baseline-scope-test"},
+		Default: "mock",
+		Runners: map[string]protocol.RunnerConfig{"mock": {Command: "echo"}},
+	}
+	if err := protocol.Init(root, cfg); err != nil {
+		t.Fatal(err)
+	}
+	ws := &protocol.Workspace{Root: root}
+	if err := ws.InitFeatureDir("feat-scope"); err != nil {
+		t.Fatal(err)
+	}
+	f := protocol.Feature{
+		ID:     "feat-scope",
+		Name:   "Scope Test",
+		Status: "not-started",
+		Repos:  map[string]string{"backend": "backend"},
+	}
+	ws.SaveFeature(f)
+
+	feature, _ := ws.LoadFeature("feat-scope")
+
+	s := protocol.State{
+		FeatureID: "feat-scope", Phase: protocol.PhaseInit,
+		MaxRounds: 5, Active: true, Runner: "mock",
+	}
+	ws.WriteState("feat-scope", s)
+
+	mock := &mockRunner{ws: ws, featureID: "feat-scope", outcomes: []mockOutcome{
+		{}, {}, {reviewVerdict: "PASS"}, {testPassed: true}, {},
+	}}
+
+	if err := runLoop(ws, feature, cfg, s, mock); err != nil {
+		t.Fatalf("runLoop error: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(ws.FeatureDir("feat-scope"), protocol.BaselineFile))
+	if err != nil {
+		t.Fatalf("read baseline: %v", err)
+	}
+	var baseline protocol.Baseline
+	if err := json.Unmarshal(data, &baseline); err != nil {
+		t.Fatalf("parse baseline: %v", err)
+	}
+	if len(baseline.Repos) != 1 {
+		t.Fatalf("repos count = %d, want 1", len(baseline.Repos))
+	}
+	if baseline.Repos[0].Name != "backend" {
+		t.Errorf("repo name = %q, want %q", baseline.Repos[0].Name, "backend")
+	}
+	if baseline.Repos[0].Head == "" {
+		t.Error("repo HEAD should not be empty")
+	}
+	if baseline.Repos[0].Branch == "" {
+		t.Error("repo branch should not be empty")
+	}
+}
+
+func TestRunLoop_BaselineFailureBlocksCoder(t *testing.T) {
+	ws := setupLoopWorkspace(t, "feat-baseline-fail")
+	feature, _ := ws.LoadFeature("feat-baseline-fail")
+	cfg, _ := ws.ReadConfig()
+
+	baselinePath := filepath.Join(ws.FeatureDir("feat-baseline-fail"), protocol.BaselineFile)
+	if err := os.Mkdir(baselinePath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	s := protocol.State{
+		FeatureID: "feat-baseline-fail", Phase: protocol.PhaseCoding, Role: protocol.RoleCoder,
+		Round: 1, MaxRounds: 5, Active: true, Runner: "mock",
+	}
+	ws.WriteState("feat-baseline-fail", s)
+
+	mock := &mockRunner{ws: ws, featureID: "feat-baseline-fail"}
+
+	if err := runLoop(ws, feature, cfg, s, mock); err == nil {
+		t.Fatal("runLoop should fail when baseline cannot be captured")
+	}
+	if len(mock.phases) != 0 {
+		t.Fatalf("Coder runner should not execute after baseline failure, phases: %v", mock.phases)
+	}
 }
 
 func TestParseReviewVerdict(t *testing.T) {
 	tests := []struct {
-		name          string
-		content       string
-		wantPassed    bool
-		wantCritical  int
+		name         string
+		content      string
+		wantPassed   bool
+		wantCritical int
 	}{
 		{"pass", "## Verdict\nPASS — looks good\n", true, 0},
 		{"fail", "## Verdict\nFAIL — fix bugs\n", false, 0},
