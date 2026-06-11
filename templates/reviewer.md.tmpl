@@ -10,6 +10,14 @@ Review the Coder's changes for correctness, safety, and quality.
 2. Task brief: `{{ .DotDir }}/{{ .Feature.ID }}/task-brief.md`
 3. Coder report: `{{ .DotDir }}/{{ .Feature.ID }}/rounds/round-{{ .Round }}/coder-report.md`
 
+{{- if .ProjectIncludes }}
+{{ range .ProjectIncludes }}
+
+## Included: {{ .Path }}
+{{ .Content }}
+{{- end }}
+{{- end }}
+
 {{- if or .Feature.Rules .Project.Rules }}
 
 ## Rules to Check
@@ -34,6 +42,14 @@ Review the Coder's changes for correctness, safety, and quality.
 ## Role Instructions
 {{- range .RoleInstructions }}
 - {{ . }}
+{{- end }}
+{{- end }}
+
+{{- if .RoleIncludes }}
+{{ range .RoleIncludes }}
+
+## Included: {{ .Path }}
+{{ .Content }}
 {{- end }}
 {{- end }}
 

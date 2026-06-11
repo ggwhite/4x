@@ -43,7 +43,8 @@ Workspace-level configuration. Created by `4x init`.
     "language": "go",
     "build": ["make build"],
     "test": ["make test"],
-    "lint": ["make lint"]
+    "lint": ["make lint"],
+    "includes": ["CLAUDE.md"]
   },
   "default_runner": "claude",
   "runners": {
@@ -51,7 +52,7 @@ Workspace-level configuration. Created by `4x init`.
   },
   "roles": {
     "designer": { "model": "opus", "instructions": ["設計時考慮冪等性"] },
-    "coder": { "model": "sonnet" },
+    "coder": { "model": "sonnet", "includes": ["docs/coding-standards.md"] },
     "reviewer": { "model": "sonnet", "deep_model": "opus", "instructions": ["重點檢查 SQL injection"] },
     "tester": { "model": "sonnet" },
     "acceptor": { "model": "opus" }

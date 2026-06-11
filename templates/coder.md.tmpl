@@ -46,6 +46,14 @@ Run after every significant change:
 {{- end }}
 {{- end }}
 
+{{- if .ProjectIncludes }}
+{{ range .ProjectIncludes }}
+
+## Included: {{ .Path }}
+{{ .Content }}
+{{- end }}
+{{- end }}
+
 {{- if .Project.Rules }}
 
 ## Project Rules
@@ -59,6 +67,14 @@ Run after every significant change:
 ## Role Instructions
 {{- range .RoleInstructions }}
 - {{ . }}
+{{- end }}
+{{- end }}
+
+{{- if .RoleIncludes }}
+{{ range .RoleIncludes }}
+
+## Included: {{ .Path }}
+{{ .Content }}
 {{- end }}
 {{- end }}
 

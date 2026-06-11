@@ -33,6 +33,14 @@ Analyze requirements, explore the codebase, and produce three artifacts that wil
 {{- end }}
 {{- end }}
 
+{{- if .ProjectIncludes }}
+{{ range .ProjectIncludes }}
+
+## Included: {{ .Path }}
+{{ .Content }}
+{{- end }}
+{{- end }}
+
 {{- if .Project.Rules }}
 
 ## Project Rules (Coder must follow, Reviewer will check)
@@ -54,6 +62,14 @@ Analyze requirements, explore the codebase, and produce three artifacts that wil
 ## Role Instructions
 {{- range .RoleInstructions }}
 - {{ . }}
+{{- end }}
+{{- end }}
+
+{{- if .RoleIncludes }}
+{{ range .RoleIncludes }}
+
+## Included: {{ .Path }}
+{{ .Content }}
 {{- end }}
 {{- end }}
 

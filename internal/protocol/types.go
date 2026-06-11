@@ -211,6 +211,7 @@ type ProjectConfig struct {
 	Lint        []string `json:"lint,omitempty"`
 	Docs        []string `json:"docs,omitempty"`
 	Rules       []string `json:"rules,omitempty"`
+	Includes    []string `json:"includes,omitempty"`
 }
 
 // RunnerConfig 是 LLM runner 的設定
@@ -225,6 +226,7 @@ type RoleConfig struct {
 	Model        string   `json:"model,omitempty"`
 	DeepModel    string   `json:"deep_model,omitempty"`
 	Instructions []string `json:"instructions,omitempty"`
+	Includes     []string `json:"includes,omitempty"`
 }
 
 // UserConfig 是 ~/.4x/settings.json 的使用者層級設定

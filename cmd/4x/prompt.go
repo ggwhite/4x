@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"text/template"
 
 	"github.com/ggwhite/4x/internal/protocol"
@@ -49,6 +50,11 @@ func newPromptCmd() *cobra.Command {
 			cfg, _ := ws.ReadConfig()
 			locale, localeName := resolveLocale()
 
+			var roleInc []string
+			if rc, ok := cfg.Roles[string(r)]; ok {
+				roleInc = rc.Includes
+			}
+
 			data := promptData{
 				Feature:          feature,
 				Project:          cfg.Project,
@@ -59,6 +65,8 @@ func newPromptCmd() *cobra.Command {
 				Locale:           locale,
 				LocaleName:       localeName,
 				RoleInstructions: roleInstructions(cfg, r),
+				ProjectIncludes:  loadIncludes(ws.Root, cfg.Project.Includes),
+				RoleIncludes:     loadIncludes(ws.Root, roleInc),
 			}
 
 			tmpl, err := loadRoleTemplate(r)
@@ -85,6 +93,13 @@ type promptData struct {
 	Locale           string
 	LocaleName       string
 	RoleInstructions []string
+	ProjectIncludes  []includeContent
+	RoleIncludes     []includeContent
+}
+
+type includeContent struct {
+	Path    string
+	Content string
 }
 
 // roleInstructions 從 Config 取出指定角色的 instructions
@@ -93,6 +108,24 @@ func roleInstructions(cfg protocol.Config, r protocol.Role) []string {
 		return rc.Instructions
 	}
 	return nil
+}
+
+// loadIncludes 讀取指定路徑的檔案內容，路徑相對於 root 解析
+func loadIncludes(root string, paths []string) []includeContent {
+	var result []includeContent
+	for _, p := range paths {
+		abs := p
+		if !filepath.IsAbs(p) {
+			abs = filepath.Join(root, p)
+		}
+		data, err := os.ReadFile(abs)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "warning: include %s: %v\n", p, err)
+			continue
+		}
+		result = append(result, includeContent{Path: p, Content: string(data)})
+	}
+	return result
 }
 
 var localeNames = map[string]string{
@@ -216,6 +249,13 @@ Subtasks:
 - {{.}}
 {{- end}}
 {{- end}}
+{{- if .ProjectIncludes}}
+{{range .ProjectIncludes}}
+
+== Included: {{.Path}} ==
+{{.Content}}
+{{- end}}
+{{- end}}
 {{- if .Project.Rules}}
 
 == Project Rules ==
@@ -235,6 +275,13 @@ Subtasks:
 == Role Instructions ==
 {{- range .RoleInstructions}}
 - {{.}}
+{{- end}}
+{{- end}}
+{{- if .RoleIncludes}}
+{{range .RoleIncludes}}
+
+== Included: {{.Path}} ==
+{{.Content}}
 {{- end}}
 {{- end}}
 {{- if .Project.Test}}
@@ -305,6 +352,13 @@ Read the previous test report: {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{(sub .
 - Test: {{.}}
 {{- end}}
 {{- end}}
+{{- if .ProjectIncludes}}
+{{range .ProjectIncludes}}
+
+== Included: {{.Path}} ==
+{{.Content}}
+{{- end}}
+{{- end}}
 {{- if .Project.Rules}}
 
 == Project Rules ==
@@ -317,6 +371,13 @@ Read the previous test report: {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{(sub .
 == Role Instructions ==
 {{- range .RoleInstructions}}
 - {{.}}
+{{- end}}
+{{- end}}
+{{- if .RoleIncludes}}
+{{range .RoleIncludes}}
+
+== Included: {{.Path}} ==
+{{.Content}}
 {{- end}}
 {{- end}}
 
@@ -353,6 +414,13 @@ Use the Write tool. Do NOT just print the content — write to disk.
 1. Run: git diff HEAD (or git diff --cached) to see changed files
 2. Read: {{.DotDir}}/{{.Feature.ID}}/task-brief.md
 3. Read: {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/coder-report.md
+{{- if .ProjectIncludes}}
+{{range .ProjectIncludes}}
+
+== Included: {{.Path}} ==
+{{.Content}}
+{{- end}}
+{{- end}}
 {{- if or .Project.Rules .Feature.Rules}}
 
 == Rules to Check ==
@@ -375,6 +443,13 @@ Use the Write tool. Do NOT just print the content — write to disk.
 == Role Instructions ==
 {{- range .RoleInstructions}}
 - {{.}}
+{{- end}}
+{{- end}}
+{{- if .RoleIncludes}}
+{{range .RoleIncludes}}
+
+== Included: {{.Path}} ==
+{{.Content}}
 {{- end}}
 {{- end}}
 
@@ -419,6 +494,13 @@ Use the Write tool. Do NOT just print the content — write to disk.
 1. Read: {{.DotDir}}/{{.Feature.ID}}/acceptance-criteria.md
 2. Read: {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/coder-report.md
 3. Read: {{.DotDir}}/{{.Feature.ID}}/test-strategy.yaml (for verify_commands)
+{{- if .ProjectIncludes}}
+{{range .ProjectIncludes}}
+
+== Included: {{.Path}} ==
+{{.Content}}
+{{- end}}
+{{- end}}
 {{- if .Project.Test}}
 
 == Project Test Commands ==
@@ -431,6 +513,13 @@ Use the Write tool. Do NOT just print the content — write to disk.
 == Role Instructions ==
 {{- range .RoleInstructions}}
 - {{.}}
+{{- end}}
+{{- end}}
+{{- if .RoleIncludes}}
+{{range .RoleIncludes}}
+
+== Included: {{.Path}} ==
+{{.Content}}
 {{- end}}
 {{- end}}
 

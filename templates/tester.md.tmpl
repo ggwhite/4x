@@ -26,6 +26,14 @@ Each AC item must have:
 - **Evidence**: what you observed (command output, screenshot, DB query result)
 - **Detail**: for fail/skip, describe what went wrong
 
+{{- if .ProjectIncludes }}
+{{ range .ProjectIncludes }}
+
+## Included: {{ .Path }}
+{{ .Content }}
+{{- end }}
+{{- end }}
+
 {{- if .Project.Test }}
 
 ## Project Test Commands
@@ -39,6 +47,14 @@ Each AC item must have:
 ## Role Instructions
 {{- range .RoleInstructions }}
 - {{ . }}
+{{- end }}
+{{- end }}
+
+{{- if .RoleIncludes }}
+{{ range .RoleIncludes }}
+
+## Included: {{ .Path }}
+{{ .Content }}
 {{- end }}
 {{- end }}
 
