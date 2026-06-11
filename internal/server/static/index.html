@@ -52,7 +52,8 @@
 <script>
 let current = null;
 let lastTasks = [];
-let lastMsgHash = '';
+let lastMsgCount = 0;
+let sseSource = null;
 
 const ROLES = {
   designer:       { name: 'Designer',     color: '#a855f7', bg: 'rgba(168,85,247,.08)' },
@@ -81,11 +82,24 @@ function badge(status, phase, active) {
 
 function goHome() {
   current = null;
+  lastMsgCount = 0;
+  disconnectSSE();
   document.getElementById('header').classList.add('hidden');
   document.getElementById('messages').classList.add('hidden');
+  document.getElementById('messages').innerHTML = '';
   document.getElementById('dashboard').classList.remove('hidden');
   load();
   renderDashboard(lastTasks);
+}
+
+function connectSSE(featureId) {
+  disconnectSSE();
+  sseSource = new EventSource('/sse/events/' + featureId);
+  sseSource.onmessage = () => { loadMessages(featureId); };
+}
+
+function disconnectSSE() {
+  if (sseSource) { sseSource.close(); sseSource = null; }
 }
 
 function classify(tasks) {
@@ -287,6 +301,8 @@ async function load() {
 async function loadDetail(t) {
   document.getElementById('dashboard').classList.add('hidden');
   document.getElementById('header').classList.remove('hidden');
+  document.getElementById('messages').innerHTML = '';
+  lastMsgCount = 0;
 
   document.getElementById('h-id').textContent = t.id;
   document.getElementById('h-name').textContent = t.name;
@@ -298,35 +314,50 @@ async function loadDetail(t) {
   if (t.runner) meta.push(`<span>⬡ ${t.runner}</span>`);
   document.getElementById('h-meta').innerHTML = meta.join('<span class="text-zinc-700">·</span>');
 
+  connectSSE(t.id);
   loadMessages(t.id);
+}
+
+function renderMsgCard(m) {
+  const r = ROLES[m.role] || { name: m.role, color: '#666', bg: 'rgba(100,100,100,.05)' };
+  const div = document.createElement('div');
+  div.className = 'fade-in rounded-lg overflow-hidden';
+  div.innerHTML = `
+    <div class="flex items-center gap-2 px-4 py-2" style="background:${r.bg}">
+      <span class="w-1.5 h-1.5 rounded-full" style="background:${r.color}"></span>
+      <span class="text-xs font-semibold" style="color:${r.color}">${r.name}</span>
+      <span class="text-xs text-zinc-600">${m.label}${m.round ? ' · Round ' + m.round : ''}</span>
+    </div>
+    <div class="px-4 py-3 text-[13px] text-zinc-300 leading-relaxed whitespace-pre-wrap border-l-2" style="border-color:${r.color}20">${esc(m.content.slice(0, 3000))}</div>`;
+  return div;
 }
 
 async function loadMessages(id) {
   const el = document.getElementById('messages');
   el.classList.remove('hidden');
   const msgs = await (await fetch('/api/messages/' + id)).json();
-  const hash = JSON.stringify(msgs);
-  if (hash === lastMsgHash) return;
-  lastMsgHash = hash;
-  el.innerHTML = '';
+  const list = msgs || [];
 
-  (msgs || []).forEach((m, i) => {
-    const r = ROLES[m.role] || { name: m.role, color: '#666', bg: 'rgba(100,100,100,.05)' };
-    const div = document.createElement('div');
-    div.className = 'fade-in rounded-lg overflow-hidden';
-    div.style.animationDelay = (i * 30) + 'ms';
-    div.innerHTML = `
-      <div class="flex items-center gap-2 px-4 py-2" style="background:${r.bg}">
-        <span class="w-1.5 h-1.5 rounded-full" style="background:${r.color}"></span>
-        <span class="text-xs font-semibold" style="color:${r.color}">${r.name}</span>
-        <span class="text-xs text-zinc-600">${m.label}${m.round ? ' · Round ' + m.round : ''}</span>
-      </div>
-      <div class="px-4 py-3 text-[13px] text-zinc-300 leading-relaxed whitespace-pre-wrap border-l-2" style="border-color:${r.color}20">${esc(m.content.slice(0, 3000))}</div>`;
-    el.appendChild(div);
-  });
+  if (list.length === lastMsgCount) return;
 
-  if ((msgs || []).length === 0) {
-    el.innerHTML = '<div class="text-zinc-600 text-sm mt-8 text-center">No artifacts yet</div>';
+  if (list.length < lastMsgCount) {
+    el.innerHTML = '';
+    lastMsgCount = 0;
+  }
+
+  const empty = el.querySelector('.msg-empty');
+  if (empty) empty.remove();
+
+  const newMsgs = list.slice(lastMsgCount);
+  newMsgs.forEach(m => el.appendChild(renderMsgCard(m)));
+  lastMsgCount = list.length;
+
+  if (list.length === 0) {
+    el.innerHTML = '<div class="msg-empty text-zinc-600 text-sm mt-8 text-center">No artifacts yet</div>';
+  }
+
+  if (newMsgs.length > 0) {
+    el.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }
 }
 
