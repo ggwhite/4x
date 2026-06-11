@@ -226,10 +226,26 @@ func runLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.Conf
 
 			check := guard.Check(ws, featureID)
 			if !check.Pass {
-				fmt.Printf("  guardrails failed:\n")
+				fmt.Printf("  ❌ guardrails failed:\n")
 				for _, e := range check.Errors {
 					fmt.Printf("    ERROR: %s\n", e)
 				}
+				s.Active = false
+				s.StopReason = "guardrail-fail"
+				ws.WriteState(featureID, s)
+				syncFeatureStatus(ws, featureID, protocol.PhaseBlocked)
+				ws.AppendEvent(featureID, protocol.Event{
+					Type:   "run-end",
+					Phase:  p.phase,
+					Role:   p.role,
+					Round:  s.Round,
+					Status: "guardrail-fail",
+					Detail: check.Errors[0],
+				})
+				return fmt.Errorf("guardrails failed after %s phase — feature blocked", p.phase)
+			}
+			for _, w := range check.Warns {
+				fmt.Printf("  ⚠ %s\n", w)
 			}
 
 			if stop, reason := state.ShouldStop(s); stop {
