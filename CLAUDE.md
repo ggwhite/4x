@@ -67,6 +67,14 @@ Plugin 合約見 `docs/reference/plugin-contract.md`。Claude Code plugin 在 `p
 - `SKILL.md` — skill 定義（觸發方式、流程）
 - `workflow.js` — Claude Code Workflow 腳本
 
+## Docs Routing
+
+- superpowers brainstorming spec 存到 `docs/design/`，不存到 `docs/superpowers/`
+- superpowers plan 存到 `docs/design/`，不存到 `docs/superpowers/plans/`
+- 功能設計文件：`docs/design/`
+- 架構文件：`docs/architecture/`
+- 參考資料：`docs/reference/`
+
 ## Current State
 
 見 `progress.md` 了解目前進度，`feature_list.json` 列出待做功能。
