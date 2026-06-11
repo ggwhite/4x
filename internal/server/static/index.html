@@ -173,12 +173,17 @@
     <div style="padding:20px 24px 16px;border-bottom:1px solid var(--border)">
       <span style="font-size:16px;font-weight:700">Open Project</span>
     </div>
-    <div id="recent-list" style="overflow-y:auto;max-height:40vh"></div>
+    <div id="recent-list" style="overflow-y:auto;max-height:30vh"></div>
+    <div id="browse-panel" style="display:none;border-top:1px solid var(--border)">
+      <div id="browse-path" style="padding:8px 24px;font-size:11px;color:var(--text-3);border-bottom:1px solid var(--border);font-family:inherit;word-break:break-all"></div>
+      <div id="browse-list" style="overflow-y:auto;max-height:35vh"></div>
+    </div>
     <div style="padding:16px 24px;border-top:1px solid var(--border)">
       <div style="display:flex;gap:8px">
         <input id="path-input" type="text" placeholder="Enter project path..." autocomplete="off"
           style="flex:1;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none"
           onkeydown="if(event.key==='Enter')addProjectFromInput()">
+        <button onclick="toggleBrowse()" style="padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-2);cursor:pointer">Browse</button>
         <button id="picker-open-btn" onclick="addProjectFromInput()" style="padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Open</button>
       </div>
       <div id="path-error" style="color:#f87171;font-size:12px;margin-top:6px;display:none"></div>
@@ -257,7 +262,7 @@ function renderTabs() {
   const el = document.getElementById('tabs');
   el.innerHTML = openTabs.map(tab => {
     const a = tab.id === activeProjectId;
-    return `<div class="tab-item ${a?'active':''}" onclick="switchTab('${tab.id}')"><span>${esc(tab.name)}</span><span class="tab-close" onclick="event.stopPropagation();closeTab('${tab.id}')">&times;</span></div>`;
+    return `<div class="tab-item ${a?'active':''}" onclick="switchTab('${escAttr(tab.id)}')"><span>${esc(tab.name)}</span><span class="tab-close" onclick="event.stopPropagation();closeTab('${escAttr(tab.id)}')">&times;</span></div>`;
   }).join('');
 }
 function switchTab(pid) { activeProjectId=pid; current=null; lastMsgCount=0; disconnectSSE(); saveTabState(); renderTabs(); goHome(); }
@@ -289,7 +294,7 @@ function renderRecentList() {
   const el = document.getElementById('recent-list');
   const unopened = projects.filter(p => !openTabs.find(t => t.id === p.id));
   if (unopened.length === 0) { el.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-4);font-size:13px">No recent projects</div>'; return; }
-  el.innerHTML = unopened.map(p => `<div class="search-item" onclick="openExistingProject('${p.id}')"><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:var(--text-1)">${esc(p.name)}</div><div style="font-size:11px;color:var(--text-4);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.path)}</div></div><span style="font-size:11px;color:var(--text-4)">${p.taskCount} tasks</span></div>`).join('');
+  el.innerHTML = unopened.map(p => `<div class="search-item" onclick="openExistingProject('${escAttr(p.id)}')"><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:var(--text-1)">${esc(p.name)}</div><div style="font-size:11px;color:var(--text-4);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.path)}</div></div><span style="font-size:11px;color:var(--text-4)">${p.taskCount} tasks</span></div>`).join('');
 }
 function openExistingProject(id) { const p = projects.find(x => x.id === id); if (p) { closeProjectPicker(); addTab(p); } }
 async function addProjectFromInput() {
@@ -305,6 +310,35 @@ async function addProjectFromInput() {
 async function addProjectFromNative(path) {
   const resp = await fetch('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) });
   if (resp.ok) { const data = await resp.json(); await loadProjects(); const p = projects.find(x => x.id === data.id); if (p) { closeProjectPicker(); addTab(p); } }
+}
+async function toggleBrowse() {
+  const panel = document.getElementById('browse-panel');
+  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+  const input = document.getElementById('path-input');
+  await browseTo(input.value.trim() || '~');
+}
+async function browseTo(dir) {
+  const panel = document.getElementById('browse-panel');
+  const list = document.getElementById('browse-list');
+  const pathEl = document.getElementById('browse-path');
+  try {
+    const resp = await fetch('/api/browse?path=' + encodeURIComponent(dir));
+    if (!resp.ok) { list.innerHTML = `<div style="padding:16px 24px;color:#f87171;font-size:12px">${await resp.text()}</div>`; panel.style.display = 'block'; return; }
+    const data = await resp.json();
+    pathEl.textContent = data.current;
+    const parent = data.current.split('/').slice(0, -1).join('/') || '/';
+    let html = `<div class="search-item" onclick="browseTo('${escAttr(parent)}')" style="color:var(--text-3)">.. (up)</div>`;
+    (data.dirs || []).forEach(d => {
+      const badge = d.is4x ? '<span style="font-size:9px;padding:2px 6px;border-radius:4px;background:var(--accent);color:#000;font-weight:700;margin-left:6px">4x</span>' : '';
+      html += `<div class="search-item" style="display:flex;align-items:center;gap:8px">
+        <span style="flex:1;min-width:0;cursor:pointer" onclick="browseTo('${escAttr(d.path)}')">${esc(d.name)}${badge}</span>
+        ${d.is4x ? `<button onclick="event.stopPropagation();document.getElementById('path-input').value='${escAttr(d.path)}';addProjectFromInput()" style="padding:4px 10px;background:var(--accent);color:#000;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;flex-shrink:0">Open</button>` : ''}
+      </div>`;
+    });
+    if (!(data.dirs || []).length) html += '<div style="padding:16px 24px;color:var(--text-4);font-size:12px">No subdirectories</div>';
+    list.innerHTML = html;
+    panel.style.display = 'block';
+  } catch { list.innerHTML = '<div style="padding:16px 24px;color:#f87171;font-size:12px">Connection error</div>'; panel.style.display = 'block'; }
 }
 function renderProjectPicker() {
   document.getElementById('dashboard').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:60vh;flex-direction:column;gap:16px"><div style="font-size:24px;font-weight:700;color:var(--text-1)">4x Live</div><div style="font-size:14px;color:var(--text-3)">Select a project to get started</div><button onclick="showProjectPicker()" style="margin-top:8px;padding:10px 24px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">Open Project...</button></div>';
@@ -500,6 +534,7 @@ async function loadMessages(id) {
 }
 
 function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+function escAttr(s) { return s.replace(/&/g,'&amp;').replace(/'/g,'&#39;').replace(/"/g,'&quot;'); }
 
 async function init() {
   initSettings(); await loadProjects();
