@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -104,7 +105,26 @@ func newRunCmd() *cobra.Command {
 	return cmd
 }
 
-// runLoop 驅動完整的 Design→Code→Review→Test loop
+func generatePrompt(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, role protocol.Role, round int) (string, error) {
+	tmpl, err := loadRoleTemplate(role)
+	if err != nil {
+		return "", fmt.Errorf("no template for role %s: %w", role, err)
+	}
+	data := promptData{
+		Feature: feature,
+		Project: cfg.Project,
+		Role:    role,
+		Round:   round,
+		Config:  cfg,
+		DotDir:  ws.DotDir(),
+	}
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
 func runLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s protocol.State, r runner.Runner) error {
 	featureID := feature.ID
 	ctx := context.Background()
@@ -145,6 +165,7 @@ func runLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.Conf
 			if err := ws.WriteState(featureID, s); err != nil {
 				return err
 			}
+			syncFeatureStatus(ws, featureID, p.phase)
 
 			ws.AppendEvent(featureID, protocol.Event{
 				Type:  "phase-start",
@@ -153,13 +174,19 @@ func runLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.Conf
 				Round: s.Round,
 			})
 
-			fmt.Printf("[round %d] %s (%s)\n", s.Round, p.phase, p.role)
+			prompt, err := generatePrompt(ws, feature, cfg, p.role, s.Round)
+			if err != nil {
+				fmt.Printf("  warning: %v, using minimal prompt\n", err)
+				prompt = fmt.Sprintf("You are the %s for feature %s, round %d. Read .4x/%s/ for context.", p.role, featureID, s.Round, featureID)
+			}
 
-			result, err := r.Run(ctx, featureID, p.role)
+			fmt.Printf("[round %d] %s (%s) — invoking %s\n", s.Round, p.phase, p.role, cfg.Default)
+
+			result, err := r.Run(ctx, prompt)
 			if err != nil {
 				fmt.Printf("  error: %v\n", err)
 				s.Active = false
-				s.StopReason = "plugin-error"
+				s.StopReason = "runner-error"
 				ws.WriteState(featureID, s)
 				ws.AppendEvent(featureID, protocol.Event{
 					Type:   "run-end",
@@ -184,7 +211,7 @@ func runLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.Conf
 				s.Active = false
 				s.StopReason = "hard-error"
 				ws.WriteState(featureID, s)
-				return fmt.Errorf("plugin returned hard error (exit 2)")
+				return fmt.Errorf("runner returned hard error (exit 2)")
 			}
 
 			if runner.IsSoftFail(result) {
@@ -192,6 +219,7 @@ func runLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.Conf
 				s.Active = false
 				s.StopReason = "soft-fail"
 				ws.WriteState(featureID, s)
+				syncFeatureStatus(ws, featureID, protocol.PhaseBlocked)
 				fmt.Printf("  soft fail — feature blocked\n")
 				return nil
 			}
@@ -231,7 +259,6 @@ func runLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.Conf
 	return nil
 }
 
-// dryRunLoop 印出每個 phase 的 prompt（不呼叫 plugin）
 func dryRunLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s protocol.State) error {
 	phases := []struct {
 		phase protocol.Phase
@@ -245,22 +272,12 @@ func dryRunLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.C
 
 	for _, p := range phases {
 		fmt.Printf("=== %s (%s) ===\n", p.phase, p.role)
-
-		data := promptData{
-			Feature: feature,
-			Project: cfg.Project,
-			Role:    p.role,
-			Round:   1,
-			Config:  cfg,
-			DotDir:  ws.DotDir(),
-		}
-
-		tmpl, err := loadRoleTemplate(p.role)
+		prompt, err := generatePrompt(ws, feature, cfg, p.role, 1)
 		if err != nil {
-			fmt.Printf("  (no template for %s)\n\n", p.role)
+			fmt.Printf("  (error: %v)\n\n", err)
 			continue
 		}
-		tmpl.Execute(os.Stdout, data)
+		fmt.Println(prompt)
 		fmt.Println()
 	}
 	return nil

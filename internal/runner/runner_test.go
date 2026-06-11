@@ -3,7 +3,6 @@ package runner
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -20,25 +19,35 @@ func writeScript(t *testing.T, dir, name, content string) string {
 	return path
 }
 
-func TestSubprocessRunner_Success(t *testing.T) {
+func setupRunner(t *testing.T, script string) (*SubprocessRunner, func()) {
+	t.Helper()
 	binDir := t.TempDir()
-	writeScript(t, binDir, "4x-plugin-test", "#!/bin/sh\nexit 0\n")
+	writeScript(t, binDir, "test-runner", script)
 
 	root := t.TempDir()
 	protocol.Init(root, protocol.Config{Project: protocol.ProjectConfig{Name: "t"}})
 	ws := &protocol.Workspace{Root: root}
-	ws.InitFeatureDir("f1")
+
+	origPath := os.Getenv("PATH")
+	os.Setenv("PATH", binDir+":"+origPath)
 
 	r := &SubprocessRunner{
 		Workspace: ws,
 		Name:      "test",
+		Config: protocol.RunnerConfig{
+			Command: filepath.Join(binDir, "test-runner"),
+			Args:    []string{"-p", "{prompt}"},
+		},
 	}
 
-	origPath := os.Getenv("PATH")
-	os.Setenv("PATH", binDir+":"+origPath)
-	defer os.Setenv("PATH", origPath)
+	return r, func() { os.Setenv("PATH", origPath) }
+}
 
-	result, err := r.Run(context.Background(), "f1", protocol.RoleCoder)
+func TestSubprocessRunner_Success(t *testing.T) {
+	r, cleanup := setupRunner(t, "#!/bin/sh\nexit 0\n")
+	defer cleanup()
+
+	result, err := r.Run(context.Background(), "test prompt")
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -48,21 +57,10 @@ func TestSubprocessRunner_Success(t *testing.T) {
 }
 
 func TestSubprocessRunner_SoftFail(t *testing.T) {
-	binDir := t.TempDir()
-	writeScript(t, binDir, "4x-plugin-test", "#!/bin/sh\nexit 1\n")
+	r, cleanup := setupRunner(t, "#!/bin/sh\nexit 1\n")
+	defer cleanup()
 
-	root := t.TempDir()
-	protocol.Init(root, protocol.Config{Project: protocol.ProjectConfig{Name: "t"}})
-	ws := &protocol.Workspace{Root: root}
-	ws.InitFeatureDir("f1")
-
-	r := &SubprocessRunner{Workspace: ws, Name: "test"}
-
-	origPath := os.Getenv("PATH")
-	os.Setenv("PATH", binDir+":"+origPath)
-	defer os.Setenv("PATH", origPath)
-
-	result, err := r.Run(context.Background(), "f1", protocol.RoleCoder)
+	result, err := r.Run(context.Background(), "test prompt")
 	if err != nil {
 		t.Fatalf("Run should not error for exit 1: %v", err)
 	}
@@ -72,21 +70,10 @@ func TestSubprocessRunner_SoftFail(t *testing.T) {
 }
 
 func TestSubprocessRunner_HardError(t *testing.T) {
-	binDir := t.TempDir()
-	writeScript(t, binDir, "4x-plugin-test", "#!/bin/sh\nexit 2\n")
+	r, cleanup := setupRunner(t, "#!/bin/sh\nexit 2\n")
+	defer cleanup()
 
-	root := t.TempDir()
-	protocol.Init(root, protocol.Config{Project: protocol.ProjectConfig{Name: "t"}})
-	ws := &protocol.Workspace{Root: root}
-	ws.InitFeatureDir("f1")
-
-	r := &SubprocessRunner{Workspace: ws, Name: "test"}
-
-	origPath := os.Getenv("PATH")
-	os.Setenv("PATH", binDir+":"+origPath)
-	defer os.Setenv("PATH", origPath)
-
-	result, err := r.Run(context.Background(), "f1", protocol.RoleCoder)
+	result, err := r.Run(context.Background(), "test prompt")
 	if err != nil {
 		t.Fatalf("Run should not error for exit 2: %v", err)
 	}
@@ -96,27 +83,52 @@ func TestSubprocessRunner_HardError(t *testing.T) {
 }
 
 func TestSubprocessRunner_Timeout(t *testing.T) {
+	r, cleanup := setupRunner(t, "#!/bin/sh\nsleep 10\n")
+	defer cleanup()
+	r.Timeout = 200 * time.Millisecond
+
+	_, err := r.Run(context.Background(), "test prompt")
+	if err == nil {
+		t.Error("expected timeout error")
+	}
+}
+
+func TestSubprocessRunner_PromptSubstitution(t *testing.T) {
+	r, cleanup := setupRunner(t, "#!/bin/sh\necho \"$@\"\nexit 0\n")
+	defer cleanup()
+
+	result, err := r.Run(context.Background(), "hello world")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if result.ExitCode != 0 {
+		t.Errorf("ExitCode = %d, want 0", result.ExitCode)
+	}
+}
+
+func TestSubprocessRunner_PromptFile(t *testing.T) {
 	binDir := t.TempDir()
-	writeScript(t, binDir, "4x-plugin-test", "#!/bin/sh\nsleep 10\n")
+	writeScript(t, binDir, "test-runner", "#!/bin/sh\ncat \"$2\"\nexit 0\n")
 
 	root := t.TempDir()
 	protocol.Init(root, protocol.Config{Project: protocol.ProjectConfig{Name: "t"}})
 	ws := &protocol.Workspace{Root: root}
-	ws.InitFeatureDir("f1")
 
 	r := &SubprocessRunner{
 		Workspace: ws,
 		Name:      "test",
-		Timeout:   200 * time.Millisecond,
+		Config: protocol.RunnerConfig{
+			Command: filepath.Join(binDir, "test-runner"),
+			Args:    []string{"--prompt-file", "{promptFile}"},
+		},
 	}
 
-	origPath := os.Getenv("PATH")
-	os.Setenv("PATH", binDir+":"+origPath)
-	defer os.Setenv("PATH", origPath)
-
-	_, err := r.Run(context.Background(), "f1", protocol.RoleCoder)
-	if err == nil {
-		t.Error("expected timeout error")
+	result, err := r.Run(context.Background(), "file-based prompt")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if result.ExitCode != 0 {
+		t.Errorf("ExitCode = %d, want 0", result.ExitCode)
 	}
 }
 
@@ -124,13 +136,19 @@ func TestSubprocessRunner_NotFound(t *testing.T) {
 	root := t.TempDir()
 	protocol.Init(root, protocol.Config{Project: protocol.ProjectConfig{Name: "t"}})
 	ws := &protocol.Workspace{Root: root}
-	ws.InitFeatureDir("f1")
 
-	r := &SubprocessRunner{Workspace: ws, Name: "nonexistent"}
+	r := &SubprocessRunner{
+		Workspace: ws,
+		Name:      "test",
+		Config: protocol.RunnerConfig{
+			Command: "/nonexistent/binary",
+			Args:    []string{"-p", "{prompt}"},
+		},
+	}
 
-	_, err := r.Run(context.Background(), "f1", protocol.RoleCoder)
+	_, err := r.Run(context.Background(), "test")
 	if err == nil {
-		t.Error("expected error when plugin not found")
+		t.Error("expected error when binary not found")
 	}
 }
 
@@ -160,7 +178,7 @@ func TestNewRunner(t *testing.T) {
 	protocol.Init(root, protocol.Config{Project: protocol.ProjectConfig{Name: "t"}})
 	ws := &protocol.Workspace{Root: root}
 
-	cfg := protocol.RunnerConfig{Command: "claude", Model: "opus"}
+	cfg := protocol.RunnerConfig{Command: "claude", Args: []string{"-p", "{prompt}"}}
 	r := NewRunner(ws, "claude", cfg, 30*time.Second)
 	if r == nil {
 		t.Fatal("NewRunner returned nil")
@@ -170,15 +188,7 @@ func TestNewRunner(t *testing.T) {
 	if !ok {
 		t.Fatal("expected *SubprocessRunner")
 	}
-	if sr.Name != "claude" {
-		t.Errorf("Name = %s, want claude", sr.Name)
+	if sr.Config.Command != "claude" {
+		t.Errorf("Command = %s, want claude", sr.Config.Command)
 	}
-	if sr.Timeout != 30*time.Second {
-		t.Errorf("Timeout = %v, want 30s", sr.Timeout)
-	}
-}
-
-func init() {
-	// exec.LookPath 的環境在每個 test 裡設
-	_ = exec.LookPath
 }

@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/ggwhite/4x/internal/batch"
 	"github.com/ggwhite/4x/internal/protocol"
+	"github.com/ggwhite/4x/internal/runner"
 	"github.com/spf13/cobra"
 )
 
@@ -19,6 +21,7 @@ func newBatchCmd() *cobra.Command {
 
 	cmd.AddCommand(newBatchPlanCmd())
 	cmd.AddCommand(newBatchNextCmd())
+	cmd.AddCommand(newBatchRunCmd())
 	return cmd
 }
 
@@ -167,4 +170,147 @@ func newBatchNextCmd() *cobra.Command {
 			return nil
 		},
 	}
+}
+
+func newBatchRunCmd() *cobra.Command {
+	var runnerName string
+	var maxRounds int
+	var timeout int
+
+	cmd := &cobra.Command{
+		Use:   "run",
+		Short: "Run all eligible features in dependency order",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			ws, err := protocol.Find(cwd)
+			if err != nil {
+				return err
+			}
+
+			cfg, err := ws.ReadConfig()
+			if err != nil {
+				return err
+			}
+
+			if runnerName == "" {
+				runnerName = cfg.Default
+			}
+			runnerCfg, ok := cfg.Runners[runnerName]
+			if !ok {
+				return fmt.Errorf("runner %q not found in config", runnerName)
+			}
+
+			features, err := ws.ListFeatures()
+			if err != nil {
+				return err
+			}
+
+			var pending []protocol.Feature
+			for _, f := range features {
+				if f.Status != "done" {
+					pending = append(pending, f)
+				}
+			}
+
+			if len(pending) == 0 {
+				fmt.Println("No pending features.")
+				return nil
+			}
+
+			plan, err := batch.PlanBatch(pending, cfg.HubRepos, 4)
+			if err != nil {
+				return err
+			}
+
+			statusMap := make(map[string]string)
+			for _, f := range features {
+				statusMap[f.ID] = f.Status
+			}
+
+			completed := 0
+			for {
+				next := ""
+				for _, s := range plan.Schedule {
+					if statusMap[s.FeatureID] == "done" {
+						continue
+					}
+					allDone := true
+					for _, dep := range s.CanStartAfter {
+						if statusMap[dep] != "done" {
+							allDone = false
+							break
+						}
+					}
+					if allDone {
+						next = s.FeatureID
+						break
+					}
+				}
+
+				if next == "" {
+					break
+				}
+
+				fmt.Printf("\n══════════════════════════════════════\n")
+				fmt.Printf("  BATCH: %s (%d/%d done)\n", next, completed, len(plan.Schedule))
+				fmt.Printf("══════════════════════════════════════\n\n")
+
+				feature, err := ws.LoadFeature(next)
+				if err != nil {
+					fmt.Printf("  error loading feature: %v\n", err)
+					statusMap[next] = "blocked"
+					continue
+				}
+
+				if err := ws.InitFeatureDir(next); err != nil {
+					return err
+				}
+
+				rounds := maxRounds
+				if rounds <= 0 {
+					rounds = 5
+				}
+
+				s := protocol.State{
+					FeatureID: next,
+					Phase:     protocol.PhaseInit,
+					MaxRounds: rounds,
+					Active:    true,
+					Runner:    runnerName,
+				}
+				if existing, err := ws.ReadState(next); err == nil {
+					s = existing
+					s.Active = true
+				}
+				ws.WriteState(next, s)
+
+				r := runner.NewRunner(ws, runnerName, runnerCfg, time.Duration(timeout)*time.Second)
+				err = runLoop(ws, feature, cfg, s, r)
+
+				updated, _ := ws.LoadFeature(next)
+				statusMap[next] = updated.Status
+
+				if err != nil {
+					fmt.Printf("  feature %s failed: %v\n", next, err)
+				}
+
+				if updated.Status == "done" {
+					completed++
+				}
+			}
+
+			fmt.Printf("\n══════════════════════════════════════\n")
+			fmt.Printf("  BATCH COMPLETE: %d/%d features done\n", completed, len(plan.Schedule))
+			fmt.Printf("══════════════════════════════════════\n")
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&runnerName, "runner", "", "runner plugin name")
+	cmd.Flags().IntVar(&maxRounds, "max-rounds", 0, "max rounds per feature (default: 5)")
+	cmd.Flags().IntVar(&timeout, "timeout", 3600, "plugin timeout in seconds")
+	return cmd
 }
