@@ -47,14 +47,17 @@ func newPromptCmd() *cobra.Command {
 			}
 
 			cfg, _ := ws.ReadConfig()
+			locale, localeName := resolveLocale()
 
 			data := promptData{
-				Feature: feature,
-				Project: cfg.Project,
-				Role:    r,
-				Round:   round,
-				Config:  cfg,
-				DotDir:  ws.DotDir(),
+				Feature:    feature,
+				Project:    cfg.Project,
+				Role:       r,
+				Round:      round,
+				Config:     cfg,
+				DotDir:     ws.DotDir(),
+				Locale:     locale,
+				LocaleName: localeName,
 			}
 
 			tmpl, err := loadRoleTemplate(r)
@@ -72,13 +75,82 @@ func newPromptCmd() *cobra.Command {
 }
 
 type promptData struct {
-	Feature protocol.Feature
-	Project protocol.ProjectConfig
-	Role    protocol.Role
-	Round   int
-	Config  protocol.Config
-	DotDir  string
+	Feature    protocol.Feature
+	Project    protocol.ProjectConfig
+	Role       protocol.Role
+	Round      int
+	Config     protocol.Config
+	DotDir     string
+	Locale     string
+	LocaleName string
 }
+
+var localeNames = map[string]string{
+	"en":      "English",
+	"zh-Hant": "繁體中文",
+	"zh-Hans": "简体中文",
+	"ja":      "日本語",
+	"ko":      "한국어",
+	"es":      "Español",
+	"fr":      "Français",
+	"de":      "Deutsch",
+	"pt":      "Português",
+	"vi":      "Tiếng Việt",
+	"th":      "ภาษาไทย",
+}
+
+func resolveLocale() (code, name string) {
+	ucfg, _ := protocol.ReadUserConfig()
+	if ucfg.Locale != "" {
+		code = ucfg.Locale
+	} else {
+		code = localeFromEnv()
+	}
+	name = localeNames[code]
+	if name == "" {
+		name = code
+	}
+	return code, name
+}
+
+func localeFromEnv() string {
+	lang := os.Getenv("LANG")
+	if lang == "" {
+		lang = os.Getenv("LC_ALL")
+	}
+	if lang == "" {
+		return "en"
+	}
+	for i, c := range lang {
+		if c == '.' || c == '@' {
+			lang = lang[:i]
+			break
+		}
+	}
+	zhMapping := map[string]string{
+		"zh_TW": "zh-Hant", "zh_HK": "zh-Hant",
+		"zh_CN": "zh-Hans", "zh": "zh-Hans",
+	}
+	if mapped, ok := zhMapping[lang]; ok {
+		return mapped
+	}
+	if lang == "C" || lang == "POSIX" {
+		return "en"
+	}
+	for i, c := range lang {
+		if c == '_' || c == '-' {
+			return lang[:i]
+		}
+	}
+	return lang
+}
+
+const localeDirective = `{{- if and .Locale (ne .Locale "en")}}
+== Language ==
+You MUST write ALL output (reports, summaries, descriptions, comments) in {{.LocaleName}}.
+Technical terms, file paths, and command names stay in their original form.
+
+{{end -}}`
 
 var tmplFuncs = template.FuncMap{
 	"sub": func(a, b int) int { return a - b },
@@ -97,7 +169,7 @@ func loadRoleTemplate(r protocol.Role) (*template.Template, error) {
 		return nil, fmt.Errorf("unknown role: %s", r)
 	}
 
-	return template.New(string(r)).Funcs(tmplFuncs).Parse(tmplStr)
+	return template.New(string(r)).Funcs(tmplFuncs).Parse(localeDirective + tmplStr)
 }
 
 const designerTemplate = `You are the Designer for feature "{{.Feature.Name}}" ({{.Feature.ID}}).

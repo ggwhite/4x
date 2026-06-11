@@ -225,3 +225,8 @@ type RoleConfig struct {
 	Model     string `yaml:"model,omitempty"`
 	DeepModel string `yaml:"deep_model,omitempty"`
 }
+
+// UserConfig 是 ~/.config/4x/config.yaml 的使用者層級設定
+type UserConfig struct {
+	Locale string `yaml:"locale,omitempty"`
+}

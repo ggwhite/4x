@@ -14,6 +14,8 @@ import (
 
 const (
 	DirName        = ".4x"
+	UserConfigDir  = "4x"
+	UserConfigFile = "config.yaml"
 	BacklogFile    = "feature_list.json"
 	ConfigFile     = "config.yaml"
 	FeaturesDir    = "features"
@@ -324,4 +326,49 @@ func WriteConfig(dotDir string, cfg Config) error {
 		return err
 	}
 	return os.WriteFile(filepath.Join(dotDir, ConfigFile), data, 0o644)
+}
+
+// UserConfigPath 回傳 ~/.config/4x/config.yaml 的路徑
+func UserConfigPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".config", UserConfigDir, UserConfigFile), nil
+}
+
+// ReadUserConfig 讀取 ~/.config/4x/config.yaml，不存在時回傳零值
+func ReadUserConfig() (UserConfig, error) {
+	path, err := UserConfigPath()
+	if err != nil {
+		return UserConfig{}, err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return UserConfig{}, nil
+		}
+		return UserConfig{}, fmt.Errorf("read user config: %w", err)
+	}
+	var cfg UserConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return UserConfig{}, fmt.Errorf("parse user config: %w", err)
+	}
+	return cfg, nil
+}
+
+// WriteUserConfig 寫入 ~/.config/4x/config.yaml
+func WriteUserConfig(cfg UserConfig) error {
+	path, err := UserConfigPath()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0o644)
 }
