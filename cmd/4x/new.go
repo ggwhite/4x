@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/ggwhite/4x/internal/protocol"
@@ -28,7 +29,12 @@ func newNewCmd() *cobra.Command {
 			}
 
 			name := args[0]
-			id := generateID(name)
+
+			next, err := nextFeatureNumber(ws)
+			if err != nil {
+				return err
+			}
+			id := generateID(next, name)
 
 			repoMap := make(map[string]string)
 			for _, r := range repos {
@@ -60,14 +66,36 @@ func newNewCmd() *cobra.Command {
 	return cmd
 }
 
-var nonAlphaNum = regexp.MustCompile(`[^a-z0-9]+`)
+var (
+	nonAlphaNum   = regexp.MustCompile(`[^a-z0-9]+`)
+	featureNumRe  = regexp.MustCompile(`^F(\d{3})-`)
+)
 
-func generateID(name string) string {
+// nextFeatureNumber 掃描現有 feature，回傳下一個流水號
+func nextFeatureNumber(ws *protocol.Workspace) (int, error) {
+	features, err := ws.ListFeatures()
+	if err != nil {
+		return 1, nil
+	}
+	max := 0
+	for _, f := range features {
+		if m := featureNumRe.FindStringSubmatch(f.ID); m != nil {
+			if n, err := strconv.Atoi(m[1]); err == nil && n > max {
+				max = n
+			}
+		}
+	}
+	return max + 1, nil
+}
+
+// generateID 產生 F{NNN}-{slug} 格式的 feature ID
+func generateID(num int, name string) string {
 	slug := strings.ToLower(name)
 	slug = nonAlphaNum.ReplaceAllString(slug, "-")
 	slug = strings.Trim(slug, "-")
-	if len(slug) > 30 {
-		slug = slug[:30]
+	if len(slug) > 25 {
+		slug = slug[:25]
+		slug = strings.TrimRight(slug, "-")
 	}
-	return slug
+	return fmt.Sprintf("F%03d-%s", num, slug)
 }
