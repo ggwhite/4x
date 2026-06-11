@@ -13,7 +13,17 @@
 
 None
 
-## Last Session (2026-06-11)
+## Last Session (2026-06-11 afternoon)
+
+### WS-9: Runner permission & plugin embed
+- All runners now use CLI flags for non-interactive mode (`--dangerously-skip-permissions`, `-y`, `approval: full-auto`)
+- Removed redundant permission config files (`.claude/settings.json`, `.gemini/settings.json`)
+- Plugin instruction files embedded into binary via `//go:embed` (`plugins/embed.go`)
+- `4x init` deploys plugin content to `.4x/plugins/` and adds `@import` lines to root-level files (CLAUDE.md, AGENTS.md, etc.)
+- Never overwrites user's existing files — prepend import line if file exists, create if not
+- README added ⚠️ Permission Model warning section
+
+## Session (2026-06-11 morning)
 
 ### WS-1: State machine tests (56 tests)
 - Table-driven tests for CanTransition, Transition, PhaseToRole, ShouldStop
@@ -54,7 +64,7 @@ None
 
 ## Next Steps
 
-1. Add dependency gating before `4x run`
+1. ~~Add dependency gating before `4x run`~~ — done (12c851b)
 2. Build real e2e test with Claude Code plugin (requires live LLM)
 3. macOS native dashboard (Swift)
-4. Additional plugins (Copilot, Cursor)
+4. Additional plugins integration test (Copilot, Cursor — files exist, untested)
