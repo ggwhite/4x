@@ -640,6 +640,58 @@ func TestParseReviewVerdict(t *testing.T) {
 	}
 }
 
+func TestRunLoop_StaleArtifactsCleanedOnTestingEntry(t *testing.T) {
+	ws := setupLoopWorkspace(t, "feat-stale")
+	feature, _ := ws.LoadFeature("feat-stale")
+	cfg, _ := ws.ReadConfig()
+
+	featureDir := ws.FeatureDir("feat-stale")
+
+	// 從 reviewing phase 開始，review 已 pass，下一步是 testing。
+	// 預先放入 stale feature-level artifact，模擬上一輪 tester 遺留。
+	os.WriteFile(filepath.Join(featureDir, protocol.FinalReport), []byte("# Stale"), 0o644)
+	os.WriteFile(filepath.Join(featureDir, protocol.CommitPlan), []byte("# Stale"), 0o644)
+	os.WriteFile(filepath.Join(featureDir, protocol.TaskBrief), []byte("# Brief"), 0o644)
+	os.WriteFile(filepath.Join(featureDir, protocol.Criteria), []byte("# Criteria"), 0o644)
+
+	// 預先放 round-1 review report（pass）讓 nextPhaseAfter 進入 testing
+	round1Dir := ws.RoundDir("feat-stale", 1)
+	os.MkdirAll(round1Dir, 0o755)
+	os.WriteFile(filepath.Join(round1Dir, protocol.ReviewReport),
+		[]byte("## Verdict\nPASS\n"), 0o644)
+
+	s := protocol.State{
+		FeatureID: "feat-stale", Phase: protocol.PhaseReviewing, Role: protocol.RoleReviewer,
+		Round: 1, MaxRounds: 5, Active: true, Runner: "mock",
+	}
+	ws.WriteState("feat-stale", s)
+
+	// mock：reviewing（已有 report）→ testing → accepting
+	mock := &mockRunner{ws: ws, featureID: "feat-stale", outcomes: []mockOutcome{
+		{reviewVerdict: "PASS"}, // reviewing（mock 會覆寫 report，但結果不變）
+		{testPassed: true},     // testing
+		{},                     // accepting
+	}}
+
+	if err := runLoop(ws, feature, cfg, s, mock); err != nil {
+		t.Fatalf("runLoop error: %v", err)
+	}
+
+	final, _ := ws.ReadState("feat-stale")
+	if final.Phase != protocol.PhaseDone {
+		t.Errorf("phase = %s, want done", final.Phase)
+	}
+
+	// 驗證 testing 階段入口有清除 stale artifact（新 tester 會重新寫入非 stale 內容）
+	data, err := os.ReadFile(filepath.Join(featureDir, protocol.FinalReport))
+	if err != nil {
+		t.Fatalf("final-report.md should exist after successful run: %v", err)
+	}
+	if string(data) == "# Stale" {
+		t.Error("stale final-report.md was not cleaned before testing phase")
+	}
+}
+
 func TestRunLoop_SeverityGate_PassWithCritical(t *testing.T) {
 	ws := setupLoopWorkspace(t, "feat-sg")
 	feature, _ := ws.LoadFeature("feat-sg")

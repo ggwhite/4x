@@ -82,7 +82,16 @@ func showAllFeatures(ws *protocol.Workspace, pendingOnly bool) error {
 	if err := w.Flush(); err != nil {
 		return err
 	}
-	printBacklogWarnings(ws, "")
+	if pendingOnly {
+		// --pending 模式下只顯示被列出之 feature 的 drift 警告
+		for _, f := range features {
+			if f.Status != "done" {
+				printBacklogWarnings(ws, f.ID)
+			}
+		}
+	} else {
+		printBacklogWarnings(ws, "")
+	}
 	return nil
 }
 

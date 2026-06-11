@@ -161,6 +161,12 @@ func runLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.Conf
 			return nil
 		}
 
+		// 清除上一輪遺留的 feature-level 產出物，避免舊文件通過新一輪的 guard 檢查
+		if phase == protocol.PhaseTesting {
+			os.Remove(filepath.Join(ws.FeatureDir(featureID), protocol.FinalReport))
+			os.Remove(filepath.Join(ws.FeatureDir(featureID), protocol.CommitPlan))
+		}
+
 		if phase == protocol.PhaseCoding && s.Round == 1 {
 			if err := captureBaselineOnce(ws, featureID, repoPathsFromFeature(feature)); err != nil {
 				return err
@@ -271,14 +277,16 @@ func nextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) 
 		if esc := readEscalation(ws, featureID, s.Round); esc.Needed {
 			return protocol.PhaseNeedsAttention, "", esc.Reason
 		}
-		if testPassed(ws, featureID, s.Round) {
-			result := guard.CheckTestingToAccepting(ws, featureID, s.Round)
-			if !result.Pass {
-				return protocol.PhaseNeedsAttention, "", strings.Join(result.Errors, "; ")
-			}
+		// guard 已包含 verify.json passed 檢查，不需重複讀取
+		result := guard.CheckTestingToAccepting(ws, featureID, s.Round)
+		if result.Pass {
 			return protocol.PhaseAccepting, protocol.RoleDesigner, ""
 		}
-		return protocol.PhaseAmending, protocol.RoleCoder, ""
+		// guard 失敗：若 verify 未通過 → amending；否則缺少 artifact → needs-attention
+		if !verifyPassed(ws, featureID, s.Round) {
+			return protocol.PhaseAmending, protocol.RoleCoder, ""
+		}
+		return protocol.PhaseNeedsAttention, "", strings.Join(result.Errors, "; ")
 
 	case protocol.PhaseAccepting:
 		return protocol.PhaseDone, "", ""
@@ -330,7 +338,8 @@ func parseReviewVerdict(content string) protocol.ReviewResult {
 	return result
 }
 
-func testPassed(ws *protocol.Workspace, featureID string, round int) bool {
+// verifyPassed 檢查 verify.json 的 passed 欄位，用於 guard 失敗時判斷是測試未通過還是 artifact 缺失
+func verifyPassed(ws *protocol.Workspace, featureID string, round int) bool {
 	roundDir := ws.RoundDir(featureID, round)
 	data, err := os.ReadFile(filepath.Join(roundDir, protocol.VerifyFile))
 	if err != nil {

@@ -67,7 +67,10 @@ func checkRequiredFiles(ws *protocol.Workspace, featureID string, r *CheckResult
 		required = append(required, protocol.TaskBrief, protocol.Criteria)
 	}
 	if state.Phase == protocol.PhaseAccepting || state.Phase == protocol.PhaseDone {
-		checkTestingToAccepting(ws, featureID, state.Round, r)
+		roundDir := ws.RoundDir(featureID, state.Round)
+		if _, err := os.Stat(roundDir); err == nil {
+			checkTestingToAccepting(ws, featureID, state.Round, r)
+		}
 	}
 
 	for _, f := range required {
@@ -90,22 +93,28 @@ func checkTestingToAccepting(ws *protocol.Workspace, featureID string, round int
 	roundDir := ws.RoundDir(featureID, round)
 	featureDir := ws.FeatureDir(featureID)
 
-	required := map[string]string{
-		filepath.Join(roundDir, protocol.VerifyFile):    filepath.Join(protocol.RoundsDir, fmt.Sprintf("round-%d", round), protocol.VerifyFile),
-		filepath.Join(roundDir, protocol.TestReport):    filepath.Join(protocol.RoundsDir, fmt.Sprintf("round-%d", round), protocol.TestReport),
-		filepath.Join(featureDir, protocol.FinalReport): protocol.FinalReport,
-		filepath.Join(featureDir, protocol.CommitPlan):  protocol.CommitPlan,
+	type pathLabel struct {
+		path  string
+		label string
 	}
-	for path, label := range required {
-		if missingOrEmpty(path) {
+	required := []pathLabel{
+		{filepath.Join(roundDir, protocol.VerifyFile), filepath.Join(protocol.RoundsDir, fmt.Sprintf("round-%d", round), protocol.VerifyFile)},
+		{filepath.Join(roundDir, protocol.TestReport), filepath.Join(protocol.RoundsDir, fmt.Sprintf("round-%d", round), protocol.TestReport)},
+		{filepath.Join(featureDir, protocol.FinalReport), protocol.FinalReport},
+		{filepath.Join(featureDir, protocol.CommitPlan), protocol.CommitPlan},
+	}
+	for _, f := range required {
+		if missingOrEmpty(f.path) {
 			r.Pass = false
-			r.Errors = append(r.Errors, fmt.Sprintf("required file missing: %s", label))
+			r.Errors = append(r.Errors, fmt.Sprintf("required file missing: %s", f.label))
 		}
 	}
 
 	verifyPath := filepath.Join(roundDir, protocol.VerifyFile)
 	data, err := os.ReadFile(verifyPath)
 	if err != nil {
+		r.Pass = false
+		r.Errors = append(r.Errors, fmt.Sprintf("cannot read %s: %v", protocol.VerifyFile, err))
 		return
 	}
 	var evidence protocol.VerifyEvidence

@@ -313,6 +313,53 @@ func TestCheck_MissingStateFile(t *testing.T) {
 	}
 }
 
+func TestCheckTestingToAccepting_UnreadableVerifyJSON(t *testing.T) {
+	ws := setupGuardWorkspace(t, "feat-1")
+	roundDir := ws.RoundDir("feat-1", 1)
+	featureDir := ws.FeatureDir("feat-1")
+
+	data, _ := json.Marshal(protocol.VerifyEvidence{Passed: true, Round: 1})
+	writeFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))
+	writeFile(t, filepath.Join(roundDir, protocol.TestReport), "# Test")
+	writeFile(t, filepath.Join(featureDir, protocol.FinalReport), "# Final")
+	writeFile(t, filepath.Join(featureDir, protocol.CommitPlan), "# Commit Plan")
+
+	if err := os.Chmod(filepath.Join(roundDir, protocol.VerifyFile), 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		os.Chmod(filepath.Join(roundDir, protocol.VerifyFile), 0o644)
+	})
+
+	result := CheckTestingToAccepting(ws, "feat-1", 1)
+	if result.Pass {
+		t.Fatal("unreadable verify.json should fail")
+	}
+	found := false
+	for _, e := range result.Errors {
+		if len(e) > 0 && e[:len("cannot read ")] == "cannot read " {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected 'cannot read' error, got %v", result.Errors)
+	}
+}
+
+func TestCheckRequiredFiles_DonePhaseWithoutRoundDir(t *testing.T) {
+	ws := setupGuardWorkspace(t, "feat-1")
+	writeState(t, ws, "feat-1", protocol.State{Phase: protocol.PhaseDone, Round: 1})
+
+	dir := ws.FeatureDir("feat-1")
+	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief")
+	writeFile(t, filepath.Join(dir, protocol.Criteria), "# Criteria")
+
+	result := Check(ws, "feat-1")
+	if !result.Pass {
+		t.Errorf("done phase without round dir should pass (legacy feature), got errors: %v", result.Errors)
+	}
+}
+
 func TestCaptureBaseline_WithGitRepo(t *testing.T) {
 	root := t.TempDir()
 	repoDir := filepath.Join(root, "backend")

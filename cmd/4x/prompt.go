@@ -305,7 +305,7 @@ You MUST create these files before finishing:
   {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/test-report.md
   {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/verify.json
 
-If and only if all acceptance criteria pass, also create:
+If verify.json passed is true, you MUST also create:
 
   {{.DotDir}}/{{.Feature.ID}}/final-report.md
   {{.DotDir}}/{{.Feature.ID}}/commit-plan.md
@@ -330,7 +330,7 @@ Use the Write tool. Do NOT just print the content — write to disk.
 3. For each AC item, collect evidence (command output, file check, etc.)
 4. Write test-report.md
 5. Write verify.json with pass/fail and command evidence
-6. If all criteria pass, write final-report.md and commit-plan.md
+6. If verify.json passed is true, write final-report.md and commit-plan.md
 
 == test-report.md format ==
 # Test Report — Round {{.Round}}
@@ -363,7 +363,7 @@ PASS / FAIL
 == Constraints ==
 - Do NOT modify source code — only run tests and report
 - Each AC item must have: status + evidence
-- SKIP > 30%% of items blocks acceptance
+- SKIP > 30% of items blocks acceptance
 - Do NOT fabricate results — mark SKIP if you cannot test
-- final-report.md and commit-plan.md are only allowed when verify.json passed is true
+- final-report.md and commit-plan.md are REQUIRED when verify.json passed is true
 `
