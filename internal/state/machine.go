@@ -11,10 +11,10 @@ import (
 var transitions = map[protocol.Phase][]protocol.Phase{
 	protocol.PhaseInit:           {protocol.PhaseDesigning},
 	protocol.PhaseDesigning:      {protocol.PhaseCoding},
-	protocol.PhaseCoding:         {protocol.PhaseReviewing},
+	protocol.PhaseCoding:         {protocol.PhaseReviewing, protocol.PhaseDesigning},
 	protocol.PhaseReviewing:      {protocol.PhaseTesting, protocol.PhaseAmending},
-	protocol.PhaseAmending:       {protocol.PhaseReviewing},
-	protocol.PhaseTesting:        {protocol.PhaseAccepting, protocol.PhaseAmending},
+	protocol.PhaseAmending:       {protocol.PhaseReviewing, protocol.PhaseDesigning},
+	protocol.PhaseTesting:        {protocol.PhaseAccepting, protocol.PhaseAmending, protocol.PhaseDesigning},
 	protocol.PhaseAccepting:      {protocol.PhaseDone},
 	protocol.PhaseBlocked:        {protocol.PhaseDesigning, protocol.PhaseCoding, protocol.PhaseTesting},
 	protocol.PhaseNeedsAttention: {protocol.PhaseDesigning, protocol.PhaseCoding},

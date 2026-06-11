@@ -282,6 +282,9 @@ func nextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) 
 
 	case protocol.PhaseCoding, protocol.PhaseAmending:
 		if esc := readEscalation(ws, featureID, s.Round); esc.Needed {
+			if isDesignerEscalation(esc.Reason) {
+				return protocol.PhaseDesigning, protocol.RoleDesigner, ""
+			}
 			return protocol.PhaseNeedsAttention, "", esc.Reason
 		}
 		return protocol.PhaseReviewing, protocol.RoleReviewer, ""
@@ -294,6 +297,9 @@ func nextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) 
 
 	case protocol.PhaseTesting:
 		if esc := readEscalation(ws, featureID, s.Round); esc.Needed {
+			if isDesignerEscalation(esc.Reason) {
+				return protocol.PhaseDesigning, protocol.RoleDesigner, ""
+			}
 			return protocol.PhaseNeedsAttention, "", esc.Reason
 		}
 		// guard 已包含 verify.json passed 檢查，不需重複讀取
@@ -369,6 +375,12 @@ func verifyPassed(ws *protocol.Workspace, featureID string, round int) bool {
 		return false
 	}
 	return ve.Passed
+}
+
+// isDesignerEscalation 判斷 escalation 是否應回到 Designer 而非停下來等人
+// spec-mismatch / criteria-wrong 是 Designer 能自行修正的問題
+func isDesignerEscalation(reason string) bool {
+	return reason == "spec-mismatch" || reason == "criteria-wrong"
 }
 
 func readEscalation(ws *protocol.Workspace, featureID string, round int) protocol.Escalation {

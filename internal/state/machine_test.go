@@ -61,7 +61,6 @@ func TestCanTransition_Invalid(t *testing.T) {
 		{protocol.PhaseReviewing, protocol.PhaseDone},
 		{protocol.PhaseReviewing, protocol.PhaseAccepting},
 		{protocol.PhaseReviewing, protocol.PhaseCoding},
-		{protocol.PhaseTesting, protocol.PhaseDesigning},
 		{protocol.PhaseTesting, protocol.PhaseCoding},
 		{protocol.PhaseAmending, protocol.PhaseTesting},
 		{protocol.PhaseAmending, protocol.PhaseDone},
