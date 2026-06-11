@@ -176,10 +176,11 @@ func newBatchRunCmd() *cobra.Command {
 	var runnerName string
 	var maxRounds int
 	var timeout int
+	var once bool
 
 	cmd := &cobra.Command{
 		Use:   "run",
-		Short: "Run all eligible features in dependency order",
+		Short: "Run eligible features in dependency order",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
 			if err != nil {
@@ -300,6 +301,10 @@ func newBatchRunCmd() *cobra.Command {
 				if updated.Status == "done" {
 					completed++
 				}
+
+				if once {
+					break
+				}
 			}
 
 			fmt.Printf("\n══════════════════════════════════════\n")
@@ -312,5 +317,6 @@ func newBatchRunCmd() *cobra.Command {
 	cmd.Flags().StringVar(&runnerName, "runner", "", "runner plugin name")
 	cmd.Flags().IntVar(&maxRounds, "max-rounds", 0, "max rounds per feature (default: 5)")
 	cmd.Flags().IntVar(&timeout, "timeout", 3600, "plugin timeout in seconds")
+	cmd.Flags().BoolVar(&once, "once", false, "run only the next eligible feature then stop")
 	return cmd
 }
