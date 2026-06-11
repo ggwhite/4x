@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -53,6 +54,8 @@ func newInitCmd() *cobra.Command {
 			if err := protocol.Init(cwd, cfg); err != nil {
 				return err
 			}
+
+			setupRunnerPermissions(cwd, cfg)
 
 			fmt.Printf("Initialized 4x project in %s/\n", protocol.DirName)
 			if profile.Language != "" {
@@ -150,4 +153,72 @@ func detectProjectProfile(root string) protocol.ProjectConfig {
 	}
 
 	return p
+}
+
+// setupRunnerPermissions 為每個 runner 設定 non-interactive 執行所需的權限
+func setupRunnerPermissions(root string, cfg protocol.Config) {
+	for name := range cfg.Runners {
+		switch name {
+		case "claude":
+			setupClaudePermissions(root, cfg)
+		}
+	}
+}
+
+func setupClaudePermissions(root string, cfg protocol.Config) {
+	dir := filepath.Join(root, ".claude")
+	settingsPath := filepath.Join(dir, "settings.json")
+
+	if _, err := os.Stat(settingsPath); err == nil {
+		return
+	}
+
+	os.MkdirAll(dir, 0o755)
+
+	allows := []string{
+		"Read",
+		"Edit",
+		"Write(.4x/**)",
+	}
+
+	candidates := []struct {
+		perm    string
+		include bool
+	}{
+		{"Bash(make *)", true},
+		{"Bash(ls *)", true},
+		{"Bash(mkdir *)", true},
+		{"Bash(grep *)", true},
+		{"Bash(cat *)", true},
+		{"Bash(4x *)", true},
+		{"Bash(./bin/4x *)", true},
+		{"Bash(go build*)", cfg.Project.Language == "go"},
+		{"Bash(go test*)", cfg.Project.Language == "go"},
+		{"Bash(go vet*)", cfg.Project.Language == "go"},
+		{"Bash(npm *)", cfg.Project.Language == "javascript" || cfg.Project.Language == "typescript"},
+		{"Bash(pnpm *)", cfg.Project.Language == "typescript"},
+		{"Bash(yarn *)", cfg.Project.Language == "typescript"},
+		{"Bash(cargo *)", cfg.Project.Language == "rust"},
+		{"Bash(pytest*)", cfg.Project.Language == "python"},
+		{"Bash(mvn *)", cfg.Project.Language == "java"},
+		{"Bash(gradle*)", cfg.Project.Language == "java"},
+	}
+	for _, c := range candidates {
+		if c.include {
+			allows = append(allows, c.perm)
+		}
+	}
+
+	settings := map[string]any{
+		"permissions": map[string]any{
+			"allow": allows,
+		},
+	}
+
+	data, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return
+	}
+	os.WriteFile(settingsPath, data, 0o644)
+	fmt.Printf("Runner:   claude permissions → .claude/settings.json\n")
 }

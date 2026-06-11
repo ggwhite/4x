@@ -2,6 +2,7 @@ package server
 
 import (
 	"bufio"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,6 +13,9 @@ import (
 
 	"github.com/ggwhite/4x/internal/protocol"
 )
+
+//go:embed static/index.html
+var indexHTML string
 
 // NewMux 建立 dashboard 的 HTTP handler（方便測試）
 func NewMux(ws *protocol.Workspace) http.Handler {
@@ -243,7 +247,7 @@ func readIfExists(path string) string {
 	return string(data)
 }
 
-const indexHTML = `<!DOCTYPE html>
+const _oldIndexHTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -287,10 +291,25 @@ async function load() {
   const tasks = await (await fetch('/api/tasks')).json();
   const list = document.getElementById('task-list');
   list.innerHTML = '';
-  (tasks||[]).forEach(t => {
+  const sorted = (tasks||[]).slice().sort((a,b) => {
+    if(a.active && !b.active) return -1;
+    if(!a.active && b.active) return 1;
+    const order = {'in-progress':0,'not-started':1,'done':2};
+    return (order[a.status]??1) - (order[b.status]??1);
+  });
+  sorted.forEach(t => {
     const el = document.createElement('div');
-    el.className = 'p-2 rounded cursor-pointer hover:bg-zinc-800 mb-1' + (t.id===current?' bg-zinc-800':'');
-    el.innerHTML = '<div class="font-medium text-sm">'+t.name+'</div><div class="text-xs text-zinc-500">'+t.id+' · '+(t.phase||t.status)+(t.active?' · 🟢':'')+'</div>';
+    const isActive = t.active && t.phase && t.phase!=='done';
+    const isSel = t.id===current;
+    let cls = 'p-3 rounded cursor-pointer mb-1 border ';
+    if(isActive) cls += 'border-emerald-500/50 bg-emerald-950/30 ';
+    else if(isSel) cls += 'border-zinc-600 bg-zinc-800 ';
+    else if(t.status==='done') cls += 'border-transparent opacity-50 hover:opacity-80 ';
+    else cls += 'border-transparent hover:bg-zinc-800 ';
+    el.className = cls;
+    const badge = isActive ? '<span class="inline-block px-1.5 py-0.5 text-[10px] font-bold bg-emerald-500 text-black rounded ml-2 animate-pulse">RUNNING</span>' : t.status==='done' ? '<span class="inline-block px-1.5 py-0.5 text-[10px] text-zinc-500 border border-zinc-700 rounded ml-2">DONE</span>' : '';
+    const phase = isActive ? '<div class="text-xs text-emerald-400 mt-1">▶ '+t.phase+' · round '+(t.round||0)+'</div>' : '';
+    el.innerHTML = '<div class="font-medium text-sm">'+t.name+badge+'</div><div class="text-xs text-zinc-500">'+t.id+'</div>'+phase;
     el.onclick = () => { current=t.id; load(); loadMessages(t.id); };
     list.appendChild(el);
   });

@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go build*)",
+      "Bash(go test*)",
+      "Bash(go vet*)",
+      "Bash(make *)",
+      "Bash(4x *)",
+      "Bash(./bin/4x *)",
+      "Bash(cat *)",
+      "Bash(ls *)",
+      "Bash(mkdir *)",
+      "Bash(grep *)",
+      "Read",
+      "Write(.4x/**)",
+      "Write(internal/**)",
+      "Write(cmd/**)",
+      "Write(templates/**)",
+      "Write(plugins/**)",
+      "Edit"
+    ]
+  }
+}

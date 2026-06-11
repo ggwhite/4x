@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>4x Live</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={theme:{extend:{fontFamily:{mono:['ui-monospace','SFMono-Regular','Menlo','monospace']}}}}</script>
+<style>
+  body { background: #0f0f0f; color: #e5e5e5; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+  .fade-in { animation: fadeIn .2s ease-in; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+  .pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
+</style>
+</head>
+<body class="min-h-screen">
+<div class="flex h-screen">
+
+  <!-- Sidebar -->
+  <div id="sidebar" class="w-80 border-r border-zinc-800/80 overflow-y-auto flex flex-col">
+    <div class="p-4 border-b border-zinc-800/80 flex items-center gap-2">
+      <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 pulse-dot"></div>
+      <h1 class="text-base font-bold tracking-tight">4x Live</h1>
+      <span id="auto-refresh" class="text-[10px] text-zinc-600 ml-auto">Auto-refresh</span>
+    </div>
+    <div id="task-list" class="flex-1 overflow-y-auto p-2"></div>
+  </div>
+
+  <!-- Main -->
+  <div class="flex-1 flex flex-col overflow-hidden">
+    <!-- Header -->
+    <div id="header" class="border-b border-zinc-800/80 p-4 hidden">
+      <div class="flex items-center gap-3">
+        <span id="h-id" class="text-sm text-zinc-500"></span>
+        <span id="h-name" class="font-bold"></span>
+        <span id="h-badge" class="ml-auto"></span>
+      </div>
+      <div id="h-meta" class="flex items-center gap-4 mt-2 text-xs text-zinc-500"></div>
+    </div>
+    <!-- Content -->
+    <div class="flex-1 overflow-y-auto p-6" id="main">
+      <div id="empty" class="text-zinc-600 mt-20 text-center">
+        <div class="text-4xl mb-3 opacity-30">⬡</div>
+        <div>Select a feature to view</div>
+      </div>
+      <div id="messages" class="space-y-4 hidden"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let current = null;
+const ROLES = {
+  designer:       { name: 'Designer',     color: '#a855f7', bg: 'rgba(168,85,247,.08)' },
+  coder:          { name: 'Coder',        color: '#06b6d4', bg: 'rgba(6,182,212,.08)' },
+  reviewer:       { name: 'Reviewer',     color: '#22c55e', bg: 'rgba(34,197,94,.08)' },
+  'deep-reviewer':{ name: 'Deep Review',  color: '#22c55e', bg: 'rgba(34,197,94,.08)' },
+  tester:         { name: 'Tester',       color: '#f97316', bg: 'rgba(249,115,22,.08)' },
+  acceptor:       { name: 'Acceptor',     color: '#eab308', bg: 'rgba(234,179,8,.08)' },
+};
+
+const PHASE_ICON = {
+  designing: '◆', coding: '◆', reviewing: '◆', testing: '◆',
+  accepting: '◆', amending: '◆', done: '✓', blocked: '✕',
+  'needs-attention': '!', init: '○', 'not-started': '○'
+};
+
+function badge(status, phase, active) {
+  if (active && phase && phase !== 'done')
+    return `<span class="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span>In Progress</span>`;
+  if (status === 'done')
+    return `<span class="px-2 py-0.5 text-[10px] text-zinc-500 border border-zinc-700/50 rounded-full">Done</span>`;
+  if (status === 'blocked')
+    return `<span class="px-2 py-0.5 text-[10px] text-red-400 border border-red-500/30 rounded-full">Blocked</span>`;
+  return `<span class="px-2 py-0.5 text-[10px] text-zinc-600 border border-zinc-800 rounded-full">Backlog</span>`;
+}
+
+async function load() {
+  const tasks = await (await fetch('/api/tasks')).json();
+  const list = document.getElementById('task-list');
+  list.innerHTML = '';
+
+  const groups = { running: [], pending: [], done: [] };
+  (tasks || []).forEach(t => {
+    const isActive = t.active && t.phase && t.phase !== 'done';
+    if (isActive) groups.running.push(t);
+    else if (t.status === 'done') groups.done.push(t);
+    else groups.pending.push(t);
+  });
+
+  function renderGroup(title, items, count) {
+    if (items.length === 0) return;
+    const header = document.createElement('div');
+    header.className = 'flex items-center gap-2 px-2 py-2 text-[10px] font-bold text-zinc-500 uppercase tracking-wider';
+    header.innerHTML = `${title} <span class="ml-auto text-zinc-600">${count}</span>`;
+    list.appendChild(header);
+
+    items.forEach(t => {
+      const el = document.createElement('div');
+      const isActive = t.active && t.phase && t.phase !== 'done';
+      const isSel = t.id === current;
+      let cls = 'p-3 rounded-lg cursor-pointer mb-1 transition-all duration-150 ';
+      if (isActive) cls += 'bg-emerald-950/40 border border-emerald-500/20 hover:border-emerald-500/40 ';
+      else if (isSel) cls += 'bg-zinc-800/80 border border-zinc-700/50 ';
+      else if (t.status === 'done') cls += 'border border-transparent opacity-40 hover:opacity-70 ';
+      else cls += 'border border-transparent hover:bg-zinc-800/50 ';
+      el.className = cls;
+
+      const phaseInfo = isActive
+        ? `<div class="flex items-center gap-1.5 mt-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span><span class="text-[11px] text-emerald-400">${t.phase}</span><span class="text-[11px] text-zinc-600">· Round ${t.round || 0}</span></div>`
+        : '';
+      const doneIcon = t.status === 'done' ? '<span class="text-emerald-500/60 text-xs">✓</span>' : '';
+
+      el.innerHTML = `
+        <div class="flex items-start gap-2">
+          ${doneIcon}
+          <div class="flex-1 min-w-0">
+            <div class="text-[13px] font-medium truncate">${t.name}</div>
+            <div class="text-[11px] text-zinc-600 mt-0.5">${t.id}</div>
+            ${phaseInfo}
+          </div>
+        </div>`;
+      el.onclick = () => { current = t.id; load(); loadDetail(t); };
+      list.appendChild(el);
+    });
+  }
+
+  renderGroup('Running', groups.running, groups.running.length);
+  renderGroup('Pending', groups.pending, groups.pending.length);
+  renderGroup('Done', groups.done, groups.done.length);
+}
+
+async function loadDetail(t) {
+  document.getElementById('empty').classList.add('hidden');
+  document.getElementById('header').classList.remove('hidden');
+
+  const isActive = t.active && t.phase && t.phase !== 'done';
+  document.getElementById('h-id').textContent = t.id;
+  document.getElementById('h-name').textContent = t.name;
+  document.getElementById('h-badge').innerHTML = badge(t.status, t.phase, t.active);
+
+  const meta = [];
+  if (t.phase) meta.push(`<span>${PHASE_ICON[t.phase] || '○'} ${t.phase}</span>`);
+  if (t.round) meta.push(`<span>⟳ Round ${t.round}</span>`);
+  if (t.runner) meta.push(`<span>⬡ ${t.runner}</span>`);
+  document.getElementById('h-meta').innerHTML = meta.join('<span class="text-zinc-700">·</span>');
+
+  loadMessages(t.id);
+}
+
+async function loadMessages(id) {
+  const el = document.getElementById('messages');
+  el.classList.remove('hidden');
+  const msgs = await (await fetch('/api/messages/' + id)).json();
+  el.innerHTML = '';
+
+  (msgs || []).forEach((m, i) => {
+    const r = ROLES[m.role] || { name: m.role, color: '#666', bg: 'rgba(100,100,100,.05)' };
+    const div = document.createElement('div');
+    div.className = 'fade-in rounded-lg overflow-hidden';
+    div.style.animationDelay = (i * 30) + 'ms';
+    div.innerHTML = `
+      <div class="flex items-center gap-2 px-4 py-2" style="background:${r.bg}">
+        <span class="w-1.5 h-1.5 rounded-full" style="background:${r.color}"></span>
+        <span class="text-xs font-semibold" style="color:${r.color}">${r.name}</span>
+        <span class="text-xs text-zinc-600">${m.label}${m.round ? ' · Round ' + m.round : ''}</span>
+      </div>
+      <div class="px-4 py-3 text-[13px] text-zinc-300 leading-relaxed whitespace-pre-wrap border-l-2" style="border-color:${r.color}20">${esc(m.content.slice(0, 3000))}</div>`;
+    el.appendChild(div);
+  });
+
+  if ((msgs || []).length === 0) {
+    el.innerHTML = '<div class="text-zinc-600 text-sm mt-8 text-center">No artifacts yet</div>';
+  }
+}
+
+function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+load();
+setInterval(load, 3000);
+</script>
+</body>
+</html>
