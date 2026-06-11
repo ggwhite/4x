@@ -41,9 +41,11 @@ func newNewCmd() *cobra.Command {
 				repoMap[r] = ""
 			}
 
+			displayName := fmt.Sprintf("F%03d: %s", next, name)
+
 			feature := protocol.Feature{
 				ID:          id,
-				Name:        name,
+				Name:        displayName,
 				Description: name,
 				Status:      "not-started",
 				Repos:       repoMap,

@@ -17,7 +17,7 @@ import (
 //go:embed static/index.html
 var indexHTML string
 
-// NewMux 建立 dashboard 的 HTTP handler（方便測試）
+// NewMux 建立 dashboard 的 HTTP handler
 func NewMux(ws *protocol.Workspace) http.Handler {
 	mux := http.NewServeMux()
 
@@ -47,6 +47,11 @@ func NewMux(ws *protocol.Workspace) http.Handler {
 // Start 啟動 dashboard web server
 func Start(ws *protocol.Workspace, port int) error {
 	return http.ListenAndServe(fmt.Sprintf(":%d", port), NewMux(ws))
+}
+
+// StartMulti 啟動多專案 dashboard server
+func StartMulti(reg *ProjectRegistry, port int, recentPath string) error {
+	return http.ListenAndServe(fmt.Sprintf(":%d", port), NewMultiMux(reg, recentPath))
 }
 
 type taskInfo struct {
@@ -247,89 +252,3 @@ func readIfExists(path string) string {
 	return string(data)
 }
 
-const _oldIndexHTML = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>4x Live</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<script src="https://cdn.tailwindcss.com"></script>
-<style>
-  body { background: #0a0a0a; color: #e5e5e5; font-family: ui-monospace, monospace; }
-  .role-designer { border-left: 3px solid #a855f7; }
-  .role-coder { border-left: 3px solid #06b6d4; }
-  .role-reviewer { border-left: 3px solid #22c55e; }
-  .role-deep-reviewer { border-left: 3px solid #22c55e; }
-  .role-tester { border-left: 3px solid #f97316; }
-  .role-acceptor { border-left: 3px solid #eab308; }
-</style>
-</head>
-<body class="min-h-screen">
-<div class="flex h-screen">
-  <!-- Sidebar -->
-  <div id="sidebar" class="w-72 border-r border-zinc-800 overflow-y-auto p-4">
-    <h1 class="text-lg font-bold mb-4">4x Live</h1>
-    <div id="task-list"></div>
-  </div>
-  <!-- Main -->
-  <div class="flex-1 overflow-y-auto p-6" id="main">
-    <div id="empty" class="text-zinc-500 mt-20 text-center">Select a feature to view</div>
-    <div id="messages" class="space-y-4 hidden"></div>
-  </div>
-</div>
-<script>
-let current = null;
-const ROLES = {
-  designer: {name:'Designer',color:'#a855f7'},
-  coder: {name:'Coder',color:'#06b6d4'},
-  reviewer: {name:'Reviewer',color:'#22c55e'},
-  'deep-reviewer': {name:'Deep Review',color:'#22c55e'},
-  tester: {name:'Tester',color:'#f97316'},
-  acceptor: {name:'Acceptor',color:'#eab308'},
-};
-async function load() {
-  const tasks = await (await fetch('/api/tasks')).json();
-  const list = document.getElementById('task-list');
-  list.innerHTML = '';
-  const sorted = (tasks||[]).slice().sort((a,b) => {
-    if(a.active && !b.active) return -1;
-    if(!a.active && b.active) return 1;
-    const order = {'in-progress':0,'not-started':1,'done':2};
-    return (order[a.status]??1) - (order[b.status]??1);
-  });
-  sorted.forEach(t => {
-    const el = document.createElement('div');
-    const isActive = t.active && t.phase && t.phase!=='done';
-    const isSel = t.id===current;
-    let cls = 'p-3 rounded cursor-pointer mb-1 border ';
-    if(isActive) cls += 'border-emerald-500/50 bg-emerald-950/30 ';
-    else if(isSel) cls += 'border-zinc-600 bg-zinc-800 ';
-    else if(t.status==='done') cls += 'border-transparent opacity-50 hover:opacity-80 ';
-    else cls += 'border-transparent hover:bg-zinc-800 ';
-    el.className = cls;
-    const badge = isActive ? '<span class="inline-block px-1.5 py-0.5 text-[10px] font-bold bg-emerald-500 text-black rounded ml-2 animate-pulse">RUNNING</span>' : t.status==='done' ? '<span class="inline-block px-1.5 py-0.5 text-[10px] text-zinc-500 border border-zinc-700 rounded ml-2">DONE</span>' : '';
-    const phase = isActive ? '<div class="text-xs text-emerald-400 mt-1">▶ '+t.phase+' · round '+(t.round||0)+'</div>' : '';
-    el.innerHTML = '<div class="font-medium text-sm">'+t.name+badge+'</div><div class="text-xs text-zinc-500">'+t.id+'</div>'+phase;
-    el.onclick = () => { current=t.id; load(); loadMessages(t.id); };
-    list.appendChild(el);
-  });
-}
-async function loadMessages(id) {
-  document.getElementById('empty').classList.add('hidden');
-  const el = document.getElementById('messages');
-  el.classList.remove('hidden');
-  const msgs = await (await fetch('/api/messages/'+id)).json();
-  el.innerHTML = '';
-  (msgs||[]).forEach(m => {
-    const r = ROLES[m.role]||{name:m.role,color:'#888'};
-    const div = document.createElement('div');
-    div.className = 'role-'+m.role+' pl-4 py-3';
-    div.innerHTML = '<div class="text-xs mb-1"><span style="color:'+r.color+'">'+r.name+'</span> <span class="text-zinc-600">'+m.label+(m.round?' · round '+m.round:'')+'</span></div><pre class="text-sm text-zinc-300 whitespace-pre-wrap">'+esc(m.content.slice(0,2000))+(m.content.length>2000?'\n...':'')+'</pre>';
-    el.appendChild(div);
-  });
-}
-function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;');}
-load(); setInterval(load, 5000);
-</script>
-</body>
-</html>`
