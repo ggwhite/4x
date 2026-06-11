@@ -21,6 +21,7 @@ func newBatchCmd() *cobra.Command {
 
 	cmd.AddCommand(newBatchPlanCmd())
 	cmd.AddCommand(newBatchNextCmd())
+	cmd.AddCommand(newBatchStopCmd())
 	cmd.AddCommand(newBatchRunCmd())
 	return cmd
 }
@@ -176,7 +177,6 @@ func newBatchRunCmd() *cobra.Command {
 	var runnerName string
 	var maxRounds int
 	var timeout int
-	var once bool
 
 	cmd := &cobra.Command{
 		Use:   "run",
@@ -231,8 +231,16 @@ func newBatchRunCmd() *cobra.Command {
 				statusMap[f.ID] = f.Status
 			}
 
+			stopFile := filepath.Join(ws.DotDir(), "batch-stop")
+
 			completed := 0
 			for {
+				if _, err := os.Stat(stopFile); err == nil {
+					os.Remove(stopFile)
+					fmt.Printf("\n⏸ batch-stop detected — stopping gracefully (%d done)\n", completed)
+					break
+				}
+
 				next := ""
 				for _, s := range plan.Schedule {
 					if statusMap[s.FeatureID] == "done" {
@@ -302,10 +310,7 @@ func newBatchRunCmd() *cobra.Command {
 					completed++
 				}
 
-				if once {
-					break
 				}
-			}
 
 			fmt.Printf("\n══════════════════════════════════════\n")
 			fmt.Printf("  BATCH COMPLETE: %d/%d features done\n", completed, len(plan.Schedule))
@@ -317,6 +322,29 @@ func newBatchRunCmd() *cobra.Command {
 	cmd.Flags().StringVar(&runnerName, "runner", "", "runner plugin name")
 	cmd.Flags().IntVar(&maxRounds, "max-rounds", 0, "max rounds per feature (default: 5)")
 	cmd.Flags().IntVar(&timeout, "timeout", 3600, "plugin timeout in seconds")
-	cmd.Flags().BoolVar(&once, "once", false, "run only the next eligible feature then stop")
 	return cmd
+}
+
+func newBatchStopCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "stop",
+		Short: "Signal batch to stop after current feature completes",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			ws, err := protocol.Find(cwd)
+			if err != nil {
+				return err
+			}
+
+			stopFile := filepath.Join(ws.DotDir(), "batch-stop")
+			if err := os.WriteFile(stopFile, []byte("stop"), 0o644); err != nil {
+				return err
+			}
+			fmt.Println("Stop signal sent — batch will finish current feature then exit.")
+			return nil
+		},
+	}
 }
