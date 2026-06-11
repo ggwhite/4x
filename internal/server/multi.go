@@ -300,9 +300,15 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 			dirs = append(dirs, dirEntry{Name: e.Name(), Path: full, Is4x: is4x})
 		}
 
+		currentIs4x := false
+		if info, err := os.Stat(filepath.Join(dir, ".4x")); err == nil && info.IsDir() {
+			currentIs4x = true
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"current": dir,
+			"is4x":    currentIs4x,
 			"dirs":    dirs,
 		})
 	})

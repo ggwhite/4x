@@ -326,8 +326,17 @@ async function browseTo(dir) {
     if (!resp.ok) { list.innerHTML = `<div style="padding:16px 24px;color:#f87171;font-size:12px">${await resp.text()}</div>`; panel.style.display = 'block'; return; }
     const data = await resp.json();
     pathEl.textContent = data.current;
+    document.getElementById('path-input').value = data.current;
     const parent = data.current.split('/').slice(0, -1).join('/') || '/';
-    let html = `<div class="search-item" onclick="browseTo('${escAttr(parent)}')" style="color:var(--text-3)">.. (up)</div>`;
+    let html = '';
+    if (data.is4x) {
+      html += `<div style="padding:10px 24px;background:rgba(16,185,129,.1);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
+        <span style="font-size:9px;padding:2px 6px;border-radius:4px;background:var(--accent);color:#000;font-weight:700">4x</span>
+        <span style="flex:1;font-size:13px;color:var(--text-1);font-weight:600">This is a 4x project</span>
+        <button onclick="addProjectFromInput()" style="padding:6px 14px;background:var(--accent);color:#000;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">Open Project</button>
+      </div>`;
+    }
+    html += `<div class="search-item" onclick="browseTo('${escAttr(parent)}')" style="color:var(--text-3)">.. (up)</div>`;
     (data.dirs || []).forEach(d => {
       const badge = d.is4x ? '<span style="font-size:9px;padding:2px 6px;border-radius:4px;background:var(--accent);color:#000;font-weight:700;margin-left:6px">4x</span>' : '';
       html += `<div class="search-item" style="display:flex;align-items:center;gap:8px">
@@ -335,7 +344,7 @@ async function browseTo(dir) {
         ${d.is4x ? `<button onclick="event.stopPropagation();document.getElementById('path-input').value='${escAttr(d.path)}';addProjectFromInput()" style="padding:4px 10px;background:var(--accent);color:#000;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;flex-shrink:0">Open</button>` : ''}
       </div>`;
     });
-    if (!(data.dirs || []).length) html += '<div style="padding:16px 24px;color:var(--text-4);font-size:12px">No subdirectories</div>';
+    if (!(data.dirs || []).length && !data.is4x) html += '<div style="padding:16px 24px;color:var(--text-4);font-size:12px">No subdirectories</div>';
     list.innerHTML = html;
     panel.style.display = 'block';
   } catch { list.innerHTML = '<div style="padding:16px 24px;color:#f87171;font-size:12px">Connection error</div>'; panel.style.display = 'block'; }
