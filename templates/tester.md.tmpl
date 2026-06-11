@@ -34,6 +34,14 @@ Each AC item must have:
 {{- end }}
 {{- end }}
 
+{{- if .RoleInstructions }}
+
+## Role Instructions
+{{- range .RoleInstructions }}
+- {{ . }}
+{{- end }}
+{{- end }}
+
 ## Rules
 
 - SKIP > 30% of total items → blocks acceptance

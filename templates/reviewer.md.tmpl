@@ -29,6 +29,14 @@ Review the Coder's changes for correctness, safety, and quality.
 {{- end }}
 {{- end }}
 
+{{- if .RoleInstructions }}
+
+## Role Instructions
+{{- range .RoleInstructions }}
+- {{ . }}
+{{- end }}
+{{- end }}
+
 ## Severity Levels
 
 | Severity | Meaning | Action |

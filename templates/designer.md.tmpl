@@ -49,6 +49,14 @@ Analyze requirements, explore the codebase, and produce three artifacts that wil
 {{- end }}
 {{- end }}
 
+{{- if .RoleInstructions }}
+
+## Role Instructions
+{{- range .RoleInstructions }}
+- {{ . }}
+{{- end }}
+{{- end }}
+
 {{- if .Project.Test }}
 
 ## Existing Test Infrastructure

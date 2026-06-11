@@ -220,10 +220,11 @@ type RunnerConfig struct {
 	Model   string   `json:"model,omitempty"`
 }
 
-// RoleConfig 是各角色的模型設定
+// RoleConfig 是各角色的模型與行為設定
 type RoleConfig struct {
-	Model     string `json:"model,omitempty"`
-	DeepModel string `json:"deep_model,omitempty"`
+	Model        string   `json:"model,omitempty"`
+	DeepModel    string   `json:"deep_model,omitempty"`
+	Instructions []string `json:"instructions,omitempty"`
 }
 
 // UserConfig 是 ~/.4x/settings.json 的使用者層級設定

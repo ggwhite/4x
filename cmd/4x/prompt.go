@@ -50,14 +50,15 @@ func newPromptCmd() *cobra.Command {
 			locale, localeName := resolveLocale()
 
 			data := promptData{
-				Feature:    feature,
-				Project:    cfg.Project,
-				Role:       r,
-				Round:      round,
-				Config:     cfg,
-				DotDir:     ws.DotDir(),
-				Locale:     locale,
-				LocaleName: localeName,
+				Feature:          feature,
+				Project:          cfg.Project,
+				Role:             r,
+				Round:            round,
+				Config:           cfg,
+				DotDir:           ws.DotDir(),
+				Locale:           locale,
+				LocaleName:       localeName,
+				RoleInstructions: roleInstructions(cfg, r),
 			}
 
 			tmpl, err := loadRoleTemplate(r)
@@ -75,14 +76,23 @@ func newPromptCmd() *cobra.Command {
 }
 
 type promptData struct {
-	Feature    protocol.Feature
-	Project    protocol.ProjectConfig
-	Role       protocol.Role
-	Round      int
-	Config     protocol.Config
-	DotDir     string
-	Locale     string
-	LocaleName string
+	Feature          protocol.Feature
+	Project          protocol.ProjectConfig
+	Role             protocol.Role
+	Round            int
+	Config           protocol.Config
+	DotDir           string
+	Locale           string
+	LocaleName       string
+	RoleInstructions []string
+}
+
+// roleInstructions 從 Config 取出指定角色的 instructions
+func roleInstructions(cfg protocol.Config, r protocol.Role) []string {
+	if rc, ok := cfg.Roles[string(r)]; ok {
+		return rc.Instructions
+	}
+	return nil
 }
 
 var localeNames = map[string]string{
@@ -220,6 +230,13 @@ Subtasks:
 - {{.}}
 {{- end}}
 {{- end}}
+{{- if .RoleInstructions}}
+
+== Role Instructions ==
+{{- range .RoleInstructions}}
+- {{.}}
+{{- end}}
+{{- end}}
 {{- if .Project.Test}}
 
 == Existing Test Commands (use in test-strategy.yaml verify_commands) ==
@@ -295,6 +312,13 @@ Read the previous test report: {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{(sub .
 - {{.}}
 {{- end}}
 {{- end}}
+{{- if .RoleInstructions}}
+
+== Role Instructions ==
+{{- range .RoleInstructions}}
+- {{.}}
+{{- end}}
+{{- end}}
 
 == Workflow ==
 1. Read task-brief.md
@@ -346,6 +370,13 @@ Use the Write tool. Do NOT just print the content — write to disk.
 - {{.}}
 {{- end}}
 {{- end}}
+{{- if .RoleInstructions}}
+
+== Role Instructions ==
+{{- range .RoleInstructions}}
+- {{.}}
+{{- end}}
+{{- end}}
 
 == review-report.md format ==
 # Review Report — Round {{.Round}}
@@ -392,6 +423,13 @@ Use the Write tool. Do NOT just print the content — write to disk.
 
 == Project Test Commands ==
 {{- range .Project.Test}}
+- {{.}}
+{{- end}}
+{{- end}}
+{{- if .RoleInstructions}}
+
+== Role Instructions ==
+{{- range .RoleInstructions}}
 - {{.}}
 {{- end}}
 {{- end}}

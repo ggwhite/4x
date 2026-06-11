@@ -113,13 +113,17 @@ func generatePrompt(ws *protocol.Workspace, feature protocol.Feature, cfg protoc
 	if err != nil {
 		return "", fmt.Errorf("no template for role %s: %w", role, err)
 	}
+	locale, localeName := resolveLocale()
 	data := promptData{
-		Feature: feature,
-		Project: cfg.Project,
-		Role:    role,
-		Round:   round,
-		Config:  cfg,
-		DotDir:  ws.DotDir(),
+		Feature:          feature,
+		Project:          cfg.Project,
+		Role:             role,
+		Round:            round,
+		Config:           cfg,
+		DotDir:           ws.DotDir(),
+		Locale:           locale,
+		LocaleName:       localeName,
+		RoleInstructions: roleInstructions(cfg, role),
 	}
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {

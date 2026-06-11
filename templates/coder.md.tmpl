@@ -54,6 +54,14 @@ Run after every significant change:
 {{- end }}
 {{- end }}
 
+{{- if .RoleInstructions }}
+
+## Role Instructions
+{{- range .RoleInstructions }}
+- {{ . }}
+{{- end }}
+{{- end }}
+
 ## Constraints
 
 - Run verify commands after **every** significant change

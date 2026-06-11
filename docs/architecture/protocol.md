@@ -50,9 +50,9 @@ Workspace-level configuration. Created by `4x init`.
     "claude": { "command": "claude", "model": "opus" }
   },
   "roles": {
-    "designer": { "model": "opus" },
+    "designer": { "model": "opus", "instructions": ["設計時考慮冪等性"] },
     "coder": { "model": "sonnet" },
-    "reviewer": { "model": "sonnet", "deep_model": "opus" },
+    "reviewer": { "model": "sonnet", "deep_model": "opus", "instructions": ["重點檢查 SQL injection"] },
     "tester": { "model": "sonnet" },
     "acceptor": { "model": "opus" }
   }
