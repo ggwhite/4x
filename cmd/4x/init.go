@@ -41,6 +41,10 @@ func newInitCmd() *cobra.Command {
 						Command: "codex",
 						Args:    []string{"exec", "--prompt-file", "{promptFile}"},
 					},
+					"gemini": {
+						Command: "gemini",
+						Args:    []string{"-p", "{prompt}"},
+					},
 				},
 				Default: "claude",
 				Roles: map[string]protocol.RoleConfig{
@@ -156,69 +160,104 @@ func detectProjectProfile(root string) protocol.ProjectConfig {
 }
 
 // setupRunnerPermissions 為每個 runner 設定 non-interactive 執行所需的權限
+// 每個 agent 工具都有自己的 sandbox/permission 機制，4x init 要全部配好
 func setupRunnerPermissions(root string, cfg protocol.Config) {
 	for name := range cfg.Runners {
 		switch name {
 		case "claude":
 			setupClaudePermissions(root, cfg)
+		case "codex":
+			setupCodexPermissions(root, cfg)
+		case "gemini":
+			setupGeminiPermissions(root, cfg)
 		}
 	}
 }
 
+func langCommands(lang string) []string {
+	common := []string{
+		"make *", "ls *", "mkdir *", "grep *", "cat *",
+		"head *", "tail *", "find *", "git *", "wc *",
+		"4x *", "./bin/4x *",
+	}
+	switch lang {
+	case "go":
+		return append(common, "go build*", "go test*", "go vet*")
+	case "javascript":
+		return append(common, "npm *", "npx *")
+	case "typescript":
+		return append(common, "pnpm *", "npm *", "npx *", "yarn *", "tsc *")
+	case "java":
+		return append(common, "mvn *", "./gradlew *", "gradle *")
+	case "rust":
+		return append(common, "cargo *")
+	case "python":
+		return append(common, "pytest*", "python *", "pip *", "ruff *")
+	default:
+		return common
+	}
+}
+
+// Claude Code: .claude/settings.json
 func setupClaudePermissions(root string, cfg protocol.Config) {
 	dir := filepath.Join(root, ".claude")
 	settingsPath := filepath.Join(dir, "settings.json")
+	if _, err := os.Stat(settingsPath); err == nil {
+		return
+	}
+	os.MkdirAll(dir, 0o755)
 
+	allows := []string{"Read", "Edit", "Write"}
+	for _, cmd := range langCommands(cfg.Project.Language) {
+		allows = append(allows, "Bash("+cmd+")")
+	}
+
+	data, _ := json.MarshalIndent(map[string]any{
+		"permissions": map[string]any{"allow": allows},
+	}, "", "  ")
+	os.WriteFile(settingsPath, data, 0o644)
+	fmt.Printf("Runner:   claude → .claude/settings.json\n")
+}
+
+// Codex CLI: codex --full-auto 需要 AGENTS.md 裡的指令，加上 sandbox 設定
+func setupCodexPermissions(root string, cfg protocol.Config) {
+	settingsPath := filepath.Join(root, "codex.json")
 	if _, err := os.Stat(settingsPath); err == nil {
 		return
 	}
 
-	os.MkdirAll(dir, 0o755)
+	commands := langCommands(cfg.Project.Language)
 
-	allows := []string{
-		"Read",
-		"Edit",
-		"Write(.4x/**)",
-	}
-
-	candidates := []struct {
-		perm    string
-		include bool
-	}{
-		{"Bash(make *)", true},
-		{"Bash(ls *)", true},
-		{"Bash(mkdir *)", true},
-		{"Bash(grep *)", true},
-		{"Bash(cat *)", true},
-		{"Bash(4x *)", true},
-		{"Bash(./bin/4x *)", true},
-		{"Bash(go build*)", cfg.Project.Language == "go"},
-		{"Bash(go test*)", cfg.Project.Language == "go"},
-		{"Bash(go vet*)", cfg.Project.Language == "go"},
-		{"Bash(npm *)", cfg.Project.Language == "javascript" || cfg.Project.Language == "typescript"},
-		{"Bash(pnpm *)", cfg.Project.Language == "typescript"},
-		{"Bash(yarn *)", cfg.Project.Language == "typescript"},
-		{"Bash(cargo *)", cfg.Project.Language == "rust"},
-		{"Bash(pytest*)", cfg.Project.Language == "python"},
-		{"Bash(mvn *)", cfg.Project.Language == "java"},
-		{"Bash(gradle*)", cfg.Project.Language == "java"},
-	}
-	for _, c := range candidates {
-		if c.include {
-			allows = append(allows, c.perm)
-		}
-	}
-
-	settings := map[string]any{
-		"permissions": map[string]any{
-			"allow": allows,
+	data, _ := json.MarshalIndent(map[string]any{
+		"model":       "o3",
+		"approval":    "full-auto",
+		"allowedTools": commands,
+		"writableDirectories": []string{
+			filepath.Join(root, ".4x"),
+			root,
 		},
-	}
+	}, "", "  ")
+	os.WriteFile(settingsPath, data, 0o644)
+	fmt.Printf("Runner:   codex → codex.json\n")
+}
 
-	data, err := json.MarshalIndent(settings, "", "  ")
-	if err != nil {
+// Gemini CLI: .gemini/settings.json
+func setupGeminiPermissions(root string, cfg protocol.Config) {
+	dir := filepath.Join(root, ".gemini")
+	settingsPath := filepath.Join(dir, "settings.json")
+	if _, err := os.Stat(settingsPath); err == nil {
 		return
 	}
+	os.MkdirAll(dir, 0o755)
+
+	commands := langCommands(cfg.Project.Language)
+
+	data, _ := json.MarshalIndent(map[string]any{
+		"sandbox": map[string]any{
+			"allowedCommands": commands,
+			"allowedPaths":    []string{".4x/", "internal/", "cmd/", "templates/", "plugins/"},
+		},
+	}, "", "  ")
 	os.WriteFile(settingsPath, data, 0o644)
-	fmt.Printf("Runner:   claude permissions → .claude/settings.json\n")
+	fmt.Printf("Runner:   gemini → .gemini/settings.json\n")
 }
