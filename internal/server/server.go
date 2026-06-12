@@ -3,7 +3,7 @@ package server
 import (
 	"bufio"
 	"bytes"
-	_ "embed"
+	"embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,6 +25,11 @@ var mergeMu sync.Mutex
 
 //go:embed static/index.html
 var indexHTML string
+
+//go:embed static/locales/*.json
+var localeFS embed.FS
+
+var supportedLocales = []string{"en", "zh-TW", "zh-CN", "ja", "ko", "es"}
 
 // NewMux 建立 dashboard 的 HTTP handler。
 func NewMux(ws *protocol.Workspace, pm *ProcessManager) http.Handler {
@@ -105,6 +110,16 @@ func NewMux(ws *protocol.Workspace, pm *ProcessManager) http.Handler {
 	mux.HandleFunc("/sse/logs/", func(w http.ResponseWriter, r *http.Request) {
 		featureID := strings.TrimPrefix(r.URL.Path, "/sse/logs/")
 		handleLogSSE(ws, featureID, w, r)
+	})
+	mux.HandleFunc("/api/locales/", func(w http.ResponseWriter, r *http.Request) {
+		handleGetLocale(w, r)
+	})
+	mux.HandleFunc("/api/locales", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/locales" {
+			handleGetLocale(w, r)
+			return
+		}
+		handleGetLocales(w)
 	})
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
@@ -801,6 +816,26 @@ func readIfExists(path string) string {
 		return ""
 	}
 	return string(data)
+}
+
+// handleGetLocales 回傳支援的語言清單。
+func handleGetLocales(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	json.NewEncoder(w).Encode(supportedLocales)
+}
+
+// handleGetLocale 回傳對應語言的翻譯 JSON；不存在則 fallback 回 en.json。
+func handleGetLocale(w http.ResponseWriter, r *http.Request) {
+	lang := strings.TrimPrefix(r.URL.Path, "/api/locales/")
+	filename := "static/locales/" + lang + ".json"
+	data, err := localeFS.ReadFile(filename)
+	if err != nil {
+		data, _ = localeFS.ReadFile("static/locales/en.json")
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	w.Write(data)
 }
 
 // resolveDoc 依優先序讀取設計文件：YAML 指定路徑 > docs/design/ 慣例路徑

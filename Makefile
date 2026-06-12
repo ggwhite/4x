@@ -1,4 +1,4 @@
-.PHONY: build install test clean check-docs
+.PHONY: build install test clean check-docs check-i18n
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
@@ -19,3 +19,6 @@ lint:
 
 check-docs:
 	@bash scripts/check-docs.sh
+
+check-i18n:
+	@bash scripts/check-i18n.sh

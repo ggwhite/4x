@@ -570,3 +570,96 @@ func TestGetOverview_YAMLPathOverrideEmptyFile(t *testing.T) {
 		t.Errorf("SpecSource = %q, want custom/empty-spec.md", info.SpecSource)
 	}
 }
+
+func TestGetLocales(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/locales", "")
+
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	ct := rec.Header().Get("Content-Type")
+	if !strings.Contains(ct, "application/json") {
+		t.Errorf("Content-Type = %s, want application/json", ct)
+	}
+
+	var locales []string
+	if err := json.NewDecoder(rec.Body).Decode(&locales); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	want := []string{"en", "zh-TW", "zh-CN", "ja", "ko", "es"}
+	if len(locales) != len(want) {
+		t.Fatalf("locales = %v, want %v", locales, want)
+	}
+	for i, w := range want {
+		if locales[i] != w {
+			t.Errorf("locales[%d] = %s, want %s", i, locales[i], w)
+		}
+	}
+}
+
+func TestGetLocaleEN(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/locales/en", "")
+
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	ct := rec.Header().Get("Content-Type")
+	if !strings.Contains(ct, "application/json") {
+		t.Errorf("Content-Type = %s, want application/json", ct)
+	}
+
+	cc := rec.Header().Get("Cache-Control")
+	if !strings.Contains(cc, "immutable") {
+		t.Errorf("Cache-Control = %s, want immutable", cc)
+	}
+
+	var translations map[string]string
+	if err := json.NewDecoder(rec.Body).Decode(&translations); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	if translations["app.title"] != "4x Live" {
+		t.Errorf("app.title = %q, want '4x Live'", translations["app.title"])
+	}
+}
+
+func TestGetLocaleZhTW(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/locales/zh-TW", "")
+
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	var translations map[string]string
+	if err := json.NewDecoder(rec.Body).Decode(&translations); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	if _, ok := translations["app.title"]; !ok {
+		t.Error("zh-TW missing key app.title")
+	}
+}
+
+func TestGetLocaleUnknownFallback(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/locales/nonexistent", "")
+
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	var translations map[string]string
+	if err := json.NewDecoder(rec.Body).Decode(&translations); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	if translations["app.title"] != "4x Live" {
+		t.Errorf("fallback should return en.json, got app.title = %q", translations["app.title"])
+	}
+}

@@ -398,6 +398,17 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 		})
 	})
 
+	mux.HandleFunc("/api/locales/", func(w http.ResponseWriter, r *http.Request) {
+		handleGetLocale(w, r)
+	})
+	mux.HandleFunc("/api/locales", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/locales" {
+			handleGetLocale(w, r)
+			return
+		}
+		handleGetLocales(w)
+	})
+
 	// Index HTML
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")

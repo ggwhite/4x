@@ -128,8 +128,8 @@
   <div id="sidebar" class="w-80 border-r overflow-y-auto flex flex-col" style="border-color:var(--border)">
     <div class="p-4 border-b flex items-center gap-2 cursor-pointer transition-colors" style="border-color:var(--border)" onclick="goHome()">
       <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 pulse-dot"></div>
-      <h1 class="text-base font-bold tracking-tight">4x Live</h1>
-      <span class="text-[10px] ml-auto" style="color:var(--text-4)">Auto-refresh</span>
+      <h1 class="text-base font-bold tracking-tight" data-i18n="app.title">4x Live</h1>
+      <span class="text-[10px] ml-auto" style="color:var(--text-4)" data-i18n="app.autoRefresh">Auto-refresh</span>
       <button onclick="event.stopPropagation();openNewFeature()" title="New Feature" style="color:var(--text-4)" class="ml-1 hover:text-white transition-colors text-lg leading-none">+</button>
       <button onclick="event.stopPropagation();openProjectSettings()" title="Project Settings (⌘,)" style="color:var(--text-4)" class="ml-1 hover:text-white transition-colors">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -154,8 +154,8 @@
       <div id="h-meta" class="flex items-center gap-4 mt-2 text-xs" style="color:var(--text-4)"></div>
       <div id="detail-tabs" class="flex gap-4 mt-3 border-t pt-2" style="border-color:var(--border)">
         <button class="detail-tab text-xs font-semibold pb-1 border-b-2 border-emerald-500 text-emerald-400" data-tab="overview" onclick="switchDetailTab('overview')">Overview</button>
-        <button class="detail-tab text-xs font-semibold pb-1 border-b-2 border-transparent text-zinc-500 hover:text-zinc-300" data-tab="messages" onclick="switchDetailTab('messages')">Messages</button>
-        <button class="detail-tab text-xs font-semibold pb-1 border-b-2 border-transparent text-zinc-500 hover:text-zinc-300" data-tab="logs" onclick="switchDetailTab('logs')">Logs</button>
+        <button class="detail-tab text-xs font-semibold pb-1 border-b-2 border-transparent text-zinc-500 hover:text-zinc-300" data-tab="messages" onclick="switchDetailTab('messages')" data-i18n="nav.messages">Messages</button>
+        <button class="detail-tab text-xs font-semibold pb-1 border-b-2 border-transparent text-zinc-500 hover:text-zinc-300" data-tab="logs" onclick="switchDetailTab('logs')" data-i18n="nav.logs">Logs</button>
       </div>
     </div>
     <div class="flex-1 overflow-y-auto p-6" id="main">
@@ -175,7 +175,7 @@
   <div class="modal-panel fade-in">
     <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
       <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-3)"><circle cx="7" cy="7" r="5"/><path d="M11 11l3.5 3.5"/></svg>
-      <input id="search-input" type="text" placeholder="Search features... (@project to filter)" autocomplete="off"
+      <input id="search-input" type="text" placeholder="Search features... (@project to filter)" data-i18n-placeholder="search.placeholder" autocomplete="off"
         style="flex:1;background:none;border:none;outline:none;color:var(--text-1);font-size:15px;font-family:inherit"
         oninput="onSearchInput()" onkeydown="onSearchKey(event)">
     </div>
@@ -192,28 +192,36 @@
 <div id="settings-modal" class="modal-backdrop" onclick="if(event.target===this)closeSettings()">
   <div class="modal-panel fade-in" style="width:520px;max-height:80vh;overflow-y:auto">
     <div style="padding:20px 24px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)">
-      <span style="font-size:16px;font-weight:700">Settings</span>
+      <span style="font-size:16px;font-weight:700" data-i18n="settings.title">Settings</span>
     </div>
     <div style="padding-top:20px">
       <div class="settings-section">
-        <div class="settings-label">Appearance</div>
+        <div class="settings-label" data-i18n="settings.appearance">Appearance</div>
         <div style="display:flex;flex-direction:column;gap:14px">
           <div style="display:flex;align-items:center;justify-content:space-between">
-            <span style="font-size:13px">Content Font</span>
+            <span style="font-size:13px" data-i18n="settings.contentFont">Content Font</span>
             <div class="stepper"><button onclick="adjFont('content',-1)">-</button><span id="font-content-val">15px</span><button onclick="adjFont('content',1)">+</button></div>
           </div>
           <div style="display:flex;align-items:center;justify-content:space-between">
-            <span style="font-size:13px">Code Font</span>
+            <span style="font-size:13px" data-i18n="settings.codeFont">Code Font</span>
             <div class="stepper"><button onclick="adjFont('code',-1)">-</button><span id="font-code-val">13px</span><button onclick="adjFont('code',1)">+</button></div>
           </div>
         </div>
       </div>
       <div class="settings-section">
-        <div class="settings-label">Theme</div>
+        <div class="settings-label" data-i18n="settings.theme">Theme</div>
         <div id="theme-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px"></div>
       </div>
       <div class="settings-section">
-        <div class="settings-label">Behavior</div>
+        <div class="settings-label" data-i18n="settings.language">Language</div>
+        <div>
+          <select id="locale-select" onchange="switchLocale(this.value)"
+            style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none;cursor:pointer">
+          </select>
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-label" data-i18n="settings.behavior">Behavior</div>
         <div style="display:flex;align-items:center;justify-content:space-between">
           <div><span style="font-size:13px">Refresh</span><div style="font-size:11px;color:var(--text-4)">Polling interval</div></div>
           <div class="stepper"><button onclick="adjRefresh(-1)">-</button><span id="refresh-val">3s</span><button onclick="adjRefresh(1)">+</button></div>
@@ -227,7 +235,7 @@
 <div id="picker-modal" class="modal-backdrop" onclick="if(event.target===this)closeProjectPicker()">
   <div class="modal-panel fade-in" style="width:520px">
     <div style="padding:20px 24px 16px;border-bottom:1px solid var(--border)">
-      <span style="font-size:16px;font-weight:700">Open Project</span>
+      <span style="font-size:16px;font-weight:700" data-i18n="picker.title">Open Project</span>
     </div>
     <div id="recent-list" style="overflow-y:auto;max-height:30vh"></div>
     <div id="browse-panel" style="display:none;border-top:1px solid var(--border)">
@@ -236,11 +244,11 @@
     </div>
     <div style="padding:16px 24px;border-top:1px solid var(--border)">
       <div style="display:flex;gap:8px">
-        <input id="path-input" type="text" placeholder="Enter project path..." autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other"
+        <input id="path-input" type="text" placeholder="Enter project path..." data-i18n-placeholder="picker.pathPlaceholder" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other"
           style="flex:1;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none"
           onkeydown="if(event.key==='Enter')addProjectFromInput()">
-        <button onclick="toggleBrowse()" style="padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-2);cursor:pointer">Browse</button>
-        <button id="picker-open-btn" onclick="addProjectFromInput()" style="padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Open</button>
+        <button onclick="toggleBrowse()" style="padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-2);cursor:pointer" data-i18n="picker.browse">Browse</button>
+        <button id="picker-open-btn" onclick="addProjectFromInput()" style="padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer" data-i18n="picker.open">Open</button>
       </div>
       <div id="path-error" style="color:#f87171;font-size:12px;margin-top:6px;display:none"></div>
     </div>
@@ -251,16 +259,16 @@
 <div id="project-settings-modal" class="modal-backdrop" onclick="if(event.target===this)closeProjectSettings()">
   <div class="modal-panel fade-in" style="width:720px;max-height:85vh;overflow-y:auto">
     <div style="padding:20px 24px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)">
-      <span style="font-size:16px;font-weight:700">Project Settings</span>
-      <span id="ps-autosave-ind" style="font-size:11px;color:var(--accent);opacity:0;transition:opacity .3s;margin-left:4px">Saved</span>
+      <span style="font-size:16px;font-weight:700" data-i18n="projectSettings.title">Project Settings</span>
+      <span id="ps-autosave-ind" style="font-size:11px;color:var(--accent);opacity:0;transition:opacity .3s;margin-left:4px" data-i18n="settings.saved">Saved</span>
       <div style="margin-left:auto;display:flex;gap:4px">
-        <button id="ps-tab-form" onclick="switchPSTab('form')" style="padding:4px 12px;font-size:12px;border-radius:6px;cursor:pointer;background:var(--accent);color:#000;border:none;font-weight:600">Form</button>
+        <button id="ps-tab-form" onclick="switchPSTab('form')" style="padding:4px 12px;font-size:12px;border-radius:6px;cursor:pointer;background:var(--accent);color:#000;border:none;font-weight:600" data-i18n="projectSettings.form">Form</button>
         <button id="ps-tab-json" onclick="switchPSTab('json')" style="padding:4px 12px;font-size:12px;border-radius:6px;cursor:pointer;background:var(--bg-input);color:var(--text-2);border:1px solid var(--border)">JSON</button>
       </div>
     </div>
     <div id="ps-search-bar" style="padding:8px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
       <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-3);flex-shrink:0"><circle cx="5.5" cy="5.5" r="4"/><path d="M9 9l2.5 2.5"/></svg>
-      <input id="ps-search-input" type="text" placeholder="Search settings..." autocomplete="off"
+      <input id="ps-search-input" type="text" placeholder="Search settings..." data-i18n-placeholder="projectSettings.searchPlaceholder" autocomplete="off"
         style="flex:1;background:none;border:none;outline:none;color:var(--text-1);font-size:13px;font-family:inherit"
         oninput="filterPSFields(this.value)">
     </div>
@@ -270,8 +278,8 @@
       <div id="ps-json-error" style="color:#f87171;font-size:12px;margin-top:6px;display:none"></div>
     </div>
     <div style="padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
-      <button onclick="closeProjectSettings()" style="padding:8px 16px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-2);cursor:pointer">Cancel</button>
-      <button onclick="saveProjectSettings()" style="padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Save</button>
+      <button onclick="closeProjectSettings()" style="padding:8px 16px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-2);cursor:pointer" data-i18n="projectSettings.cancel">Cancel</button>
+      <button onclick="saveProjectSettings()" style="padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer" data-i18n="projectSettings.save">Save</button>
     </div>
   </div>
 </div>
@@ -280,13 +288,13 @@
 <div id="init-modal" class="modal-backdrop" onclick="if(event.target===this)cancelInitConfirm()">
   <div class="modal-panel fade-in" style="width:420px">
     <div style="padding:20px 24px 12px">
-      <div style="font-size:15px;font-weight:700;margin-bottom:8px">Not a 4x project</div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:8px" data-i18n="init.title">Not a 4x project</div>
       <div id="init-modal-path" style="font-size:12px;color:var(--text-3);word-break:break-all;margin-bottom:12px"></div>
-      <div style="font-size:13px;color:var(--text-2)">Initialize this directory as a new 4x project?</div>
+      <div style="font-size:13px;color:var(--text-2)" data-i18n="init.message">Initialize this directory as a new 4x project?</div>
     </div>
     <div style="padding:12px 24px 20px;display:flex;justify-content:flex-end;gap:8px">
-      <button onclick="cancelInitConfirm()" style="padding:8px 16px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-2);cursor:pointer">Cancel</button>
-      <button onclick="confirmInit()" style="padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Initialize</button>
+      <button onclick="cancelInitConfirm()" style="padding:8px 16px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-2);cursor:pointer" data-i18n="init.cancel">Cancel</button>
+      <button onclick="confirmInit()" style="padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer" data-i18n="init.initialize">Initialize</button>
     </div>
   </div>
 </div>
@@ -350,6 +358,59 @@
 </div>
 
 <script>
+let _i18nDict = {};
+let _currentLocale = 'en';
+const SUPPORTED_LOCALES = [];
+const LOCALE_NAMES = {
+  en: 'English', 'zh-TW': '繁體中文', 'zh-CN': '简体中文',
+  ja: '日本語', ko: '한국어', es: 'Español'
+};
+
+function t(key) {
+  return _i18nDict[key] || key;
+}
+
+function detectLocale() {
+  const saved = localStorage.getItem('4x-locale');
+  if (saved && LOCALE_NAMES[saved]) return saved;
+  const nav = navigator.language || 'en';
+  if (LOCALE_NAMES[nav]) return nav;
+  const prefix = nav.split('-')[0];
+  const match = Object.keys(LOCALE_NAMES).find(k => k.startsWith(prefix));
+  return match || 'en';
+}
+
+async function loadLocale(lang) {
+  try {
+    const resp = await fetch('/api/locales/' + lang);
+    if (resp.ok) {
+      _i18nDict = await resp.json();
+      _currentLocale = lang;
+    }
+  } catch {}
+}
+
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    el.placeholder = t(el.dataset.i18nPlaceholder);
+  });
+  document.querySelectorAll('[data-i18n-title]').forEach(el => {
+    el.title = t(el.dataset.i18nTitle);
+  });
+}
+
+async function switchLocale(lang) {
+  localStorage.setItem('4x-locale', lang);
+  await loadLocale(lang);
+  applyI18n();
+  document.documentElement.lang = lang;
+  if (!current && activeProjectId) renderDashboard(lastTasks);
+  if (activeProjectId) renderSidebar();
+}
+
 let projects = [];
 let activeProjectId = null;
 let openTabs = [];
@@ -468,7 +529,7 @@ function closeProjectPicker() { document.getElementById('picker-modal').classLis
 function renderRecentList() {
   const el = document.getElementById('recent-list');
   const unopened = projects.filter(p => !openTabs.find(t => t.id === p.id));
-  if (unopened.length === 0) { el.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-4);font-size:13px">No recent projects</div>'; return; }
+  if (unopened.length === 0) { el.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-4);font-size:13px">${t('picker.noRecent')}</div>`; return; }
   el.innerHTML = unopened.map(p => `<div class="search-item" onclick="openExistingProject('${escAttr(p.id)}')"><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:var(--text-1)">${esc(p.name)}</div><div style="font-size:11px;color:var(--text-4);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.path)}</div></div><span style="font-size:11px;color:var(--text-4)">${p.taskCount} tasks</span></div>`).join('');
 }
 function openExistingProject(id) { const p = projects.find(x => x.id === id); if (p) { closeProjectPicker(); addTab(p); } }
@@ -486,7 +547,7 @@ async function addProjectFromInput(forceInit) {
     if (!resp.ok) { errorEl.textContent = await resp.text(); errorEl.style.display = 'block'; return; }
     const data = await resp.json(); await loadProjects();
     const p = projects.find(x => x.id === data.id); if (p) { closeProjectPicker(); addTab(p); }
-  } catch { errorEl.textContent = 'Connection error'; errorEl.style.display = 'block'; }
+  } catch { errorEl.textContent = t('picker.connectionError'); errorEl.style.display = 'block'; }
 }
 function showInitConfirm(path) {
   document.getElementById('init-modal-path').textContent = path;
@@ -519,11 +580,11 @@ async function browseTo(dir) {
     if (data.is4x) {
       html += `<div style="padding:10px 24px;background:rgba(16,185,129,.1);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
         <span style="font-size:9px;padding:2px 6px;border-radius:4px;background:var(--accent);color:#000;font-weight:700">4x</span>
-        <span style="flex:1;font-size:13px;color:var(--text-1);font-weight:600">This is a 4x project</span>
-        <button onclick="addProjectFromInput()" style="padding:6px 14px;background:var(--accent);color:#000;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">Open Project</button>
+        <span style="flex:1;font-size:13px;color:var(--text-1);font-weight:600">${t('picker.is4xProject')}</span>
+        <button onclick="addProjectFromInput()" style="padding:6px 14px;background:var(--accent);color:#000;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">${t('picker.openProject')}</button>
       </div>`;
     }
-    html += `<div class="search-item" onclick="browseTo('${escAttr(parent)}')" style="color:var(--text-3)">.. (up)</div>`;
+    html += `<div class="search-item" onclick="browseTo('${escAttr(parent)}')" style="color:var(--text-3)">${t('browse.up')}</div>`;
     (data.dirs || []).forEach(d => {
       const badge = d.is4x ? '<span style="font-size:9px;padding:2px 6px;border-radius:4px;background:var(--accent);color:#000;font-weight:700;margin-left:6px">4x</span>' : '';
       html += `<div class="search-item" style="display:flex;align-items:center;gap:8px">
@@ -531,13 +592,13 @@ async function browseTo(dir) {
         ${d.is4x ? `<button onclick="event.stopPropagation();document.getElementById('path-input').value='${escAttr(d.path)}';addProjectFromInput()" style="padding:4px 10px;background:var(--accent);color:#000;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;flex-shrink:0">Open</button>` : ''}
       </div>`;
     });
-    if (!(data.dirs || []).length && !data.is4x) html += '<div style="padding:16px 24px;color:var(--text-4);font-size:12px">No subdirectories</div>';
+    if (!(data.dirs || []).length && !data.is4x) html += `<div style="padding:16px 24px;color:var(--text-4);font-size:12px">${t('picker.noSubdirs')}</div>`;
     list.innerHTML = html;
     panel.style.display = 'block';
-  } catch { list.innerHTML = '<div style="padding:16px 24px;color:#f87171;font-size:12px">Connection error</div>'; panel.style.display = 'block'; }
+  } catch { list.innerHTML = `<div style="padding:16px 24px;color:#f87171;font-size:12px">${t('picker.connectionError')}</div>`; panel.style.display = 'block'; }
 }
 function renderProjectPicker() {
-  document.getElementById('dashboard').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:60vh;flex-direction:column;gap:16px"><div style="font-size:24px;font-weight:700;color:var(--text-1)">4x Live</div><div style="font-size:14px;color:var(--text-3)">Select a project to get started</div><button onclick="showProjectPicker()" style="margin-top:8px;padding:10px 24px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">Open Project...</button></div>';
+  document.getElementById('dashboard').innerHTML = `<div style="display:flex;align-items:center;justify-content:center;min-height:60vh;flex-direction:column;gap:16px"><div style="font-size:24px;font-weight:700;color:var(--text-1)">4x Live</div><div style="font-size:14px;color:var(--text-3)">${t('app.selectProject')}</div><button onclick="showProjectPicker()" style="margin-top:8px;padding:10px 24px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">${t('app.openProject')}</button></div>`;
   document.getElementById('dashboard').classList.remove('hidden');
   document.getElementById('header').classList.add('hidden');
   document.getElementById('messages').classList.add('hidden');
@@ -562,17 +623,17 @@ function renderSearchResults(query) {
   const sm = query.match(/^@(\S+)\s*(.*)/);
   if (sm) { actualQuery = sm[2]; const tab = openTabs.find(t => t.name.toLowerCase().includes(sm[1].toLowerCase()) || t.id.toLowerCase().includes(sm[1].toLowerCase())); if (tab) scopeId = tab.id; }
   for (const tab of openTabs) { if (scopeId && tab.id !== scopeId) continue; pool.push(...(allTabTasks[tab.id] || [])); }
-  searchFiltered = actualQuery ? pool.map(t => ({...t, _score: Math.max(fuzzyScore(actualQuery, t.id), fuzzyScore(actualQuery, t.name))})).filter(t => t._score > 0).sort((a, b) => b._score - a._score) : pool;
+  searchFiltered = actualQuery ? pool.map(task => ({...task, _score: Math.max(fuzzyScore(actualQuery, task.id), fuzzyScore(actualQuery, task.name))})).filter(task => task._score > 0).sort((a, b) => b._score - a._score) : pool;
   if (searchIdx >= searchFiltered.length) searchIdx = Math.max(0, searchFiltered.length - 1);
-  el.innerHTML = searchFiltered.map((t, i) => {
-    const isActive = t.active && t.phase && t.phase !== 'done';
-    const pl = openTabs.length > 1 ? `<span style="padding:1px 6px;font-size:10px;background:var(--bg-hover);border-radius:4px;color:var(--text-3)">${esc(t._projectName)}</span>` : '';
-    let b; if (isActive) b='<span style="padding:2px 8px;font-size:10px;font-weight:600;background:rgba(16,185,129,.15);color:#34d399;border:1px solid rgba(16,185,129,.3);border-radius:99px">In Progress</span>';
-    else if (t.status==='ready-for-review') b='<span style="padding:2px 8px;font-size:10px;font-weight:600;background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.3);border-radius:99px">Review</span>';
-    else if (t.status==='done') b='<span style="padding:2px 8px;font-size:10px;color:var(--text-3);border:1px solid var(--border);border-radius:99px">Done</span>';
-    else if (t.status==='blocked') b='<span style="padding:2px 8px;font-size:10px;color:#f87171;border:1px solid rgba(248,113,113,.3);border-radius:99px">Blocked</span>';
-    else b='<span style="padding:2px 8px;font-size:10px;color:var(--text-4);border:1px solid var(--border);border-radius:99px">Not Started</span>';
-    return `<div class="search-item ${i===searchIdx?'active':''}" onclick="selectSearch(${i})" onmouseenter="highlightSearch(${i})">${pl}<span style="font-size:13px;font-weight:600;color:${isActive?'#34d399':'var(--accent)'};min-width:80px">${esc(t.id)}</span><span style="flex:1;font-size:13px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.name)}</span>${b}</div>`;
+  el.innerHTML = searchFiltered.map((task, i) => {
+    const isActive = task.active && task.phase && task.phase !== 'done';
+    const pl = openTabs.length > 1 ? `<span style="padding:1px 6px;font-size:10px;background:var(--bg-hover);border-radius:4px;color:var(--text-3)">${esc(task._projectName)}</span>` : '';
+    let b; if (isActive) b=`<span style="padding:2px 8px;font-size:10px;font-weight:600;background:rgba(16,185,129,.15);color:#34d399;border:1px solid rgba(16,185,129,.3);border-radius:99px">${t('status.inProgress')}</span>`;
+    else if (task.status==='ready-for-review') b=`<span style="padding:2px 8px;font-size:10px;font-weight:600;background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.3);border-radius:99px">${t('status.review')}</span>`;
+    else if (task.status==='done') b=`<span style="padding:2px 8px;font-size:10px;color:var(--text-3);border:1px solid var(--border);border-radius:99px">${t('status.done')}</span>`;
+    else if (task.status==='blocked') b=`<span style="padding:2px 8px;font-size:10px;color:#f87171;border:1px solid rgba(248,113,113,.3);border-radius:99px">${t('status.blocked')}</span>`;
+    else b=`<span style="padding:2px 8px;font-size:10px;color:var(--text-4);border:1px solid var(--border);border-radius:99px">${t('status.notStarted')}</span>`;
+    return `<div class="search-item ${i===searchIdx?'active':''}" onclick="selectSearch(${i})" onmouseenter="highlightSearch(${i})">${pl}<span style="font-size:13px;font-weight:600;color:${isActive?'#34d399':'var(--accent)'};min-width:80px">${esc(task.id)}</span><span style="flex:1;font-size:13px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(task.name)}</span>${b}</div>`;
   }).join('');
 }
 function highlightSearch(idx) { const items = document.getElementById('search-results').children; if (items[searchIdx]) items[searchIdx].classList.remove('active'); searchIdx = idx; if (items[searchIdx]) items[searchIdx].classList.add('active'); }
@@ -588,7 +649,18 @@ function onSearchKey(e) {
   else if (e.key==='Escape') { closeSearch(); }
 }
 
-function openSettings() { document.getElementById('settings-modal').classList.add('open'); renderThemeGrid(); applyFont(); document.getElementById('refresh-val').textContent = settings.refresh+'s'; }
+function openSettings() {
+  document.getElementById('settings-modal').classList.add('open');
+  renderThemeGrid();
+  applyFont();
+  document.getElementById('refresh-val').textContent = settings.refresh+'s';
+  const sel = document.getElementById('locale-select');
+  if (sel) {
+    sel.innerHTML = SUPPORTED_LOCALES.map(l =>
+      `<option value="${l}"${l === _currentLocale ? ' selected' : ''}>${LOCALE_NAMES[l] || l}</option>`
+    ).join('');
+  }
+}
 function closeSettings() { document.getElementById('settings-modal').classList.remove('open'); }
 document.addEventListener('keydown', e => {
   if ((e.metaKey||e.ctrlKey) && e.key==='k') { e.preventDefault(); openSearch(); }
@@ -632,17 +704,17 @@ function autoSave() {
 function showAutoSaveIndicator() {
   let ind = document.getElementById('ps-autosave-ind');
   if (!ind) return;
-  ind.textContent = 'Saved';
+  ind.textContent = t('settings.saved');
   ind.style.opacity = '1';
   clearTimeout(ind._fadeTimer);
   ind._fadeTimer = setTimeout(() => { ind.style.opacity = '0'; }, 1500);
 }
 
 async function openProjectSettings() {
-  if (!activeProjectId) { showToast('No project selected'); return; }
+  if (!activeProjectId) { showToast(t('projectSettings.noProject')); return; }
   try {
     const resp = await fetch(apiBase() + '/api/settings');
-    if (!resp.ok) { showToast('Failed to load settings: ' + (await resp.text())); return; }
+    if (!resp.ok) { showToast(t('projectSettings.loadFailed').replace('{error}', await resp.text())); return; }
     _projectSettings = await resp.json();
     _psActiveTab = 'form';
     renderProjectSettingsForm();
@@ -700,7 +772,7 @@ function renderTagList(containerId, items) {
   const arr = Array.isArray(items) ? items : [];
   return `<div id="${containerId}-wrap" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;min-height:36px">
     ${arr.map((v, i) => `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;background:var(--bg-hover);border:1px solid var(--border);border-radius:4px;font-size:12px">${esc(v)}<button type="button" onclick="removeTag('${containerId}',${i})" style="background:none;border:none;color:var(--text-4);cursor:pointer;padding:0;font-size:14px;line-height:1">&times;</button></span>`).join('')}
-    <input id="${containerId}-input" type="text" placeholder="Add..." style="border:none;outline:none;background:transparent;color:var(--text-1);font-size:12px;font-family:inherit;min-width:80px;flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addTag('${containerId}');}">
+    <input id="${containerId}-input" type="text" placeholder="${t('field.add')}" style="border:none;outline:none;background:transparent;color:var(--text-1);font-size:12px;font-family:inherit;min-width:80px;flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addTag('${containerId}');}">
   </div>`;
 }
 
@@ -771,25 +843,25 @@ function renderProjectSettingsForm() {
   let html = '';
 
   // Project section
-  html += `<div style="margin-bottom:20px"><div class="settings-label">Project</div>`;
-  html += psField('Name', 'ps-proj-name', proj.name, true);
-  html += psField('Description', 'ps-proj-desc', proj.description);
-  html += psField('Language', 'ps-proj-lang', proj.language);
-  html += psTagField('Build', 'ps-proj-build', proj.build);
-  html += psTagField('Test', 'ps-proj-test', proj.test);
-  html += psTagField('Lint', 'ps-proj-lint', proj.lint);
-  html += psTagField('Setup', 'ps-proj-setup', proj.setup);
-  html += psTagField('Docs', 'ps-proj-docs', proj.docs);
-  html += psTagField('Rules', 'ps-proj-rules', proj.rules);
-  html += psTagField('Includes', 'ps-proj-includes', proj.includes);
+  html += `<div style="margin-bottom:20px"><div class="settings-label">${t('projectSettings.project')}</div>`;
+  html += psField(t('field.name'), 'ps-proj-name', proj.name, true);
+  html += psField(t('field.description'), 'ps-proj-desc', proj.description);
+  html += psField(t('field.language'), 'ps-proj-lang', proj.language);
+  html += psTagField(t('field.build'), 'ps-proj-build', proj.build);
+  html += psTagField(t('field.test'), 'ps-proj-test', proj.test);
+  html += psTagField(t('field.lint'), 'ps-proj-lint', proj.lint);
+  html += psTagField(t('field.setup'), 'ps-proj-setup', proj.setup);
+  html += psTagField(t('field.docs'), 'ps-proj-docs', proj.docs);
+  html += psTagField(t('field.rules'), 'ps-proj-rules', proj.rules);
+  html += psTagField(t('field.includes'), 'ps-proj-includes', proj.includes);
   html += `</div>`;
 
   // Other section
-  html += `<div style="margin-bottom:20px"><div class="settings-label">General</div>`;
+  html += `<div style="margin-bottom:20px"><div class="settings-label">${t('projectSettings.general')}</div>`;
   html += `<div class="ps-field-row" data-label="default runner" data-key="ps-default" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-    <label style="font-size:13px;color:var(--text-2);min-width:160px">Default Runner</label>
+    <label style="font-size:13px;color:var(--text-2);min-width:160px">${t('projectSettings.defaultRunner')}</label>
     <select id="ps-default" onchange="autoSave()" style="flex:1;max-width:400px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none">
-      <option value="">-- none --</option>
+      <option value="">${t('projectSettings.none')}</option>
       ${runnerNames.map(n => `<option value="${escAttr(n)}"${s.default_runner===n?' selected':''}>${esc(n)}</option>`).join('')}
     </select>
   </div>`;
@@ -818,17 +890,17 @@ function renderProjectSettingsForm() {
   html += `</div>`;
 
   // Runners section
-  html += `<div style="margin-bottom:20px"><div class="settings-label">Runners</div><div id="ps-runners-wrap">`;
+  html += `<div style="margin-bottom:20px"><div class="settings-label">${t('projectSettings.runners')}</div><div id="ps-runners-wrap">`;
   runnerNames.forEach(name => {
     const rc = runners[name] || {};
     html += `<div id="ps-runner-${escAttr(name)}" style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
         <span style="font-size:13px;font-weight:600;color:var(--text-1)">${esc(name)}</span>
-        <button type="button" onclick="removeRunner('${escAttr(name)}')" style="padding:2px 8px;font-size:12px;background:none;border:1px solid var(--border);border-radius:6px;color:#f87171;cursor:pointer">Remove</button>
+        <button type="button" onclick="removeRunner('${escAttr(name)}')" style="padding:2px 8px;font-size:12px;background:none;border:1px solid var(--border);border-radius:6px;color:#f87171;cursor:pointer">${t('projectSettings.remove')}</button>
       </div>
-      ${psField('Command', 'ps-runner-cmd-'+name, rc.command)}
-      ${psTagField('Args', 'ps-runner-args-'+name, rc.args)}
-      ${psField('Model', 'ps-runner-model-'+name, rc.model)}
+      ${psField(t('field.command'), 'ps-runner-cmd-'+name, rc.command)}
+      ${psTagField(t('field.args'), 'ps-runner-args-'+name, rc.args)}
+      ${psField(t('field.model'), 'ps-runner-model-'+name, rc.model)}
       <div style="display:flex;gap:16px;margin-bottom:6px">
         <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:6px"><input type="checkbox" id="ps-runner-stdin-${escAttr(name)}"${rc.stdin?' checked':''} onchange="autoSave()"> stdin</label>
         <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:6px"><input type="checkbox" id="ps-runner-tty-${escAttr(name)}"${rc.tty?' checked':''} onchange="autoSave()"> tty</label>
@@ -837,21 +909,21 @@ function renderProjectSettingsForm() {
   });
   html += `</div>
   <div style="display:flex;gap:8px;margin-top:8px">
-    <input id="ps-new-runner-name" type="text" placeholder="Runner name..." style="flex:1;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none" onkeydown="if(event.key==='Enter'){event.preventDefault();addRunner();}">
-    <button type="button" onclick="addRunner()" style="padding:6px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-2);cursor:pointer">+ Add Runner</button>
+    <input id="ps-new-runner-name" type="text" placeholder="${t('projectSettings.runnerPlaceholder')}" style="flex:1;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none" onkeydown="if(event.key==='Enter'){event.preventDefault();addRunner();}">
+    <button type="button" onclick="addRunner()" style="padding:6px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-2);cursor:pointer">${t('projectSettings.addRunner')}</button>
   </div></div>`;
 
   // Roles section
   const roleNames = ['designer', 'coder', 'reviewer', 'tester', 'acceptor'];
-  html += `<div style="margin-bottom:20px"><div class="settings-label">Roles</div>`;
+  html += `<div style="margin-bottom:20px"><div class="settings-label">${t('projectSettings.roles')}</div>`;
   roleNames.forEach(rn => {
     const rc = roles[rn] || {};
     html += `<div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px">
       <div style="font-size:13px;font-weight:600;color:var(--text-1);margin-bottom:10px;text-transform:capitalize">${rn}</div>
-      ${psField('Model', 'ps-role-model-'+rn, rc.model)}
-      ${rn === 'reviewer' ? psField('Deep Model', 'ps-role-deepmodel-'+rn, rc.deep_model) : ''}
-      ${psTagField('Instructions', 'ps-role-instr-'+rn, rc.instructions)}
-      ${psTagField('Includes', 'ps-role-includes-'+rn, rc.includes)}
+      ${psField(t('field.model'), 'ps-role-model-'+rn, rc.model)}
+      ${rn === 'reviewer' ? psField(t('field.deepModel'), 'ps-role-deepmodel-'+rn, rc.deep_model) : ''}
+      ${psTagField(t('field.instructions'), 'ps-role-instr-'+rn, rc.instructions)}
+      ${psTagField(t('field.includes'), 'ps-role-includes-'+rn, rc.includes)}
     </div>`;
   });
   html += `</div>`;
@@ -898,11 +970,11 @@ function addRunner() {
   div.style.cssText = 'border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px';
   div.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
     <span style="font-size:13px;font-weight:600;color:var(--text-1)">${esc(name)}</span>
-    <button type="button" onclick="removeRunner('${escAttr(name)}')" style="padding:2px 8px;font-size:12px;background:none;border:1px solid var(--border);border-radius:6px;color:#f87171;cursor:pointer">Remove</button>
+    <button type="button" onclick="removeRunner('${escAttr(name)}')" style="padding:2px 8px;font-size:12px;background:none;border:1px solid var(--border);border-radius:6px;color:#f87171;cursor:pointer">${t('projectSettings.remove')}</button>
   </div>
-  ${psField('Command', 'ps-runner-cmd-'+name, '')}
-  ${psTagField('Args', 'ps-runner-args-'+name, [])}
-  ${psField('Model', 'ps-runner-model-'+name, '')}
+  ${psField(t('field.command'), 'ps-runner-cmd-'+name, '')}
+  ${psTagField(t('field.args'), 'ps-runner-args-'+name, [])}
+  ${psField(t('field.model'), 'ps-runner-model-'+name, '')}
   <div style="display:flex;gap:16px;margin-bottom:6px">
     <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:6px"><input type="checkbox" id="ps-runner-stdin-${escAttr(name)}" onchange="autoSave()"> stdin</label>
     <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:6px"><input type="checkbox" id="ps-runner-tty-${escAttr(name)}" onchange="autoSave()"> tty</label>
@@ -1008,7 +1080,7 @@ async function saveProjectSettings() {
   if (!payload.project || !payload.project.name) {
     const nameEl = document.getElementById('ps-proj-name');
     if (nameEl) { nameEl.style.borderColor = '#f87171'; nameEl.focus(); }
-    showToast('project.name is required');
+    showToast(t('projectSettings.nameRequired'));
     return;
   }
 
@@ -1018,13 +1090,13 @@ async function saveProjectSettings() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    if (!resp.ok) { showToast('Save failed: ' + (await resp.text())); return; }
+    if (!resp.ok) { showToast(t('projectSettings.saveFailed').replace('{error}', await resp.text())); return; }
     // Reload settings
     _projectSettings = await resp.json();
     closeProjectSettings();
     // Brief success feedback
     const btn = document.querySelector('[onclick="saveProjectSettings()"]');
-    if (btn) { const orig = btn.textContent; btn.textContent = 'Saved!'; setTimeout(() => { btn.textContent = orig; }, 1500); }
+    if (btn) { const orig = btn.textContent; btn.textContent = t('projectSettings.saved'); setTimeout(() => { btn.textContent = orig; }, 1500); }
   } catch(err) { showToast('Connection error: ' + err.message); }
 }
 function initSettings() { applyTheme(settings.theme); applyFont(); startRefreshTimer(); }
@@ -1049,11 +1121,11 @@ function runnerTags(runners) {
 }
 
 function badge(status, phase, active) {
-  if (active && phase && phase!=='done') return '<span class="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span>In Progress</span>';
-  if (status==='ready-for-review') return '<span class="px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/30 rounded-full">Review</span>';
-  if (status==='done') return '<span class="px-2 py-0.5 text-[10px] text-zinc-500 border border-zinc-700/50 rounded-full">Done</span>';
-  if (status==='blocked') return '<span class="px-2 py-0.5 text-[10px] text-red-400 border border-red-500/30 rounded-full">Blocked</span>';
-  return '<span class="px-2 py-0.5 text-[10px] text-zinc-600 border border-zinc-800 rounded-full">Backlog</span>';
+  if (active && phase && phase!=='done') return `<span class="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span>${t('status.inProgress')}</span>`;
+  if (status==='ready-for-review') return `<span class="px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/30 rounded-full">${t('status.review')}</span>`;
+  if (status==='done') return `<span class="px-2 py-0.5 text-[10px] text-zinc-500 border border-zinc-700/50 rounded-full">${t('status.done')}</span>`;
+  if (status==='blocked') return `<span class="px-2 py-0.5 text-[10px] text-red-400 border border-red-500/30 rounded-full">${t('status.blocked')}</span>`;
+  return `<span class="px-2 py-0.5 text-[10px] text-zinc-600 border border-zinc-800 rounded-full">${t('status.backlog')}</span>`;
 }
 
 function showConfirm(title, message, onConfirm) {
@@ -1136,37 +1208,37 @@ ${g.review.length>0?`<div class="rounded-xl border border-amber-500/20 bg-amber-
 
 const _sectionCollapsed = { done: true };
 
-function renderTaskItem(t) {
-  const isActive = t.active && t.phase && t.phase!=='done', isSel = t.id===current;
+function renderTaskItem(task) {
+  const isActive = task.active && task.phase && task.phase!=='done', isSel = task.id===current;
   let cls = 'p-3 rounded-lg cursor-pointer mb-1 transition-all duration-150 ';
   if (isActive) cls+='bg-emerald-950/40 border border-emerald-500/20 hover:border-emerald-500/40 ';
   else if (isSel) cls+='bg-zinc-800/80 border border-zinc-700/50 ';
-  else if (t.status==='done') cls+='border border-transparent opacity-40 hover:opacity-70 ';
+  else if (task.status==='done') cls+='border border-transparent opacity-40 hover:opacity-70 ';
   else cls+='border border-transparent hover:bg-zinc-800/50 ';
-  const hasState = t.phase || t.round;
-  const elapsed = isActive && t.createdAt ? formatElapsed(t.createdAt) : '';
-  const duration = !isActive && t.createdAt && t.updatedAt ? formatDuration(t.createdAt, t.updatedAt) : '';
+  const hasState = task.phase || task.round;
+  const elapsed = isActive && task.createdAt ? formatElapsed(task.createdAt) : '';
+  const duration = !isActive && task.createdAt && task.updatedAt ? formatDuration(task.createdAt, task.updatedAt) : '';
   const timePart = elapsed ? ` · ⏱ ${elapsed}` : duration ? ` · ⏱ ${duration}` : '';
-  const roundPart = t.round ? `Round ${t.round}` : '';
+  const roundPart = task.round ? `Round ${task.round}` : '';
   let pi = '';
   if (isActive) {
-    pi = `<div class="flex items-center gap-1.5 mt-1.5 flex-wrap"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span><span class="text-[11px] text-emerald-400">${t.phase}</span><span class="text-[11px] text-zinc-600">· ${roundPart}${timePart}</span></div>`;
+    pi = `<div class="flex items-center gap-1.5 mt-1.5 flex-wrap"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span><span class="text-[11px] text-emerald-400">${task.phase}</span><span class="text-[11px] text-zinc-600">· ${roundPart}${timePart}</span></div>`;
   } else if (hasState && (roundPart || timePart)) {
     const parts = [roundPart, timePart.replace(/^ · /, '')].filter(Boolean).join(' · ');
     pi = `<div class="flex items-center gap-1.5 mt-1.5"><span class="text-[11px] text-zinc-600">${parts}</span></div>`;
   }
-  const di = t.status==='done' ? '<span class="text-emerald-500/60 text-xs">✓</span>' : '';
-  const doneBtn = t.status==='ready-for-review' ? `<button class="ml-auto px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/30 rounded hover:bg-amber-500/20 transition-colors" onclick="event.stopPropagation();markDone('${t.id}')">Mark Done</button>` : '';
-  const runId = getRunId(t.id);
+  const di = task.status==='done' ? '<span class="text-emerald-500/60 text-xs">✓</span>' : '';
+  const doneBtn = task.status==='ready-for-review' ? `<button class="ml-auto px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/30 rounded hover:bg-amber-500/20 transition-colors" onclick="event.stopPropagation();markDone('${task.id}')">${t('sidebar.markDone')}</button>` : '';
+  const runId = getRunId(task.id);
   let actionBtn = '';
   if (isActive && runId) {
     actionBtn = `<button class="ml-auto w-6 h-6 flex items-center justify-center rounded text-red-400 hover:bg-red-500/20 transition-colors text-xs" onclick="event.stopPropagation();stopRun('${runId}')" title="Stop">■</button>`;
-  } else if (t.status !== 'done') {
-    actionBtn = `<button class="ml-auto w-6 h-6 flex items-center justify-center rounded hover:bg-emerald-500/20 transition-colors text-xs play-btn" style="color:var(--accent);opacity:0" onclick="event.stopPropagation();openRunModal('${t.id}')" title="Run">▶</button>`;
+  } else if (task.status !== 'done') {
+    actionBtn = `<button class="ml-auto w-6 h-6 flex items-center justify-center rounded hover:bg-emerald-500/20 transition-colors text-xs play-btn" style="color:var(--accent);opacity:0" onclick="event.stopPropagation();openRunModal('${task.id}')" title="Run">▶</button>`;
   }
-  const rt = runnerTags(t.runners);
+  const rt = runnerTags(task.runners);
   const rtLine = rt ? `<div class="flex gap-1 mt-1">${rt}</div>` : '';
-  return `<div class="${cls}" onclick="current='${t.id}';load();loadDetail(${JSON.stringify(t).replace(/"/g,'&quot;')})" onmouseenter="this.querySelector('.play-btn')&&(this.querySelector('.play-btn').style.opacity='1')" onmouseleave="this.querySelector('.play-btn')&&(this.querySelector('.play-btn').style.opacity='0')"><div class="flex items-start gap-2">${di}<div class="flex-1 min-w-0"><div class="text-[13px] font-medium truncate">${esc(t.name)}</div><div class="text-[11px] text-zinc-600 mt-0.5">${t.id}</div>${pi}${rtLine}</div>${doneBtn || actionBtn}</div></div>`;
+  return `<div class="${cls}" onclick="current='${task.id}';load();loadDetail(${JSON.stringify(task).replace(/"/g,'&quot;')})" onmouseenter="this.querySelector('.play-btn')&&(this.querySelector('.play-btn').style.opacity='1')" onmouseleave="this.querySelector('.play-btn')&&(this.querySelector('.play-btn').style.opacity='0')"><div class="flex items-start gap-2">${di}<div class="flex-1 min-w-0"><div class="text-[13px] font-medium truncate">${esc(task.name)}</div><div class="text-[11px] text-zinc-600 mt-0.5">${task.id}</div>${pi}${rtLine}</div>${doneBtn || actionBtn}</div></div>`;
 }
 
 function toggleSection(key) {
@@ -1225,9 +1297,9 @@ function renderSidebar() {
 
   // Top sections: Running, Review, Pending
   const topSections = [
-    { key: 'running', title: 'Running', items: groups.running },
-    { key: 'review', title: 'Review', items: groups.review },
-    { key: 'pending', title: 'Pending', items: groups.pending },
+    { key: 'running', title: t('sidebar.running'), items: groups.running },
+    { key: 'review', title: t('sidebar.review'), items: groups.review },
+    { key: 'pending', title: t('sidebar.pending'), items: groups.pending },
   ];
   topSections.forEach(s => {
     if (!s.items.length) return;
@@ -1237,8 +1309,8 @@ function renderSidebar() {
 
   // Bottom sections: Todo, Done
   const bottomSections = [
-    { key: 'todo', title: 'Todo', items: groups.todo },
-    { key: 'done', title: 'Done', items: groups.done },
+    { key: 'todo', title: t('sidebar.todo'), items: groups.todo },
+    { key: 'done', title: t('sidebar.done'), items: groups.done },
   ];
   bottomSections.forEach(s => {
     if (!s.items.length) return;
@@ -1340,7 +1412,7 @@ async function loadMessages(id) {
   const newMsgs = list.slice(lastMsgCount);
   newMsgs.forEach(m => el.appendChild(renderMsgCard(m)));
   lastMsgCount = list.length;
-  if (list.length === 0) el.innerHTML = '<div class="msg-empty text-zinc-600 text-sm mt-8 text-center">No artifacts yet</div>';
+  if (list.length === 0) el.innerHTML = `<div class="msg-empty text-zinc-600 text-sm mt-8 text-center">${t('app.noArtifacts')}</div>`;
   if (newMsgs.length > 0) el.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'end' });
 }
 
@@ -1468,7 +1540,7 @@ async function loadLogs(fid) {
   }
   const logs = await (await fetch(apiBase()+'/api/logs/'+fid)).json() || [];
   if (logs.length === 0) {
-    list.innerHTML = '<div class="text-zinc-600 text-sm text-center mt-8">No logs yet</div>';
+    list.innerHTML = `<div class="text-zinc-600 text-sm text-center mt-8">${t('logs.noLogs')}</div>`;
     if (!currentLogFile) viewer.classList.add('hidden');
     return;
   }
@@ -1595,7 +1667,18 @@ async function submitNewFeature(andRun) {
 }
 
 async function init() {
-  initSettings(); await loadProjects();
+  initSettings();
+  try {
+    const resp = await fetch('/api/locales');
+    if (resp.ok) {
+      const list = await resp.json();
+      SUPPORTED_LOCALES.length = 0;
+      list.forEach(l => SUPPORTED_LOCALES.push(l));
+    }
+  } catch {}
+  await loadLocale(detectLocale());
+  applyI18n();
+  await loadProjects();
   const saved = loadTabState();
   if (saved.tabs.length > 0) { for (const tab of saved.tabs) { if (projects.find(p => p.id === tab.id)) openTabs.push(tab); } activeProjectId = openTabs.find(t => t.id === saved.active) ? saved.active : (openTabs[0] ? openTabs[0].id : null); }
   if (openTabs.length === 0 && projects.length > 0) { projects.forEach(p => openTabs.push({ id: p.id, name: p.name })); activeProjectId = openTabs[0] ? openTabs[0].id : null; }

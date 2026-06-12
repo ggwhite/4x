@@ -50,6 +50,8 @@ The dashboard exposes REST and SSE endpoints:
 | `/api/browse` | GET | Folder picker |
 | `/api/settings` | GET | Get project settings (`.4x/settings.json`) |
 | `/api/settings` | PUT | Update project settings (validates, backs up, writes) |
+| `/api/locales` | GET | 回傳支援的 locale 清單 |
+| `/api/locales/{lang}` | GET | 回傳對應語言的翻譯 JSON |
 
 #### `POST /api/done` Response
 
