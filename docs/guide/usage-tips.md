@@ -1,168 +1,168 @@
 # Usage Tips & Best Practices
 
-## Token 用量提醒
+## Token Usage Warning
 
-4x 會消耗**顯著多於單一 agent** 的 token。每個 feature 至少經過 4 個角色（Designer → Coder → Reviewer → Tester），每個角色都是獨立的 LLM 呼叫。如果 Review 或 Test 失敗觸發重跑，token 會再翻倍。
+4x consumes **significantly more tokens than single-agent approaches**. Each feature goes through at least 4 roles (Designer → Coder → Reviewer → Tester), each as a separate LLM call. If Review or Test fails, the token cost doubles per retry round.
 
-粗估每個 feature 的 token 用量：
+Rough estimate per feature:
 
-| 情境 | 約 LLM 呼叫次數 | 說明 |
+| Scenario | ~LLM Calls | Notes |
 |---|---|---|
-| 一次通過（最佳情況） | 5 次 | Designer + Coder + Reviewer(2 pass) + Tester |
-| Review 打回 1 次 | 8 次 | 多一輪 Coder + Reviewer + Tester |
-| 跑滿 5 rounds | ~20 次 | 每 round 都是 Coder + Reviewer + Tester |
+| Pass on first try (best case) | 5 | Designer + Coder + Reviewer (2 pass) + Tester |
+| Review rejects once | 8 | Extra round of Coder + Reviewer + Tester |
+| Full 5 rounds | ~20 | Each round = Coder + Reviewer + Tester |
 
-**省 token 建議：**
-- 簡單任務降低 `--max-rounds`（`--max-rounds 2`）
-- 簡單任務全用 sonnet 等級 model（便宜 5-10 倍）
-- 善用 `--dry-run` 先確認 prompt 品質，避免浪費
-- Feature description 寫清楚，減少 escalation 和重跑
-- 連續 3 輪無進步時 loop 會自動停，不會白燒到 max-rounds
+**Tips to reduce token cost:**
+- Lower `--max-rounds` for simple tasks (`--max-rounds 2`)
+- Use sonnet-tier models for everything on simple tasks (5-10x cheaper)
+- Use `--dry-run` to verify prompt quality before committing to a real run
+- Write clear feature descriptions to reduce escalation and retries
+- The loop auto-stops after 3 consecutive rounds with no progress — it won't burn through max-rounds unnecessarily
 
 ---
 
-## 完整工作流程
+## End-to-End Workflow
 
-從建立任務到交付的完整流程——4x 負責 AI 開發，你負責最終 review 和合併。
+The complete flow from creating a task to shipping it. 4x handles the AI development; you handle the final review and merge.
 
-### Step 1: 建立任務
+### Step 1: Create a Task
 
 ```bash
 4x new "Add Redis cache for order query API"
 # => Created: F001-add-redis-cache-for-or
 ```
 
-如果需要，編輯 `.4x/features/F001-add-redis-cache-for-or.yaml` 補充 description、priority、depends、repos 等欄位。
+Optionally edit `.4x/features/F001-add-redis-cache-for-or.yaml` to fill in description, priority, depends, repos, etc.
 
-### Step 2: 執行 loop
+### Step 2: Run the Loop
 
 ```bash
-# 建議先 dry run 看 prompt
+# Recommended: dry run first to check prompts
 4x run F001 --dry-run
 
-# 正式跑
+# Run for real
 4x run F001 --runner claude
 ```
 
-可以開 dashboard 即時觀察：
+Open the dashboard in another terminal for real-time monitoring:
 
 ```bash
-4x live -w   # 另一個 terminal
+4x live -w
 ```
 
-### Step 3: Loop 完成 → pending-review
+### Step 3: Loop Completes → pending-review
 
-Loop 跑完後，feature 停在 `pending-review`——這是故意的。AI 做完了，但需要你來 review。
+When the loop finishes, the feature lands in `pending-review` — this is intentional. The AI is done, but it needs your sign-off.
 
 ```bash
 4x status F001
 # Phase: pending-review
 ```
 
-### Step 4: 人工 Review
+### Step 4: Human Review
 
-檢查 AI 產出的成果：
+Inspect the AI's output:
 
 ```bash
-# 看最終報告
+# Read the final report
 cat .4x/F001/final-report.md
 
-# 看 commit 計畫
+# Read the commit plan
 cat .4x/F001/commit-plan.md
 
-# 看 code diff
-git diff                          # 非 worktree 模式
-git diff main...4x/F001-add-redis  # worktree 模式
+# Review the code diff
+git diff                          # non-worktree mode
+git diff main...4x/F001-add-redis  # worktree mode
 ```
 
-如果不滿意，可以：
+Not satisfied? You can send it back:
 
 ```bash
-# 手動修改後重跑 review + test
+# Re-run review + test after manual edits
 4x transition F001 --to reviewing
 4x run F001
 
-# 或完全重來
+# Or start over from design
 4x transition F001 --to designing
 4x run F001
 ```
 
-### Step 5: 合併 & 清理
+### Step 5: Merge & Cleanup
 
-**非 worktree 模式**（改動直接在 working tree）：
+**Non-worktree mode** (changes are in the working tree):
 
 ```bash
-# 滿意後標記完成
+# Mark as done
 4x done F001
 
-# 按 commit-plan.md 提交
+# Commit following the commit plan
 git add -A
 git commit -m "feat: add Redis cache for order query API"
 ```
 
-**Worktree 模式**（改動在獨立 branch）：
+**Worktree mode** (changes are on an isolated branch):
 
 ```bash
-# 標記完成
+# Mark as done
 4x done F001
 
-# 合併到主分支
+# Merge into main branch
 git merge 4x/F001-add-redis-cache-for-or
 
-# 清理 worktree 和 branch
+# Clean up worktree and branch
 git worktree remove .worktrees/4x/F001-add-redis-cache-for-or
 git branch -d 4x/F001-add-redis-cache-for-or
 ```
 
-### 流程總覽
+### Workflow Overview
 
 ```
-4x new "..."                     # 建立任務
+4x new "..."                     # create task
     ↓
-4x run F001 --runner claude      # AI 自動跑 Design→Code→Review→Test
+4x run F001 --runner claude      # AI runs Design→Code→Review→Test
     ↓
-pending-review                   # 等你 review
+pending-review                   # waiting for your review
     ↓
-review final-report / diff       # 你看成果
+review final-report / diff       # you inspect the results
     ↓
-4x done F001                     # 標記完成
+4x done F001                     # mark as done
     ↓
-git merge + cleanup              # 合併、清 worktree/branch
+git merge + cleanup              # merge, clean up worktree/branch
 ```
 
 ---
 
 ## Writing Good Feature Descriptions
 
-Feature description 是 Designer 的唯一輸入——寫得越清楚，產出的 spec 越準。
+The feature description is the Designer's only input — the clearer you write it, the better the spec.
 
 ```bash
-# Bad: 太模糊，Designer 會自己腦補
-4x new "改善效能"
+# Bad: too vague, Designer will fill in the blanks with guesses
+4x new "improve performance"
 
-# Good: 明確目標、邊界、驗收條件
+# Good: specific goal, boundaries, acceptance criteria
 4x new "optimize order query API — add Redis cache, target p99 < 200ms, cache TTL 5min"
 ```
 
-建議在 description 包含：
-- **要做什麼**（具體功能或修改）
-- **為什麼做**（業務動機或問題描述）
-- **邊界**（不要動的東西、已知限制）
-- **驗收標準**（可量化的成功定義）
+Include in your description:
+- **What to do** (specific feature or change)
+- **Why** (business motivation or problem statement)
+- **Boundaries** (what NOT to touch, known constraints)
+- **Acceptance criteria** (quantifiable definition of success)
 
-## Feature 粒度
+## Feature Granularity
 
-一個 feature 對應一個可獨立交付的變更。太大會讓 Coder 迷失、Reviewer 漏檢、Test 難驗。
+One feature = one independently deliverable change. Too large and the Coder gets lost, the Reviewer misses issues, and testing becomes unreliable.
 
-| 粒度 | 適合 | 不適合 |
+| Granularity | Good fit | Bad fit |
 |---|---|---|
-| 一個 API endpoint | OK | — |
-| 一個 refactor（改命名、抽介面） | OK | — |
-| 一個 bug fix | OK | — |
-| 整個模組從零開始 | — | 拆成多個 feature + depends |
-| 跨 3 個 repo 的大功能 | — | 每個 repo 一個 feature，用 depends 串 |
+| One API endpoint | OK | — |
+| One refactor (rename, extract interface) | OK | — |
+| One bug fix | OK | — |
+| Entire module from scratch | — | Split into multiple features + depends |
+| Large feature spanning 3 repos | — | One feature per repo, linked with depends |
 
-善用 `depends` 拆解大任務：
+Use `depends` to decompose large tasks:
 
 ```bash
 4x new "Add user model and migrations"           # F001
@@ -170,30 +170,30 @@ Feature description 是 Designer 的唯一輸入——寫得越清楚，產出�
 4x new "Add OAuth2 login flow"                    # F003, depends: [F002]
 ```
 
-## 先 Dry Run 再正式跑
+## Dry Run First
 
-第一次用新 feature 或改過 settings 後，先用 `--dry-run` 看 prompt 是否合理：
+After creating a new feature or modifying settings, use `--dry-run` to check that prompts look right:
 
 ```bash
 4x run F001 --dry-run
 ```
 
-這會印出四個角色的完整 prompt 但不呼叫 LLM，可以確認：
-- Designer 有沒有拿到足夠的 context
-- 你的 project rules 有沒有正確注入
-- locale 是否正確
+This prints the full prompt for all four roles without calling any LLM. Verify:
+- Does the Designer have enough context?
+- Are your project rules injected correctly?
+- Is the locale correct?
 
-## Model 選擇建議
+## Model Selection
 
-| 角色 | 建議 | 理由 |
+| Role | Recommendation | Reason |
 |---|---|---|
-| Designer | opus 或同等級 | 需要深度理解需求、拆解架構 |
-| Coder | sonnet 或同等級 | 產出量大，但不需要最強推理 |
-| Reviewer (checklist) | sonnet | 規則式檢查，速度優先 |
-| Reviewer (adversarial) | opus | 需要深度推理找隱藏 bug |
-| Tester | sonnet | 寫測試、跑驗證，不需要最強推理 |
+| Designer | opus or equivalent | Needs deep understanding to analyze requirements and design architecture |
+| Coder | sonnet or equivalent | High output volume, doesn't need strongest reasoning |
+| Reviewer (checklist) | sonnet | Rule-based checking, speed matters |
+| Reviewer (adversarial) | opus | Needs deep reasoning to find hidden bugs |
+| Tester | sonnet | Writing and running tests, doesn't need strongest reasoning |
 
-調整方式：
+Configure in settings:
 
 ```json
 // .4x/settings.json
@@ -207,72 +207,72 @@ Feature description 是 Designer 的唯一輸入——寫得越清楚，產出�
 }
 ```
 
-如果專案簡單（小 bug fix、小 refactor），全用 sonnet 也行，省成本。
+For simple projects (small bug fixes, minor refactors), using sonnet for everything is fine and much cheaper.
 
-## Rounds 調校
+## Tuning Max Rounds
 
-預設 5 rounds 適合多數情況。根據 feature 複雜度調整：
+The default of 5 rounds works for most cases. Adjust based on feature complexity:
 
-| 情境 | 建議 rounds |
+| Scenario | Recommended rounds |
 |---|---|
-| 簡單 bug fix、小改動 | 2-3 |
-| 一般功能開發 | 5（預設） |
-| 複雜跨模組功能 | 7-10 |
+| Simple bug fix, small change | 2-3 |
+| Typical feature development | 5 (default) |
+| Complex cross-module feature | 7-10 |
 
 ```bash
-4x run F001 --max-rounds 3   # 簡單任務
-4x run F001 --max-rounds 8   # 複雜任務
+4x run F001 --max-rounds 3   # simple task
+4x run F001 --max-rounds 8   # complex task
 ```
 
-注意：loop 會在 3 輪連續無進步時自動停止（不用跑滿 max-rounds）。
+Note: the loop auto-stops after 3 consecutive rounds with no progress (it won't run all the way to max-rounds).
 
-## 處理 Review 失敗
+## Handling Review Failures
 
-Review 失敗（verdict FAIL 或 CRITICAL findings）會自動送回 Coder 修改，不需要人工介入。但如果反覆失敗：
+Review failures (verdict FAIL or CRITICAL findings) automatically send code back to the Coder — no manual intervention needed. But if it keeps failing:
 
-1. **看 review-report.md** — 在 `.4x/{feature-id}/rounds/round-{N}/review-report.md`
-2. **看 coder-report.md** — Coder 是否理解了問題
-3. **考慮調整**：
-   - feature description 太模糊 → 重寫 description，重跑 Designer
-   - Reviewer 太嚴格 → 在 `roles.reviewer.instructions` 放寬特定規則
-   - 真的是 hard problem → 人工介入修改，再用 `4x transition` 推進
+1. **Read review-report.md** — at `.4x/{feature-id}/rounds/round-{N}/review-report.md`
+2. **Read coder-report.md** — did the Coder understand the issue?
+3. **Consider adjusting**:
+   - Feature description too vague → rewrite it, re-run from Designer
+   - Reviewer too strict → relax specific rules in `roles.reviewer.instructions`
+   - Genuinely hard problem → intervene manually, then use `4x transition` to push forward
 
-## 處理 Escalation
+## Handling Escalation
 
-Coder 或 Tester 發現 spec 跟實際不符時，會自動 escalate 回 Designer。常見情境：
+When the Coder or Tester finds that the spec doesn't match reality, they automatically escalate back to the Designer. Common scenarios:
 
-- DB schema 跟 spec 描述的不同（`spec-mismatch`）
-- 驗收標準不合理（`criteria-wrong`）
-- 缺少外部依賴（`blocker`）
+- DB schema doesn't match the spec (`spec-mismatch`)
+- Acceptance criteria are unreasonable (`criteria-wrong`)
+- Missing external dependency (`blocker`)
 
-Escalation 被記錄在 `.4x/{feature-id}/rounds/round-{N}/escalation.json`。Designer 會收到 escalation 內容重新出 spec。
+Escalations are recorded in `.4x/{feature-id}/rounds/round-{N}/escalation.json`. The Designer receives the escalation details and re-designs the spec.
 
-如果 Designer 也解不了（通常是缺 context），loop 會停在 `needs-attention`，這時需要人工介入：
+If the Designer can't resolve it either (usually due to missing context), the loop stops at `needs-attention`. Manual intervention is needed:
 
 ```bash
-# 看狀態
+# Check status
 4x status F001
 
-# 手動修 spec 或 codebase
+# Manually fix the spec or codebase
 vim .4x/F001/task-brief.md
 
-# 推回 coding 繼續
+# Push back to coding
 4x transition F001 --to coding
 ```
 
-## Resume 中斷的 Feature
+## Resuming an Interrupted Feature
 
-4x 是 file-based 的——session 斷了、機器重開，狀態都在 `.4x/` 裡。直接重跑即可：
+4x is file-based — if the session dies or the machine reboots, all state is in `.4x/`. Just re-run:
 
 ```bash
 4x run F001 --runner claude
 ```
 
-會從上次的 phase 和 round 繼續，不會重頭來。
+It picks up from the last phase and round, not from the beginning.
 
 ## Worktree Isolation
 
-如果同時跑多個 feature，或想隔離 AI 的修改，啟用 worktree：
+To run multiple features simultaneously or isolate AI changes from your working tree, enable worktree mode:
 
 ```json
 // .4x/settings.json
@@ -281,93 +281,93 @@ vim .4x/F001/task-brief.md
 }
 ```
 
-效果：
-- 每個 feature 在 `.worktrees/4x/{feature-id}/` 獨立工作
-- 自動建 branch `4x/{feature-id}`
-- 完成後提示 merge 指令
+What happens:
+- Each feature runs in `.worktrees/4x/{feature-id}/` with its own working directory
+- A branch `4x/{feature-id}` is created automatically
+- After completion, the CLI prints merge instructions
 
 ```bash
-# 完成後合併
+# After completion, merge and clean up
 git merge 4x/F001-user-auth
 git worktree remove .worktrees/4x/F001-user-auth
 git branch -d 4x/F001-user-auth
 ```
 
-## Batch 使用時機
+## When to Use Batch Mode
 
-| 情境 | 用 `4x run` | 用 `4x batch run` |
+| Scenario | Use `4x run` | Use `4x batch run` |
 |---|---|---|
-| 做一個 feature | OK | — |
-| 做多個有依賴的 feature | 要手動排序 | 自動處理依賴順序 |
-| 跑一晚上消化 backlog | — | OK，搭配 `batch stop` 隨時停 |
+| Single feature | OK | — |
+| Multiple features with dependencies | Must order manually | Handles dependency order automatically |
+| Overnight backlog processing | — | OK, use `batch stop` to halt anytime |
 
-Batch 的 commit 策略固定是 `"never"`——所有改動都在 working tree，完成後由人工 review 再 commit。
+Batch mode uses commit strategy `"never"` — all changes stay in the working tree for human review before committing.
 
-## Dashboard 使用情境
+## Dashboard Usage
 
 ```bash
-# 開著 dashboard 跑 feature，即時看 log
+# Run a feature while watching the dashboard
 4x live -w &
 4x run F001 --runner claude
 
-# 從 dashboard 直接啟動 feature（不用開 terminal）
-# POST /api/run 搭配 web UI
+# Start features directly from the dashboard UI
+# POST /api/run via the web interface
 
-# 多專案監控
+# Monitor multiple projects
 4x live /path/to/project-a /path/to/project-b -w
 ```
 
-## Locale 設定
+## Locale Setting
 
-讓 AI 用你的語言回應：
+Set the language for AI responses:
 
 ```bash
 4x config set locale zh-TW
 ```
 
-也可以不設——會自動從 `LANG` 環境變數推斷。
+If not set, it's automatically inferred from the `LANG` environment variable.
 
 ## Troubleshooting
 
-### Feature 卡在 needs-attention
+### Feature stuck in needs-attention
 
-代表某個 phase 缺少必要的 artifact（例如 Designer 沒產出 task-brief.md）。
+A required artifact is missing for the current phase (e.g., Designer didn't produce task-brief.md).
 
 ```bash
-4x status F001          # 看缺什麼
-4x check F001           # 跑完整檢查
+4x status F001          # see what's missing
+4x check F001           # run full check
 ```
 
-手動補檔或重跑該 phase：
+Manually fix or re-run the phase:
 
 ```bash
 4x transition F001 --to designing
 4x run F001
 ```
 
-### Feature 卡在 blocked
+### Feature stuck in blocked
 
-通常是 runner exit code 1（soft failure）。看 log：
+Usually caused by runner exit code 1 (soft failure). Check the logs:
 
 ```bash
 ls .4x/F001/logs/
 cat .4x/F001/logs/round-1-coder.log
 ```
 
-解決後推回：
+After fixing, push back:
 
 ```bash
 4x transition F001 --to coding
 4x run F001
 ```
 
-### Dependency gate 擋住
+### Blocked by dependency gate
 
 ```
 blocked: F001-user-model is not done (status: coding)
 ```
 
-先完成被依賴的 feature，或手動標記：
+Complete the dependency first, or manually mark it done:
 
 ```bash
 4x done F001
