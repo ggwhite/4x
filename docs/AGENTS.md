@@ -21,6 +21,20 @@ docs/
 
 ## 文件索引
 
+### guide/ — 使用說明書（人類可讀）
+
+| 文件 | 說明 | 何時讀 |
+|---|---|---|
+| [README](guide/README.md) | 說明書目錄 | 找使用文件入口 |
+| [getting-started](guide/getting-started.md) | 安裝、初始化、第一次跑 feature | onboarding |
+| [cli](guide/cli.md) | 完整 CLI 指令參考（所有 flag） | 查指令用法、開發新 subcommand |
+| [concepts](guide/concepts.md) | 四角色、狀態機、檔案協議、護欄 | 理解核心概念 |
+| [configuration](guide/configuration.md) | settings.json、model override、locale | 改設定、加 runner |
+| [runners](guide/runners.md) | Runner 支援矩陣、plugin 合約 | 開發或設定 runner |
+| [dashboard](guide/dashboard.md) | 4x Live 多專案 dashboard | 使用或開發 dashboard |
+| [batch](guide/batch.md) | Batch 依賴排程 | 使用 batch 模式 |
+| [usage-tips](guide/usage-tips.md) | 使用建議、model 選擇、troubleshooting | 新手上路、排查問題 |
+
 ### architecture/ — 系統級設計
 
 | 文件 | 行數 | 說明 | 何時讀 |

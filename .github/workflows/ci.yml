@@ -24,3 +24,6 @@ jobs:
 
       - name: Test
         run: go test ./...
+
+      - name: Check docs sync
+        run: bash scripts/check-docs.sh

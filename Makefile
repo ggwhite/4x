@@ -1,4 +1,4 @@
-.PHONY: build install test clean
+.PHONY: build install test clean check-docs
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
@@ -16,3 +16,6 @@ clean:
 
 lint:
 	go vet ./...
+
+check-docs:
+	@bash scripts/check-docs.sh

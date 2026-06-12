@@ -79,14 +79,32 @@ Plugin 合約見 `docs/reference/plugin-contract.md`。Claude Code plugin 在 `p
 ## Docs Routing
 
 ```
+docs/guide/               ← 使用說明書（人類可讀，`make check-docs` 驗證同步）
 docs/design/
-├── {feature-id}-spec.md    ← 設計規格（brainstorming 產出）
-├── {feature-id}-plan.md    ← 實作計畫（brainstorming 產出）
+├── {feature-id}-spec.md  ← 設計規格（brainstorming 產出）
+├── {feature-id}-plan.md  ← 實作計畫（brainstorming 產出）
 ```
 
 - superpowers brainstorming spec/plan 存到 `docs/design/`，不存到 `docs/superpowers/`
 - 架構文件：`docs/architecture/`
 - 參考資料：`docs/reference/`
+
+## Documentation Maintenance
+
+改動 CLI 或核心功能時，必須同步更新 `docs/guide/`：
+
+| 改了什麼 | 要更新 |
+|---|---|
+| 新增 / 刪除 subcommand（`cmd/4x/*.go`） | `docs/guide/cli.md` + README 指令表 |
+| 修改 flag（新增、刪除、改預設值） | `docs/guide/cli.md` |
+| 狀態機轉換（`internal/state/machine.go`） | `docs/guide/concepts.md` 狀態機段落 |
+| 檔案協議（`.4x/` 目錄結構、檔名） | `docs/guide/concepts.md` 檔案協議段落 |
+| Runner / Plugin（新增、改合約） | `docs/guide/runners.md` |
+| Settings 欄位（新增、改結構） | `docs/guide/configuration.md` |
+| Dashboard API（endpoint 增刪改） | `docs/guide/dashboard.md` |
+| Batch 行為 | `docs/guide/batch.md` |
+
+CI 跑 `make check-docs` 會檢查 subcommand 是否都出現在 `docs/guide/cli.md`，漏了會 fail。
 
 ## Current State
 
