@@ -6,6 +6,7 @@ import (
 
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/state"
+	"github.com/ggwhite/4x/internal/worktree"
 	"github.com/spf13/cobra"
 )
 
@@ -65,5 +66,30 @@ func markDone(ws *protocol.Workspace, featureID string) error {
 	})
 
 	fmt.Printf("Feature %s marked as done.\n", featureID)
+
+	f, _ := ws.LoadFeature(featureID)
+	name := featureID
+	if f.Name != "" {
+		name = f.Name
+	}
+	result := worktree.Merge(ws.Root, featureID, name)
+	if result.Skipped {
+		return nil
+	}
+	if result.Conflict {
+		fmt.Println("Merge conflict — resolve manually:")
+		for _, file := range result.Files {
+			fmt.Printf("  conflict: %s\n", file)
+		}
+		fmt.Printf("Worktree: %s\n", worktree.Dir(ws.Root, featureID))
+		fmt.Printf("After resolving: 4x merge %s\n", featureID)
+		return nil
+	}
+	if result.Error != "" {
+		fmt.Fprintf(os.Stderr, "warning: merge failed: %s\n", result.Error)
+		fmt.Printf("Worktree preserved at: %s\n", worktree.Dir(ws.Root, featureID))
+		return nil
+	}
+	fmt.Printf("Merged and cleaned up branch 4x/%s.\n", featureID)
 	return nil
 }

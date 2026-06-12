@@ -37,7 +37,7 @@ The dashboard exposes REST and SSE endpoints:
 | `/api/new` | POST | Create a new feature |
 | `/api/run` | POST | Start a feature run (spawns `4x run` subprocess) |
 | `/api/stop` | POST | Stop a running feature |
-| `/api/done` | POST | Mark feature as done |
+| `/api/done` | POST | Mark feature as done; auto-merges worktree if present |
 | `/api/runs` | GET | List active runs |
 | `/api/events/{id}` | GET | Get events for a feature |
 | `/api/overview/{id}` | GET | Get feature overview (YAML fields + spec/plan content) |
@@ -50,6 +50,19 @@ The dashboard exposes REST and SSE endpoints:
 | `/api/browse` | GET | Folder picker |
 | `/api/settings` | GET | Get project settings (`.4x/settings.json`) |
 | `/api/settings` | PUT | Update project settings (validates, backs up, writes) |
+
+#### `POST /api/done` Response
+
+Always returns HTTP 200. The `status` field is always `"done"`. Additional fields indicate merge result:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `merged` | bool | `true` if branch was merged and worktree cleaned up |
+| `merged` | bool | `false` if no worktree existed (state-only transition) |
+| `merge_conflict` | bool | `true` if merge had conflicts; worktree preserved |
+| `conflicts` | string[] | List of conflicting files (only present when `merge_conflict: true`) |
+
+After a conflict, resolve the files in the worktree and run `4x merge <id>` to complete.
 
 ### SSE (Server-Sent Events)
 

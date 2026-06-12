@@ -17,9 +17,11 @@ import (
 
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/state"
+	"github.com/ggwhite/4x/internal/worktree"
 )
 
 var settingsMu sync.Mutex
+var mergeMu sync.Mutex
 
 //go:embed static/index.html
 var indexHTML string
@@ -669,8 +671,27 @@ func handlePostDone(ws *protocol.Workspace, w http.ResponseWriter, r *http.Reque
 		Round: newState.Round,
 	})
 
+	name := req.ID
+	if f.Name != "" {
+		name = f.Name
+	}
+
+	mergeMu.Lock()
+	result := worktree.Merge(ws.Root, req.ID, name)
+	mergeMu.Unlock()
+
 	w.Header().Set("Content-Type", "application/json")
-	fmt.Fprint(w, `{"status":"done"}`)
+	if result.Conflict {
+		filesJSON, _ := json.Marshal(result.Files)
+		fmt.Fprintf(w, `{"status":"done","merge_conflict":true,"conflicts":%s}`, filesJSON)
+	} else if result.Error != "" {
+		errJSON, _ := json.Marshal(result.Error)
+		fmt.Fprintf(w, `{"status":"done","merge_error":%s}`, errJSON)
+	} else if result.Skipped {
+		fmt.Fprint(w, `{"status":"done","merged":false}`)
+	} else {
+		fmt.Fprint(w, `{"status":"done","merged":true}`)
+	}
 }
 
 // handleGetSettings 讀取 .4x/settings.json 原始內容並回傳，保留所有欄位（含 Config struct 未定義的）。

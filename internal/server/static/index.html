@@ -997,6 +997,12 @@ async function markDone(fid) {
   showConfirm('Mark as Done', `Transition <strong>${esc(fid)}</strong> to done?`, async () => {
     const res = await fetch(apiBase()+'/api/done', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:fid})});
     if (!res.ok) { alert('Failed: '+(await res.text())); return; }
+    const data = await res.json();
+    if (data.merge_conflict) {
+      alert('Done, but merge has conflicts:\n\n'+(data.conflicts||[]).join('\n')+'\n\nResolve in worktree, then run: 4x merge '+fid);
+    } else if (data.merge_error) {
+      alert('Done, but merge failed:\n\n'+data.merge_error);
+    }
     load(); if (!current) renderDashboard(lastTasks);
   });
 }
