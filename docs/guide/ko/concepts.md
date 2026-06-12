@@ -54,7 +54,7 @@ init → designing → coding → reviewing → testing → accepting → pendin
 | `accepting` | `pending-review` |
 | `pending-review` | `done` |
 | `blocked` | `designing`, `coding`, `testing` |
-| `needs-attention` | `designing`, `coding` |
+| `needs-attention` | `designing`, `coding`, `testing` |
 | any | `blocked`, `needs-attention` |
 
 ### 라운드 카운터

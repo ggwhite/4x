@@ -575,13 +575,17 @@ func verifyPassed(ws *protocol.Workspace, featureID string, round int) bool {
 	return ve.Passed
 }
 
-// roleToResumePhase 根據 role 推斷 blocked/needs-attention 後應恢復到哪個 phase
+// roleToResumePhase 根據 role 推斷 blocked/needs-attention 後應恢復到哪個 phase。
+// 回傳值必須在 state machine 的 blocked/needs-attention 合法目標內：
+//   blocked → designing, coding, testing
+//   needs-attention → designing, coding
+// reviewer 回 coding（讓 coder 修正後重新 review）。
 func roleToResumePhase(role protocol.Role) protocol.Phase {
 	switch role {
 	case protocol.RoleCoder:
 		return protocol.PhaseCoding
 	case protocol.RoleReviewer:
-		return protocol.PhaseReviewing
+		return protocol.PhaseCoding
 	case protocol.RoleTester:
 		return protocol.PhaseTesting
 	default:
@@ -689,7 +693,7 @@ func setupWorktree(root, featureID string) (string, error) {
 	return wtDir, nil
 }
 
-// ensureWorktreeDotDir 在 worktree 建立真實 .4x/ 目錄並複製 settings.json。
+// ensureWorktreeDotDir 在 worktree 建立真實 .4x/ 目錄並複製 settings.json 與 plugins/。
 // 若已存在舊的 symlink 則移除，改為真實目錄。
 func ensureWorktreeDotDir(mainRoot, wtDir string) {
 	dotDir := filepath.Join(wtDir, protocol.DirName)
@@ -708,6 +712,18 @@ func ensureWorktreeDotDir(mainRoot, wtDir string) {
 	dst := filepath.Join(dotDir, protocol.ConfigFile)
 	if data, err := os.ReadFile(src); err == nil {
 		os.WriteFile(dst, data, 0o644)
+	}
+
+	// 複製 plugins/ 目錄，讓 runner CLI 能讀到 plugin 指令檔
+	srcPlugins := filepath.Join(mainRoot, protocol.DirName, "plugins")
+	dstPlugins := filepath.Join(dotDir, "plugins")
+	if entries, err := os.ReadDir(srcPlugins); err == nil {
+		os.MkdirAll(dstPlugins, 0o755)
+		for _, e := range entries {
+			if !e.IsDir() {
+				copyFileIfExists(filepath.Join(srcPlugins, e.Name()), filepath.Join(dstPlugins, e.Name()))
+			}
+		}
 	}
 }
 

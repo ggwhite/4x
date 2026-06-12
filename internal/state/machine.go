@@ -18,7 +18,7 @@ var transitions = map[protocol.Phase][]protocol.Phase{
 	protocol.PhaseAccepting:      {protocol.PhasePendingReview},
 	protocol.PhasePendingReview:  {protocol.PhaseDone},
 	protocol.PhaseBlocked:        {protocol.PhaseDesigning, protocol.PhaseCoding, protocol.PhaseTesting},
-	protocol.PhaseNeedsAttention: {protocol.PhaseDesigning, protocol.PhaseCoding},
+	protocol.PhaseNeedsAttention: {protocol.PhaseDesigning, protocol.PhaseCoding, protocol.PhaseTesting},
 }
 
 // CanTransition 檢查從 from 到 to 是否合法
