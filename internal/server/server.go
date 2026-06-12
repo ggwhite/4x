@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -55,6 +56,17 @@ func NewMux(ws *protocol.Workspace, pm *ProcessManager) http.Handler {
 			handlePostNew(ws, w, r)
 		})
 	}
+	mux.HandleFunc("/api/settings", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			handleGetSettings(ws, w)
+			return
+		}
+		if r.Method == http.MethodPut {
+			handlePutSettings(ws, w, r)
+			return
+		}
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	})
 	mux.HandleFunc("/api/done", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -101,14 +113,15 @@ func StartMulti(reg *ProjectRegistry, port int, recentPath string) error {
 }
 
 type taskInfo struct {
-	ID     string `json:"id"`
-	Name   string `json:"name"`
-	Status string `json:"status"`
-	Phase  string `json:"phase"`
-	Role   string `json:"role"`
-	Round  int    `json:"round"`
-	Active bool   `json:"active"`
-	Runner string `json:"runner"`
+	ID      string   `json:"id"`
+	Name    string   `json:"name"`
+	Status  string   `json:"status"`
+	Phase   string   `json:"phase"`
+	Role    string   `json:"role"`
+	Round   int      `json:"round"`
+	Active  bool     `json:"active"`
+	Runner  string   `json:"runner"`
+	Runners []string `json:"runners,omitempty"`
 }
 
 type runRequest struct {
@@ -253,6 +266,7 @@ func handleTasks(ws *protocol.Workspace, w http.ResponseWriter) {
 			t.Round = s.Round
 			t.Active = s.Active
 			t.Runner = s.Runner
+			t.Runners = s.Runners
 		}
 		tasks = append(tasks, t)
 	}
@@ -594,6 +608,107 @@ func handlePostDone(ws *protocol.Workspace, w http.ResponseWriter, r *http.Reque
 
 	w.Header().Set("Content-Type", "application/json")
 	fmt.Fprint(w, `{"status":"done"}`)
+}
+
+// handleGetSettings 讀取 .4x/settings.json 並以 JSON 回傳
+func handleGetSettings(ws *protocol.Workspace, w http.ResponseWriter) {
+	cfg, err := ws.ReadConfig()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(cfg)
+}
+
+// handlePutSettings 接受完整的設定 JSON，驗證後備份並寫入 .4x/settings.json。
+// 未知欄位透過 map 合併方式保留，不會被刪除。
+func handlePutSettings(ws *protocol.Workspace, w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
+	if err != nil {
+		http.Error(w, "request too large", http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	// 驗證：必須是合法 JSON
+	var incoming map[string]interface{}
+	if err := json.Unmarshal(body, &incoming); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// 驗證 project.name 必填
+	proj, ok := incoming["project"].(map[string]interface{})
+	if !ok {
+		http.Error(w, "missing project section", http.StatusBadRequest)
+		return
+	}
+	name, _ := proj["name"].(string)
+	if name == "" {
+		http.Error(w, "project.name is required", http.StatusBadRequest)
+		return
+	}
+
+	// 驗證結構相容 protocol.Config
+	var cfg protocol.Config
+	if err := json.Unmarshal(body, &cfg); err != nil {
+		http.Error(w, "invalid settings structure: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// 讀取現有設定以進行合併
+	settingsPath := filepath.Join(ws.DotDir(), protocol.ConfigFile)
+	oldData, err := os.ReadFile(settingsPath)
+	if err != nil {
+		http.Error(w, "cannot read current settings: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	var existing map[string]interface{}
+	_ = json.Unmarshal(oldData, &existing)
+
+	// 合併：incoming 覆蓋 existing，但 existing 中 incoming 沒有的 key 保留
+	merged := mergeSettings(existing, incoming)
+
+	result, err := json.MarshalIndent(merged, "", "  ")
+	if err != nil {
+		http.Error(w, "marshal error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// 備份原始設定
+	_ = os.WriteFile(settingsPath+".bak", oldData, 0o644)
+
+	// 寫入新設定
+	if err := os.WriteFile(settingsPath, append(result, '\n'), 0o644); err != nil {
+		http.Error(w, "write error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(result)
+}
+
+// mergeSettings 合併設定：incoming 的值覆蓋 existing，但 existing 中 incoming 不含的 key 保留。
+// 對 map 型別的值進行遞迴合併；陣列與純量以 incoming 為準。
+func mergeSettings(existing, incoming map[string]interface{}) map[string]interface{} {
+	if existing == nil {
+		return incoming
+	}
+	result := make(map[string]interface{})
+	for k, v := range existing {
+		result[k] = v
+	}
+	for k, v := range incoming {
+		if subNew, ok := v.(map[string]interface{}); ok {
+			if subOld, ok := result[k].(map[string]interface{}); ok {
+				result[k] = mergeSettings(subOld, subNew)
+				continue
+			}
+		}
+		result[k] = v
+	}
+	return result
 }
 
 func readIfExists(path string) string {
