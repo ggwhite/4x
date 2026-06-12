@@ -575,7 +575,8 @@ function renderMsgCard(m) {
 }
 
 async function loadMessages(id) {
-  const el = document.getElementById('messages'); el.classList.remove('hidden');
+  const el = document.getElementById('messages');
+  if (activeDetailTab === 'messages') el.classList.remove('hidden');
   const msgs = await (await fetch(apiBase()+'/api/messages/'+id)).json();
   const list = msgs || [];
   if (list.length === lastMsgCount) return;
