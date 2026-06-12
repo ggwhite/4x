@@ -1171,7 +1171,7 @@ async function load() {
 async function loadDetail(t) {
   document.getElementById('dashboard').classList.add('hidden');
   document.getElementById('header').classList.remove('hidden');
-  document.getElementById('messages').innerHTML = ''; lastMsgCount = 0;
+  document.getElementById('messages').innerHTML = ''; lastMsgCount = 0; currentLogFile = null;
   document.getElementById('h-id').textContent = t.id;
   document.getElementById('h-name').textContent = t.name;
   document.getElementById('h-badge').innerHTML = badge(t.status, t.phase, t.active);
@@ -1245,6 +1245,7 @@ async function loadMessages(id) {
 const overviewCache = {};
 let activeDetailTab = 'overview';
 let logSSE = null;
+let currentLogFile = null;
 
 function setDetailTabUI(tab) {
   document.querySelectorAll('.detail-tab').forEach(b => {
@@ -1350,7 +1351,7 @@ function switchDetailTab(tab) {
   activeDetailTab = tab;
   setDetailTabUI(tab);
   if (tab !== 'messages') disconnectSSE();
-  if (tab !== 'logs') disconnectLogSSE();
+  if (tab !== 'logs') { disconnectLogSSE(); currentLogFile = null; }
   if (tab === 'overview' && current) loadOverview(current);
   if (tab === 'messages' && current) { connectSSE(current); loadMessages(current); }
   if (tab === 'logs' && current) loadLogs(current);
@@ -1359,24 +1360,28 @@ function switchDetailTab(tab) {
 async function loadLogs(fid) {
   const list = document.getElementById('logs-list');
   const viewer = document.getElementById('log-viewer');
-  viewer.textContent = '';
-  viewer.classList.add('hidden');
+  if (!currentLogFile) {
+    viewer.textContent = '';
+    viewer.classList.add('hidden');
+  }
   const logs = await (await fetch(apiBase()+'/api/logs/'+fid)).json() || [];
   if (logs.length === 0) {
     list.innerHTML = '<div class="text-zinc-600 text-sm text-center mt-8">No logs yet</div>';
-    viewer.classList.add('hidden');
+    if (!currentLogFile) viewer.classList.add('hidden');
     return;
   }
   list.innerHTML = logs.map(l => {
     const role = l.name.replace(/^round-\d+-/, '').replace(/\.log$/, '');
     const r = ROLES[role] || {name:role,color:'#666',bg:'rgba(100,100,100,.05)'};
     const kb = (l.size/1024).toFixed(1);
-    return `<div class="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-zinc-800/50 transition-colors" onclick="viewLog('${fid}','${escAttr(l.name)}')"><span class="w-1.5 h-1.5 rounded-full" style="background:${r.color}"></span><span class="text-xs font-semibold" style="color:${r.color}">${r.name}</span><span class="text-xs text-zinc-500">${esc(l.name)}</span><span class="ml-auto text-[10px] text-zinc-600">${kb}KB</span></div>`;
+    const active = currentLogFile === l.name ? 'bg-zinc-800/50' : '';
+    return `<div class="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-zinc-800/50 transition-colors ${active}" onclick="viewLog('${fid}','${escAttr(l.name)}')"><span class="w-1.5 h-1.5 rounded-full" style="background:${r.color}"></span><span class="text-xs font-semibold" style="color:${r.color}">${r.name}</span><span class="text-xs text-zinc-500">${esc(l.name)}</span><span class="ml-auto text-[10px] text-zinc-600">${kb}KB</span></div>`;
   }).join('');
-  connectLogSSE(fid);
+  if (!logSSE) connectLogSSE(fid);
 }
 
 async function viewLog(fid, name) {
+  currentLogFile = name;
   const viewer = document.getElementById('log-viewer');
   viewer.classList.remove('hidden');
   const res = await fetch(apiBase()+'/api/logs/'+fid+'/'+name);
