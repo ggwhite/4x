@@ -160,11 +160,11 @@ function guardrailPrompt() {
 }
 
 function stateUpdate(role, phaseLabel, round) {
-  return `\necho '{"active":true,"role":"${role}","phase":"${phaseLabel}","round":${round},"label":"Round ${round} ${role}"}' > ${featureDir}/state.json\necho '{"phase":"${phaseLabel}","type":"phase-start","role":"${role}","round":${round}}' >> ${featureDir}/events.jsonl\n`
+  return `\necho '{"active":true,"role":"${role}","phase":"${phaseLabel}","round":${round},"label":"Round ${round} ${role}","runner":"copilot","runners":["copilot"]}' > ${featureDir}/state.json\necho '{"phase":"${phaseLabel}","type":"phase-start","role":"${role}","round":${round},"runner":"copilot","model":"${MODEL}"}' >> ${featureDir}/events.jsonl\n`
 }
 
 function stateEnd(role, phaseLabel, round) {
-  return `echo '{"phase":"${phaseLabel}","type":"phase-end","role":"${role}","round":${round}}' >> ${featureDir}/events.jsonl`
+  return `echo '{"phase":"${phaseLabel}","type":"phase-end","role":"${role}","round":${round},"runner":"copilot","model":"${MODEL}"}' >> ${featureDir}/events.jsonl`
 }
 
 // Note: The agent(...) helper used below is expected to be provided by the plugin runtime.
