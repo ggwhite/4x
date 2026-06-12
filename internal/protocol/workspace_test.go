@@ -420,3 +420,49 @@ func TestRoundDir(t *testing.T) {
 		t.Errorf("RoundDir = %s, want %s", got, want)
 	}
 }
+
+func TestStateRunnersRoundtrip(t *testing.T) {
+	ws := setupWorkspace(t)
+	if err := ws.InitFeatureDir("feat-runners"); err != nil {
+		t.Fatalf("InitFeatureDir: %v", err)
+	}
+
+	want := State{
+		FeatureID: "feat-runners",
+		Phase:     PhaseCoding,
+		Role:      RoleCoder,
+		Round:     1,
+		MaxRounds: 5,
+		Active:    true,
+		Runner:    "claude",
+		Runners:   []string{"codex", "claude"},
+	}
+	if err := ws.WriteState("feat-runners", want); err != nil {
+		t.Fatalf("WriteState: %v", err)
+	}
+
+	got, err := ws.ReadState("feat-runners")
+	if err != nil {
+		t.Fatalf("ReadState: %v", err)
+	}
+	if len(got.Runners) != 2 {
+		t.Fatalf("Runners length = %d, want 2", len(got.Runners))
+	}
+	if got.Runners[0] != "codex" || got.Runners[1] != "claude" {
+		t.Errorf("Runners = %v, want [codex claude]", got.Runners)
+	}
+}
+
+func TestStateBackwardCompatNoRunners(t *testing.T) {
+	raw := `{"featureId":"feat-old","phase":"coding","role":"coder","round":1,"maxRounds":5,"active":true,"runner":"claude","createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}`
+	var s State
+	if err := json.Unmarshal([]byte(raw), &s); err != nil {
+		t.Fatalf("unmarshal old state: %v", err)
+	}
+	if s.Runners != nil {
+		t.Errorf("Runners should be nil for old state, got %v", s.Runners)
+	}
+	if s.Runner != "claude" {
+		t.Errorf("Runner = %q, want %q", s.Runner, "claude")
+	}
+}

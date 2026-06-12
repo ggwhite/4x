@@ -113,6 +113,7 @@ type State struct {
 	ConsecutiveNoProgress int       `json:"consecutiveNoProgress"`
 	LastFailCount         int       `json:"lastFailCount"`
 	StopReason            string    `json:"stopReason,omitempty"`
+	Runners               []string  `json:"runners,omitempty"`
 }
 
 // Event 是 events.jsonl 的一行
