@@ -95,8 +95,9 @@ func (r *SubprocessRunner) Run(ctx context.Context, prompt string) (*Result, err
 
 	if logFile != nil {
 		if r.Config.Quiet {
-			cmd.Stdout = logFile
-			cmd.Stderr = io.MultiWriter(os.Stderr, logFile)
+			stripped := newPromptStripper(logFile)
+			cmd.Stdout = stripped
+			cmd.Stderr = stripped
 		} else {
 			cmd.Stdout = io.MultiWriter(os.Stdout, logFile)
 			cmd.Stderr = io.MultiWriter(os.Stderr, logFile)
@@ -104,6 +105,7 @@ func (r *SubprocessRunner) Run(ctx context.Context, prompt string) (*Result, err
 	} else {
 		if r.Config.Quiet {
 			cmd.Stdout = io.Discard
+			cmd.Stderr = io.Discard
 		} else {
 			cmd.Stdout = os.Stdout
 		}
@@ -275,6 +277,66 @@ func (a *ansiStripper) Write(p []byte) (int, error) {
 	}
 	// state != stGround 時，未完成的 escape 序列暫存到下次 Write
 	return len(p), nil
+}
+
+// promptStripper 過濾 stdin-echo runner（如 codex）輸出中的 prompt 回顯。
+// 偵測第一個獨立 "user" 行到下一個獨立 "codex" 行之間的內容並丟棄。
+type promptStripper struct {
+	dst     io.Writer
+	buf     []byte
+	state   int // 0=header, 1=skipping, 2=passthrough
+}
+
+func newPromptStripper(dst io.Writer) *promptStripper {
+	return &promptStripper{dst: dst}
+}
+
+func (s *promptStripper) Write(p []byte) (int, error) {
+	if s.state == 2 {
+		s.dst.Write(p)
+		return len(p), nil
+	}
+
+	s.buf = append(s.buf, p...)
+
+	for {
+		idx := indexByte(s.buf, '\n')
+		if idx < 0 {
+			break
+		}
+		line := string(s.buf[:idx])
+		s.buf = s.buf[idx+1:]
+		trimmed := strings.TrimSpace(line)
+
+		switch s.state {
+		case 0:
+			if trimmed == "user" {
+				s.state = 1
+			} else {
+				s.dst.Write([]byte(line + "\n"))
+			}
+		case 1:
+			if trimmed == "codex" {
+				s.state = 2
+				s.dst.Write([]byte(line + "\n"))
+				if len(s.buf) > 0 {
+					s.dst.Write(s.buf)
+					s.buf = nil
+				}
+				return len(p), nil
+			}
+		}
+	}
+	return len(p), nil
+}
+
+func indexByte(b []byte, c byte) int {
+	for i, v := range b {
+		if v == c {
+			return i
+		}
+	}
+	return -1
 }
 
 // LogDir 回傳 .4x/<featureId>/logs/ 的路徑

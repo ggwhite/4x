@@ -168,6 +168,15 @@ func newRunCmd() *cobra.Command {
 				if s.Phase == protocol.PhaseDone {
 					return fmt.Errorf("feature %s is already done", featureID)
 				}
+				if s.Phase == protocol.PhaseBlocked || s.Phase == protocol.PhaseNeedsAttention {
+					resumePhase := roleToResumePhase(s.Role)
+					fmt.Printf("  recovering %s → %s\n", s.Phase, resumePhase)
+					ns, err := state.Transition(s, resumePhase, s.Role)
+					if err == nil {
+						s = ns
+					}
+					s.StopReason = ""
+				}
 			}
 
 			found := false
@@ -232,7 +241,7 @@ func newRunCmd() *cobra.Command {
 	return cmd
 }
 
-func generatePrompt(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, role protocol.Role, round int) (string, error) {
+func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, role protocol.Role, round int) (string, error) {
 	tmpl, err := loadRoleTemplate(role)
 	if err != nil {
 		return "", fmt.Errorf("no template for role %s: %w", role, err)
@@ -248,7 +257,7 @@ func generatePrompt(ws *protocol.Workspace, feature protocol.Feature, cfg protoc
 		Role:             role,
 		Round:            round,
 		Config:           cfg,
-		DotDir:           ws.DotDir(),
+		DotDir:           runnerWs.DotDir(),
 		Locale:           locale,
 		LocaleName:       localeName,
 		RoleInstructions: roleInstructions(cfg, role),
@@ -333,7 +342,7 @@ func runLoop(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature proto
 			Runner: s.Runner, Model: model,
 		})
 
-		prompt, err := generatePrompt(ws, feature, cfg, role, s.Round)
+		prompt, err := generatePrompt(ws, runnerWs, feature, cfg, role, s.Round)
 		if err != nil {
 			prompt = fmt.Sprintf("You are the %s for feature %s, round %d. Read .4x/%s/ for context.", role, featureID, s.Round, featureID)
 		}
@@ -566,6 +575,20 @@ func verifyPassed(ws *protocol.Workspace, featureID string, round int) bool {
 	return ve.Passed
 }
 
+// roleToResumePhase 根據 role 推斷 blocked/needs-attention 後應恢復到哪個 phase
+func roleToResumePhase(role protocol.Role) protocol.Phase {
+	switch role {
+	case protocol.RoleCoder:
+		return protocol.PhaseCoding
+	case protocol.RoleReviewer:
+		return protocol.PhaseReviewing
+	case protocol.RoleTester:
+		return protocol.PhaseTesting
+	default:
+		return protocol.PhaseDesigning
+	}
+}
+
 // isDesignerEscalation 判斷 escalation 是否應回到 Designer 而非停下來等人
 // spec-mismatch / criteria-wrong 是 Designer 能自行修正的問題
 func isDesignerEscalation(reason string) bool {
@@ -625,7 +648,7 @@ func dryRunLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.C
 
 	for _, p := range phases {
 		fmt.Printf("=== %s (%s) ===\n", p.phase, p.role)
-		prompt, err := generatePrompt(ws, feature, cfg, p.role, 1)
+		prompt, err := generatePrompt(ws, ws, feature, cfg, p.role, 1)
 		if err != nil {
 			fmt.Printf("  (error: %v)\n\n", err)
 			continue
