@@ -1068,7 +1068,11 @@ async function loadDetail(t) {
   const meta = [];
   if (t.phase) meta.push(`<span>${PHASE_ICON[t.phase]||'○'} ${t.phase}</span>`);
   if (t.round) meta.push(`<span>⟳ Round ${t.round}</span>`);
-  if (t.runner) meta.push(`<span>⬡ ${t.runner}</span>`);
+  if (t.runners && t.runners.length) {
+    meta.push(`<span>⬡ ${t.runners.map(r => `<span style="color:${runnerColor(r)}">${esc(r)}</span>`).join(' · ')}</span>`);
+  } else if (t.runner) {
+    meta.push(`<span>⬡ ${t.runner}</span>`);
+  }
   document.getElementById('h-meta').innerHTML = meta.join('<span class="text-zinc-700">·</span>');
   disconnectLogSSE();
   activeDetailTab = 'messages';
