@@ -96,6 +96,15 @@
   .tab-item .tab-close { opacity: 0; font-size: 14px; line-height: 1; padding: 0 2px; color: var(--text-4); transition: opacity .1s; }
   .tab-item:hover .tab-close { opacity: 1; }
   .tab-item .tab-close:hover { color: var(--text-1); }
+  .runner-tag {
+    display: inline-block;
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    border: 1px solid rgba(255,255,255,.1);
+    color: var(--text-3);
+    background: rgba(255,255,255,.04);
+  }
 </style>
 </head>
 <body class="min-h-screen">
@@ -548,6 +557,9 @@ async function openProjectSettings() {
     _projectSettings = await resp.json();
     _psActiveTab = 'form';
     renderProjectSettingsForm();
+    const si = document.getElementById('ps-search-input');
+    if (si) { si.value = ''; filterPSFields(''); }
+    document.getElementById('ps-search-bar').style.display = '';
     document.getElementById('project-settings-modal').classList.add('open');
   } catch(err) { alert('Connection error: ' + err.message); }
 }
@@ -580,6 +592,7 @@ function switchPSTab(tab) {
     jsonEl.style.display = 'none';
     tabForm.style.background = 'var(--accent)'; tabForm.style.color = '#000'; tabForm.style.border = 'none'; tabForm.style.fontWeight = '600';
     tabJSON.style.background = 'var(--bg-input)'; tabJSON.style.color = 'var(--text-2)'; tabJSON.style.border = '1px solid var(--border)'; tabJSON.style.fontWeight = '';
+    document.getElementById('ps-search-bar').style.display = '';
     renderProjectSettingsForm();
   } else {
     // Serialize form state to JSON
@@ -590,6 +603,7 @@ function switchPSTab(tab) {
     jsonEl.style.display = '';
     tabJSON.style.background = 'var(--accent)'; tabJSON.style.color = '#000'; tabJSON.style.border = 'none'; tabJSON.style.fontWeight = '600';
     tabForm.style.background = 'var(--bg-input)'; tabForm.style.color = 'var(--text-2)'; tabForm.style.border = '1px solid var(--border)'; tabForm.style.fontWeight = '';
+    document.getElementById('ps-search-bar').style.display = 'none';
   }
 }
 
@@ -683,27 +697,27 @@ function renderProjectSettingsForm() {
 
   // Other section
   html += `<div style="margin-bottom:20px"><div class="settings-label">General</div>`;
-  html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+  html += `<div class="ps-field-row" data-label="default runner" data-key="ps-default" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
     <label style="font-size:13px;color:var(--text-2);min-width:160px">Default Runner</label>
-    <select id="ps-default" style="flex:1;max-width:400px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none">
+    <select id="ps-default" onchange="autoSave()" style="flex:1;max-width:400px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none">
       <option value="">-- none --</option>
       ${runnerNames.map(n => `<option value="${escAttr(n)}"${s.default_runner===n?' selected':''}>${esc(n)}</option>`).join('')}
     </select>
   </div>`;
-  html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+  html += `<div class="ps-field-row" data-label="isolation" data-key="ps-isolation" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
     <label style="font-size:13px;color:var(--text-2);min-width:160px">Isolation</label>
-    <select id="ps-isolation" style="flex:1;max-width:400px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none">
+    <select id="ps-isolation" onchange="autoSave()" style="flex:1;max-width:400px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none">
       <option value=""${!s.isolation?' selected':''}>-- none --</option>
       <option value="worktree"${s.isolation==='worktree'?' selected':''}>worktree</option>
     </select>
   </div>`;
-  html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+  html += `<div class="ps-field-row" data-label="max concurrent runs" data-key="ps-maxruns" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
     <label style="font-size:13px;color:var(--text-2);min-width:160px">Max Concurrent Runs</label>
-    <input id="ps-maxruns" type="number" min="1" max="20" value="${s.max_concurrent_runs||1}" style="flex:1;max-width:400px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none">
+    <input id="ps-maxruns" type="number" min="1" max="20" value="${s.max_concurrent_runs||1}" onblur="autoSave()" style="flex:1;max-width:400px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none">
   </div>`;
-  html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+  html += `<div class="ps-field-row" data-label="commit" data-key="ps-commit" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
     <label style="font-size:13px;color:var(--text-2);min-width:160px">Commit</label>
-    <select id="ps-commit" style="flex:1;max-width:400px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none">
+    <select id="ps-commit" onchange="autoSave()" style="flex:1;max-width:400px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none">
       <option value=""${!s.commit?' selected':''}>-- none --</option>
       <option value="per-round"${s.commit==='per-round'?' selected':''}>per-round</option>
       <option value="on-done"${s.commit==='on-done'?' selected':''}>on-done</option>
@@ -727,8 +741,8 @@ function renderProjectSettingsForm() {
       ${psTagField('Args', 'ps-runner-args-'+name, rc.args)}
       ${psField('Model', 'ps-runner-model-'+name, rc.model)}
       <div style="display:flex;gap:16px;margin-bottom:6px">
-        <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:6px"><input type="checkbox" id="ps-runner-stdin-${escAttr(name)}"${rc.stdin?' checked':''}> stdin</label>
-        <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:6px"><input type="checkbox" id="ps-runner-tty-${escAttr(name)}"${rc.tty?' checked':''}> tty</label>
+        <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:6px"><input type="checkbox" id="ps-runner-stdin-${escAttr(name)}"${rc.stdin?' checked':''} onchange="autoSave()"> stdin</label>
+        <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:6px"><input type="checkbox" id="ps-runner-tty-${escAttr(name)}"${rc.tty?' checked':''} onchange="autoSave()"> tty</label>
       </div>
     </div>`;
   });
@@ -756,6 +770,34 @@ function renderProjectSettingsForm() {
   document.getElementById('ps-form').innerHTML = html;
 }
 
+// filterPSFields 依搜尋字串即時過濾設定頁欄位，不匹配的列隱藏，匹配的所在 section 自動顯示
+function filterPSFields(query) {
+  const q = query.trim().toLowerCase();
+  const form = document.getElementById('ps-form');
+  if (!form) return;
+  const rows = form.querySelectorAll('.ps-field-row');
+  if (!q) {
+    rows.forEach(r => { r.style.display = ''; });
+    form.querySelectorAll('[data-section]').forEach(s => { s.style.display = ''; });
+    return;
+  }
+  const visibleSections = new Set();
+  rows.forEach(r => {
+    const label = (r.dataset.label || '').toLowerCase();
+    const key = (r.dataset.key || '').toLowerCase();
+    const match = label.includes(q) || key.includes(q);
+    r.style.display = match ? '' : 'none';
+    if (match) {
+      // 找父 section 容器並記錄
+      let parent = r.parentElement;
+      while (parent && parent !== form) {
+        if (parent.dataset && parent.dataset.section) { visibleSections.add(parent); break; }
+        parent = parent.parentElement;
+      }
+    }
+  });
+}
+
 function addRunner() {
   const inp = document.getElementById('ps-new-runner-name');
   const name = inp.value.trim();
@@ -773,15 +815,16 @@ function addRunner() {
   ${psTagField('Args', 'ps-runner-args-'+name, [])}
   ${psField('Model', 'ps-runner-model-'+name, '')}
   <div style="display:flex;gap:16px;margin-bottom:6px">
-    <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:6px"><input type="checkbox" id="ps-runner-stdin-${escAttr(name)}"> stdin</label>
-    <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:6px"><input type="checkbox" id="ps-runner-tty-${escAttr(name)}"> tty</label>
+    <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:6px"><input type="checkbox" id="ps-runner-stdin-${escAttr(name)}" onchange="autoSave()"> stdin</label>
+    <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:6px"><input type="checkbox" id="ps-runner-tty-${escAttr(name)}" onchange="autoSave()"> tty</label>
   </div>`;
   wrap.appendChild(div);
+  autoSave();
 }
 
 function removeRunner(name) {
   const el = document.getElementById('ps-runner-' + name);
-  if (el) el.remove();
+  if (el) { el.remove(); autoSave(); }
 }
 
 function collectFormData() {
@@ -907,6 +950,15 @@ const ROLES = {
 };
 const PHASE_ICON = { designing:'◆',coding:'◆',reviewing:'◆',testing:'◆',accepting:'◆',amending:'◆','pending-review':'⏳',done:'✓',blocked:'✕','needs-attention':'!',init:'○','not-started':'○' };
 
+const RUNNER_COLORS = {claude:'#10b981',codex:'#3b82f6',gemini:'#f59e0b',copilot:'#a78bfa',cursor:'#ec4899'};
+function runnerColor(name) {
+  return RUNNER_COLORS[name] || '#71717a';
+}
+function runnerTags(runners) {
+  if (!runners || !runners.length) return '';
+  return runners.map(r => `<span class="runner-tag" style="border-color:${runnerColor(r)}40;color:${runnerColor(r)}">${esc(r)}</span>`).join(' ');
+}
+
 function badge(status, phase, active) {
   if (active && phase && phase!=='done') return '<span class="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span>In Progress</span>';
   if (status==='ready-for-review') return '<span class="px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/30 rounded-full">Review</span>';
@@ -991,7 +1043,9 @@ async function load() {
       const pi = isActive ? `<div class="flex items-center gap-1.5 mt-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span><span class="text-[11px] text-emerald-400">${t.phase}</span><span class="text-[11px] text-zinc-600">· Round ${t.round||0}</span></div>` : '';
       const di = t.status==='done' ? '<span class="text-emerald-500/60 text-xs">✓</span>' : '';
       const doneBtn = t.status==='ready-for-review' ? `<button class="ml-auto px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/30 rounded hover:bg-amber-500/20 transition-colors" onclick="event.stopPropagation();markDone('${t.id}')">Mark Done</button>` : '';
-      el.innerHTML = `<div class="flex items-start gap-2">${di}<div class="flex-1 min-w-0"><div class="text-[13px] font-medium truncate">${esc(t.name)}</div><div class="text-[11px] text-zinc-600 mt-0.5">${t.id}</div>${pi}</div>${doneBtn}</div>`;
+      const rt = runnerTags(t.runners);
+      const rtLine = rt ? `<div class="flex gap-1 mt-1">${rt}</div>` : '';
+      el.innerHTML = `<div class="flex items-start gap-2">${di}<div class="flex-1 min-w-0"><div class="text-[13px] font-medium truncate">${esc(t.name)}</div><div class="text-[11px] text-zinc-600 mt-0.5">${t.id}</div>${pi}${rtLine}</div>${doneBtn}</div>`;
       el.onclick = () => { current=t.id; load(); loadDetail(t); };
       list.appendChild(el);
     });
