@@ -253,3 +253,37 @@ func TestMultiMux_SettingsEndpoint_PrefixRoute(t *testing.T) {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
 }
+
+func TestMultiMux_OverviewPrefixRoute(t *testing.T) {
+	ws := setupMultiWorkspace(t, "overview-proj")
+	reg := NewProjectRegistry()
+	id := reg.Add(ws)
+
+	recentPath := t.TempDir() + "/recent.json"
+	rec := serveRequest(t, NewMultiMux(reg, recentPath), http.MethodGet, "/api/project/"+id+"/api/overview/feat-1", "")
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	var info overviewInfo
+	if err := json.NewDecoder(rec.Body).Decode(&info); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if info.ID != "feat-1" {
+		t.Errorf("ID = %s, want feat-1", info.ID)
+	}
+}
+
+func TestMultiMux_OverviewBackwardCompat(t *testing.T) {
+	ws := setupMultiWorkspace(t, "single-ov")
+	reg := NewProjectRegistry()
+	reg.Add(ws)
+
+	recentPath := t.TempDir() + "/recent.json"
+	rec := serveRequest(t, NewMultiMux(reg, recentPath), http.MethodGet, "/api/overview/feat-1", "")
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+}

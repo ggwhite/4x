@@ -236,6 +236,16 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 		}
 		compatError(w, len(entries), "/api/project/{id}/api/messages/{featureId}")
 	})
+	mux.HandleFunc("/api/overview/", func(w http.ResponseWriter, r *http.Request) {
+		entries := reg.List()
+		if len(entries) == 1 {
+			ws := reg.Get(entries[0].ID)
+			featureID := strings.TrimPrefix(r.URL.Path, "/api/overview/")
+			handleOverview(ws, featureID, w)
+			return
+		}
+		compatError(w, len(entries), "/api/project/{id}/api/overview/{featureId}")
+	})
 	mux.HandleFunc("/api/events/", func(w http.ResponseWriter, r *http.Request) {
 		entries := reg.List()
 		if len(entries) == 1 {

@@ -40,6 +40,7 @@ The dashboard exposes REST and SSE endpoints:
 | `/api/done` | POST | Mark feature as done |
 | `/api/runs` | GET | List active runs |
 | `/api/events/{id}` | GET | Get events for a feature |
+| `/api/overview/{id}` | GET | Get feature overview (YAML fields + spec/plan content) |
 | `/api/messages/{id}` | GET | Get messages for a feature |
 | `/api/logs/{id}` | GET | List log files for a feature |
 | `/api/logs/{id}/{file}` | GET | Get a specific log file |
