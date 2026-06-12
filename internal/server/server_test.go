@@ -3,8 +3,10 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -19,7 +21,7 @@ func testContextWithTimeout(t *testing.T) (context.Context, context.CancelFunc) 
 func setupServerWorkspace(t *testing.T) *protocol.Workspace {
 	t.Helper()
 	root := t.TempDir()
-	cfg := protocol.Config{Project: protocol.ProjectConfig{Name: "server-test"}}
+	cfg := protocol.Config{Project: protocol.ProjectConfig{Name: "server-test"}, Default: "claude"}
 	if err := protocol.Init(root, cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -47,23 +49,27 @@ func setupServerWorkspace(t *testing.T) *protocol.Workspace {
 	return ws
 }
 
+func serveRequest(t *testing.T, handler http.Handler, method, path, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	return rec
+}
+
 func TestGetTasks(t *testing.T) {
 	ws := setupServerWorkspace(t)
-	srv := httptest.NewServer(NewMux(ws))
-	defer srv.Close()
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/tasks", "")
 
-	resp, err := http.Get(srv.URL + "/api/tasks")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, want 200", rec.Code)
 	}
 
 	var tasks []taskInfo
-	if err := json.NewDecoder(resp.Body).Decode(&tasks); err != nil {
+	if err := json.NewDecoder(rec.Body).Decode(&tasks); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 	if len(tasks) != 1 {
@@ -82,21 +88,14 @@ func TestGetTasks(t *testing.T) {
 
 func TestGetEvents_Empty(t *testing.T) {
 	ws := setupServerWorkspace(t)
-	srv := httptest.NewServer(NewMux(ws))
-	defer srv.Close()
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/events/test-feat", "")
 
-	resp, err := http.Get(srv.URL + "/api/events/test-feat")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, want 200", rec.Code)
 	}
 
 	var events []json.RawMessage
-	if err := json.NewDecoder(resp.Body).Decode(&events); err != nil {
+	if err := json.NewDecoder(rec.Body).Decode(&events); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 	if len(events) != 0 {
@@ -116,17 +115,10 @@ func TestGetEvents_WithData(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	srv := httptest.NewServer(NewMux(ws))
-	defer srv.Close()
-
-	resp, err := http.Get(srv.URL + "/api/events/test-feat")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/events/test-feat", "")
 
 	var events []json.RawMessage
-	if err := json.NewDecoder(resp.Body).Decode(&events); err != nil {
+	if err := json.NewDecoder(rec.Body).Decode(&events); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 	if len(events) != 2 {
@@ -136,35 +128,21 @@ func TestGetEvents_WithData(t *testing.T) {
 
 func TestGetMessages_Empty(t *testing.T) {
 	ws := setupServerWorkspace(t)
-	srv := httptest.NewServer(NewMux(ws))
-	defer srv.Close()
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/messages/test-feat", "")
 
-	resp, err := http.Get(srv.URL + "/api/messages/test-feat")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, want 200", rec.Code)
 	}
 }
 
 func TestIndexHTML(t *testing.T) {
 	ws := setupServerWorkspace(t)
-	srv := httptest.NewServer(NewMux(ws))
-	defer srv.Close()
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/", "")
 
-	resp, err := http.Get(srv.URL + "/")
-	if err != nil {
-		t.Fatal(err)
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, want 200", rec.Code)
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		t.Fatalf("status = %d, want 200", resp.StatusCode)
-	}
-	ct := resp.Header.Get("Content-Type")
+	ct := rec.Header().Get("Content-Type")
 	if ct != "text/html" {
 		t.Errorf("Content-Type = %s, want text/html", ct)
 	}
@@ -172,26 +150,163 @@ func TestIndexHTML(t *testing.T) {
 
 func TestSSEEndpoint_ContentType(t *testing.T) {
 	ws := setupServerWorkspace(t)
-	srv := httptest.NewServer(NewMux(ws))
-	defer srv.Close()
-
-	client := &http.Client{}
-	req, _ := http.NewRequest("GET", srv.URL+"/sse/events/test-feat", nil)
-	req.Header.Set("Accept", "text/event-stream")
-
-	// SSE will block, just check headers then cancel
 	ctx, cancel := testContextWithTimeout(t)
 	defer cancel()
-	req = req.WithContext(ctx)
+	req := httptest.NewRequest(http.MethodGet, "/sse/events/test-feat", nil).WithContext(ctx)
+	req.Header.Set("Accept", "text/event-stream")
+	rec := httptest.NewRecorder()
 
-	resp, err := client.Do(req)
-	if err != nil {
-		return // expected: context canceled
-	}
-	defer resp.Body.Close()
+	NewMux(ws, nil).ServeHTTP(rec, req)
 
-	ct := resp.Header.Get("Content-Type")
+	ct := rec.Header().Get("Content-Type")
 	if ct != "text/event-stream" {
 		t.Errorf("Content-Type = %s, want text/event-stream", ct)
+	}
+}
+
+func setupServerWithPM(t *testing.T) (*protocol.Workspace, *ProcessManager) {
+	t.Helper()
+	ws := setupServerWorkspace(t)
+	pm := NewProcessManager(ws, 2, fakeRunCommand(t))
+	return ws, pm
+}
+
+func TestPostRun(t *testing.T) {
+	ws, pm := setupServerWithPM(t)
+	defer pm.Shutdown()
+
+	body := `{"featureId":"test-feat","maxRounds":3}`
+	rec := serveRequest(t, NewMux(ws, pm), http.MethodPost, "/api/run", body)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	var info RunInfo
+	if err := json.NewDecoder(rec.Body).Decode(&info); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if info.FeatureID != "test-feat" {
+		t.Errorf("FeatureID = %q, want test-feat", info.FeatureID)
+	}
+	if info.Runner != "claude" {
+		t.Errorf("Runner = %q, want claude", info.Runner)
+	}
+}
+
+func TestPostRun_Conflict(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	pm := NewProcessManager(ws, 1, fakeRunCommand(t))
+	defer pm.Shutdown()
+	handler := NewMux(ws, pm)
+
+	body := `{"featureId":"test-feat"}`
+	serveRequest(t, handler, http.MethodPost, "/api/run", body)
+
+	rec := serveRequest(t, handler, http.MethodPost, "/api/run", body)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409", rec.Code)
+	}
+}
+
+func TestPostRun_NotFound(t *testing.T) {
+	ws, pm := setupServerWithPM(t)
+	defer pm.Shutdown()
+
+	body := `{"featureId":"missing"}`
+	rec := serveRequest(t, NewMux(ws, pm), http.MethodPost, "/api/run", body)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+}
+
+func TestGetRuns(t *testing.T) {
+	ws, pm := setupServerWithPM(t)
+	defer pm.Shutdown()
+	handler := NewMux(ws, pm)
+
+	body := `{"featureId":"test-feat"}`
+	serveRequest(t, handler, http.MethodPost, "/api/run", body)
+
+	rec := serveRequest(t, handler, http.MethodGet, "/api/runs", "")
+
+	var runs []RunInfo
+	if err := json.NewDecoder(rec.Body).Decode(&runs); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(runs) != 1 {
+		t.Fatalf("runs = %d, want 1", len(runs))
+	}
+}
+
+func TestPostStop(t *testing.T) {
+	ws, pm := setupServerWithPM(t)
+	defer pm.Shutdown()
+	handler := NewMux(ws, pm)
+
+	runBody := `{"featureId":"test-feat"}`
+	resp := serveRequest(t, handler, http.MethodPost, "/api/run", runBody)
+	var info RunInfo
+	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+		t.Fatal(err)
+	}
+
+	stopBody := fmt.Sprintf(`{"id":%q}`, info.ID)
+	rec := serveRequest(t, handler, http.MethodPost, "/api/stop", stopBody)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+}
+
+func TestPostStop_NotFound(t *testing.T) {
+	ws, pm := setupServerWithPM(t)
+	defer pm.Shutdown()
+
+	body := `{"id":"nonexistent"}`
+	rec := serveRequest(t, NewMux(ws, pm), http.MethodPost, "/api/stop", body)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+}
+
+func TestPostNew(t *testing.T) {
+	ws, pm := setupServerWithPM(t)
+	defer pm.Shutdown()
+
+	body := `{"name":"My New Feature","description":"test desc"}`
+	rec := serveRequest(t, NewMux(ws, pm), http.MethodPost, "/api/new", body)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	var result struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&result); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if result.Name != "My New Feature" {
+		t.Errorf("Name = %q, want My New Feature", result.Name)
+	}
+	if _, err := ws.LoadFeature(result.ID); err != nil {
+		t.Errorf("LoadFeature(%q) failed: %v", result.ID, err)
+	}
+}
+
+func TestPostNew_MissingName(t *testing.T) {
+	ws, pm := setupServerWithPM(t)
+	defer pm.Shutdown()
+
+	body := `{"description":"no name"}`
+	rec := serveRequest(t, NewMux(ws, pm), http.MethodPost, "/api/new", body)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
 	}
 }
