@@ -51,6 +51,8 @@ type Feature struct {
 	Subtasks    []Subtask         `yaml:"subtasks,omitempty" json:"subtasks,omitempty"`
 	Rules       []string          `yaml:"rules,omitempty" json:"rules,omitempty"`
 	Depends     []string          `yaml:"depends,omitempty" json:"depends,omitempty"`
+	Spec        string            `yaml:"spec,omitempty" json:"-"`
+	Plan        string            `yaml:"plan,omitempty" json:"-"`
 }
 
 // BacklogMirror 是根目錄 feature_list.json 的 legacy mirror 結構。

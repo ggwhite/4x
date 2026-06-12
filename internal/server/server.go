@@ -84,6 +84,10 @@ func NewMux(ws *protocol.Workspace, pm *ProcessManager) http.Handler {
 		featureID := strings.TrimPrefix(r.URL.Path, "/api/messages/")
 		handleMessages(ws, featureID, w)
 	})
+	mux.HandleFunc("/api/overview/", func(w http.ResponseWriter, r *http.Request) {
+		featureID := strings.TrimPrefix(r.URL.Path, "/api/overview/")
+		handleOverview(ws, featureID, w)
+	})
 	mux.HandleFunc("/api/events/", func(w http.ResponseWriter, r *http.Request) {
 		featureID := strings.TrimPrefix(r.URL.Path, "/api/events/")
 		handleEvents(ws, featureID, w)
@@ -128,6 +132,22 @@ type taskInfo struct {
 	Active  bool     `json:"active"`
 	Runner  string   `json:"runner"`
 	Runners []string `json:"runners,omitempty"`
+}
+
+type overviewInfo struct {
+	ID          string             `json:"id"`
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
+	Status      string             `json:"status"`
+	Priority    int                `json:"priority,omitempty"`
+	Repos       map[string]string  `json:"repos,omitempty"`
+	Subtasks    []protocol.Subtask `json:"subtasks,omitempty"`
+	Rules       []string           `json:"rules,omitempty"`
+	Depends     []string           `json:"depends,omitempty"`
+	Spec        string             `json:"spec"`
+	Plan        string             `json:"plan"`
+	SpecSource  string             `json:"specSource"`
+	PlanSource  string             `json:"planSource"`
 }
 
 type runRequest struct {
@@ -279,6 +299,35 @@ func handleTasks(ws *protocol.Workspace, w http.ResponseWriter) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(tasks)
+}
+
+func handleOverview(ws *protocol.Workspace, featureID string, w http.ResponseWriter) {
+	f, err := ws.LoadFeature(featureID)
+	if err != nil {
+		http.Error(w, "feature not found", http.StatusNotFound)
+		return
+	}
+
+	spec, specSource := resolveDoc(ws.Root, f.Spec, f.ID, "spec")
+	plan, planSource := resolveDoc(ws.Root, f.Plan, f.ID, "plan")
+	info := overviewInfo{
+		ID:          f.ID,
+		Name:        f.Name,
+		Description: f.Description,
+		Status:      f.Status,
+		Priority:    f.Priority,
+		Repos:       f.Repos,
+		Subtasks:    f.Subtasks,
+		Rules:       f.Rules,
+		Depends:     f.Depends,
+		Spec:        spec,
+		Plan:        plan,
+		SpecSource:  specSource,
+		PlanSource:  planSource,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(info)
 }
 
 type messageInfo struct {
@@ -723,4 +772,22 @@ func readIfExists(path string) string {
 		return ""
 	}
 	return string(data)
+}
+
+func resolveDoc(root, yamlPath, featureID, suffix string) (string, string) {
+	if yamlPath != "" {
+		abs := yamlPath
+		if !filepath.IsAbs(abs) {
+			abs = filepath.Join(root, yamlPath)
+		}
+		if content := readIfExists(abs); content != "" {
+			return content, yamlPath
+		}
+	}
+
+	source := filepath.Join("docs", "design", featureID+"-"+suffix+".md")
+	if content := readIfExists(filepath.Join(root, source)); content != "" {
+		return content, source
+	}
+	return "", ""
 }

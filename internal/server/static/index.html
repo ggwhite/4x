@@ -140,12 +140,14 @@
       </div>
       <div id="h-meta" class="flex items-center gap-4 mt-2 text-xs" style="color:var(--text-4)"></div>
       <div id="detail-tabs" class="flex gap-4 mt-3 border-t pt-2" style="border-color:var(--border)">
-        <button class="detail-tab text-xs font-semibold pb-1 border-b-2 border-emerald-500 text-emerald-400" data-tab="messages" onclick="switchDetailTab('messages')">Messages</button>
+        <button class="detail-tab text-xs font-semibold pb-1 border-b-2 border-emerald-500 text-emerald-400" data-tab="overview" onclick="switchDetailTab('overview')">Overview</button>
+        <button class="detail-tab text-xs font-semibold pb-1 border-b-2 border-transparent text-zinc-500 hover:text-zinc-300" data-tab="messages" onclick="switchDetailTab('messages')">Messages</button>
         <button class="detail-tab text-xs font-semibold pb-1 border-b-2 border-transparent text-zinc-500 hover:text-zinc-300" data-tab="logs" onclick="switchDetailTab('logs')">Logs</button>
       </div>
     </div>
     <div class="flex-1 overflow-y-auto p-6" id="main">
       <div id="dashboard"></div>
+      <div id="overview-panel" class="hidden"></div>
       <div id="messages" class="space-y-4 hidden"></div>
       <div id="logs-panel" class="hidden">
         <div id="logs-list" class="space-y-2"></div>
@@ -333,7 +335,13 @@ function adjRefresh(delta) {
 }
 function startRefreshTimer() {
   if (refreshTimer) clearInterval(refreshTimer);
-  refreshTimer = setInterval(() => { if (activeProjectId) { load(); if (current) loadMessages(current); } }, settings.refresh*1000);
+  refreshTimer = setInterval(() => {
+    if (!activeProjectId) return;
+    load();
+    if (!current) return;
+    if (activeDetailTab === 'messages') loadMessages(current);
+    if (activeDetailTab === 'logs') loadLogs(current);
+  }, settings.refresh*1000);
 }
 
 const S2T_S = '万与丑专业丛东丝丢两严丧个丰临为丽举么义乌乐乔习书买乱争亏云亘亚产亩亲亿仅从仑仓仪们价众优伙会伛伞伟传伤伥伦伧伪伫体余佣佥侠侣侥侦侧侨侩侪侬俣俦俭债倾偬偻偾傥傧储催傻像僵党兜兰关兴兹养兽冁内冈冉写军农冯冲决况冻净凉凌减凑凤凫凭凯击凿刍划刘则刚创删别刬刭刮制刹券刺刻剀剂剑剥剧劝办务劢动励劲劳势勋勐勚匀匦匮区医华协单卖卢卤卧卫却卺厂厅历厉压厌厍厕厘厢厣厦厩厮县叁参双发变叙叠只台叹叽吁后吓吕吗吣吨听启吴呐呒呓呕呖呗员呙呛呜咏咙咛咝咤咸响哑哒哓哔哕哗哙哜哝哟唛唝唠唡唢唣唤唦唿啧啬啭啮啯啰啴啸喂喷嗫嗳嘘嘤嘱噜噼嚣嚯园困围囱坏坚坛坜坝坞坟坠垄垅垆垒垦垧垩垫垭垯垲垴埘埙埚埝域堑堕塆墙壮声壳壶壸处备复够头夸夹夺奁奂奋奖奥妆妇妈妩妪姗姜娄娅娆娇娈娱婴婵婶媪嫒嫔嫱嬷孙学孪宁宝实宠审宪宫宽宾寝对寻导寿将尔尘尝尧尴层屃屉届属屡屦屿岁岂岖岗岘岙岚岛岭岽岿峃峄峡峣峤峥崂崃崄崭崱嵘嵚嵝巅巩巯币帅师帏帐帘帜帧帮帱帻帼幂干并广庄庆庇床庐庑库应庙庞废廪开异弃弑张弥弦弯弹强归当录彝彟彦彩彻径徕御忆忏忧忾怀态怂怃怄怅怆怜总怼怿恋恳恶恸恹恻恼恽悍悦悫悬悭悯惊惧惨惩惫惬惭惮惯愠愤愦愿慑慭憷懑懒懔懵戆戋戏戗战戬户扑扦执扩扪扫扬扰找承抚抟抠抡抢护报担拟拢拣拥拦拧拨择挂挚挛挜挝挞挟挠挡挣挤挥挦捞损捡换捣据捻掳掴掷掸掺掼揽搀搁搂搅携摄摅摆摇摈摊撑撵撷撸撺擞攒敌敛数斋斓斩断无旧时旷旸昙昼显晋晒晓晔晕晖暂暧术朮杂权条来杨杩杰极构枞枢枣枥枧枨枪枫枭柜柠柽栀栅标栈栉栊栋栌栎栏树栖样栾桠桡桢档桤桥桦桧桨桩梦梼梾检棁棂椁椟椠椤椭楼榄榆榇榈榉槚槛槟槠横樯樱橥橱橹机杀杂权杆条杰板松极构析枪果柜某样根格桂档案桥梁梦检楼标横模';
@@ -976,11 +984,12 @@ async function markDone(fid) {
 function goHome() {
   current=null; lastMsgCount=0; disconnectSSE(); disconnectLogSSE();
   document.getElementById('header').classList.add('hidden');
+  document.getElementById('overview-panel').classList.add('hidden');
   document.getElementById('messages').classList.add('hidden');
   document.getElementById('messages').innerHTML = '';
   document.getElementById('logs-panel').classList.add('hidden');
   document.getElementById('dashboard').classList.remove('hidden');
-  activeDetailTab = 'messages';
+  activeDetailTab = 'overview';
   if (activeProjectId) { load(); renderDashboard(lastTasks); } else renderProjectPicker();
 }
 function connectSSE(fid) { disconnectSSE(); sseSource = new EventSource(sseBase()+'/events/'+fid); sseSource.onmessage = () => { loadMessages(fid); }; }
@@ -1075,15 +1084,11 @@ async function loadDetail(t) {
   }
   document.getElementById('h-meta').innerHTML = meta.join('<span class="text-zinc-700">·</span>');
   disconnectLogSSE();
-  activeDetailTab = 'messages';
-  document.getElementById('logs-panel').classList.add('hidden');
-  document.querySelectorAll('.detail-tab').forEach(b => {
-    b.classList.toggle('border-emerald-500', b.dataset.tab === 'messages');
-    b.classList.toggle('text-emerald-400', b.dataset.tab === 'messages');
-    b.classList.toggle('border-transparent', b.dataset.tab !== 'messages');
-    b.classList.toggle('text-zinc-500', b.dataset.tab !== 'messages');
-  });
-  connectSSE(t.id); loadMessages(t.id);
+  disconnectSSE();
+  activeDetailTab = 'overview';
+  document.getElementById('overview-panel').innerHTML = '';
+  setDetailTabUI('overview');
+  loadOverview(t.id);
 }
 
 function renderMsgCard(m) {
@@ -1130,10 +1135,11 @@ async function loadMessages(id) {
   if (newMsgs.length > 0) el.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'end' });
 }
 
-let activeDetailTab = 'messages';
+const overviewCache = {};
+let activeDetailTab = 'overview';
 let logSSE = null;
-function switchDetailTab(tab) {
-  activeDetailTab = tab;
+
+function setDetailTabUI(tab) {
   document.querySelectorAll('.detail-tab').forEach(b => {
     const active = b.dataset.tab === tab;
     b.classList.toggle('border-emerald-500', active);
@@ -1141,8 +1147,105 @@ function switchDetailTab(tab) {
     b.classList.toggle('border-transparent', !active);
     b.classList.toggle('text-zinc-500', !active);
   });
+  document.getElementById('overview-panel').classList.toggle('hidden', tab !== 'overview');
   document.getElementById('messages').classList.toggle('hidden', tab !== 'messages');
   document.getElementById('logs-panel').classList.toggle('hidden', tab !== 'logs');
+}
+
+async function loadOverview(fid) {
+  const el = document.getElementById('overview-panel');
+  if (activeDetailTab === 'overview') el.classList.remove('hidden');
+
+  if (overviewCache[fid]) {
+    renderOverview(overviewCache[fid], el);
+    return;
+  }
+
+  el.innerHTML = '<div class="text-zinc-600 text-sm mt-8 text-center">Loading...</div>';
+  try {
+    const resp = await fetch(apiBase()+'/api/overview/'+fid);
+    if (!resp.ok) {
+      el.innerHTML = '<div class="text-red-400 text-sm mt-8 text-center">Failed to load overview</div>';
+      return;
+    }
+    const data = await resp.json();
+    overviewCache[fid] = data;
+    renderOverview(data, el);
+  } catch {
+    el.innerHTML = '<div class="text-red-400 text-sm mt-8 text-center">Connection error</div>';
+  }
+}
+
+function renderOverview(d, el) {
+  let html = '';
+
+  if (d.description) {
+    html += `<section class="mb-6"><div class="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Description</div><div class="md-body text-sm" style="color:var(--text-2)">${typeof marked !== 'undefined' ? marked.parse(d.description) : '<pre>'+esc(d.description)+'</pre>'}</div></section>`;
+  }
+
+  const details = [];
+  if (d.priority) details.push(`<div class="flex gap-2"><span class="text-zinc-500 w-20 flex-shrink-0">Priority</span><span>${d.priority}</span></div>`);
+  if (d.repos && Object.keys(d.repos).length) {
+    const repos = Object.entries(d.repos).map(([k,v]) => `<span class="inline-block px-2 py-0.5 rounded text-[11px]" style="background:var(--bg-hover)">${esc(k)} → ${esc(v)}</span>`).join(' ');
+    details.push(`<div class="flex gap-2"><span class="text-zinc-500 w-20 flex-shrink-0">Repos</span><div class="flex flex-wrap gap-1">${repos}</div></div>`);
+  }
+  if (d.depends && d.depends.length) {
+    const depends = d.depends.map(dep => `<span class="inline-block px-2 py-0.5 rounded text-[11px]" style="background:var(--bg-hover)">${esc(dep)}</span>`).join(' ');
+    details.push(`<div class="flex gap-2"><span class="text-zinc-500 w-20 flex-shrink-0">Depends</span><div class="flex flex-wrap gap-1">${depends}</div></div>`);
+  }
+  if (d.rules && d.rules.length) {
+    const rules = d.rules.map(rule => `<li class="text-sm" style="color:var(--text-2)">${esc(rule)}</li>`).join('');
+    details.push(`<div class="flex gap-2"><span class="text-zinc-500 w-20 flex-shrink-0">Rules</span><ul class="list-disc list-inside">${rules}</ul></div>`);
+  }
+  if (details.length) {
+    html += `<section class="mb-6"><div class="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Feature Details</div><div class="space-y-2">${details.join('')}</div></section>`;
+  }
+
+  if (d.subtasks && d.subtasks.length) {
+    const subtasks = d.subtasks.map(st => {
+      const done = st.status === 'done';
+      const icon = done ? '<span class="text-emerald-400">✓</span>' : '<span class="text-zinc-600">○</span>';
+      const id = st.id ? `<span class="text-[11px] text-zinc-500">${esc(st.id)}</span>` : '';
+      const desc = st.description ? `<div class="text-[11px] ml-5 mt-0.5" style="color:var(--text-3)">${esc(st.description)}</div>` : '';
+      return `<div>${icon} ${id} <span class="text-sm" style="color:${done ? 'var(--text-3)' : 'var(--text-2)'}">${esc(st.name)}</span>${desc}</div>`;
+    }).join('');
+    html += `<section class="mb-6"><div class="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Subtasks</div><div class="space-y-1">${subtasks}</div></section>`;
+  }
+
+  if (d.spec) html += renderDocSection('Spec', d.specSource);
+  if (d.plan) html += renderDocSection('Plan', d.planSource);
+
+  el.innerHTML = html || '<div class="text-zinc-600 text-sm mt-8 text-center">No overview data</div>';
+}
+
+function renderDocSection(title, source) {
+  const id = 'doc-' + title.toLowerCase();
+  const srcLine = source ? `<span class="text-[11px] truncate" style="color:var(--text-4)">${esc(source)}</span>` : '';
+  return `<section class="mb-6"><button type="button" class="w-full flex items-center gap-2 text-left py-2 border-t" style="border-color:var(--border)" onclick="toggleDocSection('${id}')"><span class="text-xs font-bold text-zinc-500 uppercase tracking-wider">${esc(title)}</span>${srcLine}<span id="${id}-chevron" class="text-zinc-600 text-xs ml-auto">▶</span></button><div id="${id}-body" class="mt-2 md-body text-sm hidden" style="color:var(--text-2);max-height:70vh;overflow-y:auto"></div></section>`;
+}
+
+function toggleDocSection(id) {
+  const body = document.getElementById(id + '-body');
+  const chevron = document.getElementById(id + '-chevron');
+  const opening = body.classList.contains('hidden');
+  body.classList.toggle('hidden');
+  chevron.textContent = opening ? '▼' : '▶';
+  if (opening && !body.dataset.rendered) {
+    const key = id.replace('doc-', '');
+    const data = overviewCache[current];
+    const content = data ? data[key] || '' : '';
+    body.innerHTML = typeof marked !== 'undefined' ? marked.parse(content) : '<pre>' + esc(content) + '</pre>';
+    body.dataset.rendered = '1';
+  }
+}
+
+function switchDetailTab(tab) {
+  activeDetailTab = tab;
+  setDetailTabUI(tab);
+  if (tab !== 'messages') disconnectSSE();
+  if (tab !== 'logs') disconnectLogSSE();
+  if (tab === 'overview' && current) loadOverview(current);
+  if (tab === 'messages' && current) { connectSSE(current); loadMessages(current); }
   if (tab === 'logs' && current) loadLogs(current);
 }
 

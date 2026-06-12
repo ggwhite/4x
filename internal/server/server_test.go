@@ -412,3 +412,117 @@ func TestPutSettings_MethodNotAllowed(t *testing.T) {
 		t.Fatalf("status = %d, want 405", rec.Code)
 	}
 }
+
+func TestGetOverview(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	designDir := filepath.Join(ws.Root, "docs", "design")
+	if err := os.MkdirAll(designDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(designDir, "test-feat-spec.md"), []byte("# Spec\ntest spec content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(designDir, "test-feat-plan.md"), []byte("# Plan\ntest plan content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/overview/test-feat", "")
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	var info overviewInfo
+	if err := json.NewDecoder(rec.Body).Decode(&info); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if info.ID != "test-feat" {
+		t.Errorf("ID = %s, want test-feat", info.ID)
+	}
+	if info.Name != "Test Feature" {
+		t.Errorf("Name = %s, want Test Feature", info.Name)
+	}
+	if info.Spec != "# Spec\ntest spec content" {
+		t.Errorf("Spec = %q, want spec content", info.Spec)
+	}
+	if info.SpecSource != "docs/design/test-feat-spec.md" {
+		t.Errorf("SpecSource = %q, want docs/design/test-feat-spec.md", info.SpecSource)
+	}
+	if info.Plan != "# Plan\ntest plan content" {
+		t.Errorf("Plan = %q, want plan content", info.Plan)
+	}
+	if info.PlanSource != "docs/design/test-feat-plan.md" {
+		t.Errorf("PlanSource = %q, want docs/design/test-feat-plan.md", info.PlanSource)
+	}
+}
+
+func TestGetOverview_NotFound(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/overview/nonexistent", "")
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+}
+
+func TestGetOverview_NoDocs(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/overview/test-feat", "")
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	var info overviewInfo
+	if err := json.NewDecoder(rec.Body).Decode(&info); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if info.Spec != "" {
+		t.Errorf("Spec should be empty, got %q", info.Spec)
+	}
+	if info.SpecSource != "" {
+		t.Errorf("SpecSource should be empty, got %q", info.SpecSource)
+	}
+	if info.Plan != "" {
+		t.Errorf("Plan should be empty, got %q", info.Plan)
+	}
+	if info.PlanSource != "" {
+		t.Errorf("PlanSource should be empty, got %q", info.PlanSource)
+	}
+}
+
+func TestGetOverview_YAMLPathOverride(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	specDir := filepath.Join(ws.Root, "custom")
+	if err := os.MkdirAll(specDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(specDir, "my-spec.md"), []byte("custom spec"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	f, err := ws.LoadFeature("test-feat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Spec = "custom/my-spec.md"
+	if err := ws.SaveFeature(f); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/overview/test-feat", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	var info overviewInfo
+	if err := json.NewDecoder(rec.Body).Decode(&info); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if info.Spec != "custom spec" {
+		t.Errorf("Spec = %q, want custom spec", info.Spec)
+	}
+	if info.SpecSource != "custom/my-spec.md" {
+		t.Errorf("SpecSource = %q, want custom/my-spec.md", info.SpecSource)
+	}
+}
