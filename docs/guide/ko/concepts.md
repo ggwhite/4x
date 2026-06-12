@@ -87,7 +87,7 @@ init → designing → coding → reviewing → testing → accepting → pendin
 ├── features/
 │   └── {id}.yaml                    # 기능 정의 (정식 소스)
 └── {feature-id}/
-    ├── state.json                   # 단계, 역할, 라운드, 활성, 러너, 중지 사유
+    ├── state.json                   # 단계, 역할, 라운드, 활성, 러너, runners, 중지 사유
     ├── events.jsonl                 # 감사 추적
     ├── baseline.json                # 코딩 전 스냅샷 (HEAD, 브랜치, dirty 파일)
     ├── task-brief.md                # Designer → Coder: 스펙 + 아키텍처

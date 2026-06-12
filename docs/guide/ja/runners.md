@@ -25,12 +25,18 @@
 
 | ランナー | プラグインファイル | ルートインポート |
 |---|---|---|
-| claude | `SKILL.md` + `workflow.js` | CLAUDE.md |
+| claude | `CLAUDE.md` | CLAUDE.md |
 | codex | `AGENTS.md` + `codex.json` | AGENTS.md |
 | gemini | `GEMINI.md` | GEMINI.md |
 | agy | `AGY.md` | AGY.md |
 | copilot | `AGENTS.md` + `workflow.js` | AGENTS.md |
 | cursor | `.cursorrules` | .cursorrules |
+
+また、共有指示ファイルがすべてのランナー向けに `.4x/plugins/shared/` にデプロイされます：
+
+| ファイル | 用途 |
+|---|---|
+| `shared/CREATOR.md` | Feature Creator フロー — AI が `4x new` でフィーチャーを作成するのをガイド |
 
 バイナリの更新後は `4x upgrade` でプラグインファイルを再デプロイしてください。
 

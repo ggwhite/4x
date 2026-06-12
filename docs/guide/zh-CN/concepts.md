@@ -87,7 +87,7 @@ init → designing → coding → reviewing → testing → accepting → pendin
 ├── features/
 │   └── {id}.yaml                    # Feature definition (canonical source)
 └── {feature-id}/
-    ├── state.json                   # Phase, role, round, active, runner, stopReason
+    ├── state.json                   # Phase, role, round, active, runner, runners, stopReason
     ├── events.jsonl                 # Audit trail
     ├── baseline.json                # Pre-coding snapshot (HEAD, branch, dirty files)
     ├── task-brief.md                # Designer → Coder: spec + architecture

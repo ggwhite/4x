@@ -25,12 +25,13 @@
 建立一個新的 feature。
 
 ```
-4x new "Feature title" [--repo <repo>...]
+4x new "Feature title" [--repo <repo>...] [--json]
 ```
 
 | 旗標 | 說明 |
 |---|---|
 | `--repo` | 範圍內的 repository（可重複用於多 repo feature） |
+| `--json` | 以 JSON 格式輸出 |
 
 建立 `.4x/features/F{NNN}-{slug}.yaml`，狀態為 `not-started`。
 
@@ -50,8 +51,11 @@
 | `--max-rounds` | `5` | 最大迴圈迭代次數 |
 | `--timeout` | `3600` | 每階段逾時秒數 |
 | `--dry-run` | `false` | 印出角色 prompt 但不呼叫 LLM |
+| `--json` | `false` | 啟動執行並立即以 JSON 格式回傳 |
 
 迴圈驅動：init → designing → coding → reviewing → testing → accepting → pending-review。Review 失敗時，code 會再跑一輪。Test 失敗時，迴圈重新進入 coding。
+
+如果 feature 處於 `blocked` 或 `needs-attention` 階段，會根據當前角色自動恢復到適當的恢復階段。
 
 自動檢查依賴閘門 — 如果被依賴的 feature 未完成則阻擋。
 
@@ -67,7 +71,13 @@
 4x status              # 所有 feature，按狀態分組
 4x status <feature-id> # 單一 feature 詳情含子任務
 4x status --pending    # 篩選 pending-review 的 feature
+4x status --json       # 以 JSON 格式輸出
 ```
+
+| 旗標 | 說明 |
+|---|---|
+| `--pending` | 篩選 pending-review 的 feature |
+| `--json` | 以 JSON 格式輸出 |
 
 分組：Running、Review、Pending、Todo、Done（done 最多顯示 5 個）。包含 backlog drift 警告。
 
@@ -94,13 +104,14 @@
 強制狀態轉換。
 
 ```
-4x transition <feature-id> --to <phase> [--role <role>]
+4x transition <feature-id> --to <phase> [--role <role>] [--json]
 ```
 
 | 旗標 | 說明 |
 |---|---|
 | `--to` | 目標階段（必填） |
 | `--role` | 執行轉換的角色 |
+| `--json` | 以 JSON 格式輸出 |
 
 驗證轉換是否合乎狀態機規則。如果狀態不存在則自動初始化。`testing → accepting` 轉換會執行額外的閘門（verify.json、test-report.md、final-report.md、commit-plan.md 必須存在且驗證必須通過）。
 

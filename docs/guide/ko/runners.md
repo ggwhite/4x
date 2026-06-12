@@ -25,12 +25,18 @@
 
 | 러너 | 플러그인 파일 | 루트 임포트 |
 |---|---|---|
-| claude | `SKILL.md` + `workflow.js` | CLAUDE.md |
+| claude | `CLAUDE.md` | CLAUDE.md |
 | codex | `AGENTS.md` + `codex.json` | AGENTS.md |
 | gemini | `GEMINI.md` | GEMINI.md |
 | agy | `AGY.md` | AGY.md |
 | copilot | `AGENTS.md` + `workflow.js` | AGENTS.md |
 | cursor | `.cursorrules` | .cursorrules |
+
+또한 공유 지시 파일이 모든 러너용으로 `.4x/plugins/shared/`에 배포됩니다:
+
+| 파일 | 용도 |
+|---|---|
+| `shared/CREATOR.md` | Feature Creator 흐름 — AI가 `4x new`로 기능을 생성하도록 안내 |
 
 바이너리를 업데이트한 후 `4x upgrade`를 사용하여 플러그인 파일을 다시 배포하세요.
 

@@ -25,12 +25,18 @@ Runner 在 `.4x/settings.json` 的 `runners` 區段中設定。CLI 以子程序�
 
 | Runner | Plugin 檔案 | 根層級 Import |
 |---|---|---|
-| claude | `SKILL.md` + `workflow.js` | CLAUDE.md |
+| claude | `CLAUDE.md` | CLAUDE.md |
 | codex | `AGENTS.md` + `codex.json` | AGENTS.md |
 | gemini | `GEMINI.md` | GEMINI.md |
 | agy | `AGY.md` | AGY.md |
 | copilot | `AGENTS.md` + `workflow.js` | AGENTS.md |
 | cursor | `.cursorrules` | .cursorrules |
+
+此外，共用指令檔會部署到 `.4x/plugins/shared/` 供所有 runner 使用：
+
+| 檔案 | 用途 |
+|---|---|
+| `shared/CREATOR.md` | Feature Creator 流程 — 引導 AI 透過 `4x new` 建立 feature |
 
 更新 binary 後使用 `4x upgrade` 重新部署 plugin 檔。
 

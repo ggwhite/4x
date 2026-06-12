@@ -67,8 +67,10 @@ Creada por `4x init`. Contiene metadatos del proyecto, definiciones de runners y
 | `command` | Nombre del ejecutable |
 | `args` | Argumentos. `{prompt}` y `{promptFile}` se reemplazan en tiempo de ejecución. `{model}` se reemplaza con el modelo del rol. |
 | `model` | Modelo predeterminado para este runner |
+| `model_map` | Mapeo de nombres de modelo de rol a nombres específicos del runner (ej: `{"opus": "claude-opus-4-5-20250514"}`). Orden de búsqueda: modelo del rol → traducción model_map → nombre original como respaldo. |
 | `tty` | Usar PTY para capturar salida (necesario para herramientas CLI con salida ANSI como Claude Code) |
 | `stdin` | Enviar el prompt vía stdin en lugar de argumento (usado por Codex) |
+| `quiet` | Suprime la salida stdout del runner en la terminal; la salida se sigue capturando en archivos de log. |
 
 Si `{model}` no está presente en `args`, el runner agrega automáticamente `--model <model>`.
 

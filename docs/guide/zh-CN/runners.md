@@ -25,12 +25,18 @@ Runner 在 `.4x/settings.json` 的 `runners` 键下配置。CLI 以子进程方�
 
 | Runner | 插件文件 | 根目录导入 |
 |---|---|---|
-| claude | `SKILL.md` + `workflow.js` | CLAUDE.md |
+| claude | `CLAUDE.md` | CLAUDE.md |
 | codex | `AGENTS.md` + `codex.json` | AGENTS.md |
 | gemini | `GEMINI.md` | GEMINI.md |
 | agy | `AGY.md` | AGY.md |
 | copilot | `AGENTS.md` + `workflow.js` | AGENTS.md |
 | cursor | `.cursorrules` | .cursorrules |
+
+此外，共用指令文件会部署到 `.4x/plugins/shared/` 供所有 runner 使用：
+
+| 文件 | 用途 |
+|---|---|
+| `shared/CREATOR.md` | Feature Creator 流程 — 引导 AI 通过 `4x new` 创建 feature |
 
 更新二进制文件后，使用 `4x upgrade` 重新部署插件文件。
 

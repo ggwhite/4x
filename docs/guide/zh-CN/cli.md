@@ -25,12 +25,13 @@
 创建新 feature。
 
 ```
-4x new "Feature title" [--repo <repo>...]
+4x new "Feature title" [--repo <repo>...] [--json]
 ```
 
 | 标志 | 说明 |
 |---|---|
 | `--repo` | 范围内的仓库（可重复使用，用于多仓库 feature） |
+| `--json` | 以 JSON 格式输出 |
 
 创建状态为 `not-started` 的 `.4x/features/F{NNN}-{slug}.yaml`。
 
@@ -50,8 +51,11 @@
 | `--max-rounds` | `5` | 最大循环迭代次数 |
 | `--timeout` | `3600` | 每阶段超时时间（秒） |
 | `--dry-run` | `false` | 打印角色 prompt 但不调用 LLM |
+| `--json` | `false` | 启动运行并立即以 JSON 格式返回 |
 
 循环驱动：init → designing → coding → reviewing → testing → accepting → pending-review。审查失败时，编码者再做一轮。测试失败时，循环重新进入编码阶段。
+
+如果 feature 处于 `blocked` 或 `needs-attention` 阶段，会根据当前角色自动恢复到适当的恢复阶段。
 
 自动检查依赖关卡 — 如果被依赖的 feature 未完成则阻塞。
 
@@ -67,7 +71,13 @@
 4x status              # all features, grouped by state
 4x status <feature-id> # single feature details with subtasks
 4x status --pending    # filter pending-review features
+4x status --json       # output as JSON
 ```
+
+| 标志 | 说明 |
+|---|---|
+| `--pending` | 筛选待审核功能 |
+| `--json` | 以 JSON 格式输出 |
 
 分组：Running、Review、Pending、Todo、Done（done 最多显示 5 个）。包含 backlog 偏差警告。
 
@@ -94,13 +104,14 @@
 强制状态转换。
 
 ```
-4x transition <feature-id> --to <phase> [--role <role>]
+4x transition <feature-id> --to <phase> [--role <role>] [--json]
 ```
 
 | 标志 | 说明 |
 |---|---|
 | `--to` | 目标阶段（必填） |
 | `--role` | 执行转换的角色 |
+| `--json` | 以 JSON 格式输出 |
 
 验证转换是否符合状态机的合法规则。如果状态不存在则自动初始化。`testing → accepting` 转换会运行额外的关卡检查（verify.json、test-report.md、final-report.md、commit-plan.md 必须存在且验证必须通过）。
 

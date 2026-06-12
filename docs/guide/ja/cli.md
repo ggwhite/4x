@@ -25,12 +25,13 @@
 新しい Feature を作成します。
 
 ```
-4x new "Feature title" [--repo <repo>...]
+4x new "Feature title" [--repo <repo>...] [--json]
 ```
 
 | フラグ | 説明 |
 |---|---|
 | `--repo` | スコープ内のリポジトリ（マルチリポジトリの場合に繰り返し指定可能） |
+| `--json` | JSON 形式で出力 |
 
 ステータス `not-started` で `.4x/features/F{NNN}-{slug}.yaml` を作成します。
 
@@ -50,8 +51,11 @@ Feature に対して Design-Code-Review-Test ループを実行します。
 | `--max-rounds` | `5` | ループの最大イテレーション数 |
 | `--timeout` | `3600` | フェーズごとのタイムアウト（秒） |
 | `--dry-run` | `false` | LLM を呼び出さずにロールプロンプトを表示 |
+| `--json` | `false` | 実行を開始し JSON 形式で即座に返す |
 
 ループの流れ：init → designing → coding → reviewing → testing → accepting → pending-review。レビュー失敗時はコードが再実行されます。テスト失敗時はコーディングに戻ります。
+
+フィーチャーが `blocked` または `needs-attention` フェーズにある場合、現在のロールに基づいて適切な再開フェーズに自動復旧します。
 
 依存関係ゲートを自動チェックします -- 依存先の Feature が完了していない場合はブロックされます。
 
@@ -67,7 +71,13 @@ Feature のステータスを表示します。
 4x status              # 全 Feature を状態別にグループ表示
 4x status <feature-id> # 単一 Feature の詳細とサブタスク
 4x status --pending    # pending-review の Feature をフィルタ
+4x status --json       # JSON 形式で出力
 ```
+
+| フラグ | 説明 |
+|---|---|
+| `--pending` | pending-review の Feature をフィルタ |
+| `--json` | JSON 形式で出力 |
 
 グループ：Running、Review、Pending、Todo、Done（done は最大5件表示）。バックログドリフト警告を含みます。
 
@@ -94,13 +104,14 @@ Feature のステータスを表示します。
 状態遷移を強制します。
 
 ```
-4x transition <feature-id> --to <phase> [--role <role>]
+4x transition <feature-id> --to <phase> [--role <role>] [--json]
 ```
 
 | フラグ | 説明 |
 |---|---|
 | `--to` | 遷移先のフェーズ（必須） |
 | `--role` | 遷移を実行するロール |
+| `--json` | JSON 形式で出力 |
 
 ステートマシンに従って遷移が合法かを検証します。状態が存在しない場合は自動初期化します。`testing → accepting` の遷移では追加ゲートが実行されます（verify.json、test-report.md、final-report.md、commit-plan.md が存在し、verify が合格している必要があります）。
 

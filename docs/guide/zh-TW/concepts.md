@@ -87,7 +87,7 @@ init → designing → coding → reviewing → testing → accepting → pendin
 ├── features/
 │   └── {id}.yaml                    # Feature 定義（正式來源）
 └── {feature-id}/
-    ├── state.json                   # 階段、角色、輪次、是否活躍、runner、停止原因
+    ├── state.json                   # 階段、角色、輪次、是否活躍、runner、runners、停止原因
     ├── events.jsonl                 # 審計軌跡
     ├── baseline.json                # 編碼前快照（HEAD、branch、dirty 檔案）
     ├── task-brief.md                # Designer → Coder：spec + 架構

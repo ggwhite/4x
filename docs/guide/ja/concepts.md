@@ -87,7 +87,7 @@ init → designing → coding → reviewing → testing → accepting → pendin
 ├── features/
 │   └── {id}.yaml                    # Feature 定義（正規ソース）
 └── {feature-id}/
-    ├── state.json                   # フェーズ、ロール、ラウンド、アクティブ、ランナー、停止理由
+    ├── state.json                   # フェーズ、ロール、ラウンド、アクティブ、ランナー、runners、停止理由
     ├── events.jsonl                 # 監査証跡
     ├── baseline.json                # コーディング前のスナップショット（HEAD、ブランチ、ダーティファイル）
     ├── task-brief.md                # Designer → Coder: 仕様 + アーキテクチャ

@@ -67,8 +67,10 @@
 | `command` | 可執行檔名稱 |
 | `args` | 參數。`{prompt}` 和 `{promptFile}` 會在執行時被替換。`{model}` 會被替換為該角色的模型。 |
 | `model` | 此 runner 的預設模型 |
+| `model_map` | 角色模型名稱與 runner 專用名稱的對應表（例：`{"opus": "claude-opus-4-5-20250514"}`）。查找順序：角色 model → model_map 翻譯 → 回退原名。 |
 | `tty` | 使用 PTY 擷取輸出（Claude Code 等有 ANSI 輸出的 CLI 工具需要） |
 | `stdin` | 透過 stdin 而非參數傳送 prompt（Codex 使用） |
+| `quiet` | 抑制 runner 的終端 stdout 輸出；輸出仍會寫入 log 檔案 |
 
 如果 `args` 中沒有 `{model}`，runner 會自動附加 `--model <model>`。
 

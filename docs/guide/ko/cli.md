@@ -25,12 +25,13 @@
 새 기능을 생성합니다.
 
 ```
-4x new "Feature title" [--repo <repo>...]
+4x new "Feature title" [--repo <repo>...] [--json]
 ```
 
 | 플래그 | 설명 |
 |---|---|
 | `--repo` | 범위에 포함할 리포지토리 (멀티 리포 기능에서 반복 사용 가능) |
+| `--json` | JSON 형식으로 출력 |
 
 `.4x/features/F{NNN}-{slug}.yaml`을 `not-started` 상태로 생성합니다.
 
@@ -50,8 +51,11 @@
 | `--max-rounds` | `5` | 최대 루프 반복 횟수 |
 | `--timeout` | `3600` | 단계별 타임아웃 (초) |
 | `--dry-run` | `false` | LLM 호출 없이 역할 프롬프트만 출력 |
+| `--json` | `false` | 실행을 시작하고 JSON을 즉시 반환 |
 
 루프는 다음을 수행합니다: init → designing → coding → reviewing → testing → accepting → pending-review. 리뷰 실패 시 코드가 다시 수행됩니다. 테스트 실패 시 루프가 코딩으로 재진입합니다.
+
+기능이 `blocked` 또는 `needs-attention` 단계에 있으면 현재 역할에 따라 적절한 재개 단계로 자동 복구합니다.
 
 의존성 게이트를 자동 확인합니다 — 의존 기능이 완료되지 않으면 차단됩니다.
 
@@ -67,7 +71,13 @@
 4x status              # 모든 기능, 상태별 그룹화
 4x status <feature-id> # 단일 기능 상세 정보 및 하위 작업
 4x status --pending    # pending-review 기능 필터링
+4x status --json       # JSON으로 출력
 ```
+
+| 플래그 | 설명 |
+|---|---|
+| `--pending` | pending-review 기능 필터링 |
+| `--json` | JSON 형식으로 출력 |
 
 그룹: Running, Review, Pending, Todo, Done (done은 최대 5개 표시). 백로그 드리프트 경고를 포함합니다.
 
@@ -94,13 +104,14 @@
 상태 전환을 강제합니다.
 
 ```
-4x transition <feature-id> --to <phase> [--role <role>]
+4x transition <feature-id> --to <phase> [--role <role>] [--json]
 ```
 
 | 플래그 | 설명 |
 |---|---|
 | `--to` | 대상 단계 (필수) |
 | `--role` | 전환을 수행하는 역할 |
+| `--json` | JSON 형식으로 출력 |
 
 상태 머신에 따라 전환이 합법적인지 검증합니다. 상태가 없으면 자동 초기화합니다. `testing → accepting` 전환은 추가 게이트를 실행합니다 (verify.json, test-report.md, final-report.md, commit-plan.md가 존재해야 하며 검증을 통과해야 함).
 

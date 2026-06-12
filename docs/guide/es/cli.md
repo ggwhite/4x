@@ -25,12 +25,13 @@ Inicializar un workspace `.4x/` en el directorio actual.
 Crear un nuevo feature.
 
 ```
-4x new "Feature title" [--repo <repo>...]
+4x new "Feature title" [--repo <repo>...] [--json]
 ```
 
 | Bandera | Descripción |
 |---|---|
 | `--repo` | Repositorio dentro del alcance (repetible para features multi-repo) |
+| `--json` | Salida en formato JSON |
 
 Crea `.4x/features/F{NNN}-{slug}.yaml` con estado `not-started`.
 
@@ -50,8 +51,11 @@ Ejecutar el ciclo Design-Code-Review-Test para un feature.
 | `--max-rounds` | `5` | Iteraciones máximas del ciclo |
 | `--timeout` | `3600` | Timeout por fase en segundos |
 | `--dry-run` | `false` | Imprimir prompts de roles sin llamar al LLM |
+| `--json` | `false` | Iniciar ejecución y devolver JSON inmediatamente |
 
 El ciclo ejecuta: init → designing → coding → reviewing → testing → accepting → pending-review. En fallo de review, code recibe otra pasada. En fallo de test, el ciclo re-entra en coding.
+
+Si la función está en fase `blocked` o `needs-attention`, se recupera automáticamente a la fase de reanudación apropiada según el rol actual.
 
 Verifica automáticamente la compuerta de dependencias — bloquea si los features dependientes no están completados.
 
@@ -67,7 +71,13 @@ Mostrar estado de features.
 4x status              # all features, grouped by state
 4x status <feature-id> # single feature details with subtasks
 4x status --pending    # filter pending-review features
+4x status --json       # output as JSON
 ```
+
+| Bandera | Descripción |
+|---|---|
+| `--pending` | Filtrar features en pending-review |
+| `--json` | Salida en formato JSON |
 
 Grupos: Running, Review, Pending, Todo, Done (done muestra máximo 5). Incluye advertencias de desvío del backlog.
 
@@ -94,13 +104,14 @@ Verifica: archivos requeridos, baseline, alcance, dependencias, desvío del back
 Forzar una transición de estado.
 
 ```
-4x transition <feature-id> --to <phase> [--role <role>]
+4x transition <feature-id> --to <phase> [--role <role>] [--json]
 ```
 
 | Bandera | Descripción |
 |---|---|
 | `--to` | Fase objetivo (requerido) |
 | `--role` | Rol que realiza la transición |
+| `--json` | Salida en formato JSON |
 
 Valida que la transición sea legal según la máquina de estados. Auto-inicializa el estado si no existe. La transición `testing → accepting` ejecuta compuertas adicionales (verify.json, test-report.md, final-report.md, commit-plan.md deben existir y la verificación debe aprobar).
 

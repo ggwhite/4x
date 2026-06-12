@@ -25,12 +25,18 @@ Cada runner tiene archivos de instrucciones embebidos en el binario de `4x`. `4x
 
 | Runner | Archivo de plugin | Importación raíz |
 |---|---|---|
-| claude | `SKILL.md` + `workflow.js` | CLAUDE.md |
+| claude | `CLAUDE.md` | CLAUDE.md |
 | codex | `AGENTS.md` + `codex.json` | AGENTS.md |
 | gemini | `GEMINI.md` | GEMINI.md |
 | agy | `AGY.md` | AGY.md |
 | copilot | `AGENTS.md` + `workflow.js` | AGENTS.md |
 | cursor | `.cursorrules` | .cursorrules |
+
+Además, los archivos de instrucciones compartidos se despliegan en `.4x/plugins/shared/` para todos los runners:
+
+| Archivo | Propósito |
+|---|---|
+| `shared/CREATOR.md` | Flujo de Feature Creator — guía a la IA para crear features con `4x new` |
 
 Usa `4x upgrade` para volver a desplegar archivos de plugins después de actualizar el binario.
 
