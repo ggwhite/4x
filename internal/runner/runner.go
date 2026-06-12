@@ -3,8 +3,10 @@ package runner
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -18,6 +20,7 @@ const ExitHardError = 2
 type Result struct {
 	ExitCode    int
 	DurationSec float64
+	LogFile     string
 }
 
 // Runner 定義 plugin 的呼叫介面
@@ -31,6 +34,7 @@ type SubprocessRunner struct {
 	Config    protocol.RunnerConfig
 	Name      string
 	Timeout   time.Duration
+	LogPath   string
 }
 
 // Run 用 config 的 command/args 執行，替換 {prompt} 和 {promptFile}
@@ -46,10 +50,25 @@ func (r *SubprocessRunner) Run(ctx context.Context, prompt string) (*Result, err
 		defer cleanup()
 	}
 
+	var logFile *os.File
+	if r.LogPath != "" {
+		if err := os.MkdirAll(filepath.Dir(r.LogPath), 0o755); err == nil {
+			if f, err := os.Create(r.LogPath); err == nil {
+				logFile = f
+				defer logFile.Close()
+			}
+		}
+	}
+
 	start := time.Now()
 	cmd := exec.CommandContext(ctx, r.Config.Command, args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	if logFile != nil {
+		cmd.Stdout = io.MultiWriter(os.Stdout, logFile)
+		cmd.Stderr = io.MultiWriter(os.Stderr, logFile)
+	} else {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	}
 	cmd.Dir = r.Workspace.Root
 	if r.Config.Stdin {
 		cmd.Stdin = strings.NewReader(prompt)
@@ -59,10 +78,13 @@ func (r *SubprocessRunner) Run(ctx context.Context, prompt string) (*Result, err
 	duration := time.Since(start).Seconds()
 
 	result := &Result{DurationSec: duration}
+	if logFile != nil {
+		result.LogFile = r.LogPath
+	}
 
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
-			return &Result{ExitCode: ExitSoftFail, DurationSec: duration},
+			return &Result{ExitCode: ExitSoftFail, DurationSec: duration, LogFile: r.LogPath},
 				fmt.Errorf("runner %s timed out after %v", r.Name, r.Timeout)
 		}
 		if exitErr, ok := err.(*exec.ExitError); ok {
@@ -108,11 +130,23 @@ func IsHardError(r *Result) bool {
 	return r != nil && r.ExitCode == ExitHardError
 }
 
-func NewRunner(ws *protocol.Workspace, name string, cfg protocol.RunnerConfig, timeout time.Duration) Runner {
+// NewRunner 建立 SubprocessRunner，logPath 為空字串時不產生 log file
+func NewRunner(ws *protocol.Workspace, name string, cfg protocol.RunnerConfig, timeout time.Duration, logPath string) Runner {
 	return &SubprocessRunner{
 		Workspace: ws,
 		Config:    cfg,
 		Name:      name,
 		Timeout:   timeout,
+		LogPath:   logPath,
 	}
+}
+
+// LogDir 回傳 .4x/<featureId>/logs/ 的路徑
+func LogDir(ws *protocol.Workspace, featureID string) string {
+	return filepath.Join(ws.FeatureDir(featureID), "logs")
+}
+
+// LogFileName 產生 log 檔名：round-<N>-<role>.log
+func LogFileName(round int, role string) string {
+	return fmt.Sprintf("round-%d-%s.log", round, role)
 }

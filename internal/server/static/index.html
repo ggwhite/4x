@@ -106,10 +106,18 @@
         <span id="h-badge" class="ml-auto"></span>
       </div>
       <div id="h-meta" class="flex items-center gap-4 mt-2 text-xs" style="color:var(--text-4)"></div>
+      <div id="detail-tabs" class="flex gap-4 mt-3 border-t pt-2" style="border-color:var(--border)">
+        <button class="detail-tab text-xs font-semibold pb-1 border-b-2 border-emerald-500 text-emerald-400" data-tab="messages" onclick="switchDetailTab('messages')">Messages</button>
+        <button class="detail-tab text-xs font-semibold pb-1 border-b-2 border-transparent text-zinc-500 hover:text-zinc-300" data-tab="logs" onclick="switchDetailTab('logs')">Logs</button>
+      </div>
     </div>
     <div class="flex-1 overflow-y-auto p-6" id="main">
       <div id="dashboard"></div>
       <div id="messages" class="space-y-4 hidden"></div>
+      <div id="logs-panel" class="hidden">
+        <div id="logs-list" class="space-y-2"></div>
+        <pre id="log-viewer" class="hidden mt-4 p-4 rounded-lg text-xs leading-relaxed overflow-x-auto" style="background:var(--bg-2);color:var(--text-3);max-height:70vh;overflow-y:auto"></pre>
+      </div>
     </div>
   </div>
 </div>
@@ -457,11 +465,13 @@ function badge(status, phase, active) {
 }
 
 function goHome() {
-  current=null; lastMsgCount=0; disconnectSSE();
+  current=null; lastMsgCount=0; disconnectSSE(); disconnectLogSSE();
   document.getElementById('header').classList.add('hidden');
   document.getElementById('messages').classList.add('hidden');
   document.getElementById('messages').innerHTML = '';
+  document.getElementById('logs-panel').classList.add('hidden');
   document.getElementById('dashboard').classList.remove('hidden');
+  activeDetailTab = 'messages';
   if (activeProjectId) { load(); renderDashboard(lastTasks); } else renderProjectPicker();
 }
 function connectSSE(fid) { disconnectSSE(); sseSource = new EventSource(sseBase()+'/events/'+fid); sseSource.onmessage = () => { loadMessages(fid); }; }
@@ -545,6 +555,15 @@ async function loadDetail(t) {
   if (t.round) meta.push(`<span>⟳ Round ${t.round}</span>`);
   if (t.runner) meta.push(`<span>⬡ ${t.runner}</span>`);
   document.getElementById('h-meta').innerHTML = meta.join('<span class="text-zinc-700">·</span>');
+  disconnectLogSSE();
+  activeDetailTab = 'messages';
+  document.getElementById('logs-panel').classList.add('hidden');
+  document.querySelectorAll('.detail-tab').forEach(b => {
+    b.classList.toggle('border-emerald-500', b.dataset.tab === 'messages');
+    b.classList.toggle('text-emerald-400', b.dataset.tab === 'messages');
+    b.classList.toggle('border-transparent', b.dataset.tab !== 'messages');
+    b.classList.toggle('text-zinc-500', b.dataset.tab !== 'messages');
+  });
   connectSSE(t.id); loadMessages(t.id);
 }
 
@@ -568,6 +587,64 @@ async function loadMessages(id) {
   if (list.length === 0) el.innerHTML = '<div class="msg-empty text-zinc-600 text-sm mt-8 text-center">No artifacts yet</div>';
   if (newMsgs.length > 0) el.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'end' });
 }
+
+let activeDetailTab = 'messages';
+let logSSE = null;
+function switchDetailTab(tab) {
+  activeDetailTab = tab;
+  document.querySelectorAll('.detail-tab').forEach(b => {
+    const active = b.dataset.tab === tab;
+    b.classList.toggle('border-emerald-500', active);
+    b.classList.toggle('text-emerald-400', active);
+    b.classList.toggle('border-transparent', !active);
+    b.classList.toggle('text-zinc-500', !active);
+  });
+  document.getElementById('messages').classList.toggle('hidden', tab !== 'messages');
+  document.getElementById('logs-panel').classList.toggle('hidden', tab !== 'logs');
+  if (tab === 'logs' && current) loadLogs(current);
+}
+
+async function loadLogs(fid) {
+  const list = document.getElementById('logs-list');
+  const viewer = document.getElementById('log-viewer');
+  const logs = await (await fetch(apiBase()+'/api/logs/'+fid)).json() || [];
+  if (logs.length === 0) {
+    list.innerHTML = '<div class="text-zinc-600 text-sm text-center mt-8">No logs yet</div>';
+    viewer.classList.add('hidden');
+    return;
+  }
+  list.innerHTML = logs.map(l => {
+    const role = l.name.replace(/^round-\d+-/, '').replace(/\.log$/, '');
+    const r = ROLES[role] || {name:role,color:'#666',bg:'rgba(100,100,100,.05)'};
+    const kb = (l.size/1024).toFixed(1);
+    return `<div class="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-zinc-800/50 transition-colors" onclick="viewLog('${fid}','${escAttr(l.name)}')"><span class="w-1.5 h-1.5 rounded-full" style="background:${r.color}"></span><span class="text-xs font-semibold" style="color:${r.color}">${r.name}</span><span class="text-xs text-zinc-500">${esc(l.name)}</span><span class="ml-auto text-[10px] text-zinc-600">${kb}KB</span></div>`;
+  }).join('');
+  connectLogSSE(fid);
+}
+
+async function viewLog(fid, name) {
+  const viewer = document.getElementById('log-viewer');
+  viewer.classList.remove('hidden');
+  const res = await fetch(apiBase()+'/api/logs/'+fid+'/'+name);
+  viewer.textContent = await res.text();
+  viewer.scrollTop = viewer.scrollHeight;
+}
+
+function connectLogSSE(fid) {
+  if (logSSE) { logSSE.close(); logSSE = null; }
+  logSSE = new EventSource(sseBase()+'/logs/'+fid);
+  logSSE.onmessage = (e) => {
+    const viewer = document.getElementById('log-viewer');
+    if (viewer.classList.contains('hidden')) return;
+    try {
+      const d = JSON.parse(e.data);
+      viewer.textContent += d.content;
+      viewer.scrollTop = viewer.scrollHeight;
+    } catch(err) {}
+  };
+}
+
+function disconnectLogSSE() { if (logSSE) { logSSE.close(); logSSE = null; } }
 
 function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
 function escAttr(s) { return s.replace(/&/g,'&amp;').replace(/'/g,'&#39;').replace(/"/g,'&quot;'); }

@@ -123,8 +123,10 @@ func newRunCmd() *cobra.Command {
 				return dryRunLoop(ws, feature, cfg, s)
 			}
 
-			r := runner.NewRunner(runnerWs, runnerName, runnerCfg, time.Duration(timeout)*time.Second)
-			loopErr := runLoop(ws, feature, cfg, s, r)
+			runnerFactory := func(logPath string) runner.Runner {
+				return runner.NewRunner(runnerWs, runnerName, runnerCfg, time.Duration(timeout)*time.Second, logPath)
+			}
+			loopErr := runLoop(ws, feature, cfg, s, runnerFactory)
 
 			if wtPath != "" && s.Phase == protocol.PhaseDone {
 				cleanupWorktree(ws.Root, featureID, wtPath)
@@ -172,7 +174,7 @@ func generatePrompt(ws *protocol.Workspace, feature protocol.Feature, cfg protoc
 	return buf.String(), nil
 }
 
-func runLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s protocol.State, r runner.Runner) error {
+func runLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s protocol.State, newRunner func(logPath string) runner.Runner) error {
 	featureID := feature.ID
 	ctx := context.Background()
 
@@ -205,6 +207,11 @@ func runLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.Conf
 			return nil
 		}
 
+		// 清除上一輪遺留的 escalation，避免 designer escalation 後 coder 重跑又讀到舊的
+		if phase == protocol.PhaseCoding || phase == protocol.PhaseAmending {
+			os.Remove(filepath.Join(ws.RoundDir(featureID, s.Round), protocol.EscalationFile))
+		}
+
 		// 清除上一輪遺留的 feature-level 產出物，避免舊文件通過新一輪的 guard 檢查
 		if phase == protocol.PhaseTesting {
 			os.Remove(filepath.Join(ws.FeatureDir(featureID), protocol.FinalReport))
@@ -225,6 +232,9 @@ func runLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.Conf
 		if err != nil {
 			prompt = fmt.Sprintf("You are the %s for feature %s, round %d. Read .4x/%s/ for context.", role, featureID, s.Round, featureID)
 		}
+
+		logPath := filepath.Join(runner.LogDir(ws, featureID), runner.LogFileName(s.Round, string(role)))
+		r := newRunner(logPath)
 
 		fmt.Printf("[round %d] %s (%s) — invoking %s\n", s.Round, phase, role, s.Runner)
 
@@ -303,6 +313,10 @@ func runLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.Conf
 func nextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) (protocol.Phase, protocol.Role, string) {
 	switch s.Phase {
 	case protocol.PhaseDesigning:
+		brief := filepath.Join(ws.FeatureDir(featureID), protocol.TaskBrief)
+		if _, err := os.Stat(brief); err != nil {
+			return protocol.PhaseNeedsAttention, "", "missing-artifact: " + protocol.TaskBrief
+		}
 		return protocol.PhaseCoding, protocol.RoleCoder, ""
 
 	case protocol.PhaseCoding, protocol.PhaseAmending:
@@ -312,9 +326,17 @@ func nextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) 
 			}
 			return protocol.PhaseNeedsAttention, "", esc.Reason
 		}
+		report := filepath.Join(ws.RoundDir(featureID, s.Round), protocol.CoderReport)
+		if _, err := os.Stat(report); err != nil {
+			return protocol.PhaseNeedsAttention, "", "missing-artifact: " + protocol.CoderReport
+		}
 		return protocol.PhaseReviewing, protocol.RoleReviewer, ""
 
 	case protocol.PhaseReviewing:
+		report := filepath.Join(ws.RoundDir(featureID, s.Round), protocol.ReviewReport)
+		if _, err := os.Stat(report); err != nil {
+			return protocol.PhaseNeedsAttention, "", "missing-artifact: " + protocol.ReviewReport
+		}
 		if reviewPassed(ws, featureID, s.Round) {
 			return protocol.PhaseTesting, protocol.RoleTester, ""
 		}

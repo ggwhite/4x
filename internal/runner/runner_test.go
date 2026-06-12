@@ -179,7 +179,7 @@ func TestNewRunner(t *testing.T) {
 	ws := &protocol.Workspace{Root: root}
 
 	cfg := protocol.RunnerConfig{Command: "claude", Args: []string{"-p", "{prompt}"}}
-	r := NewRunner(ws, "claude", cfg, 30*time.Second)
+	r := NewRunner(ws, "claude", cfg, 30*time.Second, "")
 	if r == nil {
 		t.Fatal("NewRunner returned nil")
 	}

@@ -246,6 +246,26 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 		}
 		compatError(w, len(entries), "/sse/project/{id}/events/{featureId}")
 	})
+	mux.HandleFunc("/api/logs/", func(w http.ResponseWriter, r *http.Request) {
+		entries := reg.List()
+		if len(entries) == 1 {
+			ws := reg.Get(entries[0].ID)
+			rest := strings.TrimPrefix(r.URL.Path, "/api/logs/")
+			handleLogs(ws, rest, w)
+			return
+		}
+		compatError(w, len(entries), "/api/project/{id}/logs/{featureId}")
+	})
+	mux.HandleFunc("/sse/logs/", func(w http.ResponseWriter, r *http.Request) {
+		entries := reg.List()
+		if len(entries) == 1 {
+			ws := reg.Get(entries[0].ID)
+			featureID := strings.TrimPrefix(r.URL.Path, "/sse/logs/")
+			handleLogSSE(ws, featureID, w, r)
+			return
+		}
+		compatError(w, len(entries), "/sse/project/{id}/logs/{featureId}")
+	})
 
 	// Prefix routing: /api/project/{id}/...
 	mux.HandleFunc("/api/project/", func(w http.ResponseWriter, r *http.Request) {
@@ -266,7 +286,7 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 		entry.mux.ServeHTTP(w, r)
 	})
 
-	// SSE prefix routing: /sse/project/{id}/events/{featureId}
+	// SSE prefix routing: /sse/project/{id}/events/{featureId} and /sse/project/{id}/logs/{featureId}
 	mux.HandleFunc("/sse/project/", func(w http.ResponseWriter, r *http.Request) {
 		rest := strings.TrimPrefix(r.URL.Path, "/sse/project/")
 		idx := strings.Index(rest, "/")
@@ -280,8 +300,14 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 			http.Error(w, "project not found", http.StatusNotFound)
 			return
 		}
-		featureID := strings.TrimPrefix(rest[idx:], "/events/")
-		handleSSE(ws, featureID, w, r)
+		sub := rest[idx:]
+		if strings.HasPrefix(sub, "/logs/") {
+			featureID := strings.TrimPrefix(sub, "/logs/")
+			handleLogSSE(ws, featureID, w, r)
+		} else {
+			featureID := strings.TrimPrefix(sub, "/events/")
+			handleSSE(ws, featureID, w, r)
+		}
 	})
 
 	// Browse API：列出指定路徑的子目錄，供前端 folder picker 使用

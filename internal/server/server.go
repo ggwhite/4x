@@ -36,6 +36,14 @@ func NewMux(ws *protocol.Workspace) http.Handler {
 		featureID := strings.TrimPrefix(r.URL.Path, "/sse/events/")
 		handleSSE(ws, featureID, w, r)
 	})
+	mux.HandleFunc("/api/logs/", func(w http.ResponseWriter, r *http.Request) {
+		rest := strings.TrimPrefix(r.URL.Path, "/api/logs/")
+		handleLogs(ws, rest, w)
+	})
+	mux.HandleFunc("/sse/logs/", func(w http.ResponseWriter, r *http.Request) {
+		featureID := strings.TrimPrefix(r.URL.Path, "/sse/logs/")
+		handleLogSSE(ws, featureID, w, r)
+	})
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
 		fmt.Fprint(w, indexHTML)
@@ -242,6 +250,130 @@ func handleSSE(ws *protocol.Workspace, featureID string, w http.ResponseWriter, 
 			flusher.Flush()
 		}
 	}
+}
+
+type logInfo struct {
+	Name string `json:"name"`
+	Size int64  `json:"size"`
+}
+
+// handleLogs 處理 /api/logs/<featureId> 列表或 /api/logs/<featureId>/<filename> 內容
+func handleLogs(ws *protocol.Workspace, rest string, w http.ResponseWriter) {
+	parts := strings.SplitN(rest, "/", 2)
+	featureID := parts[0]
+	logsDir := filepath.Join(ws.FeatureDir(featureID), "logs")
+
+	if len(parts) == 1 || parts[1] == "" {
+		entries, _ := os.ReadDir(logsDir)
+		var logs []logInfo
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".log") {
+				continue
+			}
+			info, err := e.Info()
+			if err != nil {
+				continue
+			}
+			logs = append(logs, logInfo{Name: e.Name(), Size: info.Size()})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(logs)
+		return
+	}
+
+	filename := filepath.Base(parts[1])
+	if !strings.HasSuffix(filename, ".log") {
+		http.Error(w, "invalid log file", 400)
+		return
+	}
+	data, err := os.ReadFile(filepath.Join(logsDir, filename))
+	if err != nil {
+		http.Error(w, "not found", 404)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Write(data)
+}
+
+// handleLogSSE 即時 tail 最新的 log 檔案
+func handleLogSSE(ws *protocol.Workspace, featureID string, w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	flusher.Flush()
+
+	logsDir := filepath.Join(ws.FeatureDir(featureID), "logs")
+	var lastFile string
+	var lastOffset int64
+
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ticker.C:
+			current := findLatestLog(logsDir)
+			if current == "" {
+				continue
+			}
+			if current != lastFile {
+				lastFile = current
+				lastOffset = 0
+			}
+			path := filepath.Join(logsDir, current)
+			info, err := os.Stat(path)
+			if err != nil || info.Size() <= lastOffset {
+				continue
+			}
+			f, err := os.Open(path)
+			if err != nil {
+				continue
+			}
+			if lastOffset > 0 {
+				f.Seek(lastOffset, 0)
+			}
+			buf := make([]byte, info.Size()-lastOffset)
+			n, _ := f.Read(buf)
+			f.Close()
+			if n > 0 {
+				chunk, _ := json.Marshal(map[string]string{"file": current, "content": string(buf[:n])})
+				fmt.Fprintf(w, "data: %s\n\n", chunk)
+			}
+			lastOffset = info.Size()
+			flusher.Flush()
+		}
+	}
+}
+
+func findLatestLog(dir string) string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	var latest string
+	var latestTime time.Time
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".log") {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		if info.ModTime().After(latestTime) {
+			latestTime = info.ModTime()
+			latest = e.Name()
+		}
+	}
+	return latest
 }
 
 func readIfExists(path string) string {
