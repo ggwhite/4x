@@ -300,7 +300,8 @@ const S2T_T = '萬與醜專業叢東絲丟兩嚴喪個豐臨為麗舉麼義烏�
 const _cjkMap = {};
 for (let i = 0; i < S2T_S.length && i < S2T_T.length; i++) { _cjkMap[S2T_T[i]] = S2T_S[i]; if (!_cjkMap[S2T_S[i]]) _cjkMap[S2T_S[i]] = S2T_S[i]; }
 function normCJK(str) { let out = ''; for (const ch of str) out += _cjkMap[ch] || ch; return out.toLowerCase(); }
-function fuzzyMatch(query, text) { const nq = normCJK(query), nt = normCJK(text); if (nt.includes(nq)) return true; let qi = 0; for (let ti = 0; ti < nt.length && qi < nq.length; ti++) { if (nt[ti] === nq[qi]) qi++; } return qi === nq.length; }
+function fuzzyScore(query, text) { const nq = normCJK(query), nt = normCJK(text); if (!nq) return 1; if (nt === nq) return 100; if (nt.startsWith(nq)) return 90; const idx = nt.indexOf(nq); if (idx >= 0) return 80 - idx; let qi = 0; for (let ti = 0; ti < nt.length && qi < nq.length; ti++) { if (nt[ti] === nq[qi]) qi++; } return qi === nq.length ? 50 - (nt.length - nq.length) : 0; }
+function fuzzyMatch(query, text) { return fuzzyScore(query, text) > 0; }
 
 function renderTabs() {
   const el = document.getElementById('tabs');
@@ -431,7 +432,7 @@ function renderSearchResults(query) {
   const sm = query.match(/^@(\S+)\s*(.*)/);
   if (sm) { actualQuery = sm[2]; const tab = openTabs.find(t => t.name.toLowerCase().includes(sm[1].toLowerCase()) || t.id.toLowerCase().includes(sm[1].toLowerCase())); if (tab) scopeId = tab.id; }
   for (const tab of openTabs) { if (scopeId && tab.id !== scopeId) continue; pool.push(...(allTabTasks[tab.id] || [])); }
-  searchFiltered = actualQuery ? pool.filter(t => fuzzyMatch(actualQuery, t.id + ' ' + t.name)) : pool;
+  searchFiltered = actualQuery ? pool.map(t => ({...t, _score: Math.max(fuzzyScore(actualQuery, t.id), fuzzyScore(actualQuery, t.name))})).filter(t => t._score > 0).sort((a, b) => b._score - a._score) : pool;
   if (searchIdx >= searchFiltered.length) searchIdx = Math.max(0, searchFiltered.length - 1);
   el.innerHTML = searchFiltered.map((t, i) => {
     const isActive = t.active && t.phase && t.phase !== 'done';
@@ -440,9 +441,10 @@ function renderSearchResults(query) {
     else if (t.status==='done') b='<span style="padding:2px 8px;font-size:10px;color:var(--text-3);border:1px solid var(--border);border-radius:99px">Done</span>';
     else if (t.status==='blocked') b='<span style="padding:2px 8px;font-size:10px;color:#f87171;border:1px solid rgba(248,113,113,.3);border-radius:99px">Blocked</span>';
     else b='<span style="padding:2px 8px;font-size:10px;color:var(--text-4);border:1px solid var(--border);border-radius:99px">Not Started</span>';
-    return `<div class="search-item ${i===searchIdx?'active':''}" onclick="selectSearch(${i})" onmouseenter="searchIdx=${i};renderSearchResults(document.getElementById('search-input').value)">${pl}<span style="font-size:13px;font-weight:600;color:${isActive?'#34d399':'var(--accent)'};min-width:80px">${esc(t.id)}</span><span style="flex:1;font-size:13px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.name)}</span>${b}</div>`;
+    return `<div class="search-item ${i===searchIdx?'active':''}" onclick="selectSearch(${i})" onmouseenter="highlightSearch(${i})">${pl}<span style="font-size:13px;font-weight:600;color:${isActive?'#34d399':'var(--accent)'};min-width:80px">${esc(t.id)}</span><span style="flex:1;font-size:13px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.name)}</span>${b}</div>`;
   }).join('');
 }
+function highlightSearch(idx) { const items = document.getElementById('search-results').children; if (items[searchIdx]) items[searchIdx].classList.remove('active'); searchIdx = idx; if (items[searchIdx]) items[searchIdx].classList.add('active'); }
 function selectSearch(idx) {
   const t = searchFiltered[idx]; if (!t) return; closeSearch();
   if (t._projectId && t._projectId !== activeProjectId) switchTab(t._projectId);

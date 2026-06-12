@@ -45,6 +45,11 @@ func (r *ProjectRegistry) Add(ws *protocol.Workspace) string {
 	defer r.mu.Unlock()
 
 	base := filepath.Base(ws.Root)
+	if base == "." || base == "/" {
+		if abs, err := filepath.Abs(ws.Root); err == nil {
+			base = filepath.Base(abs)
+		}
+	}
 	id := base
 	for i := 2; r.ids[id]; i++ {
 		id = fmt.Sprintf("%s-%d", base, i)
