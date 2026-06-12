@@ -774,28 +774,22 @@ func readIfExists(path string) string {
 	return string(data)
 }
 
-func readFileIfExists(path string) (string, bool) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", !os.IsNotExist(err)
-	}
-	return string(data), true
-}
-
+// resolveDoc 依優先序讀取設計文件：YAML 指定路徑 > docs/design/ 慣例路徑
 func resolveDoc(root, yamlPath, featureID, suffix string) (string, string) {
 	if yamlPath != "" {
 		abs := yamlPath
 		if !filepath.IsAbs(abs) {
 			abs = filepath.Join(root, yamlPath)
 		}
-		if content, ok := readFileIfExists(abs); ok {
-			return content, yamlPath
+		if _, err := os.Stat(abs); err == nil {
+			return readIfExists(abs), yamlPath
 		}
 	}
 
 	source := filepath.Join("docs", "design", featureID+"-"+suffix+".md")
-	if content, ok := readFileIfExists(filepath.Join(root, source)); ok {
-		return content, source
+	abs := filepath.Join(root, source)
+	if _, err := os.Stat(abs); err == nil {
+		return readIfExists(abs), source
 	}
 	return "", ""
 }
