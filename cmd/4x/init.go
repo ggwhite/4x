@@ -38,7 +38,8 @@ func newInitCmd() *cobra.Command {
 					},
 					"codex": {
 						Command: "codex",
-						Args:    []string{"exec", "--prompt-file", "{promptFile}"},
+						Args:    []string{"exec"},
+						Stdin:   true,
 					},
 					"gemini": {
 						Command: "gemini",

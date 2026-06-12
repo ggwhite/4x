@@ -11,7 +11,8 @@ Add to `.4x/settings.json`:
   "runners": {
     "codex": {
       "command": "codex",
-      "args": ["exec", "-C", ".", "-s", "workspace-write", "{prompt}"]
+      "args": ["exec"],
+      "stdin": true
     }
   }
 }
@@ -21,8 +22,8 @@ Add to `.4x/settings.json`:
 
 - `AGENTS.md` in this directory provides 4x protocol instructions to Codex
 - Codex reads `AGENTS.md` automatically when invoked in a directory
-- The runner passes the role prompt via `{prompt}` substitution
-- Codex operates in `workspace-write` sandbox (file I/O allowed, no network)
+- The runner pipes the role prompt to Codex via stdin (`"stdin": true`)
+- Codex operates in its default sandbox (configure with `-s` flag in args if needed)
 
 ## Setup
 

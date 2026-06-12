@@ -220,6 +220,7 @@ type RunnerConfig struct {
 	Command string   `json:"command"`
 	Args    []string `json:"args"`
 	Model   string   `json:"model,omitempty"`
+	Stdin   bool     `json:"stdin,omitempty"`
 }
 
 // RoleConfig 是各角色的模型與行為設定

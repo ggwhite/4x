@@ -51,6 +51,9 @@ func (r *SubprocessRunner) Run(ctx context.Context, prompt string) (*Result, err
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Dir = r.Workspace.Root
+	if r.Config.Stdin {
+		cmd.Stdin = strings.NewReader(prompt)
+	}
 
 	err := cmd.Run()
 	duration := time.Since(start).Seconds()
