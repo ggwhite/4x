@@ -71,9 +71,9 @@
   @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
   .pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
-  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); backdrop-filter: blur(8px); z-index: 50; display: none; justify-content: center; align-items: flex-start; padding-top: 15vh; }
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); backdrop-filter: blur(8px); z-index: 50; display: none; justify-content: center; align-items: center; }
   .modal-backdrop.open { display: flex; }
-  .modal-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; width: 640px; max-height: 70vh; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,.5); backdrop-filter: blur(20px); }
+  .modal-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; width: 640px; max-height: 70vh; overflow-y: auto; box-shadow: 0 25px 50px -12px rgba(0,0,0,.5); backdrop-filter: blur(20px); }
   .search-item { padding: 8px 16px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: background .1s; }
   .search-item:hover, .search-item.active { background: var(--bg-hover); }
   .search-item.active { border-left: 2px solid var(--accent); }
@@ -123,7 +123,7 @@
       <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 pulse-dot"></div>
       <h1 class="text-base font-bold tracking-tight">4x Live</h1>
       <span class="text-[10px] ml-auto" style="color:var(--text-4)">Auto-refresh</span>
-      <button onclick="event.stopPropagation();openProjectSettings()" title="Project Settings" style="color:var(--text-4)" class="ml-1 hover:text-white transition-colors">
+      <button onclick="event.stopPropagation();openProjectSettings()" title="Project Settings (⌘,)" style="color:var(--text-4)" class="ml-1 hover:text-white transition-colors">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
       </button>
     </div>
@@ -989,6 +989,7 @@ function disconnectSSE() { if (sseSource) { sseSource.close(); sseSource = null;
 function classify(tasks) {
   const g = { running: [], review: [], pending: [], todo: [], done: [] };
   (tasks||[]).forEach(t => { const a = t.active && t.phase && t.phase!=='done'; if (a) g.running.push(t); else if (t.status==='ready-for-review' || t.phase==='pending-review') g.review.push(t); else if (t.status==='done') g.done.push(t); else if (t.status==='in-progress' || t.status==='needs-attention') g.pending.push(t); else g.todo.push(t); });
+  g.done.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
   return g;
 }
 
@@ -1007,7 +1008,7 @@ function renderDashboard(tasks) {
   const recent = g.done.slice(-8).reverse();
   const activeTab = openTabs.find(t => t.id === activeProjectId);
   const pName = activeTab ? activeTab.name : '4x Live';
-  el.innerHTML = `<div class="flex items-center gap-3 mb-6"><span class="text-lg font-bold">${esc(pName)}</span><span class="ml-auto px-3 py-1 text-xs border border-zinc-700/50 rounded-full text-zinc-400">${total} tasks</span></div>
+  el.innerHTML = `<div class="flex items-center gap-3 mb-6"><span class="text-lg font-bold">${esc(pName)}</span><span class="ml-auto px-3 py-1 text-xs border border-zinc-700/50 rounded-full text-zinc-400">${total} tasks</span><button onclick="openSettings()" title="Settings (⌘⇧,)" class="ml-2 text-zinc-500 hover:text-white transition-colors"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
 <div class="grid grid-cols-5 gap-4 mb-8">
 <div class="rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5 text-center"><div class="text-3xl font-bold text-emerald-400">${g.running.length}</div><div class="text-xs text-zinc-500 mt-1 uppercase tracking-wider">Running</div></div>
 <div class="rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5 text-center"><div class="text-3xl font-bold text-amber-400">${g.review.length}</div><div class="text-xs text-zinc-500 mt-1 uppercase tracking-wider">Review</div></div>
@@ -1040,7 +1041,18 @@ async function load() {
       else if (t.status==='done') cls+='border border-transparent opacity-40 hover:opacity-70 ';
       else cls+='border border-transparent hover:bg-zinc-800/50 ';
       el.className = cls;
-      const pi = isActive ? `<div class="flex items-center gap-1.5 mt-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span><span class="text-[11px] text-emerald-400">${t.phase}</span><span class="text-[11px] text-zinc-600">· Round ${t.round||0}</span></div>` : '';
+      const hasState = t.phase || t.round;
+      const elapsed = isActive && t.createdAt ? formatElapsed(t.createdAt) : '';
+      const duration = !isActive && t.createdAt && t.updatedAt ? formatDuration(t.createdAt, t.updatedAt) : '';
+      const timePart = elapsed ? ` · ⏱ ${elapsed}` : duration ? ` · ⏱ ${duration}` : '';
+      const roundPart = t.round ? `Round ${t.round}` : '';
+      let pi = '';
+      if (isActive) {
+        pi = `<div class="flex items-center gap-1.5 mt-1.5 flex-wrap"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span><span class="text-[11px] text-emerald-400">${t.phase}</span><span class="text-[11px] text-zinc-600">· ${roundPart}${timePart}</span></div>`;
+      } else if (hasState && (roundPart || timePart)) {
+        const parts = [roundPart, timePart.replace(/^ · /, '')].filter(Boolean).join(' · ');
+        pi = `<div class="flex items-center gap-1.5 mt-1.5"><span class="text-[11px] text-zinc-600">${parts}</span></div>`;
+      }
       const di = t.status==='done' ? '<span class="text-emerald-500/60 text-xs">✓</span>' : '';
       const doneBtn = t.status==='ready-for-review' ? `<button class="ml-auto px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/30 rounded hover:bg-amber-500/20 transition-colors" onclick="event.stopPropagation();markDone('${t.id}')">Mark Done</button>` : '';
       const rt = runnerTags(t.runners);
@@ -1068,6 +1080,12 @@ async function loadDetail(t) {
   const meta = [];
   if (t.phase) meta.push(`<span>${PHASE_ICON[t.phase]||'○'} ${t.phase}</span>`);
   if (t.round) meta.push(`<span>⟳ Round ${t.round}</span>`);
+  const isRunning = t.active && t.phase && t.phase !== 'done';
+  if (isRunning && t.createdAt) {
+    meta.push(`<span>⏱ ${formatElapsed(t.createdAt)}</span>`);
+  } else if (!isRunning && t.createdAt && t.updatedAt) {
+    meta.push(`<span>⏱ ${formatDuration(t.createdAt, t.updatedAt)}</span>`);
+  }
   if (t.runners && t.runners.length) {
     meta.push(`<span>⬡ ${t.runners.map(r => `<span style="color:${runnerColor(r)}">${esc(r)}</span>`).join(' · ')}</span>`);
   } else if (t.runner) {
@@ -1149,6 +1167,8 @@ function switchDetailTab(tab) {
 async function loadLogs(fid) {
   const list = document.getElementById('logs-list');
   const viewer = document.getElementById('log-viewer');
+  viewer.textContent = '';
+  viewer.classList.add('hidden');
   const logs = await (await fetch(apiBase()+'/api/logs/'+fid)).json() || [];
   if (logs.length === 0) {
     list.innerHTML = '<div class="text-zinc-600 text-sm text-center mt-8">No logs yet</div>';
@@ -1188,6 +1208,26 @@ function connectLogSSE(fid) {
 
 function disconnectLogSSE() { if (logSSE) { logSSE.close(); logSSE = null; } }
 
+function formatElapsed(iso) {
+  if (!iso) return '';
+  const ms = Date.now() - new Date(iso).getTime();
+  if (ms < 0) return '';
+  const s = Math.floor(ms/1000), m = Math.floor(s/60), h = Math.floor(m/60), d = Math.floor(h/24);
+  if (d > 0) return `${d}d ${h%24}h`;
+  if (h > 0) return `${h}h ${m%60}m`;
+  if (m > 0) return `${m}m ${s%60}s`;
+  return `${s}s`;
+}
+function formatDuration(startIso, endIso) {
+  if (!startIso || !endIso) return '';
+  const ms = new Date(endIso).getTime() - new Date(startIso).getTime();
+  if (ms < 0) return '';
+  const s = Math.floor(ms/1000), m = Math.floor(s/60), h = Math.floor(m/60), d = Math.floor(h/24);
+  if (d > 0) return `${d}d ${h%24}h`;
+  if (h > 0) return `${h}h ${m%60}m`;
+  if (m > 0) return `${m}m ${s%60}s`;
+  return `${s}s`;
+}
 function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
 function escAttr(s) { return s.replace(/&/g,'&amp;').replace(/'/g,'&#39;').replace(/"/g,'&quot;'); }
 

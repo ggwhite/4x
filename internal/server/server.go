@@ -119,15 +119,17 @@ func StartMulti(reg *ProjectRegistry, port int, recentPath string) error {
 }
 
 type taskInfo struct {
-	ID      string   `json:"id"`
-	Name    string   `json:"name"`
-	Status  string   `json:"status"`
-	Phase   string   `json:"phase"`
-	Role    string   `json:"role"`
-	Round   int      `json:"round"`
-	Active  bool     `json:"active"`
-	Runner  string   `json:"runner"`
-	Runners []string `json:"runners,omitempty"`
+	ID        string   `json:"id"`
+	Name      string   `json:"name"`
+	Status    string   `json:"status"`
+	Phase     string   `json:"phase"`
+	Role      string   `json:"role"`
+	Round     int      `json:"round"`
+	Active    bool     `json:"active"`
+	Runner    string   `json:"runner"`
+	Runners   []string `json:"runners,omitempty"`
+	CreatedAt string   `json:"createdAt,omitempty"`
+	UpdatedAt string   `json:"updatedAt,omitempty"`
 }
 
 type runRequest struct {
@@ -273,6 +275,12 @@ func handleTasks(ws *protocol.Workspace, w http.ResponseWriter) {
 			t.Active = s.Active
 			t.Runner = s.Runner
 			t.Runners = s.Runners
+			if !s.CreatedAt.IsZero() {
+				t.CreatedAt = s.CreatedAt.Format(time.RFC3339)
+			}
+			if !s.UpdatedAt.IsZero() {
+				t.UpdatedAt = s.UpdatedAt.Format(time.RFC3339)
+			}
 		}
 		tasks = append(tasks, t)
 	}
