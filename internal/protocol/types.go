@@ -126,6 +126,8 @@ type Event struct {
 	Command   string `json:"cmd,omitempty"`
 	Status    string `json:"status,omitempty"`
 	Detail    string `json:"detail,omitempty"`
+	Runner    string `json:"runner,omitempty"`
+	Model     string `json:"model,omitempty"`
 }
 
 // Baseline 是 baseline.json 的結構

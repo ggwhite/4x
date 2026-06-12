@@ -347,6 +347,60 @@ func TestAppendEvent(t *testing.T) {
 	}
 }
 
+func TestAppendEventWithRunnerModel(t *testing.T) {
+	ws := setupWorkspace(t)
+	if err := ws.InitFeatureDir("feat-rm"); err != nil {
+		t.Fatalf("InitFeatureDir: %v", err)
+	}
+
+	evt := Event{
+		Type:   "phase-start",
+		Phase:  PhaseDesigning,
+		Round:  1,
+		Runner: "claude",
+		Model:  "opus",
+	}
+	if err := ws.AppendEvent("feat-rm", evt); err != nil {
+		t.Fatalf("AppendEvent: %v", err)
+	}
+
+	f, err := os.Open(filepath.Join(ws.FeatureDir("feat-rm"), EventsFile))
+	if err != nil {
+		t.Fatalf("open events.jsonl: %v", err)
+	}
+	defer f.Close()
+
+	var got Event
+	scanner := bufio.NewScanner(f)
+	scanner.Scan()
+	if err := json.Unmarshal(scanner.Bytes(), &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.Runner != "claude" {
+		t.Errorf("Runner = %q, want %q", got.Runner, "claude")
+	}
+	if got.Model != "opus" {
+		t.Errorf("Model = %q, want %q", got.Model, "opus")
+	}
+}
+
+func TestEventBackwardCompat(t *testing.T) {
+	raw := `{"ts":"2026-01-01T00:00:00Z","phase":"designing","type":"phase-start","round":1}`
+	var evt Event
+	if err := json.Unmarshal([]byte(raw), &evt); err != nil {
+		t.Fatalf("unmarshal old event: %v", err)
+	}
+	if evt.Runner != "" {
+		t.Errorf("Runner should be empty for old events, got %q", evt.Runner)
+	}
+	if evt.Model != "" {
+		t.Errorf("Model should be empty for old events, got %q", evt.Model)
+	}
+	if evt.Phase != PhaseDesigning {
+		t.Errorf("Phase = %q, want %q", evt.Phase, PhaseDesigning)
+	}
+}
+
 func TestInitFeatureDir_CreatesRoundsDir(t *testing.T) {
 	ws := setupWorkspace(t)
 	if err := ws.InitFeatureDir("my-feat"); err != nil {
