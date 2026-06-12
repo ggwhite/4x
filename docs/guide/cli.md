@@ -25,12 +25,13 @@ Initialize a `.4x/` workspace in the current directory.
 Create a new feature.
 
 ```
-4x new "Feature title" [--repo <repo>...]
+4x new "Feature title" [--repo <repo>...] [--json]
 ```
 
 | Flag | Description |
 |---|---|
 | `--repo` | Repository in scope (repeatable for multi-repo features) |
+| `--json` | Output as JSON |
 
 Creates `.4x/features/F{NNN}-{slug}.yaml` with status `not-started`.
 
@@ -50,8 +51,11 @@ Run the Design-Code-Review-Test loop for a feature.
 | `--max-rounds` | `5` | Maximum loop iterations |
 | `--timeout` | `3600` | Per-phase timeout in seconds |
 | `--dry-run` | `false` | Print role prompts without calling LLM |
+| `--json` | `false` | Start run and return JSON immediately |
 
 The loop drives: init → designing → coding → reviewing → testing → accepting → pending-review. On review failure, code gets another pass. On test failure, the loop re-enters coding.
+
+If the feature is in `blocked` or `needs-attention` phase, automatically recovers to the appropriate resume phase based on the current role.
 
 Automatically checks dependency gate — blocks if depended features are not done.
 
@@ -67,7 +71,13 @@ Show feature status.
 4x status              # all features, grouped by state
 4x status <feature-id> # single feature details with subtasks
 4x status --pending    # filter pending-review features
+4x status --json       # output as JSON
 ```
+
+| Flag | Description |
+|---|---|
+| `--pending` | Filter pending-review features |
+| `--json` | Output as JSON |
 
 Groups: Running, Review, Pending, Todo, Done (done shows max 5). Includes backlog drift warnings.
 
@@ -94,13 +104,14 @@ Checks: required files, baseline, scope, dependencies, backlog drift. Exit 0 on 
 Force a state transition.
 
 ```
-4x transition <feature-id> --to <phase> [--role <role>]
+4x transition <feature-id> --to <phase> [--role <role>] [--json]
 ```
 
 | Flag | Description |
 |---|---|
 | `--to` | Target phase (required) |
 | `--role` | Role performing the transition |
+| `--json` | Output as JSON |
 
 Validates the transition is legal per the state machine. Auto-initializes state if it doesn't exist. The `testing → accepting` transition runs additional gates (verify.json, test-report.md, final-report.md, commit-plan.md must exist and verify must pass).
 

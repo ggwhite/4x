@@ -24,6 +24,11 @@
     "since": { "type": "string", "format": "date-time" },
     "consecutiveNoProgress": { "type": "integer" },
     "lastFailCount": { "type": "integer" },
-    "stopReason": { "type": ["string", "null"] }
+    "stopReason": { "type": ["string", "null"] },
+    "runners": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "All runners that have participated in this feature run"
+    }
   }
 }

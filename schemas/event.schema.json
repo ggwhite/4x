@@ -16,6 +16,8 @@
     "action": { "type": "string" },
     "cmd": { "type": "string" },
     "status": { "type": "string" },
-    "detail": { "type": "string" }
+    "detail": { "type": "string" },
+    "runner": { "type": "string" },
+    "model": { "type": "string" }
   }
 }

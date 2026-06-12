@@ -69,8 +69,10 @@ You can also edit this file visually from the **4x Live dashboard** — click th
 | `command` | Executable name |
 | `args` | Arguments. `{prompt}` and `{promptFile}` are replaced at runtime. `{model}` is replaced with the role's model. |
 | `model` | Default model for this runner |
+| `model_map` | Map of role model names to runner-specific names (e.g. `{"opus": "claude-opus-4-5-20250514"}`). Lookup order: role model → model_map translation → fallback to original name. |
 | `tty` | Use PTY for capturing output (needed for CLI tools with ANSI output like Claude Code) |
 | `stdin` | Send prompt via stdin instead of argument (used by Codex) |
+| `quiet` | Suppress runner stdout in terminal; output is still captured in log files |
 
 If `{model}` is not present in `args`, the runner auto-appends `--model <model>`.
 
