@@ -30,6 +30,10 @@ Claude Code runner 在 `--print` 模式下使用 text output format，所有 out
 
 所有行（含被過濾的）原封寫入 `.stream.jsonl`。
 
+### 增量 assistant text 處理
+
+stream-json 中同一個 assistant message 可能在多行 JSON 中分批到達（每行帶完整累積的 `message.content`）。Processor 記錄上一次已寫入的 text 長度，只把新增的 delta 寫入 `.log`，避免重複輸出。若 `--include-partial-messages` 未啟用（預設），則每個 assistant event 包含完整 message，直接寫入即可。
+
 ## Runner 層設計
 
 ### RunnerConfig 新增欄位
