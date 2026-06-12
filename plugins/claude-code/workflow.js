@@ -487,7 +487,7 @@ Write:
 2. ${featureDir}/commit-plan.md — suggested commits (do NOT commit, just plan)
 
 ${stateEnd('acceptor', 'accept', round)}
-echo '{"active":false,"phase":"pending-review","round":${round},"stopReason":"pending-review"}' > ${featureDir}/state.json
+4x transition ${featureId} --to pending-review
 `, {
   label: `acceptor:${featureId}`,
   phase: 'Accept',

@@ -510,7 +510,7 @@ function disconnectSSE() { if (sseSource) { sseSource.close(); sseSource = null;
 
 function classify(tasks) {
   const g = { running: [], review: [], pending: [], todo: [], done: [] };
-  (tasks||[]).forEach(t => { const a = t.active && t.phase && t.phase!=='done'; if (a) g.running.push(t); else if (t.status==='ready-for-review') g.review.push(t); else if (t.status==='done') g.done.push(t); else if (t.status==='in-progress') g.pending.push(t); else g.todo.push(t); });
+  (tasks||[]).forEach(t => { const a = t.active && t.phase && t.phase!=='done'; if (a) g.running.push(t); else if (t.status==='ready-for-review' || t.phase==='pending-review') g.review.push(t); else if (t.status==='done') g.done.push(t); else if (t.status==='in-progress') g.pending.push(t); else g.todo.push(t); });
   return g;
 }
 
