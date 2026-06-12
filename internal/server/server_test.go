@@ -526,3 +526,47 @@ func TestGetOverview_YAMLPathOverride(t *testing.T) {
 		t.Errorf("SpecSource = %q, want custom/my-spec.md", info.SpecSource)
 	}
 }
+
+func TestGetOverview_YAMLPathOverrideEmptyFile(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	specDir := filepath.Join(ws.Root, "custom")
+	if err := os.MkdirAll(specDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(specDir, "empty-spec.md"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	designDir := filepath.Join(ws.Root, "docs", "design")
+	if err := os.MkdirAll(designDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(designDir, "test-feat-spec.md"), []byte("fallback spec"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	f, err := ws.LoadFeature("test-feat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Spec = "custom/empty-spec.md"
+	if err := ws.SaveFeature(f); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/overview/test-feat", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	var info overviewInfo
+	if err := json.NewDecoder(rec.Body).Decode(&info); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if info.Spec != "" {
+		t.Errorf("Spec = %q, want empty string", info.Spec)
+	}
+	if info.SpecSource != "custom/empty-spec.md" {
+		t.Errorf("SpecSource = %q, want custom/empty-spec.md", info.SpecSource)
+	}
+}

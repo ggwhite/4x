@@ -774,19 +774,27 @@ func readIfExists(path string) string {
 	return string(data)
 }
 
+func readFileIfExists(path string) (string, bool) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", !os.IsNotExist(err)
+	}
+	return string(data), true
+}
+
 func resolveDoc(root, yamlPath, featureID, suffix string) (string, string) {
 	if yamlPath != "" {
 		abs := yamlPath
 		if !filepath.IsAbs(abs) {
 			abs = filepath.Join(root, yamlPath)
 		}
-		if content := readIfExists(abs); content != "" {
+		if content, ok := readFileIfExists(abs); ok {
 			return content, yamlPath
 		}
 	}
 
 	source := filepath.Join("docs", "design", featureID+"-"+suffix+".md")
-	if content := readIfExists(filepath.Join(root, source)); content != "" {
+	if content, ok := readFileIfExists(filepath.Join(root, source)); ok {
 		return content, source
 	}
 	return "", ""
