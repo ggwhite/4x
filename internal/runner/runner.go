@@ -7,9 +7,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
+	"github.com/creack/pty/v2"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -63,19 +65,37 @@ func (r *SubprocessRunner) Run(ctx context.Context, prompt string) (*Result, err
 
 	start := time.Now()
 	cmd := exec.CommandContext(ctx, r.Config.Command, args...)
+	cmd.Dir = r.Workspace.Root
+
+	var ptmx *os.File
 	if logFile != nil {
-		cmd.Stdout = io.MultiWriter(os.Stdout, logFile)
-		cmd.Stderr = io.MultiWriter(os.Stderr, logFile)
+		var err error
+		ptmx, err = pty.StartWithAttrs(cmd, &pty.Winsize{Rows: 50, Cols: 120}, nil)
+		if err != nil {
+			return nil, fmt.Errorf("runner %s failed to start (pty): %w", r.Name, err)
+		}
+		defer ptmx.Close()
+
+		if r.Config.Stdin {
+			ptmx.WriteString(prompt)
+		}
+
+		stripW := &ansiStripWriter{w: logFile}
+		_, _ = io.Copy(io.MultiWriter(os.Stdout, stripW), ptmx)
 	} else {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-	}
-	cmd.Dir = r.Workspace.Root
-	if r.Config.Stdin {
-		cmd.Stdin = strings.NewReader(prompt)
+		if r.Config.Stdin {
+			cmd.Stdin = strings.NewReader(prompt)
+		}
 	}
 
-	err := cmd.Run()
+	var err error
+	if ptmx != nil {
+		err = cmd.Wait()
+	} else {
+		err = cmd.Run()
+	}
 	duration := time.Since(start).Seconds()
 
 	result := &Result{DurationSec: duration}
@@ -154,6 +174,20 @@ func NewRunner(ws *protocol.Workspace, name string, cfg protocol.RunnerConfig, t
 		LogPath:       logPath,
 		ModelOverride: model,
 	}
+}
+
+var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]|\x1b\][^\x07]*\x07|\x1b\(B`)
+
+type ansiStripWriter struct {
+	w io.Writer
+}
+
+func (a *ansiStripWriter) Write(p []byte) (int, error) {
+	cleaned := ansiRe.ReplaceAll(p, nil)
+	if len(cleaned) > 0 {
+		a.w.Write(cleaned)
+	}
+	return len(p), nil
 }
 
 // LogDir 回傳 .4x/<featureId>/logs/ 的路徑
