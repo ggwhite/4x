@@ -225,13 +225,14 @@ type ProjectConfig struct {
 
 // RunnerConfig 是 LLM runner 的設定
 type RunnerConfig struct {
-	Command  string            `json:"command"`
-	Args     []string          `json:"args"`
-	Model    string            `json:"model,omitempty"`
-	ModelMap map[string]string `json:"model_map,omitempty"`
-	Stdin    bool              `json:"stdin,omitempty"`
-	Tty      bool              `json:"tty,omitempty"`
-	Quiet    bool              `json:"quiet,omitempty"`
+	Command      string            `json:"command"`
+	Args         []string          `json:"args"`
+	Model        string            `json:"model,omitempty"`
+	ModelMap     map[string]string `json:"model_map,omitempty"`
+	Stdin        bool              `json:"stdin,omitempty"`
+	Tty          bool              `json:"tty,omitempty"`
+	Quiet        bool              `json:"quiet,omitempty"`
+	OutputFormat string            `json:"output_format,omitempty"`
 }
 
 // RoleConfig 是各角色的模型與行為設定

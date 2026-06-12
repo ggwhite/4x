@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -236,5 +237,89 @@ func TestBuildArgs_NoModelOverride(t *testing.T) {
 		if a == "--model" {
 			t.Error("--model should not appear when ModelOverride is empty")
 		}
+	}
+}
+
+func TestSubprocessRunner_StreamJSON(t *testing.T) {
+	binDir := t.TempDir()
+	script := `#!/bin/sh
+echo '{"type":"system","subtype":"init","session_id":"test"}'
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"Hello from stream"}]}}'
+echo '{"type":"result","subtype":"success","duration_ms":1000,"total_cost_usd":0.05}'
+exit 0
+`
+	writeScript(t, binDir, "test-runner", script)
+
+	root := t.TempDir()
+	protocol.Init(root, protocol.Config{Project: protocol.ProjectConfig{Name: "t"}})
+	ws := &protocol.Workspace{Root: root}
+
+	logDir := filepath.Join(root, ".4x", "test-feature", "logs")
+	if err := os.MkdirAll(logDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	logPath := filepath.Join(logDir, "round-1-coder.log")
+
+	r := &SubprocessRunner{
+		Workspace: ws,
+		Name:      "test",
+		Config: protocol.RunnerConfig{
+			Command:      filepath.Join(binDir, "test-runner"),
+			Args:         []string{"-p", "{prompt}"},
+			OutputFormat: "stream-json",
+		},
+		LogPath: logPath,
+	}
+
+	result, err := r.Run(context.Background(), "test prompt")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if result.ExitCode != 0 {
+		t.Errorf("ExitCode = %d, want 0", result.ExitCode)
+	}
+
+	logContent, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+	logStr := string(logContent)
+	if !strings.Contains(logStr, "[assistant] Hello from stream") {
+		t.Errorf("log missing assistant text, got:\n%s", logStr)
+	}
+	if strings.Contains(logStr, "init") {
+		t.Errorf("log should not contain system init event, got:\n%s", logStr)
+	}
+
+	rawPath := filepath.Join(logDir, StreamLogFileName(1, "coder"))
+	rawContent, err := os.ReadFile(rawPath)
+	if err != nil {
+		t.Fatalf("read stream log: %v", err)
+	}
+	rawLines := strings.Count(strings.TrimSpace(string(rawContent)), "\n") + 1
+	if rawLines != 3 {
+		t.Errorf("stream.jsonl line count = %d, want 3", rawLines)
+	}
+}
+
+func TestSubprocessRunner_NoOutputFormat_UsesOldPath(t *testing.T) {
+	r, cleanup := setupRunner(t, "#!/bin/sh\necho hello\nexit 0\n")
+	defer cleanup()
+
+	logDir := t.TempDir()
+	logPath := filepath.Join(logDir, "test.log")
+	r.LogPath = logPath
+
+	result, err := r.Run(context.Background(), "test prompt")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if result.ExitCode != 0 {
+		t.Errorf("ExitCode = %d, want 0", result.ExitCode)
+	}
+
+	rawPath := strings.TrimSuffix(logPath, ".log") + ".stream.jsonl"
+	if _, err := os.Stat(rawPath); err == nil {
+		t.Error("stream.jsonl should not exist for non-stream-json runner")
 	}
 }
