@@ -200,6 +200,7 @@ type Config struct {
 	HubRepos          []string                `json:"hub_repos,omitempty"`
 	Isolation         string                  `json:"isolation,omitempty"`
 	MaxConcurrentRuns int                     `json:"max_concurrent_runs,omitempty"`
+	Commit            string                  `json:"commit,omitempty"`
 }
 
 // ProjectConfig 是專案基本設定，包含既有工具鏈的描述

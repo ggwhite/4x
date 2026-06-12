@@ -123,13 +123,27 @@ func newRunCmd() *cobra.Command {
 				return dryRunLoop(ws, feature, cfg, s)
 			}
 
+			commitStrategy := cfg.Commit
+			if commitStrategy == "" {
+				commitStrategy = "per-round"
+			}
+
 			runnerFactory := func(logPath string) runner.Runner {
 				return runner.NewRunner(runnerWs, runnerName, runnerCfg, time.Duration(timeout)*time.Second, logPath)
 			}
-			loopErr := runLoop(ws, runnerWs, feature, cfg, s, runnerFactory)
+			loopErr := runLoop(ws, runnerWs, feature, cfg, s, runnerFactory, commitStrategy)
 
-			if wtPath != "" && s.Phase == protocol.PhaseDone {
-				cleanupWorktree(ws.Root, featureID, wtPath)
+			if wtPath != "" && commitStrategy != "never" {
+				finalState, _ := ws.ReadState(featureID)
+				if finalState.Phase == protocol.PhaseDone {
+					if commitStrategy == "on-done" {
+						if err := commitWorktree(wtPath, featureID, feature.Name, 0); err != nil {
+							fmt.Fprintf(os.Stderr, "  auto-commit failed: %v\n", err)
+						}
+					}
+					fmt.Printf("  branch: 4x/%s\n", featureID)
+					fmt.Printf("  to merge: git merge 4x/%s && git worktree remove %s && git branch -d 4x/%s\n", featureID, wtPath, featureID)
+				}
 			}
 
 			return loopErr
@@ -174,7 +188,7 @@ func generatePrompt(ws *protocol.Workspace, feature protocol.Feature, cfg protoc
 	return buf.String(), nil
 }
 
-func runLoop(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s protocol.State, newRunner func(logPath string) runner.Runner) error {
+func runLoop(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s protocol.State, newRunner func(logPath string) runner.Runner, commitStrategy string) error {
 	featureID := feature.ID
 	ctx := context.Background()
 
@@ -286,6 +300,13 @@ func runLoop(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature proto
 			ws.WriteState(featureID, s)
 			syncFeatureStatus(ws, featureID, protocol.PhaseBlocked)
 			return nil
+		}
+
+		if commitStrategy == "per-round" && runnerWs != ws &&
+			(phase == protocol.PhaseCoding || phase == protocol.PhaseAmending) {
+			if err := commitWorktree(runnerWs.Root, featureID, feature.Name, s.Round); err != nil {
+				fmt.Fprintf(os.Stderr, "  auto-commit round %d failed: %v\n", s.Round, err)
+			}
 		}
 
 		next, nextRole, stopReason := nextPhaseAfter(ws, featureID, s)
@@ -643,10 +664,27 @@ func copyFileIfExists(src, dst string) {
 	os.WriteFile(dst, data, 0o644)
 }
 
-func cleanupWorktree(root, featureID, wtPath string) {
-	os.Remove(filepath.Join(wtPath, protocol.DirName))
-	exec.Command("git", "-C", root, "worktree", "remove", wtPath).Run()
-	fmt.Printf("worktree removed: %s (branch 4x/%s preserved)\n", wtPath, featureID)
+func commitWorktree(wtPath, featureID, featureName string, round int) error {
+	if out, err := exec.Command("git", "-C", wtPath, "add", "-A").CombinedOutput(); err != nil {
+		return fmt.Errorf("git add: %s: %w", string(out), err)
+	}
+
+	if exec.Command("git", "-C", wtPath, "diff", "--cached", "--quiet").Run() == nil {
+		return nil
+	}
+
+	var msg string
+	if round > 0 {
+		msg = fmt.Sprintf("wip(%s): round %d", featureID, round)
+	} else {
+		msg = fmt.Sprintf("feat(%s): %s", featureID, featureName)
+	}
+	if out, err := exec.Command("git", "-C", wtPath, "commit", "-m", msg).CombinedOutput(); err != nil {
+		return fmt.Errorf("git commit: %s: %w", string(out), err)
+	}
+
+	fmt.Printf("  committed: %s\n", msg)
+	return nil
 }
 
 func ensureGitignore(root, pattern string) {

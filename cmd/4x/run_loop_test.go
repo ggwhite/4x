@@ -137,7 +137,7 @@ func TestRunLoop_HappyPath(t *testing.T) {
 		{}, {}, {reviewVerdict: "PASS"}, {testPassed: true}, {},
 	}}
 
-	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }); err != nil {
+	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -178,7 +178,7 @@ func TestRunLoop_TestPassMissingArtifactsStopsBeforeAccepting(t *testing.T) {
 		{}, {}, {reviewVerdict: "PASS"}, {testPassed: true, omitCommitPlan: true},
 	}}
 
-	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }); err != nil {
+	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -218,7 +218,7 @@ func TestRunLoop_ReviewFailLoop(t *testing.T) {
 		{reviewVerdict: "PASS"}, {testPassed: true}, {},
 	}}
 
-	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }); err != nil {
+	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -261,7 +261,7 @@ func TestRunLoop_TestFailLoop(t *testing.T) {
 		{}, {reviewVerdict: "PASS"}, {testPassed: true}, {},
 	}}
 
-	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }); err != nil {
+	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -303,7 +303,7 @@ func TestRunLoop_EscalationFromCoder(t *testing.T) {
 		{}, {escalation: true},
 	}}
 
-	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }); err != nil {
+	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -334,7 +334,7 @@ func TestRunLoop_EscalationFromTester(t *testing.T) {
 		{}, {}, {reviewVerdict: "PASS"}, {escalation: true},
 	}}
 
-	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }); err != nil {
+	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -365,7 +365,7 @@ func TestRunLoop_MaxRoundsStop(t *testing.T) {
 		{}, {}, {reviewVerdict: "FAIL"}, {}, {reviewVerdict: "FAIL"},
 	}}
 
-	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }); err != nil {
+	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -396,7 +396,7 @@ func TestRunLoop_BaselineCaptured(t *testing.T) {
 		{}, {}, {reviewVerdict: "PASS"}, {testPassed: true}, {},
 	}}
 
-	runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock })
+	runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }, "never")
 
 	baselinePath := filepath.Join(ws.FeatureDir("feat-1"), protocol.BaselineFile)
 	if _, err := os.Stat(baselinePath); os.IsNotExist(err) {
@@ -431,7 +431,7 @@ func TestRunLoop_BaselinePreservesExistingRoundOne(t *testing.T) {
 		{}, {reviewVerdict: "PASS"}, {testPassed: true}, {},
 	}}
 
-	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }); err != nil {
+	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -468,7 +468,7 @@ func TestRunLoop_BaselineNotRepeatedAfterRoundOne(t *testing.T) {
 		{}, {reviewVerdict: "PASS"}, {testPassed: true}, {},
 	}}
 
-	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }); err != nil {
+	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -536,7 +536,7 @@ func TestRunLoop_BaselineUsesFeatureRepoScope(t *testing.T) {
 		{}, {}, {reviewVerdict: "PASS"}, {testPassed: true}, {},
 	}}
 
-	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }); err != nil {
+	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -580,7 +580,7 @@ func TestRunLoop_BaselineFailureBlocksCoder(t *testing.T) {
 
 	mock := &mockRunner{ws: ws, featureID: "feat-baseline-fail"}
 
-	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }); err == nil {
+	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }, "never"); err == nil {
 		t.Fatal("runLoop should fail when baseline cannot be captured")
 	}
 	if len(mock.phases) != 0 {
@@ -682,7 +682,7 @@ func TestRunLoop_StaleArtifactsCleanedOnTestingEntry(t *testing.T) {
 		{},                     // accepting
 	}}
 
-	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }); err != nil {
+	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -722,7 +722,7 @@ func TestRunLoop_SeverityGate_PassWithCritical(t *testing.T) {
 		{},
 	}}
 
-	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }); err != nil {
+	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -767,7 +767,7 @@ func TestRunLoop_SeverityGate_FailWithCritical(t *testing.T) {
 		{},
 	}}
 
-	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }); err != nil {
+	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -812,7 +812,7 @@ func TestRunLoop_SeverityGate_ConditionalPassWithCritical(t *testing.T) {
 		{},
 	}}
 
-	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }); err != nil {
+	if err := runLoop(ws, ws, feature, cfg, s, func(_ string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -855,7 +855,7 @@ func TestRunLoop_WorktreeSync(t *testing.T) {
 	}
 	mainWs.WriteState("feat-wt", s)
 
-	if err := runLoop(mainWs, wtWs, feature, cfg, s, func(_ string) runner.Runner { return mock }); err != nil {
+	if err := runLoop(mainWs, wtWs, feature, cfg, s, func(_ string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -870,5 +870,103 @@ func TestRunLoop_WorktreeSync(t *testing.T) {
 	reviewReport := filepath.Join(mainWs.RoundDir("feat-wt", 1), protocol.ReviewReport)
 	if _, err := os.Stat(reviewReport); err != nil {
 		t.Errorf("review-report.md not synced back to main workspace")
+	}
+}
+
+func TestCommitWorktree(t *testing.T) {
+	root := t.TempDir()
+	run := func(dir string, args ...string) {
+		t.Helper()
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%v: %s: %v", args, string(out), err)
+		}
+	}
+
+	run(root, "git", "init")
+	run(root, "git", "config", "user.email", "test@test.com")
+	run(root, "git", "config", "user.name", "test")
+	os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n"), 0o644)
+	run(root, "git", "add", ".")
+	run(root, "git", "commit", "-m", "init")
+
+	wtPath := filepath.Join(root, ".worktrees", "F099-test")
+	run(root, "git", "worktree", "add", wtPath, "-b", "4x/F099-test")
+
+	os.WriteFile(filepath.Join(wtPath, "new.go"), []byte("package main\n"), 0o644)
+
+	if err := commitWorktree(wtPath, "F099-test", "Test Feature", 1); err != nil {
+		t.Fatalf("commitWorktree: %v", err)
+	}
+
+	out, err := exec.Command("git", "-C", wtPath, "log", "--oneline", "-1").CombinedOutput()
+	if err != nil {
+		t.Fatalf("git log: %v", err)
+	}
+	if !strings.Contains(string(out), "wip(F099-test): round 1") {
+		t.Errorf("commit message = %q, want wip(F099-test): round 1", strings.TrimSpace(string(out)))
+	}
+}
+
+func TestCommitWorktree_NoChanges(t *testing.T) {
+	root := t.TempDir()
+	run := func(dir string, args ...string) {
+		t.Helper()
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%v: %s: %v", args, string(out), err)
+		}
+	}
+
+	run(root, "git", "init")
+	run(root, "git", "config", "user.email", "test@test.com")
+	run(root, "git", "config", "user.name", "test")
+	os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n"), 0o644)
+	run(root, "git", "add", ".")
+	run(root, "git", "commit", "-m", "init")
+
+	wtPath := filepath.Join(root, ".worktrees", "F100-empty")
+	run(root, "git", "worktree", "add", wtPath, "-b", "4x/F100-empty")
+
+	if err := commitWorktree(wtPath, "F100-empty", "Empty", 0); err != nil {
+		t.Fatalf("commitWorktree should succeed with no changes: %v", err)
+	}
+}
+
+func TestCommitWorktree_OnDone(t *testing.T) {
+	root := t.TempDir()
+	run := func(dir string, args ...string) {
+		t.Helper()
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%v: %s: %v", args, string(out), err)
+		}
+	}
+
+	run(root, "git", "init")
+	run(root, "git", "config", "user.email", "test@test.com")
+	run(root, "git", "config", "user.name", "test")
+	os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n"), 0o644)
+	run(root, "git", "add", ".")
+	run(root, "git", "commit", "-m", "init")
+
+	wtPath := filepath.Join(root, ".worktrees", "F101-done")
+	run(root, "git", "worktree", "add", wtPath, "-b", "4x/F101-done")
+
+	os.WriteFile(filepath.Join(wtPath, "feat.go"), []byte("package main\n"), 0o644)
+
+	if err := commitWorktree(wtPath, "F101-done", "Done Feature", 0); err != nil {
+		t.Fatalf("commitWorktree: %v", err)
+	}
+
+	out, err := exec.Command("git", "-C", wtPath, "log", "--oneline", "-1").CombinedOutput()
+	if err != nil {
+		t.Fatalf("git log: %v", err)
+	}
+	if !strings.Contains(string(out), "feat(F101-done): Done Feature") {
+		t.Errorf("commit message = %q, want feat(F101-done): Done Feature", strings.TrimSpace(string(out)))
 	}
 }

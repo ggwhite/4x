@@ -28,3 +28,9 @@ dashboard/web/node_modules/
 # Test
 coverage.out
 /4x
+.worktrees/
+
+# Runner artifacts
+.gocache/
+*-coder-report.md
+*-review-report.md
