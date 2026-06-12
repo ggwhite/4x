@@ -56,6 +56,18 @@ Valid reasons: `spec-mismatch`, `criteria-wrong`, `blocker`, `scope-change`
 - Do not modify artifacts from other roles
 - Run verify commands from test-strategy.yaml, do not substitute without escalating
 
+## Docs Routing
+
+```
+docs/design/
+├── {feature-id}-spec.md  ← 設計規格（brainstorming 產出）
+├── {feature-id}-plan.md  ← 實作計畫（brainstorming 產出）
+```
+
+Designer role 會讀 `docs/design/{feature-id}-spec.md` 和 `{feature-id}-plan.md`。若這些檔案存在，Designer 產出的 task-brief 和 acceptance-criteria 品質會顯著提升。
+
+建議在跑 `4x run` 之前，先用 AI coding agent 的 brainstorming 功能產生 spec 和 plan。
+
 ## Feature Creator
 
 當使用者說「4x create」「建立 feature」「scaffold feature」「新增 feature」時，讀取 `.4x/plugins/shared/CREATOR.md` 並依照其中的流程建立新 feature。

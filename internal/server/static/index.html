@@ -105,9 +105,16 @@
     color: var(--text-3);
     background: rgba(255,255,255,.04);
   }
+  .toast-container { position: fixed; top: 16px; right: 16px; z-index: 100; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+  .toast { pointer-events: auto; padding: 12px 16px; border-radius: 8px; font-size: 13px; max-width: 420px; word-break: break-word; box-shadow: 0 8px 24px rgba(0,0,0,.4); animation: toastIn .2s ease-out; white-space: pre-line; }
+  .toast-error { background: #991b1b; color: #fecaca; border: 1px solid rgba(248,113,113,.3); }
+  .toast-warn { background: #92400e; color: #fde68a; border: 1px solid rgba(251,191,36,.3); }
+  .toast-info { background: var(--bg-card); color: var(--text-1); border: 1px solid var(--border); }
+  @keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
 </style>
 </head>
 <body class="min-h-screen">
+<div id="toast-container" class="toast-container"></div>
 
 <!-- Tab Bar -->
 <div id="tab-bar" class="flex items-center border-b overflow-hidden" style="min-height:36px">
@@ -123,6 +130,7 @@
       <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 pulse-dot"></div>
       <h1 class="text-base font-bold tracking-tight">4x Live</h1>
       <span class="text-[10px] ml-auto" style="color:var(--text-4)">Auto-refresh</span>
+      <button onclick="event.stopPropagation();openNewFeature()" title="New Feature" style="color:var(--text-4)" class="ml-1 hover:text-white transition-colors text-lg leading-none">+</button>
       <button onclick="event.stopPropagation();openProjectSettings()" title="Project Settings (⌘,)" style="color:var(--text-4)" class="ml-1 hover:text-white transition-colors">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
       </button>
@@ -140,7 +148,8 @@
       <div class="flex items-center gap-3">
         <span id="h-id" class="text-sm" style="color:var(--text-4)"></span>
         <span id="h-name" class="font-bold"></span>
-        <span id="h-badge" class="ml-auto"></span>
+        <span id="h-play-stop" class="ml-auto mr-2"></span>
+        <span id="h-badge"></span>
       </div>
       <div id="h-meta" class="flex items-center gap-4 mt-2 text-xs" style="color:var(--text-4)"></div>
       <div id="detail-tabs" class="flex gap-4 mt-3 border-t pt-2" style="border-color:var(--border)">
@@ -282,6 +291,64 @@
   </div>
 </div>
 
+<!-- Run Modal -->
+<div id="run-modal" class="modal-backdrop" onclick="if(event.target===this)closeRunModal()">
+  <div class="modal-panel fade-in" style="width:420px">
+    <div style="padding:20px 24px 16px;border-bottom:1px solid var(--border)">
+      <span style="font-size:16px;font-weight:700">Run Feature</span>
+      <div id="run-modal-fid" style="font-size:12px;color:var(--text-3);margin-top:4px"></div>
+    </div>
+    <div style="padding:20px 24px;display:flex;flex-direction:column;gap:16px">
+      <div>
+        <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);display:block;margin-bottom:6px">Runner</label>
+        <select id="run-runner" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none;appearance:auto"></select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);display:block;margin-bottom:6px">Max Rounds</label>
+        <div class="stepper"><button onclick="adjRunRounds(-1)">-</button><span id="run-rounds-val">5</span><button onclick="adjRunRounds(1)">+</button></div>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);display:block;margin-bottom:6px">Extra Prompt</label>
+        <textarea id="run-extra-prompt" rows="3" placeholder="Optional extra instructions..." style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none;resize:vertical;box-sizing:border-box"></textarea>
+      </div>
+    </div>
+    <div style="padding:12px 24px 20px;display:flex;justify-content:flex-end;gap:8px">
+      <button onclick="closeRunModal()" style="padding:8px 16px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-2);cursor:pointer">Cancel</button>
+      <button onclick="submitRun()" style="padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Run ▶</button>
+    </div>
+  </div>
+</div>
+
+<!-- New Feature Modal -->
+<div id="new-feature-modal" class="modal-backdrop" onclick="if(event.target===this)closeNewFeature()">
+  <div class="modal-panel fade-in" style="width:420px">
+    <div style="padding:20px 24px 16px;border-bottom:1px solid var(--border)">
+      <span style="font-size:16px;font-weight:700">New Feature</span>
+    </div>
+    <div style="padding:20px 24px;display:flex;flex-direction:column;gap:16px">
+      <div>
+        <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);display:block;margin-bottom:6px">Name</label>
+        <input id="new-feat-name" type="text" placeholder="Feature name..." autocomplete="off" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none;box-sizing:border-box" onkeydown="if(event.key==='Enter')submitNewFeature()">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);display:block;margin-bottom:6px">Description</label>
+        <textarea id="new-feat-desc" rows="3" placeholder="Optional description..." style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none;resize:vertical;box-sizing:border-box"></textarea>
+      </div>
+      <div style="padding:10px 12px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:8px;font-size:11px;color:#fde68a;line-height:1.6">
+        <strong style="display:block;margin-bottom:4px">Want a full spec &amp; plan?</strong>
+        Run brainstorming in your AI coding agent first:<br>
+        <code style="background:rgba(0,0,0,.3);padding:2px 6px;border-radius:4px;font-size:11px">Tell your agent: "brainstorm feature: &lt;name&gt;"</code><br>
+        This generates <code style="background:rgba(0,0,0,.3);padding:2px 6px;border-radius:4px;font-size:11px">docs/design/{id}-spec.md</code> and <code style="background:rgba(0,0,0,.3);padding:2px 6px;border-radius:4px;font-size:11px">{id}-plan.md</code>, which the Designer role reads for deeper analysis.
+      </div>
+    </div>
+    <div style="padding:12px 24px 20px;display:flex;justify-content:flex-end;gap:8px">
+      <button onclick="closeNewFeature()" style="padding:8px 16px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-2);cursor:pointer">Cancel</button>
+      <button onclick="submitNewFeature(false)" style="padding:8px 16px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-1);cursor:pointer">Create</button>
+      <button onclick="submitNewFeature(true)" style="padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Create &amp; Run ▶</button>
+    </div>
+  </div>
+</div>
+
 <script>
 let projects = [];
 let activeProjectId = null;
@@ -294,6 +361,16 @@ let sseSource = null;
 let searchIdx = 0;
 let searchFiltered = [];
 let refreshTimer = null;
+let activeRuns = [];
+
+function showToast(msg, type='error', duration=5000) {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity .3s'; setTimeout(() => t.remove(), 300); }, duration);
+}
 
 function apiBase() { return activeProjectId ? '/api/project/' + activeProjectId : ''; }
 function sseBase() { return activeProjectId ? '/sse/project/' + activeProjectId : ''; }
@@ -562,10 +639,10 @@ function showAutoSaveIndicator() {
 }
 
 async function openProjectSettings() {
-  if (!activeProjectId) { alert('No project selected'); return; }
+  if (!activeProjectId) { showToast('No project selected'); return; }
   try {
     const resp = await fetch(apiBase() + '/api/settings');
-    if (!resp.ok) { alert('Failed to load settings: ' + (await resp.text())); return; }
+    if (!resp.ok) { showToast('Failed to load settings: ' + (await resp.text())); return; }
     _projectSettings = await resp.json();
     _psActiveTab = 'form';
     renderProjectSettingsForm();
@@ -573,7 +650,7 @@ async function openProjectSettings() {
     if (si) { si.value = ''; filterPSFields(''); }
     document.getElementById('ps-search-bar').style.display = '';
     document.getElementById('project-settings-modal').classList.add('open');
-  } catch(err) { alert('Connection error: ' + err.message); }
+  } catch(err) { showToast('Connection error: ' + err.message); }
 }
 
 function closeProjectSettings() {
@@ -931,7 +1008,7 @@ async function saveProjectSettings() {
   if (!payload.project || !payload.project.name) {
     const nameEl = document.getElementById('ps-proj-name');
     if (nameEl) { nameEl.style.borderColor = '#f87171'; nameEl.focus(); }
-    alert('project.name is required');
+    showToast('project.name is required');
     return;
   }
 
@@ -941,14 +1018,14 @@ async function saveProjectSettings() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    if (!resp.ok) { alert('Save failed: ' + (await resp.text())); return; }
+    if (!resp.ok) { showToast('Save failed: ' + (await resp.text())); return; }
     // Reload settings
     _projectSettings = await resp.json();
     closeProjectSettings();
     // Brief success feedback
     const btn = document.querySelector('[onclick="saveProjectSettings()"]');
     if (btn) { const orig = btn.textContent; btn.textContent = 'Saved!'; setTimeout(() => { btn.textContent = orig; }, 1500); }
-  } catch(err) { alert('Connection error: ' + err.message); }
+  } catch(err) { showToast('Connection error: ' + err.message); }
 }
 function initSettings() { applyTheme(settings.theme); applyFont(); startRefreshTimer(); }
 
@@ -996,12 +1073,12 @@ function showConfirm(title, message, onConfirm) {
 async function markDone(fid) {
   showConfirm('Mark as Done', `Transition <strong>${esc(fid)}</strong> to done?`, async () => {
     const res = await fetch(apiBase()+'/api/done', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:fid})});
-    if (!res.ok) { alert('Failed: '+(await res.text())); return; }
+    if (!res.ok) { showToast('Failed: '+(await res.text())); return; }
     const data = await res.json();
     if (data.merge_conflict) {
-      alert('Done, but merge has conflicts:\n\n'+(data.conflicts||[]).join('\n')+'\n\nResolve in worktree, then run: 4x merge '+fid);
+      showToast('Done, but merge has conflicts:\n'+(data.conflicts||[]).join('\n')+'\nResolve in worktree, then run: 4x merge '+fid, 'warn', 10000);
     } else if (data.merge_error) {
-      alert('Done, but merge failed:\n\n'+data.merge_error);
+      showToast('Done, but merge failed:\n'+data.merge_error, 'warn', 10000);
     }
     load(); if (!current) renderDashboard(lastTasks);
   });
@@ -1080,9 +1157,16 @@ function renderTaskItem(t) {
   }
   const di = t.status==='done' ? '<span class="text-emerald-500/60 text-xs">✓</span>' : '';
   const doneBtn = t.status==='ready-for-review' ? `<button class="ml-auto px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/30 rounded hover:bg-amber-500/20 transition-colors" onclick="event.stopPropagation();markDone('${t.id}')">Mark Done</button>` : '';
+  const runId = getRunId(t.id);
+  let actionBtn = '';
+  if (isActive && runId) {
+    actionBtn = `<button class="ml-auto w-6 h-6 flex items-center justify-center rounded text-red-400 hover:bg-red-500/20 transition-colors text-xs" onclick="event.stopPropagation();stopRun('${runId}')" title="Stop">■</button>`;
+  } else if (t.status !== 'done') {
+    actionBtn = `<button class="ml-auto w-6 h-6 flex items-center justify-center rounded hover:bg-emerald-500/20 transition-colors text-xs play-btn" style="color:var(--accent);opacity:0" onclick="event.stopPropagation();openRunModal('${t.id}')" title="Run">▶</button>`;
+  }
   const rt = runnerTags(t.runners);
   const rtLine = rt ? `<div class="flex gap-1 mt-1">${rt}</div>` : '';
-  return `<div class="${cls}" onclick="current='${t.id}';load();loadDetail(${JSON.stringify(t).replace(/"/g,'&quot;')})"><div class="flex items-start gap-2">${di}<div class="flex-1 min-w-0"><div class="text-[13px] font-medium truncate">${esc(t.name)}</div><div class="text-[11px] text-zinc-600 mt-0.5">${t.id}</div>${pi}${rtLine}</div>${doneBtn}</div></div>`;
+  return `<div class="${cls}" onclick="current='${t.id}';load();loadDetail(${JSON.stringify(t).replace(/"/g,'&quot;')})" onmouseenter="this.querySelector('.play-btn')&&(this.querySelector('.play-btn').style.opacity='1')" onmouseleave="this.querySelector('.play-btn')&&(this.querySelector('.play-btn').style.opacity='0')"><div class="flex items-start gap-2">${di}<div class="flex-1 min-w-0"><div class="text-[13px] font-medium truncate">${esc(t.name)}</div><div class="text-[11px] text-zinc-600 mt-0.5">${t.id}</div>${pi}${rtLine}</div>${doneBtn || actionBtn}</div></div>`;
 }
 
 function toggleSection(key) {
@@ -1168,8 +1252,12 @@ function renderSidebar() {
 
 async function load() {
   if (!activeProjectId) { renderProjectPicker(); return; }
-  const tasks = await (await fetch(apiBase()+'/api/tasks')).json();
+  const [tasks, runs] = await Promise.all([
+    fetch(apiBase()+'/api/tasks').then(r => r.json()).catch(() => []),
+    fetch(apiBase()+'/api/runs').then(r => r.ok ? r.json() : []).catch(() => []),
+  ]);
   lastTasks = tasks || [];
+  activeRuns = runs || [];
   renderSidebar();
   if (!current) renderDashboard(lastTasks);
 }
@@ -1181,10 +1269,18 @@ async function loadDetail(t) {
   document.getElementById('h-id').textContent = t.id;
   document.getElementById('h-name').textContent = t.name;
   document.getElementById('h-badge').innerHTML = badge(t.status, t.phase, t.active);
+  const isRunning = t.active && t.phase && t.phase !== 'done';
+  const hRunId = getRunId(t.id);
+  let hAction = '';
+  if (isRunning && hRunId) {
+    hAction = `<button class="w-7 h-7 flex items-center justify-center rounded text-red-400 hover:bg-red-500/20 transition-colors" onclick="stopRun('${hRunId}')" title="Stop">■</button>`;
+  } else if (t.status !== 'done') {
+    hAction = `<button class="w-7 h-7 flex items-center justify-center rounded hover:bg-emerald-500/20 transition-colors" style="color:var(--accent)" onclick="openRunModal('${t.id}')" title="Run">▶</button>`;
+  }
+  document.getElementById('h-play-stop').innerHTML = hAction;
   const meta = [];
   if (t.phase) meta.push(`<span>${PHASE_ICON[t.phase]||'○'} ${t.phase}</span>`);
   if (t.round) meta.push(`<span>⟳ Round ${t.round}</span>`);
-  const isRunning = t.active && t.phase && t.phase !== 'done';
   if (isRunning && t.createdAt) {
     meta.push(`<span>⏱ ${formatElapsed(t.createdAt)}</span>`);
   } else if (!isRunning && t.createdAt && t.updatedAt) {
@@ -1433,6 +1529,70 @@ function formatDuration(startIso, endIso) {
 }
 function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
 function escAttr(s) { return s.replace(/&/g,'&amp;').replace(/'/g,'&#39;').replace(/"/g,'&quot;'); }
+
+function getRunId(featureId) {
+  const run = activeRuns.find(r => r.featureId === featureId);
+  return run ? run.id : null;
+}
+
+let _runModalFid = null;
+let _runRounds = 5;
+async function openRunModal(fid) {
+  _runModalFid = fid;
+  _runRounds = 5;
+  document.getElementById('run-modal-fid').textContent = fid;
+  document.getElementById('run-rounds-val').textContent = '5';
+  document.getElementById('run-extra-prompt').value = '';
+  const sel = document.getElementById('run-runner');
+  sel.innerHTML = '';
+  try {
+    const s = await fetch(apiBase()+'/api/settings').then(r => r.json());
+    const runners = s.runners || {};
+    const names = Object.keys(runners);
+    if (names.length === 0) names.push('claude');
+    const def = (s.project && s.project.default) || names[0];
+    names.forEach(n => { const o = document.createElement('option'); o.value = n; o.textContent = n; if (n === def) o.selected = true; sel.appendChild(o); });
+  } catch { sel.innerHTML = '<option value="claude">claude</option>'; }
+  document.getElementById('run-modal').classList.add('open');
+}
+function closeRunModal() { document.getElementById('run-modal').classList.remove('open'); _runModalFid = null; }
+function adjRunRounds(d) {
+  _runRounds = Math.max(1, Math.min(99, _runRounds + d));
+  document.getElementById('run-rounds-val').textContent = _runRounds;
+}
+async function submitRun() {
+  if (!_runModalFid) return;
+  const runner = document.getElementById('run-runner').value;
+  const body = { featureId: _runModalFid, runner, maxRounds: _runRounds };
+  closeRunModal();
+  const res = await fetch(apiBase()+'/api/run', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  if (!res.ok) { showToast('Run failed: ' + (await res.text())); return; }
+  load();
+}
+async function stopRun(runId) {
+  const res = await fetch(apiBase()+'/api/stop', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id: runId}) });
+  if (!res.ok) { showToast('Stop failed: ' + (await res.text())); return; }
+  load();
+}
+
+function openNewFeature() {
+  document.getElementById('new-feat-name').value = '';
+  document.getElementById('new-feat-desc').value = '';
+  document.getElementById('new-feature-modal').classList.add('open');
+  setTimeout(() => document.getElementById('new-feat-name').focus(), 100);
+}
+function closeNewFeature() { document.getElementById('new-feature-modal').classList.remove('open'); }
+async function submitNewFeature(andRun) {
+  const name = document.getElementById('new-feat-name').value.trim();
+  if (!name) return;
+  const description = document.getElementById('new-feat-desc').value.trim();
+  closeNewFeature();
+  const res = await fetch(apiBase()+'/api/new', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name, description}) });
+  if (!res.ok) { showToast('Create failed: ' + (await res.text())); return; }
+  const data = await res.json();
+  await load();
+  if (andRun && data.id) openRunModal(data.id);
+}
 
 async function init() {
   initSettings(); await loadProjects();

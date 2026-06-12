@@ -419,9 +419,18 @@ func dirExists(path string) bool {
 }
 
 func newProcessManagerFromConfig(ws *protocol.Workspace) *ProcessManager {
+	bin := selfBinary()
 	cfg, err := ws.ReadConfig()
 	if err != nil {
-		return NewProcessManager(ws, 1, "4x")
+		return NewProcessManager(ws, 1, bin)
 	}
-	return NewProcessManager(ws, cfg.MaxConcurrentRuns, "4x")
+	return NewProcessManager(ws, cfg.MaxConcurrentRuns, bin)
+}
+
+func selfBinary() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return "4x"
+	}
+	return exe
 }
