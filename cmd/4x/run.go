@@ -240,10 +240,19 @@ func runLoop(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature proto
 			syncFeatureToWorktree(ws, runnerWs, featureID, s.Round)
 		}
 
+		// 背景即時 sync：runner 執行期間每 2 秒把 worktree 的 protocol 檔案同步回 main
+		var stopSync func()
+		if runnerWs != ws {
+			stopSync = startLiveSync(runnerWs, ws, featureID, s.Round)
+		}
+
 		fmt.Printf("[round %d] %s (%s) — invoking %s\n", s.Round, phase, role, s.Runner)
 
 		result, err := r.Run(ctx, prompt)
 
+		if stopSync != nil {
+			stopSync()
+		}
 		if runnerWs != ws {
 			syncFeatureFromWorktree(runnerWs, ws, featureID, s.Round)
 		}
@@ -604,6 +613,25 @@ func syncFeatureFromWorktree(wt, main *protocol.Workspace, featureID string, rou
 			copyFileIfExists(filepath.Join(srcRound, e.Name()), filepath.Join(dstRound, e.Name()))
 		}
 	}
+}
+
+// startLiveSync 啟動背景 goroutine，每 2 秒將 worktree 的 protocol 檔案同步回 main workspace。
+// 回傳 stop function，呼叫後停止同步。
+func startLiveSync(wt, main *protocol.Workspace, featureID string, round int) func() {
+	done := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				syncFeatureFromWorktree(wt, main, featureID, round)
+			}
+		}
+	}()
+	return func() { close(done) }
 }
 
 func copyFileIfExists(src, dst string) {
