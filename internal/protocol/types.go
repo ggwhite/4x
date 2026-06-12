@@ -198,15 +198,16 @@ type Escalation struct {
 
 // Config 是 .4x/settings.json 的專案設定
 type Config struct {
-	Project           ProjectConfig           `json:"project"`
-	Runners           map[string]RunnerConfig `json:"runners"`
-	Default           string                  `json:"default_runner"`
-	Roles             map[string]RoleConfig   `json:"roles,omitempty"`
-	Rules             []string                `json:"rules,omitempty"`
-	HubRepos          []string                `json:"hub_repos,omitempty"`
-	Isolation         string                  `json:"isolation,omitempty"`
-	MaxConcurrentRuns int                     `json:"max_concurrent_runs,omitempty"`
-	Commit            string                  `json:"commit,omitempty"`
+	Project           ProjectConfig                `json:"project"`
+	Runners           map[string]RunnerConfig      `json:"runners"`
+	Default           string                       `json:"default_runner"`
+	Roles             map[string]RoleConfig        `json:"roles,omitempty"`
+	Rules             []string                     `json:"rules,omitempty"`
+	HubRepos          []string                     `json:"hub_repos,omitempty"`
+	Isolation         string                       `json:"isolation,omitempty"`
+	MaxConcurrentRuns int                          `json:"max_concurrent_runs,omitempty"`
+	Commit            string                       `json:"commit,omitempty"`
+	ModelTiers        map[string]map[string]string `json:"model_tiers,omitempty"`
 }
 
 // ProjectConfig 是專案基本設定，包含既有工具鏈的描述
@@ -225,13 +226,13 @@ type ProjectConfig struct {
 
 // RunnerConfig 是 LLM runner 的設定
 type RunnerConfig struct {
-	Command  string            `json:"command"`
-	Args     []string          `json:"args"`
-	Model    string            `json:"model,omitempty"`
-	ModelMap map[string]string `json:"model_map,omitempty"`
-	Stdin    bool              `json:"stdin,omitempty"`
-	Tty      bool              `json:"tty,omitempty"`
-	Quiet    bool              `json:"quiet,omitempty"`
+	Command string            `json:"command"`
+	Args    []string          `json:"args"`
+	Model   string            `json:"model,omitempty"`
+	Tiers   map[string]string `json:"tiers,omitempty"`
+	Stdin   bool              `json:"stdin,omitempty"`
+	Tty     bool              `json:"tty,omitempty"`
+	Quiet   bool              `json:"quiet,omitempty"`
 }
 
 // RoleConfig 是各角色的模型與行為設定

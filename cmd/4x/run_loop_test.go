@@ -109,6 +109,11 @@ func setupLoopWorkspace(t *testing.T, featureID string) *protocol.Workspace {
 		Project: protocol.ProjectConfig{Name: "loop-test"},
 		Default: "mock",
 		Runners: map[string]protocol.RunnerConfig{"mock": {Command: "echo"}},
+		ModelTiers: map[string]map[string]string{
+			"opus":   {"mock": "mock-opus"},
+			"sonnet": {"mock": "mock-sonnet"},
+			"haiku":  {"mock": "mock-haiku"},
+		},
 	}
 	if err := protocol.Init(root, cfg); err != nil {
 		t.Fatal(err)
@@ -508,6 +513,11 @@ func TestRunLoop_BaselineUsesFeatureRepoScope(t *testing.T) {
 		Project: protocol.ProjectConfig{Name: "baseline-scope-test"},
 		Default: "mock",
 		Runners: map[string]protocol.RunnerConfig{"mock": {Command: "echo"}},
+		ModelTiers: map[string]map[string]string{
+			"opus":   {"mock": "mock-opus"},
+			"sonnet": {"mock": "mock-sonnet"},
+			"haiku":  {"mock": "mock-haiku"},
+		},
 	}
 	if err := protocol.Init(root, cfg); err != nil {
 		t.Fatal(err)
