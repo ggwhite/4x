@@ -205,3 +205,51 @@ func TestMultiMux_BackwardCompat_ZeroProject(t *testing.T) {
 		t.Fatalf("status = %d, want 400", rec.Code)
 	}
 }
+
+func TestMultiMux_SettingsEndpoint_Single(t *testing.T) {
+	ws := setupMultiWorkspace(t, "single-proj")
+	reg := NewProjectRegistry()
+	reg.Add(ws)
+
+	recentPath := t.TempDir() + "/recent.json"
+	// 單一專案時，GET /api/settings 應回傳 200
+	rec := serveRequest(t, NewMultiMux(reg, recentPath), http.MethodGet, "/api/settings", "")
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var cfg map[string]interface{}
+	if err := json.NewDecoder(rec.Body).Decode(&cfg); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+}
+
+func TestMultiMux_SettingsEndpoint_Multi(t *testing.T) {
+	ws1 := setupMultiWorkspace(t, "proj-a")
+	ws2 := setupMultiWorkspace(t, "proj-b")
+	reg := NewProjectRegistry()
+	reg.Add(ws1)
+	reg.Add(ws2)
+
+	recentPath := t.TempDir() + "/recent.json"
+	// 多個專案時，GET /api/settings 應回傳 400
+	rec := serveRequest(t, NewMultiMux(reg, recentPath), http.MethodGet, "/api/settings", "")
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+func TestMultiMux_SettingsEndpoint_PrefixRoute(t *testing.T) {
+	ws := setupMultiWorkspace(t, "prefix-proj")
+	reg := NewProjectRegistry()
+	id := reg.Add(ws)
+
+	recentPath := t.TempDir() + "/recent.json"
+	// prefix route 應正確轉發
+	rec := serveRequest(t, NewMultiMux(reg, recentPath), http.MethodGet, "/api/project/"+id+"/api/settings", "")
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+}

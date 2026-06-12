@@ -4,6 +4,8 @@
 
 Created by `4x init`. Contains project metadata, runner definitions, and role model mappings.
 
+You can also edit this file visually from the **4x Live dashboard** — click the gear icon (⚙) next to the "4x Live" title, or press `Cmd+Shift+,`. The editor supports both a form view and a raw JSON view, validates required fields, and backs up the previous settings to `settings.json.bak` before writing.
+
 ```json
 {
   "project": {

@@ -2,19 +2,24 @@ package server
 
 import (
 	"bufio"
+	"bytes"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/state"
 )
+
+var settingsMu sync.Mutex
 
 //go:embed static/index.html
 var indexHTML string
@@ -63,6 +68,7 @@ func NewMux(ws *protocol.Workspace, pm *ProcessManager) http.Handler {
 		}
 		if r.Method == http.MethodPut {
 			handlePutSettings(ws, w, r)
+			reloadProcessManager(ws, pm)
 			return
 		}
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -610,53 +616,59 @@ func handlePostDone(ws *protocol.Workspace, w http.ResponseWriter, r *http.Reque
 	fmt.Fprint(w, `{"status":"done"}`)
 }
 
-// handleGetSettings 讀取 .4x/settings.json 並以 JSON 回傳
+// handleGetSettings 讀取 .4x/settings.json 原始內容並回傳，保留所有欄位（含 Config struct 未定義的）。
 func handleGetSettings(ws *protocol.Workspace, w http.ResponseWriter) {
-	cfg, err := ws.ReadConfig()
+	settingsPath := filepath.Join(ws.DotDir(), protocol.ConfigFile)
+	data, err := os.ReadFile(settingsPath)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(cfg)
+	w.Write(data)
 }
 
-// handlePutSettings 接受完整的設定 JSON，驗證後備份並寫入 .4x/settings.json。
-// 未知欄位透過 map 合併方式保留，不會被刪除。
+// handlePutSettings 接受完整的設定 JSON，驗證後備份並原子寫入 .4x/settings.json。
+// 全量替換：前端送什麼就寫什麼，不做 merge。
 func handlePutSettings(ws *protocol.Workspace, w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
 	if err != nil {
-		http.Error(w, "request too large", http.StatusRequestEntityTooLarge)
-		return
-	}
-
-	// 驗證：必須是合法 JSON
-	var incoming map[string]interface{}
-	if err := json.Unmarshal(body, &incoming); err != nil {
-		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	// 驗證 project.name 必填
-	proj, ok := incoming["project"].(map[string]interface{})
-	if !ok {
-		http.Error(w, "missing project section", http.StatusBadRequest)
-		return
-	}
-	name, _ := proj["name"].(string)
-	if name == "" {
-		http.Error(w, "project.name is required", http.StatusBadRequest)
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			http.Error(w, "request too large", http.StatusRequestEntityTooLarge)
+		} else {
+			http.Error(w, "read error: "+err.Error(), http.StatusBadRequest)
+		}
 		return
 	}
 
 	// 驗證結構相容 protocol.Config
 	var cfg protocol.Config
 	if err := json.Unmarshal(body, &cfg); err != nil {
-		http.Error(w, "invalid settings structure: "+err.Error(), http.StatusBadRequest)
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if cfg.Project.Name == "" {
+		http.Error(w, "project.name is required", http.StatusBadRequest)
 		return
 	}
 
-	// 讀取現有設定以進行合併
+	// 重新格式化以確保一致的縮排
+	var raw json.RawMessage
+	if err := json.Unmarshal(body, &raw); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	result, err := json.MarshalIndent(raw, "", "  ")
+	if err != nil {
+		http.Error(w, "marshal error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	newData := append(result, '\n')
+
+	settingsMu.Lock()
+	defer settingsMu.Unlock()
+
 	settingsPath := filepath.Join(ws.DotDir(), protocol.ConfigFile)
 	oldData, err := os.ReadFile(settingsPath)
 	if err != nil {
@@ -664,24 +676,27 @@ func handlePutSettings(ws *protocol.Workspace, w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	var existing map[string]interface{}
-	_ = json.Unmarshal(oldData, &existing)
-
-	// 合併：incoming 覆蓋 existing，但 existing 中 incoming 沒有的 key 保留
-	merged := mergeSettings(existing, incoming)
-
-	result, err := json.MarshalIndent(merged, "", "  ")
-	if err != nil {
-		http.Error(w, "marshal error: "+err.Error(), http.StatusInternalServerError)
+	// 內容沒變就不寫
+	if bytes.Equal(oldData, newData) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(result)
 		return
 	}
 
 	// 備份原始設定
-	_ = os.WriteFile(settingsPath+".bak", oldData, 0o644)
+	if err := os.WriteFile(settingsPath+".bak", oldData, 0o644); err != nil {
+		http.Error(w, "backup failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-	// 寫入新設定
-	if err := os.WriteFile(settingsPath, append(result, '\n'), 0o644); err != nil {
+	// 原子寫入：先寫 temp file 再 rename
+	tmpPath := settingsPath + ".tmp"
+	if err := os.WriteFile(tmpPath, newData, 0o644); err != nil {
 		http.Error(w, "write error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := os.Rename(tmpPath, settingsPath); err != nil {
+		http.Error(w, "rename error: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -689,26 +704,17 @@ func handlePutSettings(ws *protocol.Workspace, w http.ResponseWriter, r *http.Re
 	w.Write(result)
 }
 
-// mergeSettings 合併設定：incoming 的值覆蓋 existing，但 existing 中 incoming 不含的 key 保留。
-// 對 map 型別的值進行遞迴合併；陣列與純量以 incoming 為準。
-func mergeSettings(existing, incoming map[string]interface{}) map[string]interface{} {
-	if existing == nil {
-		return incoming
+func reloadProcessManager(ws *protocol.Workspace, pm *ProcessManager) {
+	if pm == nil {
+		return
 	}
-	result := make(map[string]interface{})
-	for k, v := range existing {
-		result[k] = v
+	cfg, err := ws.ReadConfig()
+	if err != nil {
+		return
 	}
-	for k, v := range incoming {
-		if subNew, ok := v.(map[string]interface{}); ok {
-			if subOld, ok := result[k].(map[string]interface{}); ok {
-				result[k] = mergeSettings(subOld, subNew)
-				continue
-			}
-		}
-		result[k] = v
+	if cfg.MaxConcurrentRuns > 0 {
+		pm.SetMaxParallel(cfg.MaxConcurrentRuns)
 	}
-	return result
 }
 
 func readIfExists(path string) string {

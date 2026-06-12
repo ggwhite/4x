@@ -47,6 +47,8 @@ The dashboard exposes REST and SSE endpoints:
 | `/api/projects` | POST | Add a project (supports `init: true` for on-the-fly initialization) |
 | `/api/projects` | DELETE | Remove a project |
 | `/api/browse` | GET | Folder picker |
+| `/api/settings` | GET | Get project settings (`.4x/settings.json`) |
+| `/api/settings` | PUT | Update project settings (validates, backs up, writes) |
 
 ### SSE (Server-Sent Events)
 

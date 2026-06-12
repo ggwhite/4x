@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -308,5 +310,105 @@ func TestPostNew_MissingName(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+func TestGetSettings(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/settings", "")
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	var cfg protocol.Config
+	if err := json.NewDecoder(rec.Body).Decode(&cfg); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if cfg.Project.Name != "server-test" {
+		t.Errorf("project.name = %q, want server-test", cfg.Project.Name)
+	}
+}
+
+func TestPutSettings_Valid(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	body := `{"project":{"name":"updated-name","description":"new desc"},"default_runner":"claude"}`
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodPut, "/api/settings", body)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	// 驗證設定已更新
+	cfg, err := ws.ReadConfig()
+	if err != nil {
+		t.Fatalf("ReadConfig: %v", err)
+	}
+	if cfg.Project.Name != "updated-name" {
+		t.Errorf("project.name = %q, want updated-name", cfg.Project.Name)
+	}
+}
+
+func TestPutSettings_BackupCreated(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	body := `{"project":{"name":"backup-test"}}`
+	serveRequest(t, NewMux(ws, nil), http.MethodPut, "/api/settings", body)
+
+	bakPath := filepath.Join(ws.DotDir(), "settings.json.bak")
+	if _, err := os.Stat(bakPath); err != nil {
+		t.Errorf("backup file not found: %v", err)
+	}
+}
+
+func TestPutSettings_InvalidJSON(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodPut, "/api/settings", `{broken json`)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+func TestPutSettings_MissingProjectName(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodPut, "/api/settings", `{"project":{"name":""}}`)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+func TestPutSettings_FullReplacement(t *testing.T) {
+	ws := setupServerWorkspace(t)
+
+	settingsPath := filepath.Join(ws.DotDir(), "settings.json")
+	oldContent := `{"project":{"name":"test"},"custom_key":"custom_value"}`
+	if err := os.WriteFile(settingsPath, []byte(oldContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// PUT 不含 custom_key — 全量替換，custom_key 應被移除
+	body := `{"project":{"name":"test"}}`
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodPut, "/api/settings", body)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "custom_key") {
+		t.Errorf("custom_key should not be preserved with full replacement; got: %s", string(data))
+	}
+}
+
+func TestPutSettings_MethodNotAllowed(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodPost, "/api/settings", `{}`)
+
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("status = %d, want 405", rec.Code)
 	}
 }

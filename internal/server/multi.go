@@ -224,7 +224,7 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 			handleTasks(ws, w)
 			return
 		}
-		compatError(w, len(entries), "/api/project/{id}/tasks")
+		compatError(w, len(entries), "/api/project/{id}/api/tasks")
 	})
 	mux.HandleFunc("/api/messages/", func(w http.ResponseWriter, r *http.Request) {
 		entries := reg.List()
@@ -234,7 +234,7 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 			handleMessages(ws, featureID, w)
 			return
 		}
-		compatError(w, len(entries), "/api/project/{id}/messages/{featureId}")
+		compatError(w, len(entries), "/api/project/{id}/api/messages/{featureId}")
 	})
 	mux.HandleFunc("/api/events/", func(w http.ResponseWriter, r *http.Request) {
 		entries := reg.List()
@@ -244,7 +244,7 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 			handleEvents(ws, featureID, w)
 			return
 		}
-		compatError(w, len(entries), "/api/project/{id}/events/{featureId}")
+		compatError(w, len(entries), "/api/project/{id}/api/events/{featureId}")
 	})
 	mux.HandleFunc("/sse/events/", func(w http.ResponseWriter, r *http.Request) {
 		entries := reg.List()
@@ -264,7 +264,7 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 			handleLogs(ws, rest, w)
 			return
 		}
-		compatError(w, len(entries), "/api/project/{id}/logs/{featureId}")
+		compatError(w, len(entries), "/api/project/{id}/api/logs/{featureId}")
 	})
 	mux.HandleFunc("/sse/logs/", func(w http.ResponseWriter, r *http.Request) {
 		entries := reg.List()
@@ -275,6 +275,17 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 			return
 		}
 		compatError(w, len(entries), "/sse/project/{id}/logs/{featureId}")
+	})
+	mux.HandleFunc("/api/settings", func(w http.ResponseWriter, r *http.Request) {
+		entries := reg.List()
+		if len(entries) == 1 {
+			entry := reg.getEntry(entries[0].ID)
+			if entry != nil {
+				entry.mux.ServeHTTP(w, r)
+				return
+			}
+		}
+		compatError(w, len(entries), "/api/project/{id}/api/settings")
 	})
 	for _, route := range []string{"/api/run", "/api/runs", "/api/stop", "/api/new"} {
 		mux.HandleFunc(route, func(w http.ResponseWriter, r *http.Request) {

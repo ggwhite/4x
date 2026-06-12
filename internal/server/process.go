@@ -50,6 +50,16 @@ func NewProcessManager(ws *protocol.Workspace, maxParallel int, binName string) 
 	}
 }
 
+// SetMaxParallel 更新最大併發數，供設定變更後即時生效。
+func (pm *ProcessManager) SetMaxParallel(n int) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	if n <= 0 {
+		n = 1
+	}
+	pm.maxParallel = n
+}
+
 // Start 啟動一個 4x run subprocess。
 func (pm *ProcessManager) Start(featureID, runner string, maxRounds int) (*RunInfo, error) {
 	pm.mu.Lock()
