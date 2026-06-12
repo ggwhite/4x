@@ -981,7 +981,9 @@ async function markDone(fid) {
   if (!res.ok) { alert('Failed: '+(await res.text())); return; }
   const data = await res.json();
   if (data.merge_conflict) {
-    alert('Done, but merge has conflicts:\n\n'+data.conflicts.join('\n')+'\n\nResolve in worktree, then run: 4x merge '+fid);
+    alert('Done, but merge has conflicts:\n\n'+(data.conflicts||[]).join('\n')+'\n\nResolve in worktree, then run: 4x merge '+fid);
+  } else if (data.merge_error) {
+    alert('Done, but merge failed:\n\n'+data.merge_error);
   }
   load(); if (!current) renderDashboard(lastTasks);
 }

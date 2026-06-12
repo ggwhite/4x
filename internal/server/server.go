@@ -21,6 +21,7 @@ import (
 )
 
 var settingsMu sync.Mutex
+var mergeMu sync.Mutex
 
 //go:embed static/index.html
 var indexHTML string
@@ -674,12 +675,18 @@ func handlePostDone(ws *protocol.Workspace, w http.ResponseWriter, r *http.Reque
 	if f.Name != "" {
 		name = f.Name
 	}
+
+	mergeMu.Lock()
 	result := worktree.Merge(ws.Root, req.ID, name)
+	mergeMu.Unlock()
 
 	w.Header().Set("Content-Type", "application/json")
 	if result.Conflict {
 		filesJSON, _ := json.Marshal(result.Files)
 		fmt.Fprintf(w, `{"status":"done","merge_conflict":true,"conflicts":%s}`, filesJSON)
+	} else if result.Error != "" {
+		errJSON, _ := json.Marshal(result.Error)
+		fmt.Fprintf(w, `{"status":"done","merge_error":%s}`, errJSON)
 	} else if result.Skipped {
 		fmt.Fprint(w, `{"status":"done","merged":false}`)
 	} else {

@@ -85,6 +85,11 @@ func markDone(ws *protocol.Workspace, featureID string) error {
 		fmt.Printf("After resolving: 4x merge %s\n", featureID)
 		return nil
 	}
+	if result.Error != "" {
+		fmt.Fprintf(os.Stderr, "warning: merge failed: %s\n", result.Error)
+		fmt.Printf("Worktree preserved at: %s\n", worktree.Dir(ws.Root, featureID))
+		return nil
+	}
 	fmt.Printf("Merged and cleaned up branch 4x/%s.\n", featureID)
 	return nil
 }

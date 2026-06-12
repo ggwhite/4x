@@ -44,34 +44,35 @@ func newMergeCmd() *cobra.Command {
 				return fmt.Errorf("no worktree found at %s", wtDir)
 			}
 
-			exec.Command("git", "-C", wtDir, "add", "-A").Run()
-			if exec.Command("git", "-C", wtDir, "diff", "--cached", "--quiet").Run() != nil {
-				f, _ := ws.LoadFeature(featureID)
-				msg := fmt.Sprintf("fix(%s): resolve merge conflicts", featureID)
-				if f.Name != "" {
-					msg = fmt.Sprintf("fix(%s): resolve merge conflicts — %s", featureID, f.Name)
-				}
-				exec.Command("git", "-C", wtDir, "commit", "-m", msg).Run()
-			}
-
-			branch := worktree.Branch(featureID)
 			f, _ := ws.LoadFeature(featureID)
 			name := featureID
 			if f.Name != "" {
 				name = f.Name
 			}
-			mergeMsg := fmt.Sprintf("Merge branch '%s' — %s", branch, name)
 
-			out, err := exec.Command("git", "-C", ws.Root, "merge", branch, "-m", mergeMsg).CombinedOutput()
-			if err != nil {
-				return fmt.Errorf("merge still has conflicts: %s", string(out))
+			if err := exec.Command("git", "-C", wtDir, "add", "-A").Run(); err != nil {
+				return fmt.Errorf("git add in worktree failed: %w", err)
+			}
+			if exec.Command("git", "-C", wtDir, "diff", "--cached", "--quiet").Run() != nil {
+				msg := fmt.Sprintf("fix(%s): resolve merge conflicts — %s", featureID, name)
+				if out, err := exec.Command("git", "-C", wtDir, "commit", "-m", msg).CombinedOutput(); err != nil {
+					return fmt.Errorf("commit in worktree failed: %s", string(out))
+				}
 			}
 
-			if err := worktree.Cleanup(ws.Root, featureID); err != nil {
-				fmt.Fprintf(os.Stderr, "warning: cleanup failed: %v\n", err)
+			result := worktree.Merge(ws.Root, featureID, name)
+			if result.Conflict {
+				fmt.Println("Merge still has conflicts:")
+				for _, file := range result.Files {
+					fmt.Printf("  conflict: %s\n", file)
+				}
+				return nil
+			}
+			if result.Error != "" {
+				return fmt.Errorf("merge failed: %s", result.Error)
 			}
 
-			fmt.Printf("Merged and cleaned up branch %s.\n", branch)
+			fmt.Printf("Merged and cleaned up branch %s.\n", worktree.Branch(featureID))
 			return nil
 		},
 	}

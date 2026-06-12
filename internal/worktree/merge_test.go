@@ -66,6 +66,9 @@ func TestMerge_Success(t *testing.T) {
 	if result.Skipped {
 		t.Fatal("should not be skipped when worktree exists")
 	}
+	if result.Error != "" {
+		t.Fatalf("expected no error, got: %s", result.Error)
+	}
 
 	wtDir := filepath.Join(mainDir, ".worktrees", "4x", featureID)
 	if _, err := os.Stat(wtDir); err == nil {
@@ -134,6 +137,20 @@ func TestMerge_Conflict(t *testing.T) {
 	wtDir := filepath.Join(mainDir, ".worktrees", "4x", featureID)
 	if _, err := os.Stat(wtDir); err != nil {
 		t.Error("worktree should be preserved on conflict")
+	}
+}
+
+func TestMerge_DirtyWorkingTree(t *testing.T) {
+	mainDir, _, featureID := setupTestRepo(t)
+
+	os.WriteFile(filepath.Join(mainDir, "new.txt"), []byte("dirty"), 0o644)
+
+	result := Merge(mainDir, featureID, "Test Feature")
+	if result.Conflict {
+		t.Error("dirty working tree should not be reported as conflict")
+	}
+	if result.Error == "" {
+		t.Error("dirty working tree should produce an error")
 	}
 }
 

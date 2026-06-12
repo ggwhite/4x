@@ -13,13 +13,15 @@ import (
 type MergeResult struct {
 	Skipped  bool
 	Conflict bool
+	Error    string
 	Files    []string
 }
 
-// Merge 嘗試將 worktree branch 4x/<featureID> merge 回 root 所在的 main branch。
-// 若 worktree 目錄不存在，回傳 MergeResult{Skipped: true}，行為不受影響。
+// Merge 嘗試將 worktree branch 4x/<featureID> merge 回 root 所在的當前 branch。
+// 若 worktree 目錄不存在，回傳 Skipped: true。
 // merge 成功則呼叫 Cleanup 清理 worktree 與 branch。
-// 發生衝突時 abort merge（保留 worktree 供手動解決），回傳 MergeResult{Conflict: true, Files: [...]}.
+// 發生衝突時 abort merge（保留 worktree 供手動解決），回傳 Conflict: true。
+// 其他 git 錯誤（dirty tree、index.lock 等）回傳 Error 並 abort。
 func Merge(root, featureID, featureName string) MergeResult {
 	wtDir := Dir(root, featureID)
 	if _, err := os.Stat(wtDir); err != nil {
@@ -28,17 +30,25 @@ func Merge(root, featureID, featureName string) MergeResult {
 
 	branch := Branch(featureID)
 
-	out, err := exec.Command("git", "-C", root, "merge", "--no-commit", branch).CombinedOutput()
+	curBranch, err := exec.Command("git", "-C", root, "symbolic-ref", "--short", "HEAD").Output()
+	if err != nil {
+		return MergeResult{Error: "cannot determine current branch (detached HEAD?)"}
+	}
+	if strings.TrimSpace(string(curBranch)) == branch {
+		return MergeResult{Error: fmt.Sprintf("current branch is %s — switch to main/master first", branch)}
+	}
+
+	msg := fmt.Sprintf("Merge branch '%s' — %s", branch, featureName)
+	out, err := exec.Command("git", "-C", root, "merge", "--no-ff", "-m", msg, branch).CombinedOutput()
 	if err != nil {
 		files := conflictFiles(root)
 		exec.Command("git", "-C", root, "merge", "--abort").Run()
-		_ = out
-		return MergeResult{Conflict: true, Files: files}
+		if len(files) > 0 {
+			return MergeResult{Conflict: true, Files: files}
+		}
+		return MergeResult{Error: strings.TrimSpace(string(out))}
 	}
 	_ = out
-
-	msg := fmt.Sprintf("Merge branch '%s' — %s", branch, featureName)
-	exec.Command("git", "-C", root, "commit", "--no-edit", "-m", msg).Run()
 
 	Cleanup(root, featureID)
 	return MergeResult{}
