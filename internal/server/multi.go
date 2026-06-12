@@ -132,6 +132,7 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 		case http.MethodPost:
 			var body struct {
 				Path string `json:"path"`
+				Init bool   `json:"init"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 				http.Error(w, "invalid JSON", http.StatusBadRequest)
@@ -144,6 +145,15 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 			}
 			ws, err := protocol.Find(body.Path)
 			if err != nil || ws.Root != absPath {
+				if !body.Init {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusConflict)
+					json.NewEncoder(w).Encode(map[string]string{
+						"error": "not_4x_project",
+						"path":  absPath,
+					})
+					return
+				}
 				if initErr := protocol.Init(absPath, protocol.Config{
 					Project: protocol.ProjectConfig{Name: filepath.Base(absPath)},
 				}); initErr != nil {
