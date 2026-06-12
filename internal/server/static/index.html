@@ -127,7 +127,11 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
       </button>
     </div>
-    <div id="task-list" class="flex-1 overflow-y-auto p-2"></div>
+    <div id="task-list" class="flex-1 flex flex-col overflow-hidden">
+      <div id="tl-top" class="flex-shrink-0 overflow-y-auto p-2"></div>
+      <div class="flex-1 min-h-0"></div>
+      <div id="tl-bottom" class="flex-shrink-0 overflow-y-auto p-2 border-t" style="border-color:var(--border)"></div>
+    </div>
   </div>
 
   <!-- Main -->
@@ -975,11 +979,26 @@ function badge(status, phase, active) {
   return '<span class="px-2 py-0.5 text-[10px] text-zinc-600 border border-zinc-800 rounded-full">Backlog</span>';
 }
 
+function showConfirm(title, message, onConfirm) {
+  let modal = document.getElementById('confirm-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'confirm-modal';
+    modal.className = 'modal-backdrop';
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `<div class="modal-panel fade-in" style="width:380px"><div class="p-5"><div class="font-bold text-sm mb-2">${title}</div><div class="text-sm text-zinc-400">${message}</div></div><div class="flex justify-end gap-2 px-5 pb-4"><button id="confirm-cancel" class="px-4 py-1.5 text-xs rounded border transition-colors" style="border-color:var(--border);color:var(--text-3)" onmouseenter="this.style.background='var(--hover)'" onmouseleave="this.style.background='transparent'">Cancel</button><button id="confirm-ok" class="px-4 py-1.5 text-xs rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition-colors">Confirm</button></div></div>`;
+  modal.classList.add('open');
+  modal.querySelector('#confirm-cancel').onclick = () => modal.classList.remove('open');
+  modal.querySelector('#confirm-ok').onclick = () => { modal.classList.remove('open'); onConfirm(); };
+  modal.onclick = (e) => { if (e.target === modal) modal.classList.remove('open'); };
+}
 async function markDone(fid) {
-  if (!confirm('Mark '+fid+' as done?')) return;
-  const res = await fetch(apiBase()+'/api/done', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:fid})});
-  if (!res.ok) { alert('Failed: '+(await res.text())); return; }
-  load(); if (!current) renderDashboard(lastTasks);
+  showConfirm('Mark as Done', `Transition <strong>${esc(fid)}</strong> to done?`, async () => {
+    const res = await fetch(apiBase()+'/api/done', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:fid})});
+    if (!res.ok) { alert('Failed: '+(await res.text())); return; }
+    load(); if (!current) renderDashboard(lastTasks);
+  });
 }
 function goHome() {
   current=null; lastMsgCount=0; disconnectSSE(); disconnectLogSSE();
@@ -1032,50 +1051,120 @@ ${g.running.length>0?`<div class="rounded-xl border border-emerald-500/20 bg-eme
 ${g.review.length>0?`<div class="rounded-xl border border-amber-500/20 bg-amber-950/20 p-5 mt-4"><div class="text-[10px] font-bold text-amber-500/70 uppercase tracking-wider mb-4">Pending Review</div><div class="space-y-2">${g.review.map(t=>`<div class="flex items-center gap-3 py-1.5 cursor-pointer hover:bg-amber-900/20 rounded px-2 -mx-2 transition-colors" onclick="current='${t.id}';load();loadDetail(${JSON.stringify(t).replace(/"/g,'&quot;')})"><span class="text-amber-400 text-xs">⏳</span><span class="text-xs font-semibold text-amber-400">${t.id}</span><span class="text-xs text-zinc-400 truncate flex-1">${esc(t.name)}</span>${t.round?`<span class="text-[10px] text-zinc-600">${t.round}R</span>`:''}<button class="px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/30 rounded hover:bg-amber-500/20 transition-colors" onclick="event.stopPropagation();markDone('${t.id}')">Done</button></div>`).join('')}</div></div>`:''}`;
 }
 
+const _sectionCollapsed = { done: true };
+
+function renderTaskItem(t) {
+  const isActive = t.active && t.phase && t.phase!=='done', isSel = t.id===current;
+  let cls = 'p-3 rounded-lg cursor-pointer mb-1 transition-all duration-150 ';
+  if (isActive) cls+='bg-emerald-950/40 border border-emerald-500/20 hover:border-emerald-500/40 ';
+  else if (isSel) cls+='bg-zinc-800/80 border border-zinc-700/50 ';
+  else if (t.status==='done') cls+='border border-transparent opacity-40 hover:opacity-70 ';
+  else cls+='border border-transparent hover:bg-zinc-800/50 ';
+  const hasState = t.phase || t.round;
+  const elapsed = isActive && t.createdAt ? formatElapsed(t.createdAt) : '';
+  const duration = !isActive && t.createdAt && t.updatedAt ? formatDuration(t.createdAt, t.updatedAt) : '';
+  const timePart = elapsed ? ` · ⏱ ${elapsed}` : duration ? ` · ⏱ ${duration}` : '';
+  const roundPart = t.round ? `Round ${t.round}` : '';
+  let pi = '';
+  if (isActive) {
+    pi = `<div class="flex items-center gap-1.5 mt-1.5 flex-wrap"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span><span class="text-[11px] text-emerald-400">${t.phase}</span><span class="text-[11px] text-zinc-600">· ${roundPart}${timePart}</span></div>`;
+  } else if (hasState && (roundPart || timePart)) {
+    const parts = [roundPart, timePart.replace(/^ · /, '')].filter(Boolean).join(' · ');
+    pi = `<div class="flex items-center gap-1.5 mt-1.5"><span class="text-[11px] text-zinc-600">${parts}</span></div>`;
+  }
+  const di = t.status==='done' ? '<span class="text-emerald-500/60 text-xs">✓</span>' : '';
+  const doneBtn = t.status==='ready-for-review' ? `<button class="ml-auto px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/30 rounded hover:bg-amber-500/20 transition-colors" onclick="event.stopPropagation();markDone('${t.id}')">Mark Done</button>` : '';
+  const rt = runnerTags(t.runners);
+  const rtLine = rt ? `<div class="flex gap-1 mt-1">${rt}</div>` : '';
+  return `<div class="${cls}" onclick="current='${t.id}';load();loadDetail(${JSON.stringify(t).replace(/"/g,'&quot;')})"><div class="flex items-start gap-2">${di}<div class="flex-1 min-w-0"><div class="text-[13px] font-medium truncate">${esc(t.name)}</div><div class="text-[11px] text-zinc-600 mt-0.5">${t.id}</div>${pi}${rtLine}</div>${doneBtn}</div></div>`;
+}
+
+function toggleSection(key) {
+  _sectionCollapsed[key] = !_sectionCollapsed[key];
+  renderSidebar();
+}
+
+let _popupSections = {};
+function openSectionPopup(key) {
+  const data = _popupSections[key];
+  if (!data) return;
+  const { title, items } = data;
+  let modal = document.getElementById('section-popup');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'section-popup';
+    modal.className = 'modal-backdrop';
+    modal.onclick = (e) => { if (e.target === modal) modal.classList.remove('open'); };
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `<div class="modal-panel fade-in" style="width:480px;max-height:80vh;display:flex;flex-direction:column"><div class="flex items-center p-4 border-b" style="border-color:var(--border)"><span class="font-bold">${title}</span><span class="ml-auto text-xs text-zinc-500">${items.length} items</span></div><div class="flex-1 overflow-y-auto p-2">${items.map(t => renderTaskItem(t)).join('')}</div></div>`;
+  modal.classList.add('open');
+}
+
+function renderSidebar() {
+  const groups = classify(lastTasks);
+  const topEl = document.getElementById('tl-top');
+  const bottomEl = document.getElementById('tl-bottom');
+  if (!topEl || !bottomEl) return;
+  topEl.innerHTML = ''; bottomEl.innerHTML = '';
+
+  function sectionHeader(key, title, count, items, container) {
+    if (count === 0) return;
+    const collapsed = !!_sectionCollapsed[key];
+    const h = document.createElement('div');
+    h.className = 'flex items-center gap-2 px-2 py-2 text-[10px] font-bold text-zinc-500 uppercase tracking-wider select-none';
+    _popupSections[key] = { title, items };
+    h.innerHTML = `<span class="cursor-pointer hover:text-zinc-300 transition-colors flex items-center gap-2 flex-1" data-action="toggle"><span style="display:inline-block;transform:rotate(${collapsed?'0':'90'}deg);transition:transform .15s;font-size:9px">▶</span>${title}</span><span class="text-zinc-600">${count}</span><span class="cursor-pointer hover:text-zinc-300 transition-colors text-[10px] ml-1" data-action="popup" title="Show all">↗</span>`;
+    h.onclick = (e) => {
+      const action = e.target.closest('[data-action]')?.dataset?.action;
+      if (action === 'popup') openSectionPopup(key);
+      else toggleSection(key);
+    };
+    container.appendChild(h);
+    return collapsed;
+  }
+
+  function sectionItems(items, container) {
+    items.forEach(t => {
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = renderTaskItem(t);
+      const el = wrapper.firstChild;
+      container.appendChild(el);
+    });
+  }
+
+  // Top sections: Running, Review, Pending
+  const topSections = [
+    { key: 'running', title: 'Running', items: groups.running },
+    { key: 'review', title: 'Review', items: groups.review },
+    { key: 'pending', title: 'Pending', items: groups.pending },
+  ];
+  topSections.forEach(s => {
+    if (!s.items.length) return;
+    const collapsed = sectionHeader(s.key, s.title, s.items.length, s.items, topEl);
+    if (!collapsed) sectionItems(s.items, topEl);
+  });
+
+  // Bottom sections: Todo, Done
+  const bottomSections = [
+    { key: 'todo', title: 'Todo', items: groups.todo },
+    { key: 'done', title: 'Done', items: groups.done },
+  ];
+  bottomSections.forEach(s => {
+    if (!s.items.length) return;
+    const collapsed = sectionHeader(s.key, s.title, s.items.length, s.items, bottomEl);
+    if (!collapsed) sectionItems(s.items, bottomEl);
+  });
+
+  // Hide bottom border if empty
+  bottomEl.style.borderTop = (groups.todo.length || groups.done.length) ? '' : 'none';
+}
+
 async function load() {
   if (!activeProjectId) { renderProjectPicker(); return; }
   const tasks = await (await fetch(apiBase()+'/api/tasks')).json();
   lastTasks = tasks || [];
-  const list = document.getElementById('task-list'); list.innerHTML = '';
-  const groups = classify(tasks);
-  function rg(title, items, count) {
-    if (!items.length) return;
-    const h = document.createElement('div'); h.className='flex items-center gap-2 px-2 py-2 text-[10px] font-bold text-zinc-500 uppercase tracking-wider'; h.innerHTML=`${title} <span class="ml-auto text-zinc-600">${count}</span>`; list.appendChild(h);
-    items.forEach(t => {
-      const el = document.createElement('div');
-      const isActive = t.active && t.phase && t.phase!=='done', isSel = t.id===current;
-      let cls = 'p-3 rounded-lg cursor-pointer mb-1 transition-all duration-150 ';
-      if (isActive) cls+='bg-emerald-950/40 border border-emerald-500/20 hover:border-emerald-500/40 ';
-      else if (isSel) cls+='bg-zinc-800/80 border border-zinc-700/50 ';
-      else if (t.status==='done') cls+='border border-transparent opacity-40 hover:opacity-70 ';
-      else cls+='border border-transparent hover:bg-zinc-800/50 ';
-      el.className = cls;
-      const hasState = t.phase || t.round;
-      const elapsed = isActive && t.createdAt ? formatElapsed(t.createdAt) : '';
-      const duration = !isActive && t.createdAt && t.updatedAt ? formatDuration(t.createdAt, t.updatedAt) : '';
-      const timePart = elapsed ? ` · ⏱ ${elapsed}` : duration ? ` · ⏱ ${duration}` : '';
-      const roundPart = t.round ? `Round ${t.round}` : '';
-      let pi = '';
-      if (isActive) {
-        pi = `<div class="flex items-center gap-1.5 mt-1.5 flex-wrap"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span><span class="text-[11px] text-emerald-400">${t.phase}</span><span class="text-[11px] text-zinc-600">· ${roundPart}${timePart}</span></div>`;
-      } else if (hasState && (roundPart || timePart)) {
-        const parts = [roundPart, timePart.replace(/^ · /, '')].filter(Boolean).join(' · ');
-        pi = `<div class="flex items-center gap-1.5 mt-1.5"><span class="text-[11px] text-zinc-600">${parts}</span></div>`;
-      }
-      const di = t.status==='done' ? '<span class="text-emerald-500/60 text-xs">✓</span>' : '';
-      const doneBtn = t.status==='ready-for-review' ? `<button class="ml-auto px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/30 rounded hover:bg-amber-500/20 transition-colors" onclick="event.stopPropagation();markDone('${t.id}')">Mark Done</button>` : '';
-      const rt = runnerTags(t.runners);
-      const rtLine = rt ? `<div class="flex gap-1 mt-1">${rt}</div>` : '';
-      el.innerHTML = `<div class="flex items-start gap-2">${di}<div class="flex-1 min-w-0"><div class="text-[13px] font-medium truncate">${esc(t.name)}</div><div class="text-[11px] text-zinc-600 mt-0.5">${t.id}</div>${pi}${rtLine}</div>${doneBtn}</div>`;
-      el.onclick = () => { current=t.id; load(); loadDetail(t); };
-      list.appendChild(el);
-    });
-  }
-  rg('Running', groups.running, groups.running.length);
-  rg('Review', groups.review, groups.review.length);
-  rg('Pending', groups.pending, groups.pending.length);
-  rg('Todo', groups.todo, groups.todo.length);
-  rg('Done', groups.done, groups.done.length);
+  renderSidebar();
   if (!current) renderDashboard(lastTasks);
 }
 
