@@ -23,6 +23,15 @@ func TestCanTransition_Valid(t *testing.T) {
 		{protocol.PhasePendingReview, protocol.PhaseDone},
 		{protocol.PhasePendingReview, protocol.PhaseBlocked},
 		{protocol.PhasePendingReview, protocol.PhaseNeedsAttention},
+		{protocol.PhaseInit, protocol.PhaseDone},
+		{protocol.PhaseDesigning, protocol.PhaseDone},
+		{protocol.PhaseCoding, protocol.PhaseDone},
+		{protocol.PhaseReviewing, protocol.PhaseDone},
+		{protocol.PhaseTesting, protocol.PhaseDone},
+		{protocol.PhaseAmending, protocol.PhaseDone},
+		{protocol.PhaseAccepting, protocol.PhaseDone},
+		{protocol.PhaseBlocked, protocol.PhaseDone},
+		{protocol.PhaseNeedsAttention, protocol.PhaseDone},
 		{protocol.PhaseBlocked, protocol.PhaseDesigning},
 		{protocol.PhaseBlocked, protocol.PhaseCoding},
 		{protocol.PhaseBlocked, protocol.PhaseTesting},
@@ -54,21 +63,15 @@ func TestCanTransition_Invalid(t *testing.T) {
 		to   protocol.Phase
 	}{
 		{protocol.PhaseInit, protocol.PhaseTesting},
-		{protocol.PhaseInit, protocol.PhaseDone},
 		{protocol.PhaseInit, protocol.PhaseCoding},
 		{protocol.PhaseDesigning, protocol.PhaseTesting},
-		{protocol.PhaseDesigning, protocol.PhaseDone},
-		{protocol.PhaseCoding, protocol.PhaseDone},
 		{protocol.PhaseCoding, protocol.PhaseAccepting},
 		{protocol.PhaseCoding, protocol.PhaseAmending},
-		{protocol.PhaseReviewing, protocol.PhaseDone},
 		{protocol.PhaseReviewing, protocol.PhaseAccepting},
 		{protocol.PhaseReviewing, protocol.PhaseCoding},
 		{protocol.PhaseTesting, protocol.PhaseCoding},
 		{protocol.PhaseAmending, protocol.PhaseTesting},
-		{protocol.PhaseAmending, protocol.PhaseDone},
 		{protocol.PhaseAmending, protocol.PhaseCoding},
-		{protocol.PhaseAccepting, protocol.PhaseDone},
 		{protocol.PhaseAccepting, protocol.PhaseCoding},
 		{protocol.PhaseDone, protocol.PhaseInit},
 		{protocol.PhaseDone, protocol.PhaseCoding},
@@ -99,9 +102,23 @@ func TestTransition_UpdatesPhaseAndRole(t *testing.T) {
 
 func TestTransition_InvalidReturnsError(t *testing.T) {
 	s := protocol.State{Phase: protocol.PhaseInit}
-	_, err := Transition(s, protocol.PhaseDone, protocol.RoleDesigner)
+	_, err := Transition(s, protocol.PhaseTesting, protocol.RoleTester)
 	if err == nil {
 		t.Error("expected error for invalid transition, got nil")
+	}
+}
+
+func TestTransition_DoneSetsActivefalse(t *testing.T) {
+	s := protocol.State{Phase: protocol.PhaseInit, Active: true}
+	got, err := Transition(s, protocol.PhaseDone, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Phase != protocol.PhaseDone {
+		t.Errorf("Phase = %s, want done", got.Phase)
+	}
+	if got.Active {
+		t.Error("Active = true, want false after transition to done")
 	}
 }
 

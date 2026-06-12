@@ -449,7 +449,7 @@ func TestTransition_JSON_Error(t *testing.T) {
 	os.WriteFile(filepath.Join(featureDir, protocol.StateFile),
 		[]byte(`{"featureId":"F001-trans-err","phase":"init","role":"","round":0,"maxRounds":5,"active":true,"runner":"mock","createdAt":"2025-01-01T00:00:00Z","updatedAt":"2025-01-01T00:00:00Z"}`), 0o644)
 
-	out, err := run4x(dir, "transition", featureID, "--to", "done", "--json")
+	out, err := run4x(dir, "transition", featureID, "--to", "testing", "--json")
 	if err == nil {
 		t.Fatal("expected error for invalid transition")
 	}

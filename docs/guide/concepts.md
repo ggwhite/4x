@@ -55,7 +55,7 @@ init → designing → coding → reviewing → testing → accepting → pendin
 | `pending-review` | `done` |
 | `blocked` | `designing`, `coding`, `testing` |
 | `needs-attention` | `designing`, `coding` |
-| any | `blocked`, `needs-attention` |
+| any | `blocked`, `needs-attention`, `done` |
 
 ### Round Counter
 
