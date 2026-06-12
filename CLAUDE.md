@@ -24,7 +24,7 @@ internal/
   runner/            Runner 介面與子程序執行
   server/            SSE + REST server（Dashboard 用）
 plugins/
-  claude-code/       Claude Code skill + workflow.js
+  claude-code/       Claude Code runner instructions
   gemini/            Gemini CLI runner instructions
   codex/             Codex CLI runner instructions
   agy/               Antigravity CLI runner instructions
@@ -73,8 +73,7 @@ go build ./cmd/4x && go vet ./... && go test ./...
 ## Plugin Development
 
 Plugin 合約見 `docs/reference/plugin-contract.md`。Claude Code plugin 在 `plugins/claude-code/`：
-- `SKILL.md` — skill 定義（觸發方式、流程）
-- `workflow.js` — Claude Code Workflow 腳本
+- `CLAUDE.md` — runner context 檔（role 契約、protocol、guardrail）
 
 ## Docs Routing
 

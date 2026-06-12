@@ -22,8 +22,7 @@ func runnerDeploys(name string) []pluginDeploy {
 	switch name {
 	case "claude":
 		return []pluginDeploy{
-			{EmbedPath: "claude-code/SKILL.md", PluginName: "CLAUDE.md", RootFile: "CLAUDE.md"},
-			{EmbedPath: "claude-code/workflow.js", PluginName: "workflow.js"},
+			{EmbedPath: "claude-code/CLAUDE.md", PluginName: "CLAUDE.md", RootFile: "CLAUDE.md"},
 		}
 	case "codex":
 		return []pluginDeploy{
