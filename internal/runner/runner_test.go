@@ -179,7 +179,7 @@ func TestNewRunner(t *testing.T) {
 	ws := &protocol.Workspace{Root: root}
 
 	cfg := protocol.RunnerConfig{Command: "claude", Args: []string{"-p", "{prompt}"}}
-	r := NewRunner(ws, "claude", cfg, 30*time.Second, "")
+	r := NewRunner(ws, "claude", cfg, 30*time.Second, "", "")
 	if r == nil {
 		t.Fatal("NewRunner returned nil")
 	}
@@ -190,5 +190,51 @@ func TestNewRunner(t *testing.T) {
 	}
 	if sr.Config.Command != "claude" {
 		t.Errorf("Command = %s, want claude", sr.Config.Command)
+	}
+}
+
+func TestBuildArgs_ModelOverrideAppended(t *testing.T) {
+	r := &SubprocessRunner{
+		Config:        protocol.RunnerConfig{Args: []string{"-p", "{prompt}"}},
+		ModelOverride: "opus",
+	}
+	args, _ := r.buildArgs("hello")
+	found := false
+	for i, a := range args {
+		if a == "--model" && i+1 < len(args) && args[i+1] == "opus" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected --model opus in args, got %v", args)
+	}
+}
+
+func TestBuildArgs_ModelPlaceholder(t *testing.T) {
+	r := &SubprocessRunner{
+		Config:        protocol.RunnerConfig{Args: []string{"--model", "{model}", "-p", "{prompt}"}},
+		ModelOverride: "sonnet",
+	}
+	args, _ := r.buildArgs("hello")
+	if args[0] != "--model" || args[1] != "sonnet" {
+		t.Errorf("expected --model sonnet, got %v", args[:2])
+	}
+	// {model} 已被替換，不應再 append
+	for i, a := range args {
+		if i > 1 && a == "--model" {
+			t.Error("--model should not be appended when placeholder was used")
+		}
+	}
+}
+
+func TestBuildArgs_NoModelOverride(t *testing.T) {
+	r := &SubprocessRunner{
+		Config: protocol.RunnerConfig{Args: []string{"-p", "{prompt}"}},
+	}
+	args, _ := r.buildArgs("hello")
+	for _, a := range args {
+		if a == "--model" {
+			t.Error("--model should not appear when ModelOverride is empty")
+		}
 	}
 }

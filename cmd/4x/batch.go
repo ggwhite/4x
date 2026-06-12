@@ -296,8 +296,8 @@ func newBatchRunCmd() *cobra.Command {
 				}
 				ws.WriteState(next, s)
 
-				runnerFactory := func(logPath string) runner.Runner {
-					return runner.NewRunner(ws, runnerName, runnerCfg, time.Duration(timeout)*time.Second, logPath)
+				runnerFactory := func(logPath string, model string) runner.Runner {
+					return runner.NewRunner(ws, runnerName, runnerCfg, time.Duration(timeout)*time.Second, logPath, model)
 				}
 				err = runLoop(ws, ws, feature, cfg, s, runnerFactory, "never")
 

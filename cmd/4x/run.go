@@ -128,8 +128,8 @@ func newRunCmd() *cobra.Command {
 				commitStrategy = "per-round"
 			}
 
-			runnerFactory := func(logPath string) runner.Runner {
-				return runner.NewRunner(runnerWs, runnerName, runnerCfg, time.Duration(timeout)*time.Second, logPath)
+			runnerFactory := func(logPath string, model string) runner.Runner {
+				return runner.NewRunner(runnerWs, runnerName, runnerCfg, time.Duration(timeout)*time.Second, logPath, model)
 			}
 			loopErr := runLoop(ws, runnerWs, feature, cfg, s, runnerFactory, commitStrategy)
 
@@ -188,7 +188,15 @@ func generatePrompt(ws *protocol.Workspace, feature protocol.Feature, cfg protoc
 	return buf.String(), nil
 }
 
-func runLoop(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s protocol.State, newRunner func(logPath string) runner.Runner, commitStrategy string) error {
+// resolveModel 根據 role → runner config 優先序決定要傳給 CLI 的 model
+func resolveModel(cfg protocol.Config, runnerCfg protocol.RunnerConfig, role protocol.Role) string {
+	if rc, ok := cfg.Roles[string(role)]; ok && rc.Model != "" {
+		return rc.Model
+	}
+	return runnerCfg.Model
+}
+
+func runLoop(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s protocol.State, newRunner func(logPath string, model string) runner.Runner, commitStrategy string) error {
 	featureID := feature.ID
 	ctx := context.Background()
 
@@ -248,7 +256,8 @@ func runLoop(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature proto
 		}
 
 		logPath := filepath.Join(runner.LogDir(ws, featureID), runner.LogFileName(s.Round, string(role)))
-		r := newRunner(logPath)
+		model := resolveModel(cfg, cfg.Runners[s.Runner], role)
+		r := newRunner(logPath, model)
 
 		if runnerWs != ws {
 			syncFeatureToWorktree(ws, runnerWs, featureID, s.Round)
@@ -260,7 +269,11 @@ func runLoop(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature proto
 			stopSync = startLiveSync(runnerWs, ws, featureID, s.Round)
 		}
 
-		fmt.Printf("[round %d] %s (%s) — invoking %s\n", s.Round, phase, role, s.Runner)
+		if model != "" {
+			fmt.Printf("[round %d] %s (%s) — invoking %s (model: %s)\n", s.Round, phase, role, s.Runner, model)
+		} else {
+			fmt.Printf("[round %d] %s (%s) — invoking %s\n", s.Round, phase, role, s.Runner)
+		}
 
 		result, err := r.Run(ctx, prompt)
 

@@ -30,11 +30,12 @@ type Runner interface {
 
 // SubprocessRunner 透過 config 定義的 command + args 呼叫 LLM CLI
 type SubprocessRunner struct {
-	Workspace *protocol.Workspace
-	Config    protocol.RunnerConfig
-	Name      string
-	Timeout   time.Duration
-	LogPath   string
+	Workspace     *protocol.Workspace
+	Config        protocol.RunnerConfig
+	Name          string
+	Timeout       time.Duration
+	LogPath       string
+	ModelOverride string
 }
 
 // Run 用 config 的 command/args 執行，替換 {prompt} 和 {promptFile}
@@ -100,6 +101,7 @@ func (r *SubprocessRunner) Run(ctx context.Context, prompt string) (*Result, err
 func (r *SubprocessRunner) buildArgs(prompt string) ([]string, func()) {
 	args := make([]string, len(r.Config.Args))
 	var cleanup func()
+	modelHandled := false
 
 	for i, arg := range r.Config.Args {
 		switch {
@@ -115,10 +117,22 @@ func (r *SubprocessRunner) buildArgs(prompt string) ([]string, func()) {
 			} else {
 				args[i] = arg
 			}
+		case strings.Contains(arg, "{model}"):
+			if r.ModelOverride != "" {
+				args[i] = strings.ReplaceAll(arg, "{model}", r.ModelOverride)
+				modelHandled = true
+			} else {
+				args[i] = arg
+			}
 		default:
 			args[i] = arg
 		}
 	}
+
+	if r.ModelOverride != "" && !modelHandled {
+		args = append(args, "--model", r.ModelOverride)
+	}
+
 	return args, cleanup
 }
 
@@ -130,14 +144,15 @@ func IsHardError(r *Result) bool {
 	return r != nil && r.ExitCode == ExitHardError
 }
 
-// NewRunner 建立 SubprocessRunner，logPath 為空字串時不產生 log file
-func NewRunner(ws *protocol.Workspace, name string, cfg protocol.RunnerConfig, timeout time.Duration, logPath string) Runner {
+// NewRunner 建立 SubprocessRunner，logPath 為空字串時不產生 log file，model 為空字串時不帶 --model flag
+func NewRunner(ws *protocol.Workspace, name string, cfg protocol.RunnerConfig, timeout time.Duration, logPath string, model string) Runner {
 	return &SubprocessRunner{
-		Workspace: ws,
-		Config:    cfg,
-		Name:      name,
-		Timeout:   timeout,
-		LogPath:   logPath,
+		Workspace:     ws,
+		Config:        cfg,
+		Name:          name,
+		Timeout:       timeout,
+		LogPath:       logPath,
+		ModelOverride: model,
 	}
 }
 
