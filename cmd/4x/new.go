@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -10,6 +11,7 @@ import (
 
 func newNewCmd() *cobra.Command {
 	var repos []string
+	var jsonOutput bool
 
 	cmd := &cobra.Command{
 		Use:   "new <name>",
@@ -18,10 +20,16 @@ func newNewCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
 			if err != nil {
+				if jsonOutput {
+					return jsonError(err.Error())
+				}
 				return err
 			}
 			ws, err := protocol.Find(cwd)
 			if err != nil {
+				if jsonOutput {
+					return jsonError(err.Error())
+				}
 				return err
 			}
 
@@ -29,6 +37,9 @@ func newNewCmd() *cobra.Command {
 
 			next, err := protocol.NextFeatureNumber(ws)
 			if err != nil {
+				if jsonOutput {
+					return jsonError(err.Error())
+				}
 				return err
 			}
 			id := protocol.GenerateFeatureID(next, name)
@@ -49,7 +60,25 @@ func newNewCmd() *cobra.Command {
 			}
 
 			if err := ws.SaveFeature(feature); err != nil {
+				if jsonOutput {
+					return jsonError(err.Error())
+				}
 				return err
+			}
+
+			if jsonOutput {
+				result := struct {
+					FeatureID string `json:"featureId"`
+					Name      string `json:"name"`
+					Path      string `json:"path"`
+				}{
+					FeatureID: id,
+					Name:      displayName,
+					Path:      fmt.Sprintf(".4x/features/%s.yaml", id),
+				}
+				data, _ := json.MarshalIndent(result, "", "  ")
+				fmt.Println(string(data))
+				return nil
 			}
 
 			fmt.Printf("Created feature: %s (%s)\n", id, name)
@@ -62,5 +91,6 @@ func newNewCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringSliceVar(&repos, "repo", nil, "repos involved (can be repeated)")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 	return cmd
 }

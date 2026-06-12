@@ -167,6 +167,14 @@ Enforced by the CLI, not AI judgment:
 4x batch stop            # graceful shutdown after current feature
 ```
 
+## MCP Server
+
+Start the Model Context Protocol (MCP) server:
+
+```bash
+4x mcp
+```
+
 ## Permission Model
 
 **4x runs AI agents in non-interactive mode.** During `4x init`, runners are configured with flags that skip permission prompts (`--dangerously-skip-permissions`, `-y`, `approval: full-auto`) so the loop runs autonomously.

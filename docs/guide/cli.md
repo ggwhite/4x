@@ -253,3 +253,20 @@ Start the 4x Live dashboard server.
 | `--app` | `-a` | `false` | Open macOS native app |
 
 Without paths, loads recent projects from `~/.4x/recent-projects.json` (LRU, max 20). With paths, opens each as a project tab.
+
+---
+
+## `4x mcp`
+
+Start the Model Context Protocol (MCP) server.
+
+```
+4x mcp [flags]
+```
+
+| Flag | Description |
+|---|---|
+| `--version` | Show MCP server version info |
+
+Starts the 4x MCP stdio server to expose 4x CLI commands as MCP tools to LLM clients (e.g., Claude Code, Cursor).
+

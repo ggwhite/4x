@@ -34,6 +34,7 @@ Like 4X strategy games, 4x conquers codebases through four phases.`,
 		newLiveCmd(),
 		newConfigCmd(),
 		newDoneCmd(),
+		newMCPCmd(),
 	)
 
 	if err := root.Execute(); err != nil {

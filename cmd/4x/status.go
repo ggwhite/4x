@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
@@ -13,6 +14,7 @@ import (
 
 func newStatusCmd() *cobra.Command {
 	var pending bool
+	var jsonOutput bool
 
 	cmd := &cobra.Command{
 		Use:   "status [feature-id]",
@@ -21,25 +23,41 @@ func newStatusCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
 			if err != nil {
+				if jsonOutput {
+					return jsonError(err.Error())
+				}
 				return err
 			}
 			ws, err := protocol.Find(cwd)
 			if err != nil {
+				if jsonOutput {
+					return jsonError(err.Error())
+				}
 				return err
 			}
 
 			if len(args) == 1 {
 				featureID, err := ws.ResolveFeatureID(args[0])
 				if err != nil {
+					if jsonOutput {
+						return jsonError(err.Error())
+					}
 					return err
 				}
+				if jsonOutput {
+					return showFeatureDetailJSON(ws, featureID)
+				}
 				return showFeatureDetail(ws, featureID)
+			}
+			if jsonOutput {
+				return showAllFeaturesJSON(ws)
 			}
 			return showAllFeatures(ws, pending)
 		},
 	}
 
 	cmd.Flags().BoolVar(&pending, "pending", false, "show only non-done features")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 	return cmd
 }
 
@@ -61,7 +79,7 @@ func categorize(f protocol.Feature, active bool) int {
 	if f.Status == "ready-for-review" {
 		return 1 // review
 	}
-	if f.Status == "in-progress" {
+	if f.Status == "in-progress" || f.Status == "needs-attention" {
 		return 2 // pending (in-progress but not actively running)
 	}
 	if f.Status == "done" {
@@ -265,4 +283,66 @@ func printBacklogWarnings(ws *protocol.Workspace, featureID string) {
 			fmt.Printf("\nWARN: %s\n", d.Message)
 		}
 	}
+}
+
+type statusListJSON struct {
+	Features []statusItemJSON `json:"features"`
+}
+
+type statusItemJSON struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Status    string `json:"status"`
+	Phase     string `json:"phase,omitempty"`
+	Role      string `json:"role,omitempty"`
+	Round     int    `json:"round,omitempty"`
+	MaxRounds int    `json:"maxRounds,omitempty"`
+	Active    bool   `json:"active"`
+	Runner    string `json:"runner,omitempty"`
+}
+
+func showAllFeaturesJSON(ws *protocol.Workspace) error {
+	features, err := ws.ListFeatures()
+	if err != nil {
+		return err
+	}
+	items := make([]statusItemJSON, 0, len(features))
+	for _, f := range features {
+		item := statusItemJSON{
+			ID:     f.ID,
+			Name:   f.Name,
+			Status: f.Status,
+		}
+		if s, err := ws.ReadState(f.ID); err == nil {
+			item.Phase = string(s.Phase)
+			item.Role = string(s.Role)
+			item.Round = s.Round
+			item.MaxRounds = s.MaxRounds
+			item.Active = s.Active
+			item.Runner = s.Runner
+		}
+		items = append(items, item)
+	}
+	data, _ := json.MarshalIndent(statusListJSON{Features: items}, "", "  ")
+	fmt.Println(string(data))
+	return nil
+}
+
+type featureDetailJSON struct {
+	Feature protocol.Feature `json:"feature"`
+	State   *protocol.State  `json:"state"`
+}
+
+func showFeatureDetailJSON(ws *protocol.Workspace, id string) error {
+	f, err := ws.LoadFeature(id)
+	if err != nil {
+		return fmt.Errorf("feature %q not found: %w", id, err)
+	}
+	result := featureDetailJSON{Feature: f}
+	if s, err := ws.ReadState(id); err == nil {
+		result.State = &s
+	}
+	data, _ := json.MarshalIndent(result, "", "  ")
+	fmt.Println(string(data))
+	return nil
 }

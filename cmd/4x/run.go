@@ -23,6 +23,7 @@ func newRunCmd() *cobra.Command {
 	var maxRounds int
 	var timeout int
 	var dryRun bool
+	var jsonOutput bool
 
 	cmd := &cobra.Command{
 		Use:   "run <feature-id>",
@@ -31,37 +32,97 @@ func newRunCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
 			if err != nil {
+				if jsonOutput {
+					return jsonError(err.Error())
+				}
 				return err
 			}
 			ws, err := protocol.Find(cwd)
 			if err != nil {
+				if jsonOutput {
+					return jsonError(err.Error())
+				}
 				return err
 			}
 
 			featureID, err := ws.ResolveFeatureID(args[0])
 			if err != nil {
+				if jsonOutput {
+					return jsonError(err.Error())
+				}
 				return err
 			}
 			feature, err := ws.LoadFeature(featureID)
 			if err != nil {
+				if jsonOutput {
+					return jsonError(err.Error())
+				}
 				return err
 			}
 
 			cfg, err := ws.ReadConfig()
 			if err != nil {
+				if jsonOutput {
+					return jsonError(err.Error())
+				}
 				return err
 			}
 
 			if runnerName == "" {
 				runnerName = cfg.Default
 			}
-			runnerCfg, ok := cfg.Runners[runnerName]
+			_, ok := cfg.Runners[runnerName]
 			if !ok {
-				return fmt.Errorf("runner %q not found in config", runnerName)
+				errMsg := fmt.Sprintf("runner %q not found in config", runnerName)
+				if jsonOutput {
+					return jsonError(errMsg)
+				}
+				return fmt.Errorf("%s", errMsg)
 			}
 
 			if maxRounds <= 0 {
 				maxRounds = 5
+			}
+
+			if jsonOutput {
+				bgArgs := []string{"run", featureID}
+				if runnerName != "" {
+					bgArgs = append(bgArgs, "--runner", runnerName)
+				}
+				if maxRounds > 0 {
+					bgArgs = append(bgArgs, "--max-rounds", fmt.Sprintf("%d", maxRounds))
+				}
+				if timeout > 0 {
+					bgArgs = append(bgArgs, "--timeout", fmt.Sprintf("%d", timeout))
+				}
+				if dryRun {
+					bgArgs = append(bgArgs, "--dry-run")
+				}
+
+				bgCmd := exec.Command(os.Args[0], bgArgs...)
+				bgCmd.Dir = cwd
+				bgCmd.Stdin = nil
+				bgCmd.Stdout = nil
+				bgCmd.Stderr = nil
+
+				if err := bgCmd.Start(); err != nil {
+					return jsonError(fmt.Sprintf("failed to start run: %v", err))
+				}
+
+				result := struct {
+					FeatureID string `json:"featureId"`
+					Runner    string `json:"runner"`
+					MaxRounds int    `json:"maxRounds"`
+					PID       int    `json:"pid"`
+				}{
+					FeatureID: featureID,
+					Runner:    runnerName,
+					MaxRounds: maxRounds,
+					PID:       bgCmd.Process.Pid,
+				}
+				data, _ := json.MarshalIndent(result, "", "  ")
+				fmt.Println(string(data))
+				return nil
 			}
 
 			depResult := guard.CheckDependencies(ws, featureID)
@@ -128,6 +189,7 @@ func newRunCmd() *cobra.Command {
 				commitStrategy = "per-round"
 			}
 
+			runnerCfg := cfg.Runners[runnerName]
 			runnerFactory := func(logPath string, model string) runner.Runner {
 				return runner.NewRunner(runnerWs, runnerName, runnerCfg, time.Duration(timeout)*time.Second, logPath, model)
 			}
@@ -154,6 +216,7 @@ func newRunCmd() *cobra.Command {
 	cmd.Flags().IntVar(&maxRounds, "max-rounds", 0, "max iteration rounds (default: 5)")
 	cmd.Flags().IntVar(&timeout, "timeout", 3600, "plugin timeout in seconds")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "print prompts without calling plugin")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "start run and return JSON immediately")
 	return cmd
 }
 

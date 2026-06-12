@@ -331,3 +331,136 @@ func TestTransition_TestingToAcceptingRequiresTesterArtifacts(t *testing.T) {
 		t.Fatalf("output = %q, want missing commit-plan detail", out)
 	}
 }
+
+func TestStatus_JSON_ListAll(t *testing.T) {
+	dir := t.TempDir()
+	run4x(dir, "init")
+	run4x(dir, "new", "JSON test feature")
+
+	out, err := run4x(dir, "status", "--json")
+	if err != nil {
+		t.Fatalf("status --json failed: %v\n%s", err, out)
+	}
+
+	var result struct {
+		Features []struct {
+			ID     string `json:"id"`
+			Name   string `json:"name"`
+			Status string `json:"status"`
+		} `json:"features"`
+	}
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if len(result.Features) != 1 {
+		t.Fatalf("got %d features, want 1", len(result.Features))
+	}
+	if result.Features[0].Status != "not-started" {
+		t.Errorf("status = %q, want not-started", result.Features[0].Status)
+	}
+}
+
+func TestStatus_JSON_SingleFeature(t *testing.T) {
+	dir := t.TempDir()
+	run4x(dir, "init")
+	run4x(dir, "new", "Detail test")
+
+	out, err := run4x(dir, "status", "F001", "--json")
+	if err != nil {
+		t.Fatalf("status <id> --json failed: %v\n%s", err, out)
+	}
+
+	var result struct {
+		Feature struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"feature"`
+	}
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if !strings.HasPrefix(result.Feature.ID, "F001-") {
+		t.Errorf("id = %q, want F001-* prefix", result.Feature.ID)
+	}
+}
+
+func TestNew_JSON(t *testing.T) {
+	dir := t.TempDir()
+	run4x(dir, "init")
+
+	out, err := run4x(dir, "new", "--json", "JSON new test")
+	if err != nil {
+		t.Fatalf("new --json failed: %v\n%s", err, out)
+	}
+
+	var result struct {
+		FeatureID string `json:"featureId"`
+		Name      string `json:"name"`
+		Path      string `json:"path"`
+	}
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if !strings.HasPrefix(result.FeatureID, "F") {
+		t.Errorf("featureId = %q, want F-prefix", result.FeatureID)
+	}
+	if result.Path == "" {
+		t.Error("path is empty")
+	}
+}
+
+func TestTransition_JSON(t *testing.T) {
+	dir := t.TempDir()
+	run4x(dir, "init")
+	run4x(dir, "new", "Trans JSON")
+
+	featureID := "F001-trans-json"
+	featureDir := filepath.Join(dir, protocol.DirName, featureID)
+	os.MkdirAll(featureDir, 0o755)
+	os.WriteFile(filepath.Join(featureDir, protocol.StateFile),
+		[]byte(`{"featureId":"F001-trans-json","phase":"init","role":"","round":0,"maxRounds":5,"active":true,"runner":"mock","createdAt":"2025-01-01T00:00:00Z","updatedAt":"2025-01-01T00:00:00Z"}`), 0o644)
+
+	out, err := run4x(dir, "transition", featureID, "--to", "designing", "--json")
+	if err != nil {
+		t.Fatalf("transition --json failed: %v\n%s", err, out)
+	}
+
+	var result struct {
+		FeatureID string `json:"featureId"`
+		From      string `json:"from"`
+		To        string `json:"to"`
+	}
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if result.From != "init" || result.To != "designing" {
+		t.Errorf("got from=%q to=%q, want init→designing", result.From, result.To)
+	}
+}
+
+func TestTransition_JSON_Error(t *testing.T) {
+	dir := t.TempDir()
+	run4x(dir, "init")
+	run4x(dir, "new", "Trans err")
+
+	featureID := "F001-trans-err"
+	featureDir := filepath.Join(dir, protocol.DirName, featureID)
+	os.MkdirAll(featureDir, 0o755)
+	os.WriteFile(filepath.Join(featureDir, protocol.StateFile),
+		[]byte(`{"featureId":"F001-trans-err","phase":"init","role":"","round":0,"maxRounds":5,"active":true,"runner":"mock","createdAt":"2025-01-01T00:00:00Z","updatedAt":"2025-01-01T00:00:00Z"}`), 0o644)
+
+	out, err := run4x(dir, "transition", featureID, "--to", "done", "--json")
+	if err == nil {
+		t.Fatal("expected error for invalid transition")
+	}
+
+	var result struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
+		t.Fatalf("invalid JSON on error: %v\n%s", err, out)
+	}
+	if result.Error == "" {
+		t.Error("error field is empty")
+	}
+}
