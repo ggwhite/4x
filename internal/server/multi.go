@@ -24,6 +24,7 @@ type registryEntry struct {
 	id  string
 	ws  *protocol.Workspace
 	mux http.Handler
+	pm  *ProcessManager
 }
 
 // ProjectRegistry 管理多個 workspace 的 in-memory 註冊表
@@ -48,8 +49,9 @@ func (r *ProjectRegistry) Add(ws *protocol.Workspace) string {
 	for i := 2; r.ids[id]; i++ {
 		id = fmt.Sprintf("%s-%d", base, i)
 	}
+	pm := newProcessManagerFromConfig(ws)
 	r.ids[id] = true
-	r.entries = append(r.entries, registryEntry{id: id, ws: ws, mux: NewMux(ws)})
+	r.entries = append(r.entries, registryEntry{id: id, ws: ws, mux: NewMux(ws, pm), pm: pm})
 	return id
 }
 
@@ -60,6 +62,9 @@ func (r *ProjectRegistry) Remove(id string) bool {
 
 	for i, e := range r.entries {
 		if e.id == id {
+			if e.pm != nil {
+				e.pm.Shutdown()
+			}
 			r.entries = append(r.entries[:i], r.entries[i+1:]...)
 			delete(r.ids, id)
 			return true
@@ -266,6 +271,19 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 		}
 		compatError(w, len(entries), "/sse/project/{id}/logs/{featureId}")
 	})
+	for _, route := range []string{"/api/run", "/api/runs", "/api/stop", "/api/new"} {
+		mux.HandleFunc(route, func(w http.ResponseWriter, r *http.Request) {
+			entries := reg.List()
+			if len(entries) == 1 {
+				entry := reg.getEntry(entries[0].ID)
+				if entry != nil {
+					entry.mux.ServeHTTP(w, r)
+					return
+				}
+			}
+			compatError(w, len(entries), "/api/project/{id}"+r.URL.Path)
+		})
+	}
 
 	// Prefix routing: /api/project/{id}/...
 	mux.HandleFunc("/api/project/", func(w http.ResponseWriter, r *http.Request) {
@@ -331,9 +349,9 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 		}
 
 		type dirEntry struct {
-			Name  string `json:"name"`
-			Path  string `json:"path"`
-			Is4x  bool   `json:"is4x"`
+			Name string `json:"name"`
+			Path string `json:"path"`
+			Is4x bool   `json:"is4x"`
 		}
 		var dirs []dirEntry
 		for _, e := range entries {
@@ -372,4 +390,12 @@ func is4xProject(dir string) bool {
 func dirExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.IsDir()
+}
+
+func newProcessManagerFromConfig(ws *protocol.Workspace) *ProcessManager {
+	cfg, err := ws.ReadConfig()
+	if err != nil {
+		return NewProcessManager(ws, 1, "4x")
+	}
+	return NewProcessManager(ws, cfg.MaxConcurrentRuns, "4x")
 }

@@ -3,8 +3,6 @@ package server
 import (
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/ggwhite/4x/internal/protocol"
@@ -67,17 +65,10 @@ func TestMultiMux_GetProjects(t *testing.T) {
 	reg.Add(ws)
 
 	recentPath := t.TempDir() + "/recent.json"
-	srv := httptest.NewServer(NewMultiMux(reg, recentPath))
-	defer srv.Close()
-
-	resp, err := http.Get(srv.URL + "/api/projects")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
+	rec := serveRequest(t, NewMultiMux(reg, recentPath), http.MethodGet, "/api/projects", "")
 
 	var projects []ProjectListItem
-	if err := json.NewDecoder(resp.Body).Decode(&projects); err != nil {
+	if err := json.NewDecoder(rec.Body).Decode(&projects); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 	if len(projects) != 1 {
@@ -94,21 +85,14 @@ func TestMultiMux_PrefixRouting(t *testing.T) {
 	id := reg.Add(ws)
 
 	recentPath := t.TempDir() + "/recent.json"
-	srv := httptest.NewServer(NewMultiMux(reg, recentPath))
-	defer srv.Close()
+	rec := serveRequest(t, NewMultiMux(reg, recentPath), http.MethodGet, "/api/project/"+id+"/api/tasks", "")
 
-	resp, err := http.Get(srv.URL + "/api/project/" + id + "/api/tasks")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, want 200", rec.Code)
 	}
 
 	var tasks []taskInfo
-	if err := json.NewDecoder(resp.Body).Decode(&tasks); err != nil {
+	if err := json.NewDecoder(rec.Body).Decode(&tasks); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 	if len(tasks) != 1 {
@@ -131,18 +115,12 @@ func TestMultiMux_PostProject(t *testing.T) {
 	}
 
 	recentPath := t.TempDir() + "/recent.json"
-	srv := httptest.NewServer(NewMultiMux(reg, recentPath))
-	defer srv.Close()
 
 	body := `{"path":"` + newRoot + `"}`
-	resp, err := http.Post(srv.URL+"/api/projects", "application/json", strings.NewReader(body))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
+	rec := serveRequest(t, NewMultiMux(reg, recentPath), http.MethodPost, "/api/projects", body)
 
-	if resp.StatusCode != 201 {
-		t.Fatalf("status = %d, want 201", resp.StatusCode)
+	if rec.Code != 201 {
+		t.Fatalf("status = %d, want 201", rec.Code)
 	}
 
 	projects := reg.List()
@@ -157,18 +135,10 @@ func TestMultiMux_DeleteProject(t *testing.T) {
 	id := reg.Add(ws)
 
 	recentPath := t.TempDir() + "/recent.json"
-	srv := httptest.NewServer(NewMultiMux(reg, recentPath))
-	defer srv.Close()
+	rec := serveRequest(t, NewMultiMux(reg, recentPath), http.MethodDelete, "/api/projects/"+id, "")
 
-	req, _ := http.NewRequest("DELETE", srv.URL+"/api/projects/"+id, nil)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 204 {
-		t.Fatalf("status = %d, want 204", resp.StatusCode)
+	if rec.Code != 204 {
+		t.Fatalf("status = %d, want 204", rec.Code)
 	}
 	if len(reg.List()) != 0 {
 		t.Error("project should be removed")
@@ -178,19 +148,12 @@ func TestMultiMux_DeleteProject(t *testing.T) {
 func TestMultiMux_IndexHTML(t *testing.T) {
 	reg := NewProjectRegistry()
 	recentPath := t.TempDir() + "/recent.json"
-	srv := httptest.NewServer(NewMultiMux(reg, recentPath))
-	defer srv.Close()
+	rec := serveRequest(t, NewMultiMux(reg, recentPath), http.MethodGet, "/", "")
 
-	resp, err := http.Get(srv.URL + "/")
-	if err != nil {
-		t.Fatal(err)
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, want 200", rec.Code)
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		t.Fatalf("status = %d, want 200", resp.StatusCode)
-	}
-	ct := resp.Header.Get("Content-Type")
+	ct := rec.Header().Get("Content-Type")
 	if ct != "text/html" {
 		t.Errorf("Content-Type = %s, want text/html", ct)
 	}
@@ -202,21 +165,14 @@ func TestMultiMux_BackwardCompat_SingleProject(t *testing.T) {
 	reg.Add(ws)
 
 	recentPath := t.TempDir() + "/recent.json"
-	srv := httptest.NewServer(NewMultiMux(reg, recentPath))
-	defer srv.Close()
+	rec := serveRequest(t, NewMultiMux(reg, recentPath), http.MethodGet, "/api/tasks", "")
 
-	resp, err := http.Get(srv.URL + "/api/tasks")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, want 200", rec.Code)
 	}
 
 	var tasks []taskInfo
-	if err := json.NewDecoder(resp.Body).Decode(&tasks); err != nil {
+	if err := json.NewDecoder(rec.Body).Decode(&tasks); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 	if len(tasks) != 1 {
@@ -232,17 +188,10 @@ func TestMultiMux_BackwardCompat_MultiProject(t *testing.T) {
 	reg.Add(ws2)
 
 	recentPath := t.TempDir() + "/recent.json"
-	srv := httptest.NewServer(NewMultiMux(reg, recentPath))
-	defer srv.Close()
+	rec := serveRequest(t, NewMultiMux(reg, recentPath), http.MethodGet, "/api/tasks", "")
 
-	resp, err := http.Get(srv.URL + "/api/tasks")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 400 {
-		t.Fatalf("status = %d, want 400", resp.StatusCode)
+	if rec.Code != 400 {
+		t.Fatalf("status = %d, want 400", rec.Code)
 	}
 }
 
@@ -250,16 +199,9 @@ func TestMultiMux_BackwardCompat_ZeroProject(t *testing.T) {
 	reg := NewProjectRegistry()
 
 	recentPath := t.TempDir() + "/recent.json"
-	srv := httptest.NewServer(NewMultiMux(reg, recentPath))
-	defer srv.Close()
+	rec := serveRequest(t, NewMultiMux(reg, recentPath), http.MethodGet, "/api/tasks", "")
 
-	resp, err := http.Get(srv.URL + "/api/tasks")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 400 {
-		t.Fatalf("status = %d, want 400", resp.StatusCode)
+	if rec.Code != 400 {
+		t.Fatalf("status = %d, want 400", rec.Code)
 	}
 }
