@@ -48,7 +48,7 @@ type featureRow struct {
 	phase     string
 	round     string
 	active    bool
-	category  int // 0=running, 1=pending, 2=todo, 3=done
+	category  int // 0=running, 1=review, 2=pending, 3=todo, 4=done
 	hasSpec   bool
 	hasPlan   bool
 	updatedAt time.Time
@@ -58,13 +58,16 @@ func categorize(f protocol.Feature, active bool) int {
 	if f.Status == "in-progress" && active {
 		return 0 // running
 	}
+	if f.Status == "ready-for-review" {
+		return 1 // review
+	}
 	if f.Status == "in-progress" {
-		return 1 // pending (in-progress but not actively running)
+		return 2 // pending (in-progress but not actively running)
 	}
 	if f.Status == "done" {
-		return 3
+		return 4
 	}
-	return 2 // not-started = todo
+	return 3 // not-started = todo
 }
 
 func showAllFeatures(ws *protocol.Workspace, pendingOnly bool) error {
@@ -109,7 +112,7 @@ func showAllFeatures(ws *protocol.Workspace, pendingOnly bool) error {
 		if rows[i].category != rows[j].category {
 			return rows[i].category < rows[j].category
 		}
-		if rows[i].category == 3 {
+		if rows[i].category == 4 {
 			return rows[j].updatedAt.Before(rows[i].updatedAt)
 		}
 		pi, pj := rows[i].feature.Priority, rows[j].feature.Priority
@@ -123,17 +126,18 @@ func showAllFeatures(ws *protocol.Workspace, pendingOnly bool) error {
 	for _, r := range rows {
 		counts[r.category]++
 	}
-	fmt.Printf("Total: %d features — %d running, %d pending, %d todo, %d done\n\n",
-		len(features), counts[0], counts[1], counts[2], counts[3])
+	fmt.Printf("Total: %d features — %d running, %d review, %d pending, %d todo, %d done\n\n",
+		len(features), counts[0], counts[1], counts[2], counts[3], counts[4])
 
 	categoryLabels := []struct {
 		cat   int
 		label string
 	}{
 		{0, "Running"},
-		{1, "Pending"},
-		{2, "Todo"},
-		{3, "Done"},
+		{1, "Review"},
+		{2, "Pending"},
+		{3, "Todo"},
+		{4, "Done"},
 	}
 
 	const maxDone = 5
@@ -148,12 +152,12 @@ func showAllFeatures(ws *protocol.Workspace, pendingOnly bool) error {
 		if len(group) == 0 {
 			continue
 		}
-		if pendingOnly && cl.cat == 3 {
+		if pendingOnly && cl.cat == 4 {
 			continue
 		}
 
 		truncated := 0
-		if cl.cat == 3 && len(group) > maxDone {
+		if cl.cat == 4 && len(group) > maxDone {
 			truncated = len(group) - maxDone
 			group = group[:maxDone]
 		}

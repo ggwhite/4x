@@ -13,6 +13,7 @@ const (
 	PhaseTesting        Phase = "testing"
 	PhaseAmending       Phase = "amending"
 	PhaseAccepting      Phase = "accepting"
+	PhasePendingReview  Phase = "pending-review"
 	PhaseDone           Phase = "done"
 	PhaseBlocked        Phase = "blocked"
 	PhaseNeedsAttention Phase = "needs-attention"

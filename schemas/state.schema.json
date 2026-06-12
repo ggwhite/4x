@@ -8,7 +8,7 @@
     "featureId": { "type": "string" },
     "phase": {
       "type": "string",
-      "enum": ["init", "designing", "coding", "reviewing", "testing", "amending", "accepting", "done", "blocked", "needs-attention"]
+      "enum": ["init", "designing", "coding", "reviewing", "testing", "amending", "accepting", "pending-review", "done", "blocked", "needs-attention"]
     },
     "role": {
       "type": "string",

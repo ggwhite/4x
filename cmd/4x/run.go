@@ -135,7 +135,7 @@ func newRunCmd() *cobra.Command {
 
 			if wtPath != "" && commitStrategy != "never" {
 				finalState, _ := ws.ReadState(featureID)
-				if finalState.Phase == protocol.PhaseDone {
+				if finalState.Phase == protocol.PhaseDone || finalState.Phase == protocol.PhasePendingReview {
 					if commitStrategy == "on-done" {
 						if err := commitWorktree(wtPath, featureID, feature.Name, 0); err != nil {
 							fmt.Fprintf(os.Stderr, "  auto-commit failed: %v\n", err)
@@ -214,7 +214,7 @@ func runLoop(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature proto
 		phase := s.Phase
 		role := state.PhaseToRole(phase)
 
-		if phase == protocol.PhaseDone || phase == protocol.PhaseBlocked || phase == protocol.PhaseNeedsAttention {
+		if phase == protocol.PhaseDone || phase == protocol.PhasePendingReview || phase == protocol.PhaseBlocked || phase == protocol.PhaseNeedsAttention {
 			break
 		}
 
@@ -342,6 +342,12 @@ func runLoop(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature proto
 	}
 
 	switch s.Phase {
+	case protocol.PhasePendingReview:
+		s.Active = false
+		s.StopReason = "pending-review"
+		ws.WriteState(featureID, s)
+		syncFeatureStatus(ws, featureID, protocol.PhasePendingReview)
+		fmt.Printf("\nFeature %s ready for review (%d rounds). Run '4x done %s' to complete.\n", featureID, s.Round, featureID)
 	case protocol.PhaseDone:
 		s.Active = false
 		s.StopReason = "done"
@@ -412,7 +418,7 @@ func nextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) 
 		return protocol.PhaseNeedsAttention, "", strings.Join(result.Errors, "; ")
 
 	case protocol.PhaseAccepting:
-		return protocol.PhaseDone, "", ""
+		return protocol.PhasePendingReview, "", ""
 
 	default:
 		return protocol.PhaseDone, "", ""

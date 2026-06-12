@@ -142,8 +142,8 @@ func TestRunLoop_HappyPath(t *testing.T) {
 	}
 
 	final, _ := ws.ReadState("feat-1")
-	if final.Phase != protocol.PhaseDone {
-		t.Errorf("phase = %s, want done", final.Phase)
+	if final.Phase != protocol.PhasePendingReview {
+		t.Errorf("phase = %s, want pending-review", final.Phase)
 	}
 	if final.Round != 1 {
 		t.Errorf("round = %d, want 1", final.Round)
@@ -223,8 +223,8 @@ func TestRunLoop_ReviewFailLoop(t *testing.T) {
 	}
 
 	final, _ := ws.ReadState("feat-1")
-	if final.Phase != protocol.PhaseDone {
-		t.Errorf("phase = %s, want done", final.Phase)
+	if final.Phase != protocol.PhasePendingReview {
+		t.Errorf("phase = %s, want pending-review", final.Phase)
 	}
 	if final.Round != 2 {
 		t.Errorf("round = %d, want 2", final.Round)
@@ -266,8 +266,8 @@ func TestRunLoop_TestFailLoop(t *testing.T) {
 	}
 
 	final, _ := ws.ReadState("feat-1")
-	if final.Phase != protocol.PhaseDone {
-		t.Errorf("phase = %s, want done", final.Phase)
+	if final.Phase != protocol.PhasePendingReview {
+		t.Errorf("phase = %s, want pending-review", final.Phase)
 	}
 	if final.Round != 2 {
 		t.Errorf("round = %d, want 2", final.Round)
@@ -687,8 +687,8 @@ func TestRunLoop_StaleArtifactsCleanedOnTestingEntry(t *testing.T) {
 	}
 
 	final, _ := ws.ReadState("feat-stale")
-	if final.Phase != protocol.PhaseDone {
-		t.Errorf("phase = %s, want done", final.Phase)
+	if final.Phase != protocol.PhasePendingReview {
+		t.Errorf("phase = %s, want pending-review", final.Phase)
 	}
 
 	// 驗證 testing 階段入口有清除 stale artifact（新 tester 會重新寫入非 stale 內容）
@@ -727,8 +727,8 @@ func TestRunLoop_SeverityGate_PassWithCritical(t *testing.T) {
 	}
 
 	final, _ := ws.ReadState("feat-sg")
-	if final.Phase != protocol.PhaseDone {
-		t.Errorf("phase = %s, want done", final.Phase)
+	if final.Phase != protocol.PhasePendingReview {
+		t.Errorf("phase = %s, want pending-review", final.Phase)
 	}
 
 	wantPhases := []protocol.Phase{
@@ -772,8 +772,8 @@ func TestRunLoop_SeverityGate_FailWithCritical(t *testing.T) {
 	}
 
 	final, _ := ws.ReadState("feat-sg2")
-	if final.Phase != protocol.PhaseDone {
-		t.Errorf("phase = %s, want done", final.Phase)
+	if final.Phase != protocol.PhasePendingReview {
+		t.Errorf("phase = %s, want pending-review", final.Phase)
 	}
 
 	wantPhases := []protocol.Phase{
@@ -817,8 +817,8 @@ func TestRunLoop_SeverityGate_ConditionalPassWithCritical(t *testing.T) {
 	}
 
 	final, _ := ws.ReadState("feat-sg3")
-	if final.Phase != protocol.PhaseDone {
-		t.Errorf("phase = %s, want done", final.Phase)
+	if final.Phase != protocol.PhasePendingReview {
+		t.Errorf("phase = %s, want pending-review", final.Phase)
 	}
 
 	wantPhases := []protocol.Phase{
