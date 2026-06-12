@@ -299,7 +299,7 @@ func newBatchRunCmd() *cobra.Command {
 				runnerFactory := func(logPath string) runner.Runner {
 					return runner.NewRunner(ws, runnerName, runnerCfg, time.Duration(timeout)*time.Second, logPath)
 				}
-				err = runLoop(ws, feature, cfg, s, runnerFactory)
+				err = runLoop(ws, ws, feature, cfg, s, runnerFactory)
 
 				updated, _ := ws.LoadFeature(next)
 				statusMap[next] = updated.Status

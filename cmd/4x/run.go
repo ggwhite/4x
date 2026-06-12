@@ -126,7 +126,7 @@ func newRunCmd() *cobra.Command {
 			runnerFactory := func(logPath string) runner.Runner {
 				return runner.NewRunner(runnerWs, runnerName, runnerCfg, time.Duration(timeout)*time.Second, logPath)
 			}
-			loopErr := runLoop(ws, feature, cfg, s, runnerFactory)
+			loopErr := runLoop(ws, runnerWs, feature, cfg, s, runnerFactory)
 
 			if wtPath != "" && s.Phase == protocol.PhaseDone {
 				cleanupWorktree(ws.Root, featureID, wtPath)
@@ -174,7 +174,7 @@ func generatePrompt(ws *protocol.Workspace, feature protocol.Feature, cfg protoc
 	return buf.String(), nil
 }
 
-func runLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s protocol.State, newRunner func(logPath string) runner.Runner) error {
+func runLoop(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s protocol.State, newRunner func(logPath string) runner.Runner) error {
 	featureID := feature.ID
 	ctx := context.Background()
 
@@ -236,9 +236,17 @@ func runLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.Conf
 		logPath := filepath.Join(runner.LogDir(ws, featureID), runner.LogFileName(s.Round, string(role)))
 		r := newRunner(logPath)
 
+		if runnerWs != ws {
+			syncFeatureToWorktree(ws, runnerWs, featureID, s.Round)
+		}
+
 		fmt.Printf("[round %d] %s (%s) — invoking %s\n", s.Round, phase, role, s.Runner)
 
 		result, err := r.Run(ctx, prompt)
+
+		if runnerWs != ws {
+			syncFeatureFromWorktree(runnerWs, ws, featureID, s.Round)
+		}
 		if err != nil {
 			s.Active = false
 			s.StopReason = "runner-error"
@@ -496,7 +504,7 @@ func dryRunLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.C
 
 // setupWorktree 為 feature 建立 git worktree，回傳 worktree 路徑。
 // branch 命名 4x/<featureID>，worktree 放在 .worktrees/4x/<featureID>/。
-// worktree 內建 .4x symlink 指回主 worktree 的 .4x/。
+// worktree 內建真實 .4x/ 目錄（非 symlink），確保 sandbox runner 可寫。
 func setupWorktree(root, featureID string) (string, error) {
 	wtDir := filepath.Join(root, ".worktrees", "4x", featureID)
 	branch := "4x/" + featureID
@@ -504,10 +512,7 @@ func setupWorktree(root, featureID string) (string, error) {
 	ensureGitignore(root, ".worktrees/")
 
 	if _, err := os.Stat(wtDir); err == nil {
-		dotLink := filepath.Join(wtDir, protocol.DirName)
-		if _, err := os.Lstat(dotLink); os.IsNotExist(err) {
-			os.Symlink(filepath.Join(root, protocol.DirName), dotLink)
-		}
+		ensureWorktreeDotDir(root, wtDir)
 		return wtDir, nil
 	}
 
@@ -523,14 +528,91 @@ func setupWorktree(root, featureID string) (string, error) {
 		}
 	}
 
-	dotDir := filepath.Join(root, protocol.DirName)
-	link := filepath.Join(wtDir, protocol.DirName)
-	os.RemoveAll(link)
-	if err := os.Symlink(dotDir, link); err != nil {
-		return "", fmt.Errorf("symlink .4x: %w", err)
+	ensureWorktreeDotDir(root, wtDir)
+	return wtDir, nil
+}
+
+// ensureWorktreeDotDir 在 worktree 建立真實 .4x/ 目錄並複製 settings.json。
+// 若已存在舊的 symlink 則移除，改為真實目錄。
+func ensureWorktreeDotDir(mainRoot, wtDir string) {
+	dotDir := filepath.Join(wtDir, protocol.DirName)
+
+	// 移除舊的 symlink（向下相容）
+	if info, err := os.Lstat(dotDir); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 {
+			os.Remove(dotDir)
+		}
 	}
 
-	return wtDir, nil
+	os.MkdirAll(dotDir, 0o755)
+
+	// 複製 settings.json
+	src := filepath.Join(mainRoot, protocol.DirName, protocol.ConfigFile)
+	dst := filepath.Join(dotDir, protocol.ConfigFile)
+	if data, err := os.ReadFile(src); err == nil {
+		os.WriteFile(dst, data, 0o644)
+	}
+}
+
+// syncFeatureToWorktree 將主 workspace 的 feature 目錄複製到 worktree，
+// 確保 runner 能讀到最新的 protocol 檔案（task-brief、上一輪 report 等）
+func syncFeatureToWorktree(main, wt *protocol.Workspace, featureID string, round int) {
+	srcDir := main.FeatureDir(featureID)
+	dstDir := wt.FeatureDir(featureID)
+	os.MkdirAll(dstDir, 0o755)
+
+	// state + feature-level 檔案
+	for _, name := range []string{protocol.StateFile, protocol.TaskBrief, protocol.Criteria, protocol.TestStratFile} {
+		copyFileIfExists(filepath.Join(srcDir, name), filepath.Join(dstDir, name))
+	}
+
+	// 當前 round 目錄
+	if round > 0 {
+		srcRound := main.RoundDir(featureID, round)
+		dstRound := wt.RoundDir(featureID, round)
+		os.MkdirAll(dstRound, 0o755)
+		entries, _ := os.ReadDir(srcRound)
+		for _, e := range entries {
+			if !e.IsDir() {
+				copyFileIfExists(filepath.Join(srcRound, e.Name()), filepath.Join(dstRound, e.Name()))
+			}
+		}
+	}
+}
+
+// syncFeatureFromWorktree 將 worktree 裡 runner 寫的 protocol 檔案複製回主 workspace
+func syncFeatureFromWorktree(wt, main *protocol.Workspace, featureID string, round int) {
+	srcDir := wt.FeatureDir(featureID)
+	dstDir := main.FeatureDir(featureID)
+	os.MkdirAll(dstDir, 0o755)
+
+	// feature-level 檔案
+	for _, name := range []string{
+		protocol.TaskBrief, protocol.Criteria, protocol.TestStratFile,
+		protocol.FinalReport, protocol.CommitPlan,
+	} {
+		copyFileIfExists(filepath.Join(srcDir, name), filepath.Join(dstDir, name))
+	}
+
+	// round 目錄
+	srcRound := wt.RoundDir(featureID, round)
+	dstRound := main.RoundDir(featureID, round)
+	os.MkdirAll(dstRound, 0o755)
+	entries, _ := os.ReadDir(srcRound)
+	for _, e := range entries {
+		if !e.IsDir() {
+			copyFileIfExists(filepath.Join(srcRound, e.Name()), filepath.Join(dstRound, e.Name()))
+		}
+	}
+}
+
+func copyFileIfExists(src, dst string) {
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return
+	}
+	os.MkdirAll(filepath.Dir(dst), 0o755)
+	os.WriteFile(dst, data, 0o644)
 }
 
 func cleanupWorktree(root, featureID, wtPath string) {
