@@ -170,14 +170,26 @@ func newRunCmd() *cobra.Command {
 				}
 			}
 
+			found := false
+			for _, r := range s.Runners {
+				if r == runnerName {
+					found = true
+					break
+				}
+			}
+			if !found {
+				s.Runners = append(s.Runners, runnerName)
+			}
+
 			if err := ws.WriteState(featureID, s); err != nil {
 				return err
 			}
 
 			ws.AppendEvent(featureID, protocol.Event{
-				Type:  "run-start",
-				Phase: s.Phase,
-				Role:  state.PhaseToRole(s.Phase),
+				Type:   "run-start",
+				Phase:  s.Phase,
+				Role:   state.PhaseToRole(s.Phase),
+				Runner: runnerName,
 			})
 
 			if dryRun {
@@ -287,7 +299,7 @@ func runLoop(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature proto
 			s.Phase = protocol.PhaseNeedsAttention
 			ws.WriteState(featureID, s)
 			syncFeatureStatus(ws, featureID, s.Phase)
-			ws.AppendEvent(featureID, protocol.Event{Type: "escalation", Phase: s.Phase, Detail: reason})
+			ws.AppendEvent(featureID, protocol.Event{Type: "escalation", Phase: s.Phase, Detail: reason, Runner: s.Runner})
 			fmt.Printf("  stopped: %s\n", reason)
 			return nil
 		}
@@ -309,8 +321,11 @@ func runLoop(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature proto
 			}
 		}
 
+		model := resolveModel(cfg, cfg.Runners[s.Runner], role)
+
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "phase-start", Phase: phase, Role: role, Round: s.Round,
+			Runner: s.Runner, Model: model,
 		})
 
 		prompt, err := generatePrompt(ws, feature, cfg, role, s.Round)
@@ -319,7 +334,6 @@ func runLoop(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature proto
 		}
 
 		logPath := filepath.Join(runner.LogDir(ws, featureID), runner.LogFileName(s.Round, string(role)))
-		model := resolveModel(cfg, cfg.Runners[s.Runner], role)
 		r := newRunner(logPath, model)
 
 		if runnerWs != ws {
@@ -353,6 +367,7 @@ func runLoop(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature proto
 			ws.AppendEvent(featureID, protocol.Event{
 				Type: "run-end", Phase: phase, Role: role, Round: s.Round,
 				Status: "error", Detail: err.Error(),
+				Runner: s.Runner, Model: model,
 			})
 			return err
 		}
@@ -360,6 +375,7 @@ func runLoop(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature proto
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "run-end", Phase: phase, Role: role, Round: s.Round,
 			Status: fmt.Sprintf("exit-%d", result.ExitCode),
+			Runner: s.Runner, Model: model,
 		})
 
 		if runner.IsHardError(result) {
@@ -401,6 +417,7 @@ func runLoop(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature proto
 
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "transition", Phase: s.Phase, Role: s.Role, Round: s.Round,
+			Runner: s.Runner,
 		})
 	}
 

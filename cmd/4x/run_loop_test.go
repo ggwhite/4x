@@ -935,6 +935,52 @@ func TestCommitWorktree_NoChanges(t *testing.T) {
 	}
 }
 
+func TestRunLoopEventsCarryRunnerModel(t *testing.T) {
+	ws := setupLoopWorkspace(t, "feat-evt-rm")
+
+	s := protocol.State{
+		FeatureID: "feat-evt-rm",
+		Phase:     protocol.PhaseInit,
+		MaxRounds: 5,
+		Active:    true,
+		Runner:    "mock",
+		Runners:   []string{"mock"},
+	}
+	ws.WriteState("feat-evt-rm", s)
+
+	feature, _ := ws.LoadFeature("feat-evt-rm")
+	cfg, _ := ws.ReadConfig()
+	cfg.Roles = map[string]protocol.RoleConfig{
+		"designer": {Model: "opus"},
+	}
+
+	mock := &mockRunner{ws: ws, featureID: "feat-evt-rm", outcomes: []mockOutcome{
+		{}, {}, {reviewVerdict: "PASS"}, {testPassed: true}, {},
+	}}
+
+	runLoop(ws, ws, feature, cfg, s, func(string, string) runner.Runner { return mock }, "never")
+
+	data, err := os.ReadFile(filepath.Join(ws.FeatureDir("feat-evt-rm"), protocol.EventsFile))
+	if err != nil {
+		t.Fatalf("read events: %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	hasRunnerEvent := false
+	for _, line := range lines {
+		var evt protocol.Event
+		json.Unmarshal([]byte(line), &evt)
+		if evt.Type == "phase-start" && evt.Runner != "" {
+			hasRunnerEvent = true
+			if evt.Runner != "mock" {
+				t.Errorf("event runner = %q, want 'mock'", evt.Runner)
+			}
+		}
+	}
+	if !hasRunnerEvent {
+		t.Error("no phase-start event with runner field found")
+	}
+}
+
 func TestCommitWorktree_OnDone(t *testing.T) {
 	root := t.TempDir()
 	run := func(dir string, args ...string) {
