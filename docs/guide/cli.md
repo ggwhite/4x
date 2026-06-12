@@ -143,13 +143,27 @@ Supports locale injection (from user config or `LANG` env), planning doc auto-in
 
 ## `4x done <feature-id>`
 
-Mark a pending-review feature as done.
+Mark a pending-review feature as done. If the feature has a worktree (`.worktrees/4x/<id>`), automatically merges the branch back to main and removes the worktree and branch.
 
 ```
 4x done <feature-id>
 ```
 
 Only works when feature is in `pending-review` phase. Errors on any other phase.
+
+If a merge conflict occurs, the worktree is preserved and guidance is printed. Use `4x merge <id>` to complete after resolving conflicts.
+
+---
+
+## `4x merge <feature-id>`
+
+Complete a merge after resolving conflicts from `4x done`.
+
+```
+4x merge <feature-id>
+```
+
+Only works when feature is in `done` phase (must run `4x done` first) and a worktree exists at `.worktrees/4x/<id>`. Commits resolved conflicts in the worktree, merges to main, then removes the worktree and branch.
 
 ---
 
