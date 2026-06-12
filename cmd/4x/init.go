@@ -35,6 +35,7 @@ func newInitCmd() *cobra.Command {
 						Command: "claude",
 						Args:    []string{"--dangerously-skip-permissions", "-p", "{prompt}"},
 						Model:   "opus",
+						Tty:     true,
 					},
 					"codex": {
 						Command: "codex",

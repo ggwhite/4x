@@ -7,8 +7,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/creack/pty/v2"
@@ -67,39 +67,51 @@ func (r *SubprocessRunner) Run(ctx context.Context, prompt string) (*Result, err
 	cmd := exec.CommandContext(ctx, r.Config.Command, args...)
 	cmd.Dir = r.Workspace.Root
 
+	usePty := r.Config.Tty && logFile != nil
 	var ptmx *os.File
-	if logFile != nil {
+
+	if usePty {
+		attrs := &syscall.SysProcAttr{Setsid: true, Setctty: true, Ctty: 0}
 		var err error
-		ptmx, err = pty.StartWithAttrs(cmd, &pty.Winsize{Rows: 50, Cols: 120}, nil)
+		ptmx, err = pty.StartWithAttrs(cmd, &pty.Winsize{Rows: 50, Cols: 120}, attrs)
 		if err != nil {
 			return nil, fmt.Errorf("runner %s failed to start (pty): %w", r.Name, err)
 		}
-		defer ptmx.Close()
 
-		if r.Config.Stdin {
-			ptmx.WriteString(prompt)
-		}
+		stripW := newAnsiStripper(logFile)
+		copyDone := make(chan struct{})
+		go func() {
+			io.Copy(io.MultiWriter(os.Stdout, stripW), ptmx)
+			close(copyDone)
+		}()
 
-		stripW := &ansiStripWriter{w: logFile}
-		_, _ = io.Copy(io.MultiWriter(os.Stdout, stripW), ptmx)
+		err = cmd.Wait()
+		ptmx.Close()
+		<-copyDone
+
+		duration := time.Since(start).Seconds()
+		return r.buildResult(ctx, err, duration)
+	}
+
+	if logFile != nil {
+		cmd.Stdout = io.MultiWriter(os.Stdout, logFile)
+		cmd.Stderr = io.MultiWriter(os.Stderr, logFile)
 	} else {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		if r.Config.Stdin {
-			cmd.Stdin = strings.NewReader(prompt)
-		}
+	}
+	if r.Config.Stdin {
+		cmd.Stdin = strings.NewReader(prompt)
 	}
 
-	var err error
-	if ptmx != nil {
-		err = cmd.Wait()
-	} else {
-		err = cmd.Run()
-	}
+	err := cmd.Run()
 	duration := time.Since(start).Seconds()
+	return r.buildResult(ctx, err, duration)
+}
 
+func (r *SubprocessRunner) buildResult(ctx context.Context, err error, duration float64) (*Result, error) {
 	result := &Result{DurationSec: duration}
-	if logFile != nil {
+	if r.LogPath != "" {
 		result.LogFile = r.LogPath
 	}
 
@@ -176,17 +188,83 @@ func NewRunner(ws *protocol.Workspace, name string, cfg protocol.RunnerConfig, t
 	}
 }
 
-var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]|\x1b\][^\x07]*\x07|\x1b\(B`)
-
-type ansiStripWriter struct {
-	w io.Writer
+// ansiStripper 以狀態機跨 Write 呼叫正確剝除 ANSI escape sequence，
+// 涵蓋 CSI（含 private mode ?）、OSC（BEL 或 ST 結尾）、單字元 ESC 序列。
+type ansiStripper struct {
+	w     io.Writer
+	state stripState
 }
 
-func (a *ansiStripWriter) Write(p []byte) (int, error) {
-	cleaned := ansiRe.ReplaceAll(p, nil)
-	if len(cleaned) > 0 {
-		a.w.Write(cleaned)
+type stripState int
+
+const (
+	stGround stripState = iota
+	stEscape
+	stCSI
+	stOSC
+	stOscEsc // OSC 裡遇到 ESC，等 backslash 組成 ST
+)
+
+func newAnsiStripper(w io.Writer) *ansiStripper {
+	return &ansiStripper{w: w}
+}
+
+func (a *ansiStripper) Write(p []byte) (int, error) {
+	start := 0
+	for i := 0; i < len(p); i++ {
+		b := p[i]
+		switch a.state {
+		case stGround:
+			if b == 0x1b {
+				if i > start {
+					a.w.Write(p[start:i])
+				}
+				a.state = stEscape
+				start = i
+			}
+		case stEscape:
+			switch {
+			case b == '[':
+				a.state = stCSI
+			case b == ']':
+				a.state = stOSC
+			case b == '(' || b == ')':
+				// charset designation: skip one more byte
+				if i+1 < len(p) {
+					i++
+				}
+				a.state = stGround
+				start = i + 1
+			default:
+				// single-char ESC sequence (e.g. \x1b7, \x1bM)
+				a.state = stGround
+				start = i + 1
+			}
+		case stCSI:
+			// CSI 參數與中間位元組：0x20-0x3F（含 ?;digits space 等）
+			// 結束位元組：0x40-0x7E
+			if b >= 0x40 && b <= 0x7E {
+				a.state = stGround
+				start = i + 1
+			}
+		case stOSC:
+			if b == 0x07 {
+				a.state = stGround
+				start = i + 1
+			} else if b == 0x1b {
+				a.state = stOscEsc
+			}
+		case stOscEsc:
+			// ST = ESC + backslash
+			a.state = stGround
+			start = i + 1
+		}
 	}
+
+	if a.state == stGround && start < len(p) {
+		a.w.Write(p[start:])
+	}
+	// state != stGround 時，未完成的 escape 序列暫存到下次 Write
 	return len(p), nil
 }
 
