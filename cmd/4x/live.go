@@ -49,7 +49,7 @@ With paths, opens each as a project tab.`,
 				rp, _ := server.LoadRecentProjects(recentPath)
 				for _, entry := range rp.Projects {
 					ws, err := protocol.Find(entry.Path)
-					if err != nil {
+					if err != nil || ws.Root != entry.Path {
 						continue
 					}
 					reg.Add(ws)

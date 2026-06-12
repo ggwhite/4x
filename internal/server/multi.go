@@ -137,10 +137,20 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 				http.Error(w, "invalid JSON", http.StatusBadRequest)
 				return
 			}
-			ws, err := protocol.Find(body.Path)
-			if err != nil {
-				http.Error(w, "not a 4x project: "+err.Error(), http.StatusBadRequest)
+			absPath, _ := filepath.Abs(body.Path)
+			if home, _ := os.UserHomeDir(); absPath == home {
+				http.Error(w, "cannot use home directory as a project", http.StatusBadRequest)
 				return
+			}
+			ws, err := protocol.Find(body.Path)
+			if err != nil || ws.Root != absPath {
+				if initErr := protocol.Init(absPath, protocol.Config{
+					Project: protocol.ProjectConfig{Name: filepath.Base(absPath)},
+				}); initErr != nil {
+					http.Error(w, "failed to init 4x project: "+initErr.Error(), http.StatusInternalServerError)
+					return
+				}
+				ws = &protocol.Workspace{Root: absPath}
 			}
 			id := reg.Add(ws)
 
@@ -267,12 +277,14 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 	// Browse API：列出指定路徑的子目錄，供前端 folder picker 使用
 	mux.HandleFunc("/api/browse", func(w http.ResponseWriter, r *http.Request) {
 		dir := r.URL.Query().Get("path")
-		if dir == "" {
-			home, _ := os.UserHomeDir()
-			dir = home
-		}
-		if strings.HasPrefix(dir, "~") {
-			home, _ := os.UserHomeDir()
+		home, _ := os.UserHomeDir()
+		if dir == "" || dir == "~" {
+			if gh := filepath.Join(home, "github"); dirExists(gh) {
+				dir = gh
+			} else {
+				dir = home
+			}
+		} else if strings.HasPrefix(dir, "~") {
 			dir = home + dir[1:]
 		}
 
@@ -293,17 +305,10 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 				continue
 			}
 			full := filepath.Join(dir, e.Name())
-			is4x := false
-			if info, err := os.Stat(filepath.Join(full, ".4x")); err == nil && info.IsDir() {
-				is4x = true
-			}
-			dirs = append(dirs, dirEntry{Name: e.Name(), Path: full, Is4x: is4x})
+			dirs = append(dirs, dirEntry{Name: e.Name(), Path: full, Is4x: is4xProject(full)})
 		}
 
-		currentIs4x := false
-		if info, err := os.Stat(filepath.Join(dir, ".4x")); err == nil && info.IsDir() {
-			currentIs4x = true
-		}
+		currentIs4x := is4xProject(dir)
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
@@ -320,4 +325,15 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 	})
 
 	return mux
+}
+
+// is4xProject 判斷目錄是否為 4x 專案（需有 .4x/features/）
+func is4xProject(dir string) bool {
+	info, err := os.Stat(filepath.Join(dir, ".4x", "features"))
+	return err == nil && info.IsDir()
+}
+
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }
