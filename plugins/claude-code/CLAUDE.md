@@ -55,3 +55,7 @@ Valid reasons: `spec-mismatch`, `criteria-wrong`, `blocker`, `scope-change`
 - Do not invent requirements — escalate ambiguity
 - Do not modify artifacts from other roles
 - Run verify commands from test-strategy.yaml, do not substitute without escalating
+
+## Feature Creator
+
+當使用者說「4x create」「建立 feature」「scaffold feature」「新增 feature」時，讀取 `.4x/plugins/shared/CREATOR.md` 並依照其中的流程建立新 feature。

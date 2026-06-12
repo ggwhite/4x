@@ -23,7 +23,6 @@ func runnerDeploys(name string) []pluginDeploy {
 	case "claude":
 		return []pluginDeploy{
 			{EmbedPath: "claude-code/CLAUDE.md", PluginName: "CLAUDE.md", RootFile: "CLAUDE.md"},
-			{EmbedPath: "claude-code/CREATOR-SKILL.md", PluginName: "CREATOR-SKILL.md"},
 		}
 	case "codex":
 		return []pluginDeploy{
