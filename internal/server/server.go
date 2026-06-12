@@ -576,9 +576,14 @@ func handlePostDone(ws *protocol.Workspace, w http.ResponseWriter, r *http.Reque
 	}
 
 	f, err := ws.LoadFeature(req.ID)
-	if err == nil {
-		f.Status = "done"
-		ws.SaveFeature(f)
+	if err != nil {
+		http.Error(w, "failed to load feature: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	f.Status = "done"
+	if err := ws.SaveFeature(f); err != nil {
+		http.Error(w, "failed to save feature: "+err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	ws.AppendEvent(req.ID, protocol.Event{
