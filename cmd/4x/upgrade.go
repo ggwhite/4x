@@ -84,6 +84,25 @@ func comparePlugins(root string, cfg protocol.Config) []fileReport {
 	pluginDir := filepath.Join(root, ".4x", "plugins")
 	var report []fileReport
 
+	sharedFiles := []string{"shared/CREATOR.md"}
+	for _, sf := range sharedFiles {
+		embedData, err := plugins.FS.ReadFile(sf)
+		if err != nil {
+			continue
+		}
+		target := filepath.Join(pluginDir, sf)
+		relPath := filepath.Join(".4x", "plugins", sf)
+		existing, readErr := os.ReadFile(target)
+		switch {
+		case readErr != nil:
+			report = append(report, fileReport{path: relPath, status: statusCreated})
+		case !bytes.Equal(existing, embedData):
+			report = append(report, fileReport{path: relPath, status: statusUpdated})
+		default:
+			report = append(report, fileReport{path: relPath, status: statusCurrent})
+		}
+	}
+
 	for name := range cfg.Runners {
 		deploys := runnerDeploys(name)
 

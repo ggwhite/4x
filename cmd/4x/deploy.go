@@ -55,6 +55,19 @@ func deployPlugins(root string, cfg protocol.Config) {
 	pluginDir := filepath.Join(root, ".4x", "plugins")
 	os.MkdirAll(pluginDir, 0o755)
 
+	// 部署 shared/ — 所有 runner 共用的指令檔
+	sharedDir := filepath.Join(pluginDir, "shared")
+	os.MkdirAll(sharedDir, 0o755)
+	sharedFiles := []string{"shared/CREATOR.md"}
+	for _, sf := range sharedFiles {
+		data, err := plugins.FS.ReadFile(sf)
+		if err != nil {
+			continue
+		}
+		target := filepath.Join(pluginDir, sf)
+		os.WriteFile(target, data, 0o644)
+	}
+
 	for name := range cfg.Runners {
 		deploys := runnerDeploys(name)
 

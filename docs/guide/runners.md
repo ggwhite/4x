@@ -25,12 +25,18 @@ Each runner has instruction files embedded in the `4x` binary. `4x init` deploys
 
 | Runner | Plugin File | Root Import |
 |---|---|---|
-| claude | `SKILL.md` + `workflow.js` | CLAUDE.md |
+| claude | `CLAUDE.md` | CLAUDE.md |
 | codex | `AGENTS.md` + `codex.json` | AGENTS.md |
 | gemini | `GEMINI.md` | GEMINI.md |
 | agy | `AGY.md` | AGY.md |
 | copilot | `AGENTS.md` + `workflow.js` | AGENTS.md |
 | cursor | `.cursorrules` | .cursorrules |
+
+Additionally, shared instruction files are deployed to `.4x/plugins/shared/` for all runners:
+
+| File | Purpose |
+|---|---|
+| `shared/CREATOR.md` | Feature Creator flow — guides AI through `4x new` scaffold |
 
 Use `4x upgrade` to re-deploy plugin files after updating the binary.
 
