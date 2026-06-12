@@ -71,7 +71,7 @@ func newTransitionCmd() *cobra.Command {
 				return err
 			}
 
-			if toPhase == protocol.PhaseDone || toPhase == protocol.PhaseBlocked {
+			if toPhase == protocol.PhaseDone || toPhase == protocol.PhasePendingReview || toPhase == protocol.PhaseBlocked {
 				newState.Active = false
 			}
 
@@ -106,6 +106,8 @@ func syncFeatureStatus(ws *protocol.Workspace, featureID string, phase protocol.
 	}
 
 	switch phase {
+	case protocol.PhasePendingReview:
+		f.Status = "ready-for-review"
 	case protocol.PhaseDone:
 		f.Status = "done"
 	case protocol.PhaseBlocked:

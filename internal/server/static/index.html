@@ -438,6 +438,7 @@ function renderSearchResults(query) {
     const isActive = t.active && t.phase && t.phase !== 'done';
     const pl = openTabs.length > 1 ? `<span style="padding:1px 6px;font-size:10px;background:var(--bg-hover);border-radius:4px;color:var(--text-3)">${esc(t._projectName)}</span>` : '';
     let b; if (isActive) b='<span style="padding:2px 8px;font-size:10px;font-weight:600;background:rgba(16,185,129,.15);color:#34d399;border:1px solid rgba(16,185,129,.3);border-radius:99px">In Progress</span>';
+    else if (t.status==='ready-for-review') b='<span style="padding:2px 8px;font-size:10px;font-weight:600;background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.3);border-radius:99px">Review</span>';
     else if (t.status==='done') b='<span style="padding:2px 8px;font-size:10px;color:var(--text-3);border:1px solid var(--border);border-radius:99px">Done</span>';
     else if (t.status==='blocked') b='<span style="padding:2px 8px;font-size:10px;color:#f87171;border:1px solid rgba(248,113,113,.3);border-radius:99px">Blocked</span>';
     else b='<span style="padding:2px 8px;font-size:10px;color:var(--text-4);border:1px solid var(--border);border-radius:99px">Not Started</span>';
@@ -478,15 +479,22 @@ const ROLES = {
   tester:{name:'Tester',color:'#f97316',bg:'rgba(249,115,22,.08)'},
   acceptor:{name:'Acceptor',color:'#eab308',bg:'rgba(234,179,8,.08)'},
 };
-const PHASE_ICON = { designing:'◆',coding:'◆',reviewing:'◆',testing:'◆',accepting:'◆',amending:'◆',done:'✓',blocked:'✕','needs-attention':'!',init:'○','not-started':'○' };
+const PHASE_ICON = { designing:'◆',coding:'◆',reviewing:'◆',testing:'◆',accepting:'◆',amending:'◆','pending-review':'⏳',done:'✓',blocked:'✕','needs-attention':'!',init:'○','not-started':'○' };
 
 function badge(status, phase, active) {
   if (active && phase && phase!=='done') return '<span class="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span>In Progress</span>';
+  if (status==='ready-for-review') return '<span class="px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/30 rounded-full">Review</span>';
   if (status==='done') return '<span class="px-2 py-0.5 text-[10px] text-zinc-500 border border-zinc-700/50 rounded-full">Done</span>';
   if (status==='blocked') return '<span class="px-2 py-0.5 text-[10px] text-red-400 border border-red-500/30 rounded-full">Blocked</span>';
   return '<span class="px-2 py-0.5 text-[10px] text-zinc-600 border border-zinc-800 rounded-full">Backlog</span>';
 }
 
+async function markDone(fid) {
+  if (!confirm('Mark '+fid+' as done?')) return;
+  const res = await fetch(apiBase()+'/api/done', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:fid})});
+  if (!res.ok) { alert('Failed: '+(await res.text())); return; }
+  load(); if (!current) renderDashboard(lastTasks);
+}
 function goHome() {
   current=null; lastMsgCount=0; disconnectSSE(); disconnectLogSSE();
   document.getElementById('header').classList.add('hidden');
@@ -501,8 +509,8 @@ function connectSSE(fid) { disconnectSSE(); sseSource = new EventSource(sseBase(
 function disconnectSSE() { if (sseSource) { sseSource.close(); sseSource = null; } }
 
 function classify(tasks) {
-  const g = { running: [], pending: [], todo: [], done: [] };
-  (tasks||[]).forEach(t => { const a = t.active && t.phase && t.phase!=='done'; if (a) g.running.push(t); else if (t.status==='done') g.done.push(t); else if (t.status==='in-progress') g.pending.push(t); else g.todo.push(t); });
+  const g = { running: [], review: [], pending: [], todo: [], done: [] };
+  (tasks||[]).forEach(t => { const a = t.active && t.phase && t.phase!=='done'; if (a) g.running.push(t); else if (t.status==='ready-for-review') g.review.push(t); else if (t.status==='done') g.done.push(t); else if (t.status==='in-progress') g.pending.push(t); else g.todo.push(t); });
   return g;
 }
 
@@ -515,23 +523,25 @@ function renderDashboard(tasks) {
   const doneTasks = g.done.filter(t => t.round > 0);
   doneTasks.forEach(t => { if (t.round<=1) buckets['1']++; else if (t.round===2) buckets['2']++; else if (t.round<=4) buckets['3-4']++; else buckets['5+']++; });
   const maxB = Math.max(1, ...Object.values(buckets));
-  const rP=total?g.running.length/total:0, pP=total?g.pending.length/total:0, tP=total?g.todo.length/total:0;
-  const a1=rP*360, a2=a1+pP*360, a3=a2+tP*360;
-  const donut = total ? `conic-gradient(#f59e0b 0deg ${a1}deg,#3b82f6 ${a1}deg ${a2}deg,#a78bfa ${a2}deg ${a3}deg,#10b981 ${a3}deg 360deg)` : 'conic-gradient(#27272a 0deg 360deg)';
+  const rP=total?g.running.length/total:0, rvP=total?g.review.length/total:0, pP=total?g.pending.length/total:0, tP=total?g.todo.length/total:0;
+  const a1=rP*360, a2=a1+rvP*360, a3=a2+pP*360, a4=a3+tP*360;
+  const donut = total ? `conic-gradient(#10b981 0deg ${a1}deg,#f59e0b ${a1}deg ${a2}deg,#3b82f6 ${a2}deg ${a3}deg,#a78bfa ${a3}deg ${a4}deg,#22c55e ${a4}deg 360deg)` : 'conic-gradient(#27272a 0deg 360deg)';
   const recent = g.done.slice(-8).reverse();
   const activeTab = openTabs.find(t => t.id === activeProjectId);
   const pName = activeTab ? activeTab.name : '4x Live';
   el.innerHTML = `<div class="flex items-center gap-3 mb-6"><span class="text-lg font-bold">${esc(pName)}</span><span class="ml-auto px-3 py-1 text-xs border border-zinc-700/50 rounded-full text-zinc-400">${total} tasks</span></div>
-<div class="grid grid-cols-4 gap-4 mb-8">
-<div class="rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5 text-center"><div class="text-3xl font-bold text-amber-400">${g.running.length}</div><div class="text-xs text-zinc-500 mt-1 uppercase tracking-wider">Running</div></div>
+<div class="grid grid-cols-5 gap-4 mb-8">
+<div class="rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5 text-center"><div class="text-3xl font-bold text-emerald-400">${g.running.length}</div><div class="text-xs text-zinc-500 mt-1 uppercase tracking-wider">Running</div></div>
+<div class="rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5 text-center"><div class="text-3xl font-bold text-amber-400">${g.review.length}</div><div class="text-xs text-zinc-500 mt-1 uppercase tracking-wider">Review</div></div>
 <div class="rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5 text-center"><div class="text-3xl font-bold text-blue-400">${g.pending.length}</div><div class="text-xs text-zinc-500 mt-1 uppercase tracking-wider">Pending</div></div>
 <div class="rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5 text-center"><div class="text-3xl font-bold text-purple-400">${g.todo.length}</div><div class="text-xs text-zinc-500 mt-1 uppercase tracking-wider">Todo</div></div>
 <div class="rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5 text-center"><div class="text-3xl font-bold text-green-400">${g.done.length}</div><div class="text-xs text-zinc-500 mt-1 uppercase tracking-wider">Done</div></div></div>
 <div class="grid grid-cols-2 gap-4 mb-8">
-<div class="rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5"><div class="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-4">Status</div><div class="flex items-center gap-6"><div class="relative w-28 h-28 flex-shrink-0"><div class="w-28 h-28 rounded-full" style="background:${donut}"></div><div class="absolute inset-3 rounded-full bg-zinc-900 flex items-center justify-center flex-col"><span class="text-xl font-bold">${total}</span><span class="text-[10px] text-zinc-500">total</span></div></div><div class="space-y-2 text-xs"><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>Running<span class="ml-auto text-zinc-400 font-bold">${g.running.length}</span></div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>Pending<span class="ml-auto text-zinc-400 font-bold">${g.pending.length}</span></div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span>Todo<span class="ml-auto text-zinc-400 font-bold">${g.todo.length}</span></div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>Done<span class="ml-auto text-zinc-400 font-bold">${g.done.length}</span></div></div></div></div>
+<div class="rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5"><div class="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-4">Status</div><div class="flex items-center gap-6"><div class="relative w-28 h-28 flex-shrink-0"><div class="w-28 h-28 rounded-full" style="background:${donut}"></div><div class="absolute inset-3 rounded-full bg-zinc-900 flex items-center justify-center flex-col"><span class="text-xl font-bold">${total}</span><span class="text-[10px] text-zinc-500">total</span></div></div><div class="space-y-2 text-xs"><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>Running<span class="ml-auto text-zinc-400 font-bold">${g.running.length}</span></div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>Review<span class="ml-auto text-zinc-400 font-bold">${g.review.length}</span></div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>Pending<span class="ml-auto text-zinc-400 font-bold">${g.pending.length}</span></div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span>Todo<span class="ml-auto text-zinc-400 font-bold">${g.todo.length}</span></div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>Done<span class="ml-auto text-zinc-400 font-bold">${g.done.length}</span></div></div></div></div>
 <div class="rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5"><div class="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-4">Rounds Distribution</div><div class="space-y-3">${Object.entries(buckets).map(([l,c])=>{const p=maxB?(c/maxB)*100:0;const co={'1':'#10b981','2':'#3b82f6','3-4':'#f59e0b','5+':'#ef4444'};return `<div class="flex items-center gap-3"><span class="text-xs text-zinc-500 w-8 text-right">${l}R</span><div class="flex-1 h-5 bg-zinc-800/50 rounded overflow-hidden"><div class="h-full rounded" style="width:${p}%;background:${co[l]}"></div></div><span class="text-xs font-bold text-zinc-300 w-6 text-right">${c}</span></div>`;}).join('')}</div>${doneTasks.length>0?`<div class="text-[10px] text-zinc-600 mt-3">avg ${(doneTasks.reduce((s,t)=>s+t.round,0)/doneTasks.length).toFixed(1)} rounds/task</div>`:''}</div></div>
 ${recent.length>0?`<div class="rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5"><div class="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-4">Recent Completions</div><div class="space-y-2">${recent.map(t=>`<div class="flex items-center gap-3 py-1.5 cursor-pointer hover:bg-zinc-800/30 rounded px-2 -mx-2 transition-colors" onclick="current='${t.id}';load();loadDetail(${JSON.stringify(t).replace(/"/g,'&quot;')})"><span class="text-emerald-500/60 text-xs">✓</span><span class="text-xs font-semibold text-emerald-400/80">${t.id}</span><span class="text-xs text-zinc-400 truncate flex-1">${esc(t.name)}</span>${t.round?`<span class="text-[10px] text-zinc-600">${t.round}R</span>`:''}</div>`).join('')}</div></div>`:''}
-${g.running.length>0?`<div class="rounded-xl border border-emerald-500/20 bg-emerald-950/20 p-5 mt-4"><div class="text-[10px] font-bold text-emerald-500/70 uppercase tracking-wider mb-4">Currently Running</div><div class="space-y-2">${g.running.map(t=>`<div class="flex items-center gap-3 py-1.5 cursor-pointer hover:bg-emerald-900/20 rounded px-2 -mx-2 transition-colors" onclick="current='${t.id}';load();loadDetail(${JSON.stringify(t).replace(/"/g,'&quot;')})"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span><span class="text-xs font-semibold text-emerald-400">${t.id}</span><span class="text-xs text-zinc-400 truncate flex-1">${esc(t.name)}</span><span class="text-[10px] text-emerald-400/70">${t.phase||''}</span>${t.round?`<span class="text-[10px] text-zinc-600">R${t.round}</span>`:''}</div>`).join('')}</div></div>`:''}`;
+${g.running.length>0?`<div class="rounded-xl border border-emerald-500/20 bg-emerald-950/20 p-5 mt-4"><div class="text-[10px] font-bold text-emerald-500/70 uppercase tracking-wider mb-4">Currently Running</div><div class="space-y-2">${g.running.map(t=>`<div class="flex items-center gap-3 py-1.5 cursor-pointer hover:bg-emerald-900/20 rounded px-2 -mx-2 transition-colors" onclick="current='${t.id}';load();loadDetail(${JSON.stringify(t).replace(/"/g,'&quot;')})"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span><span class="text-xs font-semibold text-emerald-400">${t.id}</span><span class="text-xs text-zinc-400 truncate flex-1">${esc(t.name)}</span><span class="text-[10px] text-emerald-400/70">${t.phase||''}</span>${t.round?`<span class="text-[10px] text-zinc-600">R${t.round}</span>`:''}</div>`).join('')}</div></div>`:''}
+${g.review.length>0?`<div class="rounded-xl border border-amber-500/20 bg-amber-950/20 p-5 mt-4"><div class="text-[10px] font-bold text-amber-500/70 uppercase tracking-wider mb-4">Pending Review</div><div class="space-y-2">${g.review.map(t=>`<div class="flex items-center gap-3 py-1.5 cursor-pointer hover:bg-amber-900/20 rounded px-2 -mx-2 transition-colors" onclick="current='${t.id}';load();loadDetail(${JSON.stringify(t).replace(/"/g,'&quot;')})"><span class="text-amber-400 text-xs">⏳</span><span class="text-xs font-semibold text-amber-400">${t.id}</span><span class="text-xs text-zinc-400 truncate flex-1">${esc(t.name)}</span>${t.round?`<span class="text-[10px] text-zinc-600">${t.round}R</span>`:''}<button class="px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/30 rounded hover:bg-amber-500/20 transition-colors" onclick="event.stopPropagation();markDone('${t.id}')">Done</button></div>`).join('')}</div></div>`:''}`;
 }
 
 async function load() {
@@ -554,12 +564,14 @@ async function load() {
       el.className = cls;
       const pi = isActive ? `<div class="flex items-center gap-1.5 mt-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span><span class="text-[11px] text-emerald-400">${t.phase}</span><span class="text-[11px] text-zinc-600">· Round ${t.round||0}</span></div>` : '';
       const di = t.status==='done' ? '<span class="text-emerald-500/60 text-xs">✓</span>' : '';
-      el.innerHTML = `<div class="flex items-start gap-2">${di}<div class="flex-1 min-w-0"><div class="text-[13px] font-medium truncate">${t.name}</div><div class="text-[11px] text-zinc-600 mt-0.5">${t.id}</div>${pi}</div></div>`;
+      const doneBtn = t.status==='ready-for-review' ? `<button class="ml-auto px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/30 rounded hover:bg-amber-500/20 transition-colors" onclick="event.stopPropagation();markDone('${t.id}')">Mark Done</button>` : '';
+      el.innerHTML = `<div class="flex items-start gap-2">${di}<div class="flex-1 min-w-0"><div class="text-[13px] font-medium truncate">${t.name}</div><div class="text-[11px] text-zinc-600 mt-0.5">${t.id}</div>${pi}</div>${doneBtn}</div>`;
       el.onclick = () => { current=t.id; load(); loadDetail(t); };
       list.appendChild(el);
     });
   }
   rg('Running', groups.running, groups.running.length);
+  rg('Review', groups.review, groups.review.length);
   rg('Pending', groups.pending, groups.pending.length);
   rg('Todo', groups.todo, groups.todo.length);
   rg('Done', groups.done, groups.done.length);

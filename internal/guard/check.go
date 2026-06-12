@@ -96,13 +96,14 @@ func checkRequiredFiles(ws *protocol.Workspace, featureID string, r *CheckResult
 		protocol.PhaseReviewing: true,
 		protocol.PhaseTesting:   true,
 		protocol.PhaseAmending:  true,
-		protocol.PhaseAccepting: true,
-		protocol.PhaseDone:      true,
+		protocol.PhaseAccepting:      true,
+		protocol.PhasePendingReview:  true,
+		protocol.PhaseDone:           true,
 	}
 	if needsDesignOutputs[state.Phase] {
 		required = append(required, protocol.TaskBrief, protocol.Criteria)
 	}
-	if state.Phase == protocol.PhaseAccepting || state.Phase == protocol.PhaseDone {
+	if state.Phase == protocol.PhaseAccepting || state.Phase == protocol.PhasePendingReview || state.Phase == protocol.PhaseDone {
 		roundDir := ws.RoundDir(featureID, state.Round)
 		if _, err := os.Stat(roundDir); err == nil {
 			checkTestingToAccepting(ws, featureID, state.Round, r)

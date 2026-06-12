@@ -472,17 +472,12 @@ Amend task-brief/criteria in ${featureDir}/.`, {
 phase('Accept')
 log(`${featureId}: Acceptance phase`)
 
-const allPassed = lastTestResult && lastTestResult.failCount === 0
-const finalStatus = allPassed ? 'ready-for-review' :
-  consecutiveNoProgress >= 3 ? 'blocked' : 'needs-attention'
-
 await agent(`You are the Acceptor (Designer role).
 
 ${stateUpdate('acceptor', 'accept', round)}
 
 Evaluate the overall results:
 - Rounds completed: ${round}/${maxRounds}
-- Final status: ${finalStatus}
 - Test results: ${lastTestResult ? `${lastTestResult.passCount} pass, ${lastTestResult.failCount} fail, ${lastTestResult.skipCount} skip` : 'no test results'}
 
 Read all round reports in ${featureDir}/rounds/.
@@ -492,18 +487,18 @@ Write:
 2. ${featureDir}/commit-plan.md — suggested commits (do NOT commit, just plan)
 
 ${stateEnd('acceptor', 'accept', round)}
-echo '{"active":false,"phase":"${finalStatus}"}' > ${featureDir}/state.json
+4x transition ${featureId} --to pending-review
 `, {
   label: `acceptor:${featureId}`,
   phase: 'Accept',
   model: MODEL_ACCEPTOR
 })
 
-log(`${featureId}: Complete — ${finalStatus}`)
+log(`${featureId}: Complete — pending-review`)
 
 return {
   featureId,
-  status: finalStatus,
+  status: 'pending-review',
   rounds: round,
   testResults: lastTestResult
 }

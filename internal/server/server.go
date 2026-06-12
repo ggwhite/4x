@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ggwhite/4x/internal/protocol"
+	"github.com/ggwhite/4x/internal/state"
 )
 
 //go:embed static/index.html
@@ -54,6 +55,13 @@ func NewMux(ws *protocol.Workspace, pm *ProcessManager) http.Handler {
 			handlePostNew(ws, w, r)
 		})
 	}
+	mux.HandleFunc("/api/done", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		handlePostDone(ws, w, r)
+	})
 	mux.HandleFunc("/api/messages/", func(w http.ResponseWriter, r *http.Request) {
 		featureID := strings.TrimPrefix(r.URL.Path, "/api/messages/")
 		handleMessages(ws, featureID, w)
@@ -526,6 +534,61 @@ func findLatestLog(dir string) string {
 		}
 	}
 	return latest
+}
+
+type doneRequest struct {
+	ID string `json:"id"`
+}
+
+func handlePostDone(ws *protocol.Workspace, w http.ResponseWriter, r *http.Request) {
+	var req doneRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	if req.ID == "" {
+		http.Error(w, "id required", http.StatusBadRequest)
+		return
+	}
+
+	s, err := ws.ReadState(req.ID)
+	if err != nil {
+		http.Error(w, "feature not found", http.StatusNotFound)
+		return
+	}
+
+	if s.Phase != protocol.PhasePendingReview {
+		http.Error(w, fmt.Sprintf("feature is in phase %q, not pending-review", s.Phase), http.StatusBadRequest)
+		return
+	}
+
+	newState, err := state.Transition(s, protocol.PhaseDone, "")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	newState.Active = false
+	newState.StopReason = "done"
+
+	if err := ws.WriteState(req.ID, newState); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	f, err := ws.LoadFeature(req.ID)
+	if err == nil {
+		f.Status = "done"
+		ws.SaveFeature(f)
+	}
+
+	ws.AppendEvent(req.ID, protocol.Event{
+		Type:  "transition",
+		Phase: protocol.PhaseDone,
+		Round: newState.Round,
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprint(w, `{"status":"done"}`)
 }
 
 func readIfExists(path string) string {
