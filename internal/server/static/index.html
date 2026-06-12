@@ -588,15 +588,16 @@ function renderMsgCard(m) {
   const r = ROLES[m.role] || {name:m.role,color:'#666',bg:'rgba(100,100,100,.05)'};
   const div = document.createElement('div'); div.className = 'fade-in rounded-lg overflow-hidden';
   const header = document.createElement('div');
-  header.className = 'flex items-center gap-2 px-4 py-2 cursor-pointer hover:brightness-125 transition-all';
+  header.className = 'flex items-center gap-2 px-4 py-2 cursor-pointer hover:brightness-125 transition-all sticky top-0 z-10';
   header.style.background = r.bg;
   const lines = m.content.trim().split('\n').filter(l => l.trim());
   const preview = lines.length > 1 ? lines.find(l => !l.startsWith('#')) || lines[1] : '';
   const previewText = preview ? `<span class="text-xs text-zinc-600 truncate ml-2 flex-1">${esc(preview.slice(0,80))}</span>` : '';
   header.innerHTML = `<span class="w-1.5 h-1.5 rounded-full flex-shrink-0" style="background:${r.color}"></span><span class="text-xs font-semibold flex-shrink-0" style="color:${r.color}">${r.name}</span><span class="text-xs text-zinc-600 flex-shrink-0">${m.label}${m.round?' · Round '+m.round:''}</span>${previewText}<span class="msg-chevron text-zinc-600 text-xs ml-auto flex-shrink-0 transition-transform">▶</span>`;
   const body = document.createElement('div');
-  body.className = 'md-body px-4 py-3 text-zinc-300 border-l-2 hidden';
+  body.className = 'md-body px-4 py-3 text-zinc-300 border-l-2 hidden overflow-y-auto';
   body.style.borderColor = r.color + '20';
+  body.style.maxHeight = '60vh';
   header.onclick = () => {
     const open = !body.classList.contains('hidden');
     body.classList.toggle('hidden');
