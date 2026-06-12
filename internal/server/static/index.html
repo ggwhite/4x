@@ -63,6 +63,10 @@
   .md-body table { border-collapse: collapse; margin: .6em 0; width: 100%; }
   .md-body th, .md-body td { border: 1px solid var(--border); padding: .4em .6em; font-size: .9em; }
   .md-body th { background: rgba(255,255,255,.03); font-weight: 600; }
+  .msg-body { transition: max-height .25s ease, opacity .2s ease; overflow: hidden; }
+  .msg-body.collapsed { max-height: 0 !important; opacity: 0; padding-top: 0 !important; padding-bottom: 0 !important; }
+  .msg-chevron { transition: transform .2s ease; }
+  .msg-chevron.open { transform: rotate(90deg); }
   .fade-in { animation: fadeIn .2s ease-in; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
@@ -593,19 +597,20 @@ function renderMsgCard(m) {
   const lines = m.content.trim().split('\n').filter(l => l.trim());
   const preview = lines.length > 1 ? lines.find(l => !l.startsWith('#')) || lines[1] : '';
   const previewText = preview ? `<span class="text-xs text-zinc-600 truncate ml-2 flex-1">${esc(preview.slice(0,80))}</span>` : '';
-  header.innerHTML = `<span class="w-1.5 h-1.5 rounded-full flex-shrink-0" style="background:${r.color}"></span><span class="text-xs font-semibold flex-shrink-0" style="color:${r.color}">${r.name}</span><span class="text-xs text-zinc-600 flex-shrink-0">${m.label}${m.round?' · Round '+m.round:''}</span>${previewText}<span class="msg-chevron text-zinc-600 text-xs ml-auto flex-shrink-0 transition-transform">▶</span>`;
+  header.innerHTML = `<span class="w-1.5 h-1.5 rounded-full flex-shrink-0" style="background:${r.color}"></span><span class="text-xs font-semibold flex-shrink-0" style="color:${r.color}">${r.name}</span><span class="text-xs text-zinc-600 flex-shrink-0">${m.label}${m.round?' · Round '+m.round:''}</span>${previewText}<span class="msg-chevron text-zinc-600 text-xs ml-auto flex-shrink-0">▶</span>`;
   const body = document.createElement('div');
-  body.className = 'md-body px-4 py-3 text-zinc-300 border-l-2 hidden overflow-y-auto';
+  body.className = 'msg-body collapsed md-body px-4 py-3 text-zinc-300 border-l-2 overflow-y-auto';
   body.style.borderColor = r.color + '20';
-  body.style.maxHeight = '60vh';
   header.onclick = () => {
-    const open = !body.classList.contains('hidden');
-    body.classList.toggle('hidden');
-    header.querySelector('.msg-chevron').textContent = open ? '▶' : '▼';
-    if (!open && !body.dataset.rendered) {
+    const opening = body.classList.contains('collapsed');
+    if (opening && !body.dataset.rendered) {
       body.innerHTML = typeof marked !== 'undefined' ? marked.parse(m.content) : '<pre>' + esc(m.content) + '</pre>';
       body.dataset.rendered = '1';
     }
+    body.classList.toggle('collapsed');
+    header.querySelector('.msg-chevron').classList.toggle('open');
+    if (opening) body.style.maxHeight = '60vh';
+    else body.style.maxHeight = '0';
   };
   div.appendChild(header);
   div.appendChild(body);
