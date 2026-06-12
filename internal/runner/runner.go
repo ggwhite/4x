@@ -94,10 +94,19 @@ func (r *SubprocessRunner) Run(ctx context.Context, prompt string) (*Result, err
 	}
 
 	if logFile != nil {
-		cmd.Stdout = io.MultiWriter(os.Stdout, logFile)
-		cmd.Stderr = io.MultiWriter(os.Stderr, logFile)
+		if r.Config.Quiet {
+			cmd.Stdout = logFile
+			cmd.Stderr = io.MultiWriter(os.Stderr, logFile)
+		} else {
+			cmd.Stdout = io.MultiWriter(os.Stdout, logFile)
+			cmd.Stderr = io.MultiWriter(os.Stderr, logFile)
+		}
 	} else {
-		cmd.Stdout = os.Stdout
+		if r.Config.Quiet {
+			cmd.Stdout = io.Discard
+		} else {
+			cmd.Stdout = os.Stdout
+		}
 		cmd.Stderr = os.Stderr
 	}
 	if r.Config.Stdin {

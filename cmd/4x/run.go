@@ -263,12 +263,17 @@ func generatePrompt(ws *protocol.Workspace, feature protocol.Feature, cfg protoc
 	return buf.String(), nil
 }
 
-// resolveModel 根據 role → runner config 優先序決定要傳給 CLI 的 model
+// resolveModel 根據 role → runner config 優先序決定要傳給 CLI 的 model，
+// 再透過 runner 的 model_map 翻譯成該 runner 認識的名稱
 func resolveModel(cfg protocol.Config, runnerCfg protocol.RunnerConfig, role protocol.Role) string {
+	model := runnerCfg.Model
 	if rc, ok := cfg.Roles[string(role)]; ok && rc.Model != "" {
-		return rc.Model
+		model = rc.Model
 	}
-	return runnerCfg.Model
+	if mapped, ok := runnerCfg.ModelMap[model]; ok {
+		return mapped
+	}
+	return model
 }
 
 func runLoop(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s protocol.State, newRunner func(logPath string, model string) runner.Runner, commitStrategy string) error {
