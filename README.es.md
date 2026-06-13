@@ -92,13 +92,34 @@ Elegir 4x significa intercambiar velocidad y costo por estructura y corrección.
 
 **Capa 3 — Live** es el dashboard multi-proyecto. Observa a tus agentes de IA trabajar en tiempo real, ve las transiciones de fase, transmite logs. API REST + SSE.
 
+## Instalación
+
+### Homebrew (macOS / Linux)
+
+```bash
+brew install ggwhite/tap/4x
+```
+
+### Go Install
+
+```bash
+go install github.com/ggwhite/4x/cmd/4x@latest
+```
+
+### Shell Script
+
+```bash
+curl -sSfL https://raw.githubusercontent.com/ggwhite/4x/main/install.sh | sh
+```
+
+### Descargar binario
+
+Los binarios precompilados para macOS, Linux y Windows (amd64 / arm64) están disponibles en la página de [Releases](https://github.com/ggwhite/4x/releases).
+
 ## Inicio rápido
 
 ```bash
-# Install
-go install github.com/ggwhite/4x/cmd/4x@latest
-
-# Initialize in your project
+# Inicializar en tu proyecto
 cd my-project
 4x init
 

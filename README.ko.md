@@ -92,12 +92,33 @@
 
 **레이어 3 — Live**는 다중 프로젝트 대시보드입니다. AI 에이전트의 작업을 실시간으로 관찰하고, 단계 전환을 확인하며, 로그를 스트리밍합니다. REST + SSE API.
 
+## 설치
+
+### Homebrew (macOS / Linux)
+
+```bash
+brew install ggwhite/tap/4x
+```
+
+### Go Install
+
+```bash
+go install github.com/ggwhite/4x/cmd/4x@latest
+```
+
+### Shell Script
+
+```bash
+curl -sSfL https://raw.githubusercontent.com/ggwhite/4x/main/install.sh | sh
+```
+
+### 바이너리 다운로드
+
+macOS, Linux, Windows (amd64 / arm64) 사전 빌드된 바이너리는 [Releases](https://github.com/ggwhite/4x/releases) 페이지에서 다운로드할 수 있습니다.
+
 ## 빠른 시작
 
 ```bash
-# 설치
-go install github.com/ggwhite/4x/cmd/4x@latest
-
 # 프로젝트에서 초기화
 cd my-project
 4x init

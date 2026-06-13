@@ -92,13 +92,34 @@
 
 **第三层 — Live** 是多项目仪表盘。实时观察 AI agent 的工作进度，查看阶段转换，流式传输日志。REST + SSE API。
 
+## 安装
+
+### Homebrew (macOS / Linux)
+
+```bash
+brew install ggwhite/tap/4x
+```
+
+### Go Install
+
+```bash
+go install github.com/ggwhite/4x/cmd/4x@latest
+```
+
+### Shell Script
+
+```bash
+curl -sSfL https://raw.githubusercontent.com/ggwhite/4x/main/install.sh | sh
+```
+
+### 下载 Binary
+
+macOS、Linux、Windows（amd64 / arm64）的预编译 binary 可在 [Releases](https://github.com/ggwhite/4x/releases) 页面下载。
+
 ## 快速开始
 
 ```bash
-# Install
-go install github.com/ggwhite/4x/cmd/4x@latest
-
-# Initialize in your project
+# 在你的项目中初始化
 cd my-project
 4x init
 

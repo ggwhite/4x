@@ -92,12 +92,33 @@
 
 **レイヤー 3 -- Live** はマルチプロジェクトダッシュボード。AI エージェントの作業をリアルタイムで監視し、フェーズ遷移を確認し、ログをストリーミングする。REST + SSE API。
 
+## インストール
+
+### Homebrew (macOS / Linux)
+
+```bash
+brew install ggwhite/tap/4x
+```
+
+### Go Install
+
+```bash
+go install github.com/ggwhite/4x/cmd/4x@latest
+```
+
+### Shell Script
+
+```bash
+curl -sSfL https://raw.githubusercontent.com/ggwhite/4x/main/install.sh | sh
+```
+
+### バイナリダウンロード
+
+macOS、Linux、Windows（amd64 / arm64）のビルド済みバイナリは [Releases](https://github.com/ggwhite/4x/releases) ページからダウンロードできます。
+
 ## クイックスタート
 
 ```bash
-# インストール
-go install github.com/ggwhite/4x/cmd/4x@latest
-
 # プロジェクトで初期化
 cd my-project
 4x init
