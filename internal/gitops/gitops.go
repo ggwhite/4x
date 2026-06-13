@@ -61,8 +61,10 @@ func gitOutput(dir string, args ...string) string {
 func ensureGitignore(root, entry string) {
 	path := filepath.Join(root, ".gitignore")
 	data, _ := os.ReadFile(path)
-	if strings.Contains(string(data), entry) {
-		return
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.TrimSpace(line) == entry {
+			return
+		}
 	}
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
