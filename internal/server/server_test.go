@@ -607,17 +607,16 @@ func TestGetScreenshots(t *testing.T) {
 	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
+	// seedScreenshots 的截圖目錄沒有 {round} 佔位符，dir 掃描分配到最新 round（2）。
+	// round 2 = verify 的 02-round-two.png + dir 的 01-round-one.png = 2 screenshots。
 	if got.Total != 2 {
 		t.Fatalf("total = %d, want 2", got.Total)
 	}
-	if len(got.Groups) != 2 {
-		t.Fatalf("groups = %d, want 2", len(got.Groups))
+	if len(got.Groups) != 1 {
+		t.Fatalf("groups = %d, want 1 (all assigned to latest round 2)", len(got.Groups))
 	}
-	if got.Groups[0].Round != 1 || len(got.Groups[0].Screenshots) != 1 {
-		t.Fatalf("group[0] = %+v, want round 1 with 1 screenshot", got.Groups[0])
-	}
-	if got.Groups[1].Round != 2 || len(got.Groups[1].Screenshots) != 1 {
-		t.Fatalf("group[1] = %+v, want round 2 with 1 screenshot", got.Groups[1])
+	if got.Groups[0].Round != 2 || len(got.Groups[0].Screenshots) != 2 {
+		t.Fatalf("group[0] = %+v, want round 2 with 2 screenshots", got.Groups[0])
 	}
 }
 

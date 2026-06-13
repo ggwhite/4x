@@ -462,17 +462,22 @@ func TestDiscoverScreenshots(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DiscoverScreenshots: %v", err)
 	}
-	if len(groups) != 2 {
-		t.Fatalf("groups = %d, want 2", len(groups))
+	// DefaultScreenshotDir 沒有 {round} 佔位符，dir 掃描會分配到最新已知 round（2）。
+	// round 2 包含 verify.json 的 02-round-two.png，加上 dir 掃描的 01-round-one.png 與 03-third-shot.webp。
+	if len(groups) != 1 {
+		t.Fatalf("groups = %d, want 1 (all go to latest round)", len(groups))
 	}
-	if groups[0].Round != 1 || len(groups[0].Screenshots) != 2 {
-		t.Fatalf("round1 = %+v, want 2 screenshots", groups[0])
+	if groups[0].Round != 2 || len(groups[0].Screenshots) != 3 {
+		t.Fatalf("round2 = %+v, want 3 screenshots", groups[0])
 	}
-	if groups[1].Round != 2 || len(groups[1].Screenshots) != 1 {
-		t.Fatalf("round2 = %+v, want 1 screenshot", groups[1])
+	var thirdDesc string
+	for _, s := range groups[0].Screenshots {
+		if filepath.Base(s.Path) == "03-third-shot.webp" {
+			thirdDesc = s.Description
+		}
 	}
-	if groups[0].Screenshots[1].Description != "third shot" {
-		t.Errorf("description = %q, want %q", groups[0].Screenshots[1].Description, "third shot")
+	if thirdDesc != "third shot" {
+		t.Errorf("description = %q, want %q", thirdDesc, "third shot")
 	}
 }
 
@@ -924,6 +929,40 @@ func TestNormalizeScreenshotPath(t *testing.T) {
 		if got := NormalizeScreenshotPath(tt.input); got != tt.want {
 			t.Errorf("NormalizeScreenshotPath(%q) = %q, want %q", tt.input, got, tt.want)
 		}
+	}
+}
+
+func TestDiscoverScreenshots_NoRoundPlaceholder_UsesLatestRound(t *testing.T) {
+	ws := setupWorkspace(t)
+	const featureID = "feat-no-round"
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, r := range []int{1, 3} {
+		rd := ws.RoundDir(featureID, r)
+		if err := os.MkdirAll(rd, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	shotDir := filepath.Join(ws.DotDir(), "e2e", featureID, "screenshot")
+	if err := os.MkdirAll(shotDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shotDir, "01-login.png"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	groups, err := ws.DiscoverScreenshots(featureID, DefaultScreenshotDir)
+	if err != nil {
+		t.Fatalf("DiscoverScreenshots: %v", err)
+	}
+	if len(groups) != 1 {
+		t.Fatalf("groups = %d, want 1", len(groups))
+	}
+	if groups[0].Round != 3 {
+		t.Errorf("round = %d, want 3 (latest known round)", groups[0].Round)
 	}
 }
 

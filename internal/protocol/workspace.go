@@ -614,7 +614,11 @@ func resolveScreenshotDirs(workspaceRoot, featureID, screenshotDir string, round
 		}
 		return targets
 	}
-	return []screenshotScanTarget{{Round: 1, Dir: template}}
+	round := 1
+	if len(rounds) > 0 {
+		round = rounds[len(rounds)-1]
+	}
+	return []screenshotScanTarget{{Round: round, Dir: template}}
 }
 
 func discoverRoundsFromTemplate(workspaceRoot, template string) []int {
