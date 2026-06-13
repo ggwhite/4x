@@ -99,6 +99,67 @@ Open the dashboard (`4x live -w`) and click **Mark Done** on the feature card. T
 - **The AI agent already has full context** from brainstorming and running the feature, so its review is informed
 - **Mark Done is manual** — you're the final gatekeeper, not the AI
 
+### What 4x Is (and Isn't)
+
+4x is a **workflow orchestrator** — it runs Designer, Coder, Reviewer, and Tester roles in sequence and manages the state machine between them. It does not replace your judgment.
+
+In practice, the loop handles the happy path well: straightforward features with clear specs usually pass in 1-2 rounds. But real-world development is messy:
+
+- **The Coder might misunderstand the spec** — the Reviewer catches it, but the fix in the next round may still miss the point. After 2-3 failed rounds, it's faster to intervene yourself or ask your AI agent to fix the specific issue directly.
+- **Test failures may be environment-specific** — the Tester writes tests based on the spec, but if your project has quirks (custom test setup, flaky CI, legacy constraints), the tests may fail for reasons the AI can't diagnose. You'll need to debug these yourself.
+- **Edge cases surface after the loop** — 4x covers what the spec describes. Business logic edge cases, race conditions, or integration issues often only appear during manual review or production use.
+- **Complex refactors may need human guidance** — when a feature touches many files or requires understanding of implicit conventions, the Coder may produce correct but suboptimal code. A quick human nudge ("use the existing helper in `pkg/util`") saves multiple retry rounds.
+
+**The right mental model**: 4x gives you a solid first draft with test coverage and review feedback. Think of it as a capable junior developer that follows instructions precisely but sometimes needs steering. The time savings come from not writing the initial implementation yourself — not from removing yourself from the process entirely.
+
+### Customize Roles per Project
+
+4x only handles state transitions and role switching — it doesn't know how your project should be built, tested, or reviewed. That knowledge lives in your project settings.
+
+Each role reads from the project's `.4x/settings.json` to understand what to do. The more context you give, the better the output:
+
+```json
+{
+  "project": {
+    "name": "my-api",
+    "language": "go",
+    "build": ["go build ./..."],
+    "test": ["go test ./..."],
+    "lint": ["golangci-lint run"],
+    "rules": ["all exported functions must have GoDoc comments"]
+  },
+  "roles": {
+    "designer": { "model": "opus" },
+    "coder": {
+      "model": "sonnet",
+      "instructions": ["always use dependency injection via constructors"]
+    },
+    "reviewer": {
+      "model": "sonnet",
+      "deep_model": "opus",
+      "instructions": ["check for SQL injection in all query builders"]
+    },
+    "tester": {
+      "model": "sonnet",
+      "instructions": ["use testcontainers for integration tests, not mocks"]
+    }
+  }
+}
+```
+
+Key fields:
+
+| Field | Effect |
+|---|---|
+| `project.build/test/lint` | Coder runs these after changes; Tester uses `test` for verification |
+| `project.rules` | Injected into every role as hard constraints |
+| `roles.*.instructions` | Role-specific guidance — what to focus on, what to avoid |
+| `roles.*.includes` | Extra files to read (e.g., `["docs/api-conventions.md"]`) |
+
+Without these, roles fall back to generic behavior. With them, the Designer writes specs that match your architecture, the Coder follows your conventions, the Reviewer catches your project's specific pitfalls, and the Tester writes tests that actually run in your environment.
+
+See [Configuration](configuration.md) for the full reference.
+
 ---
 
 ## End-to-End Workflow (CLI Only)
