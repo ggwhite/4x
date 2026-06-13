@@ -47,7 +47,7 @@ func newInitCmd() *cobra.Command {
 					"codex": {
 						Command: "codex",
 						Args:    []string{"exec"},
-						Stdin:   true,
+						Stdin:   protocol.BoolPtr(true),
 					},
 					"gemini": {
 						Command: "gemini",

@@ -131,6 +131,7 @@
       <h1 class="text-base font-bold tracking-tight" data-i18n="app.title">4x Live</h1>
       <span class="text-[10px] ml-auto" style="color:var(--text-4)" data-i18n="app.autoRefresh">Auto-refresh</span>
       <button onclick="event.stopPropagation();openNewFeature()" title="New Feature" data-i18n-title="newFeature.title" style="color:var(--text-4)" class="ml-1 hover:text-white transition-colors text-lg leading-none">+</button>
+      <button onclick="event.stopPropagation();openGlobalSettings()" title="Global Settings" style="color:var(--text-4)" class="ml-1 hover:text-white transition-colors text-sm font-mono">⚙G</button>
       <button onclick="event.stopPropagation();openProjectSettings()" title="Project Settings (⌘,)" data-i18n-title="projectSettings.titleShortcut" style="color:var(--text-4)" class="ml-1 hover:text-white transition-colors">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
       </button>
@@ -255,6 +256,51 @@
   </div>
 </div>
 
+<!-- Global Settings Modal -->
+<div id="global-settings-modal" class="modal-backdrop" onclick="if(event.target===this)closeGlobalSettings()">
+  <div class="modal-panel fade-in" style="width:720px;max-height:85vh;overflow-y:auto">
+    <div style="padding:20px 24px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)">
+      <span style="font-size:16px;font-weight:700">Global Settings</span>
+      <span id="gs-autosave-ind" style="font-size:11px;color:var(--accent);opacity:0;transition:opacity .3s;margin-left:4px">Saved</span>
+      <div style="margin-left:auto;display:flex;gap:4px">
+        <button id="gs-tab-form" onclick="switchGSTab('form')" style="padding:4px 12px;font-size:12px;border-radius:6px;cursor:pointer;background:var(--accent);color:#000;border:none;font-weight:600">Form</button>
+        <button id="gs-tab-json" onclick="switchGSTab('json')" style="padding:4px 12px;font-size:12px;border-radius:6px;cursor:pointer;background:var(--bg-input);color:var(--text-2);border:1px solid var(--border)">JSON</button>
+      </div>
+    </div>
+    <div id="gs-form" style="padding:20px 24px">
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div>
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);display:block;margin-bottom:6px">Locale</label>
+          <input id="gs-locale" type="text" placeholder="e.g. zh-TW, en, ja" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);display:block;margin-bottom:6px">Theme</label>
+          <select id="gs-theme" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none;appearance:auto">
+            <option value="">System default</option>
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);display:block;margin-bottom:6px">Default Runner</label>
+          <input id="gs-default-runner" type="text" placeholder="e.g. claude, codex" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none;box-sizing:border-box">
+        </div>
+        <div style="font-size:12px;color:var(--text-3);padding:10px 12px;background:var(--bg-input);border-radius:8px;border:1px solid var(--border)">
+          To configure runners and roles in detail, use the JSON tab or <code>4x config set runner.&lt;name&gt;.command ...</code>
+        </div>
+      </div>
+    </div>
+    <div id="gs-json" style="padding:20px 24px;display:none">
+      <textarea id="gs-json-editor" style="width:100%;min-height:400px;background:var(--bg-input);color:var(--text-1);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:ui-monospace,monospace;font-size:13px;resize:vertical;outline:none;box-sizing:border-box" spellcheck="false"></textarea>
+      <div id="gs-json-error" style="color:#f87171;font-size:12px;margin-top:6px;display:none"></div>
+    </div>
+    <div style="padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
+      <button onclick="closeGlobalSettings()" style="padding:8px 16px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-2);cursor:pointer">Cancel</button>
+      <button onclick="saveGlobalSettings()" style="padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- Project Settings Modal -->
 <div id="project-settings-modal" class="modal-backdrop" onclick="if(event.target===this)closeProjectSettings()">
   <div class="modal-panel fade-in" style="width:720px;max-height:85vh;overflow-y:auto">
@@ -264,6 +310,7 @@
       <div style="margin-left:auto;display:flex;gap:4px">
         <button id="ps-tab-form" onclick="switchPSTab('form')" style="padding:4px 12px;font-size:12px;border-radius:6px;cursor:pointer;background:var(--accent);color:#000;border:none;font-weight:600" data-i18n="projectSettings.form">Form</button>
         <button id="ps-tab-json" onclick="switchPSTab('json')" style="padding:4px 12px;font-size:12px;border-radius:6px;cursor:pointer;background:var(--bg-input);color:var(--text-2);border:1px solid var(--border)">JSON</button>
+        <button id="ps-tab-merged" onclick="switchPSTab('merged')" style="padding:4px 12px;font-size:12px;border-radius:6px;cursor:pointer;background:var(--bg-input);color:var(--text-2);border:1px solid var(--border)">Merged</button>
       </div>
     </div>
     <div id="ps-search-bar" style="padding:8px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
@@ -277,9 +324,13 @@
       <textarea id="ps-json-editor" style="width:100%;min-height:400px;background:var(--bg-input);color:var(--text-1);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:ui-monospace,monospace;font-size:13px;resize:vertical;outline:none;box-sizing:border-box" spellcheck="false"></textarea>
       <div id="ps-json-error" style="color:#f87171;font-size:12px;margin-top:6px;display:none"></div>
     </div>
+    <div id="ps-merged" style="padding:20px 24px;display:none">
+      <div style="font-size:12px;color:var(--text-3);margin-bottom:10px">Read-only view — effective settings after merging global (~/.4x/settings.json) and project (.4x/settings.json).</div>
+      <pre id="ps-merged-content" style="background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:ui-monospace,monospace;font-size:12px;overflow:auto;white-space:pre-wrap;word-break:break-all;margin:0"></pre>
+    </div>
     <div style="padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
       <button onclick="closeProjectSettings()" style="padding:8px 16px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-2);cursor:pointer" data-i18n="projectSettings.cancel">Cancel</button>
-      <button onclick="saveProjectSettings()" style="padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer" data-i18n="projectSettings.save">Save</button>
+      <button id="ps-save-btn" onclick="saveProjectSettings()" style="padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer" data-i18n="projectSettings.save">Save</button>
     </div>
   </div>
 </div>
@@ -749,10 +800,16 @@ function switchPSTab(tab) {
   _psActiveTab = tab;
   const formEl = document.getElementById('ps-form');
   const jsonEl = document.getElementById('ps-json');
+  const mergedEl = document.getElementById('ps-merged');
   const tabForm = document.getElementById('ps-tab-form');
   const tabJSON = document.getElementById('ps-tab-json');
+  const tabMerged = document.getElementById('ps-tab-merged');
+  const saveBtn = document.getElementById('ps-save-btn');
+  const activeStyle = {background:'var(--accent)',color:'#000',border:'none',fontWeight:'600'};
+  const inactiveStyle = {background:'var(--bg-input)',color:'var(--text-2)',border:'1px solid var(--border)',fontWeight:''};
+  function applyStyle(el, style) { Object.assign(el.style, style); }
+
   if (tab === 'form') {
-    // Parse JSON editor back to object if valid
     const editor = document.getElementById('ps-json-editor');
     if (editor.value.trim()) {
       try {
@@ -764,23 +821,137 @@ function switchPSTab(tab) {
         return;
       }
     }
-    formEl.style.display = '';
-    jsonEl.style.display = 'none';
-    tabForm.style.background = 'var(--accent)'; tabForm.style.color = '#000'; tabForm.style.border = 'none'; tabForm.style.fontWeight = '600';
-    tabJSON.style.background = 'var(--bg-input)'; tabJSON.style.color = 'var(--text-2)'; tabJSON.style.border = '1px solid var(--border)'; tabJSON.style.fontWeight = '';
+    formEl.style.display = ''; jsonEl.style.display = 'none'; mergedEl.style.display = 'none';
+    applyStyle(tabForm, activeStyle); applyStyle(tabJSON, inactiveStyle); applyStyle(tabMerged, inactiveStyle);
     document.getElementById('ps-search-bar').style.display = '';
+    if (saveBtn) saveBtn.style.display = '';
     renderProjectSettingsForm();
-  } else {
-    // Serialize form state to JSON
+  } else if (tab === 'json') {
     const obj = collectFormData();
     document.getElementById('ps-json-editor').value = JSON.stringify(obj, null, 2);
     document.getElementById('ps-json-error').style.display = 'none';
-    formEl.style.display = 'none';
-    jsonEl.style.display = '';
-    tabJSON.style.background = 'var(--accent)'; tabJSON.style.color = '#000'; tabJSON.style.border = 'none'; tabJSON.style.fontWeight = '600';
-    tabForm.style.background = 'var(--bg-input)'; tabForm.style.color = 'var(--text-2)'; tabForm.style.border = '1px solid var(--border)'; tabForm.style.fontWeight = '';
+    formEl.style.display = 'none'; jsonEl.style.display = ''; mergedEl.style.display = 'none';
+    applyStyle(tabJSON, activeStyle); applyStyle(tabForm, inactiveStyle); applyStyle(tabMerged, inactiveStyle);
     document.getElementById('ps-search-bar').style.display = 'none';
+    if (saveBtn) saveBtn.style.display = '';
+  } else if (tab === 'merged') {
+    formEl.style.display = 'none'; jsonEl.style.display = 'none'; mergedEl.style.display = '';
+    applyStyle(tabMerged, activeStyle); applyStyle(tabForm, inactiveStyle); applyStyle(tabJSON, inactiveStyle);
+    document.getElementById('ps-search-bar').style.display = 'none';
+    if (saveBtn) saveBtn.style.display = 'none';
+    loadMergedConfig();
   }
+}
+
+async function loadMergedConfig() {
+  const el = document.getElementById('ps-merged-content');
+  if (!el) return;
+  try {
+    const resp = await fetch(apiBase() + '/api/merged-config');
+    if (!resp.ok) { el.textContent = 'Error: ' + await resp.text(); return; }
+    el.textContent = JSON.stringify(await resp.json(), null, 2);
+  } catch(e) { el.textContent = 'Error: ' + e.message; }
+}
+
+// ── Global Settings ────────────────────────────────────────────────────────────
+
+let _globalSettings = null;
+let _gsActiveTab = 'form';
+
+async function openGlobalSettings() {
+  try {
+    const resp = await fetch(apiBase() + '/api/user-config');
+    if (!resp.ok) { showToast('Failed to load global settings: ' + await resp.text()); return; }
+    _globalSettings = await resp.json();
+    _gsActiveTab = 'form';
+    renderGlobalSettingsForm();
+    document.getElementById('global-settings-modal').classList.add('open');
+  } catch(e) { showToast('Connection error: ' + e.message); }
+}
+
+function closeGlobalSettings() {
+  document.getElementById('global-settings-modal').classList.remove('open');
+  _globalSettings = null;
+}
+
+function renderGlobalSettingsForm() {
+  if (!_globalSettings) return;
+  const localeEl = document.getElementById('gs-locale');
+  const themeEl = document.getElementById('gs-theme');
+  const runnerEl = document.getElementById('gs-default-runner');
+  if (localeEl) localeEl.value = _globalSettings.locale || '';
+  if (themeEl) themeEl.value = _globalSettings.theme || '';
+  if (runnerEl) runnerEl.value = _globalSettings.default_runner || '';
+}
+
+function switchGSTab(tab) {
+  _gsActiveTab = tab;
+  const formEl = document.getElementById('gs-form');
+  const jsonEl = document.getElementById('gs-json');
+  const tabForm = document.getElementById('gs-tab-form');
+  const tabJSON = document.getElementById('gs-tab-json');
+  const activeStyle = {background:'var(--accent)',color:'#000',border:'none',fontWeight:'600'};
+  const inactiveStyle = {background:'var(--bg-input)',color:'var(--text-2)',border:'1px solid var(--border)',fontWeight:''};
+  function applyStyle(el, style) { Object.assign(el.style, style); }
+
+  if (tab === 'form') {
+    const editor = document.getElementById('gs-json-editor');
+    if (editor.value.trim()) {
+      try {
+        _globalSettings = JSON.parse(editor.value);
+        document.getElementById('gs-json-error').style.display = 'none';
+      } catch(e) {
+        document.getElementById('gs-json-error').textContent = 'Invalid JSON: ' + e.message;
+        document.getElementById('gs-json-error').style.display = 'block';
+        return;
+      }
+    }
+    formEl.style.display = ''; jsonEl.style.display = 'none';
+    applyStyle(tabForm, activeStyle); applyStyle(tabJSON, inactiveStyle);
+    renderGlobalSettingsForm();
+  } else {
+    formEl.style.display = 'none'; jsonEl.style.display = '';
+    applyStyle(tabJSON, activeStyle); applyStyle(tabForm, inactiveStyle);
+    document.getElementById('gs-json-editor').value = JSON.stringify(_globalSettings || {}, null, 2);
+    document.getElementById('gs-json-error').style.display = 'none';
+  }
+}
+
+async function saveGlobalSettings() {
+  let payload;
+  if (_gsActiveTab === 'json') {
+    const editor = document.getElementById('gs-json-editor');
+    try {
+      payload = JSON.parse(editor.value);
+      document.getElementById('gs-json-error').style.display = 'none';
+    } catch(e) {
+      document.getElementById('gs-json-error').textContent = 'Invalid JSON: ' + e.message;
+      document.getElementById('gs-json-error').style.display = 'block';
+      return;
+    }
+  } else {
+    payload = Object.assign({}, _globalSettings || {});
+    const localeEl = document.getElementById('gs-locale');
+    const themeEl = document.getElementById('gs-theme');
+    const runnerEl = document.getElementById('gs-default-runner');
+    if (localeEl) payload.locale = localeEl.value.trim() || undefined;
+    if (themeEl) payload.theme = themeEl.value || undefined;
+    if (runnerEl) payload.default_runner = runnerEl.value.trim() || undefined;
+  }
+  try {
+    const resp = await fetch(apiBase() + '/api/user-config', {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    if (resp.ok) {
+      _globalSettings = await resp.json();
+      closeGlobalSettings();
+      showToast('Global settings saved');
+    } else {
+      showToast('Save failed: ' + await resp.text());
+    }
+  } catch(e) { showToast('Connection error: ' + e.message); }
 }
 
 function renderTagList(containerId, items) {

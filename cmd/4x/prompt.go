@@ -52,6 +52,8 @@ func newPromptCmd() *cobra.Command {
 			}
 
 			cfg, _ := ws.ReadConfig()
+			userCfg, _ := protocol.ReadUserConfig()
+			cfg = protocol.MergeConfig(userCfg, cfg)
 			locale, localeName := resolveLocale()
 
 			var roleInc []string

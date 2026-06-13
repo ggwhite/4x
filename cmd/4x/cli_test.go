@@ -76,7 +76,7 @@ func TestInit_DefaultClaudeUsesStreamJSON(t *testing.T) {
 	if claude.OutputFormat != "stream-json" {
 		t.Errorf("claude.output_format = %q, want stream-json", claude.OutputFormat)
 	}
-	if claude.Tty {
+	if protocol.BoolVal(claude.Tty) {
 		t.Error("claude.tty should be false for stream-json runner")
 	}
 
@@ -544,5 +544,129 @@ func TestTransition_JSON_Error(t *testing.T) {
 	}
 	if result.Error == "" {
 		t.Error("error field is empty")
+	}
+}
+
+func TestConfigSet_Theme(t *testing.T) {
+	tmpHome := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpHome)
+	defer os.Setenv("HOME", origHome)
+
+	cmd := newConfigSetCmd()
+	cmd.SetArgs([]string{"theme", "dark"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("config set theme: %v", err)
+	}
+
+	cfg, _ := protocol.ReadUserConfig()
+	if cfg.Theme != "dark" {
+		t.Errorf("Theme = %q, want dark", cfg.Theme)
+	}
+}
+
+func TestConfigSet_DefaultRunner(t *testing.T) {
+	tmpHome := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpHome)
+	defer os.Setenv("HOME", origHome)
+
+	cmd := newConfigSetCmd()
+	cmd.SetArgs([]string{"default_runner", "codex"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("config set default_runner: %v", err)
+	}
+
+	cfg, _ := protocol.ReadUserConfig()
+	if cfg.DefaultRunner != "codex" {
+		t.Errorf("DefaultRunner = %q, want codex", cfg.DefaultRunner)
+	}
+}
+
+func TestConfigSet_RunnerCommand(t *testing.T) {
+	tmpHome := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpHome)
+	defer os.Setenv("HOME", origHome)
+
+	cmd := newConfigSetCmd()
+	cmd.SetArgs([]string{"runner.claude.command", "/usr/local/bin/claude"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("config set runner.claude.command: %v", err)
+	}
+
+	cfg, _ := protocol.ReadUserConfig()
+	if cfg.Runners["claude"].Command != "/usr/local/bin/claude" {
+		t.Errorf("Command = %q", cfg.Runners["claude"].Command)
+	}
+}
+
+func TestConfigSet_RunnerTty(t *testing.T) {
+	tmpHome := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpHome)
+	defer os.Setenv("HOME", origHome)
+
+	cmd := newConfigSetCmd()
+	cmd.SetArgs([]string{"runner.claude.tty", "true"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("config set runner.claude.tty: %v", err)
+	}
+
+	cfg, _ := protocol.ReadUserConfig()
+	if !protocol.BoolVal(cfg.Runners["claude"].Tty) {
+		t.Error("Tty should be true")
+	}
+}
+
+func TestConfigSet_RoleModel(t *testing.T) {
+	tmpHome := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpHome)
+	defer os.Setenv("HOME", origHome)
+
+	cmd := newConfigSetCmd()
+	cmd.SetArgs([]string{"role.designer.model", "opus"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("config set role.designer.model: %v", err)
+	}
+
+	cfg, _ := protocol.ReadUserConfig()
+	if cfg.Roles["designer"].Model != "opus" {
+		t.Errorf("Model = %q, want opus", cfg.Roles["designer"].Model)
+	}
+}
+
+func TestConfigSet_RunnerArgs_Rejected(t *testing.T) {
+	tmpHome := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpHome)
+	defer os.Setenv("HOME", origHome)
+
+	cmd := newConfigSetCmd()
+	cmd.SetArgs([]string{"runner.claude.args", "foo"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for args field")
+	}
+}
+
+func TestConfigGet_RunnerCommand(t *testing.T) {
+	tmpHome := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpHome)
+	defer os.Setenv("HOME", origHome)
+
+	userCfg := protocol.UserConfig{
+		Runners: map[string]protocol.RunnerConfig{
+			"claude": {Command: "/opt/claude"},
+		},
+	}
+	protocol.WriteUserConfig(userCfg)
+
+	cmd := newConfigGetCmd()
+	cmd.SetArgs([]string{"runner.claude.command"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("config get runner.claude.command: %v", err)
 	}
 }

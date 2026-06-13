@@ -466,3 +466,49 @@ func TestStateBackwardCompatNoRunners(t *testing.T) {
 		t.Errorf("Runner = %q, want %q", s.Runner, "claude")
 	}
 }
+
+func TestUserConfig_RoundTrip(t *testing.T) {
+	tmpHome := t.TempDir()
+
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpHome)
+	defer os.Setenv("HOME", origHome)
+
+	cfg := UserConfig{
+		Locale:        "zh-TW",
+		Theme:         "dark",
+		DefaultRunner: "claude",
+		Runners: map[string]RunnerConfig{
+			"claude": {Command: "/usr/local/bin/claude", Tty: BoolPtr(true)},
+		},
+		Roles: map[string]RoleConfig{
+			"designer": {Model: "opus"},
+		},
+	}
+	if err := WriteUserConfig(cfg); err != nil {
+		t.Fatalf("WriteUserConfig: %v", err)
+	}
+
+	got, err := ReadUserConfig()
+	if err != nil {
+		t.Fatalf("ReadUserConfig: %v", err)
+	}
+	if got.Locale != "zh-TW" {
+		t.Errorf("Locale = %q, want zh-TW", got.Locale)
+	}
+	if got.Theme != "dark" {
+		t.Errorf("Theme = %q, want dark", got.Theme)
+	}
+	if got.DefaultRunner != "claude" {
+		t.Errorf("DefaultRunner = %q, want claude", got.DefaultRunner)
+	}
+	if got.Runners["claude"].Command != "/usr/local/bin/claude" {
+		t.Errorf("Runners[claude].Command = %q", got.Runners["claude"].Command)
+	}
+	if !BoolVal(got.Runners["claude"].Tty) {
+		t.Error("Runners[claude].Tty should be true")
+	}
+	if got.Roles["designer"].Model != "opus" {
+		t.Errorf("Roles[designer].Model = %q, want opus", got.Roles["designer"].Model)
+	}
+}

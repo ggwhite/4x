@@ -68,6 +68,9 @@ func newRunCmd() *cobra.Command {
 				return err
 			}
 
+			userCfg, _ := protocol.ReadUserConfig()
+			cfg = protocol.MergeConfig(userCfg, cfg)
+
 			if runnerName == "" {
 				runnerName = cfg.Default
 			}
