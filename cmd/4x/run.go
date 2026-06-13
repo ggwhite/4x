@@ -171,6 +171,9 @@ func newRunCmd() *cobra.Command {
 			}
 
 			if existing, err := ws.ReadState(featureID); err == nil {
+				if existing.Active && protocol.ProcessAlive(existing.Pid) {
+					return fmt.Errorf("feature %s is already running (pid %d)", featureID, existing.Pid)
+				}
 				s = existing
 				s.Active = true
 				s.Runner = runnerName

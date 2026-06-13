@@ -257,6 +257,12 @@ func handlePostRun(ws *protocol.Workspace, pm *ProcessManager, w http.ResponseWr
 		http.Error(w, "feature not found", http.StatusNotFound)
 		return
 	}
+	if s, err := ws.ReadState(req.FeatureID); err == nil {
+		if s.Active && protocol.ProcessAlive(s.Pid) {
+			http.Error(w, fmt.Sprintf("feature %s is already running (pid %d)", req.FeatureID, s.Pid), http.StatusConflict)
+			return
+		}
+	}
 	if req.Runner == "" {
 		if cfg, err := ws.ReadConfig(); err == nil {
 			req.Runner = cfg.Default

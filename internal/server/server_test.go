@@ -42,8 +42,7 @@ func setupServerWorkspace(t *testing.T) *protocol.Workspace {
 		Phase:     protocol.PhaseCoding,
 		Role:      protocol.RoleCoder,
 		Round:     1,
-		Active:    true,
-		Pid:       os.Getpid(),
+		Active:    false,
 		Runner:    "claude",
 	}
 	if err := ws.WriteState("test-feat", state); err != nil {
@@ -85,8 +84,8 @@ func TestGetTasks(t *testing.T) {
 	if tasks[0].Phase != "coding" {
 		t.Errorf("Phase = %s, want coding", tasks[0].Phase)
 	}
-	if !tasks[0].Active {
-		t.Error("Active should be true")
+	if tasks[0].Active {
+		t.Error("Active should be false")
 	}
 }
 
