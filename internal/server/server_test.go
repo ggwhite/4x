@@ -523,6 +523,229 @@ func TestPutSettings_MethodNotAllowed(t *testing.T) {
 	}
 }
 
+func seedScreenshots(t *testing.T, ws *protocol.Workspace, featureID string) {
+	t.Helper()
+	round2Dir := ws.RoundDir(featureID, 2)
+	if err := os.MkdirAll(round2Dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	verify := protocol.VerifyEvidence{
+		Passed: true,
+		Round:  2,
+		Role:   protocol.RoleTester,
+		Screenshots: []protocol.Screenshot{
+			{Path: "e2e/test-feat/screenshot/02-round-two.png", Step: "02", Description: "round two"},
+		},
+	}
+	verifyData, _ := json.Marshal(verify)
+	if err := os.WriteFile(filepath.Join(round2Dir, protocol.VerifyFile), verifyData, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	shotDir := filepath.Join(ws.DotDir(), "e2e", featureID, "screenshot")
+	if err := os.MkdirAll(shotDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shotDir, "01-round-one.png"), []byte("one"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shotDir, "02-round-two.png"), []byte("two"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func seedSameNameScreenshots(t *testing.T, ws *protocol.Workspace, featureID string) {
+	t.Helper()
+	for _, round := range []int{1, 2} {
+		roundDir := ws.RoundDir(featureID, round)
+		if err := os.MkdirAll(roundDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		verify := protocol.VerifyEvidence{
+			Passed: true,
+			Round:  round,
+			Role:   protocol.RoleTester,
+			Screenshots: []protocol.Screenshot{
+				{
+					Path:        fmt.Sprintf("e2e/%s/round-%d/01-login.png", featureID, round),
+					Step:        "01",
+					Description: fmt.Sprintf("round %d", round),
+				},
+			},
+		}
+		verifyData, _ := json.Marshal(verify)
+		if err := os.WriteFile(filepath.Join(roundDir, protocol.VerifyFile), verifyData, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for _, round := range []int{1, 2} {
+		shotDir := filepath.Join(ws.DotDir(), "e2e", featureID, fmt.Sprintf("round-%d", round))
+		if err := os.MkdirAll(shotDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		body := "one"
+		if round == 2 {
+			body = "two"
+		}
+		if err := os.WriteFile(filepath.Join(shotDir, "01-login.png"), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestGetScreenshots(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	seedScreenshots(t, ws, "test-feat")
+
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/features/test-feat/screenshots", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+
+	var got screenshotsResponse
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	// seedScreenshots 的截圖目錄沒有 {round} 佔位符，dir 掃描分配到最新 round（2）。
+	// round 2 = verify 的 02-round-two.png + dir 的 01-round-one.png = 2 screenshots。
+	if got.Total != 2 {
+		t.Fatalf("total = %d, want 2", got.Total)
+	}
+	if len(got.Groups) != 1 {
+		t.Fatalf("groups = %d, want 1 (all assigned to latest round 2)", len(got.Groups))
+	}
+	if got.Groups[0].Round != 2 || len(got.Groups[0].Screenshots) != 2 {
+		t.Fatalf("group[0] = %+v, want round 2 with 2 screenshots", got.Groups[0])
+	}
+}
+
+func TestServeScreenshot(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	seedScreenshots(t, ws, "test-feat")
+
+	mux := NewMux(ws, nil)
+
+	// 先從 listing 取得 opaque token URL
+	listRec := httptest.NewRecorder()
+	listReq := httptest.NewRequest("GET", "/api/features/test-feat/screenshots", nil)
+	mux.ServeHTTP(listRec, listReq)
+	if listRec.Code != http.StatusOK {
+		t.Fatalf("list status = %d, want 200: %s", listRec.Code, listRec.Body.String())
+	}
+	var listResp screenshotsResponse
+	if err := json.NewDecoder(listRec.Body).Decode(&listResp); err != nil {
+		t.Fatalf("decode list: %v", err)
+	}
+	if listResp.Total == 0 {
+		t.Fatal("no screenshots found in listing")
+	}
+	// 找 01-round-one.png 的 URL
+	var imgURL string
+	for _, g := range listResp.Groups {
+		for _, s := range g.Screenshots {
+			if s.Filename == "01-round-one.png" {
+				imgURL = s.URL
+			}
+		}
+	}
+	if imgURL == "" {
+		t.Fatal("01-round-one.png not found in listing")
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", imgURL, nil)
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if rec.Header().Get("Content-Type") != "image/png" {
+		t.Fatalf("content-type = %s, want image/png", rec.Header().Get("Content-Type"))
+	}
+	if rec.Body.String() != "one" {
+		t.Fatalf("body = %q, want one", rec.Body.String())
+	}
+}
+
+func TestServeScreenshot_InvalidExtensionRejected(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/features/test-feat/screenshots/state.json", "")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+func TestGetScreenshots_UniqueURLForSameFilenameAcrossRounds(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	seedSameNameScreenshots(t, ws, "test-feat")
+
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/features/test-feat/screenshots", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+
+	var got screenshotsResponse
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(got.Groups) != 2 {
+		t.Fatalf("groups = %d, want 2", len(got.Groups))
+	}
+	u1 := got.Groups[0].Screenshots[0].URL
+	u2 := got.Groups[1].Screenshots[0].URL
+	if u1 == u2 {
+		t.Fatalf("urls should be unique, got %q", u1)
+	}
+	if strings.Contains(u1, "/round-1/") || strings.Contains(u2, "/round-2/") {
+		t.Fatalf("urls should use opaque token, got %q and %q", u1, u2)
+	}
+}
+
+func TestServeScreenshot_SameFilenameAcrossRoundsByEncodedPath(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	seedSameNameScreenshots(t, ws, "test-feat")
+
+	round1 := encodeScreenshotToken("e2e/test-feat/round-1/01-login.png")
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/features/test-feat/screenshots/"+round1, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if rec.Body.String() != "one" {
+		t.Fatalf("body = %q, want one", rec.Body.String())
+	}
+
+	round2 := encodeScreenshotToken("e2e/test-feat/round-2/01-login.png")
+	rec = serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/features/test-feat/screenshots/"+round2, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if rec.Body.String() != "two" {
+		t.Fatalf("body = %q, want two", rec.Body.String())
+	}
+}
+
+func TestServeScreenshot_AmbiguousBasenameRejected(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	seedSameNameScreenshots(t, ws, "test-feat")
+
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/features/test-feat/screenshots/01-login.png", "")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+func TestScreenshots_InvalidFeatureID(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	mux := NewMux(ws, NewProcessManager(ws, 1, "echo"))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/features/feat..evil/screenshots", nil)
+	mux.ServeHTTP(rec, req)
+	if rec.Code != 400 {
+		t.Errorf("GET feat..evil = %d, want 400", rec.Code)
+	}
+}
+
 func TestGetOverview(t *testing.T) {
 	ws := setupServerWorkspace(t)
 	designDir := filepath.Join(ws.Root, "docs", "design")
@@ -882,5 +1105,40 @@ func TestGetMergedConfig(t *testing.T) {
 	json.Unmarshal(rec.Body.Bytes(), &got)
 	if got.Runners["claude"].Command != "/opt/claude" {
 		t.Errorf("merged runner command = %q", got.Runners["claude"].Command)
+	}
+}
+
+func TestScreenshots_ServeImageDirectly(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	shotDir := filepath.Join(ws.Root, ".4x", "e2e", "test-feat", "screenshot")
+	os.MkdirAll(shotDir, 0o755)
+	pngData := []byte("\x89PNG\r\n\x1a\ntest-image-data")
+	os.WriteFile(filepath.Join(shotDir, "01-overview.png"), pngData, 0o644)
+
+	mux := NewMux(ws, NewProcessManager(ws, 1, "echo"))
+
+	// 先取得 listing 以獲得 URL token
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/features/test-feat/screenshots", nil)
+	mux.ServeHTTP(rec, req)
+	var resp screenshotsResponse
+	json.NewDecoder(rec.Body).Decode(&resp)
+	if resp.Total == 0 {
+		t.Fatal("no screenshots found")
+	}
+	imgURL := resp.Groups[0].Screenshots[0].URL
+
+	// 直接以 token 取圖，不應觸發 re-discover
+	rec2 := httptest.NewRecorder()
+	req2 := httptest.NewRequest("GET", imgURL, nil)
+	mux.ServeHTTP(rec2, req2)
+	if rec2.Code != 200 {
+		t.Fatalf("serve image: status = %d, body = %s", rec2.Code, rec2.Body.String())
+	}
+	if ct := rec2.Header().Get("Content-Type"); ct != "image/png" {
+		t.Errorf("Content-Type = %q, want image/png", ct)
+	}
+	if cc := rec2.Header().Get("Cache-Control"); !strings.Contains(cc, "max-age") {
+		t.Errorf("Cache-Control = %q, want max-age", cc)
 	}
 }

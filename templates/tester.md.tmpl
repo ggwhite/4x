@@ -46,6 +46,24 @@ Use the Write tool. Do NOT just print the content — write to disk.
 {{- end}}
 {{- end}}
 
+## Screenshots in verify.json
+
+If you take screenshots during testing, record them in verify.json:
+
+```json
+{
+  "screenshots": [
+    {
+      "path": "e2e/{feature-id}/screenshot/01-description.png",
+      "step": "01",
+      "description": "what this shows"
+    }
+  ]
+}
+```
+
+Path is relative to `.4x/`. Step is the numeric prefix from the filename.
+
 == Workflow (strict order) ==
 1. Read acceptance criteria — list every AC item
 2. Run verify_commands from test-strategy.yaml

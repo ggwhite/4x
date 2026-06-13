@@ -96,6 +96,9 @@ func mergeRole(user, project RoleConfig) RoleConfig {
 	if project.DeepModel != "" {
 		result.DeepModel = project.DeepModel
 	}
+	if project.ScreenshotDir != "" {
+		result.ScreenshotDir = project.ScreenshotDir
+	}
 	if project.Instructions != nil {
 		result.Instructions = project.Instructions
 	}

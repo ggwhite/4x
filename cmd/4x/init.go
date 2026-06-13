@@ -36,7 +36,7 @@ func newInitCmd() *cobra.Command {
 					"designer": {Model: "opus"},
 					"coder":    {Model: "sonnet"},
 					"reviewer": {Model: "sonnet", DeepModel: "opus"},
-					"tester":   {Model: "sonnet"},
+					"tester":   {Model: "sonnet", ScreenshotDir: protocol.DefaultScreenshotDir},
 				},
 			}
 

@@ -95,6 +95,10 @@ Show feature status.
 
 Groups: Running, Review, Pending, Todo, Done (done shows max 5). Includes backlog drift warnings.
 
+For single feature detail (`4x status <feature-id>`), if screenshots exist, it also prints:
+
+`Screenshots: <total> (round 1: <n>, round 2: <n>, ...)`
+
 ---
 
 ## `4x subtask <feature-id> <subtask-id>`

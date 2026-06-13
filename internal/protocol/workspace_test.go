@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strconv"
 	"syscall"
 	"testing"
 )
@@ -422,6 +424,285 @@ func TestRoundDir(t *testing.T) {
 	}
 }
 
+func TestDiscoverScreenshots(t *testing.T) {
+	ws := setupWorkspace(t)
+	const featureID = "feat-shot"
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatal(err)
+	}
+
+	round2Dir := ws.RoundDir(featureID, 2)
+	if err := os.MkdirAll(round2Dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	verify := VerifyEvidence{
+		Passed: true,
+		Round:  2,
+		Role:   RoleTester,
+		Screenshots: []Screenshot{
+			{Path: ".4x/e2e/feat-shot/screenshot/02-round-two.png", Step: "02", Description: "round two"},
+		},
+	}
+	verifyData, _ := json.Marshal(verify)
+	if err := os.WriteFile(filepath.Join(round2Dir, VerifyFile), verifyData, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	shotDir := filepath.Join(ws.DotDir(), "e2e", featureID, "screenshot")
+	if err := os.MkdirAll(shotDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"01-round-one.png", "02-round-two.png", "03-third-shot.webp"} {
+		if err := os.WriteFile(filepath.Join(shotDir, name), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	groups, err := ws.DiscoverScreenshots(featureID, DefaultScreenshotDir)
+	if err != nil {
+		t.Fatalf("DiscoverScreenshots: %v", err)
+	}
+	// DefaultScreenshotDir 沒有 {round} 佔位符，dir 掃描會分配到最新已知 round（2）。
+	// round 2 包含 verify.json 的 02-round-two.png，加上 dir 掃描的 01-round-one.png 與 03-third-shot.webp。
+	if len(groups) != 1 {
+		t.Fatalf("groups = %d, want 1 (all go to latest round)", len(groups))
+	}
+	if groups[0].Round != 2 || len(groups[0].Screenshots) != 3 {
+		t.Fatalf("round2 = %+v, want 3 screenshots", groups[0])
+	}
+	var thirdDesc string
+	for _, s := range groups[0].Screenshots {
+		if filepath.Base(s.Path) == "03-third-shot.webp" {
+			thirdDesc = s.Description
+		}
+	}
+	if thirdDesc != "third shot" {
+		t.Errorf("description = %q, want %q", thirdDesc, "third shot")
+	}
+}
+
+func TestDiscoverScreenshotsNoDir(t *testing.T) {
+	ws := setupWorkspace(t)
+	const featureID = "feat-no-shot"
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatal(err)
+	}
+
+	groups, err := ws.DiscoverScreenshots(featureID, ".4x/e2e/{feature-id}/missing/")
+	if err != nil {
+		t.Fatalf("DiscoverScreenshots: %v", err)
+	}
+	if len(groups) != 0 {
+		t.Fatalf("groups = %d, want 0", len(groups))
+	}
+}
+
+func TestDiscoverScreenshotsMerge(t *testing.T) {
+	ws := setupWorkspace(t)
+	const featureID = "feat-merge-shot"
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatal(err)
+	}
+
+	round1Dir := ws.RoundDir(featureID, 1)
+	if err := os.MkdirAll(round1Dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	verify := VerifyEvidence{
+		Passed: true,
+		Round:  1,
+		Role:   RoleTester,
+		Screenshots: []Screenshot{
+			{Path: "e2e/feat-merge-shot/screenshot/01-login.png", Step: "01", Description: "login"},
+		},
+	}
+	verifyData, _ := json.Marshal(verify)
+	if err := os.WriteFile(filepath.Join(round1Dir, VerifyFile), verifyData, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	shotDir := filepath.Join(ws.DotDir(), "e2e", featureID, "screenshot")
+	if err := os.MkdirAll(shotDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"01-login.png", "02-run-modal.png"} {
+		if err := os.WriteFile(filepath.Join(shotDir, name), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	groups, err := ws.DiscoverScreenshots(featureID, DefaultScreenshotDir)
+	if err != nil {
+		t.Fatalf("DiscoverScreenshots: %v", err)
+	}
+	if len(groups) != 1 {
+		t.Fatalf("groups = %d, want 1", len(groups))
+	}
+	paths := []string{groups[0].Screenshots[0].Path, groups[0].Screenshots[1].Path}
+	want := []string{
+		"e2e/feat-merge-shot/screenshot/01-login.png",
+		"e2e/feat-merge-shot/screenshot/02-run-modal.png",
+	}
+	if !reflect.DeepEqual(paths, want) {
+		t.Fatalf("paths = %v, want %v", paths, want)
+	}
+}
+
+func TestDiscoverScreenshotsSameFilenameAcrossRounds(t *testing.T) {
+	ws := setupWorkspace(t)
+	const featureID = "feat-same-name"
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, round := range []int{1, 2} {
+		if err := os.MkdirAll(ws.RoundDir(featureID, round), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for _, dir := range []string{
+		filepath.Join(ws.DotDir(), "e2e", featureID, "round-1"),
+		filepath.Join(ws.DotDir(), "e2e", featureID, "round-2"),
+	} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "01-login.png"), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	groups, err := ws.DiscoverScreenshots(featureID, ".4x/e2e/{feature-id}/round-{round}/")
+	if err != nil {
+		t.Fatalf("DiscoverScreenshots: %v", err)
+	}
+	if len(groups) != 2 {
+		t.Fatalf("groups = %d, want 2", len(groups))
+	}
+	if len(groups[0].Screenshots) != 1 || len(groups[1].Screenshots) != 1 {
+		t.Fatalf("screenshots = %+v, want one per round", groups)
+	}
+	if groups[0].Screenshots[0].Path == groups[1].Screenshots[0].Path {
+		t.Fatalf("paths should differ by round, got %+v", groups)
+	}
+}
+
+func TestDiscoverScreenshotsRoundPlaceholderFallbackDiscovery(t *testing.T) {
+	ws := setupWorkspace(t)
+	const featureID = "feat-round-fallback"
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, round := range []int{2, 3} {
+		dir := filepath.Join(ws.DotDir(), "e2e", featureID, "round-"+strconv.Itoa(round))
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "01-shot.png"), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	groups, err := ws.DiscoverScreenshots(featureID, ".4x/e2e/{feature-id}/round-{round}/")
+	if err != nil {
+		t.Fatalf("DiscoverScreenshots: %v", err)
+	}
+	if len(groups) != 2 {
+		t.Fatalf("groups = %d, want 2", len(groups))
+	}
+	if groups[0].Round != 2 || groups[1].Round != 3 {
+		t.Fatalf("rounds = [%d %d], want [2 3]", groups[0].Round, groups[1].Round)
+	}
+	if len(groups[0].Screenshots) != 1 || len(groups[1].Screenshots) != 1 {
+		t.Fatalf("screenshots = %+v, want one per discovered round", groups)
+	}
+}
+
+func TestDiscoverScreenshotsInvalidRoundsRejected(t *testing.T) {
+	ws := setupWorkspace(t)
+	const featureID = "feat-invalid-rounds"
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create directories with invalid round numbers (0, -1, 1)
+	for _, roundStr := range []string{"round-0", "round--1", "round-1"} {
+		dir := filepath.Join(ws.DotDir(), "e2e", featureID, roundStr)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "01-shot.png"), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	groups, err := ws.DiscoverScreenshots(featureID, ".4x/e2e/{feature-id}/round-{round}/")
+	if err != nil {
+		t.Fatalf("DiscoverScreenshots: %v", err)
+	}
+	// Only round 1 should be discovered; round-0 and round--1 should be rejected
+	if len(groups) != 1 {
+		t.Fatalf("groups = %d, want 1 (only valid round)", len(groups))
+	}
+	if groups[0].Round != 1 {
+		t.Fatalf("round = %d, want 1", groups[0].Round)
+	}
+	if len(groups[0].Screenshots) != 1 {
+		t.Fatalf("screenshots = %d, want 1", len(groups[0].Screenshots))
+	}
+}
+
+func TestDiscoverScreenshotsRoundUnion(t *testing.T) {
+	// verify.json 有 round 1，目錄額外有 round 2 與 round 3，應合併為三組
+	ws := setupWorkspace(t)
+	const featureID = "feat-round-union"
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatal(err)
+	}
+
+	// round 1 有 verify.json，記錄 screenshots
+	round1Dir := ws.RoundDir(featureID, 1)
+	if err := os.MkdirAll(round1Dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	verify := VerifyEvidence{
+		Passed: true, Round: 1, Role: RoleTester,
+		Screenshots: []Screenshot{
+			{Path: "e2e/feat-round-union/round-1/01-login.png", Step: "01", Description: "login"},
+		},
+	}
+	verifyData, _ := json.Marshal(verify)
+	if err := os.WriteFile(filepath.Join(round1Dir, VerifyFile), verifyData, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// round 2 與 round 3 只有截圖目錄，沒有 verify.json
+	for _, round := range []int{2, 3} {
+		dir := filepath.Join(ws.DotDir(), "e2e", featureID, "round-"+strconv.Itoa(round))
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "01-shot.png"), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	groups, err := ws.DiscoverScreenshots(featureID, ".4x/e2e/{feature-id}/round-{round}/")
+	if err != nil {
+		t.Fatalf("DiscoverScreenshots: %v", err)
+	}
+	if len(groups) != 3 {
+		t.Fatalf("groups = %d, want 3 (rounds 1,2,3 merged)", len(groups))
+	}
+	for i, want := range []int{1, 2, 3} {
+		if groups[i].Round != want {
+			t.Fatalf("groups[%d].Round = %d, want %d", i, groups[i].Round, want)
+		}
+	}
+}
+
 func TestStateRunnersRoundtrip(t *testing.T) {
 	ws := setupWorkspace(t)
 	if err := ws.InitFeatureDir("feat-runners"); err != nil {
@@ -609,6 +890,122 @@ func TestProcessAlive_EPERM(t *testing.T) {
 	if err == syscall.EPERM {
 		if !ProcessAlive(1) {
 			t.Error("PID 1 should be considered alive (EPERM means it exists)")
+		}
+	}
+}
+
+func TestIsScreenshotFile(t *testing.T) {
+	tests := []struct {
+		name string
+		want bool
+	}{
+		{"photo.png", true},
+		{"photo.PNG", true},
+		{"photo.jpg", true},
+		{"photo.jpeg", true},
+		{"photo.webp", true},
+		{"photo.gif", false},
+		{"photo.txt", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		if got := IsScreenshotFile(tt.name); got != tt.want {
+			t.Errorf("IsScreenshotFile(%q) = %v, want %v", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestNormalizeScreenshotPath(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{".4x/e2e/feat/screenshot/01.png", "e2e/feat/screenshot/01.png"},
+		{"./e2e/feat/01.png", "e2e/feat/01.png"},
+		{"e2e/feat/01.png", "e2e/feat/01.png"},
+		{"  .4x/foo.png  ", "foo.png"},
+	}
+	for _, tt := range tests {
+		if got := NormalizeScreenshotPath(tt.input); got != tt.want {
+			t.Errorf("NormalizeScreenshotPath(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestDiscoverScreenshots_NoRoundPlaceholder_UsesLatestRound(t *testing.T) {
+	ws := setupWorkspace(t)
+	const featureID = "feat-no-round"
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, r := range []int{1, 3} {
+		rd := ws.RoundDir(featureID, r)
+		if err := os.MkdirAll(rd, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	shotDir := filepath.Join(ws.DotDir(), "e2e", featureID, "screenshot")
+	if err := os.MkdirAll(shotDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shotDir, "01-login.png"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	groups, err := ws.DiscoverScreenshots(featureID, DefaultScreenshotDir)
+	if err != nil {
+		t.Fatalf("DiscoverScreenshots: %v", err)
+	}
+	if len(groups) != 1 {
+		t.Fatalf("groups = %d, want 1", len(groups))
+	}
+	if groups[0].Round != 3 {
+		t.Errorf("round = %d, want 3 (latest known round)", groups[0].Round)
+	}
+}
+
+func TestDiscoverScreenshots_OutsideDotDir(t *testing.T) {
+	ws := setupWorkspace(t)
+	const featureID = "feat-outside"
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatal(err)
+	}
+
+	shotDir := filepath.Join(ws.Root, "screenshots", featureID)
+	if err := os.MkdirAll(shotDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shotDir, "01-login.png"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	groups, err := ws.DiscoverScreenshots(featureID, "screenshots/{feature-id}/")
+	if err != nil {
+		t.Fatalf("DiscoverScreenshots: %v", err)
+	}
+	total := 0
+	for _, g := range groups {
+		total += len(g.Screenshots)
+	}
+	if total != 1 {
+		t.Errorf("total screenshots = %d, want 1", total)
+	}
+}
+
+func TestNormalizeScreenshotPath_CleansDotDot(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"foo/../../etc/passwd.png", "../etc/passwd.png"},
+		{"e2e/feat/../feat2/01.png", "e2e/feat2/01.png"},
+	}
+	for _, tt := range tests {
+		got := NormalizeScreenshotPath(tt.input)
+		if got != tt.want {
+			t.Errorf("NormalizeScreenshotPath(%q) = %q, want %q", tt.input, got, tt.want)
 		}
 	}
 }

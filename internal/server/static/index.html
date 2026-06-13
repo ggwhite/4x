@@ -52,12 +52,14 @@
         <button class="detail-tab text-xs font-semibold py-1 border-b-2" style="border-color:var(--accent);color:var(--accent)" data-tab="overview" onclick="switchDetailTab('overview')" data-i18n="nav.overview">Overview</button>
         <button class="detail-tab text-xs font-semibold py-1 border-b-2 border-transparent text-zinc-500 hover:text-zinc-300" data-tab="messages" onclick="switchDetailTab('messages')" data-i18n="nav.messages">Messages</button>
         <button class="detail-tab text-xs font-semibold py-1 border-b-2 border-transparent text-zinc-500 hover:text-zinc-300" data-tab="logs" onclick="switchDetailTab('logs')" data-i18n="nav.logs">Logs</button>
+        <button id="screenshots-tab-btn" class="detail-tab text-xs font-semibold py-1 border-b-2 border-transparent text-zinc-500 hover:text-zinc-300" data-tab="screenshots" onclick="switchDetailTab('screenshots')" data-i18n="nav.screenshots" style="display:none">Screenshots</button>
       </div>
     </div>
     <div class="flex-1 overflow-y-auto p-6" id="main">
       <div id="dashboard"></div>
       <div id="overview-panel" class="hidden"></div>
       <div id="messages" class="space-y-4 hidden"></div>
+      <div id="screenshots-panel" class="hidden"></div>
       <div id="logs-panel" class="hidden" style="display:none;flex-direction:column;height:calc(100vh - 180px)">
         <div id="logs-list" class="space-y-1" style="max-height:200px;overflow-y:auto;flex-shrink:0"></div>
         <pre id="log-viewer" class="hidden mt-4 p-4 rounded-lg text-xs leading-relaxed overflow-x-auto" style="background:var(--bg-2);color:var(--text-3);flex:1;overflow-y:auto;min-height:0"></pre>
@@ -264,6 +266,14 @@
       <button onclick="submitNewFeature(true)" style="padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer" data-i18n="newFeature.createAndRun">Create &amp; Run ▶</button>
     </div>
   </div>
+</div>
+
+<div id="screenshot-lightbox" class="screenshot-lightbox hidden" onclick="closeLightbox(event)">
+  <button id="lb-prev" class="lightbox-nav" onclick="event.stopPropagation();lightboxNav(-1)">‹</button>
+  <img id="lb-img" class="lightbox-image" src="" alt="">
+  <button id="lb-next" class="lightbox-nav" onclick="event.stopPropagation();lightboxNav(1)">›</button>
+  <div id="lb-caption" class="lightbox-caption"></div>
+  <button id="lb-close" class="lightbox-close" onclick="closeLightbox()">&times;</button>
 </div>
 
 <script src="/core.js"></script>

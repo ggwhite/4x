@@ -3,6 +3,8 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -286,6 +288,78 @@ func TestMultiMux_OverviewBackwardCompat(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+}
+
+func TestMultiMux_ScreenshotsBackwardCompat(t *testing.T) {
+	ws := setupMultiWorkspace(t, "single-shot")
+	reg := NewProjectRegistry()
+	reg.Add(ws)
+
+	shotDir := filepath.Join(ws.DotDir(), "e2e", "feat-1", "screenshot")
+	if err := os.MkdirAll(shotDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shotDir, "01-overview.png"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	recentPath := t.TempDir() + "/recent.json"
+	rec := serveRequest(t, NewMultiMux(reg, recentPath), http.MethodGet, "/api/features/feat-1/screenshots", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestMultiMux_Screenshots_MultiProject(t *testing.T) {
+	ws1 := setupMultiWorkspace(t, "proj-alpha")
+	ws2 := setupMultiWorkspace(t, "proj-beta")
+	reg := NewProjectRegistry()
+	id1 := reg.Add(ws1)
+	reg.Add(ws2)
+
+	shotDir := filepath.Join(ws1.DotDir(), "e2e", "feat-1", "screenshot")
+	if err := os.MkdirAll(shotDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pngData := []byte("\x89PNG\r\n\x1a\n" + strings.Repeat("x", 8))
+	if err := os.WriteFile(filepath.Join(shotDir, "01-overview.png"), pngData, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	recentPath := t.TempDir() + "/recent.json"
+	mux := NewMultiMux(reg, recentPath)
+
+	listPath := "/api/project/" + id1 + "/api/features/feat-1/screenshots"
+	rec := serveRequest(t, mux, http.MethodGet, listPath, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Groups []struct {
+			Round       int `json:"round"`
+			Screenshots []struct {
+				URL string `json:"url"`
+			} `json:"screenshots"`
+		} `json:"groups"`
+		Total int `json:"total"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode list: %v", err)
+	}
+	if resp.Total != 1 {
+		t.Fatalf("total = %d, want 1", resp.Total)
+	}
+
+	rawURL := resp.Groups[0].Screenshots[0].URL
+	imgPath := "/api/project/" + id1 + rawURL
+	imgRec := serveRequest(t, mux, http.MethodGet, imgPath, "")
+	if imgRec.Code != http.StatusOK {
+		t.Fatalf("img status = %d, want 200 (path=%s): %s", imgRec.Code, imgPath, imgRec.Body.String())
+	}
+	if ct := imgRec.Header().Get("Content-Type"); ct != "image/png" {
+		t.Errorf("Content-Type = %s, want image/png", ct)
 	}
 }
 

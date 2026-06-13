@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -265,6 +266,34 @@ func showFeatureDetail(ws *protocol.Workspace, id string) error {
 				icon = "🚫"
 			}
 			fmt.Printf("  %s %s: %s\n", icon, st.ID, st.Name)
+		}
+	}
+
+	cfg, err := ws.ReadConfig()
+	if err != nil {
+		return err
+	}
+	if userCfg, err := protocol.ReadUserConfig(); err == nil {
+		cfg = protocol.MergeConfig(userCfg, cfg)
+	}
+	screenshotDir := protocol.ScreenshotDir(cfg)
+	groups, err := ws.DiscoverScreenshots(id, screenshotDir)
+	if err != nil {
+		return err
+	}
+	if len(groups) > 0 {
+		total := 0
+		parts := make([]string, 0, len(groups))
+		for _, group := range groups {
+			n := len(group.Screenshots)
+			if n == 0 {
+				continue
+			}
+			total += n
+			parts = append(parts, fmt.Sprintf("round %d: %d", group.Round, n))
+		}
+		if total > 0 {
+			fmt.Printf("\nScreenshots: %d (%s)\n", total, strings.Join(parts, ", "))
 		}
 	}
 
