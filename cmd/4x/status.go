@@ -235,6 +235,14 @@ func showFeatureDetail(ws *protocol.Workspace, id string) error {
 		fmt.Printf("Desc:    %s\n", f.Description)
 	}
 
+	if f.Priority != nil {
+		fmt.Printf("Pri:     P%d\n", *f.Priority)
+	}
+
+	if len(f.Depends) > 0 {
+		fmt.Printf("Depends: %s\n", strings.Join(f.Depends, ", "))
+	}
+
 	if len(f.Repos) > 0 {
 		fmt.Println("Repos:")
 		for repo, desc := range f.Repos {
@@ -269,7 +277,11 @@ func showFeatureDetail(ws *protocol.Workspace, id string) error {
 			case "blocked":
 				icon = "🚫"
 			}
-			fmt.Printf("  %s %s: %s\n", icon, st.ID, st.Name)
+			dep := ""
+			if len(st.Depends) > 0 {
+				dep = fmt.Sprintf(" (→ %s)", strings.Join(st.Depends, ", "))
+			}
+			fmt.Printf("  %s %s: %s%s\n", icon, st.ID, st.Name, dep)
 		}
 	}
 
