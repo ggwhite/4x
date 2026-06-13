@@ -649,6 +649,55 @@ func TestDiscoverScreenshotsInvalidRoundsRejected(t *testing.T) {
 	}
 }
 
+func TestDiscoverScreenshotsRoundUnion(t *testing.T) {
+	// verify.json 有 round 1，目錄額外有 round 2 與 round 3，應合併為三組
+	ws := setupWorkspace(t)
+	const featureID = "feat-round-union"
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatal(err)
+	}
+
+	// round 1 有 verify.json，記錄 screenshots
+	round1Dir := ws.RoundDir(featureID, 1)
+	if err := os.MkdirAll(round1Dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	verify := VerifyEvidence{
+		Passed: true, Round: 1, Role: RoleTester,
+		Screenshots: []Screenshot{
+			{Path: "e2e/feat-round-union/round-1/01-login.png", Step: "01", Description: "login"},
+		},
+	}
+	verifyData, _ := json.Marshal(verify)
+	if err := os.WriteFile(filepath.Join(round1Dir, VerifyFile), verifyData, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// round 2 與 round 3 只有截圖目錄，沒有 verify.json
+	for _, round := range []int{2, 3} {
+		dir := filepath.Join(ws.DotDir(), "e2e", featureID, "round-"+strconv.Itoa(round))
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "01-shot.png"), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	groups, err := ws.DiscoverScreenshots(featureID, ".4x/e2e/{feature-id}/round-{round}/")
+	if err != nil {
+		t.Fatalf("DiscoverScreenshots: %v", err)
+	}
+	if len(groups) != 3 {
+		t.Fatalf("groups = %d, want 3 (rounds 1,2,3 merged)", len(groups))
+	}
+	for i, want := range []int{1, 2, 3} {
+		if groups[i].Round != want {
+			t.Fatalf("groups[%d].Round = %d, want %d", i, groups[i].Round, want)
+		}
+	}
+}
+
 func TestStateRunnersRoundtrip(t *testing.T) {
 	ws := setupWorkspace(t)
 	if err := ws.InitFeatureDir("feat-runners"); err != nil {

@@ -583,13 +583,24 @@ type screenshotScanTarget struct {
 func resolveScreenshotDirs(workspaceRoot, featureID, screenshotDir string, rounds []int) []screenshotScanTarget {
 	template := strings.ReplaceAll(screenshotDir, "{feature-id}", featureID)
 	if strings.Contains(template, "{round}") {
-		candidates := rounds
-		if len(candidates) == 0 {
-			candidates = discoverRoundsFromTemplate(workspaceRoot, template)
+		// 合併 verify.json rounds 與目錄掃描 rounds（聯集），避免任一來源不完整時漏掃
+		roundSet := make(map[int]struct{})
+		for _, r := range rounds {
+			if r > 0 {
+				roundSet[r] = struct{}{}
+			}
+		}
+		for _, r := range discoverRoundsFromTemplate(workspaceRoot, template) {
+			roundSet[r] = struct{}{}
+		}
+		candidates := make([]int, 0, len(roundSet))
+		for r := range roundSet {
+			candidates = append(candidates, r)
 		}
 		if len(candidates) == 0 {
 			candidates = []int{1}
 		}
+		sort.Ints(candidates)
 		targets := make([]screenshotScanTarget, 0, len(candidates))
 		for _, round := range candidates {
 			dir := strings.ReplaceAll(template, "{round}", strconv.Itoa(round))
