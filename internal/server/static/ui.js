@@ -508,7 +508,9 @@ function setDetailTabUI(tab) {
   });
   document.getElementById('overview-panel').classList.toggle('hidden', tab !== 'overview');
   document.getElementById('messages').classList.toggle('hidden', tab !== 'messages');
-  document.getElementById('logs-panel').classList.toggle('hidden', tab !== 'logs');
+  const logsPanel = document.getElementById('logs-panel');
+  if (tab === 'logs') { logsPanel.classList.remove('hidden'); logsPanel.style.display = 'flex'; }
+  else { logsPanel.classList.add('hidden'); logsPanel.style.display = 'none'; }
 }
 
 async function loadOverview(fid) {
