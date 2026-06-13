@@ -10,6 +10,7 @@ import (
 var (
 	nonAlphaNum            = regexp.MustCompile(`[^a-z0-9]+`)
 	featureNumRe           = regexp.MustCompile(`^F(\d{3,})-`)
+	featurePrefixRe        = regexp.MustCompile(`(?i)^F\d{3,}-`)
 	maxFeatureIDSlugLength = 23
 )
 
@@ -51,7 +52,11 @@ func GenerateFeatureID(num int, name string) string {
 }
 
 // GenerateFeatureIDFromSlug 用使用者指定的 slug 產生 feature ID，不做截斷。
+// 若 slug 已帶 F{NNN}- 前綴會自動去除，避免產生 F043-f043-... 的重複前綴。
 func GenerateFeatureIDFromSlug(num int, slug string) string {
+	if m := featurePrefixRe.FindStringIndex(slug); m != nil {
+		slug = slug[m[1]:]
+	}
 	slug = strings.ToLower(slug)
 	slug = nonAlphaNum.ReplaceAllString(slug, "-")
 	slug = strings.Trim(slug, "-")

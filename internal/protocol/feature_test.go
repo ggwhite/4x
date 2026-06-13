@@ -35,6 +35,8 @@ func TestGenerateFeatureIDFromSlug(t *testing.T) {
 		{40, "dashboard-spa-split", "F040-dashboard-spa-split"},
 		{5, "A Very Long Custom Slug That Should Not Be Truncated", "F005-a-very-long-custom-slug-that-should-not-be-truncated"},
 		{10, "UPPER--CASE", "F010-upper-case"},
+		{43, "F043-dashboard-screenshot-gall", "F043-dashboard-screenshot-gall"},
+		{43, "f043-dashboard-screenshot-gall", "F043-dashboard-screenshot-gall"},
 	}
 	for _, tt := range tests {
 		got := GenerateFeatureIDFromSlug(tt.num, tt.slug)
