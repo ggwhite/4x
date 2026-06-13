@@ -624,7 +624,38 @@ func TestServeScreenshot(t *testing.T) {
 	ws := setupServerWorkspace(t)
 	seedScreenshots(t, ws, "test-feat")
 
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/features/test-feat/screenshots/01-round-one.png", "")
+	mux := NewMux(ws, nil)
+
+	// 先從 listing 取得 opaque token URL
+	listRec := httptest.NewRecorder()
+	listReq := httptest.NewRequest("GET", "/api/features/test-feat/screenshots", nil)
+	mux.ServeHTTP(listRec, listReq)
+	if listRec.Code != http.StatusOK {
+		t.Fatalf("list status = %d, want 200: %s", listRec.Code, listRec.Body.String())
+	}
+	var listResp screenshotsResponse
+	if err := json.NewDecoder(listRec.Body).Decode(&listResp); err != nil {
+		t.Fatalf("decode list: %v", err)
+	}
+	if listResp.Total == 0 {
+		t.Fatal("no screenshots found in listing")
+	}
+	// 找 01-round-one.png 的 URL
+	var imgURL string
+	for _, g := range listResp.Groups {
+		for _, s := range g.Screenshots {
+			if s.Filename == "01-round-one.png" {
+				imgURL = s.URL
+			}
+		}
+	}
+	if imgURL == "" {
+		t.Fatal("01-round-one.png not found in listing")
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", imgURL, nil)
+	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
 	}
@@ -1074,5 +1105,40 @@ func TestGetMergedConfig(t *testing.T) {
 	json.Unmarshal(rec.Body.Bytes(), &got)
 	if got.Runners["claude"].Command != "/opt/claude" {
 		t.Errorf("merged runner command = %q", got.Runners["claude"].Command)
+	}
+}
+
+func TestScreenshots_ServeImageDirectly(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	shotDir := filepath.Join(ws.Root, ".4x", "e2e", "test-feat", "screenshot")
+	os.MkdirAll(shotDir, 0o755)
+	pngData := []byte("\x89PNG\r\n\x1a\ntest-image-data")
+	os.WriteFile(filepath.Join(shotDir, "01-overview.png"), pngData, 0o644)
+
+	mux := NewMux(ws, NewProcessManager(ws, 1, "echo"))
+
+	// 先取得 listing 以獲得 URL token
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/features/test-feat/screenshots", nil)
+	mux.ServeHTTP(rec, req)
+	var resp screenshotsResponse
+	json.NewDecoder(rec.Body).Decode(&resp)
+	if resp.Total == 0 {
+		t.Fatal("no screenshots found")
+	}
+	imgURL := resp.Groups[0].Screenshots[0].URL
+
+	// 直接以 token 取圖，不應觸發 re-discover
+	rec2 := httptest.NewRecorder()
+	req2 := httptest.NewRequest("GET", imgURL, nil)
+	mux.ServeHTTP(rec2, req2)
+	if rec2.Code != 200 {
+		t.Fatalf("serve image: status = %d, body = %s", rec2.Code, rec2.Body.String())
+	}
+	if ct := rec2.Header().Get("Content-Type"); ct != "image/png" {
+		t.Errorf("Content-Type = %q, want image/png", ct)
+	}
+	if cc := rec2.Header().Get("Cache-Control"); !strings.Contains(cc, "max-age") {
+		t.Errorf("Cache-Control = %q, want max-age", cc)
 	}
 }

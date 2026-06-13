@@ -689,53 +689,43 @@ func handleServeScreenshot(ws *protocol.Workspace, featureID, filename string, w
 		http.Error(w, "invalid filename", http.StatusBadRequest)
 		return
 	}
-	pathToken, ok := decodeScreenshotToken(token)
-	if !ok {
-		pathToken = protocol.NormalizeScreenshotPath(token)
+
+	// base64 token 已含完整路徑，直接解碼，不需 re-discover。
+	data, err := base64.RawURLEncoding.DecodeString(token)
+	if err != nil {
+		http.Error(w, "invalid screenshot token", http.StatusBadRequest)
+		return
 	}
-	name := filepath.Base(pathToken)
-	if name == "" || name == "." || !protocol.IsScreenshotFile(name) {
+	relPath := protocol.NormalizeScreenshotPath(string(data))
+	if relPath == "" || !protocol.IsScreenshotFile(filepath.Base(relPath)) {
 		http.Error(w, "unsupported screenshot type", http.StatusBadRequest)
 		return
 	}
 
-	screenshotDir := getMergedScreenshotDir(ws)
-	groups, err := ws.DiscoverScreenshots(featureID, screenshotDir)
+	// 先嘗試以 workspace root 為基準解析路徑（支援 .4x/ 以外的截圖目錄）；
+	// 若不存在則 fallback 到 .4x/（NormalizeScreenshotPath 已去除 .4x/ 前綴）。
+	abs := filepath.Join(ws.Root, filepath.FromSlash(relPath))
+	abs, err = filepath.Abs(abs)
 	if err != nil {
-		http.Error(w, "discover screenshots: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "invalid screenshot path", http.StatusInternalServerError)
 		return
 	}
-
-	targetPath, ambiguous := resolveScreenshotPath(groups, pathToken, name)
-	if targetPath == "" {
-		if ambiguous {
-			http.Error(w, "ambiguous screenshot filename", http.StatusBadRequest)
-			return
-		}
-		http.NotFound(w, r)
-		return
-	}
-
 	rootAbs, err := filepath.Abs(ws.Root)
 	if err != nil {
 		http.Error(w, "invalid workspace path", http.StatusInternalServerError)
 		return
 	}
 
-	// 先嘗試以 workspace root 為基準解析路徑（支援 .4x/ 以外的截圖目錄）；
-	// 若不存在則 fallback 到 .4x/（相容既有的 .4x/-stripped 路徑格式）。
-	abs := filepath.Join(ws.Root, filepath.FromSlash(targetPath))
-	abs, err = filepath.Abs(abs)
-	if err != nil {
-		http.Error(w, "invalid screenshot path", http.StatusInternalServerError)
-		return
-	}
 	if _, statErr := os.Stat(abs); statErr != nil {
-		fallback, ferr := filepath.Abs(filepath.Join(ws.DotDir(), filepath.FromSlash(targetPath)))
-		if ferr == nil {
-			abs = fallback
+		dotAbs := filepath.Join(rootAbs, protocol.DirName)
+		abs2 := filepath.Join(dotAbs, filepath.FromSlash(relPath))
+		abs2, err = filepath.Abs(abs2)
+		if err == nil {
+			abs = abs2
 		}
 	}
+
+	// 安全檢查：路徑必須在 workspace root 內。
 	if abs != rootAbs && !strings.HasPrefix(abs, rootAbs+string(filepath.Separator)) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
@@ -745,36 +735,9 @@ func handleServeScreenshot(ws *protocol.Workspace, featureID, filename string, w
 		return
 	}
 
-	w.Header().Set("Content-Type", screenshotContentType(name))
+	w.Header().Set("Content-Type", screenshotContentType(filepath.Base(relPath)))
+	w.Header().Set("Cache-Control", "public, max-age=86400, immutable")
 	http.ServeFile(w, r, abs)
-}
-
-func resolveScreenshotPath(groups []protocol.ScreenshotGroup, pathToken, name string) (string, bool) {
-	if pathToken != "" {
-		for _, group := range groups {
-			for _, shot := range group.Screenshots {
-				if protocol.NormalizeScreenshotPath(shot.Path) == pathToken {
-					return shot.Path, false
-				}
-			}
-		}
-	}
-
-	matches := make([]string, 0, 2)
-	for _, group := range groups {
-		for _, shot := range group.Screenshots {
-			if filepath.Base(shot.Path) == name {
-				matches = append(matches, shot.Path)
-				if len(matches) > 1 {
-					return "", true
-				}
-			}
-		}
-	}
-	if len(matches) == 1 {
-		return matches[0], false
-	}
-	return "", false
 }
 
 func encodeScreenshotToken(path string) string {
