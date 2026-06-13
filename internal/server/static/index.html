@@ -1587,11 +1587,20 @@ async function viewLog(fid, name) {
 function connectLogSSE(fid) {
   if (logSSE) { logSSE.close(); logSSE = null; }
   logSSE = new EventSource(sseBase()+'/logs/'+fid);
+  let sseLogFile = null;
   logSSE.onmessage = (e) => {
     const viewer = document.getElementById('log-viewer');
     if (viewer.classList.contains('hidden')) return;
     try {
       const d = JSON.parse(e.data);
+      if (d.file && d.file !== sseLogFile) {
+        sseLogFile = d.file;
+        if (currentLogFile && d.file !== currentLogFile) {
+          loadLogs(fid);
+          return;
+        }
+        viewer.textContent = '';
+      }
       viewer.textContent += d.content;
       viewer.scrollTop = viewer.scrollHeight;
     } catch(err) {}

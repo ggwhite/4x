@@ -136,7 +136,7 @@ func (r *SubprocessRunner) runStreamJSON(ctx context.Context, cmd *exec.Cmd, log
 	processor := newStreamJSONProcessor(logFile, rawFile)
 
 	cmd.Stdout = processor
-	cmd.Stderr = logFile
+	cmd.Stderr = processor
 	if r.Config.Stdin {
 		cmd.Stdin = strings.NewReader(prompt)
 	}
