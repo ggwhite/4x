@@ -297,7 +297,7 @@ func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, featur
 	}
 	var repoMap map[string]string
 	if len(cfg.Workspace.Repos) > 0 {
-		if runnerWs != ws {
+		if runnerWs.Root != ws.Root {
 			// worktree 模式：組合目錄下 repo 子目錄以 name 命名，使用相對路徑讓 coder 在正確邊界內作業
 			featureRepos := make(map[string]bool, len(feature.Repos))
 			for _, r := range feature.Repos {
@@ -462,13 +462,13 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		logPath := filepath.Join(runner.LogDir(ws, featureID), runner.LogFileName(s.Round, string(role)))
 		r := newRunner(logPath, model)
 
-		if runnerWs != ws {
+		if runnerWs.Root != ws.Root {
 			syncFeatureToWorktree(ws, runnerWs, featureID, s.Round)
 		}
 
 		// 背景即時 sync：runner 執行期間每 2 秒把 worktree 的 protocol 檔案同步回 main
 		var stopSync func()
-		if runnerWs != ws {
+		if runnerWs.Root != ws.Root {
 			stopSync = startLiveSync(runnerWs, ws, featureID, s.Round)
 		}
 
@@ -483,7 +483,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		if stopSync != nil {
 			stopSync()
 		}
-		if runnerWs != ws {
+		if runnerWs.Root != ws.Root {
 			syncFeatureFromWorktree(runnerWs, ws, featureID, s.Round)
 		}
 		if err != nil {
@@ -520,7 +520,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			return nil
 		}
 
-		if commitStrategy == "per-round" && runnerWs != ws &&
+		if commitStrategy == "per-round" && runnerWs.Root != ws.Root &&
 			(phase == protocol.PhaseCoding || phase == protocol.PhaseAmending) {
 			if err := ops.Commit(runnerWs.Root, featureID, feature.Name, s.Round); err != nil {
 				fmt.Fprintf(os.Stderr, "  auto-commit round %d failed: %v\n", s.Round, err)
