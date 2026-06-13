@@ -214,49 +214,6 @@
   </div>
 </div>
 
-<!-- Settings -->
-<div id="settings-modal" class="modal-backdrop" onclick="if(event.target===this)closeSettings()">
-  <div class="modal-panel fade-in" style="width:720px;max-height:85vh;overflow-y:auto">
-    <div style="padding:20px 24px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)">
-      <span style="font-size:16px;font-weight:700" data-i18n="settings.title">Settings</span>
-    </div>
-    <div style="padding-top:20px">
-      <div class="settings-section">
-        <div class="settings-label" data-i18n="settings.appearance">Appearance</div>
-        <div style="display:flex;flex-direction:column;gap:14px">
-          <div style="display:flex;align-items:center;justify-content:space-between">
-            <span style="font-size:13px" data-i18n="settings.contentFont">Content Font</span>
-            <div class="stepper"><button onclick="adjFont('content',-1)">-</button><span id="font-content-val">15px</span><button onclick="adjFont('content',1)">+</button></div>
-          </div>
-          <div style="display:flex;align-items:center;justify-content:space-between">
-            <span style="font-size:13px" data-i18n="settings.codeFont">Code Font</span>
-            <div class="stepper"><button onclick="adjFont('code',-1)">-</button><span id="font-code-val">13px</span><button onclick="adjFont('code',1)">+</button></div>
-          </div>
-        </div>
-      </div>
-      <div class="settings-section">
-        <div class="settings-label" data-i18n="settings.theme">Theme</div>
-        <div id="theme-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px"></div>
-      </div>
-      <div class="settings-section">
-        <div class="settings-label" data-i18n="settings.language">Language</div>
-        <div>
-          <select id="locale-select" onchange="switchLocale(this.value)"
-            style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none;cursor:pointer">
-          </select>
-        </div>
-      </div>
-      <div class="settings-section">
-        <div class="settings-label" data-i18n="settings.behavior">Behavior</div>
-        <div style="display:flex;align-items:center;justify-content:space-between">
-          <div><span style="font-size:13px" data-i18n="settings.refresh">Refresh</span><div style="font-size:11px;color:var(--text-4)" data-i18n="settings.pollingInterval">Polling interval</div></div>
-          <div class="stepper"><button onclick="adjRefresh(-1)">-</button><span id="refresh-val">3s</span><button onclick="adjRefresh(1)">+</button></div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
 <!-- Project Picker -->
 <div id="picker-modal" class="modal-backdrop" onclick="if(event.target===this)closeProjectPicker()">
   <div class="modal-panel fade-in" style="width:520px">
@@ -552,18 +509,15 @@ function applyTheme(id) {
   settings.theme = id;
   document.documentElement.setAttribute('data-theme', id === 'apple-dark' ? '' : id);
   saveSettings(); renderThemeGrid();
-  const gs = document.getElementById('gs-theme-grid');
-  if (gs) gs.innerHTML = document.getElementById('theme-grid').innerHTML;
 }
 function renderThemeGrid() {
-  const el = document.getElementById('theme-grid');
+  const el = document.getElementById('gs-theme-grid');
+  if (!el) return;
   el.innerHTML = THEMES.map(th => `<div style="text-align:center"><div class="theme-card ${settings.theme===th.id?'selected':''}" onclick="applyTheme('${th.id}')" style="background:${th.bg}"><div class="dots"><span style="background:#ff5f57"></span><span style="background:#febc2e"></span><span style="background:#28c840"></span></div><div class="lines"><span style="background:${th.line};width:70%"></span><span style="background:${th.line};width:50%"></span><span style="background:${th.line};width:60%"></span></div></div><div style="font-size:11px;color:var(--text-3);margin-top:6px">${th.name}</div></div>`).join('');
 }
 function applyFont() {
   document.documentElement.style.setProperty('--font-content', settings.fontContent+'px');
   document.documentElement.style.setProperty('--font-code', settings.fontCode+'px');
-  document.getElementById('font-content-val').textContent = settings.fontContent+'px';
-  document.getElementById('font-code-val').textContent = settings.fontCode+'px';
 }
 function adjFont(type, delta) {
   if (type==='content') settings.fontContent = Math.min(24, Math.max(12, settings.fontContent+delta));
@@ -572,7 +526,10 @@ function adjFont(type, delta) {
 }
 function adjRefresh(delta) {
   settings.refresh = Math.min(30, Math.max(1, settings.refresh+delta));
-  saveSettings(); document.getElementById('refresh-val').textContent = settings.refresh+'s'; startRefreshTimer();
+  saveSettings();
+  const rv = document.getElementById('gs-refresh-val');
+  if (rv) rv.textContent = settings.refresh+'s';
+  startRefreshTimer();
 }
 function startRefreshTimer() {
   if (refreshTimer) clearInterval(refreshTimer);
@@ -748,29 +705,15 @@ function onSearchKey(e) {
   else if (e.key==='Escape') { closeSearch(); }
 }
 
-function openSettings() {
-  document.getElementById('settings-modal').classList.add('open');
-  renderThemeGrid();
-  applyFont();
-  document.getElementById('refresh-val').textContent = settings.refresh+'s';
-  const sel = document.getElementById('locale-select');
-  if (sel) {
-    sel.innerHTML = SUPPORTED_LOCALES.map(l =>
-      `<option value="${l}"${l === _currentLocale ? ' selected' : ''}>${LOCALE_NAMES[l] || l}</option>`
-    ).join('');
-  }
-}
-function closeSettings() { document.getElementById('settings-modal').classList.remove('open'); }
 document.addEventListener('keydown', e => {
   if ((e.metaKey||e.ctrlKey) && e.key==='k') { e.preventDefault(); openSearch(); }
-  else if ((e.metaKey||e.ctrlKey) && !e.shiftKey && e.key===',') { e.preventDefault(); openProjectSettings(); }
+  else if ((e.metaKey||e.ctrlKey) && !e.shiftKey && e.key===',') { e.preventDefault(); activeProjectId?openProjectSettings():openGlobalSettings(); }
   else if ((e.metaKey||e.ctrlKey) && e.shiftKey && e.key===',') { e.preventDefault(); openGlobalSettings(); }
   else if (e.key==='Escape') {
     if (document.getElementById('global-settings-modal').classList.contains('open')) closeGlobalSettings();
     else if (document.getElementById('project-settings-modal').classList.contains('open')) closeProjectSettings();
     else if (document.getElementById('picker-modal').classList.contains('open')) closeProjectPicker();
     else if (document.getElementById('search-modal').classList.contains('open')) closeSearch();
-    else if (document.getElementById('settings-modal').classList.contains('open')) closeSettings();
   }
 });
 
@@ -909,8 +852,7 @@ async function openGlobalSettings() {
 function renderGlobalSettingsAppearance() {
   const rv = document.getElementById('gs-refresh-val');
   if (rv) rv.textContent = settings.refresh + 's';
-  const grid = document.getElementById('gs-theme-grid');
-  if (grid) { renderThemeGrid(); grid.innerHTML = document.getElementById('theme-grid').innerHTML; }
+  renderThemeGrid();
   const cfgLocale = _globalSettings && _globalSettings.locale ? _globalSettings.locale : _currentLocale;
   const sel = document.getElementById('gs-locale-select');
   if (sel) {
@@ -1527,7 +1469,7 @@ function renderDashboard(tasks) {
   const recent = g.done.slice(0, 8);
   const activeTab = openTabs.find(tb => tb.id === activeProjectId);
   const pName = activeTab ? activeTab.name : '4x Live';
-  el.innerHTML = `<div class="flex items-center gap-3 mb-6"><span class="text-lg font-bold">${esc(pName)}</span><span class="ml-auto px-3 py-1 text-xs rounded-full" style="border:1px solid var(--border);color:var(--text-2)">${t('dashboard.tasks').replace('{count}', total)}</span><button onclick="openSettings()" title="${t('settings.titleShortcut')}" class="ml-2 transition-colors" style="color:var(--text-3)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
+  el.innerHTML = `<div class="flex items-center gap-3 mb-6"><span class="text-lg font-bold">${esc(pName)}</span><span class="ml-auto px-3 py-1 text-xs rounded-full" style="border:1px solid var(--border);color:var(--text-2)">${t('dashboard.tasks').replace('{count}', total)}</span><button onclick="activeProjectId?openProjectSettings():openGlobalSettings()" title="${t('settings.titleShortcut')}" class="ml-2 transition-colors" style="color:var(--text-3)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
 <div class="grid grid-cols-5 gap-4 mb-8">
 <div class="dash-card text-center"><div class="text-3xl font-bold text-emerald-400">${g.running.length}</div><div class="text-xs dash-muted mt-1 uppercase tracking-wider">${t('sidebar.running')}</div></div>
 <div class="dash-card text-center"><div class="text-3xl font-bold text-amber-400">${g.review.length}</div><div class="text-xs dash-muted mt-1 uppercase tracking-wider">${t('sidebar.review')}</div></div>
