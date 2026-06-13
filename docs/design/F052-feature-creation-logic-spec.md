@@ -79,7 +79,7 @@ type CreateOpts struct {
 
 | 搬出內容 | 來源 | 目標 |
 |---|---|---|
-| `Feature`、`Subtask` 型別 | `protocol/types.go` | `feature/types.go` |
+| `Feature`、`Subtask`、`Status` 型別及常量 | `protocol/types.go` | `feature/types.go` |
 | `GenerateFeatureID`、`GenerateFeatureIDFromSlug` | `protocol/feature.go` | `feature/id.go` |
 | `NextFeatureNumber` | `protocol/feature.go` | `feature/id.go` |
 | `BacklogMirror`、`BacklogDriftKind`、`BacklogDrift` 型別 | `protocol/types.go` | `feature/types.go` |
@@ -90,7 +90,7 @@ type CreateOpts struct {
 留在 `protocol`：
 
 - `Workspace` struct 及其 method（`SaveFeature`、`LoadFeature` 等——它是 `Store` 的實作者）
-- `State`、`Event`、`Status` 等狀態相關型別
+- `State`、`Event` 等狀態相關型別，`PhaseToStatus` 留在 protocol（回傳 `feature.Status`）
 - `Find()`、`ReadState()`、`WriteState()`、`AppendEvent()`
 - 常量（`FeaturesDir`、`RoundsDir`、`StateFile` 等）
 
