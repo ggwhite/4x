@@ -14,36 +14,43 @@
     --text-1: #e5e5e5; --text-2: #a1a1aa; --text-3: #71717a; --text-4: #52525b;
     --border: rgba(39,39,42,.8); --border-light: rgba(63,63,70,.5);
     --accent: #10b981; --font-content: 15px; --font-code: 13px;
+    --bg-gradient: #0f0f0f; --glass: rgba(24,24,27,.6); --glow: rgba(16,185,129,.3);
   }
   [data-theme="midnight"] {
     --bg-body: #0a0e1a; --bg-card: rgba(15,23,42,.6); --bg-sidebar: #0a0e1a;
     --bg-hover: rgba(30,41,59,.4); --bg-input: rgba(30,41,59,.6);
     --border: rgba(30,41,59,.8); --border-light: rgba(51,65,85,.5); --accent: #3b82f6;
+    --bg-gradient: #0a0e1a; --glass: rgba(15,23,42,.6); --glow: rgba(59,130,246,.3);
   }
   [data-theme="noir"] {
     --bg-body: #000; --bg-card: rgba(15,15,15,.8); --bg-sidebar: #000;
     --bg-hover: rgba(25,25,25,.6); --bg-input: rgba(25,25,25,.8);
     --border: rgba(30,30,30,.8); --border-light: rgba(40,40,40,.5); --accent: #a1a1aa;
+    --bg-gradient: #000; --glass: rgba(15,15,15,.8); --glow: rgba(161,161,170,.3);
   }
   [data-theme="frost"] {
     --bg-body: #0f172a; --bg-card: rgba(30,41,59,.5); --bg-sidebar: #0f172a;
     --bg-hover: rgba(51,65,85,.3); --bg-input: rgba(51,65,85,.5);
     --text-1: #e2e8f0; --text-2: #94a3b8; --text-3: #64748b; --text-4: #475569;
     --border: rgba(51,65,85,.6); --border-light: rgba(71,85,105,.4); --accent: #38bdf8;
+    --bg-gradient: linear-gradient(180deg, #0c1222 0%, #0f172a 40%, #111827 100%);
+    --glass: rgba(15,23,42,.6); --glow: rgba(56,189,248,.3);
   }
   [data-theme="light"] {
     --bg-body: #f5f5f5; --bg-card: rgba(255,255,255,.8); --bg-sidebar: #fff;
     --bg-hover: rgba(0,0,0,.04); --bg-input: rgba(0,0,0,.05);
     --text-1: #18181b; --text-2: #3f3f46; --text-3: #71717a; --text-4: #a1a1aa;
     --border: rgba(0,0,0,.08); --border-light: rgba(0,0,0,.06); --accent: #059669;
+    --bg-gradient: #f5f5f5; --glass: rgba(255,255,255,.7); --glow: rgba(5,150,105,.3);
   }
   [data-theme="paper"] {
     --bg-body: #faf8f5; --bg-card: rgba(255,255,255,.9); --bg-sidebar: #f5f0eb;
     --bg-hover: rgba(0,0,0,.03); --bg-input: rgba(0,0,0,.04);
     --text-1: #1c1917; --text-2: #44403c; --text-3: #78716c; --text-4: #a8a29e;
     --border: rgba(0,0,0,.07); --border-light: rgba(0,0,0,.05); --accent: #b45309;
+    --bg-gradient: #faf8f5; --glass: rgba(255,255,255,.8); --glow: rgba(180,83,9,.3);
   }
-  body { background: var(--bg-body); color: var(--text-1); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--font-content); }
+  body { background: var(--bg-gradient); color: var(--text-1); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--font-content); }
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -54,8 +61,8 @@
   .md-body p { margin: .4em 0; }
   .md-body ul, .md-body ol { margin: .4em 0; padding-left: 1.5em; }
   .md-body li { margin: .2em 0; }
-  .md-body code { background: rgba(255,255,255,.06); padding: .15em .4em; border-radius: 4px; font-size: .9em; }
-  .md-body pre { background: rgba(0,0,0,.3); padding: .8em 1em; border-radius: 6px; overflow-x: auto; margin: .6em 0; }
+  .md-body code { background: rgba(255,255,255,.08); padding: .15em .4em; border-radius: 4px; font-size: .9em; }
+  .md-body pre { background: rgba(0,0,0,.4); padding: 1em 1.2em; border-radius: 8px; overflow-x: auto; margin: .6em 0; border: 1px solid rgba(255,255,255,.04); }
   .md-body pre code { background: none; padding: 0; }
   .md-body strong { color: var(--text-1); }
   .md-body a { color: var(--accent); text-decoration: underline; }
@@ -70,7 +77,7 @@
   .fade-in { animation: fadeIn .2s ease-in; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
-  .pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
+  .pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; box-shadow: 0 0 6px var(--glow); }
   .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); backdrop-filter: blur(8px); z-index: 50; display: none; justify-content: center; align-items: center; }
   .modal-backdrop.open { display: flex; }
   .modal-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; width: 640px; max-height: 70vh; overflow-y: auto; box-shadow: 0 25px 50px -12px rgba(0,0,0,.5); backdrop-filter: blur(20px); }
@@ -111,6 +118,8 @@
   .toast-warn { background: #92400e; color: #fde68a; border: 1px solid rgba(251,191,36,.3); }
   .toast-info { background: var(--bg-card); color: var(--text-1); border: 1px solid var(--border); }
   @keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+  .glass { background: var(--glass); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+  .glass-card { background: rgba(30,41,59,.3); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid var(--border-light); border-radius: 12px; }
 </style>
 </head>
 <body class="min-h-screen">
@@ -126,7 +135,7 @@
 
   <!-- Sidebar -->
   <div id="sidebar" class="w-80 border-r overflow-y-auto flex flex-col" style="border-color:var(--border)">
-    <div class="p-4 border-b flex items-center gap-2 cursor-pointer transition-colors" style="border-color:var(--border)" onclick="goHome()">
+    <div class="p-4 border-b flex items-center gap-2 cursor-pointer transition-colors glass" style="border-color:var(--border)" onclick="goHome()">
       <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 pulse-dot"></div>
       <h1 class="text-base font-bold tracking-tight" data-i18n="app.title">4x Live</h1>
       <span class="text-[10px] ml-auto" style="color:var(--text-4)" data-i18n="app.autoRefresh">Auto-refresh</span>
@@ -144,7 +153,7 @@
 
   <!-- Main -->
   <div class="flex-1 flex flex-col overflow-hidden">
-    <div id="header" class="border-b p-4 hidden" style="border-color:var(--border)">
+    <div id="header" class="border-b p-4 hidden glass" style="border-color:var(--border)">
       <div class="flex items-center gap-3">
         <span id="h-id" class="text-sm" style="color:var(--text-4)"></span>
         <span id="h-name" class="font-bold"></span>
@@ -153,7 +162,7 @@
       </div>
       <div id="h-meta" class="flex items-center gap-4 mt-2 text-xs" style="color:var(--text-4)"></div>
       <div id="detail-tabs" class="flex gap-4 mt-3 border-t pt-2" style="border-color:var(--border)">
-        <button class="detail-tab text-xs font-semibold py-1 border-b-2 border-emerald-500 text-emerald-400" data-tab="overview" onclick="switchDetailTab('overview')" data-i18n="nav.overview">Overview</button>
+        <button class="detail-tab text-xs font-semibold py-1 border-b-2" style="border-color:var(--accent);color:var(--accent)" data-tab="overview" onclick="switchDetailTab('overview')" data-i18n="nav.overview">Overview</button>
         <button class="detail-tab text-xs font-semibold py-1 border-b-2 border-transparent text-zinc-500 hover:text-zinc-300" data-tab="messages" onclick="switchDetailTab('messages')" data-i18n="nav.messages">Messages</button>
         <button class="detail-tab text-xs font-semibold py-1 border-b-2 border-transparent text-zinc-500 hover:text-zinc-300" data-tab="logs" onclick="switchDetailTab('logs')" data-i18n="nav.logs">Logs</button>
       </div>
@@ -509,7 +518,7 @@ function sseBase() { return activeProjectId ? '/sse/project/' + activeProjectId 
 function saveTabState() { localStorage.setItem('4x-tabs', JSON.stringify({ tabs: openTabs, active: activeProjectId })); }
 function loadTabState() { try { const s = JSON.parse(localStorage.getItem('4x-tabs') || '{}'); return { tabs: s.tabs || [], active: s.active || null }; } catch { return { tabs: [], active: null }; } }
 
-const DEFAULTS = { theme: 'apple-dark', fontContent: 15, fontCode: 13, refresh: 3 };
+const DEFAULTS = { theme: 'frost', fontContent: 15, fontCode: 13, refresh: 3 };
 let settings = { ...DEFAULTS, ...JSON.parse(localStorage.getItem('4x-settings') || '{}') };
 function saveSettings() { localStorage.setItem('4x-settings', JSON.stringify(settings)); }
 
@@ -1389,14 +1398,31 @@ async function saveProjectSettings() {
 function initSettings() { applyTheme(settings.theme); applyFont(); startRefreshTimer(); }
 
 const ROLES = {
-  designer:{name:'Designer',color:'#a855f7',bg:'rgba(168,85,247,.08)'},
-  coder:{name:'Coder',color:'#06b6d4',bg:'rgba(6,182,212,.08)'},
-  reviewer:{name:'Reviewer',color:'#22c55e',bg:'rgba(34,197,94,.08)'},
-  'deep-reviewer':{name:'Deep Review',color:'#22c55e',bg:'rgba(34,197,94,.08)'},
-  tester:{name:'Tester',color:'#f97316',bg:'rgba(249,115,22,.08)'},
-  acceptor:{name:'Acceptor',color:'#eab308',bg:'rgba(234,179,8,.08)'},
+  designer:{name:'Designer',emoji:'🎨',color:'#c084fc',bg:'rgba(192,132,252,.08)'},
+  coder:{name:'Coder',emoji:'💻',color:'#22d3ee',bg:'rgba(34,211,238,.08)'},
+  reviewer:{name:'Reviewer',emoji:'🔍',color:'#4ade80',bg:'rgba(74,222,128,.08)'},
+  'deep-reviewer':{name:'Deep Review',emoji:'🔍',color:'#4ade80',bg:'rgba(74,222,128,.08)'},
+  tester:{name:'Tester',emoji:'🧪',color:'#fb923c',bg:'rgba(251,146,60,.08)'},
+  acceptor:{name:'Acceptor',emoji:'⭐',color:'#facc15',bg:'rgba(250,204,21,.08)'},
 };
 const PHASE_ICON = { designing:'◆',coding:'◆',reviewing:'◆',testing:'◆',accepting:'◆',amending:'◆','pending-review':'⏳',done:'✓',blocked:'✕','needs-attention':'!',init:'○','not-started':'○' };
+
+const PHASE_COLORS = {
+  designing:{letter:'D',color:'#c084fc',bg:'rgba(192,132,252,.15)',border:'rgba(192,132,252,.25)'},
+  coding:   {letter:'C',color:'#22d3ee',bg:'rgba(34,211,238,.15)',border:'rgba(34,211,238,.25)'},
+  reviewing:{letter:'R',color:'#4ade80',bg:'rgba(74,222,128,.15)',border:'rgba(74,222,128,.25)'},
+  testing:  {letter:'T',color:'#fb923c',bg:'rgba(251,146,60,.15)',border:'rgba(251,146,60,.25)'},
+  accepting:{letter:'A',color:'#facc15',bg:'rgba(250,204,21,.15)',border:'rgba(250,204,21,.25)'},
+  amending: {letter:'M',color:'#f87171',bg:'rgba(248,113,113,.15)',border:'rgba(248,113,113,.25)'},
+};
+
+const SECTION_COLORS = {
+  running:{color:'#34d399',bg:'rgba(16,185,129,.2)'},
+  review: {color:'#fbbf24',bg:'rgba(245,158,11,.15)'},
+  pending:{color:'#60a5fa',bg:'rgba(59,130,246,.15)'},
+  todo:   {color:'#c084fc',bg:'rgba(168,85,247,.15)'},
+  done:   {color:'#4ade80',bg:'rgba(34,197,94,.1)'},
+};
 
 const RUNNER_COLORS = {claude:'#10b981',codex:'#3b82f6',gemini:'#f59e0b',copilot:'#a78bfa',cursor:'#ec4899'};
 function runnerColor(name) {
@@ -1497,25 +1523,48 @@ ${g.review.length>0?`<div class="rounded-xl border border-amber-500/20 bg-amber-
 
 const _sectionCollapsed = { done: true };
 
+function phaseBadge(phase, round) {
+  const pc = PHASE_COLORS[phase];
+  if (!pc || !round) return '';
+  return `<span style="font-size:9px;padding:2px 7px;border-radius:6px;background:${pc.bg};color:${pc.color};font-weight:700;border:1px solid ${pc.border}">${pc.letter}${round}/5</span>`;
+}
+
 function renderTaskItem(task) {
   const isActive = task.active && task.phase && task.phase!=='done', isSel = task.id===current;
-  let cls = 'p-3 rounded-lg cursor-pointer mb-1 transition-all duration-150 ';
-  if (isActive) cls+='bg-emerald-950/40 border border-emerald-500/20 hover:border-emerald-500/40 ';
-  else if (isSel) cls+='bg-zinc-800/80 border border-zinc-700/50 ';
-  else if (task.status==='done') cls+='border border-transparent opacity-40 hover:opacity-70 ';
-  else cls+='border border-transparent hover:bg-zinc-800/50 ';
+  const pc = PHASE_COLORS[task.phase];
+  let cls = 'p-3 rounded-xl cursor-pointer mb-1 transition-all duration-150 ';
+  let cardStyle = '';
+  if (isActive) {
+    cls += 'border ';
+    if (pc) {
+      cardStyle = `background:linear-gradient(135deg,${pc.bg},rgba(15,23,42,.3));backdrop-filter:blur(8px);border-color:${pc.border}`;
+    } else {
+      cardStyle = 'background:linear-gradient(135deg,rgba(16,185,129,.08),rgba(15,23,42,.3));backdrop-filter:blur(8px);border-color:rgba(16,185,129,.25)';
+    }
+  } else if (isSel) {
+    cls += 'border border-zinc-700/50 ';
+    cardStyle = 'background:var(--glass)';
+  } else if (task.status==='done') {
+    cls += 'border border-transparent opacity-40 hover:opacity-70 ';
+  } else {
+    cls += 'border border-transparent hover:border-zinc-700/30 ';
+  }
   const hasState = task.phase || task.round;
   const elapsed = isActive && task.createdAt ? formatElapsed(task.createdAt) : '';
   const duration = !isActive && task.createdAt && task.updatedAt ? formatDuration(task.createdAt, task.updatedAt) : '';
   const timePart = elapsed ? ` · ⏱ ${elapsed}` : duration ? ` · ⏱ ${duration}` : '';
   const roundPart = task.round ? t('common.round').replace('{round}', task.round) : '';
+  const roleInfo = ROLES[{designing:'designer',coding:'coder',reviewing:'reviewer',testing:'tester',accepting:'acceptor',amending:'coder'}[task.phase]] || {};
+  const emoji = isActive && roleInfo.emoji ? roleInfo.emoji + ' ' : '';
   let pi = '';
   if (isActive) {
-    pi = `<div class="flex items-center gap-1.5 mt-1.5 flex-wrap"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span><span class="text-[11px] text-emerald-400">${task.phase}</span><span class="text-[11px] text-zinc-600">· ${roundPart}${timePart}</span></div>`;
+    const dotStyle = pc ? `background:${pc.color};box-shadow:0 0 4px ${pc.border}` : 'background:#34d399';
+    pi = `<div class="flex items-center gap-1.5 mt-1.5 flex-wrap"><span class="w-1.5 h-1.5 rounded-full pulse-dot" style="${dotStyle}"></span><span class="text-[11px]" style="color:${pc?pc.color:'#34d399'}">${emoji}${task.phase}</span><span class="text-[11px] text-zinc-600">${timePart}</span></div>`;
   } else if (hasState && (roundPart || timePart)) {
     const parts = [roundPart, timePart.replace(/^ · /, '')].filter(Boolean).join(' · ');
     pi = `<div class="flex items-center gap-1.5 mt-1.5"><span class="text-[11px] text-zinc-600">${parts}</span></div>`;
   }
+  const badge = phaseBadge(task.phase, task.round);
   const di = task.status==='done' ? '<span class="text-emerald-500/60 text-xs">✓</span>' : '';
   const doneBtn = task.status==='ready-for-review' ? `<button class="ml-auto px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/30 rounded hover:bg-amber-500/20 transition-colors" onclick="event.stopPropagation();markDone('${task.id}')">${t('sidebar.markDone')}</button>` : '';
   const runId = getRunId(task.id);
@@ -1527,7 +1576,7 @@ function renderTaskItem(task) {
   }
   const rt = runnerTags(task.runners);
   const rtLine = rt ? `<div class="flex gap-1 mt-1">${rt}</div>` : '';
-  return `<div class="${cls}" onclick="current='${task.id}';load();loadDetail(${JSON.stringify(task).replace(/"/g,'&quot;')})" onmouseenter="this.querySelector('.play-btn')&&(this.querySelector('.play-btn').style.opacity='1')" onmouseleave="this.querySelector('.play-btn')&&(this.querySelector('.play-btn').style.opacity='0')"><div class="flex items-start gap-2">${di}<div class="flex-1 min-w-0"><div class="text-[13px] font-medium truncate">${esc(task.name)}</div><div class="text-[11px] text-zinc-600 mt-0.5">${task.id}</div>${pi}${rtLine}</div>${doneBtn || actionBtn}</div></div>`;
+  return `<div class="${cls}" style="${cardStyle}" onclick="current='${task.id}';load();loadDetail(${JSON.stringify(task).replace(/"/g,'&quot;')})" onmouseenter="this.querySelector('.play-btn')&&(this.querySelector('.play-btn').style.opacity='1')" onmouseleave="this.querySelector('.play-btn')&&(this.querySelector('.play-btn').style.opacity='0')"><div class="flex items-start gap-2">${di}<div class="flex-1 min-w-0"><div class="flex items-center gap-2"><span class="text-[13px] font-medium truncate flex-1">${esc(task.name)}</span>${badge}</div><div class="text-[11px] text-zinc-600 mt-0.5">${task.id}</div>${pi}${rtLine}</div>${doneBtn || actionBtn}</div></div>`;
 }
 
 function toggleSection(key) {
@@ -1565,7 +1614,8 @@ function renderSidebar() {
     const h = document.createElement('div');
     h.className = 'flex items-center gap-2 px-2 py-2 text-[10px] font-bold text-zinc-500 uppercase tracking-wider select-none';
     _popupSections[key] = { title, items };
-    h.innerHTML = `<span class="cursor-pointer hover:text-zinc-300 transition-colors flex items-center gap-2 flex-1" data-action="toggle"><span style="display:inline-block;transform:rotate(${collapsed?'0':'90'}deg);transition:transform .15s;font-size:9px">▶</span>${title}</span><span class="text-zinc-600">${count}</span><span class="cursor-pointer hover:text-zinc-300 transition-colors text-[10px] ml-1" data-action="popup" title="${t('common.showAll')}">↗</span>`;
+    const sc = SECTION_COLORS[key] || {color:'var(--text-4)',bg:'var(--bg-hover)'};
+    h.innerHTML = `<span class="cursor-pointer hover:text-zinc-300 transition-colors flex items-center gap-2 flex-1" data-action="toggle"><span style="display:inline-block;transform:rotate(${collapsed?'0':'90'}deg);transition:transform .15s;font-size:9px">▶</span>${title}</span><span style="background:${sc.bg};color:${sc.color};padding:1px 6px;border-radius:8px;font-size:9px">${count}</span><span class="cursor-pointer hover:text-zinc-300 transition-colors text-[10px] ml-1" data-action="popup" title="${t('common.showAll')}">↗</span>`;
     h.onclick = (e) => {
       const action = e.target.closest('[data-action]')?.dataset?.action;
       if (action === 'popup') openSectionPopup(key);
@@ -1665,18 +1715,20 @@ async function loadDetail(task) {
 }
 
 function renderMsgCard(m) {
-  const r = ROLES[m.role] || {name:m.role,color:'#666',bg:'rgba(100,100,100,.05)'};
-  const div = document.createElement('div'); div.className = 'fade-in rounded-lg overflow-hidden';
+  const r = ROLES[m.role] || {name:m.role,emoji:'',color:'#666',bg:'rgba(100,100,100,.05)'};
+  const div = document.createElement('div');
+  div.className = 'fade-in rounded-xl overflow-hidden mb-3';
+  div.style.cssText = `border:1px solid ${r.color}15;background:linear-gradient(135deg,${r.bg},rgba(15,23,42,.3));backdrop-filter:blur(8px)`;
   const header = document.createElement('div');
-  header.className = 'flex items-center gap-2 px-4 py-2 cursor-pointer hover:brightness-125 transition-all sticky top-0 z-10';
-  header.style.background = r.bg;
+  header.className = 'flex items-center gap-2 px-4 py-2.5 cursor-pointer hover:brightness-125 transition-all sticky top-0 z-10';
+  header.style.borderBottom = `1px solid ${r.color}10`;
   const lines = m.content.trim().split('\n').filter(l => l.trim());
   const preview = lines.length > 1 ? lines.find(l => !l.startsWith('#')) || lines[1] : '';
   const previewText = preview ? `<span class="text-xs text-zinc-600 truncate ml-2 flex-1">${esc(preview.slice(0,80))}</span>` : '';
-  header.innerHTML = `<span class="w-1.5 h-1.5 rounded-full flex-shrink-0" style="background:${r.color}"></span><span class="text-xs font-semibold flex-shrink-0" style="color:${r.color}">${r.name}</span><span class="text-xs text-zinc-600 flex-shrink-0">${m.label}${m.round?' · Round '+m.round:''}</span>${previewText}<span class="msg-chevron text-zinc-600 text-xs ml-auto flex-shrink-0">▶</span>`;
+  const emoji = r.emoji || '';
+  header.innerHTML = `<span class="text-xs font-semibold flex-shrink-0" style="color:${r.color}">${emoji} ${r.name}</span><span class="text-xs text-zinc-600 flex-shrink-0">${m.label}${m.round?' · Round '+m.round:''}</span>${previewText}<span class="msg-chevron text-zinc-600 text-xs ml-auto flex-shrink-0">▶</span>`;
   const body = document.createElement('div');
-  body.className = 'msg-body collapsed md-body px-4 py-3 text-zinc-300 border-l-2 overflow-y-auto';
-  body.style.borderColor = r.color + '20';
+  body.className = 'msg-body collapsed md-body px-4 py-3 text-zinc-300 overflow-y-auto';
   header.onclick = () => {
     const opening = body.classList.contains('collapsed');
     if (opening && !body.dataset.rendered) {
@@ -1716,10 +1768,10 @@ let currentLogFile = null;
 function setDetailTabUI(tab) {
   document.querySelectorAll('.detail-tab').forEach(b => {
     const active = b.dataset.tab === tab;
-    b.classList.toggle('border-emerald-500', active);
-    b.classList.toggle('text-emerald-400', active);
     b.classList.toggle('border-transparent', !active);
     b.classList.toggle('text-zinc-500', !active);
+    b.style.borderColor = active ? 'var(--accent)' : '';
+    b.style.color = active ? 'var(--accent)' : '';
   });
   document.getElementById('overview-panel').classList.toggle('hidden', tab !== 'overview');
   document.getElementById('messages').classList.toggle('hidden', tab !== 'messages');
@@ -1752,44 +1804,51 @@ async function loadOverview(fid) {
 
 function renderOverview(d, el) {
   let html = '';
+  const card = (content) => `<div class="glass-card p-4 mb-4">${content}</div>`;
+  const sectionTitle = (text) => `<div class="text-[10px] font-bold uppercase tracking-wider mb-3" style="color:var(--text-3)">${text}</div>`;
 
   if (d.description) {
-    html += `<section class="mb-6"><div class="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Description</div><div class="md-body text-sm" style="color:var(--text-2)">${typeof marked !== 'undefined' ? marked.parse(d.description) : '<pre>'+esc(d.description)+'</pre>'}</div></section>`;
+    html += card(`${sectionTitle('Description')}<div class="md-body text-sm" style="color:var(--text-2)">${typeof marked !== 'undefined' ? marked.parse(d.description) : '<pre>'+esc(d.description)+'</pre>'}</div>`);
   }
 
   const details = [];
-  if (d.priority) details.push(`<div class="flex gap-2"><span class="text-zinc-500 w-20 flex-shrink-0">Priority</span><span>${d.priority}</span></div>`);
+  if (d.priority) {
+    const pColors = {high:{color:'#f87171',bg:'rgba(239,68,68,.1)',border:'rgba(239,68,68,.15)'},medium:{color:'#fbbf24',bg:'rgba(245,158,11,.1)',border:'rgba(245,158,11,.15)'},low:{color:'#4ade80',bg:'rgba(74,222,128,.1)',border:'rgba(74,222,128,.15)'}};
+    const pc = pColors[d.priority] || {color:'var(--text-2)',bg:'var(--bg-hover)',border:'var(--border)'};
+    details.push(`<div class="flex gap-2 items-center"><span class="text-[11px] w-16 flex-shrink-0" style="color:var(--text-3)">Priority</span><span class="text-[11px] px-2 py-0.5 rounded" style="background:${pc.bg};color:${pc.color};border:1px solid ${pc.border}">${d.priority}</span></div>`);
+  }
   if (d.repos && Object.keys(d.repos).length) {
-    const repos = Object.entries(d.repos).map(([k,v]) => `<span class="inline-block px-2 py-0.5 rounded text-[11px]" style="background:var(--bg-hover)">${esc(k)} → ${esc(v)}</span>`).join(' ');
-    details.push(`<div class="flex gap-2"><span class="text-zinc-500 w-20 flex-shrink-0">Repos</span><div class="flex flex-wrap gap-1">${repos}</div></div>`);
+    const repos = Object.entries(d.repos).map(([k,v]) => `<span class="inline-block px-2 py-0.5 rounded text-[11px]" style="background:rgba(56,189,248,.08);color:#7dd3fc;border:1px solid rgba(56,189,248,.12)">${esc(k)} → ${esc(v)}</span>`).join(' ');
+    details.push(`<div class="flex gap-2 items-start"><span class="text-[11px] w-16 flex-shrink-0" style="color:var(--text-3)">Repos</span><div class="flex flex-wrap gap-1">${repos}</div></div>`);
   }
   if (d.depends && d.depends.length) {
-    const depends = d.depends.map(dep => `<span class="inline-block px-2 py-0.5 rounded text-[11px]" style="background:var(--bg-hover)">${esc(dep)}</span>`).join(' ');
-    details.push(`<div class="flex gap-2"><span class="text-zinc-500 w-20 flex-shrink-0">Depends</span><div class="flex flex-wrap gap-1">${depends}</div></div>`);
+    const depends = d.depends.map(dep => `<span class="inline-block px-2 py-0.5 rounded text-[11px]" style="background:var(--bg-hover);border:1px solid var(--border-light)">${esc(dep)}</span>`).join(' ');
+    details.push(`<div class="flex gap-2 items-start"><span class="text-[11px] w-16 flex-shrink-0" style="color:var(--text-3)">Depends</span><div class="flex flex-wrap gap-1">${depends}</div></div>`);
   }
   if (d.rules && d.rules.length) {
-    const rules = d.rules.map(rule => `<li class="text-sm" style="color:var(--text-2)">${esc(rule)}</li>`).join('');
-    details.push(`<div class="flex gap-2"><span class="text-zinc-500 w-20 flex-shrink-0">Rules</span><ul class="list-disc list-inside">${rules}</ul></div>`);
+    const rules = d.rules.map(rule => `<div class="text-sm" style="color:var(--text-2)">• ${esc(rule)}</div>`).join('');
+    details.push(`<div class="flex gap-2 items-start"><span class="text-[11px] w-16 flex-shrink-0" style="color:var(--text-3)">Rules</span><div>${rules}</div></div>`);
   }
   if (details.length) {
-    html += `<section class="mb-6"><div class="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Feature Details</div><div class="space-y-2">${details.join('')}</div></section>`;
+    html += card(`${sectionTitle('Feature Details')}<div class="space-y-2">${details.join('')}</div>`);
   }
 
   if (d.subtasks && d.subtasks.length) {
     const subtasks = d.subtasks.map(st => {
       const done = st.status === 'done';
-      const icon = done ? '<span class="text-emerald-400">✓</span>' : '<span class="text-zinc-600">○</span>';
-      const id = st.id ? `<span class="text-[11px] text-zinc-500">${esc(st.id)}</span>` : '';
+      const icon = done ? '<span class="text-emerald-400">✓</span>' : '<span style="color:var(--text-4)">○</span>';
+      const id = st.id ? `<span class="text-[11px]" style="color:${done?'var(--text-4)':'var(--text-3)'};${done?'text-decoration:line-through':''}">${esc(st.id)}</span>` : '';
+      const nameStyle = done ? 'color:var(--text-4);text-decoration:line-through' : 'color:var(--text-2)';
       const desc = st.description ? `<div class="text-[11px] ml-5 mt-0.5" style="color:var(--text-3)">${esc(st.description)}</div>` : '';
-      return `<div>${icon} ${id} <span class="text-sm" style="color:${done ? 'var(--text-3)' : 'var(--text-2)'}">${esc(st.name)}</span>${desc}</div>`;
+      return `<div class="flex items-center gap-2">${icon} ${id} <span class="text-sm" style="${nameStyle}">${esc(st.name)}</span>${desc}</div>`;
     }).join('');
-    html += `<section class="mb-6"><div class="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Subtasks</div><div class="space-y-1">${subtasks}</div></section>`;
+    html += card(`${sectionTitle('Subtasks')}<div class="space-y-1.5">${subtasks}</div>`);
   }
 
   if (d.spec) html += renderDocSection('Spec', d.specSource);
   if (d.plan) html += renderDocSection('Plan', d.planSource);
 
-  el.innerHTML = html || '<div class="text-zinc-600 text-sm mt-8 text-center">No overview data</div>';
+  el.innerHTML = html || `<div style="color:var(--text-4)" class="text-sm mt-8 text-center">No overview data</div>`;
 }
 
 function renderDocSection(title, source) {
@@ -1841,7 +1900,7 @@ async function loadLogs(fid) {
     const r = ROLES[role] || {name:role,color:'#666',bg:'rgba(100,100,100,.05)'};
     const kb = (l.size/1024).toFixed(1);
     const active = currentLogFile === l.name ? 'bg-zinc-800/50' : '';
-    return `<div class="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-zinc-800/50 transition-colors ${active}" onclick="viewLog('${fid}','${escAttr(l.name)}')"><span class="w-1.5 h-1.5 rounded-full" style="background:${r.color}"></span><span class="text-xs font-semibold" style="color:${r.color}">${r.name}</span><span class="text-xs text-zinc-500">${esc(l.name)}</span><span class="ml-auto text-[10px] text-zinc-600">${kb}KB</span></div>`;
+    return `<div class="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-zinc-800/50 transition-colors ${active}" onclick="viewLog('${fid}','${escAttr(l.name)}')"><span class="text-xs font-semibold" style="color:${r.color}">${r.emoji||''} ${r.name}</span><span class="text-xs text-zinc-500">${esc(l.name)}</span><span class="ml-auto text-[10px] text-zinc-600">${kb}KB</span></div>`;
   }).join('');
   if (!logSSE) connectLogSSE(fid);
 }
@@ -1923,7 +1982,7 @@ async function openRunModal(fid) {
     const runners = s.runners || {};
     const names = Object.keys(runners);
     if (names.length === 0) names.push('claude');
-    const def = s.default_runner || (s.project && s.project.default) || names[0];
+    const def = s.default_runner || names[0];
     names.forEach(n => { const o = document.createElement('option'); o.value = n; o.textContent = n; if (n === def) o.selected = true; sel.appendChild(o); });
   } catch { sel.innerHTML = '<option value="claude">claude</option>'; }
   document.getElementById('run-modal').classList.add('open');
