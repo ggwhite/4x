@@ -198,3 +198,57 @@ func TestMonoRepo_DetectChangedRepos(t *testing.T) {
 		t.Errorf("expected no changes on fresh repo, got %v", changed)
 	}
 }
+
+func TestMonoRepo_MergeConflict(t *testing.T) {
+	root, _, ops := setupMonoWorkspace(t)
+	_, err := ops.SetupWorktree("feat-conflict")
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+
+	wtDir := Dir(root, "feat-conflict")
+	os.WriteFile(filepath.Join(wtDir, "conflict.txt"), []byte("from-branch"), 0o644)
+	runGit(t, wtDir, "add", "conflict.txt")
+	runGit(t, wtDir, "commit", "-m", "branch change")
+
+	os.WriteFile(filepath.Join(root, "conflict.txt"), []byte("from-main"), 0o644)
+	runGit(t, root, "add", "conflict.txt")
+	runGit(t, root, "commit", "-m", "main change")
+
+	result := ops.Merge("feat-conflict", "Conflict Feature")
+	if !result.Conflict {
+		t.Fatal("expected conflict")
+	}
+	if len(result.Files) == 0 {
+		t.Error("should report conflicting files")
+	}
+	// worktree should be preserved on conflict
+	if _, err := os.Stat(wtDir); err != nil {
+		t.Error("worktree should be preserved on conflict")
+	}
+}
+
+func TestMonoRepo_MergeDirtyWorkingTree(t *testing.T) {
+	root, _, ops := setupMonoWorkspace(t)
+	_, err := ops.SetupWorktree("feat-dirty")
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+
+	wtDir := Dir(root, "feat-dirty")
+	// branch also modifies main.go so git will refuse to merge with a dirty working tree
+	os.WriteFile(filepath.Join(wtDir, "main.go"), []byte("package main\n// from branch\n"), 0o644)
+	runGit(t, wtDir, "add", "main.go")
+	runGit(t, wtDir, "commit", "-m", "feat")
+
+	// dirty main working tree: unstaged modification to a file the branch also changed
+	os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n// dirty\n"), 0o644)
+
+	result := ops.Merge("feat-dirty", "Dirty Feature")
+	if result.Conflict {
+		t.Error("dirty tree should not be reported as conflict")
+	}
+	if result.Error == "" {
+		t.Error("dirty working tree should produce an error")
+	}
+}
