@@ -55,6 +55,7 @@ The dashboard exposes REST and SSE endpoints:
 | `/api/merged-config` | GET | Read-only view of project + user merged effective config |
 | `/api/locales` | GET | 回傳支援的 locale 清單 |
 | `/api/locales/{lang}` | GET | 回傳對應語言的翻譯 JSON |
+| `/api/doctor` | GET | Runner 安裝狀態與 LLM 用量報告 |
 
 #### `POST /api/done` Response
 
@@ -80,6 +81,13 @@ After a conflict, resolve the files in the worktree and run `4x merge <id>` to c
 ### Multi-Project Routing
 
 With multiple projects, endpoints are prefixed with `/api/project/{project-id}/...` and `/sse/project/{project-id}/...`. Single-project mode uses the unprefixed paths for backward compatibility.
+
+## Doctor Page
+
+Click **Doctor** in the sidebar to view runner installation status and LLM usage.
+
+- **Runners**: Card list showing each runner's name, command, version, and green (installed) or red (not found) indicator
+- **Usage**: Daily usage table powered by ccusage, showing tokens and cost per day with a Total row. Requires `ccusage` or `npx` to be available; shows install hint otherwise
 
 ## Process Management
 
