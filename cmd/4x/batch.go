@@ -44,6 +44,9 @@ func newBatchPlanCmd() *cobra.Command {
 			}
 
 			cfg, _ := ws.ReadConfig()
+			if userCfg, err := protocol.ReadUserConfig(); err == nil {
+				cfg = protocol.MergeConfig(userCfg, cfg)
+			}
 
 			features, err := ws.ListFeatures()
 			if err != nil {
@@ -194,6 +197,11 @@ func newBatchRunCmd() *cobra.Command {
 			cfg, err := ws.ReadConfig()
 			if err != nil {
 				return err
+			}
+			if userCfg, err := protocol.ReadUserConfig(); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: failed to read user config: %v\n", err)
+			} else {
+				cfg = protocol.MergeConfig(userCfg, cfg)
 			}
 
 			if runnerName == "" {

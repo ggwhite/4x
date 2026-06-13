@@ -68,8 +68,11 @@ func newRunCmd() *cobra.Command {
 				return err
 			}
 
-			userCfg, _ := protocol.ReadUserConfig()
-			cfg = protocol.MergeConfig(userCfg, cfg)
+			if userCfg, err := protocol.ReadUserConfig(); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: failed to read user config: %v\n", err)
+			} else {
+				cfg = protocol.MergeConfig(userCfg, cfg)
+			}
 
 			if runnerName == "" {
 				runnerName = cfg.Default

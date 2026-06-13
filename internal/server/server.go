@@ -875,7 +875,9 @@ var userConfigMu sync.Mutex
 
 // handleGetUserConfig 讀取 ~/.4x/settings.json 回傳 user config
 func handleGetUserConfig(w http.ResponseWriter) {
+	userConfigMu.Lock()
 	cfg, err := protocol.ReadUserConfig()
+	userConfigMu.Unlock()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -938,7 +940,9 @@ func handleGetMergedConfig(ws *protocol.Workspace, w http.ResponseWriter) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	userConfigMu.Lock()
 	userCfg, _ := protocol.ReadUserConfig()
+	userConfigMu.Unlock()
 	merged := protocol.MergeConfig(userCfg, projectCfg)
 
 	data, err := json.MarshalIndent(merged, "", "  ")
