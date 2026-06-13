@@ -6,8 +6,10 @@ dist/
 *.out
 vendor/
 
-# 4x runtime
-.4x/
+# 4x runtime (feature work dirs, but track settings)
+.4x/*/
+.4x/*.bak
+!.4x/settings.json
 
 # OS
 .DS_Store
