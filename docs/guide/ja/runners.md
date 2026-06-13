@@ -10,7 +10,7 @@
 
 | ランナー | AI ツール | モード | ステータス |
 |---|---|---|---|
-| `claude` | Claude Code CLI | PTY (tty: true) | 利用可能 |
+| `claude` | Claude Code CLI | Stream JSON | 利用可能 |
 | `codex` | OpenAI Codex CLI | Stdin | 利用可能 |
 | `gemini` | Google Gemini CLI | Argument | 利用可能 |
 | `agy` | Antigravity CLI | Argument | 利用可能 |
@@ -47,7 +47,7 @@
     │
     ├── 現在のロールのプロンプトを生成
     ├── プロンプト付きでランナーサブプロセスを起動
-    │     claude --dangerously-skip-permissions -p "..."
+    │     claude --dangerously-skip-permissions -p "..." --output-format stream-json --verbose
     ├── 出力を .4x/F001/logs/round-N-role.log にキャプチャ
     ├── 出力アーティファクトをチェック
     └── 状態を遷移して繰り返し
@@ -62,9 +62,13 @@
 | 2 | ハードエラー | ループが停止、対応が必要 |
 | timeout | 制限時間内に応答なし | ソフト失敗として扱う |
 
+### Stream JSON モード
+
+`output_format: "stream-json"` のランナーは、dashboard が tail する読みやすい `.log` と、デバッグ用の raw `.stream.jsonl` の 2 種類を書き込みます。Claude Code はデフォルトでこのモードを使います。
+
 ### PTY モード
 
-`tty: true` のランナー（Claude Code）は、ANSI エスケープシーケンスを含む完全な出力をキャプチャするために疑似端末を使用します。ステートフルな ANSI ストリッパーがログファイルをクリーンにします。
+`tty: true` のランナーは、ANSI エスケープシーケンスを含む完全な出力をキャプチャするために疑似端末を使用します。ステートフルな ANSI ストリッパーがログファイルをクリーンにします。`output_format` が `"stream-json"` の場合、この経路は使いません。
 
 ### Stdin モード
 

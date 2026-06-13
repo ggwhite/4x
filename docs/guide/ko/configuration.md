@@ -19,9 +19,9 @@
   "runners": {
     "claude": {
       "command": "claude",
-      "args": ["--dangerously-skip-permissions", "-p", "{prompt}"],
+      "args": ["--dangerously-skip-permissions", "-p", "{prompt}", "--output-format", "stream-json", "--verbose"],
       "model": "opus",
-      "tty": true
+      "output_format": "stream-json"
     },
     "codex": {
       "command": "codex",
@@ -68,7 +68,8 @@
 | `args` | 인수. `{prompt}`와 `{promptFile}`은 런타임에 대체됩니다. `{model}`은 역할의 모델로 대체됩니다. |
 | `model` | 이 러너의 기본 모델 |
 | `model_map` | 역할 모델 이름을 러너 전용 이름으로 매핑 (예: `{"opus": "claude-opus-4-5-20250514"}`). 조회 순서: 역할 model → model_map 변환 → 원래 이름으로 폴백. |
-| `tty` | 출력 캡처를 위한 PTY 사용 (Claude Code처럼 ANSI 출력이 있는 CLI 도구에 필요) |
+| `output_format` | `"stream-json"`으로 설정하면 runner stdout을 읽기 쉬운 `.log`와 raw `.stream.jsonl`로 기록합니다. |
+| `tty` | 출력 캡처를 위한 PTY 사용. `output_format`이 `"stream-json"`이면 PTY를 사용하지 않습니다. |
 | `stdin` | 인수 대신 stdin으로 프롬프트 전송 (Codex에서 사용) |
 | `quiet` | 러너의 터미널 stdout 출력을 억제합니다. 출력은 로그 파일에 기록됩니다. |
 

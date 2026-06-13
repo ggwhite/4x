@@ -19,9 +19,9 @@
   "runners": {
     "claude": {
       "command": "claude",
-      "args": ["--dangerously-skip-permissions", "-p", "{prompt}"],
+      "args": ["--dangerously-skip-permissions", "-p", "{prompt}", "--output-format", "stream-json", "--verbose"],
       "model": "opus",
-      "tty": true
+      "output_format": "stream-json"
     },
     "codex": {
       "command": "codex",
@@ -68,7 +68,8 @@
 | `args` | 引数。`{prompt}` と `{promptFile}` は実行時に置換されます。`{model}` はロールのモデルに置換されます。 |
 | `model` | このランナーのデフォルトモデル |
 | `model_map` | ロールモデル名をランナー固有の名前にマッピング（例：`{"opus": "claude-opus-4-5-20250514"}`）。検索順序：ロール model → model_map 変換 → 元の名前にフォールバック。 |
-| `tty` | 出力キャプチャに PTY を使用（Claude Code のような ANSI 出力を持つ CLI ツールに必要） |
+| `output_format` | `"stream-json"` にすると、runner stdout を読みやすい `.log` と raw `.stream.jsonl` に分けて記録します。 |
+| `tty` | 出力キャプチャに PTY を使用します。`output_format` が `"stream-json"` の場合は PTY を使いません。 |
 | `stdin` | 引数の代わりに標準入力でプロンプトを送信（Codex が使用） |
 | `quiet` | ランナーのターミナル stdout 出力を抑制。出力はログファイルに記録されます。 |
 

@@ -10,7 +10,7 @@
 
 | 러너 | AI 도구 | 모드 | 상태 |
 |---|---|---|---|
-| `claude` | Claude Code CLI | PTY (tty: true) | 사용 가능 |
+| `claude` | Claude Code CLI | Stream JSON | 사용 가능 |
 | `codex` | OpenAI Codex CLI | Stdin | 사용 가능 |
 | `gemini` | Google Gemini CLI | Argument | 사용 가능 |
 | `agy` | Antigravity CLI | Argument | 사용 가능 |
@@ -47,7 +47,7 @@
     │
     ├── 현재 역할에 대한 프롬프트 생성
     ├── 프롬프트와 함께 러너 서브프로세스 호출
-    │     claude --dangerously-skip-permissions -p "..."
+    │     claude --dangerously-skip-permissions -p "..." --output-format stream-json --verbose
     ├── 출력을 .4x/F001/logs/round-N-role.log에 캡처
     ├── 출력 아티팩트 확인
     └── 상태 전환 후 반복
@@ -62,9 +62,13 @@
 | 2 | 하드 오류 | 루프 중단, 주의 필요 |
 | timeout | 제한 시간 내 응답 없음 | 소프트 실패로 처리 |
 
+### Stream JSON 모드
+
+`output_format: "stream-json"` 러너는 dashboard가 tail하는 읽기 쉬운 `.log`와 디버깅용 raw `.stream.jsonl` 두 파일을 씁니다. Claude Code는 기본적으로 이 모드를 사용합니다.
+
 ### PTY 모드
 
-`tty: true`인 러너(Claude Code)는 ANSI 이스케이프 시퀀스를 포함한 전체 출력을 캡처하기 위해 의사 터미널을 사용합니다. 상태 유지 ANSI 스트리퍼가 로그 파일을 정리합니다.
+`tty: true`인 러너는 ANSI 이스케이프 시퀀스를 포함한 전체 출력을 캡처하기 위해 의사 터미널을 사용합니다. 상태 유지 ANSI 스트리퍼가 로그 파일을 정리합니다. `output_format`이 `"stream-json"`이면 이 경로를 사용하지 않습니다.
 
 ### Stdin 모드
 

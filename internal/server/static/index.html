@@ -829,6 +829,7 @@ function renderProjectSettingsForm() {
       ${psField('Command', 'ps-runner-cmd-'+name, rc.command)}
       ${psTagField('Args', 'ps-runner-args-'+name, rc.args)}
       ${psField('Model', 'ps-runner-model-'+name, rc.model)}
+      ${psField('Output Format', 'ps-runner-output-format-'+name, rc.output_format)}
       <div style="display:flex;gap:16px;margin-bottom:6px">
         <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:6px"><input type="checkbox" id="ps-runner-stdin-${escAttr(name)}"${rc.stdin?' checked':''} onchange="autoSave()"> stdin</label>
         <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:6px"><input type="checkbox" id="ps-runner-tty-${escAttr(name)}"${rc.tty?' checked':''} onchange="autoSave()"> tty</label>
@@ -903,6 +904,7 @@ function addRunner() {
   ${psField('Command', 'ps-runner-cmd-'+name, '')}
   ${psTagField('Args', 'ps-runner-args-'+name, [])}
   ${psField('Model', 'ps-runner-model-'+name, '')}
+  ${psField('Output Format', 'ps-runner-output-format-'+name, '')}
   <div style="display:flex;gap:16px;margin-bottom:6px">
     <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:6px"><input type="checkbox" id="ps-runner-stdin-${escAttr(name)}" onchange="autoSave()"> stdin</label>
     <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:6px"><input type="checkbox" id="ps-runner-tty-${escAttr(name)}" onchange="autoSave()"> tty</label>
@@ -956,6 +958,8 @@ function collectFormData() {
       if (args.length) rc.args = args;
       const model = (document.getElementById('ps-runner-model-'+name) || {}).value?.trim();
       if (model) rc.model = model;
+      const outputFormat = (document.getElementById('ps-runner-output-format-'+name) || {}).value?.trim();
+      if (outputFormat) rc.output_format = outputFormat;
       const stdin = (document.getElementById('ps-runner-stdin-'+name) || {}).checked;
       if (stdin) rc.stdin = true;
       const tty = (document.getElementById('ps-runner-tty-'+name) || {}).checked;

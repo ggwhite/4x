@@ -19,12 +19,12 @@ You can also edit this file visually from the **4x Live dashboard** — click th
     "rules": []
   },
   "runners": {
-    "claude": {
-      "command": "claude",
-      "args": ["--dangerously-skip-permissions", "-p", "{prompt}"],
-      "model": "opus",
-      "tty": true
-    },
+	    "claude": {
+	      "command": "claude",
+	      "args": ["--dangerously-skip-permissions", "-p", "{prompt}", "--output-format", "stream-json", "--verbose"],
+	      "model": "opus",
+	      "output_format": "stream-json"
+	    },
     "codex": {
       "command": "codex",
       "args": ["exec"],
@@ -70,7 +70,8 @@ You can also edit this file visually from the **4x Live dashboard** — click th
 | `args` | Arguments. `{prompt}` and `{promptFile}` are replaced at runtime. `{model}` is replaced with the role's model. |
 | `model` | Default model for this runner |
 | `model_map` | Map of role model names to runner-specific names (e.g. `{"opus": "claude-opus-4-5-20250514"}`). Lookup order: role model → model_map translation → fallback to original name. |
-| `tty` | Use PTY for capturing output (needed for CLI tools with ANSI output like Claude Code) |
+| `output_format` | Set to `"stream-json"` for runners whose stdout should be parsed into readable `.log` plus raw `.stream.jsonl` files. |
+| `tty` | Use PTY for capturing output. Ignored when `output_format` is `"stream-json"`. |
 | `stdin` | Send prompt via stdin instead of argument (used by Codex) |
 | `quiet` | Suppress runner stdout in terminal; output is still captured in log files |
 

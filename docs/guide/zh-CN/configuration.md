@@ -19,9 +19,9 @@
   "runners": {
     "claude": {
       "command": "claude",
-      "args": ["--dangerously-skip-permissions", "-p", "{prompt}"],
+      "args": ["--dangerously-skip-permissions", "-p", "{prompt}", "--output-format", "stream-json", "--verbose"],
       "model": "opus",
-      "tty": true
+      "output_format": "stream-json"
     },
     "codex": {
       "command": "codex",
@@ -68,7 +68,8 @@
 | `args` | 参数。`{prompt}` 和 `{promptFile}` 在运行时替换。`{model}` 替换为角色的模型。 |
 | `model` | 此 runner 的默认模型 |
 | `model_map` | 角色模型名称与 runner 专用名称的映射（例：`{"opus": "claude-opus-4-5-20250514"}`）。查找顺序：角色 model → model_map 翻译 → 回退原名。 |
-| `tty` | 使用 PTY 捕获输出（用于像 Claude Code 这样有 ANSI 输出的 CLI 工具） |
+| `output_format` | 设为 `"stream-json"` 时，runner stdout 会解析为可读 `.log` 和原始 `.stream.jsonl`。 |
+| `tty` | 使用 PTY 捕获输出。`output_format` 为 `"stream-json"` 时会跳过 PTY。 |
 | `stdin` | 通过标准输入发送 prompt 而非命令行参数（Codex 使用） |
 | `quiet` | 抑制 runner 的终端 stdout 输出；输出仍会写入 log 文件。 |
 

@@ -10,7 +10,7 @@ Runner 在 `.4x/settings.json` 的 `runners` 键下配置。CLI 以子进程方�
 
 | Runner | AI 工具 | 模式 | 状态 |
 |---|---|---|---|
-| `claude` | Claude Code CLI | PTY (tty: true) | 可用 |
+| `claude` | Claude Code CLI | Stream JSON | 可用 |
 | `codex` | OpenAI Codex CLI | Stdin | 可用 |
 | `gemini` | Google Gemini CLI | Argument | 可用 |
 | `agy` | Antigravity CLI | Argument | 可用 |
@@ -47,7 +47,7 @@ Runner 在 `.4x/settings.json` 的 `runners` 键下配置。CLI 以子进程方�
     │
     ├── Generate prompt for current role
     ├── Invoke runner subprocess with prompt
-    │     claude --dangerously-skip-permissions -p "..."
+    │     claude --dangerously-skip-permissions -p "..." --output-format stream-json --verbose
     ├── Capture output to .4x/F001/logs/round-N-role.log
     ├── Check output artifacts
     └── Transition state, repeat
@@ -62,9 +62,13 @@ Runner 在 `.4x/settings.json` 的 `runners` 键下配置。CLI 以子进程方�
 | 2 | 硬错误 | 循环停止，需要关注 |
 | timeout | 超过时限无响应 | 视为软失败 |
 
+### Stream JSON 模式
+
+设置 `output_format: "stream-json"` 的 runner 会写入两种文件：dashboard tail 的可读 `.log`，以及用于调试的原始 `.stream.jsonl`。Claude Code 默认使用此模式。
+
 ### PTY 模式
 
-`tty: true` 的 runner（Claude Code）使用伪终端捕获完整输出，包括 ANSI 转义序列。一个有状态的 ANSI 清理器会清洗日志文件。
+`tty: true` 的 runner 使用伪终端捕获完整输出，包括 ANSI 转义序列。一个有状态的 ANSI 清理器会清洗日志文件。`output_format` 为 `"stream-json"` 时会跳过此路径。
 
 ### Stdin 模式
 
