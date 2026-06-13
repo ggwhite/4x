@@ -48,31 +48,12 @@ func (m *monoRepo) SetupWorktree(featureID string) (string, error) {
 
 func (m *monoRepo) ensureDotDir(wtDir string) {
 	dotDir := filepath.Join(wtDir, protocol.DirName)
-
 	if info, err := os.Lstat(dotDir); err == nil {
 		if info.Mode()&os.ModeSymlink != 0 {
 			os.Remove(dotDir)
 		}
 	}
-
-	os.MkdirAll(dotDir, 0o755)
-
-	src := filepath.Join(m.root, protocol.DirName, protocol.ConfigFile)
-	dst := filepath.Join(dotDir, protocol.ConfigFile)
-	if data, err := os.ReadFile(src); err == nil {
-		os.WriteFile(dst, data, 0o644)
-	}
-
-	srcPlugins := filepath.Join(m.root, protocol.DirName, "plugins")
-	dstPlugins := filepath.Join(dotDir, "plugins")
-	if entries, err := os.ReadDir(srcPlugins); err == nil {
-		os.MkdirAll(dstPlugins, 0o755)
-		for _, e := range entries {
-			if !e.IsDir() {
-				copyFileIfExists(filepath.Join(srcPlugins, e.Name()), filepath.Join(dstPlugins, e.Name()))
-			}
-		}
-	}
+	syncDotDirContents(m.root, dotDir)
 }
 
 func (m *monoRepo) Commit(wtPath, featureID, featureName string, round int) error {
@@ -175,38 +156,16 @@ func (m *monoRepo) CaptureBaseline(featureID string, featureRepos []string) erro
 	if len(featureRepos) == 0 {
 		featureRepos = []string{"."}
 	}
-
 	baseline := protocol.Baseline{CreatedAt: time.Now()}
 	for _, repoPath := range featureRepos {
 		fullPath := filepath.Join(m.root, repoPath)
 		if repoPath == "." {
 			fullPath = m.root
 		}
-		if _, err := os.Stat(filepath.Join(fullPath, ".git")); err != nil {
-			continue
+		if br := captureRepoBaseline(fullPath, repoPath, repoPath); br != nil {
+			baseline.Repos = append(baseline.Repos, *br)
 		}
-
-		head := gitOutput(fullPath, "rev-parse", "HEAD")
-		branch := gitOutput(fullPath, "rev-parse", "--abbrev-ref", "HEAD")
-		statusOut := gitOutput(fullPath, "status", "--short")
-
-		var dirty []string
-		for _, line := range strings.Split(statusOut, "\n") {
-			line = strings.TrimSpace(line)
-			if line != "" {
-				dirty = append(dirty, line)
-			}
-		}
-
-		baseline.Repos = append(baseline.Repos, protocol.BaselineRepo{
-			Name:       repoPath,
-			Path:       repoPath,
-			Branch:     branch,
-			Head:       head,
-			DirtyFiles: dirty,
-		})
 	}
-
 	data, err := json.MarshalIndent(baseline, "", "  ")
 	if err != nil {
 		return err

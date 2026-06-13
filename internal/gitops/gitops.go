@@ -86,6 +86,58 @@ func copyFileIfExists(src, dst string) {
 	os.WriteFile(dst, data, 0o644)
 }
 
+// CopyFileIfExists 複製檔案，來源不存在時靜默忽略。供外部 package 使用。
+func CopyFileIfExists(src, dst string) {
+	copyFileIfExists(src, dst)
+}
+
+// syncDotDirContents 將 mainRoot 的 .4x/settings.json 和 plugins/ 複製到 dotDir。
+func syncDotDirContents(mainRoot, dotDir string) {
+	os.MkdirAll(dotDir, 0o755)
+
+	src := filepath.Join(mainRoot, protocol.DirName, protocol.ConfigFile)
+	dst := filepath.Join(dotDir, protocol.ConfigFile)
+	if data, err := os.ReadFile(src); err == nil {
+		os.WriteFile(dst, data, 0o644)
+	}
+
+	srcPlugins := filepath.Join(mainRoot, protocol.DirName, "plugins")
+	dstPlugins := filepath.Join(dotDir, "plugins")
+	if entries, err := os.ReadDir(srcPlugins); err == nil {
+		os.MkdirAll(dstPlugins, 0o755)
+		for _, e := range entries {
+			if !e.IsDir() {
+				copyFileIfExists(filepath.Join(srcPlugins, e.Name()), filepath.Join(dstPlugins, e.Name()))
+			}
+		}
+	}
+}
+
+// captureRepoBaseline 擷取單一 repo 的 baseline 狀態，若非 git repo 則回傳 nil。
+func captureRepoBaseline(fullPath, name, repoPath string) *protocol.BaselineRepo {
+	if _, err := os.Stat(filepath.Join(fullPath, ".git")); err != nil {
+		return nil
+	}
+	head := gitOutput(fullPath, "rev-parse", "HEAD")
+	branch := gitOutput(fullPath, "rev-parse", "--abbrev-ref", "HEAD")
+	statusOut := gitOutput(fullPath, "status", "--short")
+
+	var dirty []string
+	for _, line := range strings.Split(statusOut, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			dirty = append(dirty, line)
+		}
+	}
+	return &protocol.BaselineRepo{
+		Name:       name,
+		Path:       repoPath,
+		Branch:     branch,
+		Head:       head,
+		DirtyFiles: dirty,
+	}
+}
+
 func conflictFiles(root string) []string {
 	out, err := exec.Command("git", "-C", root, "diff", "--name-only", "--diff-filter=U").Output()
 	if err != nil {

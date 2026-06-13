@@ -794,7 +794,7 @@ func syncFeatureToWorktree(main, wt *protocol.Workspace, featureID string, round
 
 	// state + feature-level 檔案
 	for _, name := range []string{protocol.StateFile, protocol.TaskBrief, protocol.Criteria, protocol.TestStratFile} {
-		copyFileIfExists(filepath.Join(srcDir, name), filepath.Join(dstDir, name))
+		gitops.CopyFileIfExists(filepath.Join(srcDir, name), filepath.Join(dstDir, name))
 	}
 
 	// 當前 round 目錄
@@ -805,7 +805,7 @@ func syncFeatureToWorktree(main, wt *protocol.Workspace, featureID string, round
 		entries, _ := os.ReadDir(srcRound)
 		for _, e := range entries {
 			if !e.IsDir() {
-				copyFileIfExists(filepath.Join(srcRound, e.Name()), filepath.Join(dstRound, e.Name()))
+				gitops.CopyFileIfExists(filepath.Join(srcRound, e.Name()), filepath.Join(dstRound, e.Name()))
 			}
 		}
 	}
@@ -822,7 +822,7 @@ func syncFeatureFromWorktree(wt, main *protocol.Workspace, featureID string, rou
 		protocol.TaskBrief, protocol.Criteria, protocol.TestStratFile,
 		protocol.FinalReport, protocol.CommitPlan,
 	} {
-		copyFileIfExists(filepath.Join(srcDir, name), filepath.Join(dstDir, name))
+		gitops.CopyFileIfExists(filepath.Join(srcDir, name), filepath.Join(dstDir, name))
 	}
 
 	// round 目錄
@@ -832,7 +832,7 @@ func syncFeatureFromWorktree(wt, main *protocol.Workspace, featureID string, rou
 	entries, _ := os.ReadDir(srcRound)
 	for _, e := range entries {
 		if !e.IsDir() {
-			copyFileIfExists(filepath.Join(srcRound, e.Name()), filepath.Join(dstRound, e.Name()))
+			gitops.CopyFileIfExists(filepath.Join(srcRound, e.Name()), filepath.Join(dstRound, e.Name()))
 		}
 	}
 }
@@ -856,17 +856,4 @@ func startLiveSync(wt, main *protocol.Workspace, featureID string, round int) fu
 	return func() { close(done) }
 }
 
-func copyFileIfExists(src, dst string) {
-	data, err := os.ReadFile(src)
-	if err != nil {
-		return
-	}
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: mkdir %s: %v\n", filepath.Dir(dst), err)
-		return
-	}
-	if err := os.WriteFile(dst, data, 0o644); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: write %s: %v\n", dst, err)
-	}
-}
 

@@ -93,24 +93,7 @@ func (m *multiRepo) copyWorkspaceFiles(wtDir string) {
 
 func (m *multiRepo) ensureDotDir(wtDir string) {
 	dotDir := filepath.Join(wtDir, protocol.DirName)
-	os.MkdirAll(dotDir, 0o755)
-
-	src := filepath.Join(m.root, protocol.DirName, protocol.ConfigFile)
-	dst := filepath.Join(dotDir, protocol.ConfigFile)
-	if data, err := os.ReadFile(src); err == nil {
-		os.WriteFile(dst, data, 0o644)
-	}
-
-	srcPlugins := filepath.Join(m.root, protocol.DirName, "plugins")
-	dstPlugins := filepath.Join(dotDir, "plugins")
-	if entries, err := os.ReadDir(srcPlugins); err == nil {
-		os.MkdirAll(dstPlugins, 0o755)
-		for _, e := range entries {
-			if !e.IsDir() {
-				copyFileIfExists(filepath.Join(srcPlugins, e.Name()), filepath.Join(dstPlugins, e.Name()))
-			}
-		}
-	}
+	syncDotDirContents(m.root, dotDir)
 }
 
 func (m *multiRepo) Commit(wtRoot, featureID, featureName string, round int) error {
@@ -236,39 +219,16 @@ func (m *multiRepo) CaptureBaseline(featureID string, featureRepos []string) err
 	repoPaths := protocol.ResolveFeatureRepoPaths(
 		protocol.Feature{Repos: featureRepos}, m.cfg, m.root,
 	)
-
 	baseline := protocol.Baseline{CreatedAt: time.Now()}
 	for name, fullPath := range repoPaths {
-		if _, err := os.Stat(filepath.Join(fullPath, ".git")); err != nil {
-			continue
-		}
-
-		head := gitOutput(fullPath, "rev-parse", "HEAD")
-		branch := gitOutput(fullPath, "rev-parse", "--abbrev-ref", "HEAD")
-		statusOut := gitOutput(fullPath, "status", "--short")
-
-		var dirty []string
-		for _, line := range strings.Split(statusOut, "\n") {
-			line = strings.TrimSpace(line)
-			if line != "" {
-				dirty = append(dirty, line)
-			}
-		}
-
 		repoPath := ""
 		if rc, ok := m.cfg.Workspace.Repos[name]; ok {
 			repoPath = rc.Path
 		}
-
-		baseline.Repos = append(baseline.Repos, protocol.BaselineRepo{
-			Name:       name,
-			Path:       repoPath,
-			Branch:     branch,
-			Head:       head,
-			DirtyFiles: dirty,
-		})
+		if br := captureRepoBaseline(fullPath, name, repoPath); br != nil {
+			baseline.Repos = append(baseline.Repos, *br)
+		}
 	}
-
 	data, err := json.MarshalIndent(baseline, "", "  ")
 	if err != nil {
 		return err
