@@ -28,6 +28,8 @@ func setupTestRepo(t *testing.T) (mainDir string, wtDir string, featureID string
 	}
 
 	run("init")
+	run("config", "user.name", "test")
+	run("config", "user.email", "test@test.com")
 	run("commit", "--allow-empty", "-m", "init")
 
 	wtDir = filepath.Join(mainDir, ".worktrees", "4x", featureID)
