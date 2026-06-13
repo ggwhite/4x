@@ -34,13 +34,26 @@ func NextFeatureNumber(ws *Workspace) (int, error) {
 }
 
 // GenerateFeatureID 產生 F{NNN}-{slug} 格式的 feature ID。
+// 超過長度上限時在 word boundary（"-"）截斷，避免斷在字中間。
 func GenerateFeatureID(num int, name string) string {
 	slug := strings.ToLower(name)
 	slug = nonAlphaNum.ReplaceAllString(slug, "-")
 	slug = strings.Trim(slug, "-")
 	if len(slug) > maxFeatureIDSlugLength {
-		slug = slug[:maxFeatureIDSlugLength]
-		slug = strings.TrimRight(slug, "-")
+		truncated := slug[:maxFeatureIDSlugLength]
+		if idx := strings.LastIndex(truncated, "-"); idx > 0 {
+			slug = truncated[:idx]
+		} else {
+			slug = strings.TrimRight(truncated, "-")
+		}
 	}
+	return fmt.Sprintf("F%03d-%s", num, slug)
+}
+
+// GenerateFeatureIDFromSlug 用使用者指定的 slug 產生 feature ID，不做截斷。
+func GenerateFeatureIDFromSlug(num int, slug string) string {
+	slug = strings.ToLower(slug)
+	slug = nonAlphaNum.ReplaceAllString(slug, "-")
+	slug = strings.Trim(slug, "-")
 	return fmt.Sprintf("F%03d-%s", num, slug)
 }

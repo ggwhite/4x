@@ -1822,7 +1822,8 @@ function renderOverview(d, el) {
   const sectionTitle = (text) => `<div class="text-[10px] font-bold uppercase tracking-wider mb-3" style="color:var(--text-3)">${text}</div>`;
 
   if (d.description) {
-    html += card(`${sectionTitle('Description')}<div class="md-body text-sm" style="color:var(--text-2)">${typeof marked !== 'undefined' ? marked.parse(d.description) : '<pre>'+esc(d.description)+'</pre>'}</div>`);
+    const safeDesc = d.description.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    html += card(`${sectionTitle('Description')}<div class="md-body text-sm" style="color:var(--text-2)">${typeof marked !== 'undefined' ? marked.parse(safeDesc) : '<pre>'+esc(d.description)+'</pre>'}</div>`);
   }
 
   const details = [];

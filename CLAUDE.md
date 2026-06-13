@@ -105,6 +105,19 @@ docs/design/
 
 CI 跑 `make check-docs` 會檢查 subcommand 是否都出現在 `docs/guide/cli.md`，漏了會 fail。
 
+## Feature Description 撰寫規則
+
+feature 的 `description` 要讓 dashboard Overview 一眼看清全貌：
+
+- **現狀**：用 1-2 句描述目前的問題或缺口
+- **需求**：分點列出要做什麼，每點含具體細節（檔案路徑、欄位名、行為描述）
+- **約束**：列出不能做的事、不引入的依賴、不改的行為
+- **subtasks**：拆成可獨立驗收的子任務，每個有清楚的 id 和 name
+
+`4x new` 支援 `--desc`、`--subtask`、`--rule`、`--depends`、`--priority` 一次建完。
+ID 自動在 word boundary 截斷；用 `--id` 可指定完整 slug 不截斷。
+參考範例：F034、F040 的 YAML description 格式。
+
 ## Current State
 
 見 `progress.md` 了解目前進度，`feature_list.json` 列出待做功能。

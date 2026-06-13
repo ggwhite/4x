@@ -22,18 +22,32 @@ Initialize a `.4x/` workspace in the current directory.
 
 ## `4x new <title>`
 
-Create a new feature.
+Create a new feature with optional metadata.
 
 ```
-4x new "Feature title" [--repo <repo>...] [--json]
+4x new "Feature title" [flags]
 ```
 
 | Flag | Description |
 |---|---|
-| `--repo` | Repository in scope (repeatable for multi-repo features) |
+| `--id` | Custom slug for feature ID (skips auto-truncation) |
+| `--desc` | Feature description (defaults to title) |
+| `--subtask` | Subtask in `"id:name"` or `"id:name:description"` format (repeatable) |
+| `--rule` | Rule reference (repeatable) |
+| `--depends` | Dependency feature ID (repeatable) |
+| `--priority` | Priority level (1=high, 2=medium, 3=low) |
+| `--repo` | Repository in scope (repeatable) |
 | `--json` | Output as JSON |
 
 Creates `.4x/features/F{NNN}-{slug}.yaml` with status `not-started`.
+Auto-generated slug truncates at word boundary; use `--id` to override.
+
+Examples:
+```bash
+4x new "Dashboard SPA file split"
+4x new "Global settings" --id global-settings --desc "Add ~/.4x/settings.json"
+4x new "Auth refactor" --subtask "extract-mw:Extract middleware" --subtask "add-tests:Add tests"
+```
 
 ---
 
