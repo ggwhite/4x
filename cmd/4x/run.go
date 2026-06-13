@@ -272,18 +272,6 @@ func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, featur
 	return buf.String(), nil
 }
 
-// resolveModel 根據 role → runner config 優先序決定要傳給 CLI 的 model，
-// 再透過 runner 的 model_map 翻譯成該 runner 認識的名稱
-func resolveModel(cfg protocol.Config, runnerCfg protocol.RunnerConfig, role protocol.Role) string {
-	model := runnerCfg.Model
-	if rc, ok := cfg.Roles[string(role)]; ok && rc.Model != "" {
-		model = rc.Model
-	}
-	if mapped, ok := runnerCfg.ModelMap[model]; ok {
-		return mapped
-	}
-	return model
-}
 
 func runLoop(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s protocol.State, newRunner func(logPath string, model string) runner.Runner, commitStrategy string) error {
 	featureID := feature.ID
@@ -335,7 +323,13 @@ func runLoop(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature proto
 			}
 		}
 
-		model := resolveModel(cfg, cfg.Runners[s.Runner], role)
+		model, err := protocol.ResolveModel(cfg, s.Runner, role)
+		if err != nil {
+			s.Active = false
+			s.StopReason = "model-error"
+			ws.WriteState(featureID, s)
+			return fmt.Errorf("model resolution failed: %w", err)
+		}
 
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "phase-start", Phase: phase, Role: role, Round: s.Round,
