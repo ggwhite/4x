@@ -134,5 +134,6 @@
   "toast.mergeFailed": "완료됐지만 merge에 실패했습니다:\n{error}",
   "toast.runFailed": "실행 실패: {error}",
   "toast.stopFailed": "중지 실패: {error}",
+  "toast.doneSuccess": "{id} 완료로 표시됨",
   "toast.createFailed": "생성 실패: {error}"
 }

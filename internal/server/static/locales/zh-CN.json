@@ -134,5 +134,6 @@
   "toast.mergeFailed": "已完成，但 merge 失败：\n{error}",
   "toast.runFailed": "执行失败：{error}",
   "toast.stopFailed": "停止失败：{error}",
+  "toast.doneSuccess": "{id} 已标记完成",
   "toast.createFailed": "创建失败：{error}"
 }

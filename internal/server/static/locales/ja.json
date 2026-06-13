@@ -134,5 +134,6 @@
   "toast.mergeFailed": "完了しましたが、merge に失敗しました：\n{error}",
   "toast.runFailed": "実行に失敗しました：{error}",
   "toast.stopFailed": "停止に失敗しました：{error}",
+  "toast.doneSuccess": "{id} を完了にしました",
   "toast.createFailed": "作成に失敗しました：{error}"
 }

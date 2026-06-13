@@ -134,5 +134,6 @@
   "toast.mergeFailed": "Done, but merge failed:\n{error}",
   "toast.runFailed": "Run failed: {error}",
   "toast.stopFailed": "Stop failed: {error}",
+  "toast.doneSuccess": "{id} marked as done",
   "toast.createFailed": "Create failed: {error}"
 }

@@ -1170,6 +1170,8 @@ async function markDone(fid) {
       showToast(t('toast.mergeConflicts').replace('{conflicts}', (data.conflicts||[]).join('\n')).replace('{id}', fid), 'warn', 10000);
     } else if (data.merge_error) {
       showToast(t('toast.mergeFailed').replace('{error}', data.merge_error), 'warn', 10000);
+    } else {
+      showToast(t('toast.doneSuccess').replace('{id}', fid), 'success', 3000);
     }
     load(); if (!current) renderDashboard(lastTasks);
   });
