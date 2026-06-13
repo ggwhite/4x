@@ -554,6 +554,46 @@ func seedScreenshots(t *testing.T, ws *protocol.Workspace, featureID string) {
 	}
 }
 
+func seedSameNameScreenshots(t *testing.T, ws *protocol.Workspace, featureID string) {
+	t.Helper()
+	for _, round := range []int{1, 2} {
+		roundDir := ws.RoundDir(featureID, round)
+		if err := os.MkdirAll(roundDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		verify := protocol.VerifyEvidence{
+			Passed: true,
+			Round:  round,
+			Role:   protocol.RoleTester,
+			Screenshots: []protocol.Screenshot{
+				{
+					Path:        fmt.Sprintf("e2e/%s/round-%d/01-login.png", featureID, round),
+					Step:        "01",
+					Description: fmt.Sprintf("round %d", round),
+				},
+			},
+		}
+		verifyData, _ := json.Marshal(verify)
+		if err := os.WriteFile(filepath.Join(roundDir, protocol.VerifyFile), verifyData, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for _, round := range []int{1, 2} {
+		shotDir := filepath.Join(ws.DotDir(), "e2e", featureID, fmt.Sprintf("round-%d", round))
+		if err := os.MkdirAll(shotDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		body := "one"
+		if round == 2 {
+			body = "two"
+		}
+		if err := os.WriteFile(filepath.Join(shotDir, "01-login.png"), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestGetScreenshots(t *testing.T) {
 	ws := setupServerWorkspace(t)
 	seedScreenshots(t, ws, "test-feat")
@@ -600,6 +640,65 @@ func TestServeScreenshot(t *testing.T) {
 func TestServeScreenshot_InvalidExtensionRejected(t *testing.T) {
 	ws := setupServerWorkspace(t)
 	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/features/test-feat/screenshots/state.json", "")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+func TestGetScreenshots_UniqueURLForSameFilenameAcrossRounds(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	seedSameNameScreenshots(t, ws, "test-feat")
+
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/features/test-feat/screenshots", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+
+	var got screenshotsResponse
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(got.Groups) != 2 {
+		t.Fatalf("groups = %d, want 2", len(got.Groups))
+	}
+	u1 := got.Groups[0].Screenshots[0].URL
+	u2 := got.Groups[1].Screenshots[0].URL
+	if u1 == u2 {
+		t.Fatalf("urls should be unique, got %q", u1)
+	}
+	if strings.Contains(u1, "/round-1/") || strings.Contains(u2, "/round-2/") {
+		t.Fatalf("urls should use opaque token, got %q and %q", u1, u2)
+	}
+}
+
+func TestServeScreenshot_SameFilenameAcrossRoundsByEncodedPath(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	seedSameNameScreenshots(t, ws, "test-feat")
+
+	round1 := encodeScreenshotToken("e2e/test-feat/round-1/01-login.png")
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/features/test-feat/screenshots/"+round1, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if rec.Body.String() != "one" {
+		t.Fatalf("body = %q, want one", rec.Body.String())
+	}
+
+	round2 := encodeScreenshotToken("e2e/test-feat/round-2/01-login.png")
+	rec = serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/features/test-feat/screenshots/"+round2, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if rec.Body.String() != "two" {
+		t.Fatalf("body = %q, want two", rec.Body.String())
+	}
+}
+
+func TestServeScreenshot_AmbiguousBasenameRejected(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	seedSameNameScreenshots(t, ws, "test-feat")
+
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/features/test-feat/screenshots/01-login.png", "")
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", rec.Code)
 	}

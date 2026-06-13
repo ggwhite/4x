@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"embed"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -647,12 +648,16 @@ func handleGetScreenshots(ws *protocol.Workspace, featureID string, w http.Respo
 		items := make([]screenshotItem, 0, len(group.Screenshots))
 		for _, shot := range group.Screenshots {
 			filename := filepath.Base(shot.Path)
+			urlToken := encodeScreenshotToken(shot.Path)
+			if urlToken == "" {
+				urlToken = filename
+			}
 			items = append(items, screenshotItem{
 				Path:        shot.Path,
 				Step:        shot.Step,
 				Description: shot.Description,
 				Filename:    filename,
-				URL:         "/api/features/" + featureID + "/screenshots/" + url.PathEscape(filename),
+				URL:         "/api/features/" + featureID + "/screenshots/" + url.PathEscape(urlToken),
 			})
 		}
 		resp.Groups = append(resp.Groups, screenshotGroupResponse{
@@ -667,12 +672,17 @@ func handleGetScreenshots(ws *protocol.Workspace, featureID string, w http.Respo
 }
 
 func handleServeScreenshot(ws *protocol.Workspace, featureID, filename string, w http.ResponseWriter, r *http.Request) {
-	name := filepath.Base(filename)
-	if name == "" || name == "." {
+	token, err := url.PathUnescape(filename)
+	if err != nil {
 		http.Error(w, "invalid filename", http.StatusBadRequest)
 		return
 	}
-	if !isAllowedScreenshotExt(name) {
+	pathToken, ok := decodeScreenshotToken(token)
+	if !ok {
+		pathToken = normalizeScreenshotToken(token)
+	}
+	name := filepath.Base(pathToken)
+	if name == "" || name == "." || !isAllowedScreenshotExt(name) {
 		http.Error(w, "unsupported screenshot type", http.StatusBadRequest)
 		return
 	}
@@ -688,19 +698,12 @@ func handleServeScreenshot(ws *protocol.Workspace, featureID, filename string, w
 		return
 	}
 
-	targetPath := ""
-	for _, group := range groups {
-		for _, shot := range group.Screenshots {
-			if filepath.Base(shot.Path) == name {
-				targetPath = shot.Path
-				break
-			}
-		}
-		if targetPath != "" {
-			break
-		}
-	}
+	targetPath, ambiguous := resolveScreenshotPath(groups, pathToken, name)
 	if targetPath == "" {
+		if ambiguous {
+			http.Error(w, "ambiguous screenshot filename", http.StatusBadRequest)
+			return
+		}
 		http.NotFound(w, r)
 		return
 	}
@@ -727,6 +730,61 @@ func handleServeScreenshot(ws *protocol.Workspace, featureID, filename string, w
 
 	w.Header().Set("Content-Type", screenshotContentType(name))
 	http.ServeFile(w, r, abs)
+}
+
+func resolveScreenshotPath(groups []protocol.ScreenshotGroup, pathToken, name string) (string, bool) {
+	if pathToken != "" {
+		for _, group := range groups {
+			for _, shot := range group.Screenshots {
+				if normalizeScreenshotToken(shot.Path) == pathToken {
+					return shot.Path, false
+				}
+			}
+		}
+	}
+
+	matches := make([]string, 0, 2)
+	for _, group := range groups {
+		for _, shot := range group.Screenshots {
+			if filepath.Base(shot.Path) == name {
+				matches = append(matches, shot.Path)
+				if len(matches) > 1 {
+					return "", true
+				}
+			}
+		}
+	}
+	if len(matches) == 1 {
+		return matches[0], false
+	}
+	return "", false
+}
+
+func normalizeScreenshotToken(path string) string {
+	p := filepath.ToSlash(strings.TrimSpace(path))
+	p = strings.TrimPrefix(p, "./")
+	p = strings.TrimPrefix(p, ".4x/")
+	return p
+}
+
+func encodeScreenshotToken(path string) string {
+	normalized := normalizeScreenshotToken(path)
+	if normalized == "" {
+		return ""
+	}
+	return base64.RawURLEncoding.EncodeToString([]byte(normalized))
+}
+
+func decodeScreenshotToken(token string) (string, bool) {
+	if strings.TrimSpace(token) == "" {
+		return "", false
+	}
+	data, err := base64.RawURLEncoding.DecodeString(token)
+	if err != nil {
+		return "", false
+	}
+	decoded := normalizeScreenshotToken(string(data))
+	return decoded, decoded != ""
 }
 
 func getScreenshotDir(ws *protocol.Workspace) (string, error) {

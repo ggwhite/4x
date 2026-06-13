@@ -431,13 +431,12 @@ func (w *Workspace) DiscoverScreenshots(featureID, screenshotDir string) ([]Scre
 
 	byRound := make(map[int][]Screenshot)
 	seenPath := make(map[string]struct{})
-	seenBase := make(map[string]struct{})
 
-	rounds, err := w.discoverFromVerify(featureID, byRound, seenPath, seenBase)
+	rounds, err := w.discoverFromVerify(featureID, byRound, seenPath)
 	if err != nil {
 		return nil, err
 	}
-	if err := w.discoverFromDir(featureID, screenshotDir, rounds, byRound, seenPath, seenBase); err != nil {
+	if err := w.discoverFromDir(featureID, screenshotDir, rounds, byRound, seenPath); err != nil {
 		return nil, err
 	}
 
@@ -463,7 +462,6 @@ func (w *Workspace) discoverFromVerify(
 	featureID string,
 	byRound map[int][]Screenshot,
 	seenPath map[string]struct{},
-	seenBase map[string]struct{},
 ) ([]int, error) {
 	roundsDir := filepath.Join(w.FeatureDir(featureID), RoundsDir)
 	entries, err := os.ReadDir(roundsDir)
@@ -520,7 +518,6 @@ func (w *Workspace) discoverFromVerify(
 
 			byRound[roundNum] = append(byRound[roundNum], shot)
 			seenPath[path] = struct{}{}
-			seenBase[strings.ToLower(filepath.Base(path))] = struct{}{}
 		}
 	}
 
@@ -537,7 +534,6 @@ func (w *Workspace) discoverFromDir(
 	rounds []int,
 	byRound map[int][]Screenshot,
 	seenPath map[string]struct{},
-	seenBase map[string]struct{},
 ) error {
 	targets := resolveScreenshotDirs(featureID, screenshotDir, rounds)
 	for _, target := range targets {
@@ -567,18 +563,13 @@ func (w *Workspace) discoverFromDir(
 				continue
 			}
 			rel = normalizeScreenshotPath(rel)
-			base := strings.ToLower(filepath.Base(rel))
 			if _, ok := seenPath[rel]; ok {
-				continue
-			}
-			if _, ok := seenBase[base]; ok {
 				continue
 			}
 			step, desc := parseScreenshotFilename(e.Name())
 			shot := Screenshot{Path: rel, Step: step, Description: desc}
 			byRound[target.Round] = append(byRound[target.Round], shot)
 			seenPath[rel] = struct{}{}
-			seenBase[base] = struct{}{}
 		}
 	}
 	return nil

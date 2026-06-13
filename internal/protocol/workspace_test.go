@@ -542,6 +542,46 @@ func TestDiscoverScreenshotsMerge(t *testing.T) {
 	}
 }
 
+func TestDiscoverScreenshotsSameFilenameAcrossRounds(t *testing.T) {
+	ws := setupWorkspace(t)
+	const featureID = "feat-same-name"
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, round := range []int{1, 2} {
+		if err := os.MkdirAll(ws.RoundDir(featureID, round), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for _, dir := range []string{
+		filepath.Join(ws.DotDir(), "e2e", featureID, "round-1"),
+		filepath.Join(ws.DotDir(), "e2e", featureID, "round-2"),
+	} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "01-login.png"), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	groups, err := ws.DiscoverScreenshots(featureID, ".4x/e2e/{feature-id}/round-{round}/")
+	if err != nil {
+		t.Fatalf("DiscoverScreenshots: %v", err)
+	}
+	if len(groups) != 2 {
+		t.Fatalf("groups = %d, want 2", len(groups))
+	}
+	if len(groups[0].Screenshots) != 1 || len(groups[1].Screenshots) != 1 {
+		t.Fatalf("screenshots = %+v, want one per round", groups)
+	}
+	if groups[0].Screenshots[0].Path == groups[1].Screenshots[0].Path {
+		t.Fatalf("paths should differ by round, got %+v", groups)
+	}
+}
+
 func TestStateRunnersRoundtrip(t *testing.T) {
 	ws := setupWorkspace(t)
 	if err := ws.InitFeatureDir("feat-runners"); err != nil {
