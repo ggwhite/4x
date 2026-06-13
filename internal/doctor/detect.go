@@ -5,7 +5,7 @@ import (
 	"os/exec"
 	"regexp"
 	"sort"
-	"strings"
+	"sync"
 	"time"
 )
 
@@ -19,35 +19,40 @@ func parseVersion(output string) string {
 	return versionRe.FindString(output)
 }
 
-// DetectRunners 偵測每個 runner 的安裝狀態與版本。
+// DetectRunners 並行偵測每個 runner 的安裝狀態與版本。
 // runners 是 name → command 的對應（從 settings.json 的 RunnerConfig.Command 取得）。
-// 使用 `command -v` 而非 `which`，可偵測 shell function 型 runner（如 agy）。
 func DetectRunners(runners map[string]string) []RunnerHealth {
-	results := make([]RunnerHealth, 0, len(runners))
+	results := make([]RunnerHealth, len(runners))
+	var wg sync.WaitGroup
+
+	i := 0
 	for name, command := range runners {
-		rh := RunnerHealth{Name: name, Command: command}
-
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		out, err := exec.CommandContext(ctx, "sh", "-c", "command -v "+command).Output()
-		cancel()
-		if err != nil || strings.TrimSpace(string(out)) == "" {
-			results = append(results, rh)
-			continue
-		}
-		rh.Installed = true
-
-		ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
-		verOut, err := exec.CommandContext(ctx2, command, "--version").CombinedOutput()
-		cancel2()
-		if err == nil {
-			rh.Version = parseVersion(string(verOut))
-		}
-
-		results = append(results, rh)
+		results[i] = RunnerHealth{Name: name, Command: command}
+		wg.Add(1)
+		go func(idx int, cmd string) {
+			defer wg.Done()
+			detectOne(&results[idx], cmd)
+		}(i, command)
+		i++
 	}
+	wg.Wait()
 
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].Name < results[j].Name
 	})
 	return results
+}
+
+func detectOne(rh *RunnerHealth, command string) {
+	if _, err := exec.LookPath(command); err != nil {
+		return
+	}
+	rh.Installed = true
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, command, "--version").CombinedOutput()
+	if err == nil {
+		rh.Version = parseVersion(string(out))
+	}
 }

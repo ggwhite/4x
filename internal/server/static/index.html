@@ -2027,6 +2027,10 @@ function renderDoctor(report) {
       <div class="text-sm" style="color:var(--text-3)">ccusage not found</div>
       <div class="text-xs mt-2" style="color:var(--text-4)">Install with: <code class="px-2 py-0.5 rounded" style="background:var(--bg-input)">${esc(report.ccusageHint || 'npm i -g ccusage')}</code></div>
     </div>`;
+  } else if (report.ccusageError) {
+    usageHTML = `<div class="rounded-xl border p-6 text-center" style="border-color:var(--border);background:var(--bg-card)">
+      <div class="text-sm" style="color:#f87171">Error: ${esc(report.ccusageError)}</div>
+    </div>`;
   } else if (!report.usage || report.usage.length === 0) {
     usageHTML = `<div class="rounded-xl border p-6 text-center" style="border-color:var(--border);background:var(--bg-card)">
       <div class="text-sm" style="color:var(--text-3)">No usage data found</div>

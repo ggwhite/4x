@@ -77,6 +77,12 @@ func printUsage(report doctor.DoctorReport) {
 		return
 	}
 
+	if report.CcusageError != "" {
+		fmt.Printf("── Usage (via ccusage) ──\n")
+		fmt.Printf("  Error: %s\n\n", report.CcusageError)
+		return
+	}
+
 	if len(report.Usage) == 0 {
 		fmt.Printf("── Usage (via ccusage) ──\n")
 		fmt.Printf("  No usage data found.\n\n")

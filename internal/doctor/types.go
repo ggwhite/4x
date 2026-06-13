@@ -35,8 +35,9 @@ type UsageDailyEntry struct {
 
 // DoctorReport 是 `4x doctor` 的完整報告，包含 runner 狀態與 LLM 用量
 type DoctorReport struct {
-	Runners          []RunnerHealth   `json:"runners"`
+	Runners          []RunnerHealth    `json:"runners"`
 	Usage            []UsageDailyEntry `json:"usage"`
 	CcusageAvailable bool              `json:"ccusageAvailable"`
 	CcusageHint      string            `json:"ccusageHint,omitempty"`
+	CcusageError     string            `json:"ccusageError,omitempty"`
 }

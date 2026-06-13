@@ -20,9 +20,11 @@ func GenerateReport(ws *protocol.Workspace) DoctorReport {
 		}
 	}
 
-	entries, available, _ := FetchUsage()
+	entries, available, usageErr := FetchUsage()
 	report.CcusageAvailable = available
-	if available {
+	if usageErr != nil {
+		report.CcusageError = usageErr.Error()
+	} else if available {
 		report.Usage = entries
 	} else {
 		report.CcusageHint = ccusageInstallHint

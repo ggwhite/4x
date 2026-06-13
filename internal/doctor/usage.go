@@ -47,7 +47,7 @@ func FetchUsage() ([]UsageDailyEntry, bool, error) {
 	}
 	out, err := exec.CommandContext(ctx, npxPath, "ccusage", "daily", "--json").CombinedOutput()
 	if err != nil {
-		return nil, false, nil
+		return nil, true, fmt.Errorf("npx ccusage failed: %w", err)
 	}
 	entries, parseErr := parseCcusageOutput(out)
 	if parseErr != nil {
