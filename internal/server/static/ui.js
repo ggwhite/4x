@@ -326,7 +326,8 @@ function renderTaskItem(task) {
     const planTag = task.hasPlan ? '<span style="font-size:9px;padding:1px 4px;border-radius:4px;background:rgba(59,130,246,.12);color:#60a5fa">plan</span>' : '';
     docTags = specTag + planTag;
   }
-  const tagsLine = (prioTag || docTags) ? `<div class="flex gap-1 mt-1 flex-wrap">${prioTag}${docTags}</div>` : '';
+  const depTag = (task.depends && task.depends.length && task.status !== 'done') ? task.depends.map(d => `<span style="font-size:9px;padding:1px 4px;border-radius:4px;background:rgba(251,146,60,.10);color:#fb923c">→ ${d}</span>`).join('') : '';
+  const tagsLine = (prioTag || docTags || depTag) ? `<div class="flex gap-1 mt-1 flex-wrap">${prioTag}${docTags}${depTag}</div>` : '';
   return `<div class="${cls}" style="${cardStyle}" onclick="current='${task.id}';load();loadDetail(${JSON.stringify(task).replace(/"/g,'&quot;')})" onmouseenter="this.querySelector('.play-btn')&&(this.querySelector('.play-btn').style.opacity='1')" onmouseleave="this.querySelector('.play-btn')&&(this.querySelector('.play-btn').style.opacity='0')"><div class="flex items-start gap-2">${di}<div class="flex-1 min-w-0"><div class="flex items-center gap-2"><span class="text-[13px] font-medium truncate flex-1">${esc(task.name)}</span>${badge}</div><div class="text-[11px] text-zinc-600 mt-0.5">${task.id}</div>${pi}${tagsLine}${rtLine}</div>${doneBtn || actionBtn}</div></div>`;
 }
 

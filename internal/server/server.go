@@ -216,6 +216,7 @@ type taskInfo struct {
 	Priority  *int     `json:"priority,omitempty"`
 	HasSpec   bool     `json:"hasSpec,omitempty"`
 	HasPlan   bool     `json:"hasPlan,omitempty"`
+	Depends   []string `json:"depends,omitempty"`
 	CreatedAt string   `json:"createdAt,omitempty"`
 	UpdatedAt string   `json:"updatedAt,omitempty"`
 }
@@ -377,6 +378,7 @@ func handleTasks(ws *protocol.Workspace, w http.ResponseWriter) {
 		_, planSource := resolveDoc(ws.Root, f.Plan, f.ID, "plan")
 		t.HasSpec = specSource != ""
 		t.HasPlan = planSource != ""
+		t.Depends = f.Depends
 		if s, err := ws.ReadState(f.ID); err == nil {
 			ws.ReconcileActive(f.ID, &s)
 			t.Phase = string(s.Phase)
