@@ -2,11 +2,33 @@
 
 ## 安装
 
+### Homebrew (macOS / Linux)
+
+```bash
+brew install ggwhite/tap/4x
+```
+
+### Go Install
+
 ```bash
 go install github.com/ggwhite/4x/cmd/4x@latest
 ```
 
-需要 Go 1.26+。验证安装：
+需要 Go 1.26+。
+
+### Shell Script
+
+```bash
+curl -sSfL https://raw.githubusercontent.com/ggwhite/4x/main/install.sh | sh
+```
+
+### 下载 Binary
+
+macOS、Linux、Windows（amd64 / arm64）的预编译 binary 可在 [Releases](https://github.com/ggwhite/4x/releases) 页面下载。
+
+### 验证
+
+验证安装：
 
 ```bash
 4x --help
