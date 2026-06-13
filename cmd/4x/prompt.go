@@ -184,17 +184,17 @@ func loadIncludes(root string, paths []string) []includeContent {
 }
 
 var localeNames = map[string]string{
-	"en":      "English",
-	"zh-Hant": "繁體中文",
-	"zh-Hans": "简体中文",
-	"ja":      "日本語",
-	"ko":      "한국어",
-	"es":      "Español",
-	"fr":      "Français",
-	"de":      "Deutsch",
-	"pt":      "Português",
-	"vi":      "Tiếng Việt",
-	"th":      "ภาษาไทย",
+	"en":    "English",
+	"zh-TW": "繁體中文",
+	"zh-CN": "简体中文",
+	"ja":    "日本語",
+	"ko":    "한국어",
+	"es":    "Español",
+	"fr":    "Français",
+	"de":    "Deutsch",
+	"pt":    "Português",
+	"vi":    "Tiếng Việt",
+	"th":    "ภาษาไทย",
 }
 
 func resolveLocale() (code, name string) {

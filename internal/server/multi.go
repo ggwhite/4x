@@ -31,7 +31,7 @@ type registryEntry struct {
 // ProjectRegistry 管理多個 workspace 的 in-memory 註冊表
 type ProjectRegistry struct {
 	mu      sync.RWMutex
-	entries []registryEntry
+	entries []*registryEntry
 	ids     map[string]bool
 }
 
@@ -57,7 +57,7 @@ func (r *ProjectRegistry) Add(ws *protocol.Workspace) string {
 	}
 	pm := newProcessManagerFromConfig(ws)
 	r.ids[id] = true
-	r.entries = append(r.entries, registryEntry{id: id, ws: ws, mux: NewMux(ws, pm), pm: pm})
+	r.entries = append(r.entries, &registryEntry{id: id, ws: ws, mux: NewMux(ws, pm), pm: pm})
 	return id
 }
 
@@ -103,17 +103,24 @@ func (r *ProjectRegistry) Get(id string) *protocol.Workspace {
 	return nil
 }
 
-// getEntry 取得指定 ID 的 registry entry（含快取的 mux）
+// getEntry 取得指定 ID 的 registry entry（指標穩定，不受 slice 重分配影響）
 func (r *ProjectRegistry) getEntry(id string) *registryEntry {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	for i := range r.entries {
-		if r.entries[i].id == id {
-			return &r.entries[i]
+	for _, e := range r.entries {
+		if e.id == id {
+			return e
 		}
 	}
 	return nil
+}
+
+// Count 回傳已註冊專案數量，不做 disk I/O
+func (r *ProjectRegistry) Count() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return len(r.entries)
 }
 
 // List 回傳所有已註冊專案的資訊
@@ -230,6 +237,11 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 		}
 	}
 	compatGetWs := func(w http.ResponseWriter, hint string) *protocol.Workspace {
+		n := reg.Count()
+		if n != 1 {
+			compatError(w, n, hint)
+			return nil
+		}
 		entries := reg.List()
 		if len(entries) != 1 {
 			compatError(w, len(entries), hint)
@@ -249,30 +261,51 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 	mux.HandleFunc("/api/messages/", func(w http.ResponseWriter, r *http.Request) {
 		if ws := compatGetWs(w, "/api/project/{id}/api/messages/{featureId}"); ws != nil {
 			featureID := strings.TrimPrefix(r.URL.Path, "/api/messages/")
+			if !validFeatureID(featureID) {
+				http.Error(w, "invalid feature id", http.StatusBadRequest)
+				return
+			}
 			handleMessages(ws, featureID, w)
 		}
 	})
 	mux.HandleFunc("/api/overview/", func(w http.ResponseWriter, r *http.Request) {
 		if ws := compatGetWs(w, "/api/project/{id}/api/overview/{featureId}"); ws != nil {
 			featureID := strings.TrimPrefix(r.URL.Path, "/api/overview/")
+			if !validFeatureID(featureID) {
+				http.Error(w, "invalid feature id", http.StatusBadRequest)
+				return
+			}
 			handleOverview(ws, featureID, w)
 		}
 	})
 	mux.HandleFunc("/api/events/", func(w http.ResponseWriter, r *http.Request) {
 		if ws := compatGetWs(w, "/api/project/{id}/api/events/{featureId}"); ws != nil {
 			featureID := strings.TrimPrefix(r.URL.Path, "/api/events/")
+			if !validFeatureID(featureID) {
+				http.Error(w, "invalid feature id", http.StatusBadRequest)
+				return
+			}
 			handleEvents(ws, featureID, w)
 		}
 	})
 	mux.HandleFunc("/sse/events/", func(w http.ResponseWriter, r *http.Request) {
 		if ws := compatGetWs(w, "/sse/project/{id}/events/{featureId}"); ws != nil {
 			featureID := strings.TrimPrefix(r.URL.Path, "/sse/events/")
+			if !validFeatureID(featureID) {
+				http.Error(w, "invalid feature id", http.StatusBadRequest)
+				return
+			}
 			handleSSE(ws, featureID, w, r)
 		}
 	})
 	mux.HandleFunc("/api/logs/", func(w http.ResponseWriter, r *http.Request) {
 		if ws := compatGetWs(w, "/api/project/{id}/api/logs/{featureId}"); ws != nil {
 			rest := strings.TrimPrefix(r.URL.Path, "/api/logs/")
+			parts := strings.SplitN(rest, "/", 2)
+			if !validFeatureID(parts[0]) {
+				http.Error(w, "invalid feature id", http.StatusBadRequest)
+				return
+			}
 			handleLogs(ws, rest, w)
 		}
 	})
@@ -284,6 +317,10 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 	mux.HandleFunc("/sse/logs/", func(w http.ResponseWriter, r *http.Request) {
 		if ws := compatGetWs(w, "/sse/project/{id}/logs/{featureId}"); ws != nil {
 			featureID := strings.TrimPrefix(r.URL.Path, "/sse/logs/")
+			if !validFeatureID(featureID) {
+				http.Error(w, "invalid feature id", http.StatusBadRequest)
+				return
+			}
 			handleLogSSE(ws, featureID, w, r)
 		}
 	})
@@ -375,14 +412,22 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 		sub := rest[idx:]
 		if strings.HasPrefix(sub, "/logs/") {
 			featureID := strings.TrimPrefix(sub, "/logs/")
+			if !validFeatureID(featureID) {
+				http.Error(w, "invalid feature id", http.StatusBadRequest)
+				return
+			}
 			handleLogSSE(ws, featureID, w, r)
 		} else {
 			featureID := strings.TrimPrefix(sub, "/events/")
+			if !validFeatureID(featureID) {
+				http.Error(w, "invalid feature id", http.StatusBadRequest)
+				return
+			}
 			handleSSE(ws, featureID, w, r)
 		}
 	})
 
-	// Browse API：列出指定路徑的子目錄，供前端 folder picker 使用
+	// Browse API：列出指定路徑的子目錄，供前端 folder picker 使用（限制在 home 目錄下）
 	mux.HandleFunc("/api/browse", func(w http.ResponseWriter, r *http.Request) {
 		dir := r.URL.Query().Get("path")
 		home, _ := os.UserHomeDir()
@@ -394,6 +439,17 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 			}
 		} else if strings.HasPrefix(dir, "~") {
 			dir = home + dir[1:]
+		}
+
+		absDir, err := filepath.Abs(dir)
+		if err != nil {
+			http.Error(w, "invalid path", http.StatusBadRequest)
+			return
+		}
+		dir = absDir
+		if !strings.HasPrefix(dir, home) {
+			http.Error(w, "path must be under home directory", http.StatusForbidden)
+			return
 		}
 
 		entries, err := os.ReadDir(dir)

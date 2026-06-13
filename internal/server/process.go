@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strconv"
 	"sync"
@@ -176,7 +177,9 @@ func (pm *ProcessManager) ensureInactive(featureID string) {
 	if s.StopReason == "" {
 		s.StopReason = "process-exit"
 	}
-	pm.ws.WriteState(featureID, s)
+	if err := pm.ws.WriteState(featureID, s); err != nil {
+		fmt.Fprintf(os.Stderr, "[4x] ensureInactive: failed to write state for %s: %v\n", featureID, err)
+	}
 }
 
 // Stop 終止指定的 run（SIGTERM → 5 秒 → SIGKILL）。

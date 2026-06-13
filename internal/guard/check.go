@@ -56,7 +56,7 @@ func checkDependencies(ws *protocol.Workspace, featureID string, r *CheckResult)
 			r.Errors = append(r.Errors, fmt.Sprintf("dependency %q: cannot load feature: %v", depID, err))
 			continue
 		}
-		if dep.Status != "done" {
+		if dep.Status != protocol.StatusDone {
 			notDone = append(notDone, fmt.Sprintf("%s (status: %s)", depID, dep.Status))
 		}
 	}

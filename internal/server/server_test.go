@@ -947,8 +947,8 @@ func TestGetLocaleEN(t *testing.T) {
 	}
 
 	cc := rec.Header().Get("Cache-Control")
-	if !strings.Contains(cc, "immutable") {
-		t.Errorf("Cache-Control = %s, want immutable", cc)
+	if cc != "no-cache" {
+		t.Errorf("Cache-Control = %s, want no-cache", cc)
 	}
 
 	var translations map[string]string

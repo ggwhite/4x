@@ -218,7 +218,7 @@ func CompareBacklogMirror(features []Feature, mirror BacklogMirror) []BacklogDri
 		}
 		drift = appendFieldDrift(drift, f.ID, "name", f.Name, entry.Name)
 		drift = appendFieldDrift(drift, f.ID, "description", f.Description, entry.Description)
-		drift = appendFieldDrift(drift, f.ID, "status", f.Status, entry.Status)
+		drift = appendFieldDrift(drift, f.ID, "status", string(f.Status), entry.Status)
 		drift = appendPriorityDrift(drift, f, entry)
 	}
 

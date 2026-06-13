@@ -106,7 +106,9 @@ func newTransitionCmd() *cobra.Command {
 				return err
 			}
 
-			syncFeatureStatus(ws, featureID, toPhase)
+			if err := syncFeatureStatus(ws, featureID, toPhase); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+			}
 
 			ws.AppendEvent(featureID, protocol.Event{
 				Phase: toPhase,
@@ -142,26 +144,15 @@ func newTransitionCmd() *cobra.Command {
 	return cmd
 }
 
-func syncFeatureStatus(ws *protocol.Workspace, featureID string, phase protocol.Phase) {
+// syncFeatureStatus 將 feature YAML 的 Status 欄位同步為對應 phase 的狀態
+func syncFeatureStatus(ws *protocol.Workspace, featureID string, phase protocol.Phase) error {
 	f, err := ws.LoadFeature(featureID)
 	if err != nil {
-		return
+		return fmt.Errorf("sync feature status: load: %w", err)
 	}
-
-	switch phase {
-	case protocol.PhasePendingReview:
-		f.Status = "ready-for-review"
-	case protocol.PhaseDone:
-		f.Status = "done"
-	case protocol.PhaseBlocked:
-		f.Status = "blocked"
-	case protocol.PhaseNeedsAttention:
-		f.Status = "needs-attention"
-	case protocol.PhaseInit:
-		f.Status = "not-started"
-	default:
-		f.Status = "in-progress"
+	f.Status = protocol.PhaseToStatus(phase)
+	if err := ws.SaveFeature(f); err != nil {
+		return fmt.Errorf("sync feature status: save: %w", err)
 	}
-
-	ws.SaveFeature(f)
+	return nil
 }

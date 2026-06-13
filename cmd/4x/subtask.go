@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/spf13/cobra"
@@ -20,10 +21,20 @@ Examples:
   4x subtask F043-dashboard-screenshot-gall settings-screenshot-dir --status in-progress`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			featureID := args[0]
 			subtaskID := args[1]
 
-			ws := &protocol.Workspace{Root: "."}
+			cwd, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			ws, err := protocol.Find(cwd)
+			if err != nil {
+				return err
+			}
+			featureID, err := ws.ResolveFeatureID(args[0])
+			if err != nil {
+				return err
+			}
 			f, err := ws.LoadFeature(featureID)
 			if err != nil {
 				return fmt.Errorf("feature %s not found: %w", featureID, err)

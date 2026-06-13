@@ -113,22 +113,43 @@ func NewMux(ws *protocol.Workspace, pm *ProcessManager) http.Handler {
 	})
 	mux.HandleFunc("/api/messages/", func(w http.ResponseWriter, r *http.Request) {
 		featureID := strings.TrimPrefix(r.URL.Path, "/api/messages/")
+		if !validFeatureID(featureID) {
+			http.Error(w, "invalid feature id", http.StatusBadRequest)
+			return
+		}
 		handleMessages(ws, featureID, w)
 	})
 	mux.HandleFunc("/api/overview/", func(w http.ResponseWriter, r *http.Request) {
 		featureID := strings.TrimPrefix(r.URL.Path, "/api/overview/")
+		if !validFeatureID(featureID) {
+			http.Error(w, "invalid feature id", http.StatusBadRequest)
+			return
+		}
 		handleOverview(ws, featureID, w)
 	})
 	mux.HandleFunc("/api/events/", func(w http.ResponseWriter, r *http.Request) {
 		featureID := strings.TrimPrefix(r.URL.Path, "/api/events/")
+		if !validFeatureID(featureID) {
+			http.Error(w, "invalid feature id", http.StatusBadRequest)
+			return
+		}
 		handleEvents(ws, featureID, w)
 	})
 	mux.HandleFunc("/sse/events/", func(w http.ResponseWriter, r *http.Request) {
 		featureID := strings.TrimPrefix(r.URL.Path, "/sse/events/")
+		if !validFeatureID(featureID) {
+			http.Error(w, "invalid feature id", http.StatusBadRequest)
+			return
+		}
 		handleSSE(ws, featureID, w, r)
 	})
 	mux.HandleFunc("/api/logs/", func(w http.ResponseWriter, r *http.Request) {
 		rest := strings.TrimPrefix(r.URL.Path, "/api/logs/")
+		parts := strings.SplitN(rest, "/", 2)
+		if !validFeatureID(parts[0]) {
+			http.Error(w, "invalid feature id", http.StatusBadRequest)
+			return
+		}
 		handleLogs(ws, rest, w)
 	})
 	mux.HandleFunc("/api/features/", func(w http.ResponseWriter, r *http.Request) {
@@ -136,6 +157,10 @@ func NewMux(ws *protocol.Workspace, pm *ProcessManager) http.Handler {
 	})
 	mux.HandleFunc("/sse/logs/", func(w http.ResponseWriter, r *http.Request) {
 		featureID := strings.TrimPrefix(r.URL.Path, "/sse/logs/")
+		if !validFeatureID(featureID) {
+			http.Error(w, "invalid feature id", http.StatusBadRequest)
+			return
+		}
 		handleLogSSE(ws, featureID, w, r)
 	})
 	mux.HandleFunc("/api/locales/", func(w http.ResponseWriter, r *http.Request) {
@@ -156,13 +181,13 @@ func NewMux(ws *protocol.Workspace, pm *ProcessManager) http.Handler {
 
 // Start 啟動 dashboard web server。
 func Start(ws *protocol.Workspace, pm *ProcessManager, port int) error {
-	return http.ListenAndServe(fmt.Sprintf(":%d", port), NewMux(ws, pm))
+	return http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", port), NewMux(ws, pm))
 }
 
 // StartMulti 啟動多專案 dashboard server，ctx 取消時 graceful shutdown
 func StartMulti(ctx context.Context, reg *ProjectRegistry, port int, recentPath string) error {
 	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%d", port),
+		Addr:    fmt.Sprintf("127.0.0.1:%d", port),
 		Handler: NewMultiMux(reg, recentPath),
 	}
 	go func() {
@@ -315,7 +340,7 @@ func handlePostNew(ws *protocol.Workspace, w http.ResponseWriter, r *http.Reques
 		ID:          id,
 		Name:        req.Name,
 		Description: description,
-		Status:      "not-started",
+		Status:      protocol.StatusNotStarted,
 	}
 	if err := ws.SaveFeature(feature); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -342,7 +367,7 @@ func handleTasks(ws *protocol.Workspace, w http.ResponseWriter) {
 		t := taskInfo{
 			ID:     f.ID,
 			Name:   f.Name,
-			Status: f.Status,
+			Status: string(f.Status),
 		}
 		if s, err := ws.ReadState(f.ID); err == nil {
 			ws.ReconcileActive(f.ID, &s)
@@ -380,7 +405,7 @@ func handleOverview(ws *protocol.Workspace, featureID string, w http.ResponseWri
 		ID:          f.ID,
 		Name:        f.Name,
 		Description: f.Description,
-		Status:      f.Status,
+		Status:      string(f.Status),
 		Priority:    f.Priority,
 		Repos:       f.Repos,
 		Subtasks:    f.Subtasks,
@@ -533,14 +558,16 @@ func handleSSE(ws *protocol.Workspace, featureID string, w http.ResponseWriter, 
 				f.Seek(lastOffset, 0)
 			}
 			scanner := bufio.NewScanner(f)
+			consumed := lastOffset
 			for scanner.Scan() {
 				line := scanner.Text()
+				consumed += int64(len(scanner.Bytes())) + 1
 				if line == "" {
 					continue
 				}
 				fmt.Fprintf(w, "data: %s\n\n", line)
 			}
-			lastOffset = info.Size()
+			lastOffset = consumed
 			f.Close()
 			flusher.Flush()
 		}
@@ -748,18 +775,6 @@ func encodeScreenshotToken(path string) string {
 	return base64.RawURLEncoding.EncodeToString([]byte(normalized))
 }
 
-func decodeScreenshotToken(token string) (string, bool) {
-	if strings.TrimSpace(token) == "" {
-		return "", false
-	}
-	data, err := base64.RawURLEncoding.DecodeString(token)
-	if err != nil {
-		return "", false
-	}
-	decoded := protocol.NormalizeScreenshotPath(string(data))
-	return decoded, decoded != ""
-}
-
 func screenshotContentType(name string) string {
 	switch strings.ToLower(filepath.Ext(name)) {
 	case ".png":
@@ -831,7 +846,7 @@ func handleLogSSE(ws *protocol.Workspace, featureID string, w http.ResponseWrite
 				chunk, _ := json.Marshal(map[string]string{"file": current, "content": string(buf[:n])})
 				fmt.Fprintf(w, "data: %s\n\n", chunk)
 			}
-			lastOffset = info.Size()
+			lastOffset += int64(n)
 			flusher.Flush()
 		}
 	}
@@ -909,7 +924,7 @@ func handlePostDone(ws *protocol.Workspace, w http.ResponseWriter, r *http.Reque
 		errJSON, _ := json.Marshal(result.Error)
 		fmt.Fprintf(w, `{"status":"pending-review","merge_error":%s}`, errJSON)
 	} else {
-		if _, err := transitionDone(ws, req.ID, s); err != nil {
+		if _, err := transitionDone(ws, req.ID, s, f); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -922,8 +937,8 @@ func handlePostDone(ws *protocol.Workspace, w http.ResponseWriter, r *http.Reque
 	}
 }
 
-func transitionDone(ws *protocol.Workspace, featureID string, s protocol.State) (protocol.State, error) {
-	newState, err := state.Transition(s, protocol.PhaseDone, "")
+func transitionDone(ws *protocol.Workspace, featureID string, s protocol.State, f protocol.Feature) (protocol.State, error) {
+	newState, err := state.Transition(s, protocol.PhaseDone, protocol.RoleDesigner)
 	if err != nil {
 		return protocol.State{}, err
 	}
@@ -934,11 +949,7 @@ func transitionDone(ws *protocol.Workspace, featureID string, s protocol.State) 
 		return protocol.State{}, err
 	}
 
-	f, err := ws.LoadFeature(featureID)
-	if err != nil {
-		return protocol.State{}, fmt.Errorf("failed to load feature: %w", err)
-	}
-	f.Status = "done"
+	f.Status = protocol.PhaseToStatus(protocol.PhaseDone)
 	if err := ws.SaveFeature(f); err != nil {
 		return protocol.State{}, fmt.Errorf("failed to save feature: %w", err)
 	}
@@ -1063,16 +1074,25 @@ func readIfExists(path string) string {
 	return string(data)
 }
 
+// validFeatureID 檢查 featureID 是否安全，拒絕 path traversal 攻擊
+func validFeatureID(id string) bool {
+	return id != "" && !strings.ContainsAny(id, "/\\") && !strings.Contains(id, "..")
+}
+
 // handleGetLocales 回傳支援的語言清單。
 func handleGetLocales(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	w.Header().Set("Cache-Control", "no-cache")
 	json.NewEncoder(w).Encode(supportedLocales)
 }
 
 // handleGetLocale 回傳對應語言的翻譯 JSON；不存在則 fallback 回 en.json。
 func handleGetLocale(w http.ResponseWriter, r *http.Request) {
 	lang := strings.TrimPrefix(r.URL.Path, "/api/locales/")
+	if strings.ContainsAny(lang, "/\\") || strings.Contains(lang, "..") {
+		http.Error(w, "invalid locale", http.StatusBadRequest)
+		return
+	}
 	filename := "static/locales/" + lang + ".json"
 	data, err := staticFS.ReadFile(filename)
 	if err != nil {

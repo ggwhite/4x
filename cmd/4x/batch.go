@@ -58,7 +58,7 @@ func newBatchPlanCmd() *cobra.Command {
 
 			var pending []protocol.Feature
 			for _, f := range features {
-				if f.Status != "done" {
+				if f.Status != protocol.StatusDone {
 					pending = append(pending, f)
 				}
 			}
@@ -151,18 +151,18 @@ func newBatchNextCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			statusMap := make(map[string]string)
+			statusMap := make(map[string]protocol.Status)
 			for _, f := range features {
 				statusMap[f.ID] = f.Status
 			}
 
 			for _, s := range plan.Schedule {
-				if statusMap[s.FeatureID] == "done" {
+				if batchCompleted(statusMap[s.FeatureID]) {
 					continue
 				}
 				allDone := true
 				for _, dep := range s.CanStartAfter {
-					if statusMap[dep] != "done" {
+					if !batchCompleted(statusMap[dep]) {
 						allDone = false
 						break
 					}
@@ -222,7 +222,7 @@ func newBatchRunCmd() *cobra.Command {
 
 			var pending []protocol.Feature
 			for _, f := range features {
-				if f.Status != "done" {
+				if !batchCompleted(f.Status) {
 					pending = append(pending, f)
 				}
 			}
@@ -237,7 +237,7 @@ func newBatchRunCmd() *cobra.Command {
 				return err
 			}
 
-			statusMap := make(map[string]string)
+			statusMap := make(map[string]protocol.Status)
 			for _, f := range features {
 				statusMap[f.ID] = f.Status
 			}
@@ -254,12 +254,12 @@ func newBatchRunCmd() *cobra.Command {
 
 				next := ""
 				for _, s := range plan.Schedule {
-					if statusMap[s.FeatureID] == "done" {
+					if batchCompleted(statusMap[s.FeatureID]) {
 						continue
 					}
 					allDone := true
 					for _, dep := range s.CanStartAfter {
-						if statusMap[dep] != "done" {
+						if !batchCompleted(statusMap[dep]) {
 							allDone = false
 							break
 						}
@@ -281,7 +281,7 @@ func newBatchRunCmd() *cobra.Command {
 				feature, err := ws.LoadFeature(next)
 				if err != nil {
 					fmt.Printf("  error loading feature: %v\n", err)
-					statusMap[next] = "blocked"
+					statusMap[next] = protocol.StatusBlocked
 					continue
 				}
 
@@ -300,12 +300,13 @@ func newBatchRunCmd() *cobra.Command {
 					MaxRounds: rounds,
 					Active:    true,
 					Runner:    runnerName,
+					CreatedAt: time.Now(),
 				}
 				if existing, err := ws.ReadState(next); err == nil {
 					s = existing
 					s.Active = true
 				}
-				ws.WriteState(next, s)
+				_ = ws.WriteState(next, s)
 
 				signal.Ignore(syscall.SIGPIPE)
 				batchCtx, batchCancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -322,7 +323,7 @@ func newBatchRunCmd() *cobra.Command {
 					fmt.Printf("  feature %s failed: %v\n", next, err)
 				}
 
-				if updated.Status == "done" {
+				if batchCompleted(updated.Status) {
 					completed++
 				}
 
@@ -363,4 +364,8 @@ func newBatchStopCmd() *cobra.Command {
 			return nil
 		},
 	}
+}
+
+func batchCompleted(s protocol.Status) bool {
+	return s == protocol.StatusDone || s == protocol.StatusReadyForReview
 }

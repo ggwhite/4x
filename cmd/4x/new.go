@@ -94,7 +94,7 @@ Examples:
 				ID:          id,
 				Name:        displayName,
 				Description: description,
-				Status:      "not-started",
+				Status:      protocol.StatusNotStarted,
 				Priority:    priority,
 				Repos:       repoMap,
 				Subtasks:    parsedSubtasks,

@@ -41,12 +41,42 @@ const (
 	SeverityLow      Severity = "low"
 )
 
+// Status 表示 feature 的狀態，對應 Phase 但面向 dashboard 與人類可讀
+type Status string
+
+const (
+	StatusNotStarted     Status = "not-started"
+	StatusInProgress     Status = "in-progress"
+	StatusDone           Status = "done"
+	StatusBlocked        Status = "blocked"
+	StatusNeedsAttention Status = "needs-attention"
+	StatusReadyForReview Status = "ready-for-review"
+)
+
+// PhaseToStatus 將 state machine 的 Phase 映射為面向 dashboard 的 Status
+func PhaseToStatus(phase Phase) Status {
+	switch phase {
+	case PhasePendingReview:
+		return StatusReadyForReview
+	case PhaseDone:
+		return StatusDone
+	case PhaseBlocked:
+		return StatusBlocked
+	case PhaseNeedsAttention:
+		return StatusNeedsAttention
+	case PhaseInit:
+		return StatusNotStarted
+	default:
+		return StatusInProgress
+	}
+}
+
 // Feature 是 features/*.yaml 的結構
 type Feature struct {
 	ID          string            `yaml:"id" json:"id"`
 	Name        string            `yaml:"name" json:"name"`
 	Description string            `yaml:"description" json:"description"`
-	Status      string            `yaml:"status" json:"status"`
+	Status      Status            `yaml:"status" json:"status"`
 	Priority    int               `yaml:"priority,omitempty" json:"priority,omitempty"`
 	Repos       map[string]string `yaml:"repos,omitempty" json:"repos,omitempty"`
 	Subtasks    []Subtask         `yaml:"subtasks,omitempty" json:"subtasks,omitempty"`

@@ -116,6 +116,7 @@ func newRunCmd() *cobra.Command {
 				if err := bgCmd.Start(); err != nil {
 					return jsonError(fmt.Sprintf("failed to start run: %v", err))
 				}
+				go bgCmd.Wait()
 
 				result := struct {
 					FeatureID string `json:"featureId"`
@@ -181,9 +182,10 @@ func newRunCmd() *cobra.Command {
 					resumePhase := roleToResumePhase(s.Role)
 					fmt.Printf("  recovering %s → %s (max rounds: %d)\n", s.Phase, resumePhase, s.MaxRounds)
 					ns, err := state.Transition(s, resumePhase, s.Role)
-					if err == nil {
-						s = ns
+					if err != nil {
+						return fmt.Errorf("recovery transition %s → %s: %w", s.Phase, resumePhase, err)
 					}
+					s = ns
 					s.StopReason = ""
 				}
 			}
@@ -236,8 +238,8 @@ func newRunCmd() *cobra.Command {
 					if cur.StopReason == "" {
 						cur.StopReason = "process-exit"
 					}
-					ws.WriteState(featureID, cur)
-					syncFeatureStatus(ws, featureID, cur.Phase)
+					_ = ws.WriteState(featureID, cur)
+					_ = syncFeatureStatus(ws, featureID, cur.Phase)
 					ws.AppendEvent(featureID, protocol.Event{
 						Type:   "run-end",
 						Phase:  cur.Phase,
@@ -322,15 +324,21 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		if err != nil {
 			return err
 		}
-		ws.WriteState(featureID, s)
-		syncFeatureStatus(ws, featureID, s.Phase)
+		if err := ws.WriteState(featureID, s); err != nil {
+			return fmt.Errorf("write state (init→designing): %w", err)
+		}
+		if err := syncFeatureStatus(ws, featureID, s.Phase); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+		}
 	}
 
 	for s.Active {
 		if ctx.Err() != nil {
 			s.Active = false
 			s.StopReason = "interrupted"
-			ws.WriteState(featureID, s)
+			if err := ws.WriteState(featureID, s); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: write state: %v\n", err)
+			}
 			return ctx.Err()
 		}
 
@@ -345,8 +353,12 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			s.Active = false
 			s.StopReason = reason
 			s.Phase = protocol.PhaseNeedsAttention
-			ws.WriteState(featureID, s)
-			syncFeatureStatus(ws, featureID, s.Phase)
+			if err := ws.WriteState(featureID, s); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: write state: %v\n", err)
+			}
+			if err := syncFeatureStatus(ws, featureID, s.Phase); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+			}
 			ws.AppendEvent(featureID, protocol.Event{Type: "escalation", Phase: s.Phase, Detail: reason, Runner: s.Runner})
 			fmt.Printf("  stopped: %s\n", reason)
 			return nil
@@ -375,11 +387,10 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			if err != nil {
 				s.Active = false
 				s.StopReason = "model-error"
-				ws.WriteState(featureID, s)
+				_ = ws.WriteState(featureID, s)
 				return fmt.Errorf("deep model resolution failed: %w", err)
 			}
 			if deepModel == "" {
-				// deep_model 未設定，跳過 deep review 直接走 accepting
 				next, nextRole, stopReason := protocol.PhaseAccepting, protocol.RoleDesigner, ""
 				newState, err := state.Transition(s, next, nextRole)
 				if err != nil {
@@ -390,8 +401,10 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 					s.Active = false
 					s.StopReason = stopReason
 				}
-				ws.WriteState(featureID, s)
-				syncFeatureStatus(ws, featureID, s.Phase)
+				if err := ws.WriteState(featureID, s); err != nil {
+					return fmt.Errorf("write state (skip deep-review): %w", err)
+				}
+				_ = syncFeatureStatus(ws, featureID, s.Phase)
 				ws.AppendEvent(featureID, protocol.Event{
 					Type: "transition", Phase: s.Phase, Role: s.Role, Round: s.Round,
 					Runner: s.Runner, Detail: "deep_model not configured, skipping deep review",
@@ -406,7 +419,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			if err != nil {
 				s.Active = false
 				s.StopReason = "model-error"
-				ws.WriteState(featureID, s)
+				_ = ws.WriteState(featureID, s)
 				return fmt.Errorf("model resolution failed: %w", err)
 			}
 		}
@@ -451,7 +464,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		if err != nil {
 			s.Active = false
 			s.StopReason = "runner-error"
-			ws.WriteState(featureID, s)
+			_ = ws.WriteState(featureID, s)
 			ws.AppendEvent(featureID, protocol.Event{
 				Type: "run-end", Phase: phase, Role: role, Round: s.Round,
 				Status: "error", Detail: err.Error(),
@@ -469,7 +482,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		if runner.IsHardError(result) {
 			s.Active = false
 			s.StopReason = "hard-error"
-			ws.WriteState(featureID, s)
+			_ = ws.WriteState(featureID, s)
 			return fmt.Errorf("runner returned hard error (exit 2)")
 		}
 
@@ -477,8 +490,8 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			s.Phase = protocol.PhaseBlocked
 			s.Active = false
 			s.StopReason = "soft-fail"
-			ws.WriteState(featureID, s)
-			syncFeatureStatus(ws, featureID, protocol.PhaseBlocked)
+			_ = ws.WriteState(featureID, s)
+			_ = syncFeatureStatus(ws, featureID, protocol.PhaseBlocked)
 			return nil
 		}
 
@@ -500,8 +513,10 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			s.Active = false
 			s.StopReason = stopReason
 		}
-		ws.WriteState(featureID, s)
-		syncFeatureStatus(ws, featureID, s.Phase)
+		if err := ws.WriteState(featureID, s); err != nil {
+			return fmt.Errorf("write state (%s): %w", s.Phase, err)
+		}
+		_ = syncFeatureStatus(ws, featureID, s.Phase)
 
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "transition", Phase: s.Phase, Role: s.Role, Round: s.Round,
@@ -513,14 +528,14 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 	case protocol.PhasePendingReview:
 		s.Active = false
 		s.StopReason = "pending-review"
-		ws.WriteState(featureID, s)
-		syncFeatureStatus(ws, featureID, protocol.PhasePendingReview)
+		_ = ws.WriteState(featureID, s)
+		_ = syncFeatureStatus(ws, featureID, protocol.PhasePendingReview)
 		fmt.Printf("\nFeature %s ready for review (%d rounds). Run '4x done %s' to complete.\n", featureID, s.Round, featureID)
 	case protocol.PhaseDone:
 		s.Active = false
 		s.StopReason = "done"
-		ws.WriteState(featureID, s)
-		syncFeatureStatus(ws, featureID, protocol.PhaseDone)
+		_ = ws.WriteState(featureID, s)
+		_ = syncFeatureStatus(ws, featureID, protocol.PhaseDone)
 		fmt.Printf("\nFeature %s complete (%d rounds)\n", featureID, s.Round)
 	case protocol.PhaseNeedsAttention, protocol.PhaseBlocked:
 		if s.Active {
@@ -528,7 +543,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			if s.StopReason == "" {
 				s.StopReason = "escalation"
 			}
-			ws.WriteState(featureID, s)
+			_ = ws.WriteState(featureID, s)
 		}
 	}
 	return nil
@@ -693,7 +708,11 @@ func readEscalation(ws *protocol.Workspace, featureID string, round int) protoco
 		return protocol.Escalation{}
 	}
 	var esc protocol.Escalation
-	json.Unmarshal(data, &esc)
+	if err := json.Unmarshal(data, &esc); err != nil {
+		esc.Needed = true
+		esc.Reason = fmt.Sprintf("malformed escalation.json: %v", err)
+		return esc
+	}
 	return esc
 }
 
@@ -891,8 +910,13 @@ func copyFileIfExists(src, dst string) {
 	if err != nil {
 		return
 	}
-	os.MkdirAll(filepath.Dir(dst), 0o755)
-	os.WriteFile(dst, data, 0o644)
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: mkdir %s: %v\n", filepath.Dir(dst), err)
+		return
+	}
+	if err := os.WriteFile(dst, data, 0o644); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: write %s: %v\n", dst, err)
+	}
 }
 
 func commitWorktree(wtPath, featureID, featureName string, round int) error {

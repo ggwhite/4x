@@ -74,16 +74,16 @@ type featureRow struct {
 }
 
 func categorize(f protocol.Feature, active bool) int {
-	if f.Status == "in-progress" && active {
+	if f.Status == protocol.StatusInProgress && active {
 		return 0 // running
 	}
-	if f.Status == "ready-for-review" {
+	if f.Status == protocol.StatusReadyForReview {
 		return 1 // review
 	}
-	if f.Status == "in-progress" || f.Status == "needs-attention" {
+	if f.Status == protocol.StatusInProgress || f.Status == protocol.StatusNeedsAttention {
 		return 2 // pending (in-progress but not actively running)
 	}
-	if f.Status == "done" {
+	if f.Status == protocol.StatusDone {
 		return 4
 	}
 	return 3 // not-started = todo
@@ -340,7 +340,7 @@ func showAllFeaturesJSON(ws *protocol.Workspace) error {
 		item := statusItemJSON{
 			ID:     f.ID,
 			Name:   f.Name,
-			Status: f.Status,
+			Status: string(f.Status),
 		}
 		if s, err := ws.ReadState(f.ID); err == nil {
 			item.Phase = string(s.Phase)
