@@ -118,6 +118,12 @@ func TestProcessManager_PipeOutputToEvents(t *testing.T) {
 
 func TestProcessManager_MaxParallel(t *testing.T) {
 	ws := setupPMWorkspace(t)
+
+	f2 := protocol.Feature{ID: "test-feat-2", Name: "Test 2", Status: "not-started"}
+	if err := ws.SaveFeature(f2); err != nil {
+		t.Fatal(err)
+	}
+
 	pm := NewProcessManager(ws, 1, fakeRunCommand(t))
 	defer pm.Shutdown()
 
@@ -125,8 +131,26 @@ func TestProcessManager_MaxParallel(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := pm.Start("test-feat", "", 5); err == nil {
+	if _, err := pm.Start("test-feat-2", "", 5); err == nil {
 		t.Error("expected error for exceeding max parallel, got nil")
+	}
+}
+
+func TestProcessManager_DuplicateFeature(t *testing.T) {
+	ws := setupPMWorkspace(t)
+	pm := NewProcessManager(ws, 2, fakeRunCommand(t))
+	defer pm.Shutdown()
+
+	if _, err := pm.Start("test-feat", "", 5); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := pm.Start("test-feat", "", 5)
+	if err == nil {
+		t.Fatal("expected error for duplicate feature run, got nil")
+	}
+	if !strings.Contains(err.Error(), "already has a running process") {
+		t.Errorf("unexpected error message: %s", err.Error())
 	}
 }
 

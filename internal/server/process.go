@@ -66,6 +66,12 @@ func (pm *ProcessManager) Start(featureID, runner string, maxRounds int) (*RunIn
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
+	for _, r := range pm.runs {
+		if r.FeatureID == featureID {
+			return nil, fmt.Errorf("feature %s already has a running process (run %s, pid %d)", featureID, r.ID, r.Pid)
+		}
+	}
+
 	if len(pm.runs) >= pm.maxParallel {
 		return nil, fmt.Errorf("max concurrent runs reached (%d)", pm.maxParallel)
 	}
