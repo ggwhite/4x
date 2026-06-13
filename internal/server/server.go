@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ggwhite/4x/internal/doctor"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/state"
 	"github.com/ggwhite/4x/internal/worktree"
@@ -110,6 +111,13 @@ func NewMux(ws *protocol.Workspace, pm *ProcessManager) http.Handler {
 			return
 		}
 		handlePostDone(ws, w, r)
+	})
+	mux.HandleFunc("/api/doctor", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		handleGetDoctor(ws, w)
 	})
 	mux.HandleFunc("/api/messages/", func(w http.ResponseWriter, r *http.Request) {
 		featureID := strings.TrimPrefix(r.URL.Path, "/api/messages/")
@@ -994,4 +1002,11 @@ func resolveDoc(root, yamlPath, featureID, suffix string) (string, string) {
 		return readIfExists(abs), source
 	}
 	return "", ""
+}
+
+// handleGetDoctor 回傳 doctor 報告的 JSON
+func handleGetDoctor(ws *protocol.Workspace, w http.ResponseWriter) {
+	report := doctor.GenerateReport(ws)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(report)
 }

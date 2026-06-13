@@ -281,6 +281,32 @@ Without paths, loads recent projects from `~/.4x/recent-projects.json` (LRU, max
 
 ---
 
+## `4x doctor`
+
+Check runner installation status and LLM usage.
+
+```
+4x doctor [--json]
+```
+
+Lists all configured runners with their installation status and version, then shows LLM usage via [ccusage](https://github.com/ryoppippi/ccusage) if available. Works even without `4x init` (runners list will be empty).
+
+| Flag | Description |
+|---|---|
+| `--json` | Output as JSON |
+
+**Examples:**
+
+```bash
+# Text output
+4x doctor
+
+# JSON output for scripting
+4x doctor --json | jq '.runners[] | select(.installed == false)'
+```
+
+---
+
 ## `4x mcp`
 
 Start the Model Context Protocol (MCP) server.

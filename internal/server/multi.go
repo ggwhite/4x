@@ -281,6 +281,19 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 			handleLogSSE(ws, featureID, w, r)
 		}
 	})
+	mux.HandleFunc("/api/doctor", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		entries := reg.List()
+		if len(entries) == 1 {
+			ws := reg.Get(entries[0].ID)
+			handleGetDoctor(ws, w)
+			return
+		}
+		compatError(w, len(entries), "/api/project/{id}/api/doctor")
+	})
 	mux.HandleFunc("/api/settings", func(w http.ResponseWriter, r *http.Request) {
 		entries := reg.List()
 		if len(entries) == 1 {
