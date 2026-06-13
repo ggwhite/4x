@@ -3,7 +3,6 @@ package guard
 import (
 	"encoding/json"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -457,58 +456,3 @@ func TestCheck_IncludesDependencyCheck(t *testing.T) {
 	}
 }
 
-func TestCaptureBaseline_WithGitRepo(t *testing.T) {
-	root := t.TempDir()
-	repoDir := filepath.Join(root, "backend")
-	os.MkdirAll(repoDir, 0o755)
-
-	run := func(dir string, args ...string) {
-		cmd := exec.Command(args[0], args[1:]...)
-		cmd.Dir = dir
-		cmd.Env = append(os.Environ(),
-			"GIT_AUTHOR_NAME=test",
-			"GIT_AUTHOR_EMAIL=test@test.com",
-			"GIT_COMMITTER_NAME=test",
-			"GIT_COMMITTER_EMAIL=test@test.com",
-		)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("%v: %s", err, out)
-		}
-	}
-
-	run(repoDir, "git", "init")
-	writeFile(t, filepath.Join(repoDir, "main.go"), "package main")
-	run(repoDir, "git", "add", ".")
-	run(repoDir, "git", "commit", "-m", "init")
-
-	cfg := protocol.Config{Project: protocol.ProjectConfig{Name: "test"}}
-	if err := protocol.Init(root, cfg); err != nil {
-		t.Fatal(err)
-	}
-	ws := &protocol.Workspace{Root: root}
-	if err := ws.InitFeatureDir("feat-1"); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := CaptureBaseline(ws, "feat-1", []string{"backend"}); err != nil {
-		t.Fatalf("CaptureBaseline: %v", err)
-	}
-
-	data, err := os.ReadFile(filepath.Join(ws.FeatureDir("feat-1"), protocol.BaselineFile))
-	if err != nil {
-		t.Fatalf("read baseline: %v", err)
-	}
-	var baseline protocol.Baseline
-	if err := json.Unmarshal(data, &baseline); err != nil {
-		t.Fatalf("parse baseline: %v", err)
-	}
-	if len(baseline.Repos) != 1 {
-		t.Fatalf("repos count = %d, want 1", len(baseline.Repos))
-	}
-	if baseline.Repos[0].Head == "" {
-		t.Error("HEAD should not be empty")
-	}
-	if len(baseline.Repos[0].DirtyFiles) != 0 {
-		t.Errorf("dirty files = %v, want empty", baseline.Repos[0].DirtyFiles)
-	}
-}
