@@ -198,6 +198,7 @@ func newRunCmd() *cobra.Command {
 				s.Runners = append(s.Runners, runnerName)
 			}
 
+			s.Pid = os.Getpid()
 			if err := ws.WriteState(featureID, s); err != nil {
 				return err
 			}
@@ -218,6 +219,8 @@ func newRunCmd() *cobra.Command {
 				commitStrategy = "per-round"
 			}
 
+			signal.Ignore(syscall.SIGPIPE)
+
 			ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 			defer cancel()
 
@@ -228,6 +231,7 @@ func newRunCmd() *cobra.Command {
 				}
 				if cur.Active {
 					cur.Active = false
+					cur.Pid = 0
 					if cur.StopReason == "" {
 						cur.StopReason = "process-exit"
 					}

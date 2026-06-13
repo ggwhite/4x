@@ -1652,6 +1652,9 @@ async function loadDetail(task) {
   } else if (task.runner) {
     meta.push(`<span>⬡ ${task.runner}</span>`);
   }
+  if (task.pid) {
+    meta.push(`<span class="text-zinc-600">pid ${task.pid}</span>`);
+  }
   document.getElementById('h-meta').innerHTML = meta.join('<span class="text-zinc-700">·</span>');
   disconnectLogSSE();
   disconnectSSE();

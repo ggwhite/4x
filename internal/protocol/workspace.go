@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -305,6 +306,32 @@ func (w *Workspace) ReadState(featureID string) (State, error) {
 		return State{}, err
 	}
 	return s, nil
+}
+
+// ProcessAlive 檢查 PID 是否仍在執行中
+func ProcessAlive(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	err := syscall.Kill(pid, 0)
+	return err == nil || err == syscall.EPERM
+}
+
+// ReconcileActive 以 process 存在為權威來源校正 Active 欄位。
+// 若 state 記錄 Active=true 但 PID 已不存在，自動將 Active 設為 false 並回寫。
+func (w *Workspace) ReconcileActive(featureID string, s *State) {
+	if !s.Active {
+		return
+	}
+	if ProcessAlive(s.Pid) {
+		return
+	}
+	s.Active = false
+	if s.StopReason == "" {
+		s.StopReason = "process-gone"
+	}
+	s.Pid = 0
+	_ = w.WriteState(featureID, *s)
 }
 
 // WriteState 寫入 feature 的 state.json

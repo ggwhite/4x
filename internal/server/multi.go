@@ -78,6 +78,17 @@ func (r *ProjectRegistry) Remove(id string) bool {
 	return false
 }
 
+// ShutdownAll 終止所有專案的 subprocess
+func (r *ProjectRegistry) ShutdownAll() {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, e := range r.entries {
+		if e.pm != nil {
+			e.pm.Shutdown()
+		}
+	}
+}
+
 // Get 取得指定 ID 的 workspace
 func (r *ProjectRegistry) Get(id string) *protocol.Workspace {
 	r.mu.RLock()
@@ -217,74 +228,58 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 			http.Error(w, "multiple projects loaded — use "+prefixHint, http.StatusBadRequest)
 		}
 	}
-	mux.HandleFunc("/api/tasks", func(w http.ResponseWriter, r *http.Request) {
+	compatGetWs := func(w http.ResponseWriter, hint string) *protocol.Workspace {
 		entries := reg.List()
-		if len(entries) == 1 {
-			ws := reg.Get(entries[0].ID)
-			handleTasks(ws, w)
-			return
+		if len(entries) != 1 {
+			compatError(w, len(entries), hint)
+			return nil
 		}
-		compatError(w, len(entries), "/api/project/{id}/api/tasks")
+		ws := reg.Get(entries[0].ID)
+		if ws == nil {
+			http.Error(w, "project unavailable", http.StatusServiceUnavailable)
+		}
+		return ws
+	}
+	mux.HandleFunc("/api/tasks", func(w http.ResponseWriter, r *http.Request) {
+		if ws := compatGetWs(w, "/api/project/{id}/api/tasks"); ws != nil {
+			handleTasks(ws, w)
+		}
 	})
 	mux.HandleFunc("/api/messages/", func(w http.ResponseWriter, r *http.Request) {
-		entries := reg.List()
-		if len(entries) == 1 {
-			ws := reg.Get(entries[0].ID)
+		if ws := compatGetWs(w, "/api/project/{id}/api/messages/{featureId}"); ws != nil {
 			featureID := strings.TrimPrefix(r.URL.Path, "/api/messages/")
 			handleMessages(ws, featureID, w)
-			return
 		}
-		compatError(w, len(entries), "/api/project/{id}/api/messages/{featureId}")
 	})
 	mux.HandleFunc("/api/overview/", func(w http.ResponseWriter, r *http.Request) {
-		entries := reg.List()
-		if len(entries) == 1 {
-			ws := reg.Get(entries[0].ID)
+		if ws := compatGetWs(w, "/api/project/{id}/api/overview/{featureId}"); ws != nil {
 			featureID := strings.TrimPrefix(r.URL.Path, "/api/overview/")
 			handleOverview(ws, featureID, w)
-			return
 		}
-		compatError(w, len(entries), "/api/project/{id}/api/overview/{featureId}")
 	})
 	mux.HandleFunc("/api/events/", func(w http.ResponseWriter, r *http.Request) {
-		entries := reg.List()
-		if len(entries) == 1 {
-			ws := reg.Get(entries[0].ID)
+		if ws := compatGetWs(w, "/api/project/{id}/api/events/{featureId}"); ws != nil {
 			featureID := strings.TrimPrefix(r.URL.Path, "/api/events/")
 			handleEvents(ws, featureID, w)
-			return
 		}
-		compatError(w, len(entries), "/api/project/{id}/api/events/{featureId}")
 	})
 	mux.HandleFunc("/sse/events/", func(w http.ResponseWriter, r *http.Request) {
-		entries := reg.List()
-		if len(entries) == 1 {
-			ws := reg.Get(entries[0].ID)
+		if ws := compatGetWs(w, "/sse/project/{id}/events/{featureId}"); ws != nil {
 			featureID := strings.TrimPrefix(r.URL.Path, "/sse/events/")
 			handleSSE(ws, featureID, w, r)
-			return
 		}
-		compatError(w, len(entries), "/sse/project/{id}/events/{featureId}")
 	})
 	mux.HandleFunc("/api/logs/", func(w http.ResponseWriter, r *http.Request) {
-		entries := reg.List()
-		if len(entries) == 1 {
-			ws := reg.Get(entries[0].ID)
+		if ws := compatGetWs(w, "/api/project/{id}/api/logs/{featureId}"); ws != nil {
 			rest := strings.TrimPrefix(r.URL.Path, "/api/logs/")
 			handleLogs(ws, rest, w)
-			return
 		}
-		compatError(w, len(entries), "/api/project/{id}/api/logs/{featureId}")
 	})
 	mux.HandleFunc("/sse/logs/", func(w http.ResponseWriter, r *http.Request) {
-		entries := reg.List()
-		if len(entries) == 1 {
-			ws := reg.Get(entries[0].ID)
+		if ws := compatGetWs(w, "/sse/project/{id}/logs/{featureId}"); ws != nil {
 			featureID := strings.TrimPrefix(r.URL.Path, "/sse/logs/")
 			handleLogSSE(ws, featureID, w, r)
-			return
 		}
-		compatError(w, len(entries), "/sse/project/{id}/logs/{featureId}")
 	})
 	mux.HandleFunc("/api/settings", func(w http.ResponseWriter, r *http.Request) {
 		entries := reg.List()
@@ -442,7 +437,20 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 		fmt.Fprint(w, indexHTML)
 	})
 
-	return mux
+	return recoverMiddleware(mux)
+}
+
+// recoverMiddleware 攔截 handler panic，回傳 500 而非 crash 整個 server
+func recoverMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rv := recover(); rv != nil {
+				fmt.Fprintf(os.Stderr, "[4x] panic in %s %s: %v\n", r.Method, r.URL.Path, rv)
+				http.Error(w, "internal server error", http.StatusInternalServerError)
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
 }
 
 // is4xProject 判斷目錄是否為 4x 專案（需有 .4x/features/）

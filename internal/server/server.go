@@ -3,6 +3,7 @@ package server
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"embed"
 	"encoding/json"
 	"errors"
@@ -157,9 +158,22 @@ func Start(ws *protocol.Workspace, pm *ProcessManager, port int) error {
 	return http.ListenAndServe(fmt.Sprintf(":%d", port), NewMux(ws, pm))
 }
 
-// StartMulti 啟動多專案 dashboard server
-func StartMulti(reg *ProjectRegistry, port int, recentPath string) error {
-	return http.ListenAndServe(fmt.Sprintf(":%d", port), NewMultiMux(reg, recentPath))
+// StartMulti 啟動多專案 dashboard server，ctx 取消時 graceful shutdown
+func StartMulti(ctx context.Context, reg *ProjectRegistry, port int, recentPath string) error {
+	srv := &http.Server{
+		Addr:    fmt.Sprintf(":%d", port),
+		Handler: NewMultiMux(reg, recentPath),
+	}
+	go func() {
+		<-ctx.Done()
+		reg.ShutdownAll()
+		srv.Close()
+	}()
+	err := srv.ListenAndServe()
+	if err == http.ErrServerClosed {
+		return nil
+	}
+	return err
 }
 
 type taskInfo struct {
@@ -170,6 +184,7 @@ type taskInfo struct {
 	Role      string   `json:"role"`
 	Round     int      `json:"round"`
 	Active    bool     `json:"active"`
+	Pid       int      `json:"pid,omitempty"`
 	Runner    string   `json:"runner"`
 	Runners   []string `json:"runners,omitempty"`
 	CreatedAt string   `json:"createdAt,omitempty"`
@@ -329,10 +344,12 @@ func handleTasks(ws *protocol.Workspace, w http.ResponseWriter) {
 			Status: f.Status,
 		}
 		if s, err := ws.ReadState(f.ID); err == nil {
+			ws.ReconcileActive(f.ID, &s)
 			t.Phase = string(s.Phase)
 			t.Role = string(s.Role)
 			t.Round = s.Round
 			t.Active = s.Active
+			t.Pid = s.Pid
 			t.Runner = s.Runner
 			t.Runners = s.Runners
 			if !s.CreatedAt.IsZero() {

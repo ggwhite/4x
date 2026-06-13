@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"runtime"
+	"syscall"
 
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/server"
@@ -74,7 +76,11 @@ With paths, opens each as a project tab.`,
 				launchNativeApp(port)
 			}
 
-			return server.StartMulti(reg, port, recentPath)
+			signal.Ignore(syscall.SIGPIPE)
+			ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+			defer stop()
+			fmt.Printf("  pid: %d\n", os.Getpid())
+			return server.StartMulti(ctx, reg, port, recentPath)
 		},
 	}
 

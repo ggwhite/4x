@@ -20,6 +20,7 @@ type RunInfo struct {
 	ID        string    `json:"id"`
 	FeatureID string    `json:"featureId"`
 	Runner    string    `json:"runner"`
+	Pid       int       `json:"pid,omitempty"`
 	Cmd       *exec.Cmd `json:"-"`
 	StartTime time.Time `json:"startTime"`
 	done      chan struct{}
@@ -94,6 +95,7 @@ func (pm *ProcessManager) Start(featureID, runner string, maxRounds int) (*RunIn
 		ID:        id,
 		FeatureID: featureID,
 		Runner:    runner,
+		Pid:       cmd.Process.Pid,
 		Cmd:       cmd,
 		StartTime: time.Now().UTC(),
 		done:      make(chan struct{}),
@@ -164,6 +166,7 @@ func (pm *ProcessManager) ensureInactive(featureID string) {
 		return
 	}
 	s.Active = false
+	s.Pid = 0
 	if s.StopReason == "" {
 		s.StopReason = "process-exit"
 	}
@@ -249,6 +252,7 @@ func cloneRunInfo(info *RunInfo) *RunInfo {
 		ID:        info.ID,
 		FeatureID: info.FeatureID,
 		Runner:    info.Runner,
+		Pid:       info.Pid,
 		StartTime: info.StartTime,
 	}
 }

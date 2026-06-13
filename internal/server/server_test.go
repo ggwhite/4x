@@ -43,6 +43,7 @@ func setupServerWorkspace(t *testing.T) *protocol.Workspace {
 		Role:      protocol.RoleCoder,
 		Round:     1,
 		Active:    true,
+		Pid:       os.Getpid(),
 		Runner:    "claude",
 	}
 	if err := ws.WriteState("test-feat", state); err != nil {

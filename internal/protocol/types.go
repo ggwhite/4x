@@ -107,6 +107,7 @@ type State struct {
 	Round                 int       `json:"round"`
 	MaxRounds             int       `json:"maxRounds"`
 	Active                bool      `json:"active"`
+	Pid                   int       `json:"pid,omitempty"`
 	Runner                string    `json:"runner"`
 	Label                 string    `json:"label,omitempty"`
 	CreatedAt             time.Time `json:"createdAt"`

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 )
 
@@ -510,5 +511,104 @@ func TestUserConfig_RoundTrip(t *testing.T) {
 	}
 	if got.Roles["designer"].Model != "opus" {
 		t.Errorf("Roles[designer].Model = %q, want opus", got.Roles["designer"].Model)
+	}
+}
+
+func TestProcessAlive(t *testing.T) {
+	if !ProcessAlive(os.Getpid()) {
+		t.Error("current process should be alive")
+	}
+	if ProcessAlive(0) {
+		t.Error("pid 0 should not be alive")
+	}
+	if ProcessAlive(-1) {
+		t.Error("pid -1 should not be alive")
+	}
+}
+
+func TestReconcileActive_DeadPid(t *testing.T) {
+	ws := setupWorkspace(t)
+	if err := ws.InitFeatureDir("feat-recon"); err != nil {
+		t.Fatal(err)
+	}
+	s := State{
+		FeatureID: "feat-recon",
+		Phase:     PhaseCoding,
+		Active:    true,
+		Pid:       999999999,
+	}
+	if err := ws.WriteState("feat-recon", s); err != nil {
+		t.Fatal(err)
+	}
+
+	ws.ReconcileActive("feat-recon", &s)
+
+	if s.Active {
+		t.Error("Active should be false after reconcile with dead PID")
+	}
+	if s.StopReason != "process-gone" {
+		t.Errorf("StopReason = %q, want process-gone", s.StopReason)
+	}
+
+	persisted, err := ws.ReadState("feat-recon")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if persisted.Active {
+		t.Error("persisted Active should be false")
+	}
+}
+
+func TestReconcileActive_LivePid(t *testing.T) {
+	ws := setupWorkspace(t)
+	if err := ws.InitFeatureDir("feat-live"); err != nil {
+		t.Fatal(err)
+	}
+	s := State{
+		FeatureID: "feat-live",
+		Phase:     PhaseCoding,
+		Active:    true,
+		Pid:       os.Getpid(),
+	}
+	if err := ws.WriteState("feat-live", s); err != nil {
+		t.Fatal(err)
+	}
+
+	ws.ReconcileActive("feat-live", &s)
+
+	if !s.Active {
+		t.Error("Active should remain true for live PID")
+	}
+}
+
+func TestReconcileActive_ZeroPid(t *testing.T) {
+	ws := setupWorkspace(t)
+	if err := ws.InitFeatureDir("feat-zero"); err != nil {
+		t.Fatal(err)
+	}
+	s := State{
+		FeatureID: "feat-zero",
+		Phase:     PhaseCoding,
+		Active:    true,
+		Pid:       0,
+	}
+	if err := ws.WriteState("feat-zero", s); err != nil {
+		t.Fatal(err)
+	}
+
+	ws.ReconcileActive("feat-zero", &s)
+
+	if s.Active {
+		t.Error("Active should be false when PID is 0")
+	}
+}
+
+func TestProcessAlive_EPERM(t *testing.T) {
+	// PID 1 通常是 launchd/init，kill(1, 0) 回傳 EPERM 但表示 process 存在
+	err := syscall.Kill(1, 0)
+	if err == syscall.EPERM {
+		if !ProcessAlive(1) {
+			t.Error("PID 1 should be considered alive (EPERM means it exists)")
+		}
 	}
 }
