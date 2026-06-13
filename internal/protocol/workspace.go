@@ -664,11 +664,12 @@ func IsScreenshotFile(name string) bool {
 	return ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".webp"
 }
 
-// NormalizeScreenshotPath 將截圖路徑正規化，去除前綴 ./、.4x/，並 trim 空白。
+// NormalizeScreenshotPath 將截圖路徑正規化，去除前綴 ./、.4x/，清除 .. 分量，並 trim 空白。
 func NormalizeScreenshotPath(path string) string {
 	p := filepath.ToSlash(strings.TrimSpace(path))
 	p = strings.TrimPrefix(p, "./")
 	p = strings.TrimPrefix(p, ".4x/")
+	p = filepath.ToSlash(filepath.Clean(filepath.FromSlash(p)))
 	return p
 }
 

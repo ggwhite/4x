@@ -926,3 +926,19 @@ func TestNormalizeScreenshotPath(t *testing.T) {
 		}
 	}
 }
+
+func TestNormalizeScreenshotPath_CleansDotDot(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"foo/../../etc/passwd.png", "../etc/passwd.png"},
+		{"e2e/feat/../feat2/01.png", "e2e/feat2/01.png"},
+	}
+	for _, tt := range tests {
+		got := NormalizeScreenshotPath(tt.input)
+		if got != tt.want {
+			t.Errorf("NormalizeScreenshotPath(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
