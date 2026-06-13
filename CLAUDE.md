@@ -90,14 +90,18 @@ docs/design/
 
 ## Documentation Maintenance
 
-先跑 `make check-docs-sync` 查看哪些 doc 需要更新，只更新被點名的檔案：
+每次改完程式碼、commit 前，跑以下兩個檢查：
 
 ```bash
-make check-docs-sync          # 比對 git diff，列出需更新的 docs
-make check-docs-sync BASE=HEAD~3  # 指定比對基準
+make check-docs-sync          # 比對 git diff，列出需更新的 docs（可加 BASE=HEAD~3）
+make check-i18n               # 檢查多國語系 key 是否同步（以 en.json 為基準）
 ```
 
-CI 跑 `make check-docs` 會檢查 subcommand 是否都出現在 `docs/guide/cli.md`，漏了會 fail。
+- `check-docs-sync` 輸出 `NEEDS_UPDATE` → 只更新被點名的 doc 檔
+- `check-i18n` 輸出 `ERROR: missing keys` → 補齊對應語系的缺漏 key
+- 兩者都 OK → 不需額外動作
+
+CI 另外跑 `make check-docs` 驗證所有 subcommand 都出現在 `docs/guide/cli.md`。
 
 ## Feature Description 撰寫規則
 
