@@ -297,7 +297,22 @@ func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, featur
 	}
 	var repoMap map[string]string
 	if len(cfg.Workspace.Repos) > 0 {
-		repoMap = protocol.ResolveFeatureRepoPaths(feature, cfg, ws.Root)
+		if runnerWs != ws {
+			// worktree 模式：組合目錄下 repo 子目錄以 name 命名，使用相對路徑讓 coder 在正確邊界內作業
+			featureRepos := make(map[string]bool, len(feature.Repos))
+			for _, r := range feature.Repos {
+				featureRepos[r] = true
+			}
+			repoMap = make(map[string]string, len(cfg.Workspace.Repos))
+			for name := range cfg.Workspace.Repos {
+				if len(feature.Repos) > 0 && !featureRepos[name] {
+					continue
+				}
+				repoMap[name] = name
+			}
+		} else {
+			repoMap = protocol.ResolveFeatureRepoPaths(feature, cfg, ws.Root)
+		}
 	}
 	data := promptData{
 		Feature:          feature,

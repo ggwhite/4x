@@ -60,13 +60,20 @@ func newMergeCmd() *cobra.Command {
 				name = f.Name
 			}
 
-			if err := exec.Command("git", "-C", wtDir, "add", "-A").Run(); err != nil {
-				return fmt.Errorf("git add in worktree failed: %w", err)
-			}
-			if exec.Command("git", "-C", wtDir, "diff", "--cached", "--quiet").Run() != nil {
-				msg := fmt.Sprintf("fix(%s): resolve merge conflicts — %s", featureID, name)
-				if out, err := exec.Command("git", "-C", wtDir, "commit", "-m", msg).CombinedOutput(); err != nil {
-					return fmt.Errorf("commit in worktree failed: %s", string(out))
+			if ops.IsMultiRepo() {
+				// multi-repo：per-repo commit，不對組合目錄本身執行 git
+				if err := ops.Commit(wtDir, featureID, name, 0); err != nil {
+					return fmt.Errorf("commit in worktree failed: %w", err)
+				}
+			} else {
+				if err := exec.Command("git", "-C", wtDir, "add", "-A").Run(); err != nil {
+					return fmt.Errorf("git add in worktree failed: %w", err)
+				}
+				if exec.Command("git", "-C", wtDir, "diff", "--cached", "--quiet").Run() != nil {
+					msg := fmt.Sprintf("fix(%s): resolve merge conflicts — %s", featureID, name)
+					if out, err := exec.Command("git", "-C", wtDir, "commit", "-m", msg).CombinedOutput(); err != nil {
+						return fmt.Errorf("commit in worktree failed: %s", string(out))
+					}
 				}
 			}
 

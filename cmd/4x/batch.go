@@ -312,10 +312,25 @@ func newBatchRunCmd() *cobra.Command {
 				signal.Ignore(syscall.SIGPIPE)
 				batchCtx, batchCancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 				batchOps := gitops.New(ws.Root, ws, cfg)
-				runnerFactory := func(logPath string, model string) runner.Runner {
-					return runner.NewRunner(ws, runnerName, runnerCfg, time.Duration(timeout)*time.Second, logPath, model)
+
+				batchRunnerWs := ws
+				commitStrategy := "never"
+				if cfg.Isolation == "worktree" {
+					wtPath, wtErr := batchOps.SetupWorktree(next)
+					if wtErr != nil {
+						fmt.Printf("  worktree setup failed: %v\n", wtErr)
+						statusMap[next] = protocol.StatusBlocked
+						batchCancel()
+						continue
+					}
+					batchRunnerWs = &protocol.Workspace{Root: wtPath}
+					commitStrategy = "per-round"
 				}
-				err = runLoop(batchCtx, ws, ws, feature, cfg, s, batchOps, runnerFactory, "never")
+
+				runnerFactory := func(logPath string, model string) runner.Runner {
+					return runner.NewRunner(batchRunnerWs, runnerName, runnerCfg, time.Duration(timeout)*time.Second, logPath, model)
+				}
+				err = runLoop(batchCtx, ws, batchRunnerWs, feature, cfg, s, batchOps, runnerFactory, commitStrategy)
 				batchCancel()
 
 				updated, _ := ws.LoadFeature(next)
