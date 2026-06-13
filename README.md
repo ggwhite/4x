@@ -92,12 +92,33 @@ Choosing 4x means trading speed and cost for structure and correctness. Be hones
 
 **Layer 3 — Live** is the multi-project dashboard. Watch your AI agents work in real-time, see phase transitions, stream logs. REST + SSE API.
 
+## Installation
+
+### Homebrew (macOS / Linux)
+
+```bash
+brew install ggwhite/tap/4x
+```
+
+### Go Install
+
+```bash
+go install github.com/ggwhite/4x/cmd/4x@latest
+```
+
+### Shell Script
+
+```bash
+curl -sSfL https://raw.githubusercontent.com/ggwhite/4x/main/install.sh | sh
+```
+
+### Download Binary
+
+Pre-built binaries for macOS, Linux, and Windows (amd64 / arm64) are available on the [Releases](https://github.com/ggwhite/4x/releases) page.
+
 ## Quick Start
 
 ```bash
-# Install
-go install github.com/ggwhite/4x/cmd/4x@latest
-
 # Initialize in your project
 cd my-project
 4x init

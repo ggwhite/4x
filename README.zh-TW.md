@@ -92,12 +92,33 @@
 
 **第三層 — Live** 是多專案儀表板。即時觀看你的 AI agent 工作、查看階段轉換、串流日誌。REST + SSE API。
 
+## 安裝
+
+### Homebrew (macOS / Linux)
+
+```bash
+brew install ggwhite/tap/4x
+```
+
+### Go Install
+
+```bash
+go install github.com/ggwhite/4x/cmd/4x@latest
+```
+
+### Shell Script
+
+```bash
+curl -sSfL https://raw.githubusercontent.com/ggwhite/4x/main/install.sh | sh
+```
+
+### 下載 Binary
+
+macOS、Linux、Windows（amd64 / arm64）的預編譯 binary 可在 [Releases](https://github.com/ggwhite/4x/releases) 頁面下載。
+
 ## 快速開始
 
 ```bash
-# 安裝
-go install github.com/ggwhite/4x/cmd/4x@latest
-
 # 在你的專案中初始化
 cd my-project
 4x init
