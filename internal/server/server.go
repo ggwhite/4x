@@ -593,7 +593,7 @@ func handleLogs(ws *protocol.Workspace, rest string, w http.ResponseWriter) {
 	w.Write(data)
 }
 
-// handleLogSSE 即時 tail 最新的 log 檔案
+// handleLogSSE 即時 tail log 檔案。支援 ?file= 指定特定檔案，未指定則追蹤最新的。
 func handleLogSSE(ws *protocol.Workspace, featureID string, w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -607,6 +607,7 @@ func handleLogSSE(ws *protocol.Workspace, featureID string, w http.ResponseWrite
 	flusher.Flush()
 
 	logsDir := filepath.Join(ws.FeatureDir(featureID), "logs")
+	pinnedFile := filepath.Base(r.URL.Query().Get("file"))
 	var lastFile string
 	var lastOffset int64
 
@@ -618,7 +619,12 @@ func handleLogSSE(ws *protocol.Workspace, featureID string, w http.ResponseWrite
 		case <-r.Context().Done():
 			return
 		case <-ticker.C:
-			current := findLatestLog(logsDir)
+			var current string
+			if pinnedFile != "" && pinnedFile != "." {
+				current = pinnedFile
+			} else {
+				current = findLatestLog(logsDir)
+			}
 			if current == "" {
 				continue
 			}

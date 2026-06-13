@@ -648,11 +648,13 @@ async function viewLog(fid, name) {
   const res = await fetch(apiBase()+'/api/logs/'+fid+'/'+name);
   viewer.textContent = await res.text();
   viewer.scrollTop = viewer.scrollHeight;
+  connectLogSSE(fid, name);
 }
 
-function connectLogSSE(fid) {
+function connectLogSSE(fid, file) {
   if (logSSE) { logSSE.close(); logSSE = null; }
-  logSSE = new EventSource(sseBase()+'/logs/'+fid);
+  const url = file ? sseBase()+'/logs/'+fid+'?file='+encodeURIComponent(file) : sseBase()+'/logs/'+fid;
+  logSSE = new EventSource(url);
   let sseLogFile = null;
   logSSE.onmessage = (e) => {
     const viewer = document.getElementById('log-viewer');
@@ -661,12 +663,12 @@ function connectLogSSE(fid) {
       const d = JSON.parse(e.data);
       if (d.file && d.file !== sseLogFile) {
         sseLogFile = d.file;
-        if (currentLogFile && d.file !== currentLogFile) {
-          loadLogs(fid);
-          return;
-        }
+        loadLogs(fid);
+        if (currentLogFile && d.file !== currentLogFile) return;
+        if (!currentLogFile) return;
         viewer.textContent = '';
       }
+      if (currentLogFile && d.file !== currentLogFile) return;
       viewer.textContent += d.content;
       viewer.scrollTop = viewer.scrollHeight;
     } catch(err) {}
