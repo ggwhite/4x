@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"text/tabwriter"
+	"time"
 
 	"github.com/ggwhite/4x/internal/doctor"
 	"github.com/ggwhite/4x/internal/protocol"
@@ -24,7 +24,6 @@ func newDoctorCmd() *cobra.Command {
 				return err
 			}
 			ws, _ := protocol.Find(cwd)
-
 			report := doctor.GenerateReport(ws)
 
 			if jsonOutput {
@@ -33,8 +32,16 @@ func newDoctorCmd() *cobra.Command {
 				return nil
 			}
 
-			printRunners(report)
-			printUsage(report)
+			if len(report.Runners) == 0 {
+				fmt.Printf("No runners configured.\n\n")
+			}
+			if !report.CcusageAvailable {
+				fmt.Printf("ccusage not found. Install with: %s\n\n", report.CcusageHint)
+			}
+
+			for _, r := range report.Runners {
+				printRunnerCard(r, report.CcusageAvailable)
+			}
 			return nil
 		},
 	}
@@ -43,80 +50,81 @@ func newDoctorCmd() *cobra.Command {
 	return cmd
 }
 
-func printRunners(report doctor.DoctorReport) {
-	installed := 0
-	for _, r := range report.Runners {
-		if r.Installed {
-			installed++
+func printRunnerCard(r doctor.RunnerUsage, ccusageAvail bool) {
+	status := "\033[31m✗\033[0m"
+	ver := ""
+	if r.Installed {
+		status = "\033[32m✓\033[0m"
+		if r.Version != "" {
+			ver = " \033[90m" + r.Version + "\033[0m"
 		}
 	}
-	fmt.Printf("── Runners (%d/%d installed) ──\n", installed, len(report.Runners))
+	fmt.Printf("── %s %s%s ──\n", r.Name, status, ver)
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-	fmt.Fprintf(w, "  RUNNER\tCOMMAND\tSTATUS\tVERSION\n")
-	fmt.Fprintf(w, "  ──────\t───────\t──────\t───────\n")
-	for _, r := range report.Runners {
-		status := "✗ not found"
-		version := "-"
-		if r.Installed {
-			status = "✓ installed"
-			if r.Version != "" {
-				version = r.Version
-			}
-		}
-		fmt.Fprintf(w, "  %s\t%s\t%s\t%s\n", r.Name, r.Command, status, version)
+	if r.Block5h != nil {
+		printBlock("5h", r.Block5h, 300)
 	}
-	w.Flush()
+
+	if r.Block7d != nil {
+		printBlock("7d", r.Block7d, 168*60)
+	}
+
+	if r.Recent7d != nil {
+		fmt.Printf("  7d   %s tokens, $%.2f (%d days)\n",
+			formatTokens(r.Recent7d.TotalTokens), r.Recent7d.TotalCost, r.Recent7d.Days)
+	}
+
+	if r.Block5h == nil && r.Block7d == nil && r.Recent7d == nil && ccusageAvail {
+		fmt.Printf("  No usage data\n")
+	}
+
 	fmt.Println()
 }
 
-func printUsage(report doctor.DoctorReport) {
-	if !report.CcusageAvailable {
-		fmt.Printf("── Usage ──\n")
-		fmt.Printf("  ccusage not found. Install with: %s\n\n", report.CcusageHint)
-		return
+func printBlock(label string, b *doctor.UsageBlock, totalMin int) {
+	remaining := time.Duration(b.Projection.RemainingMinutes) * time.Minute
+	endTime, _ := time.Parse(time.RFC3339, b.EndTime)
+	resetStr := endTime.Local().Format("15:04")
+	if totalMin > 300 {
+		resetStr = fmtDuration(remaining)
 	}
 
-	if report.CcusageError != "" {
-		fmt.Printf("── Usage (via ccusage) ──\n")
-		fmt.Printf("  Error: %s\n\n", report.CcusageError)
-		return
+	elapsed := totalMin - b.Projection.RemainingMinutes
+	if elapsed < 0 {
+		elapsed = 0
 	}
+	pct := float64(elapsed) / float64(totalMin) * 100
+	bar := renderBar(pct, 20)
 
-	if len(report.Usage) == 0 {
-		fmt.Printf("── Usage (via ccusage) ──\n")
-		fmt.Printf("  No usage data found.\n\n")
-		return
+	fmt.Printf("  %s   %s %.0f%% (%s left, resets %s)\n", label, bar, pct, fmtDuration(remaining), resetStr)
+	fmt.Printf("       $%.2f, %s tok", b.CostUSD, formatTokens(b.TotalTokens))
+	if b.BurnRate.CostPerHour > 0 {
+		fmt.Printf(", $%.0f/hr burn", b.BurnRate.CostPerHour)
 	}
-
-	fmt.Printf("── Usage (via ccusage) ──\n")
-	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-	fmt.Fprintf(w, "  DATE\tAGENTS\tTOKENS\tCOST\n")
-	fmt.Fprintf(w, "  ────\t──────\t──────\t────\n")
-
-	var totalTokens int64
-	var totalCost float64
-	for _, e := range report.Usage {
-		agents := "-"
-		if md, ok := e.Metadata["agents"]; ok {
-			if arr, ok := md.([]any); ok {
-				names := make([]string, 0, len(arr))
-				for _, a := range arr {
-					if s, ok := a.(string); ok {
-						names = append(names, s)
-					}
-				}
-				agents = strings.Join(names, ",")
-			}
-		}
-		fmt.Fprintf(w, "  %s\t%s\t%s\t$%.2f\n", e.Period, agents, formatTokens(e.TotalTokens), e.TotalCost)
-		totalTokens += e.TotalTokens
-		totalCost += e.TotalCost
-	}
-	fmt.Fprintf(w, "  \t\t─────\t─────\n")
-	fmt.Fprintf(w, "  Total\t\t%s\t$%.2f\n", formatTokens(totalTokens), totalCost)
-	w.Flush()
 	fmt.Println()
+}
+
+func renderBar(pct float64, width int) string {
+	filled := int(pct / 100 * float64(width))
+	if filled > width {
+		filled = width
+	}
+	color := "\033[32m"
+	if pct >= 80 {
+		color = "\033[31m"
+	} else if pct >= 50 {
+		color = "\033[33m"
+	}
+	return color + strings.Repeat("█", filled) + "\033[90m" + strings.Repeat("░", width-filled) + "\033[0m"
+}
+
+func fmtDuration(d time.Duration) string {
+	h := int(d.Hours())
+	m := int(d.Minutes()) % 60
+	if h > 0 {
+		return fmt.Sprintf("%dh%02dm", h, m)
+	}
+	return fmt.Sprintf("%dm", m)
 }
 
 func formatTokens(n int64) string {

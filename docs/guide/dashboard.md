@@ -82,9 +82,19 @@ After a conflict, resolve the files in the worktree and run `4x merge <id>` to c
 
 With multiple projects, endpoints are prefixed with `/api/project/{project-id}/...` and `/sse/project/{project-id}/...`. Single-project mode uses the unprefixed paths for backward compatibility.
 
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|---|---|
+| `Cmd+K` | Search |
+| `Cmd+,` | Project Settings (in project) / Global Settings (on home) |
+| `Cmd+Shift+,` | Global Settings |
+| `Cmd+Shift+D` | Doctor (runners & usage) |
+| `Esc` | Close current modal |
+
 ## Doctor Page
 
-Click **Doctor** in the sidebar to view runner installation status and LLM usage.
+Click **Doctor** in the sidebar or press `Cmd+Shift+D` to view runner installation status and LLM usage.
 
 - **Runners**: Card list showing each runner's name, command, version, and green (installed) or red (not found) indicator
 - **Usage**: Daily usage table powered by ccusage, showing tokens and cost per day with a Total row. Requires `ccusage` or `npx` to be available; shows install hint otherwise

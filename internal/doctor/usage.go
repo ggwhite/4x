@@ -5,53 +5,177 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"sync"
 	"time"
 )
 
-type ccusageResponse struct {
-	Daily []UsageDailyEntry `json:"daily"`
+var ccusageRunners = map[string]bool{
+	"claude": true, "codex": true, "gemini": true, "copilot": true,
 }
 
-// parseCcusageOutput 解析 ccusage daily --json 的輸出，回傳 daily 陣列
-func parseCcusageOutput(data []byte) ([]UsageDailyEntry, error) {
-	var resp ccusageResponse
+type blocksResponse struct {
+	Blocks []UsageBlock `json:"blocks"`
+}
+
+// parseBlocksOutput 解析 ccusage blocks --active --json 的輸出
+func parseBlocksOutput(data []byte) (*UsageBlock, error) {
+	var resp blocksResponse
 	if err := json.Unmarshal(data, &resp); err != nil {
-		return nil, fmt.Errorf("parse ccusage output: %w", err)
+		return nil, fmt.Errorf("parse ccusage blocks: %w", err)
 	}
-	return resp.Daily, nil
+	for i := range resp.Blocks {
+		if resp.Blocks[i].IsActive {
+			return &resp.Blocks[i], nil
+		}
+	}
+	return nil, nil
 }
 
-// FetchUsage 呼叫 ccusage daily --json 取得用量資料。
-// 回傳 (entries, available, error)：
-//   - available=false 表示 ccusage 及 npx 均不可用，此時 error 為 nil
-//   - error 只在 ccusage 可用但執行或解析失敗時回傳
-func FetchUsage() ([]UsageDailyEntry, bool, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
+// runCcusage 執行 ccusage 指令，優先用系統安裝的 ccusage，其次 npx
+func runCcusage(ctx context.Context, args ...string) ([]byte, bool, error) {
 	if _, err := exec.LookPath("ccusage"); err == nil {
-		out, err := exec.CommandContext(ctx, "ccusage", "daily", "--json").CombinedOutput()
+		out, err := exec.CommandContext(ctx, "ccusage", args...).CombinedOutput()
 		if err != nil {
-			return nil, true, fmt.Errorf("ccusage failed: %w", err)
+			return nil, true, fmt.Errorf("ccusage %v failed: %w", args, err)
 		}
-		entries, parseErr := parseCcusageOutput(out)
-		if parseErr != nil {
-			return nil, true, parseErr
-		}
-		return entries, true, nil
+		return out, true, nil
 	}
 
 	npxPath, err := exec.LookPath("npx")
 	if err != nil {
 		return nil, false, nil
 	}
-	out, err := exec.CommandContext(ctx, npxPath, "ccusage", "daily", "--json").CombinedOutput()
+	npxArgs := append([]string{"ccusage"}, args...)
+	out, err := exec.CommandContext(ctx, npxPath, npxArgs...).CombinedOutput()
 	if err != nil {
-		return nil, true, fmt.Errorf("npx ccusage failed: %w", err)
+		return nil, true, fmt.Errorf("npx ccusage %v failed: %w", args, err)
 	}
-	entries, parseErr := parseCcusageOutput(out)
-	if parseErr != nil {
-		return nil, true, parseErr
+	return out, true, nil
+}
+
+// fetchBlock 取得指定 session length 的 active block
+func fetchBlock(ctx context.Context, name string, sessionHours int) (*UsageBlock, bool, error) {
+	args := []string{name, "blocks", "--active", "--json"}
+	if sessionHours != 5 {
+		args = append(args, "--session-length", fmt.Sprintf("%d", sessionHours))
 	}
-	return entries, true, nil
+	out, avail, err := runCcusage(ctx, args...)
+	if !avail || err != nil {
+		return nil, avail, err
+	}
+	block, parseErr := parseBlocksOutput(out)
+	return block, true, parseErr
+}
+
+type dailyEntry struct {
+	TotalTokens int64   `json:"totalTokens"`
+	TotalCost   float64 `json:"totalCost"`
+	CostUSD     float64 `json:"costUSD"`
+}
+
+type dailyResponse struct {
+	Daily []dailyEntry `json:"daily"`
+}
+
+// parseDailySummary 解析 ccusage daily --json 並彙總為 UsageSummary
+func parseDailySummary(data []byte) (*UsageSummary, error) {
+	var resp dailyResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, fmt.Errorf("parse ccusage daily: %w", err)
+	}
+	if len(resp.Daily) == 0 {
+		return nil, nil
+	}
+	s := &UsageSummary{Days: len(resp.Daily)}
+	for _, e := range resp.Daily {
+		s.TotalTokens += e.TotalTokens
+		cost := e.TotalCost
+		if cost == 0 {
+			cost = e.CostUSD
+		}
+		s.TotalCost += cost
+	}
+	return s, nil
+}
+
+// RunnerUsageResult 是 FetchRunnerUsage 的回傳結構
+type RunnerUsageResult struct {
+	Block5h  *UsageBlock
+	Block7d  *UsageBlock
+	Daily7d  *UsageSummary
+	Available bool
+	Err       error
+}
+
+// FetchRunnerUsage 取得單一 runner 的用量資料。
+// Claude: 5h block + 7d block（blocks --session-length 168）
+// 其他 runner: 7d daily 彙總
+func FetchRunnerUsage(name string) RunnerUsageResult {
+	if !ccusageRunners[name] {
+		return RunnerUsageResult{}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var res RunnerUsageResult
+
+	if name == "claude" {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			b, avail, e := fetchBlock(ctx, name, 5)
+			mu.Lock()
+			defer mu.Unlock()
+			res.Available = res.Available || avail
+			res.Block5h = b
+			if e != nil && res.Err == nil {
+				res.Err = e
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			b, avail, e := fetchBlock(ctx, name, 168)
+			mu.Lock()
+			defer mu.Unlock()
+			res.Available = res.Available || avail
+			res.Block7d = b
+			if e != nil && res.Err == nil {
+				res.Err = e
+			}
+		}()
+	} else {
+		since := time.Now().AddDate(0, 0, -7).Format("20060102")
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			out, avail, e := runCcusage(ctx, name, "daily", "--since", since, "--json")
+			mu.Lock()
+			defer mu.Unlock()
+			res.Available = avail
+			if e != nil {
+				res.Err = e
+				return
+			}
+			if out != nil {
+				res.Daily7d, _ = parseDailySummary(out)
+			}
+		}()
+	}
+
+	wg.Wait()
+	return res
+}
+
+// CcusageAvailable 檢查 ccusage 是否可用
+func CcusageAvailable() bool {
+	if _, err := exec.LookPath("ccusage"); err == nil {
+		return true
+	}
+	if _, err := exec.LookPath("npx"); err == nil {
+		return true
+	}
+	return false
 }
