@@ -8,10 +8,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
-	"github.com/creack/pty/v2"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -75,9 +73,8 @@ func (r *SubprocessRunner) Run(ctx context.Context, prompt string) (*Result, err
 	var ptmx *os.File
 
 	if usePty {
-		attrs := &syscall.SysProcAttr{Setsid: true, Setctty: true, Ctty: 0}
 		var err error
-		ptmx, err = pty.StartWithAttrs(cmd, &pty.Winsize{Rows: 50, Cols: 120}, attrs)
+		ptmx, err = startPty(cmd)
 		if err != nil {
 			return nil, fmt.Errorf("runner %s failed to start (pty): %w", r.Name, err)
 		}

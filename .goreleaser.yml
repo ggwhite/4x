@@ -1,0 +1,64 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - go vet ./...
+    - go test ./...
+
+builds:
+  - main: ./cmd/4x
+    binary: 4x
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - "^style:"
+
+brews:
+  - repository:
+      owner: ggwhite
+      name: homebrew-tap
+    homepage: "https://github.com/ggwhite/4x"
+    description: "Multi-role AI development loop — Design, Code, Review, Test"
+    license: "MIT"
+    install: |
+      bin.install "4x"
+    test: |
+      system "#{bin}/4x", "--version"
+
+release:
+  github:
+    owner: ggwhite
+    name: 4x
+  draft: false
+  prerelease: auto
+  name_template: "v{{.Version}}"
