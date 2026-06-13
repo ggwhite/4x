@@ -173,12 +173,13 @@ func newRunCmd() *cobra.Command {
 				s = existing
 				s.Active = true
 				s.Runner = runnerName
+				s.MaxRounds = s.Round + maxRounds
 				if s.Phase == protocol.PhaseDone {
 					return fmt.Errorf("feature %s is already done", featureID)
 				}
 				if s.Phase == protocol.PhaseBlocked || s.Phase == protocol.PhaseNeedsAttention {
 					resumePhase := roleToResumePhase(s.Role)
-					fmt.Printf("  recovering %s → %s\n", s.Phase, resumePhase)
+					fmt.Printf("  recovering %s → %s (max rounds: %d)\n", s.Phase, resumePhase, s.MaxRounds)
 					ns, err := state.Transition(s, resumePhase, s.Role)
 					if err == nil {
 						s = ns
