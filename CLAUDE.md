@@ -67,7 +67,7 @@ any → blocked / needs-attention
 每次改動後至少跑：
 
 ```bash
-go build ./cmd/4x && go vet ./... && go test ./...
+go build ./cmd/4x && go vet ./... && go test -race ./...
 ```
 
 ## Plugin Development

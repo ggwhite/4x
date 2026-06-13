@@ -9,7 +9,7 @@ install:
 	go install -ldflags "-X main.version=$(VERSION)" ./cmd/4x
 
 test:
-	go test ./...
+	go test -race ./...
 
 clean:
 	rm -rf bin/
