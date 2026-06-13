@@ -1,5 +1,7 @@
 # F035: macOS Native Dashboard — Implementation Plan
 
+> **⚠️ SUPERSEDED by F036.** 改為統一用 Electron 涵蓋三平台。詳見 `F036-electron-cross-platform-plan.md`。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Enhance the existing WKWebView wrapper into a full native macOS app shell with server management, menu bar status item, popover, notifications, and Dock badge.

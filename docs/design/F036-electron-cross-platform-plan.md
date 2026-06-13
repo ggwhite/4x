@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 為 Windows/Linux 提供與 F035 macOS native app 功能對等的 Electron 桌面 dashboard。
+**Goal:** 以 Electron 統一 macOS + Windows + Linux 三平台桌面 dashboard，取代 F035 Swift 方案。
 
 **Architecture:** Electron main process 管理 `4x live` Go server subprocess，BrowserWindow 載入 localhost web UI。系統整合（tray、通知、badge、auto-update）全在 main process，renderer 只負責顯示。每個功能封裝為獨立 manager 模組，main.js 組裝。
 
@@ -24,11 +24,12 @@
 {
   "name": "4x-live",
   "version": "0.1.0",
-  "description": "4x Live Dashboard for Windows and Linux",
+  "description": "4x Live Dashboard (macOS, Windows, Linux)",
   "main": "src/main.js",
   "scripts": {
     "dev": "electron .",
-    "dist": "electron-builder --win --linux",
+    "dist": "electron-builder --mac --win --linux",
+    "dist:mac": "electron-builder --mac",
     "dist:win": "electron-builder --win",
     "dist:linux": "electron-builder --linux",
     "test": "vitest run",
@@ -54,6 +55,13 @@ appId: com.4x.live
 productName: 4x Live
 directories:
   output: dist
+
+mac:
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  icon: assets/icon.icns
+  category: public.app-category.developer-tools
 
 win:
   target:
@@ -958,7 +966,10 @@ const { nativeImage } = require('electron')
 function updateBadge(mainWindow, count) {
   if (!mainWindow) return
 
-  if (process.platform === 'win32') {
+  if (process.platform === 'darwin') {
+    const { app } = require('electron')
+    app.dock.setBadge(count > 0 ? String(count) : '')
+  } else if (process.platform === 'win32') {
     if (count === 0) {
       mainWindow.setOverlayIcon(null, '')
       return
@@ -1238,9 +1249,23 @@ git commit -m "feat(F036): add NotificationManager with SSE subscription"
 ```js
 // src/menu.js
 const { Menu, app } = require('electron')
+// macOS About panel 設定由 main.js 呼叫 app.setAboutPanelOptions()
 
 function buildAppMenu(mainWindow) {
+  const isMac = process.platform === 'darwin'
+
   const template = [
+    ...(isMac ? [{
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    }] : []),
     {
       label: 'File',
       submenu: [
@@ -1492,6 +1517,13 @@ function setupIpc() {
 }
 
 app.whenReady().then(async () => {
+  if (process.platform === 'darwin') {
+    app.setAboutPanelOptions({
+      applicationName: '4x Live',
+      applicationVersion: app.getVersion(),
+    })
+  }
+
   createWindow()
 
   const menu = buildAppMenu(mainWindow)
@@ -1585,6 +1617,8 @@ jobs:
     strategy:
       matrix:
         include:
+          - os: macos-latest
+            args: --mac
           - os: windows-latest
             args: --win
           - os: ubuntu-latest
@@ -1642,10 +1676,10 @@ cd /Users/white/github/4x && go test ./... && go vet ./...
 - [ ] **Step 3: 試打包（不 publish）**
 
 ```bash
-cd dashboard/electron && npx electron-builder --linux --dir
+cd dashboard/electron && npx electron-builder --mac --dir
 ```
 
-預期：`dist/linux-unpacked/` 產出，確認 binary 存在
+預期：`dist/mac-arm64/` 或 `dist/mac/` 產出，確認 `.app` 存在
 
 - [ ] **Step 4: 最終 commit（如有遺漏修正）**
 

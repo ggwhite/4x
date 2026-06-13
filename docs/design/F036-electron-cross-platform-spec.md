@@ -1,16 +1,18 @@
 # F036: Electron Cross-Platform Dashboard
 
+> **Supersedes F035.** 原 F035 規劃以 Swift 做 macOS-only native app，但因 UI 本身就是 web（Go server 提供），維護兩套 native shell 的成本不值得。本 feature 統一用 Electron 涵蓋 macOS + Windows + Linux 三平台。
+
 ## Summary
 
-為 Windows 和 Linux 使用者提供桌面 dashboard app，使用 Electron 作為 native shell，功能與 F035 macOS Swift native app 完整對等。macOS 繼續使用 F035 的 Swift app，不做 Electron macOS 版。
+以 Electron 為三平台統一桌面 dashboard app，取代 F035 的 Swift macOS-only 方案。提供 system tray、原生通知、badge、自動管理 `4x live` server、選單快捷鍵、auto-update，所有平台行為一致。
 
 ## Context
 
-- F035 提供 macOS native dashboard（Swift + WKWebView），包含 menu bar status item、通知、Dock badge、server 管理
+- 現有 macOS app（`dashboard/macos/Sources/main.swift`）是陽春 WKWebView wrapper（~100 行），F035 增強功能尚未實作
 - `4x live` Go server 已提供完整的 REST API + SSE endpoints
 - Web UI 由 Go server 的 `internal/server/static/` 提供
 - `dashboard/electron/` 目錄已預留
-- Windows/Linux 使用者目前只能透過瀏覽器存取 `4x live` web UI，缺少系統整合體驗
+- 統一 Electron 方案消除了 Swift/Electron 雙軌維護的成本
 
 ## Architecture
 
@@ -92,6 +94,7 @@
 
 ### 4. Taskbar Badge
 
+- macOS：使用 `app.dock.setBadge(String(count))`，0 時清空
 - Windows：使用 `BrowserWindow.setOverlayIcon()` 動態產生帶數字的 overlay icon（用 `nativeImage` 繪製）
 - Linux：使用 `app.setBadgeCount()`（支援 Unity/KDE，其他 DE 降級為 tray tooltip 顯示）
 - 顯示 active run 數量，0 時清空
@@ -103,14 +106,17 @@
 
 | 選單 | 項目 | 快捷鍵 |
 |---|---|---|
+| **4x Live**（macOS only） | About 4x Live | — |
+| | Quit 4x Live | `⌘Q` |
 | **File** | New Feature… | `CmdOrCtrl+N` |
-| | Quit 4x Live | `CmdOrCtrl+Q` |
+| | Quit 4x Live（Win/Linux） | `CmdOrCtrl+Q` |
 | **View** | Reload | `CmdOrCtrl+R` |
 | | Toggle Sidebar | `CmdOrCtrl+Shift+S` |
 | | Toggle DevTools | `F12` |
 | **Window** | Minimize | `CmdOrCtrl+M` |
 | | Close | `CmdOrCtrl+W` |
 
+- macOS 的 app name menu（About / Quit）由 Electron 自動處理，只需設定 `app.setAboutPanelOptions()`
 - 選單動作透過 `webContents.executeJavaScript()` 橋接到 web UI
 - 「New Feature…」觸發 web UI 的 new feature modal
 - `Close` 行為：隱藏視窗而非退出 app（tray 仍在），真正退出走 Quit 或 tray 的 Quit
@@ -134,18 +140,17 @@
 
 | 平台 | 格式 | 備註 |
 |---|---|---|
+| macOS | `.dmg` | 拖曳安裝，不做 code signing（開發者工具用途） |
 | Windows | `.exe`（NSIS installer） | 含 uninstaller、可選安裝路徑 |
 | Linux | `.AppImage` + `.deb` | AppImage 免安裝，deb 給 Debian/Ubuntu |
-
-macOS 不打包（由 F035 Swift native 負責）。
 
 ### CI/CD（GitHub Actions）
 
 - 觸發條件：push tag `v*`
-- Job matrix：`[windows-latest, ubuntu-latest]`
+- Job matrix：`[macos-latest, windows-latest, ubuntu-latest]`
 - Steps：checkout → setup node → npm ci → electron-builder --publish always
 - 產出自動上傳到 GitHub Release
-- 不做 code signing（目前規模不需要，Windows 使用者會看到 SmartScreen 警告）
+- 不做 code signing（目前規模不需要，macOS 需 `xattr -cr` 解除 Gatekeeper，Windows 會看到 SmartScreen 警告）
 
 ### 檔案結構
 
@@ -163,6 +168,7 @@ dashboard/electron/
 ├── assets/
 │   ├── icon.png                # App icon（256x256）
 │   ├── icon.ico                # Windows icon
+│   ├── icon.icns               # macOS icon
 │   ├── tray-idle.png           # Tray 靜態 icon（16x16）
 │   ├── tray-running-1.png      # Tray 動畫 frame 1
 │   └── tray-running-2.png      # Tray 動畫 frame 2
@@ -174,11 +180,16 @@ dashboard/electron/
 
 ## Non-Goals
 
-- 不做 macOS 版 — 由 F035 Swift native 負責
 - 不做 code signing — 目前規模不需要
 - 不重寫 web UI — 由 `4x live` server 提供
 - 不 bundle 4x binary — 使用者自裝
 - 不做 portable 版（.zip 免安裝）— 初版只做 installer
+
+## Migration from F035
+
+- F035 spec 標記為 superseded by F036
+- `dashboard/macos/` 目錄在 F036 完成後移除
+- 現有 `main.swift` 的功能（WKWebView wrapper、folder picker、title sync）全部由 Electron 版覆蓋
 
 ## Dependencies
 
@@ -194,18 +205,4 @@ dashboard/electron/
 - Server 異常測試：手動 kill server process → 觀察自動重啟
 - 無 4x binary 測試：移除 PATH → 觀察 app 顯示錯誤對話框
 - Auto-update 測試：建立 draft release → 驗證 app 偵測到新版
-- 跨平台 CI：GitHub Actions matrix 在 Windows + Ubuntu 上跑 `npm test`（基本啟動+退出測試）
-
-## F035 Feature Parity Matrix
-
-| F035 macOS Feature | F036 Electron Equivalent |
-|---|---|
-| Menu bar status item + popover | System tray + context menu + toggle window |
-| NSPopover (mini WKWebView) | Context menu 摘要（跨平台限制） |
-| UNUserNotificationCenter | Electron Notification API |
-| Dock badge | Overlay icon (Win) / setBadgeCount (Linux) |
-| Server subprocess management | child_process.spawn + 相同重啟邏輯 |
-| Native folder picker (NSOpenPanel) | Electron dialog.showOpenDialog |
-| Window frame autosave | `electron-window-state` 套件自動儲存視窗位置與大小 |
-| Keyboard shortcuts | Menu.buildFromTemplate + accelerators |
-| Makefile + swiftc build | electron-builder + GitHub Actions |
+- 跨平台 CI：GitHub Actions matrix 在 macOS + Windows + Ubuntu 上跑 `npm test`（基本啟動+退出測試）

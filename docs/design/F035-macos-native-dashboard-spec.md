@@ -1,5 +1,7 @@
 # F035: macOS Native Dashboard
 
+> **⚠️ SUPERSEDED by F036.** 改為統一用 Electron 涵蓋三平台（macOS + Windows + Linux），不再以 Swift 單獨做 macOS 版。詳見 `F036-electron-cross-platform-spec.md`。
+
 ## Summary
 
 將現有的陽春 WKWebView wrapper 增強為完整的 macOS native app shell，包含自動管理 `4x live` server、menu bar status item + popover、macOS 通知、Dock badge、選單列與鍵盤快捷鍵。Web UI 內容仍由 `4x live` server 提供，native 層只負責系統整合。
