@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"syscall"
 	"testing"
 )
@@ -579,6 +580,38 @@ func TestDiscoverScreenshotsSameFilenameAcrossRounds(t *testing.T) {
 	}
 	if groups[0].Screenshots[0].Path == groups[1].Screenshots[0].Path {
 		t.Fatalf("paths should differ by round, got %+v", groups)
+	}
+}
+
+func TestDiscoverScreenshotsRoundPlaceholderFallbackDiscovery(t *testing.T) {
+	ws := setupWorkspace(t)
+	const featureID = "feat-round-fallback"
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, round := range []int{2, 3} {
+		dir := filepath.Join(ws.DotDir(), "e2e", featureID, "round-"+strconv.Itoa(round))
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "01-shot.png"), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	groups, err := ws.DiscoverScreenshots(featureID, ".4x/e2e/{feature-id}/round-{round}/")
+	if err != nil {
+		t.Fatalf("DiscoverScreenshots: %v", err)
+	}
+	if len(groups) != 2 {
+		t.Fatalf("groups = %d, want 2", len(groups))
+	}
+	if groups[0].Round != 2 || groups[1].Round != 3 {
+		t.Fatalf("rounds = [%d %d], want [2 3]", groups[0].Round, groups[1].Round)
+	}
+	if len(groups[0].Screenshots) != 1 || len(groups[1].Screenshots) != 1 {
+		t.Fatalf("screenshots = %+v, want one per discovered round", groups)
 	}
 }
 

@@ -535,7 +535,7 @@ func (w *Workspace) discoverFromDir(
 	byRound map[int][]Screenshot,
 	seenPath map[string]struct{},
 ) error {
-	targets := resolveScreenshotDirs(featureID, screenshotDir, rounds)
+	targets := resolveScreenshotDirs(w.Root, featureID, screenshotDir, rounds)
 	for _, target := range targets {
 		dirPath := target.Dir
 		if !filepath.IsAbs(dirPath) {
@@ -580,10 +580,13 @@ type screenshotScanTarget struct {
 	Dir   string
 }
 
-func resolveScreenshotDirs(featureID, screenshotDir string, rounds []int) []screenshotScanTarget {
+func resolveScreenshotDirs(workspaceRoot, featureID, screenshotDir string, rounds []int) []screenshotScanTarget {
 	template := strings.ReplaceAll(screenshotDir, "{feature-id}", featureID)
 	if strings.Contains(template, "{round}") {
 		candidates := rounds
+		if len(candidates) == 0 {
+			candidates = discoverRoundsFromTemplate(workspaceRoot, template)
+		}
 		if len(candidates) == 0 {
 			candidates = []int{1}
 		}
@@ -595,6 +598,47 @@ func resolveScreenshotDirs(featureID, screenshotDir string, rounds []int) []scre
 		return targets
 	}
 	return []screenshotScanTarget{{Round: 1, Dir: template}}
+}
+
+func discoverRoundsFromTemplate(workspaceRoot, template string) []int {
+	absTemplate := strings.TrimSuffix(filepath.ToSlash(template), "/")
+	if !filepath.IsAbs(absTemplate) {
+		absTemplate = filepath.ToSlash(filepath.Join(workspaceRoot, absTemplate))
+	}
+	idx := strings.Index(absTemplate, "{round}")
+	if idx < 0 {
+		return nil
+	}
+
+	pattern := strings.ReplaceAll(absTemplate, "{round}", "*")
+	matches, err := filepath.Glob(filepath.FromSlash(pattern))
+	if err != nil {
+		return nil
+	}
+
+	prefix := absTemplate[:idx]
+	suffix := absTemplate[idx+len("{round}"):]
+	roundSet := make(map[int]struct{})
+	for _, match := range matches {
+		candidate := strings.TrimSuffix(filepath.ToSlash(match), "/")
+		if !strings.HasPrefix(candidate, prefix) || !strings.HasSuffix(candidate, suffix) {
+			continue
+		}
+		middle := strings.TrimSuffix(strings.TrimPrefix(candidate, prefix), suffix)
+		if round, err := strconv.Atoi(middle); err == nil {
+			roundSet[round] = struct{}{}
+		}
+	}
+	if len(roundSet) == 0 {
+		return nil
+	}
+
+	rounds := make([]int, 0, len(roundSet))
+	for round := range roundSet {
+		rounds = append(rounds, round)
+	}
+	sort.Ints(rounds)
+	return rounds
 }
 
 func isScreenshotFile(name string) bool {
