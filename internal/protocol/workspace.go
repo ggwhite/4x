@@ -625,7 +625,7 @@ func discoverRoundsFromTemplate(workspaceRoot, template string) []int {
 			continue
 		}
 		middle := strings.TrimSuffix(strings.TrimPrefix(candidate, prefix), suffix)
-		if round, err := strconv.Atoi(middle); err == nil {
+		if round, err := strconv.Atoi(middle); err == nil && round > 0 {
 			roundSet[round] = struct{}{}
 		}
 	}

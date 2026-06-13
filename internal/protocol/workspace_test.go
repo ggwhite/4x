@@ -615,6 +615,40 @@ func TestDiscoverScreenshotsRoundPlaceholderFallbackDiscovery(t *testing.T) {
 	}
 }
 
+func TestDiscoverScreenshotsInvalidRoundsRejected(t *testing.T) {
+	ws := setupWorkspace(t)
+	const featureID = "feat-invalid-rounds"
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create directories with invalid round numbers (0, -1, 1)
+	for _, roundStr := range []string{"round-0", "round--1", "round-1"} {
+		dir := filepath.Join(ws.DotDir(), "e2e", featureID, roundStr)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "01-shot.png"), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	groups, err := ws.DiscoverScreenshots(featureID, ".4x/e2e/{feature-id}/round-{round}/")
+	if err != nil {
+		t.Fatalf("DiscoverScreenshots: %v", err)
+	}
+	// Only round 1 should be discovered; round-0 and round--1 should be rejected
+	if len(groups) != 1 {
+		t.Fatalf("groups = %d, want 1 (only valid round)", len(groups))
+	}
+	if groups[0].Round != 1 {
+		t.Fatalf("round = %d, want 1", groups[0].Round)
+	}
+	if len(groups[0].Screenshots) != 1 {
+		t.Fatalf("screenshots = %d, want 1", len(groups[0].Screenshots))
+	}
+}
+
 func TestStateRunnersRoundtrip(t *testing.T) {
 	ws := setupWorkspace(t)
 	if err := ws.InitFeatureDir("feat-runners"); err != nil {
