@@ -31,6 +31,9 @@ coverage.out
 /4x
 .worktrees/
 
+# Superpowers brainstorm
+.superpowers/
+
 # Runner artifacts
 .gocache/
 *-coder-report.md
