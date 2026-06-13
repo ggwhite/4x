@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/ggwhite/4x/internal/batch"
@@ -296,10 +299,12 @@ func newBatchRunCmd() *cobra.Command {
 				}
 				ws.WriteState(next, s)
 
+				batchCtx, batchCancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 				runnerFactory := func(logPath string, model string) runner.Runner {
 					return runner.NewRunner(ws, runnerName, runnerCfg, time.Duration(timeout)*time.Second, logPath, model)
 				}
-				err = runLoop(ws, ws, feature, cfg, s, runnerFactory, "never")
+				err = runLoop(batchCtx, ws, ws, feature, cfg, s, runnerFactory, "never")
+				batchCancel()
 
 				updated, _ := ws.LoadFeature(next)
 				statusMap[next] = updated.Status

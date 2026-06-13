@@ -147,7 +147,27 @@ func (pm *ProcessManager) wait(id string, info *RunInfo) {
 	pm.mu.Lock()
 	delete(pm.runs, id)
 	pm.mu.Unlock()
+
+	pm.ensureInactive(info.FeatureID)
+
 	close(info.done)
+}
+
+// ensureInactive 確保 subprocess 結束後 state.json 的 active 被設為 false，
+// 防止 process crash 導致 dashboard 永遠顯示 running。
+func (pm *ProcessManager) ensureInactive(featureID string) {
+	s, err := pm.ws.ReadState(featureID)
+	if err != nil {
+		return
+	}
+	if !s.Active {
+		return
+	}
+	s.Active = false
+	if s.StopReason == "" {
+		s.StopReason = "process-exit"
+	}
+	pm.ws.WriteState(featureID, s)
 }
 
 // Stop 終止指定的 run（SIGTERM → 5 秒 → SIGKILL）。

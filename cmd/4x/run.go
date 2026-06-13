@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/ggwhite/4x/internal/guard"
@@ -210,11 +212,38 @@ func newRunCmd() *cobra.Command {
 				commitStrategy = "per-round"
 			}
 
+			ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+			defer cancel()
+
+			defer func() {
+				cur, err := ws.ReadState(featureID)
+				if err != nil {
+					return
+				}
+				if cur.Active {
+					cur.Active = false
+					if cur.StopReason == "" {
+						cur.StopReason = "process-exit"
+					}
+					ws.WriteState(featureID, cur)
+					syncFeatureStatus(ws, featureID, cur.Phase)
+					ws.AppendEvent(featureID, protocol.Event{
+						Type:   "run-end",
+						Phase:  cur.Phase,
+						Role:   cur.Role,
+						Round:  cur.Round,
+						Status: "interrupted",
+						Detail: cur.StopReason,
+						Runner: cur.Runner,
+					})
+				}
+			}()
+
 			runnerCfg := cfg.Runners[runnerName]
 			runnerFactory := func(logPath string, model string) runner.Runner {
 				return runner.NewRunner(runnerWs, runnerName, runnerCfg, time.Duration(timeout)*time.Second, logPath, model)
 			}
-			loopErr := runLoop(ws, runnerWs, feature, cfg, s, runnerFactory, commitStrategy)
+			loopErr := runLoop(ctx, ws, runnerWs, feature, cfg, s, runnerFactory, commitStrategy)
 
 			if wtPath != "" && commitStrategy != "never" {
 				finalState, _ := ws.ReadState(featureID)
@@ -273,9 +302,8 @@ func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, featur
 }
 
 
-func runLoop(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s protocol.State, newRunner func(logPath string, model string) runner.Runner, commitStrategy string) error {
+func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s protocol.State, newRunner func(logPath string, model string) runner.Runner, commitStrategy string) error {
 	featureID := feature.ID
-	ctx := context.Background()
 
 	if s.Phase == protocol.PhaseInit {
 		var err error
@@ -288,6 +316,13 @@ func runLoop(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature proto
 	}
 
 	for s.Active {
+		if ctx.Err() != nil {
+			s.Active = false
+			s.StopReason = "interrupted"
+			ws.WriteState(featureID, s)
+			return ctx.Err()
+		}
+
 		phase := s.Phase
 		role := state.PhaseToRole(phase)
 
