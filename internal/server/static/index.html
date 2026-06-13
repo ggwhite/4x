@@ -284,10 +284,15 @@
         <div class="settings-label">Runner Config</div>
         <div>
           <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);display:block;margin-bottom:6px">Default Runner</label>
-          <input id="gs-default-runner" type="text" placeholder="e.g. claude, codex" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none;box-sizing:border-box">
+          <select id="gs-default-runner" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none;cursor:pointer"></select>
         </div>
         <div id="gs-runners-container" style="display:flex;flex-direction:column;gap:10px"></div>
-        <button onclick="gsAddRunner()" style="padding:6px 12px;font-size:12px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-2);cursor:pointer;align-self:flex-start">+ Add Runner</button>
+        <div style="display:flex;align-items:center;gap:8px;align-self:flex-start">
+          <select id="gs-add-runner-select" style="background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text-1);font-size:12px;font-family:inherit;outline:none;cursor:pointer">
+            <option value="" disabled selected>Select runner...</option>
+          </select>
+          <button onclick="gsAddRunner()" style="padding:6px 12px;font-size:12px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-2);cursor:pointer">+ Add</button>
+        </div>
       </div>
     </div>
     <div id="gs-json" style="padding:20px 24px;display:none">
@@ -861,12 +866,14 @@ let _gsActiveTab = 'form';
 
 async function openGlobalSettings() {
   try {
+    await loadSupportedRunners();
     const resp = await fetch(apiBase() + '/api/user-config');
     if (!resp.ok) { showToast('Failed to load global settings: ' + await resp.text()); return; }
     _globalSettings = await resp.json();
     _gsActiveTab = 'form';
     renderGlobalSettingsForm();
     renderGlobalSettingsAppearance();
+    populateAddRunnerSelect();
     document.getElementById('global-settings-modal').classList.add('open');
   } catch(e) { showToast('Connection error: ' + e.message); }
 }
@@ -893,7 +900,12 @@ function closeGlobalSettings() {
 function renderGlobalSettingsForm() {
   if (!_globalSettings) return;
   const runnerEl = document.getElementById('gs-default-runner');
-  if (runnerEl) runnerEl.value = _globalSettings.default_runner || '';
+  if (runnerEl) {
+    const cur = _globalSettings.default_runner || '';
+    runnerEl.innerHTML = _supportedRunners.map(r =>
+      `<option value="${esc(r.name)}"${r.name === cur ? ' selected' : ''}>${esc(r.name)}</option>`
+    ).join('');
+  }
   renderGSRunners();
 }
 
@@ -923,13 +935,36 @@ function renderGSRunners() {
   }).join('');
 }
 
+let _supportedRunners = [];
+
+async function loadSupportedRunners() {
+  try {
+    const resp = await fetch(apiBase() + '/api/supported-runners');
+    if (resp.ok) _supportedRunners = await resp.json();
+  } catch {}
+}
+
+function populateAddRunnerSelect() {
+  const sel = document.getElementById('gs-add-runner-select');
+  if (!sel) return;
+  const existing = _globalSettings && _globalSettings.runners ? Object.keys(_globalSettings.runners) : [];
+  const available = _supportedRunners.filter(r => !existing.includes(r.name));
+  sel.innerHTML = '<option value="" disabled selected>Select runner...</option>' +
+    available.map(r => `<option value="${esc(r.name)}">${esc(r.name)}</option>`).join('');
+  sel.disabled = available.length === 0;
+}
+
 function gsAddRunner() {
-  const name = prompt('Runner name (e.g. claude, codex, gemini):');
-  if (!name || !name.trim()) return;
+  const sel = document.getElementById('gs-add-runner-select');
+  const name = sel ? sel.value : '';
+  if (!name) return;
+  const preset = _supportedRunners.find(r => r.name === name);
+  if (!preset) return;
   if (!_globalSettings) _globalSettings = {};
   if (!_globalSettings.runners) _globalSettings.runners = {};
-  if (!_globalSettings.runners[name.trim()]) _globalSettings.runners[name.trim()] = {};
+  _globalSettings.runners[name] = Object.assign({}, preset.config);
   renderGSRunners();
+  populateAddRunnerSelect();
 }
 
 function gsRemoveRunner(name) {
@@ -938,6 +973,7 @@ function gsRemoveRunner(name) {
     if (Object.keys(_globalSettings.runners).length === 0) delete _globalSettings.runners;
   }
   renderGSRunners();
+  populateAddRunnerSelect();
 }
 
 function gsUpdateRunner(name, field, value) {

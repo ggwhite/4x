@@ -253,6 +253,60 @@ type UserConfig struct {
 	Roles         map[string]RoleConfig   `json:"roles,omitempty"`
 }
 
+// RunnerPreset 描述一個受支援 runner 的預設設定
+type RunnerPreset struct {
+	Name   string       `json:"name"`
+	Config RunnerConfig `json:"config"`
+}
+
+// SupportedRunners 回傳所有受支援 runner 的預設設定，作為 init 和 dashboard 的單一真相源
+func SupportedRunners() []RunnerPreset {
+	return []RunnerPreset{
+		{Name: "claude", Config: RunnerConfig{
+			Command:      "claude",
+			Args:         []string{"--dangerously-skip-permissions", "-p", "{prompt}", "--output-format", "stream-json", "--verbose"},
+			Model:        "opus",
+			OutputFormat: "stream-json",
+			Tiers:        map[string]string{"opus": "opus", "sonnet": "sonnet"},
+		}},
+		{Name: "codex", Config: RunnerConfig{
+			Command: "codex",
+			Args:    []string{"exec"},
+			Stdin:   BoolPtr(true),
+			Quiet:   BoolPtr(true),
+			Tiers:   map[string]string{"opus": "gpt-5.5", "sonnet": "gpt-5.5"},
+		}},
+		{Name: "gemini", Config: RunnerConfig{
+			Command: "gemini",
+			Args:    []string{"-y", "-p", "{prompt}"},
+			Tiers:   map[string]string{"opus": "gemini-2.5-flash", "sonnet": "gemini-2.5-flash"},
+		}},
+		{Name: "agy", Config: RunnerConfig{
+			Command: "agy",
+			Args:    []string{"--dangerously-skip-permissions", "-p", "{prompt}"},
+			Tiers:   map[string]string{"opus": "claude-opus-4-6-thinking", "sonnet": "claude-sonnet-4-6-thinking"},
+		}},
+		{Name: "copilot", Config: RunnerConfig{
+			Command: "copilot",
+			Args:    []string{"--yolo", "-p", "{prompt}"},
+			Tiers:   map[string]string{"opus": "auto", "sonnet": "auto"},
+		}},
+		{Name: "cursor", Config: RunnerConfig{
+			Command: "agent",
+			Args:    []string{"-p", "{prompt}"},
+		}},
+	}
+}
+
+// SupportedRunnerMap 回傳 name → RunnerConfig 的 map
+func SupportedRunnerMap() map[string]RunnerConfig {
+	m := make(map[string]RunnerConfig)
+	for _, p := range SupportedRunners() {
+		m[p.Name] = p.Config
+	}
+	return m
+}
+
 // BoolPtr 建立 *bool 指標，用於 RunnerConfig 布林欄位的初始化
 func BoolPtr(b bool) *bool {
 	return &b

@@ -98,6 +98,11 @@ func NewMux(ws *protocol.Workspace, pm *ProcessManager) http.Handler {
 		}
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	})
+	mux.HandleFunc("/api/supported-runners", func(w http.ResponseWriter, r *http.Request) {
+		data, _ := json.Marshal(protocol.SupportedRunners())
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(data)
+	})
 	mux.HandleFunc("/api/done", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

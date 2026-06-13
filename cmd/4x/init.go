@@ -156,37 +156,7 @@ func ensureUserConfig() {
 	cfg := protocol.UserConfig{
 		Locale:        "en",
 		DefaultRunner: "claude",
-		Runners: map[string]protocol.RunnerConfig{
-			"claude": {
-				Command: "claude",
-				Args: []string{
-					"--dangerously-skip-permissions",
-					"-p", "{prompt}",
-					"--output-format", "stream-json",
-					"--verbose",
-				},
-				Model:        "opus",
-				OutputFormat: "stream-json",
-			},
-			"codex": {
-				Command: "codex",
-				Args:    []string{"exec"},
-				Stdin:   protocol.BoolPtr(true),
-				Quiet:   protocol.BoolPtr(true),
-			},
-			"gemini": {
-				Command: "gemini",
-				Args:    []string{"-y", "-p", "{prompt}"},
-			},
-			"agy": {
-				Command: "agy",
-				Args:    []string{"--dangerously-skip-permissions", "-p", "{prompt}"},
-			},
-			"copilot": {
-				Command: "copilot",
-				Args:    []string{"--yolo", "-p", "{prompt}"},
-			},
-		},
+		Runners:       protocol.SupportedRunnerMap(),
 	}
 	if err := protocol.WriteUserConfig(cfg); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: failed to create user config: %v\n", err)

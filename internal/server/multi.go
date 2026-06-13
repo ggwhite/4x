@@ -319,6 +319,11 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 		}
 		compatError(w, len(entries), "/api/project/{id}/api/merged-config")
 	})
+	mux.HandleFunc("/api/supported-runners", func(w http.ResponseWriter, r *http.Request) {
+		data, _ := json.Marshal(protocol.SupportedRunners())
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(data)
+	})
 	for _, route := range []string{"/api/run", "/api/runs", "/api/stop", "/api/new"} {
 		mux.HandleFunc(route, func(w http.ResponseWriter, r *http.Request) {
 			entries := reg.List()
