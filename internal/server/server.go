@@ -1079,7 +1079,7 @@ func handleGetLocale(w http.ResponseWriter, r *http.Request) {
 		data, _ = staticFS.ReadFile("static/locales/en.json")
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	w.Header().Set("Cache-Control", "no-cache")
 	w.Write(data)
 }
 

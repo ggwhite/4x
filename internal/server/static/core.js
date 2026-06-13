@@ -23,7 +23,7 @@ function detectLocale() {
 
 async function loadLocale(lang) {
   try {
-    const resp = await fetch('/api/locales/' + lang);
+    const resp = await fetch('/api/locales/' + lang + '?_=' + Date.now());
     if (resp.ok) {
       _i18nDict = await resp.json();
       _currentLocale = lang;
