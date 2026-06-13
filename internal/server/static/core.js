@@ -175,11 +175,12 @@ const SECTION_COLORS = {
   done:   {color:'#4ade80',bg:'rgba(34,197,94,.1)'},
 };
 
+function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
 const RUNNER_COLORS = {claude:'#10b981',codex:'#3b82f6',gemini:'#f59e0b',copilot:'#a78bfa',cursor:'#ec4899'};
 function runnerColor(name) {
   return RUNNER_COLORS[name] || '#71717a';
 }
 function runnerTags(runners) {
   if (!runners || !runners.length) return '';
-  return runners.map(r => `<span class="runner-tag" style="border-color:${runnerColor(r)}40;color:${runnerColor(r)}">${esc(r)}</span>`).join(' ');
+  return runners.map(r => `<span class="runner-tag" style="border-color:${runnerColor(r)}40;color:${runnerColor(r)}">${esc(cap(r))}</span>`).join(' ');
 }

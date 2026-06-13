@@ -430,9 +430,9 @@ async function loadDetail(task) {
     meta.push(`<span>⏱ ${formatDuration(task.createdAt, task.updatedAt)}</span>`);
   }
   if (task.runners && task.runners.length) {
-    meta.push(`<span>⬡ ${task.runners.map(r => `<span style="color:${runnerColor(r)}">${esc(r)}</span>`).join(' · ')}</span>`);
+    meta.push(`<span>⬡ ${task.runners.map(r => `<span style="color:${runnerColor(r)}">${esc(cap(r))}</span>`).join(' · ')}</span>`);
   } else if (task.runner) {
-    meta.push(`<span>⬡ ${task.runner}</span>`);
+    meta.push(`<span>⬡ ${cap(task.runner)}</span>`);
   }
   if (task.pid) {
     meta.push(`<span class="text-zinc-600">pid ${task.pid}</span>`);
@@ -699,8 +699,8 @@ async function openRunModal(fid) {
     const names = Object.keys(runners);
     if (names.length === 0) names.push('claude');
     const def = s.default_runner || names[0];
-    names.forEach(n => { const o = document.createElement('option'); o.value = n; o.textContent = n; if (n === def) o.selected = true; sel.appendChild(o); });
-  } catch { sel.innerHTML = '<option value="claude">claude</option>'; }
+    names.forEach(n => { const o = document.createElement('option'); o.value = n; o.textContent = cap(n); if (n === def) o.selected = true; sel.appendChild(o); });
+  } catch { sel.innerHTML = '<option value="claude">Claude</option>'; }
   document.getElementById('run-modal').classList.add('open');
 }
 function closeRunModal() { document.getElementById('run-modal').classList.remove('open'); _runModalFid = null; }
