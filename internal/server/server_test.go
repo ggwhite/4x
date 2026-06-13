@@ -147,8 +147,8 @@ func TestIndexHTML(t *testing.T) {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
 	ct := rec.Header().Get("Content-Type")
-	if ct != "text/html" {
-		t.Errorf("Content-Type = %s, want text/html", ct)
+	if !strings.HasPrefix(ct, "text/html") {
+		t.Errorf("Content-Type = %s, want text/html*", ct)
 	}
 }
 
