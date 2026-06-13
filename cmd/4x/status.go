@@ -195,7 +195,11 @@ func showAllFeatures(ws *protocol.Workspace, pendingOnly bool) error {
 				pri = fmt.Sprintf("P%d", *r.feature.Priority)
 			}
 			docs := docsLabel(r.hasSpec, r.hasPlan)
-			fmt.Fprintf(w, "  %s\t%s\t%s\t%s\t%s\t%s\n", pri, r.feature.ID, r.feature.Name, docs, r.phase, r.round)
+			name := r.feature.Name
+			if len(r.feature.Depends) > 0 {
+				name += " (→ " + strings.Join(r.feature.Depends, ", ") + ")"
+			}
+			fmt.Fprintf(w, "  %s\t%s\t%s\t%s\t%s\t%s\n", pri, r.feature.ID, name, docs, r.phase, r.round)
 		}
 		w.Flush()
 		if truncated > 0 {
