@@ -3,7 +3,6 @@ package guard
 import (
 	"encoding/json"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -47,7 +46,7 @@ func TestCheckRequiredFiles_InitPhase(t *testing.T) {
 	ws := setupGuardWorkspace(t, "feat-1")
 	writeState(t, ws, "feat-1", protocol.State{Phase: protocol.PhaseInit})
 
-	result := Check(ws, "feat-1")
+	result := Check(ws, "feat-1", nil)
 	if !result.Pass {
 		t.Errorf("init phase should pass with just state.json, got errors: %v", result.Errors)
 	}
@@ -57,7 +56,7 @@ func TestCheckRequiredFiles_CodingPhaseNeedsBrief(t *testing.T) {
 	ws := setupGuardWorkspace(t, "feat-1")
 	writeState(t, ws, "feat-1", protocol.State{Phase: protocol.PhaseCoding})
 
-	result := Check(ws, "feat-1")
+	result := Check(ws, "feat-1", nil)
 	if result.Pass {
 		t.Error("coding phase without task-brief.md should fail")
 	}
@@ -88,7 +87,7 @@ func TestCheckRequiredFiles_CodingPhaseWithFiles(t *testing.T) {
 	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief")
 	writeFile(t, filepath.Join(dir, protocol.Criteria), "# Criteria")
 
-	result := Check(ws, "feat-1")
+	result := Check(ws, "feat-1", nil)
 	if !result.Pass {
 		t.Errorf("coding phase with all files should pass, got errors: %v", result.Errors)
 	}
@@ -166,7 +165,7 @@ func TestCheckBaseline_Missing(t *testing.T) {
 	ws := setupGuardWorkspace(t, "feat-1")
 	writeState(t, ws, "feat-1", protocol.State{Phase: protocol.PhaseInit})
 
-	result := Check(ws, "feat-1")
+	result := Check(ws, "feat-1", nil)
 	foundWarn := false
 	for _, w := range result.Warns {
 		if w == "no baseline.json found, skipping baseline check" {
@@ -186,7 +185,7 @@ func TestCheck_BacklogDriftWarning(t *testing.T) {
 	}
 	writeFile(t, filepath.Join(ws.Root, protocol.BacklogFile), `{"version":1,"features":[{"id":"feat-1","name":"Feature One","status":"todo"}]}`)
 
-	result := Check(ws, "feat-1")
+	result := Check(ws, "feat-1", nil)
 	if !result.Pass {
 		t.Fatalf("backlog drift should warn without failing: %v", result.Errors)
 	}
@@ -212,7 +211,7 @@ func TestCheck_BacklogDriftIgnoresOtherFeatures(t *testing.T) {
 	}
 	writeFile(t, filepath.Join(ws.Root, protocol.BacklogFile), `{"version":1,"features":[{"id":"feat-1","name":"Feature One","status":"done"},{"id":"feat-2","name":"Feature Two","status":"todo"}]}`)
 
-	result := Check(ws, "feat-1")
+	result := Check(ws, "feat-1", nil)
 	for _, w := range result.Warns {
 		if w == `feature_list.json mismatch for feature "feat-2" field "status": canonical "done", mirror "todo"` {
 			t.Fatalf("warnings = %v, should not include drift for unrelated feature", result.Warns)
@@ -225,7 +224,7 @@ func TestCheckBaseline_InvalidJSON(t *testing.T) {
 	writeState(t, ws, "feat-1", protocol.State{Phase: protocol.PhaseInit})
 	writeFile(t, filepath.Join(ws.FeatureDir("feat-1"), protocol.BaselineFile), "not json")
 
-	result := Check(ws, "feat-1")
+	result := Check(ws, "feat-1", nil)
 	if result.Pass {
 		t.Error("invalid baseline.json should fail")
 	}
@@ -243,7 +242,7 @@ func TestCheckBaseline_DirtyFiles(t *testing.T) {
 	data, _ := json.Marshal(baseline)
 	writeFile(t, filepath.Join(ws.FeatureDir("feat-1"), protocol.BaselineFile), string(data))
 
-	result := Check(ws, "feat-1")
+	result := Check(ws, "feat-1", nil)
 	if !result.Pass {
 		t.Errorf("dirty files should only warn, not fail: %v", result.Errors)
 	}
@@ -264,7 +263,7 @@ func TestCheckBaseline_Clean(t *testing.T) {
 	data, _ := json.Marshal(baseline)
 	writeFile(t, filepath.Join(ws.FeatureDir("feat-1"), protocol.BaselineFile), string(data))
 
-	result := Check(ws, "feat-1")
+	result := Check(ws, "feat-1", nil)
 	if !result.Pass {
 		t.Errorf("clean baseline should pass: %v", result.Errors)
 	}
@@ -279,7 +278,7 @@ func TestCheckScope_NoRepos(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result := Check(ws, "feat-1")
+	result := Check(ws, "feat-1", nil)
 	if !result.Pass {
 		t.Errorf("no repos defined should pass (no scope restriction): %v", result.Errors)
 	}
@@ -289,7 +288,7 @@ func TestCheckScope_NoFeatureYAML(t *testing.T) {
 	ws := setupGuardWorkspace(t, "feat-1")
 	writeState(t, ws, "feat-1", protocol.State{Phase: protocol.PhaseInit})
 
-	result := Check(ws, "feat-1")
+	result := Check(ws, "feat-1", nil)
 	foundWarn := false
 	for _, w := range result.Warns {
 		if len(w) > 0 {
@@ -308,7 +307,7 @@ func TestCheck_MissingStateFile(t *testing.T) {
 	ws := &protocol.Workspace{Root: root}
 	os.MkdirAll(ws.FeatureDir("feat-1"), 0o755)
 
-	result := Check(ws, "feat-1")
+	result := Check(ws, "feat-1", nil)
 	if result.Pass {
 		t.Error("missing state.json should fail")
 	}
@@ -355,7 +354,7 @@ func TestCheckRequiredFiles_DonePhaseWithoutRoundDir(t *testing.T) {
 	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief")
 	writeFile(t, filepath.Join(dir, protocol.Criteria), "# Criteria")
 
-	result := Check(ws, "feat-1")
+	result := Check(ws, "feat-1", nil)
 	if !result.Pass {
 		t.Errorf("done phase without round dir should pass (legacy feature), got errors: %v", result.Errors)
 	}
@@ -442,7 +441,7 @@ func TestCheck_IncludesDependencyCheck(t *testing.T) {
 	ws.SaveFeature(protocol.Feature{ID: "feat-a", Name: "A", Depends: []string{"feat-b"}})
 	ws.SaveFeature(protocol.Feature{ID: "feat-b", Name: "B", Status: "coding"})
 
-	result := Check(ws, "feat-a")
+	result := Check(ws, "feat-a", nil)
 	if result.Pass {
 		t.Error("Check() should include dependency gate")
 	}
@@ -457,58 +456,3 @@ func TestCheck_IncludesDependencyCheck(t *testing.T) {
 	}
 }
 
-func TestCaptureBaseline_WithGitRepo(t *testing.T) {
-	root := t.TempDir()
-	repoDir := filepath.Join(root, "backend")
-	os.MkdirAll(repoDir, 0o755)
-
-	run := func(dir string, args ...string) {
-		cmd := exec.Command(args[0], args[1:]...)
-		cmd.Dir = dir
-		cmd.Env = append(os.Environ(),
-			"GIT_AUTHOR_NAME=test",
-			"GIT_AUTHOR_EMAIL=test@test.com",
-			"GIT_COMMITTER_NAME=test",
-			"GIT_COMMITTER_EMAIL=test@test.com",
-		)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("%v: %s", err, out)
-		}
-	}
-
-	run(repoDir, "git", "init")
-	writeFile(t, filepath.Join(repoDir, "main.go"), "package main")
-	run(repoDir, "git", "add", ".")
-	run(repoDir, "git", "commit", "-m", "init")
-
-	cfg := protocol.Config{Project: protocol.ProjectConfig{Name: "test"}}
-	if err := protocol.Init(root, cfg); err != nil {
-		t.Fatal(err)
-	}
-	ws := &protocol.Workspace{Root: root}
-	if err := ws.InitFeatureDir("feat-1"); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := CaptureBaseline(ws, "feat-1", []string{"backend"}); err != nil {
-		t.Fatalf("CaptureBaseline: %v", err)
-	}
-
-	data, err := os.ReadFile(filepath.Join(ws.FeatureDir("feat-1"), protocol.BaselineFile))
-	if err != nil {
-		t.Fatalf("read baseline: %v", err)
-	}
-	var baseline protocol.Baseline
-	if err := json.Unmarshal(data, &baseline); err != nil {
-		t.Fatalf("parse baseline: %v", err)
-	}
-	if len(baseline.Repos) != 1 {
-		t.Fatalf("repos count = %d, want 1", len(baseline.Repos))
-	}
-	if baseline.Repos[0].Head == "" {
-		t.Error("HEAD should not be empty")
-	}
-	if len(baseline.Repos[0].DirtyFiles) != 0 {
-		t.Errorf("dirty files = %v, want empty", baseline.Repos[0].DirtyFiles)
-	}
-}

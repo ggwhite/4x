@@ -14,8 +14,8 @@
     },
     "priority": { "type": "integer", "minimum": 0 },
     "repos": {
-      "type": "object",
-      "additionalProperties": { "type": "string" }
+      "type": "array",
+      "items": { "type": "string" }
     },
     "subtasks": {
       "type": "array",

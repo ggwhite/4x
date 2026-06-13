@@ -66,6 +66,14 @@ Read the previous test report: {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{(sub .
 {{- end}}
 {{- end}}
 
+{{- if .RepoMap}}
+
+== Workspace Repos ==
+{{- range $name, $path := .RepoMap}}
+- {{$name}} → {{$path}}/
+{{- end}}
+{{- end}}
+
 == Workflow ==
 1. Read task-brief.md
 2. Implement changes

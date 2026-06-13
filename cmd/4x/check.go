@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/guard"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/spf13/cobra"
@@ -32,7 +33,13 @@ func newCheckCmd() *cobra.Command {
 				return err
 			}
 
-			result := guard.Check(ws, featureID)
+			cfg, _ := ws.ReadConfig()
+			if userCfg, err := protocol.ReadUserConfig(); err == nil {
+				cfg = protocol.MergeConfig(userCfg, cfg)
+			}
+			ops := gitops.New(ws.Root, ws, cfg)
+
+			result := guard.Check(ws, featureID, ops)
 
 			if jsonOutput {
 				data, _ := json.MarshalIndent(result, "", "  ")

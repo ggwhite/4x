@@ -3,10 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
 
+	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/protocol"
-	"github.com/ggwhite/4x/internal/worktree"
 	"github.com/spf13/cobra"
 )
 
@@ -39,7 +38,17 @@ func newMergeCmd() *cobra.Command {
 				return fmt.Errorf("feature %s is in phase %q, not pending-review or done (run '4x done %s' first)", featureID, s.Phase, featureID)
 			}
 
-			wtDir := worktree.Dir(ws.Root, featureID)
+			cfg, err := ws.ReadConfig()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "warning: cannot read config, using defaults: %v\n", err)
+			}
+			if userCfg, err := protocol.ReadUserConfig(); err == nil {
+				cfg = protocol.MergeConfig(userCfg, cfg)
+			}
+
+			ops := gitops.New(ws.Root, ws, cfg)
+
+			wtDir := gitops.Dir(ws.Root, featureID)
 			if _, err := os.Stat(wtDir); err != nil {
 				return fmt.Errorf("no worktree found at %s", wtDir)
 			}
@@ -50,21 +59,19 @@ func newMergeCmd() *cobra.Command {
 				name = f.Name
 			}
 
-			if err := exec.Command("git", "-C", wtDir, "add", "-A").Run(); err != nil {
-				return fmt.Errorf("git add in worktree failed: %w", err)
-			}
-			if exec.Command("git", "-C", wtDir, "diff", "--cached", "--quiet").Run() != nil {
-				msg := fmt.Sprintf("fix(%s): resolve merge conflicts — %s", featureID, name)
-				if out, err := exec.Command("git", "-C", wtDir, "commit", "-m", msg).CombinedOutput(); err != nil {
-					return fmt.Errorf("commit in worktree failed: %s", string(out))
-				}
+			msg := fmt.Sprintf("fix(%s): resolve merge conflicts — %s", featureID, name)
+			if err := ops.Commit(wtDir, featureID, msg); err != nil {
+				return fmt.Errorf("commit in worktree failed: %w", err)
 			}
 
-			result := worktree.Merge(ws.Root, featureID, name)
+			result := ops.Merge(featureID, name)
 			if result.Conflict {
 				fmt.Println("Merge still has conflicts:")
 				for _, file := range result.Files {
 					fmt.Printf("  conflict: %s\n", file)
+				}
+				if result.ConflictRepo != "" {
+					fmt.Printf("  repo: %s\n", result.ConflictRepo)
 				}
 				return nil
 			}
@@ -79,7 +86,7 @@ func newMergeCmd() *cobra.Command {
 				fmt.Printf("Feature %s marked as done.\n", featureID)
 			}
 
-			fmt.Printf("Merged and cleaned up branch %s.\n", worktree.Branch(featureID))
+			fmt.Printf("Merged and cleaned up branch %s.\n", gitops.Branch(featureID))
 			return nil
 		},
 	}

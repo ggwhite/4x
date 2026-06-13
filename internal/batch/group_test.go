@@ -27,9 +27,9 @@ func TestPlanBatch_SingleFeature(t *testing.T) {
 
 func TestPlanBatch_IndependentFeatures(t *testing.T) {
 	features := []protocol.Feature{
-		{ID: "a", Repos: map[string]string{"repo-1": "."} },
-		{ID: "b", Repos: map[string]string{"repo-2": "."}},
-		{ID: "c", Repos: map[string]string{"repo-3": "."}},
+		{ID: "a", Repos: []string{"repo-1"}},
+		{ID: "b", Repos: []string{"repo-2"}},
+		{ID: "c", Repos: []string{"repo-3"}},
 	}
 	plan, err := PlanBatch(features, nil, 4)
 	if err != nil {
@@ -42,9 +42,9 @@ func TestPlanBatch_IndependentFeatures(t *testing.T) {
 
 func TestPlanBatch_SharedRepoMergesClusters(t *testing.T) {
 	features := []protocol.Feature{
-		{ID: "a", Repos: map[string]string{"shared": "."}},
-		{ID: "b", Repos: map[string]string{"shared": "."}},
-		{ID: "c", Repos: map[string]string{"other": "."}},
+		{ID: "a", Repos: []string{"shared"}},
+		{ID: "b", Repos: []string{"shared"}},
+		{ID: "c", Repos: []string{"other"}},
 	}
 	plan, err := PlanBatch(features, nil, 4)
 	if err != nil {
@@ -57,8 +57,8 @@ func TestPlanBatch_SharedRepoMergesClusters(t *testing.T) {
 
 func TestPlanBatch_HubRepoNotMerged(t *testing.T) {
 	features := []protocol.Feature{
-		{ID: "a", Repos: map[string]string{"hub-repo": "."}},
-		{ID: "b", Repos: map[string]string{"hub-repo": "."}},
+		{ID: "a", Repos: []string{"hub-repo"}},
+		{ID: "b", Repos: []string{"hub-repo"}},
 	}
 	plan, err := PlanBatch(features, []string{"hub-repo"}, 4)
 	if err != nil {
@@ -71,8 +71,8 @@ func TestPlanBatch_HubRepoNotMerged(t *testing.T) {
 
 func TestPlanBatch_DependencyMergesClusters(t *testing.T) {
 	features := []protocol.Feature{
-		{ID: "auth", Repos: map[string]string{"repo-1": "."}},
-		{ID: "api", Repos: map[string]string{"repo-2": "."}, Depends: []string{"auth"}},
+		{ID: "auth", Repos: []string{"repo-1"}},
+		{ID: "api", Repos: []string{"repo-2"}, Depends: []string{"auth"}},
 	}
 	plan, err := PlanBatch(features, nil, 4)
 	if err != nil {

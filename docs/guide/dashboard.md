@@ -37,7 +37,7 @@ The dashboard exposes REST and SSE endpoints:
 | `/api/new` | POST | Create a new feature |
 | `/api/run` | POST | Start a feature run (spawns `4x run` subprocess) |
 | `/api/stop` | POST | Stop a running feature |
-| `/api/done` | POST | Mark feature as done; auto-merges worktree if present |
+| `/api/done` | POST | Mark feature as done; auto-merges worktree if present (multi-repo: all-or-nothing) |
 | `/api/runs` | GET | List active runs |
 | `/api/events/{id}` | GET | Get events for a feature |
 | `/api/overview/{id}` | GET | Get feature overview (YAML fields + spec/plan content) |

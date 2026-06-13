@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/guard"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/runner"
@@ -143,11 +144,12 @@ func newRunCmd() *cobra.Command {
 			}
 
 			// worktree isolation：runner 在獨立 worktree 內執行
+			ops := gitops.New(ws.Root, ws, cfg)
 			var runnerWs *protocol.Workspace
 			var wtPath string
 			if cfg.Isolation == "worktree" {
 				var err error
-				wtPath, err = setupWorktree(ws.Root, featureID)
+				wtPath, err = ops.SetupWorktree(featureID)
 				if err != nil {
 					return fmt.Errorf("worktree setup: %w", err)
 				}
@@ -259,13 +261,13 @@ func newRunCmd() *cobra.Command {
 			runnerFactory := func(logPath string, model string) runner.Runner {
 				return runner.NewRunner(runnerWs, runnerName, runnerCfg, time.Duration(timeout)*time.Second, logPath, model)
 			}
-			loopErr := runLoop(ctx, ws, runnerWs, feature, cfg, s, runnerFactory, commitStrategy)
+			loopErr := runLoop(ctx, ws, runnerWs, feature, cfg, s, ops, runnerFactory, commitStrategy)
 
 			if wtPath != "" && commitStrategy != "never" {
 				finalState, _ := ws.ReadState(featureID)
 				if finalState.Phase == protocol.PhaseDone || finalState.Phase == protocol.PhasePendingReview {
 					if commitStrategy == "on-done" {
-						if err := commitWorktree(wtPath, featureID, feature.Name, 0); err != nil {
+						if err := ops.Commit(wtPath, featureID, fmt.Sprintf("feat(%s): %s", featureID, feature.Name)); err != nil {
 							fmt.Fprintf(os.Stderr, "  auto-commit failed: %v\n", err)
 						}
 					}
@@ -296,6 +298,25 @@ func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, featur
 	if rc, ok := cfg.Roles[string(role)]; ok {
 		roleInc = rc.Includes
 	}
+	var repoMap map[string]string
+	if len(cfg.Workspace.Repos) > 0 {
+		if runnerWs.Root != ws.Root {
+			// worktree 模式：組合目錄下 repo 子目錄以 name 命名，使用相對路徑讓 coder 在正確邊界內作業
+			featureRepos := make(map[string]bool, len(feature.Repos))
+			for _, r := range feature.Repos {
+				featureRepos[r] = true
+			}
+			repoMap = make(map[string]string, len(cfg.Workspace.Repos))
+			for name := range cfg.Workspace.Repos {
+				if len(feature.Repos) > 0 && !featureRepos[name] {
+					continue
+				}
+				repoMap[name] = name
+			}
+		} else {
+			repoMap = protocol.ResolveFeatureRepoPaths(feature, cfg, ws.Root)
+		}
+	}
 	data := promptData{
 		Feature:          feature,
 		Project:          cfg.Project,
@@ -309,6 +330,7 @@ func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, featur
 		ProjectIncludes:  loadIncludes(ws.Root, cfg.Project.Includes),
 		RoleIncludes:     loadIncludes(ws.Root, roleInc),
 		PlanningDoc:      loadPlanningDocs(ws.Root, feature.ID),
+		RepoMap:          repoMap,
 	}
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
@@ -318,7 +340,10 @@ func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, featur
 }
 
 
-func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s protocol.State, newRunner func(logPath string, model string) runner.Runner, commitStrategy string) error {
+func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s protocol.State, ops gitops.Ops, newRunner func(logPath string, model string) runner.Runner, commitStrategy string) error {
+	if ops == nil {
+		ops = gitops.New(ws.Root, ws, cfg)
+	}
 	featureID := feature.ID
 
 	if s.Phase == protocol.PhaseInit {
@@ -379,7 +404,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		}
 
 		if phase == protocol.PhaseCoding && s.Round == 1 {
-			if err := captureBaselineOnce(ws, featureID, repoPathsFromFeature(feature)); err != nil {
+			if err := captureBaselineOnce(ws, ops, featureID, feature.Repos); err != nil {
 				return err
 			}
 		}
@@ -440,13 +465,13 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		logPath := filepath.Join(runner.LogDir(ws, featureID), runner.LogFileName(s.Round, string(role)))
 		r := newRunner(logPath, model)
 
-		if runnerWs != ws {
+		if runnerWs.Root != ws.Root {
 			syncFeatureToWorktree(ws, runnerWs, featureID, s.Round)
 		}
 
 		// 背景即時 sync：runner 執行期間每 2 秒把 worktree 的 protocol 檔案同步回 main
 		var stopSync func()
-		if runnerWs != ws {
+		if runnerWs.Root != ws.Root {
 			stopSync = startLiveSync(runnerWs, ws, featureID, s.Round)
 		}
 
@@ -461,7 +486,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		if stopSync != nil {
 			stopSync()
 		}
-		if runnerWs != ws {
+		if runnerWs.Root != ws.Root {
 			syncFeatureFromWorktree(runnerWs, ws, featureID, s.Round)
 		}
 		if err != nil {
@@ -498,9 +523,9 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			return nil
 		}
 
-		if commitStrategy == "per-round" && runnerWs != ws &&
+		if commitStrategy == "per-round" && runnerWs.Root != ws.Root &&
 			(phase == protocol.PhaseCoding || phase == protocol.PhaseAmending) {
-			if err := commitWorktree(runnerWs.Root, featureID, feature.Name, s.Round); err != nil {
+			if err := ops.Commit(runnerWs.Root, featureID, fmt.Sprintf("wip(%s): round %d", featureID, s.Round)); err != nil {
 				fmt.Fprintf(os.Stderr, "  auto-commit round %d failed: %v\n", s.Round, err)
 			}
 		}
@@ -719,7 +744,7 @@ func readEscalation(ws *protocol.Workspace, featureID string, round int) protoco
 	return esc
 }
 
-func captureBaselineOnce(ws *protocol.Workspace, featureID string, repoPaths []string) error {
+func captureBaselineOnce(ws *protocol.Workspace, ops gitops.Ops, featureID string, featureRepos []string) error {
 	path := filepath.Join(ws.FeatureDir(featureID), protocol.BaselineFile)
 	info, err := os.Stat(path)
 	if err == nil {
@@ -731,21 +756,10 @@ func captureBaselineOnce(ws *protocol.Workspace, featureID string, repoPaths []s
 	if !os.IsNotExist(err) {
 		return fmt.Errorf("check baseline: %w", err)
 	}
-	if err := guard.CaptureBaseline(ws, featureID, repoPaths); err != nil {
+	if err := ops.CaptureBaseline(featureID, featureRepos); err != nil {
 		return fmt.Errorf("capture baseline: %w", err)
 	}
 	return nil
-}
-
-func repoPathsFromFeature(f protocol.Feature) []string {
-	if len(f.Repos) == 0 {
-		return []string{"."}
-	}
-	var paths []string
-	for _, p := range f.Repos {
-		paths = append(paths, p)
-	}
-	return paths
 }
 
 func dryRunLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s protocol.State) error {
@@ -773,69 +787,6 @@ func dryRunLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.C
 	return nil
 }
 
-// setupWorktree 為 feature 建立 git worktree，回傳 worktree 路徑。
-// branch 命名 4x/<featureID>，worktree 放在 .worktrees/4x/<featureID>/。
-// worktree 內建真實 .4x/ 目錄（非 symlink），確保 sandbox runner 可寫。
-func setupWorktree(root, featureID string) (string, error) {
-	wtDir := filepath.Join(root, ".worktrees", "4x", featureID)
-	branch := "4x/" + featureID
-
-	ensureGitignore(root, ".worktrees/")
-
-	if _, err := os.Stat(wtDir); err == nil {
-		ensureWorktreeDotDir(root, wtDir)
-		return wtDir, nil
-	}
-
-	if err := os.MkdirAll(filepath.Dir(wtDir), 0o755); err != nil {
-		return "", err
-	}
-
-	out, err := exec.Command("git", "-C", root, "worktree", "add", wtDir, "-b", branch).CombinedOutput()
-	if err != nil {
-		out2, err2 := exec.Command("git", "-C", root, "worktree", "add", wtDir, branch).CombinedOutput()
-		if err2 != nil {
-			return "", fmt.Errorf("git worktree add: %s\n%s", string(out), string(out2))
-		}
-	}
-
-	ensureWorktreeDotDir(root, wtDir)
-	return wtDir, nil
-}
-
-// ensureWorktreeDotDir 在 worktree 建立真實 .4x/ 目錄並複製 settings.json 與 plugins/。
-// 若已存在舊的 symlink 則移除，改為真實目錄。
-func ensureWorktreeDotDir(mainRoot, wtDir string) {
-	dotDir := filepath.Join(wtDir, protocol.DirName)
-
-	// 移除舊的 symlink（向下相容）
-	if info, err := os.Lstat(dotDir); err == nil {
-		if info.Mode()&os.ModeSymlink != 0 {
-			os.Remove(dotDir)
-		}
-	}
-
-	os.MkdirAll(dotDir, 0o755)
-
-	// 複製 settings.json
-	src := filepath.Join(mainRoot, protocol.DirName, protocol.ConfigFile)
-	dst := filepath.Join(dotDir, protocol.ConfigFile)
-	if data, err := os.ReadFile(src); err == nil {
-		os.WriteFile(dst, data, 0o644)
-	}
-
-	// 複製 plugins/ 目錄，讓 runner CLI 能讀到 plugin 指令檔
-	srcPlugins := filepath.Join(mainRoot, protocol.DirName, "plugins")
-	dstPlugins := filepath.Join(dotDir, "plugins")
-	if entries, err := os.ReadDir(srcPlugins); err == nil {
-		os.MkdirAll(dstPlugins, 0o755)
-		for _, e := range entries {
-			if !e.IsDir() {
-				copyFileIfExists(filepath.Join(srcPlugins, e.Name()), filepath.Join(dstPlugins, e.Name()))
-			}
-		}
-	}
-}
 
 // syncFeatureToWorktree 將主 workspace 的 feature 目錄複製到 worktree，
 // 確保 runner 能讀到最新的 protocol 檔案（task-brief、上一輪 report 等）
@@ -846,7 +797,7 @@ func syncFeatureToWorktree(main, wt *protocol.Workspace, featureID string, round
 
 	// state + feature-level 檔案
 	for _, name := range []string{protocol.StateFile, protocol.TaskBrief, protocol.Criteria, protocol.TestStratFile} {
-		copyFileIfExists(filepath.Join(srcDir, name), filepath.Join(dstDir, name))
+		gitops.CopyFileIfExists(filepath.Join(srcDir, name), filepath.Join(dstDir, name))
 	}
 
 	// 當前 round 目錄
@@ -857,7 +808,7 @@ func syncFeatureToWorktree(main, wt *protocol.Workspace, featureID string, round
 		entries, _ := os.ReadDir(srcRound)
 		for _, e := range entries {
 			if !e.IsDir() {
-				copyFileIfExists(filepath.Join(srcRound, e.Name()), filepath.Join(dstRound, e.Name()))
+				gitops.CopyFileIfExists(filepath.Join(srcRound, e.Name()), filepath.Join(dstRound, e.Name()))
 			}
 		}
 	}
@@ -874,7 +825,7 @@ func syncFeatureFromWorktree(wt, main *protocol.Workspace, featureID string, rou
 		protocol.TaskBrief, protocol.Criteria, protocol.TestStratFile,
 		protocol.FinalReport, protocol.CommitPlan,
 	} {
-		copyFileIfExists(filepath.Join(srcDir, name), filepath.Join(dstDir, name))
+		gitops.CopyFileIfExists(filepath.Join(srcDir, name), filepath.Join(dstDir, name))
 	}
 
 	// round 目錄
@@ -884,7 +835,7 @@ func syncFeatureFromWorktree(wt, main *protocol.Workspace, featureID string, rou
 	entries, _ := os.ReadDir(srcRound)
 	for _, e := range entries {
 		if !e.IsDir() {
-			copyFileIfExists(filepath.Join(srcRound, e.Name()), filepath.Join(dstRound, e.Name()))
+			gitops.CopyFileIfExists(filepath.Join(srcRound, e.Name()), filepath.Join(dstRound, e.Name()))
 		}
 	}
 }
@@ -908,58 +859,4 @@ func startLiveSync(wt, main *protocol.Workspace, featureID string, round int) fu
 	return func() { close(done) }
 }
 
-func copyFileIfExists(src, dst string) {
-	data, err := os.ReadFile(src)
-	if err != nil {
-		return
-	}
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: mkdir %s: %v\n", filepath.Dir(dst), err)
-		return
-	}
-	if err := os.WriteFile(dst, data, 0o644); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: write %s: %v\n", dst, err)
-	}
-}
 
-func commitWorktree(wtPath, featureID, featureName string, round int) error {
-	if out, err := exec.Command("git", "-C", wtPath, "add", "-A").CombinedOutput(); err != nil {
-		return fmt.Errorf("git add: %s: %w", string(out), err)
-	}
-
-	if exec.Command("git", "-C", wtPath, "diff", "--cached", "--quiet").Run() == nil {
-		return nil
-	}
-
-	var msg string
-	if round > 0 {
-		msg = fmt.Sprintf("wip(%s): round %d", featureID, round)
-	} else {
-		msg = fmt.Sprintf("feat(%s): %s", featureID, featureName)
-	}
-	if out, err := exec.Command("git", "-C", wtPath, "commit", "-m", msg).CombinedOutput(); err != nil {
-		return fmt.Errorf("git commit: %s: %w", string(out), err)
-	}
-
-	fmt.Printf("  committed: %s\n", msg)
-	return nil
-}
-
-func ensureGitignore(root, pattern string) {
-	path := filepath.Join(root, ".gitignore")
-	data, _ := os.ReadFile(path)
-	for _, line := range strings.Split(string(data), "\n") {
-		if strings.TrimSpace(line) == pattern {
-			return
-		}
-	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-	if len(data) > 0 && data[len(data)-1] != '\n' {
-		f.WriteString("\n")
-	}
-	f.WriteString(pattern + "\n")
-}

@@ -18,13 +18,18 @@ type CheckResult struct {
 	Warns  []string `json:"warnings"`
 }
 
-// Check 執行所有 guardrail 檢查
-func Check(ws *protocol.Workspace, featureID string) CheckResult {
+// ScopeDetector 偵測哪些 repo 有 uncommitted changes，由 gitops.Ops 實作。
+type ScopeDetector interface {
+	DetectChangedRepos() []string
+}
+
+// Check 執行所有 guardrail 檢查。detector 為 nil 時 fallback 到本地 git diff。
+func Check(ws *protocol.Workspace, featureID string, detector ScopeDetector) CheckResult {
 	r := CheckResult{Pass: true}
 
 	checkRequiredFiles(ws, featureID, &r)
 	checkBaseline(ws, featureID, &r)
-	checkScope(ws, featureID, &r)
+	checkScope(ws, featureID, detector, &r)
 	checkDependencies(ws, featureID, &r)
 	checkBacklogDrift(ws, featureID, &r)
 
@@ -198,7 +203,7 @@ func checkBaseline(ws *protocol.Workspace, featureID string, r *CheckResult) {
 }
 
 // checkScope 確認 diff 落在允許的 repo/path 內
-func checkScope(ws *protocol.Workspace, featureID string, r *CheckResult) {
+func checkScope(ws *protocol.Workspace, featureID string, detector ScopeDetector, r *CheckResult) {
 	feature, err := ws.LoadFeature(featureID)
 	if err != nil {
 		r.Warns = append(r.Warns, fmt.Sprintf("cannot load feature YAML: %v", err))
@@ -210,11 +215,16 @@ func checkScope(ws *protocol.Workspace, featureID string, r *CheckResult) {
 	}
 
 	allowedRepos := make(map[string]bool)
-	for repo := range feature.Repos {
+	for _, repo := range feature.Repos {
 		allowedRepos[repo] = true
 	}
 
-	changedRepos := detectChangedRepos(ws.Root)
+	var changedRepos []string
+	if detector != nil {
+		changedRepos = detector.DetectChangedRepos()
+	} else {
+		changedRepos = detectChangedRepos(ws.Root)
+	}
 	for _, repo := range changedRepos {
 		if !allowedRepos[repo] {
 			r.Pass = false
@@ -250,50 +260,3 @@ func detectChangedRepos(root string) []string {
 	return repos
 }
 
-// CaptureBaseline 捕獲所有 repo 的 HEAD snapshot
-func CaptureBaseline(ws *protocol.Workspace, featureID string, repoPaths []string) error {
-	baseline := protocol.Baseline{}
-
-	for _, repoPath := range repoPaths {
-		fullPath := filepath.Join(ws.Root, repoPath)
-		if _, err := os.Stat(filepath.Join(fullPath, ".git")); err != nil {
-			continue
-		}
-
-		head := gitOutput(fullPath, "rev-parse", "HEAD")
-		branch := gitOutput(fullPath, "rev-parse", "--abbrev-ref", "HEAD")
-		statusOut := gitOutput(fullPath, "status", "--short")
-
-		var dirty []string
-		for _, line := range strings.Split(statusOut, "\n") {
-			line = strings.TrimSpace(line)
-			if line != "" {
-				dirty = append(dirty, line)
-			}
-		}
-
-		baseline.Repos = append(baseline.Repos, protocol.BaselineRepo{
-			Name:       repoPath,
-			Path:       repoPath,
-			Branch:     branch,
-			Head:       head,
-			DirtyFiles: dirty,
-		})
-	}
-
-	data, err := json.MarshalIndent(baseline, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(filepath.Join(ws.FeatureDir(featureID), protocol.BaselineFile), data, 0o644)
-}
-
-func gitOutput(dir string, args ...string) string {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	out, err := cmd.Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
-}

@@ -73,7 +73,7 @@ If the feature is in `blocked` or `needs-attention` phase, automatically recover
 
 Automatically checks dependency gate — blocks if depended features are not done.
 
-If `isolation: "worktree"` is set in config, runs in a git worktree under `.worktrees/4x/<feature-id>/`.
+If `isolation: "worktree"` is set in config, runs in a git worktree under `.worktrees/4x/<feature-id>/`. In multi-repo mode (workspace.repos configured), each repo gets its own worktree under `.worktrees/4x/<feature-id>/<repo-name>/`, and workspace-level files (go.work, Makefile, etc.) are copied alongside. Coder prompts include a `== Workspace Repos ==` section; in worktree mode, each entry shows the repo name as a relative path (e.g. `core → core/`) so the coder operates within the correct directory boundaries.
 
 ---
 
@@ -199,7 +199,7 @@ Mark a pending-review feature as done. If the feature has a worktree (`.worktree
 
 Only works when feature is in `pending-review` phase. Errors on any other phase.
 
-If a merge conflict or merge error occurs, the feature remains in `pending-review`, the worktree is preserved, and guidance is printed. Use `4x merge <id>` to complete after resolving conflicts.
+If a merge conflict or merge error occurs, the feature remains in `pending-review`, the worktree is preserved, and guidance is printed. In multi-repo mode, the conflicting repo name is printed as `repo: <name>`. Use `4x merge <id>` to complete after resolving conflicts.
 
 ---
 
@@ -212,6 +212,8 @@ Complete a merge after resolving conflicts from `4x done`.
 ```
 
 Only works when feature is in `pending-review` or `done` phase and a worktree exists at `.worktrees/4x/<id>`. Commits resolved conflicts in the worktree, merges to main, then removes the worktree and branch. If the feature is still in `pending-review`, it is marked `done` after the merge succeeds.
+
+In multi-repo mode, resolved conflicts are committed per repo (each repo under `.worktrees/4x/<id>/<repo-name>/` is staged and committed independently), then all repos are merged all-or-nothing. The conflicting repo name is shown as `repo: <name>` if a conflict recurs.
 
 ---
 
@@ -287,6 +289,8 @@ Run eligible features sequentially in dependency order.
 | `--timeout` | `3600` | Per-phase timeout in seconds |
 
 Polls for `.4x/batch-stop` file between features for graceful shutdown.
+
+If `isolation: "worktree"` is set in config, each feature runs in its own isolated worktree. In multi-repo mode, each feature gets a composite worktree (`.worktrees/4x/<feature-id>/`) with per-repo sub-directories, and commits are made per round (not deferred to completion). Hub repos (from `hub_repos` config or `workspace.repos[*].hub: true`) are excluded from shared-repo clustering to allow parallel execution.
 
 ### `4x batch stop`
 

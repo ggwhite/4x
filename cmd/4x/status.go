@@ -249,12 +249,8 @@ func showFeatureDetail(ws *protocol.Workspace, id string) error {
 
 	if len(f.Repos) > 0 {
 		fmt.Println("Repos:")
-		for repo, desc := range f.Repos {
-			if desc != "" {
-				fmt.Printf("  - %s: %s\n", repo, desc)
-			} else {
-				fmt.Printf("  - %s\n", repo)
-			}
+		for _, repo := range f.Repos {
+			fmt.Printf("  - %s\n", repo)
 		}
 	}
 

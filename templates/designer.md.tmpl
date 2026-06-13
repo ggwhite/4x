@@ -15,8 +15,8 @@ Name: {{.Feature.Name}}
 Description: {{.Feature.Description}}
 {{- if .Feature.Repos}}
 Repos:
-{{- range $repo, $desc := .Feature.Repos}}
-  - {{$repo}}{{if $desc}}: {{$desc}}{{end}}
+{{- range .Feature.Repos}}
+  - {{.}}
 {{- end}}
 {{- end}}
 {{- if .Feature.Subtasks}}

@@ -66,10 +66,8 @@ Examples:
 				id = protocol.GenerateFeatureID(next, name)
 			}
 
-			repoMap := make(map[string]string)
-			for _, r := range repos {
-				repoMap[r] = ""
-			}
+			var repoMap []string
+			repoMap = append(repoMap, repos...)
 
 			displayName := fmt.Sprintf("F%03d: %s", next, name)
 

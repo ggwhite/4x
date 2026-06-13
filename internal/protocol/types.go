@@ -1,6 +1,9 @@
 package protocol
 
-import "time"
+import (
+	"path/filepath"
+	"time"
+)
 
 // Phase 表示 4x 狀態機的各階段
 type Phase string
@@ -73,17 +76,17 @@ func PhaseToStatus(phase Phase) Status {
 
 // Feature 是 features/*.yaml 的結構
 type Feature struct {
-	ID          string            `yaml:"id" json:"id"`
-	Name        string            `yaml:"name" json:"name"`
-	Description string            `yaml:"description" json:"description"`
-	Status      Status            `yaml:"status" json:"status"`
-	Priority    *int              `yaml:"priority,omitempty" json:"priority,omitempty"`
-	Repos       map[string]string `yaml:"repos,omitempty" json:"repos,omitempty"`
-	Subtasks    []Subtask         `yaml:"subtasks,omitempty" json:"subtasks,omitempty"`
-	Rules       []string          `yaml:"rules,omitempty" json:"rules,omitempty"`
-	Depends     []string          `yaml:"depends,omitempty" json:"depends,omitempty"`
-	Spec        string            `yaml:"spec,omitempty" json:"-"`
-	Plan        string            `yaml:"plan,omitempty" json:"-"`
+	ID          string    `yaml:"id" json:"id"`
+	Name        string    `yaml:"name" json:"name"`
+	Description string    `yaml:"description" json:"description"`
+	Status      Status    `yaml:"status" json:"status"`
+	Priority    *int      `yaml:"priority,omitempty" json:"priority,omitempty"`
+	Repos       []string  `yaml:"repos,omitempty" json:"repos,omitempty"`
+	Subtasks    []Subtask `yaml:"subtasks,omitempty" json:"subtasks,omitempty"`
+	Rules       []string  `yaml:"rules,omitempty" json:"rules,omitempty"`
+	Depends     []string  `yaml:"depends,omitempty" json:"depends,omitempty"`
+	Spec        string    `yaml:"spec,omitempty" json:"-"`
+	Plan        string    `yaml:"plan,omitempty" json:"-"`
 }
 
 // BacklogMirror 是根目錄 feature_list.json 的 legacy mirror 結構。
@@ -237,6 +240,18 @@ type Escalation struct {
 	Detail string `json:"detail"`
 }
 
+// WorkspaceConfig 描述 multi-repo workspace 的 repo 映射。
+// 沒有設定時代表 monorepo 模式。
+type WorkspaceConfig struct {
+	Repos map[string]RepoConfig `json:"repos,omitempty"`
+}
+
+// RepoConfig 描述 workspace 中單一 repo 的設定。
+type RepoConfig struct {
+	Path string `json:"path"`
+	Hub  bool   `json:"hub,omitempty"`
+}
+
 // Config 是 .4x/settings.json 的專案設定
 type Config struct {
 	Project           ProjectConfig                `json:"project"`
@@ -249,6 +264,7 @@ type Config struct {
 	MaxConcurrentRuns int                          `json:"max_concurrent_runs,omitempty"`
 	Commit            string                       `json:"commit,omitempty"`
 	ModelTiers        map[string]map[string]string `json:"model_tiers,omitempty"`
+	Workspace         WorkspaceConfig              `json:"workspace,omitempty"`
 }
 
 // ProjectConfig 是專案基本設定，包含既有工具鏈的描述
@@ -363,4 +379,52 @@ func BoolVal(p *bool) bool {
 		return false
 	}
 	return *p
+}
+
+// ResolveRepoPaths 從 workspace config 解析 repo name → absolute path。
+// monorepo 模式回傳 {"." : root}。
+func ResolveRepoPaths(cfg Config, root string) map[string]string {
+	if len(cfg.Workspace.Repos) == 0 {
+		return map[string]string{".": root}
+	}
+	paths := make(map[string]string, len(cfg.Workspace.Repos))
+	for name, rc := range cfg.Workspace.Repos {
+		paths[name] = filepath.Join(root, rc.Path)
+	}
+	return paths
+}
+
+// ResolveFeatureRepoPaths 解析 feature 涉及的 repo name → absolute path。
+// feature.Repos 為空時：multi-repo 回傳所有 workspace repos，monorepo 回傳 {".": root}。
+func ResolveFeatureRepoPaths(f Feature, cfg Config, root string) map[string]string {
+	all := ResolveRepoPaths(cfg, root)
+	if len(f.Repos) == 0 {
+		return all
+	}
+	result := make(map[string]string, len(f.Repos))
+	for _, name := range f.Repos {
+		if p, ok := all[name]; ok {
+			result[name] = p
+		}
+	}
+	return result
+}
+
+// EffectiveHubRepos 合併 Config.HubRepos 與 workspace config 中 Hub: true 的 repo。
+func EffectiveHubRepos(cfg Config) []string {
+	seen := make(map[string]bool)
+	var hubs []string
+	for _, h := range cfg.HubRepos {
+		if !seen[h] {
+			seen[h] = true
+			hubs = append(hubs, h)
+		}
+	}
+	for name, rc := range cfg.Workspace.Repos {
+		if rc.Hub && !seen[name] {
+			seen[name] = true
+			hubs = append(hubs, name)
+		}
+	}
+	return hubs
 }
