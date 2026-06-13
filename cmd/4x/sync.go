@@ -13,12 +13,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newUpgradeCmd() *cobra.Command {
+func newSyncCmd() *cobra.Command {
 	var dryRun bool
 
 	cmd := &cobra.Command{
-		Use:   "upgrade",
-		Short: "Re-install embedded plugin files to an existing project",
+		Use:   "sync",
+		Short: "Sync embedded plugin files to the project",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
 			if err != nil {

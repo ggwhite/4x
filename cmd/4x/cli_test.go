@@ -293,9 +293,9 @@ func writeCLIFile(t *testing.T, path, content string) {
 	}
 }
 
-func TestUpgrade_NoWorkspace(t *testing.T) {
+func TestSync_NoWorkspace(t *testing.T) {
 	dir := t.TempDir()
-	out, err := run4x(dir, "upgrade")
+	out, err := run4x(dir, "sync")
 	if err == nil {
 		t.Fatal("expected error when no workspace exists")
 	}
@@ -304,7 +304,7 @@ func TestUpgrade_NoWorkspace(t *testing.T) {
 	}
 }
 
-func TestUpgrade_DeploysPlugins(t *testing.T) {
+func TestSync_InstallsPlugins(t *testing.T) {
 	dir := t.TempDir()
 	if _, err := run4x(dir, "init"); err != nil {
 		t.Fatalf("init failed: %v", err)
@@ -315,17 +315,17 @@ func TestUpgrade_DeploysPlugins(t *testing.T) {
 		t.Fatalf("remove plugin: %v", err)
 	}
 
-	out, err := run4x(dir, "upgrade")
+	out, err := run4x(dir, "sync")
 	if err != nil {
-		t.Fatalf("upgrade failed: %v\n%s", err, out)
+		t.Fatalf("sync failed: %v\n%s", err, out)
 	}
 
 	if _, err := os.Stat(pluginFile); err != nil {
-		t.Error("plugin file not restored after upgrade")
+		t.Error("plugin file not restored after sync")
 	}
 }
 
-func TestUpgrade_PreservesUserContent(t *testing.T) {
+func TestSync_PreservesUserContent(t *testing.T) {
 	dir := t.TempDir()
 	if _, err := run4x(dir, "init"); err != nil {
 		t.Fatalf("init failed: %v", err)
@@ -342,22 +342,22 @@ func TestUpgrade_PreservesUserContent(t *testing.T) {
 		t.Fatalf("write CLAUDE.md: %v", err)
 	}
 
-	out, err := run4x(dir, "upgrade")
+	out, err := run4x(dir, "sync")
 	if err != nil {
-		t.Fatalf("upgrade failed: %v\n%s", err, out)
+		t.Fatalf("sync failed: %v\n%s", err, out)
 	}
 
 	after, _ := os.ReadFile(claudeFile)
 	content := string(after)
 	if !strings.Contains(content, "@.4x/plugins/CLAUDE.md") {
-		t.Error("@import line missing after upgrade")
+		t.Error("@import line missing after sync")
 	}
 	if !strings.Contains(content, "My Custom Section") {
 		t.Error("user content was removed by upgrade")
 	}
 }
 
-func TestUpgrade_UpdatesStaleFiles(t *testing.T) {
+func TestSync_UpdatesStaleFiles(t *testing.T) {
 	dir := t.TempDir()
 	if _, err := run4x(dir, "init"); err != nil {
 		t.Fatalf("init failed: %v", err)
@@ -368,17 +368,17 @@ func TestUpgrade_UpdatesStaleFiles(t *testing.T) {
 		t.Fatalf("write stale plugin: %v", err)
 	}
 
-	out, err := run4x(dir, "upgrade")
+	out, err := run4x(dir, "sync")
 	if err != nil {
-		t.Fatalf("upgrade failed: %v\n%s", err, out)
+		t.Fatalf("sync failed: %v\n%s", err, out)
 	}
 
 	data, _ := os.ReadFile(pluginFile)
 	if string(data) == "stale content" {
-		t.Error("plugin file not updated after upgrade")
+		t.Error("plugin file not updated after sync")
 	}
 	if len(data) == 0 {
-		t.Error("plugin file is empty after upgrade")
+		t.Error("plugin file is empty after sync")
 	}
 }
 

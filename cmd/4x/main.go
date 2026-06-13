@@ -22,7 +22,7 @@ Like 4X strategy games, 4x conquers codebases through four phases.`,
 
 	root.AddCommand(
 		newInitCmd(),
-		newUpgradeCmd(),
+		newSyncCmd(),
 		newNewCmd(),
 		newRunCmd(),
 		newStatusCmd(),
