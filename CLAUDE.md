@@ -90,18 +90,12 @@ docs/design/
 
 ## Documentation Maintenance
 
-改動 CLI 或核心功能時，必須同步更新 `docs/guide/`：
+先跑 `make check-docs-sync` 查看哪些 doc 需要更新，只更新被點名的檔案：
 
-| 改了什麼 | 要更新 |
-|---|---|
-| 新增 / 刪除 subcommand（`cmd/4x/*.go`） | `docs/guide/cli.md` + README 指令表 |
-| 修改 flag（新增、刪除、改預設值） | `docs/guide/cli.md` |
-| 狀態機轉換（`internal/state/machine.go`） | `docs/guide/concepts.md` 狀態機段落 |
-| 檔案協議（`.4x/` 目錄結構、檔名） | `docs/guide/concepts.md` 檔案協議段落 |
-| Runner / Plugin（新增、改合約） | `docs/guide/runners.md` |
-| Settings 欄位（新增、改結構） | `docs/guide/configuration.md` |
-| Dashboard API（endpoint 增刪改） | `docs/guide/dashboard.md` |
-| Batch 行為 | `docs/guide/batch.md` |
+```bash
+make check-docs-sync          # 比對 git diff，列出需更新的 docs
+make check-docs-sync BASE=HEAD~3  # 指定比對基準
+```
 
 CI 跑 `make check-docs` 會檢查 subcommand 是否都出現在 `docs/guide/cli.md`，漏了會 fail。
 
