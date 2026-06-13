@@ -213,7 +213,7 @@ func TestCompareBacklogMirror_MissingPriority(t *testing.T) {
 		Name:        "Feature A",
 		Description: "desc",
 		Status:      "not-started",
-		Priority:    2,
+		Priority:    ptrInt(2),
 	}}
 	mirror := BacklogMirror{Features: []BacklogFeature{{
 		ID:          "feat-a",
@@ -1009,3 +1009,5 @@ func TestNormalizeScreenshotPath_CleansDotDot(t *testing.T) {
 		}
 	}
 }
+
+func ptrInt(v int) *int { return &v }

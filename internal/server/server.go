@@ -222,7 +222,7 @@ type overviewInfo struct {
 	Name        string             `json:"name"`
 	Description string             `json:"description"`
 	Status      string             `json:"status"`
-	Priority    int                `json:"priority,omitempty"`
+	Priority    *int               `json:"priority,omitempty"`
 	Repos       map[string]string  `json:"repos,omitempty"`
 	Subtasks    []protocol.Subtask `json:"subtasks,omitempty"`
 	Rules       []string           `json:"rules,omitempty"`

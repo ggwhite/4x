@@ -266,14 +266,24 @@ func appendFieldDrift(drift []BacklogDrift, featureID, field, canonical, mirror 
 }
 
 func appendPriorityDrift(drift []BacklogDrift, feature Feature, mirror BacklogFeature) []BacklogDrift {
-	if feature.Priority == 0 && mirror.Priority == nil {
+	if feature.Priority == nil && mirror.Priority == nil {
 		return drift
 	}
-	canonical := strconv.Itoa(feature.Priority)
+	var canonical string
+	if feature.Priority != nil {
+		canonical = strconv.Itoa(*feature.Priority)
+	}
 	if mirror.Priority == nil {
+		if feature.Priority == nil {
+			return drift
+		}
 		return appendFieldDrift(drift, feature.ID, "priority", canonical, "")
 	}
-	return appendFieldDrift(drift, feature.ID, "priority", canonical, strconv.Itoa(*mirror.Priority))
+	mirrorStr := strconv.Itoa(*mirror.Priority)
+	if feature.Priority == nil {
+		return appendFieldDrift(drift, feature.ID, "priority", "", mirrorStr)
+	}
+	return appendFieldDrift(drift, feature.ID, "priority", canonical, mirrorStr)
 }
 
 // SaveFeature 寫入 feature YAML

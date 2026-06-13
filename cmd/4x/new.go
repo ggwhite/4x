@@ -19,7 +19,7 @@ func newNewCmd() *cobra.Command {
 		subtasks   []string
 		rules      []string
 		depends    []string
-		priority   int
+		priority int
 	)
 
 	cmd := &cobra.Command{
@@ -95,11 +95,13 @@ Examples:
 				Name:        displayName,
 				Description: description,
 				Status:      protocol.StatusNotStarted,
-				Priority:    priority,
 				Repos:       repoMap,
 				Subtasks:    parsedSubtasks,
 				Rules:       rules,
 				Depends:     depends,
+			}
+			if cmd.Flags().Changed("priority") {
+				feature.Priority = &priority
 			}
 
 			if err := ws.SaveFeature(feature); err != nil {
@@ -142,7 +144,7 @@ Examples:
 	cmd.Flags().StringSliceVar(&subtasks, "subtask", nil, `subtask in "id:name" format (can be repeated)`)
 	cmd.Flags().StringSliceVar(&rules, "rule", nil, "rule reference (can be repeated)")
 	cmd.Flags().StringSliceVar(&depends, "depends", nil, "dependency feature ID (can be repeated)")
-	cmd.Flags().IntVar(&priority, "priority", 0, "priority level (1=high, 2=medium, 3=low)")
+	cmd.Flags().IntVar(&priority, "priority", 0, "priority level (0=critical, 1=high, 2=medium, 3=low)")
 	return cmd
 }
 

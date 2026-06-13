@@ -135,8 +135,12 @@ func showAllFeatures(ws *protocol.Workspace, pendingOnly bool) error {
 			return rows[j].updatedAt.Before(rows[i].updatedAt)
 		}
 		pi, pj := rows[i].feature.Priority, rows[j].feature.Priority
-		if pi != pj {
-			return pi > pj
+		piSet, pjSet := pi != nil, pj != nil
+		if piSet != pjSet {
+			return piSet
+		}
+		if piSet && pjSet && *pi != *pj {
+			return *pi < *pj
 		}
 		return rows[i].feature.ID < rows[j].feature.ID
 	})
@@ -187,8 +191,8 @@ func showAllFeatures(ws *protocol.Workspace, pendingOnly bool) error {
 		fmt.Fprintf(w, "  ───\t──\t────\t────\t─────\t─────\n")
 		for _, r := range group {
 			pri := "-"
-			if r.feature.Priority > 0 {
-				pri = fmt.Sprintf("P%d", r.feature.Priority)
+			if r.feature.Priority != nil {
+				pri = fmt.Sprintf("P%d", *r.feature.Priority)
 			}
 			docs := docsLabel(r.hasSpec, r.hasPlan)
 			fmt.Fprintf(w, "  %s\t%s\t%s\t%s\t%s\t%s\n", pri, r.feature.ID, r.feature.Name, docs, r.phase, r.round)

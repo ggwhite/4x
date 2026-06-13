@@ -77,7 +77,7 @@ type Feature struct {
 	Name        string            `yaml:"name" json:"name"`
 	Description string            `yaml:"description" json:"description"`
 	Status      Status            `yaml:"status" json:"status"`
-	Priority    int               `yaml:"priority,omitempty" json:"priority,omitempty"`
+	Priority    *int              `yaml:"priority,omitempty" json:"priority,omitempty"`
 	Repos       map[string]string `yaml:"repos,omitempty" json:"repos,omitempty"`
 	Subtasks    []Subtask         `yaml:"subtasks,omitempty" json:"subtasks,omitempty"`
 	Rules       []string          `yaml:"rules,omitempty" json:"rules,omitempty"`
