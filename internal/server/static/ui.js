@@ -157,7 +157,6 @@ document.addEventListener('keydown', e => {
   if ((e.metaKey||e.ctrlKey) && e.key==='k') { e.preventDefault(); openSearch(); }
   else if ((e.metaKey||e.ctrlKey) && !e.shiftKey && e.key===',') { e.preventDefault(); activeProjectId?openProjectSettings():openGlobalSettings(); }
   else if ((e.metaKey||e.ctrlKey) && e.shiftKey && e.key===',') { e.preventDefault(); openGlobalSettings(); }
-  else if ((e.metaKey||e.ctrlKey) && e.shiftKey && (e.key==='d'||e.key==='D')) { e.preventDefault(); showDoctor(); }
   else if (e.key==='Escape') {
     if (document.getElementById('global-settings-modal').classList.contains('open')) closeGlobalSettings();
     else if (document.getElementById('project-settings-modal').classList.contains('open')) closeProjectSettings();
@@ -210,7 +209,6 @@ function goHome() {
   document.getElementById('messages').classList.add('hidden');
   document.getElementById('messages').innerHTML = '';
   document.getElementById('logs-panel').classList.add('hidden');
-  document.getElementById('doctor-panel').classList.add('hidden');
   document.getElementById('dashboard').classList.remove('hidden');
   activeDetailTab = 'overview';
   if (activeProjectId) { load(); renderDashboard(lastTasks); } else renderProjectPicker();
@@ -404,7 +402,7 @@ async function load() {
   lastTasks = tasks || [];
   activeRuns = runs || [];
   renderSidebar();
-  if (!current && document.getElementById('doctor-panel').classList.contains('hidden')) renderDashboard(lastTasks);
+  if (!current) renderDashboard(lastTasks);
 }
 
 async function loadDetail(task) {
@@ -677,140 +675,6 @@ function connectLogSSE(fid, file) {
 
 function disconnectLogSSE() { if (logSSE) { logSSE.close(); logSSE = null; } }
 
-
-function showDoctor() {
-  current = null;
-  document.getElementById('header').classList.add('hidden');
-  document.getElementById('overview-panel').classList.add('hidden');
-  document.getElementById('messages').classList.add('hidden');
-  document.getElementById('logs-panel').classList.add('hidden');
-  document.getElementById('dashboard').classList.add('hidden');
-  const dp = document.getElementById('doctor-panel');
-  dp.classList.remove('hidden');
-  dp.innerHTML = '<div class="flex items-center justify-center py-20"><span style="color:var(--text-3)">Loading doctor report...</span></div>';
-  fetch(apiBase() + '/api/doctor')
-    .then(r => r.json())
-    .then(renderDoctor)
-    .catch(e => { dp.innerHTML = '<div class="p-4" style="color:#f87171">Failed to load doctor report: ' + esc(String(e)) + '</div>'; });
-}
-
-function renderBlockCard(label, b, totalMin, showDetails) {
-  const end = new Date(b.endTime);
-  const remainMs = Math.max(0, end.getTime() - Date.now());
-  const remainMin = Math.floor(remainMs / 60000);
-  const pct = Math.min(100, Math.max(0, (totalMin - remainMin) / totalMin * 100));
-  const barColor = pct >= 80 ? '#ef4444' : pct >= 50 ? '#f59e0b' : '#10b981';
-  let resetStr;
-  if (totalMin <= 300) {
-    resetStr = end.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-  } else {
-    const d = Math.floor(remainMin / 1440), h = Math.floor((remainMin % 1440) / 60);
-    resetStr = d > 0 ? d+'d '+h+'h' : h+'h';
-  }
-  const remainStr = remainMin >= 1440
-    ? Math.floor(remainMin/1440)+'d '+Math.floor((remainMin%1440)/60)+'h'
-    : remainMin >= 60 ? Math.floor(remainMin/60)+'h'+String(remainMin%60).padStart(2,'0')+'m' : remainMin+'m';
-  const models = (b.models||[]).map(m => {
-    const short = m.replace(/^claude-/,'').replace(/^gpt-/,'');
-    return `<span class="px-1.5 py-0.5 rounded text-[9px] font-mono" style="background:var(--bg-input);color:var(--text-3)">${esc(short)}</span>`;
-  }).join(' ');
-
-  let details = '';
-  if (showDetails) {
-    details = `<div class="grid grid-cols-4 gap-2 mb-3">
-      <div><div class="text-sm font-bold font-mono" style="color:var(--text-1)">$${b.costUSD.toFixed(0)}</div><div class="text-[9px] uppercase" style="color:var(--text-4)">Cost</div></div>
-      <div><div class="text-sm font-bold font-mono" style="color:var(--text-1)">$${(b.projection?.totalCost||0).toFixed(0)}</div><div class="text-[9px] uppercase" style="color:var(--text-4)">Projected</div></div>
-      <div><div class="text-sm font-bold font-mono" style="color:var(--text-1)">${fmtTokens(b.totalTokens||0)}</div><div class="text-[9px] uppercase" style="color:var(--text-4)">Tokens</div></div>
-      <div><div class="text-sm font-bold font-mono" style="color:var(--text-1)">$${(b.burnRate?.costPerHour||0).toFixed(0)}/h</div><div class="text-[9px] uppercase" style="color:var(--text-4)">Burn</div></div>
-    </div>
-    <div class="flex gap-1 flex-wrap">${models}</div>`;
-  } else {
-    details = `<div class="flex items-center gap-3 mt-1">
-      <span class="text-sm font-mono font-bold" style="color:var(--text-1)">$${b.costUSD.toFixed(2)}</span>
-      <span class="text-xs font-mono" style="color:var(--text-3)">${fmtTokens(b.totalTokens||0)} tok</span>
-      ${models ? '<span class="ml-auto flex gap-1">'+models+'</span>' : ''}
-    </div>`;
-  }
-
-  return `<div class="mt-3">
-    <div class="flex items-center gap-2 mb-2">
-      <span class="text-[10px] font-bold uppercase tracking-wider" style="color:var(--text-4)">${esc(label)}</span>
-      <span class="text-[10px] font-mono" style="color:var(--text-3)">resets ${esc(resetStr)} (${esc(remainStr)})</span>
-    </div>
-    <div class="rounded-full h-1.5 mb-3" style="background:var(--bg-input)">
-      <div class="rounded-full h-1.5" style="width:${pct.toFixed(1)}%;background:${barColor}"></div>
-    </div>
-    ${details}
-  </div>`;
-}
-
-function renderDoctor(report) {
-  const dp = document.getElementById('doctor-panel');
-  const runners = report.runners || [];
-  const installed = runners.filter(r => r.installed).length;
-  const total = runners.length;
-
-  const cards = runners.map(r => {
-    const color = r.installed ? '#10b981' : '#ef4444';
-    const icon = r.installed ? '✓' : '✗';
-    const labelColor = r.installed ? '#34d399' : '#f87171';
-    const ver = r.version ? `<span class="text-[10px] font-mono" style="color:var(--text-3)">${esc(r.version)}</span>` : '';
-
-    let body = '';
-
-    if (r.block5h) {
-      body += renderBlockCard('5h', r.block5h, 300, true);
-    }
-
-    if (r.block7d) {
-      const sep = r.block5h ? ' style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px"' : '';
-      body += `<div${sep}>${renderBlockCard('7d', r.block7d, 10080, false)}</div>`;
-    }
-
-    if (r.recent7d) {
-      const d = r.recent7d;
-      const sep = (r.block5h || r.block7d) ? ' style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px"' : '';
-      body += `<div class="mt-3"${sep}>
-        <div class="flex items-center gap-3">
-          <span class="text-[10px] font-bold uppercase tracking-wider" style="color:var(--text-4)">7d</span>
-          <span class="text-sm font-mono font-bold" style="color:var(--text-1)">$${d.totalCost.toFixed(2)}</span>
-          <span class="text-xs font-mono" style="color:var(--text-3)">${fmtTokens(d.totalTokens)} tok</span>
-          <span class="text-[10px]" style="color:var(--text-4)">${d.days} days</span>
-        </div>
-      </div>`;
-    }
-
-    if (!r.block5h && !r.block7d && !r.recent7d && r.installed) {
-      body = `<div class="mt-3 text-xs" style="color:var(--text-4)">No usage data</div>`;
-    }
-
-    return `<div class="rounded-xl border p-4" style="border-color:var(--border);background:var(--bg-card)">
-      <div class="flex items-center gap-3">
-        <div class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:${color}"></div>
-        <span class="font-bold text-sm" style="color:var(--text-1)">${esc(r.name)}</span>
-        ${ver}
-        <span class="text-xs font-bold ml-auto" style="color:${labelColor}">${icon}</span>
-      </div>
-      ${body}
-    </div>`;
-  }).join('');
-
-  let hint = '';
-  if (!report.ccusageAvailable) {
-    hint = `<div class="rounded-xl border p-4 text-center mb-4" style="border-color:var(--border);background:var(--bg-card)">
-      <span class="text-xs" style="color:var(--text-3)">Install <code class="px-1.5 py-0.5 rounded" style="background:var(--bg-input)">npm i -g ccusage</code> for usage data</span>
-    </div>`;
-  }
-
-  dp.innerHTML = `<div class="mb-6 flex items-center gap-3">
-      <span class="text-lg font-bold">Doctor</span>
-      <span class="ml-auto text-xs" style="color:var(--text-3)"><kbd class="px-1.5 py-0.5 rounded text-[10px]" style="border:1px solid var(--border)">&#8984;&#8679;D</kbd></span>
-      <span class="px-3 py-1 text-xs border rounded-full" style="border-color:var(--border);color:var(--text-3)">${installed}/${total} runners</span>
-      <button onclick="showDoctor()" class="text-xs px-3 py-1 rounded border transition-colors" style="border-color:var(--border);color:var(--text-3)">Refresh</button>
-    </div>
-    ${hint}
-    <div class="grid grid-cols-2 gap-4">${cards || '<div style="color:var(--text-3);font-size:12px">No runners configured</div>'}</div>`;
-}
 
 function getRunId(featureId) {
   const run = activeRuns.find(r => r.featureId === featureId);
