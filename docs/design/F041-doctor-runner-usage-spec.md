@@ -91,6 +91,11 @@ Doctor 頁面透過 ccusage 顯示 cost/tokens 彙總，但缺少最重要的資
        $82.73, 77.8M tok
 ```
 
+## Bug Fix
+
+- `loadDetail(task)` 沒有隱藏 `doctor-panel`，從 Doctor 頁面點進 feature 細節時 doctor 內容殘留
+- 修法：在 `loadDetail` 開頭加 `document.getElementById('doctor-panel').classList.add('hidden')`
+
 ## 約束
 
 - 不自己估算 rate limit 百分比，只用 Anthropic/OpenAI 官方給的值
