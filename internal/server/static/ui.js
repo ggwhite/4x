@@ -317,7 +317,16 @@ function renderTaskItem(task) {
   }
   const rt = runnerTags(task.runners);
   const rtLine = rt ? `<div class="flex gap-1 mt-1">${rt}</div>` : '';
-  return `<div class="${cls}" style="${cardStyle}" onclick="current='${task.id}';load();loadDetail(${JSON.stringify(task).replace(/"/g,'&quot;')})" onmouseenter="this.querySelector('.play-btn')&&(this.querySelector('.play-btn').style.opacity='1')" onmouseleave="this.querySelector('.play-btn')&&(this.querySelector('.play-btn').style.opacity='0')"><div class="flex items-start gap-2">${di}<div class="flex-1 min-w-0"><div class="flex items-center gap-2"><span class="text-[13px] font-medium truncate flex-1">${esc(task.name)}</span>${badge}</div><div class="text-[11px] text-zinc-600 mt-0.5">${task.id}</div>${pi}${rtLine}</div>${doneBtn || actionBtn}</div></div>`;
+  const PRIO_LABELS = {0:{l:'P0',c:'#f87171',bg:'rgba(248,113,113,.15)'},1:{l:'P1',c:'#fb923c',bg:'rgba(251,146,60,.12)'},2:{l:'P2',c:'#facc15',bg:'rgba(250,204,21,.10)'},3:{l:'P3',c:'#60a5fa',bg:'rgba(96,165,250,.10)'},4:{l:'P4',c:'#a1a1aa',bg:'rgba(161,161,170,.10)'},5:{l:'P5',c:'#71717a',bg:'rgba(113,113,122,.08)'}};
+  const prioTag = task.priority != null && PRIO_LABELS[task.priority] ? `<span style="font-size:9px;padding:1px 5px;border-radius:4px;background:${PRIO_LABELS[task.priority].bg};color:${PRIO_LABELS[task.priority].c};font-weight:600">${PRIO_LABELS[task.priority].l}</span>` : '';
+  let docTags = '';
+  if (task.status !== 'done') {
+    const specTag = task.hasSpec ? '<span style="font-size:9px;padding:1px 4px;border-radius:4px;background:rgba(139,92,246,.12);color:#a78bfa">spec</span>' : '';
+    const planTag = task.hasPlan ? '<span style="font-size:9px;padding:1px 4px;border-radius:4px;background:rgba(59,130,246,.12);color:#60a5fa">plan</span>' : '';
+    docTags = specTag + planTag;
+  }
+  const tagsLine = (prioTag || docTags) ? `<div class="flex gap-1 mt-1 flex-wrap">${prioTag}${docTags}</div>` : '';
+  return `<div class="${cls}" style="${cardStyle}" onclick="current='${task.id}';load();loadDetail(${JSON.stringify(task).replace(/"/g,'&quot;')})" onmouseenter="this.querySelector('.play-btn')&&(this.querySelector('.play-btn').style.opacity='1')" onmouseleave="this.querySelector('.play-btn')&&(this.querySelector('.play-btn').style.opacity='0')"><div class="flex items-start gap-2">${di}<div class="flex-1 min-w-0"><div class="flex items-center gap-2"><span class="text-[13px] font-medium truncate flex-1">${esc(task.name)}</span>${badge}</div><div class="text-[11px] text-zinc-600 mt-0.5">${task.id}</div>${pi}${tagsLine}${rtLine}</div>${doneBtn || actionBtn}</div></div>`;
 }
 
 function toggleSection(key) {

@@ -213,6 +213,9 @@ type taskInfo struct {
 	Pid       int      `json:"pid,omitempty"`
 	Runner    string   `json:"runner"`
 	Runners   []string `json:"runners,omitempty"`
+	Priority  *int     `json:"priority,omitempty"`
+	HasSpec   bool     `json:"hasSpec,omitempty"`
+	HasPlan   bool     `json:"hasPlan,omitempty"`
 	CreatedAt string   `json:"createdAt,omitempty"`
 	UpdatedAt string   `json:"updatedAt,omitempty"`
 }
@@ -365,10 +368,15 @@ func handleTasks(ws *protocol.Workspace, w http.ResponseWriter) {
 	var tasks []taskInfo
 	for _, f := range features {
 		t := taskInfo{
-			ID:     f.ID,
-			Name:   f.Name,
-			Status: string(f.Status),
+			ID:       f.ID,
+			Name:     f.Name,
+			Status:   string(f.Status),
+			Priority: f.Priority,
 		}
+		_, specSource := resolveDoc(ws.Root, f.Spec, f.ID, "spec")
+		_, planSource := resolveDoc(ws.Root, f.Plan, f.ID, "plan")
+		t.HasSpec = specSource != ""
+		t.HasPlan = planSource != ""
 		if s, err := ws.ReadState(f.ID); err == nil {
 			ws.ReconcileActive(f.ID, &s)
 			t.Phase = string(s.Phase)
