@@ -712,18 +712,27 @@ func handleServeScreenshot(ws *protocol.Workspace, featureID, filename string, w
 		return
 	}
 
-	abs := filepath.Join(ws.DotDir(), filepath.FromSlash(targetPath))
+	rootAbs, err := filepath.Abs(ws.Root)
+	if err != nil {
+		http.Error(w, "invalid workspace path", http.StatusInternalServerError)
+		return
+	}
+
+	// 先嘗試以 workspace root 為基準解析路徑（支援 .4x/ 以外的截圖目錄）；
+	// 若不存在則 fallback 到 .4x/（相容既有的 .4x/-stripped 路徑格式）。
+	abs := filepath.Join(ws.Root, filepath.FromSlash(targetPath))
 	abs, err = filepath.Abs(abs)
 	if err != nil {
 		http.Error(w, "invalid screenshot path", http.StatusInternalServerError)
 		return
 	}
-	dotAbs, err := filepath.Abs(ws.DotDir())
-	if err != nil {
-		http.Error(w, "invalid workspace path", http.StatusInternalServerError)
-		return
+	if _, statErr := os.Stat(abs); statErr != nil {
+		fallback, ferr := filepath.Abs(filepath.Join(ws.DotDir(), filepath.FromSlash(targetPath)))
+		if ferr == nil {
+			abs = fallback
+		}
 	}
-	if abs != dotAbs && !strings.HasPrefix(abs, dotAbs+string(filepath.Separator)) {
+	if abs != rootAbs && !strings.HasPrefix(abs, rootAbs+string(filepath.Separator)) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}

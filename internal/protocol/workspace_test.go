@@ -927,6 +927,34 @@ func TestNormalizeScreenshotPath(t *testing.T) {
 	}
 }
 
+func TestDiscoverScreenshots_OutsideDotDir(t *testing.T) {
+	ws := setupWorkspace(t)
+	const featureID = "feat-outside"
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatal(err)
+	}
+
+	shotDir := filepath.Join(ws.Root, "screenshots", featureID)
+	if err := os.MkdirAll(shotDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shotDir, "01-login.png"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	groups, err := ws.DiscoverScreenshots(featureID, "screenshots/{feature-id}/")
+	if err != nil {
+		t.Fatalf("DiscoverScreenshots: %v", err)
+	}
+	total := 0
+	for _, g := range groups {
+		total += len(g.Screenshots)
+	}
+	if total != 1 {
+		t.Errorf("total screenshots = %d, want 1", total)
+	}
+}
+
 func TestNormalizeScreenshotPath_CleansDotDot(t *testing.T) {
 	tests := []struct {
 		input string

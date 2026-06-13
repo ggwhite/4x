@@ -560,7 +560,7 @@ func (w *Workspace) discoverFromDir(
 				continue
 			}
 			absPath := filepath.Join(dirPath, e.Name())
-			rel, err := filepath.Rel(w.DotDir(), absPath)
+			rel, err := filepath.Rel(w.Root, absPath)
 			if err != nil {
 				continue
 			}
