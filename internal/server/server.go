@@ -620,6 +620,10 @@ func handleFeatureScreenshots(ws *protocol.Workspace, w http.ResponseWriter, r *
 		return
 	}
 	featureID := parts[0]
+	if strings.ContainsAny(featureID, "/\\") || strings.Contains(featureID, "..") {
+		http.Error(w, "invalid feature id", http.StatusBadRequest)
+		return
+	}
 	if len(parts) == 2 || (len(parts) == 3 && parts[2] == "") {
 		handleGetScreenshots(ws, featureID, w)
 		return

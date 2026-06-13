@@ -703,6 +703,18 @@ func TestServeScreenshot_AmbiguousBasenameRejected(t *testing.T) {
 	}
 }
 
+func TestScreenshots_InvalidFeatureID(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	mux := NewMux(ws, NewProcessManager(ws, 1, "echo"))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/features/feat..evil/screenshots", nil)
+	mux.ServeHTTP(rec, req)
+	if rec.Code != 400 {
+		t.Errorf("GET feat..evil = %d, want 400", rec.Code)
+	}
+}
+
 func TestGetOverview(t *testing.T) {
 	ws := setupServerWorkspace(t)
 	designDir := filepath.Join(ws.Root, "docs", "design")
