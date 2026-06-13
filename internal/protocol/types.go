@@ -150,12 +150,20 @@ type BaselineRepo struct {
 	DirtyFiles []string `json:"dirtyFiles"`
 }
 
+// Screenshot 是 tester 在 verify.json 記錄的截圖 metadata。
+type Screenshot struct {
+	Path        string `json:"path"`
+	Step        string `json:"step"`
+	Description string `json:"description"`
+}
+
 // VerifyEvidence 是 rounds/round-N/verify.json 的結構
 type VerifyEvidence struct {
-	Passed   bool            `json:"passed"`
-	Round    int             `json:"round"`
-	Role     Role            `json:"role"`
-	Commands []VerifyCommand `json:"commands"`
+	Passed      bool            `json:"passed"`
+	Round       int             `json:"round"`
+	Role        Role            `json:"role"`
+	Commands    []VerifyCommand `json:"commands"`
+	Screenshots []Screenshot    `json:"screenshots,omitempty"`
 }
 
 // VerifyCommand 是單一 verify command 的結果
@@ -241,11 +249,15 @@ type RunnerConfig struct {
 
 // RoleConfig 是各角色的模型與行為設定
 type RoleConfig struct {
-	Model        string   `json:"model,omitempty"`
-	DeepModel    string   `json:"deep_model,omitempty"`
-	Instructions []string `json:"instructions,omitempty"`
-	Includes     []string `json:"includes,omitempty"`
+	Model         string   `json:"model,omitempty"`
+	DeepModel     string   `json:"deep_model,omitempty"`
+	ScreenshotDir string   `json:"screenshot_dir,omitempty"`
+	Instructions  []string `json:"instructions,omitempty"`
+	Includes      []string `json:"includes,omitempty"`
 }
+
+// DefaultScreenshotDir 是 tester 預設截圖目錄，可用 {feature-id}、{round} 變數。
+const DefaultScreenshotDir = ".4x/e2e/{feature-id}/screenshot/"
 
 // UserConfig 是 ~/.4x/settings.json 的使用者層級設定
 type UserConfig struct {

@@ -167,6 +167,24 @@ func TestMergeConfig_Roles_InstructionsMerge(t *testing.T) {
 	}
 }
 
+func TestMergeConfig_Roles_ScreenshotDirMerge(t *testing.T) {
+	user := UserConfig{
+		Roles: map[string]RoleConfig{
+			"tester": {ScreenshotDir: ".4x/e2e/{feature-id}/shots/"},
+		},
+	}
+	proj := Config{
+		Project: ProjectConfig{Name: "x"},
+		Roles: map[string]RoleConfig{
+			"tester": {ScreenshotDir: ".4x/custom/{feature-id}/screen/"},
+		},
+	}
+	got := MergeConfig(user, proj)
+	if got.Roles["tester"].ScreenshotDir != ".4x/custom/{feature-id}/screen/" {
+		t.Errorf("ScreenshotDir = %q, want project override", got.Roles["tester"].ScreenshotDir)
+	}
+}
+
 func TestMergeConfig_ProjectOnlyFields_Preserved(t *testing.T) {
 	user := UserConfig{DefaultRunner: "claude"}
 	proj := Config{

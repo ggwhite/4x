@@ -3,6 +3,8 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -286,6 +288,26 @@ func TestMultiMux_OverviewBackwardCompat(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+}
+
+func TestMultiMux_ScreenshotsBackwardCompat(t *testing.T) {
+	ws := setupMultiWorkspace(t, "single-shot")
+	reg := NewProjectRegistry()
+	reg.Add(ws)
+
+	shotDir := filepath.Join(ws.DotDir(), "e2e", "feat-1", "screenshot")
+	if err := os.MkdirAll(shotDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shotDir, "01-overview.png"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	recentPath := t.TempDir() + "/recent.json"
+	rec := serveRequest(t, NewMultiMux(reg, recentPath), http.MethodGet, "/api/features/feat-1/screenshots", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
 	}
 }
 

@@ -276,6 +276,11 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 			handleLogs(ws, rest, w)
 		}
 	})
+	mux.HandleFunc("/api/features/", func(w http.ResponseWriter, r *http.Request) {
+		if ws := compatGetWs(w, "/api/project/{id}/api/features/{featureId}/screenshots"); ws != nil {
+			handleFeatureScreenshots(ws, w, r)
+		}
+	})
 	mux.HandleFunc("/sse/logs/", func(w http.ResponseWriter, r *http.Request) {
 		if ws := compatGetWs(w, "/sse/project/{id}/logs/{featureId}"); ws != nil {
 			featureID := strings.TrimPrefix(r.URL.Path, "/sse/logs/")

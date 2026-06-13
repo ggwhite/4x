@@ -523,6 +523,88 @@ func TestPutSettings_MethodNotAllowed(t *testing.T) {
 	}
 }
 
+func seedScreenshots(t *testing.T, ws *protocol.Workspace, featureID string) {
+	t.Helper()
+	round2Dir := ws.RoundDir(featureID, 2)
+	if err := os.MkdirAll(round2Dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	verify := protocol.VerifyEvidence{
+		Passed: true,
+		Round:  2,
+		Role:   protocol.RoleTester,
+		Screenshots: []protocol.Screenshot{
+			{Path: "e2e/test-feat/screenshot/02-round-two.png", Step: "02", Description: "round two"},
+		},
+	}
+	verifyData, _ := json.Marshal(verify)
+	if err := os.WriteFile(filepath.Join(round2Dir, protocol.VerifyFile), verifyData, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	shotDir := filepath.Join(ws.DotDir(), "e2e", featureID, "screenshot")
+	if err := os.MkdirAll(shotDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shotDir, "01-round-one.png"), []byte("one"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shotDir, "02-round-two.png"), []byte("two"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGetScreenshots(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	seedScreenshots(t, ws, "test-feat")
+
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/features/test-feat/screenshots", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+
+	var got screenshotsResponse
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Total != 2 {
+		t.Fatalf("total = %d, want 2", got.Total)
+	}
+	if len(got.Groups) != 2 {
+		t.Fatalf("groups = %d, want 2", len(got.Groups))
+	}
+	if got.Groups[0].Round != 1 || len(got.Groups[0].Screenshots) != 1 {
+		t.Fatalf("group[0] = %+v, want round 1 with 1 screenshot", got.Groups[0])
+	}
+	if got.Groups[1].Round != 2 || len(got.Groups[1].Screenshots) != 1 {
+		t.Fatalf("group[1] = %+v, want round 2 with 1 screenshot", got.Groups[1])
+	}
+}
+
+func TestServeScreenshot(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	seedScreenshots(t, ws, "test-feat")
+
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/features/test-feat/screenshots/01-round-one.png", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if rec.Header().Get("Content-Type") != "image/png" {
+		t.Fatalf("content-type = %s, want image/png", rec.Header().Get("Content-Type"))
+	}
+	if rec.Body.String() != "one" {
+		t.Fatalf("body = %q, want one", rec.Body.String())
+	}
+}
+
+func TestServeScreenshot_InvalidExtensionRejected(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/features/test-feat/screenshots/state.json", "")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
 func TestGetOverview(t *testing.T) {
 	ws := setupServerWorkspace(t)
 	designDir := filepath.Join(ws.Root, "docs", "design")

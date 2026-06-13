@@ -42,6 +42,8 @@ The dashboard exposes REST and SSE endpoints:
 | `/api/events/{id}` | GET | Get events for a feature |
 | `/api/overview/{id}` | GET | Get feature overview (YAML fields + spec/plan content) |
 | `/api/messages/{id}` | GET | Get messages for a feature |
+| `/api/features/{id}/screenshots` | GET | Get screenshots grouped by round |
+| `/api/features/{id}/screenshots/{filename}` | GET | Serve one screenshot image |
 | `/api/logs/{id}` | GET | List log files for a feature |
 | `/api/logs/{id}/{file}` | GET | Get a specific log file |
 | `/api/projects` | GET | List registered projects |
@@ -69,6 +71,10 @@ Always returns HTTP 200. The `status` field is `"done"` only after the state tra
 | `conflicts` | string[] | List of conflicting files (only present when `merge_conflict: true`) |
 
 After a conflict, resolve the files in the worktree and run `4x merge <id>` to complete.
+
+### Screenshots Tab
+
+Feature detail includes a **Screenshots** tab when screenshots exist for that feature. Screenshots are grouped by round, displayed as thumbnails, and can be opened in a lightbox with left/right navigation and ESC-to-close.
 
 ### SSE (Server-Sent Events)
 

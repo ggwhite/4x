@@ -26,6 +26,24 @@ Each AC item must have:
 - **Evidence**: what you observed (command output, screenshot, DB query result)
 - **Detail**: for fail/skip, describe what went wrong
 
+## Screenshots in verify.json
+
+If you take screenshots during testing, record them in verify.json:
+
+```json
+{
+  "screenshots": [
+    {
+      "path": "e2e/{feature-id}/screenshot/01-description.png",
+      "step": "01",
+      "description": "what this shows"
+    }
+  ]
+}
+```
+
+Path is relative to `.4x/`. Step is the numeric prefix from the filename.
+
 {{- if .ProjectIncludes }}
 {{ range .ProjectIncludes }}
 

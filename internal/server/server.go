@@ -11,6 +11,7 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -128,6 +129,9 @@ func NewMux(ws *protocol.Workspace, pm *ProcessManager) http.Handler {
 	mux.HandleFunc("/api/logs/", func(w http.ResponseWriter, r *http.Request) {
 		rest := strings.TrimPrefix(r.URL.Path, "/api/logs/")
 		handleLogs(ws, rest, w)
+	})
+	mux.HandleFunc("/api/features/", func(w http.ResponseWriter, r *http.Request) {
+		handleFeatureScreenshots(ws, w, r)
 	})
 	mux.HandleFunc("/sse/logs/", func(w http.ResponseWriter, r *http.Request) {
 		featureID := strings.TrimPrefix(r.URL.Path, "/sse/logs/")
@@ -547,6 +551,24 @@ type logInfo struct {
 	Size int64  `json:"size"`
 }
 
+type screenshotItem struct {
+	Path        string `json:"path"`
+	Step        string `json:"step"`
+	Description string `json:"description"`
+	Filename    string `json:"filename"`
+	URL         string `json:"url"`
+}
+
+type screenshotGroupResponse struct {
+	Round       int              `json:"round"`
+	Screenshots []screenshotItem `json:"screenshots"`
+}
+
+type screenshotsResponse struct {
+	Groups []screenshotGroupResponse `json:"groups"`
+	Total  int                       `json:"total"`
+}
+
 // handleLogs 處理 /api/logs/<featureId> 列表或 /api/logs/<featureId>/<filename> 內容
 func handleLogs(ws *protocol.Workspace, rest string, w http.ResponseWriter) {
 	parts := strings.SplitN(rest, "/", 2)
@@ -583,6 +605,157 @@ func handleLogs(ws *protocol.Workspace, rest string, w http.ResponseWriter) {
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Write(data)
+}
+
+func handleFeatureScreenshots(ws *protocol.Workspace, w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	rest := strings.TrimPrefix(r.URL.Path, "/api/features/")
+	parts := strings.Split(rest, "/")
+	if len(parts) < 2 || parts[0] == "" || parts[1] != "screenshots" {
+		http.NotFound(w, r)
+		return
+	}
+	featureID := parts[0]
+	if len(parts) == 2 || (len(parts) == 3 && parts[2] == "") {
+		handleGetScreenshots(ws, featureID, w)
+		return
+	}
+	if len(parts) == 3 {
+		handleServeScreenshot(ws, featureID, parts[2], w, r)
+		return
+	}
+	http.NotFound(w, r)
+}
+
+func handleGetScreenshots(ws *protocol.Workspace, featureID string, w http.ResponseWriter) {
+	screenshotDir, err := getScreenshotDir(ws)
+	if err != nil {
+		http.Error(w, "read settings: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	groups, err := ws.DiscoverScreenshots(featureID, screenshotDir)
+	if err != nil {
+		http.Error(w, "discover screenshots: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	resp := screenshotsResponse{Groups: make([]screenshotGroupResponse, 0, len(groups))}
+	for _, group := range groups {
+		items := make([]screenshotItem, 0, len(group.Screenshots))
+		for _, shot := range group.Screenshots {
+			filename := filepath.Base(shot.Path)
+			items = append(items, screenshotItem{
+				Path:        shot.Path,
+				Step:        shot.Step,
+				Description: shot.Description,
+				Filename:    filename,
+				URL:         "/api/features/" + featureID + "/screenshots/" + url.PathEscape(filename),
+			})
+		}
+		resp.Groups = append(resp.Groups, screenshotGroupResponse{
+			Round:       group.Round,
+			Screenshots: items,
+		})
+		resp.Total += len(items)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+func handleServeScreenshot(ws *protocol.Workspace, featureID, filename string, w http.ResponseWriter, r *http.Request) {
+	name := filepath.Base(filename)
+	if name == "" || name == "." {
+		http.Error(w, "invalid filename", http.StatusBadRequest)
+		return
+	}
+	if !isAllowedScreenshotExt(name) {
+		http.Error(w, "unsupported screenshot type", http.StatusBadRequest)
+		return
+	}
+
+	screenshotDir, err := getScreenshotDir(ws)
+	if err != nil {
+		http.Error(w, "read settings: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	groups, err := ws.DiscoverScreenshots(featureID, screenshotDir)
+	if err != nil {
+		http.Error(w, "discover screenshots: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	targetPath := ""
+	for _, group := range groups {
+		for _, shot := range group.Screenshots {
+			if filepath.Base(shot.Path) == name {
+				targetPath = shot.Path
+				break
+			}
+		}
+		if targetPath != "" {
+			break
+		}
+	}
+	if targetPath == "" {
+		http.NotFound(w, r)
+		return
+	}
+
+	abs := filepath.Join(ws.DotDir(), filepath.FromSlash(targetPath))
+	abs, err = filepath.Abs(abs)
+	if err != nil {
+		http.Error(w, "invalid screenshot path", http.StatusInternalServerError)
+		return
+	}
+	dotAbs, err := filepath.Abs(ws.DotDir())
+	if err != nil {
+		http.Error(w, "invalid workspace path", http.StatusInternalServerError)
+		return
+	}
+	if abs != dotAbs && !strings.HasPrefix(abs, dotAbs+string(filepath.Separator)) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	if _, err := os.Stat(abs); err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	w.Header().Set("Content-Type", screenshotContentType(name))
+	http.ServeFile(w, r, abs)
+}
+
+func getScreenshotDir(ws *protocol.Workspace) (string, error) {
+	cfg, err := ws.ReadConfig()
+	if err != nil {
+		return "", err
+	}
+	if tester, ok := cfg.Roles[string(protocol.RoleTester)]; ok && strings.TrimSpace(tester.ScreenshotDir) != "" {
+		return tester.ScreenshotDir, nil
+	}
+	return protocol.DefaultScreenshotDir, nil
+}
+
+func isAllowedScreenshotExt(name string) bool {
+	ext := strings.ToLower(filepath.Ext(name))
+	return ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".webp"
+}
+
+func screenshotContentType(name string) string {
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".png":
+		return "image/png"
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".webp":
+		return "image/webp"
+	default:
+		return "application/octet-stream"
+	}
 }
 
 // handleLogSSE 即時 tail log 檔案。支援 ?file= 指定特定檔案，未指定則追蹤最新的。
@@ -997,4 +1170,3 @@ func resolveDoc(root, yamlPath, featureID, suffix string) (string, string) {
 	}
 	return "", ""
 }
-

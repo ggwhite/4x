@@ -494,6 +494,7 @@ function renderProjectSettingsForm() {
       <div style="font-size:13px;font-weight:600;color:var(--text-1);margin-bottom:10px;text-transform:capitalize">${rn}</div>
       ${psField(t('field.model'), 'ps-role-model-'+rn, rc.model)}
       ${rn === 'reviewer' ? psField(t('field.deepModel'), 'ps-role-deepmodel-'+rn, rc.deep_model) : ''}
+      ${rn === 'tester' ? psField(t('field.screenshotDir'), 'ps-role-screenshot-dir-'+rn, rc.screenshot_dir || '.4x/e2e/{feature-id}/screenshot/') : ''}
       ${psTagField(t('field.instructions'), 'ps-role-instr-'+rn, rc.instructions)}
       ${psTagField(t('field.includes'), 'ps-role-includes-'+rn, rc.includes)}
     </div>`;
@@ -622,6 +623,10 @@ function collectFormData() {
     if (rn === 'reviewer') {
       const dm = (document.getElementById('ps-role-deepmodel-'+rn) || {}).value?.trim();
       if (dm) rc.deep_model = dm;
+    }
+    if (rn === 'tester') {
+      const screenshotDir = (document.getElementById('ps-role-screenshot-dir-'+rn) || {}).value?.trim();
+      if (screenshotDir) rc.screenshot_dir = screenshotDir;
     }
     const instr = getTagItems('ps-role-instr-'+rn);
     if (instr.length) rc.instructions = instr;
