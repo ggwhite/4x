@@ -91,6 +91,7 @@
   "field.command": "명령어",
   "field.args": "인수",
   "field.model": "모델",
+  "field.outputFormat": "출력 형식",
   "field.deepModel": "딥 모델",
   "field.instructions": "지시사항",
   "field.hubRepos": "Hub 저장소",

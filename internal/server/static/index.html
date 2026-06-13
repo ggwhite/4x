@@ -916,6 +916,7 @@ function renderProjectSettingsForm() {
       ${psField(t('field.command'), 'ps-runner-cmd-'+name, rc.command)}
       ${psTagField(t('field.args'), 'ps-runner-args-'+name, rc.args)}
       ${psField(t('field.model'), 'ps-runner-model-'+name, rc.model)}
+      ${psField(t('field.outputFormat'), 'ps-runner-output-format-'+name, rc.output_format)}
       <div style="display:flex;gap:16px;margin-bottom:6px">
         <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:6px"><input type="checkbox" id="ps-runner-stdin-${escAttr(name)}"${rc.stdin?' checked':''} onchange="autoSave()"> stdin</label>
         <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:6px"><input type="checkbox" id="ps-runner-tty-${escAttr(name)}"${rc.tty?' checked':''} onchange="autoSave()"> tty</label>
@@ -990,6 +991,7 @@ function addRunner() {
   ${psField(t('field.command'), 'ps-runner-cmd-'+name, '')}
   ${psTagField(t('field.args'), 'ps-runner-args-'+name, [])}
   ${psField(t('field.model'), 'ps-runner-model-'+name, '')}
+  ${psField(t('field.outputFormat'), 'ps-runner-output-format-'+name, '')}
   <div style="display:flex;gap:16px;margin-bottom:6px">
     <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:6px"><input type="checkbox" id="ps-runner-stdin-${escAttr(name)}" onchange="autoSave()"> stdin</label>
     <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:6px"><input type="checkbox" id="ps-runner-tty-${escAttr(name)}" onchange="autoSave()"> tty</label>

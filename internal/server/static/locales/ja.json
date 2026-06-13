@@ -91,6 +91,7 @@
   "field.command": "コマンド",
   "field.args": "引数",
   "field.model": "モデル",
+  "field.outputFormat": "出力形式",
   "field.deepModel": "ディープモデル",
   "field.instructions": "指示",
   "field.hubRepos": "Hub リポジトリ",

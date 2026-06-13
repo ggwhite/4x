@@ -91,6 +91,7 @@
   "field.command": "Command",
   "field.args": "Args",
   "field.model": "Model",
+  "field.outputFormat": "Output Format",
   "field.deepModel": "Deep Model",
   "field.instructions": "Instructions",
   "field.hubRepos": "Hub Repos",

@@ -91,6 +91,7 @@
   "field.command": "命令",
   "field.args": "参数",
   "field.model": "模型",
+  "field.outputFormat": "输出格式",
   "field.deepModel": "深度模型",
   "field.instructions": "指令",
   "field.hubRepos": "Hub 仓库",

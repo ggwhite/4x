@@ -91,6 +91,7 @@
   "field.command": "Comando",
   "field.args": "Argumentos",
   "field.model": "Modelo",
+  "field.outputFormat": "Formato de salida",
   "field.deepModel": "Modelo profundo",
   "field.instructions": "Instrucciones",
   "field.hubRepos": "Repositorios Hub",
