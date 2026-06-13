@@ -120,7 +120,27 @@ rules: []
 depends: []
 ```
 
-`status` mirrors `state.json` phase for quick listing. `depends` lists feature IDs that must be done before this feature can run.
+`status` mirrors `state.json` phase for quick listing. `depends` lists feature IDs that must be done before this feature can run. `repos` lists the repository names (from `workspace.repos`) that this feature touches; empty means all repos in scope.
+
+### Workspace Config (Multi-Repo)
+
+By default, 4x operates in monorepo mode. To work across multiple repositories, declare them in `.4x/settings.json`:
+
+```json
+{
+  "workspace": {
+    "repos": {
+      "backend": { "path": "backend/", "hub": false },
+      "frontend": { "path": "frontend/", "hub": false },
+      "infra": { "path": "infra/", "hub": true }
+    }
+  }
+}
+```
+
+Each entry maps a repo name to its path (relative to the workspace root) and an optional `hub` flag. Hub repos are shared infrastructure that multiple features may touch — they are excluded from the scope clustering in `4x batch plan`.
+
+In monorepo mode (no `workspace.repos`), all scope checks and git operations use the single repo root.
 
 ---
 
@@ -132,7 +152,7 @@ Deterministic checks enforced by the CLI — not dependent on AI judgment.
 |---|---|
 | **Required files** | Verifies phase-appropriate artifacts exist (e.g., `task-brief.md` after designing) |
 | **Baseline** | Captures pre-coding state (HEAD, branch, dirty files); warns if dirty files exist |
-| **Scope** | Compares `git diff --name-only HEAD` top-level directories against feature's declared repos |
+| **Scope** | In monorepo mode: compares `git diff --name-only HEAD` top-level directories against feature's declared repos. In multi-repo mode: uses `gitops.Ops.DetectChangedRepos()` across all workspace repos |
 | **Dependencies** | Blocks `4x run` if depended features are not done |
 | **Backlog drift** | Warns when `.4x/features/*.yaml` and external mirrors are out of sync |
 | **Testing → Accepting gate** | Requires `verify.json` (passed=true), `test-report.md`, `final-report.md`, `commit-plan.md` |

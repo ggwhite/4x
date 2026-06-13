@@ -39,7 +39,10 @@ func newMergeCmd() *cobra.Command {
 				return fmt.Errorf("feature %s is in phase %q, not pending-review or done (run '4x done %s' first)", featureID, s.Phase, featureID)
 			}
 
-			cfg, _ := ws.ReadConfig()
+			cfg, err := ws.ReadConfig()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "warning: cannot read config, using defaults: %v\n", err)
+			}
 			if userCfg, err := protocol.ReadUserConfig(); err == nil {
 				cfg = protocol.MergeConfig(userCfg, cfg)
 			}

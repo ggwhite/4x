@@ -24,7 +24,7 @@ Run multiple features in dependency-aware order.
 
 1. **Dependency DAG** — builds a directed graph from feature `depends` fields
 2. **Cycle detection** — errors if circular dependencies exist
-3. **Union-Find clustering** — groups features that share repositories
+3. **Union-Find clustering** — groups features that share non-hub repositories (hub repos defined via `hub_repos` config or `workspace.repos[*].hub: true` are excluded from clustering)
 4. **Topological sort** — orders features within each cluster
 5. **Chain scheduling** — splits long dependency chains (max length configurable with `--max-chain`)
 
