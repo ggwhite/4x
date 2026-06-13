@@ -20,7 +20,20 @@ Include:
 - Changed files (paths)
 - Build/test/lint results
 - Summary of what you did
-- Subtask progress updates (if applicable)
+
+## Subtask Updates
+
+After completing a subtask, update its status:
+```bash
+4x subtask {{ .Feature.ID }} <subtask-id> --status done
+```
+{{- if .Feature.Subtasks }}
+
+Available subtasks:
+{{- range .Feature.Subtasks }}
+- `{{ .ID }}`: {{ .Name }} ({{ if .Status }}{{ .Status }}{{ else }}not-started{{ end }})
+{{- end }}
+{{- end }}
 
 {{- if .PlanningDoc }}
 

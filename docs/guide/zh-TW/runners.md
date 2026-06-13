@@ -29,7 +29,7 @@ Runner 在 `.4x/settings.json` 的 `runners` 區段中設定。CLI 以子程序�
 | codex | `AGENTS.md` + `codex.json` | AGENTS.md |
 | gemini | `GEMINI.md` | GEMINI.md |
 | agy | `AGY.md` | AGY.md |
-| copilot | `AGENTS.md` + `workflow.js` | AGENTS.md |
+| copilot | `AGENTS.md` | AGENTS.md |
 | cursor | `.cursorrules` | .cursorrules |
 
 此外，共用指令檔會部署到 `.4x/plugins/shared/` 供所有 runner 使用：

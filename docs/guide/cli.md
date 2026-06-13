@@ -97,6 +97,25 @@ Groups: Running, Review, Pending, Todo, Done (done shows max 5). Includes backlo
 
 ---
 
+## `4x subtask <feature-id> <subtask-id>`
+
+Update the status of a subtask within a feature.
+
+```
+4x subtask <feature-id> <subtask-id> --status <status>
+```
+
+| Flag | Description |
+|---|---|
+| `--status` | New status: `done`, `in-progress`, `blocked`, `not-started` (required) |
+
+Example:
+```
+4x subtask F043-dashboard-screenshot-gall protocol-screenshot-type --status done
+```
+
+---
+
 ## `4x check <feature-id>`
 
 Run guardrail checks without transitioning state.

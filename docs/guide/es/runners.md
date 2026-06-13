@@ -29,7 +29,7 @@ Cada runner tiene archivos de instrucciones embebidos en el binario de `4x`. `4x
 | codex | `AGENTS.md` + `codex.json` | AGENTS.md |
 | gemini | `GEMINI.md` | GEMINI.md |
 | agy | `AGY.md` | AGY.md |
-| copilot | `AGENTS.md` + `workflow.js` | AGENTS.md |
+| copilot | `AGENTS.md` | AGENTS.md |
 | cursor | `.cursorrules` | .cursorrules |
 
 Además, los archivos de instrucciones compartidos se despliegan en `.4x/plugins/shared/` para todos los runners:

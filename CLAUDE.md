@@ -28,7 +28,7 @@ plugins/
   gemini/            Gemini CLI runner instructions
   codex/             Codex CLI runner instructions
   agy/               Antigravity CLI runner instructions
-  copilot/           Copilot CLI runner instructions + workflow.js
+  copilot/           Copilot CLI runner instructions
   cursor/            Cursor rules (.cursorrules)
   embed.go           go:embed 將 plugin 檔嵌入 binary
 dashboard/

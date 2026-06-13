@@ -29,7 +29,7 @@ Each runner has instruction files embedded in the `4x` binary. `4x init` deploys
 | codex | `AGENTS.md` + `codex.json` | AGENTS.md |
 | gemini | `GEMINI.md` | GEMINI.md |
 | agy | `AGY.md` | AGY.md |
-| copilot | `AGENTS.md` + `workflow.js` | AGENTS.md |
+| copilot | `AGENTS.md` | AGENTS.md |
 | cursor | `.cursorrules` | .cursorrules |
 
 Additionally, shared instruction files are deployed to `.4x/plugins/shared/` for all runners:

@@ -29,7 +29,7 @@
 | codex | `AGENTS.md` + `codex.json` | AGENTS.md |
 | gemini | `GEMINI.md` | GEMINI.md |
 | agy | `AGY.md` | AGY.md |
-| copilot | `AGENTS.md` + `workflow.js` | AGENTS.md |
+| copilot | `AGENTS.md` | AGENTS.md |
 | cursor | `.cursorrules` | .cursorrules |
 
 また、共有指示ファイルがすべてのランナー向けに `.4x/plugins/shared/` にデプロイされます：

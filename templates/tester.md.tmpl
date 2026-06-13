@@ -58,6 +58,13 @@ Each AC item must have:
 {{- end }}
 {{- end }}
 
+## Subtask Updates
+
+After verifying a subtask passes all its acceptance criteria, update its status:
+```bash
+4x subtask {{ .Feature.ID }} <subtask-id> --status done
+```
+
 ## Rules
 
 - SKIP > 30% of total items → blocks acceptance

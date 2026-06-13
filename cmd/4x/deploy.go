@@ -39,7 +39,6 @@ func runnerDeploys(name string) []pluginDeploy {
 	case "copilot":
 		return []pluginDeploy{
 			{EmbedPath: "copilot/AGENTS.md", PluginName: "copilot-AGENTS.md", RootFile: "AGENTS.md"},
-			{EmbedPath: "copilot/workflow.js", PluginName: "copilot-workflow.js"},
 		}
 	case "cursor":
 		return []pluginDeploy{
