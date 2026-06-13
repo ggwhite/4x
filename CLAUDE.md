@@ -100,6 +100,7 @@ make check-i18n               # 檢查多國語系 key 是否同步（以 en.jso
 - `check-docs-sync` 輸出 `NEEDS_UPDATE` → 只更新被點名的 doc 檔
 - `check-i18n` 輸出 `ERROR: missing keys` → 補齊對應語系的缺漏 key
 - 兩者都 OK → 不需額外動作
+- **禁止手動掃描**：不要自己讀所有 doc 或 locale 檔來判斷是否需要更新，信任腳本輸出
 
 CI 另外跑 `make check-docs` 驗證所有 subcommand 都出現在 `docs/guide/cli.md`。
 

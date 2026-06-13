@@ -44,7 +44,7 @@ func newInitCmd() *cobra.Command {
 				return err
 			}
 
-			deployPlugins(cwd, cfg)
+			installPlugins(cwd, cfg)
 
 			fmt.Printf("Initialized 4x project in %s/\n", protocol.DirName)
 			if profile.Language != "" {

@@ -11,50 +11,50 @@ import (
 	"github.com/ggwhite/4x/plugins"
 )
 
-// pluginDeploy 定義一個 plugin 檔案的部署規則
-type pluginDeploy struct {
+// pluginInstall 定義一個 plugin 檔案的安裝規則
+type pluginInstall struct {
 	EmbedPath  string
 	PluginName string
 	RootFile   string
 }
 
-func runnerDeploys(name string) []pluginDeploy {
+func runnerInstalls(name string) []pluginInstall {
 	switch name {
 	case "claude":
-		return []pluginDeploy{
+		return []pluginInstall{
 			{EmbedPath: "claude-code/CLAUDE.md", PluginName: "CLAUDE.md", RootFile: "CLAUDE.md"},
 		}
 	case "codex":
-		return []pluginDeploy{
+		return []pluginInstall{
 			{EmbedPath: "codex/AGENTS.md", PluginName: "codex-AGENTS.md", RootFile: "AGENTS.md"},
 		}
 	case "gemini":
-		return []pluginDeploy{
+		return []pluginInstall{
 			{EmbedPath: "gemini/GEMINI.md", PluginName: "GEMINI.md", RootFile: "GEMINI.md"},
 		}
 	case "agy":
-		return []pluginDeploy{
+		return []pluginInstall{
 			{EmbedPath: "agy/AGY.md", PluginName: "AGY.md", RootFile: "AGY.md"},
 		}
 	case "copilot":
-		return []pluginDeploy{
+		return []pluginInstall{
 			{EmbedPath: "copilot/AGENTS.md", PluginName: "copilot-AGENTS.md", RootFile: "AGENTS.md"},
 		}
 	case "cursor":
-		return []pluginDeploy{
+		return []pluginInstall{
 			{EmbedPath: "cursor/.cursorrules", PluginName: "cursorrules", RootFile: ".cursorrules"},
 		}
 	}
 	return nil
 }
 
-// deployPlugins 從 embed FS 部署 plugin 指令檔到 .4x/plugins/，
+// installPlugins 從 embed FS 安裝 plugin 指令檔到 .4x/plugins/，
 // 並在使用者的根目錄指令檔中加入 @import 行
-func deployPlugins(root string, cfg protocol.Config) {
+func installPlugins(root string, cfg protocol.Config) {
 	pluginDir := filepath.Join(root, ".4x", "plugins")
 	os.MkdirAll(pluginDir, 0o755)
 
-	// 部署 shared/ — 所有 runner 共用的指令檔
+	// 安裝 shared/ — 所有 runner 共用的指令檔
 	sharedDir := filepath.Join(pluginDir, "shared")
 	os.MkdirAll(sharedDir, 0o755)
 	sharedFiles := []string{"shared/CREATOR.md"}
@@ -77,13 +77,13 @@ func deployPlugins(root string, cfg protocol.Config) {
 		allRunners[name] = true
 	}
 	for name := range allRunners {
-		deploys := runnerDeploys(name)
+		installs := runnerInstalls(name)
 
 		if name == "codex" {
-			deployCodexConfig(root)
+			installCodexConfig(root)
 		}
 
-		for _, d := range deploys {
+		for _, d := range installs {
 			data, err := plugins.FS.ReadFile(d.EmbedPath)
 			if err != nil {
 				continue
@@ -117,8 +117,8 @@ func ensureImport(root, filename, importLine, runner string) {
 	}
 }
 
-// deployCodexConfig 產生 codex.json
-func deployCodexConfig(root string) {
+// installCodexConfig 建立 codex.json 預設設定
+func installCodexConfig(root string) {
 	settingsPath := filepath.Join(root, "codex.json")
 	if _, err := os.Stat(settingsPath); err == nil {
 		return

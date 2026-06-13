@@ -1,7 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE="${1:-main}"
+BASE="${1:-}"
+
+if [ -z "$BASE" ]; then
+  current=$(git rev-parse --abbrev-ref HEAD)
+  if [ "$current" = "main" ] || [ "$current" = "master" ]; then
+    # on main: compare against last tag, or last 20 commits if no tags
+    BASE=$(git describe --tags --abbrev=0 2>/dev/null || echo "HEAD~20")
+  else
+    BASE="main"
+  fi
+fi
+
 DIFF_FILES=$(git diff --name-only "$BASE"...HEAD 2>/dev/null || git diff --name-only HEAD~1)
 
 # pattern → doc mapping (one per line, tab-separated)

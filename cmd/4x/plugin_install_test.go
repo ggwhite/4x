@@ -8,7 +8,7 @@ import (
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
-func TestDeployPluginsCreatesSharedDir(t *testing.T) {
+func TestInstallPluginsCreatesSharedDir(t *testing.T) {
 	root := t.TempDir()
 	dotDir := filepath.Join(root, ".4x")
 	os.MkdirAll(dotDir, 0o755)
@@ -19,15 +19,15 @@ func TestDeployPluginsCreatesSharedDir(t *testing.T) {
 		},
 	}
 
-	deployPlugins(root, cfg)
+	installPlugins(root, cfg)
 
 	sharedCreator := filepath.Join(dotDir, "plugins", "shared", "CREATOR.md")
 	if _, err := os.Stat(sharedCreator); err != nil {
-		t.Errorf("shared/CREATOR.md not deployed: %v", err)
+		t.Errorf("shared/CREATOR.md not installed: %v", err)
 	}
 }
 
-func TestDeployPluginsSharedDeployedWithoutRunners(t *testing.T) {
+func TestInstallPluginsSharedInstalledWithoutRunners(t *testing.T) {
 	root := t.TempDir()
 	dotDir := filepath.Join(root, ".4x")
 	os.MkdirAll(dotDir, 0o755)
@@ -36,11 +36,11 @@ func TestDeployPluginsSharedDeployedWithoutRunners(t *testing.T) {
 		Runners: map[string]protocol.RunnerConfig{},
 	}
 
-	deployPlugins(root, cfg)
+	installPlugins(root, cfg)
 
 	sharedCreator := filepath.Join(dotDir, "plugins", "shared", "CREATOR.md")
 	if _, err := os.Stat(sharedCreator); err != nil {
-		t.Errorf("shared/CREATOR.md should deploy even without runners: %v", err)
+		t.Errorf("shared/CREATOR.md should install even without runners: %v", err)
 	}
 }
 

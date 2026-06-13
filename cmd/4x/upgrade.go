@@ -18,7 +18,7 @@ func newUpgradeCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "upgrade",
-		Short: "Re-deploy embedded plugin files to an existing project",
+		Short: "Re-install embedded plugin files to an existing project",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
 			if err != nil {
@@ -38,7 +38,7 @@ func newUpgradeCmd() *cobra.Command {
 			report := comparePlugins(ws.Root, cfg)
 
 			if !dryRun {
-				deployPlugins(ws.Root, cfg)
+				installPlugins(ws.Root, cfg)
 			}
 
 			if dryRun {
@@ -104,9 +104,9 @@ func comparePlugins(root string, cfg protocol.Config) []fileReport {
 	}
 
 	for name := range cfg.Runners {
-		deploys := runnerDeploys(name)
+		installs := runnerInstalls(name)
 
-		for _, d := range deploys {
+		for _, d := range installs {
 			embedData, err := plugins.FS.ReadFile(d.EmbedPath)
 			if err != nil {
 				continue
