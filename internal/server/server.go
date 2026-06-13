@@ -631,13 +631,20 @@ func handleFeatureScreenshots(ws *protocol.Workspace, w http.ResponseWriter, r *
 	http.NotFound(w, r)
 }
 
-func handleGetScreenshots(ws *protocol.Workspace, featureID string, w http.ResponseWriter) {
+// getMergedScreenshotDir 讀取 project config 並合併 user config，回傳 screenshotDir。
+func getMergedScreenshotDir(ws *protocol.Workspace) string {
 	cfg, err := ws.ReadConfig()
 	if err != nil {
-		http.Error(w, "read settings: "+err.Error(), http.StatusInternalServerError)
-		return
+		return protocol.DefaultScreenshotDir
 	}
-	screenshotDir := protocol.ScreenshotDir(cfg)
+	if userCfg, err := protocol.ReadUserConfig(); err == nil {
+		cfg = protocol.MergeConfig(userCfg, cfg)
+	}
+	return protocol.ScreenshotDir(cfg)
+}
+
+func handleGetScreenshots(ws *protocol.Workspace, featureID string, w http.ResponseWriter) {
+	screenshotDir := getMergedScreenshotDir(ws)
 	groups, err := ws.DiscoverScreenshots(featureID, screenshotDir)
 	if err != nil {
 		http.Error(w, "discover screenshots: "+err.Error(), http.StatusInternalServerError)
@@ -688,12 +695,7 @@ func handleServeScreenshot(ws *protocol.Workspace, featureID, filename string, w
 		return
 	}
 
-	cfg, err := ws.ReadConfig()
-	if err != nil {
-		http.Error(w, "read settings: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	screenshotDir := protocol.ScreenshotDir(cfg)
+	screenshotDir := getMergedScreenshotDir(ws)
 	groups, err := ws.DiscoverScreenshots(featureID, screenshotDir)
 	if err != nil {
 		http.Error(w, "discover screenshots: "+err.Error(), http.StatusInternalServerError)

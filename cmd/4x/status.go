@@ -273,6 +273,9 @@ func showFeatureDetail(ws *protocol.Workspace, id string) error {
 	if err != nil {
 		return err
 	}
+	if userCfg, err := protocol.ReadUserConfig(); err == nil {
+		cfg = protocol.MergeConfig(userCfg, cfg)
+	}
 	screenshotDir := protocol.ScreenshotDir(cfg)
 	groups, err := ws.DiscoverScreenshots(id, screenshotDir)
 	if err != nil {
