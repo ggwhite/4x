@@ -307,15 +307,18 @@ func mergeBySharedRepos(features []protocol.Feature, hubRepos []string, uf *unio
 	}
 	for i := 0; i < len(features); i++ {
 		for j := i + 1; j < len(features); j++ {
-			for r := range features[i].Repos {
+			for _, r := range features[i].Repos {
 				if hubSet[r] {
 					continue
 				}
-				if _, ok := features[j].Repos[r]; ok {
-					uf.union(i, j)
-					break
+				for _, r2 := range features[j].Repos {
+					if r == r2 {
+						uf.union(i, j)
+						goto nextPair
+					}
 				}
 			}
+		nextPair:
 		}
 	}
 }

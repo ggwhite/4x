@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ggwhite/4x/internal/batch"
+	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/runner"
 	"github.com/spf13/cobra"
@@ -68,7 +69,7 @@ func newBatchPlanCmd() *cobra.Command {
 				return nil
 			}
 
-			plan, err := batch.PlanBatch(pending, cfg.HubRepos, maxChain)
+			plan, err := batch.PlanBatch(pending, protocol.EffectiveHubRepos(cfg), maxChain)
 			if err != nil {
 				return err
 			}
@@ -232,7 +233,7 @@ func newBatchRunCmd() *cobra.Command {
 				return nil
 			}
 
-			plan, err := batch.PlanBatch(pending, cfg.HubRepos, 4)
+			plan, err := batch.PlanBatch(pending, protocol.EffectiveHubRepos(cfg), 4)
 			if err != nil {
 				return err
 			}
@@ -310,10 +311,11 @@ func newBatchRunCmd() *cobra.Command {
 
 				signal.Ignore(syscall.SIGPIPE)
 				batchCtx, batchCancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+				batchOps := gitops.New(ws.Root, ws, cfg)
 				runnerFactory := func(logPath string, model string) runner.Runner {
 					return runner.NewRunner(ws, runnerName, runnerCfg, time.Duration(timeout)*time.Second, logPath, model)
 				}
-				err = runLoop(batchCtx, ws, ws, feature, cfg, s, runnerFactory, "never")
+				err = runLoop(batchCtx, ws, ws, feature, cfg, s, batchOps, runnerFactory, "never")
 				batchCancel()
 
 				updated, _ := ws.LoadFeature(next)

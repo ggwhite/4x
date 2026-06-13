@@ -19,9 +19,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/state"
-	"github.com/ggwhite/4x/internal/worktree"
 )
 
 var settingsMu sync.Mutex
@@ -223,7 +223,7 @@ type overviewInfo struct {
 	Description string             `json:"description"`
 	Status      string             `json:"status"`
 	Priority    *int               `json:"priority,omitempty"`
-	Repos       map[string]string  `json:"repos,omitempty"`
+	Repos       []string           `json:"repos,omitempty"`
 	Subtasks    []protocol.Subtask `json:"subtasks,omitempty"`
 	Rules       []string           `json:"rules,omitempty"`
 	Depends     []string           `json:"depends,omitempty"`
@@ -912,8 +912,14 @@ func handlePostDone(ws *protocol.Workspace, w http.ResponseWriter, r *http.Reque
 		name = f.Name
 	}
 
+	cfg, _ := ws.ReadConfig()
+	if userCfg, err := protocol.ReadUserConfig(); err == nil {
+		cfg = protocol.MergeConfig(userCfg, cfg)
+	}
+	ops := gitops.New(ws.Root, ws, cfg)
+
 	mergeMu.Lock()
-	result := worktree.Merge(ws.Root, req.ID, name)
+	result := ops.Merge(req.ID, name)
 	mergeMu.Unlock()
 
 	w.Header().Set("Content-Type", "application/json")

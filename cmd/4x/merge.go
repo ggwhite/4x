@@ -5,8 +5,8 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/protocol"
-	"github.com/ggwhite/4x/internal/worktree"
 	"github.com/spf13/cobra"
 )
 
@@ -39,7 +39,14 @@ func newMergeCmd() *cobra.Command {
 				return fmt.Errorf("feature %s is in phase %q, not pending-review or done (run '4x done %s' first)", featureID, s.Phase, featureID)
 			}
 
-			wtDir := worktree.Dir(ws.Root, featureID)
+			cfg, _ := ws.ReadConfig()
+			if userCfg, err := protocol.ReadUserConfig(); err == nil {
+				cfg = protocol.MergeConfig(userCfg, cfg)
+			}
+
+			ops := gitops.New(ws.Root, ws, cfg)
+
+			wtDir := gitops.Dir(ws.Root, featureID)
 			if _, err := os.Stat(wtDir); err != nil {
 				return fmt.Errorf("no worktree found at %s", wtDir)
 			}
@@ -60,11 +67,14 @@ func newMergeCmd() *cobra.Command {
 				}
 			}
 
-			result := worktree.Merge(ws.Root, featureID, name)
+			result := ops.Merge(featureID, name)
 			if result.Conflict {
 				fmt.Println("Merge still has conflicts:")
 				for _, file := range result.Files {
 					fmt.Printf("  conflict: %s\n", file)
+				}
+				if result.ConflictRepo != "" {
+					fmt.Printf("  repo: %s\n", result.ConflictRepo)
 				}
 				return nil
 			}
@@ -79,7 +89,7 @@ func newMergeCmd() *cobra.Command {
 				fmt.Printf("Feature %s marked as done.\n", featureID)
 			}
 
-			fmt.Printf("Merged and cleaned up branch %s.\n", worktree.Branch(featureID))
+			fmt.Printf("Merged and cleaned up branch %s.\n", gitops.Branch(featureID))
 			return nil
 		},
 	}

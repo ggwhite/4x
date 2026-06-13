@@ -107,6 +107,7 @@ type promptData struct {
 	ProjectIncludes  []includeContent
 	RoleIncludes     []includeContent
 	PlanningDoc      string
+	RepoMap          map[string]string
 }
 
 type includeContent struct {

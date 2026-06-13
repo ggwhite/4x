@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/runner"
 )
@@ -154,7 +155,7 @@ func TestRunLoop_HappyPath(t *testing.T) {
 		{}, {}, {reviewVerdict: "PASS"}, {testPassed: true}, {},
 	}}
 
-	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -195,7 +196,7 @@ func TestRunLoop_TestPassMissingArtifactsStopsBeforeAccepting(t *testing.T) {
 		{}, {}, {reviewVerdict: "PASS"}, {testPassed: true, omitCommitPlan: true},
 	}}
 
-	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -235,7 +236,7 @@ func TestRunLoop_ReviewFailLoop(t *testing.T) {
 		{reviewVerdict: "PASS"}, {testPassed: true}, {},
 	}}
 
-	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -278,7 +279,7 @@ func TestRunLoop_TestFailLoop(t *testing.T) {
 		{}, {reviewVerdict: "PASS"}, {testPassed: true}, {},
 	}}
 
-	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -320,7 +321,7 @@ func TestRunLoop_EscalationFromCoder(t *testing.T) {
 		{}, {escalation: true},
 	}}
 
-	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -351,7 +352,7 @@ func TestRunLoop_EscalationFromTester(t *testing.T) {
 		{}, {}, {reviewVerdict: "PASS"}, {escalation: true},
 	}}
 
-	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -382,7 +383,7 @@ func TestRunLoop_MaxRoundsStop(t *testing.T) {
 		{}, {}, {reviewVerdict: "FAIL"}, {}, {reviewVerdict: "FAIL"},
 	}}
 
-	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -413,7 +414,7 @@ func TestRunLoop_BaselineCaptured(t *testing.T) {
 		{}, {}, {reviewVerdict: "PASS"}, {testPassed: true}, {},
 	}}
 
-	runLoop(context.Background(), ws, ws, feature, cfg, s, func(string, string) runner.Runner { return mock }, "never")
+	runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never")
 
 	baselinePath := filepath.Join(ws.FeatureDir("feat-1"), protocol.BaselineFile)
 	if _, err := os.Stat(baselinePath); os.IsNotExist(err) {
@@ -448,7 +449,7 @@ func TestRunLoop_BaselinePreservesExistingRoundOne(t *testing.T) {
 		{}, {reviewVerdict: "PASS"}, {testPassed: true}, {},
 	}}
 
-	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -485,7 +486,7 @@ func TestRunLoop_BaselineNotRepeatedAfterRoundOne(t *testing.T) {
 		{}, {reviewVerdict: "PASS"}, {testPassed: true}, {},
 	}}
 
-	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -542,7 +543,7 @@ func TestRunLoop_BaselineUsesFeatureRepoScope(t *testing.T) {
 		ID:     "feat-scope",
 		Name:   "Scope Test",
 		Status: "not-started",
-		Repos:  map[string]string{"backend": "backend"},
+		Repos:  []string{"backend"},
 	}
 	ws.SaveFeature(f)
 
@@ -558,7 +559,7 @@ func TestRunLoop_BaselineUsesFeatureRepoScope(t *testing.T) {
 		{}, {}, {reviewVerdict: "PASS"}, {testPassed: true}, {},
 	}}
 
-	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -602,7 +603,7 @@ func TestRunLoop_BaselineFailureBlocksCoder(t *testing.T) {
 
 	mock := &mockRunner{ws: ws, featureID: "feat-baseline-fail"}
 
-	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, func(string, string) runner.Runner { return mock }, "never"); err == nil {
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err == nil {
 		t.Fatal("runLoop should fail when baseline cannot be captured")
 	}
 	if len(mock.phases) != 0 {
@@ -704,7 +705,7 @@ func TestRunLoop_StaleArtifactsCleanedOnTestingEntry(t *testing.T) {
 		{},                     // accepting
 	}}
 
-	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -744,7 +745,7 @@ func TestRunLoop_SeverityGate_PassWithCritical(t *testing.T) {
 		{},
 	}}
 
-	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -789,7 +790,7 @@ func TestRunLoop_SeverityGate_FailWithCritical(t *testing.T) {
 		{},
 	}}
 
-	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -834,7 +835,7 @@ func TestRunLoop_SeverityGate_ConditionalPassWithCritical(t *testing.T) {
 		{},
 	}}
 
-	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -877,7 +878,7 @@ func TestRunLoop_WorktreeSync(t *testing.T) {
 	}
 	mainWs.WriteState("feat-wt", s)
 
-	if err := runLoop(context.Background(), mainWs, wtWs, feature, cfg, s, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+	if err := runLoop(context.Background(), mainWs, wtWs, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -918,7 +919,7 @@ func TestCommitWorktree(t *testing.T) {
 
 	os.WriteFile(filepath.Join(wtPath, "new.go"), []byte("package main\n"), 0o644)
 
-	if err := commitWorktree(wtPath, "F099-test", "Test Feature", 1); err != nil {
+	if err := gitops.New(root, nil, protocol.Config{}).Commit(wtPath, "F099-test", "Test Feature", 1); err != nil {
 		t.Fatalf("commitWorktree: %v", err)
 	}
 
@@ -952,7 +953,7 @@ func TestCommitWorktree_NoChanges(t *testing.T) {
 	wtPath := filepath.Join(root, ".worktrees", "F100-empty")
 	run(root, "git", "worktree", "add", wtPath, "-b", "4x/F100-empty")
 
-	if err := commitWorktree(wtPath, "F100-empty", "Empty", 0); err != nil {
+	if err := gitops.New(root, nil, protocol.Config{}).Commit(wtPath, "F100-empty", "Empty", 0); err != nil {
 		t.Fatalf("commitWorktree should succeed with no changes: %v", err)
 	}
 }
@@ -980,7 +981,7 @@ func TestRunLoopEventsCarryRunnerModel(t *testing.T) {
 		{}, {}, {reviewVerdict: "PASS"}, {testPassed: true}, {},
 	}}
 
-	runLoop(context.Background(), ws, ws, feature, cfg, s, func(string, string) runner.Runner { return mock }, "never")
+	runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never")
 
 	data, err := os.ReadFile(filepath.Join(ws.FeatureDir("feat-evt-rm"), protocol.EventsFile))
 	if err != nil {
@@ -1026,7 +1027,7 @@ func TestCommitWorktree_OnDone(t *testing.T) {
 
 	os.WriteFile(filepath.Join(wtPath, "feat.go"), []byte("package main\n"), 0o644)
 
-	if err := commitWorktree(wtPath, "F101-done", "Done Feature", 0); err != nil {
+	if err := gitops.New(root, nil, protocol.Config{}).Commit(wtPath, "F101-done", "Done Feature", 0); err != nil {
 		t.Fatalf("commitWorktree: %v", err)
 	}
 
@@ -1101,7 +1102,7 @@ func TestRunLoop_MergedConfig(t *testing.T) {
 	ws.WriteState(featureID, s)
 
 	mock := &mockRunner{ws: ws, featureID: featureID}
-	if err := runLoop(context.Background(), ws, ws, feature, merged, s, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+	if err := runLoop(context.Background(), ws, ws, feature, merged, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop with merged config should succeed: %v", err)
 	}
 
@@ -1134,7 +1135,7 @@ func TestRunLoop_DeepReviewExecuted(t *testing.T) {
 		{},                       // accepting
 	}}
 
-	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -1184,7 +1185,7 @@ func TestRunLoop_DeepReviewFail(t *testing.T) {
 		{},                       // accepting
 	}}
 
-	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 

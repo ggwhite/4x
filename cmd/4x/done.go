@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/state"
-	"github.com/ggwhite/4x/internal/worktree"
 	"github.com/spf13/cobra"
 )
 
@@ -46,24 +46,34 @@ func markDone(ws *protocol.Workspace, featureID string) error {
 		return fmt.Errorf("feature %s is in phase %q, not pending-review", featureID, s.Phase)
 	}
 
+	cfg, _ := ws.ReadConfig()
+	if userCfg, err := protocol.ReadUserConfig(); err == nil {
+		cfg = protocol.MergeConfig(userCfg, cfg)
+	}
+
+	ops := gitops.New(ws.Root, ws, cfg)
+
 	f, _ := ws.LoadFeature(featureID)
 	name := featureID
 	if f.Name != "" {
 		name = f.Name
 	}
-	result := worktree.Merge(ws.Root, featureID, name)
+	result := ops.Merge(featureID, name)
 	if result.Conflict {
 		fmt.Println("Merge conflict — feature remains pending-review:")
 		for _, file := range result.Files {
 			fmt.Printf("  conflict: %s\n", file)
 		}
-		fmt.Printf("Worktree: %s\n", worktree.Dir(ws.Root, featureID))
+		if result.ConflictRepo != "" {
+			fmt.Printf("  repo: %s\n", result.ConflictRepo)
+		}
+		fmt.Printf("Worktree: %s\n", gitops.Dir(ws.Root, featureID))
 		fmt.Printf("After resolving: 4x merge %s\n", featureID)
 		return nil
 	}
 	if result.Error != "" {
 		fmt.Fprintf(os.Stderr, "warning: merge failed; feature remains pending-review: %s\n", result.Error)
-		fmt.Printf("Worktree preserved at: %s\n", worktree.Dir(ws.Root, featureID))
+		fmt.Printf("Worktree preserved at: %s\n", gitops.Dir(ws.Root, featureID))
 		return nil
 	}
 
@@ -73,7 +83,7 @@ func markDone(ws *protocol.Workspace, featureID string) error {
 
 	fmt.Printf("Feature %s marked as done.\n", featureID)
 	if !result.Skipped {
-		fmt.Printf("Merged and cleaned up branch 4x/%s.\n", featureID)
+		fmt.Printf("Merged and cleaned up branch %s.\n", gitops.Branch(featureID))
 	}
 	return nil
 }
