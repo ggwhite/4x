@@ -33,9 +33,16 @@ func newInitCmd() *cobra.Command {
 				Runners: map[string]protocol.RunnerConfig{
 					"claude": {
 						Command: "claude",
-						Args:    []string{"--dangerously-skip-permissions", "-p", "{prompt}"},
-						Model:   "opus",
-						Tty:     true,
+						Args: []string{
+							"--dangerously-skip-permissions",
+							"-p",
+							"{prompt}",
+							"--output-format",
+							"stream-json",
+							"--verbose",
+						},
+						Model:        "opus",
+						OutputFormat: "stream-json",
 					},
 					"codex": {
 						Command: "codex",
@@ -163,4 +170,3 @@ func detectProjectProfile(root string) protocol.ProjectConfig {
 
 	return p
 }
-

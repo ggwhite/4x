@@ -10,7 +10,7 @@ Los runners se configuran en `.4x/settings.json` bajo la clave `runners`. El CLI
 
 | Runner | Herramienta de IA | Modo | Estado |
 |---|---|---|---|
-| `claude` | Claude Code CLI | PTY (tty: true) | Disponible |
+| `claude` | Claude Code CLI | Stream JSON | Disponible |
 | `codex` | OpenAI Codex CLI | Stdin | Disponible |
 | `gemini` | Google Gemini CLI | Argumento | Disponible |
 | `agy` | Antigravity CLI | Argumento | Disponible |
@@ -47,7 +47,7 @@ Usa `4x upgrade` para volver a desplegar archivos de plugins después de actuali
     │
     ├── Generate prompt for current role
     ├── Invoke runner subprocess with prompt
-    │     claude --dangerously-skip-permissions -p "..."
+    │     claude --dangerously-skip-permissions -p "..." --output-format stream-json --verbose
     ├── Capture output to .4x/F001/logs/round-N-role.log
     ├── Check output artifacts
     └── Transition state, repeat
@@ -62,9 +62,13 @@ Usa `4x upgrade` para volver a desplegar archivos de plugins después de actuali
 | 2 | Error grave | El ciclo se detiene, requiere atención |
 | timeout | Sin respuesta dentro del límite | Tratado como fallo leve |
 
+### Modo Stream JSON
+
+Los runners con `output_format: "stream-json"` escriben dos archivos: un `.log` legible para el tail del dashboard y un `.stream.jsonl` raw para depuración. Claude Code usa este modo por defecto.
+
 ### Modo PTY
 
-Los runners con `tty: true` (Claude Code) usan un pseudo-terminal para capturar la salida completa incluyendo secuencias de escape ANSI. Un limpiador de ANSI con estado limpia los archivos de log.
+Los runners con `tty: true` usan un pseudo-terminal para capturar la salida completa incluyendo secuencias de escape ANSI. Un limpiador de ANSI con estado limpia los archivos de log. Esta ruta se omite cuando `output_format` es `"stream-json"`.
 
 ### Modo stdin
 

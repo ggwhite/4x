@@ -67,6 +67,10 @@ func (r *SubprocessRunner) Run(ctx context.Context, prompt string) (*Result, err
 	cmd := exec.CommandContext(ctx, r.Config.Command, args...)
 	cmd.Dir = r.Workspace.Root
 
+	if r.Config.OutputFormat == "stream-json" && logFile != nil {
+		return r.runStreamJSON(ctx, cmd, logFile, start, prompt)
+	}
+
 	usePty := r.Config.Tty && logFile != nil
 	var ptmx *os.File
 
@@ -116,6 +120,33 @@ func (r *SubprocessRunner) Run(ctx context.Context, prompt string) (*Result, err
 	}
 
 	err := cmd.Run()
+	duration := time.Since(start).Seconds()
+	return r.buildResult(ctx, err, duration)
+}
+
+// runStreamJSON 用 stream-json processor 執行命令，即時解析輸出到 .log 與 .stream.jsonl。
+func (r *SubprocessRunner) runStreamJSON(ctx context.Context, cmd *exec.Cmd, logFile *os.File, start time.Time, prompt string) (*Result, error) {
+	rawPath := strings.TrimSuffix(r.LogPath, ".log") + ".stream.jsonl"
+	rawFile, err := os.Create(rawPath)
+	if err != nil {
+		return nil, fmt.Errorf("runner %s failed to create stream log: %w", r.Name, err)
+	}
+	defer rawFile.Close()
+
+	processor := newStreamJSONProcessor(logFile, rawFile)
+
+	cmd.Stdout = processor
+	cmd.Stderr = logFile
+	if r.Config.Stdin {
+		cmd.Stdin = strings.NewReader(prompt)
+	}
+
+	err = cmd.Run()
+	closeErr := processor.Close()
+	if closeErr != nil && err == nil {
+		return nil, fmt.Errorf("runner %s failed to process stream-json output: %w", r.Name, closeErr)
+	}
+
 	duration := time.Since(start).Seconds()
 	return r.buildResult(ctx, err, duration)
 }
@@ -282,9 +313,9 @@ func (a *ansiStripper) Write(p []byte) (int, error) {
 // promptStripper 過濾 stdin-echo runner（如 codex）輸出中的 prompt 回顯。
 // 偵測第一個獨立 "user" 行到下一個獨立 "codex" 行之間的內容並丟棄。
 type promptStripper struct {
-	dst     io.Writer
-	buf     []byte
-	state   int // 0=header, 1=skipping, 2=passthrough
+	dst   io.Writer
+	buf   []byte
+	state int // 0=header, 1=skipping, 2=passthrough
 }
 
 func newPromptStripper(dst io.Writer) *promptStripper {
@@ -347,4 +378,9 @@ func LogDir(ws *protocol.Workspace, featureID string) string {
 // LogFileName 產生 log 檔名：round-<N>-<role>.log
 func LogFileName(round int, role string) string {
 	return fmt.Sprintf("round-%d-%s.log", round, role)
+}
+
+// StreamLogFileName 產生 stream-json log 檔名：round-<N>-<role>.stream.jsonl。
+func StreamLogFileName(round int, role string) string {
+	return fmt.Sprintf("round-%d-%s.stream.jsonl", round, role)
 }

@@ -10,7 +10,7 @@ Runners are configured in `.4x/settings.json` under the `runners` key. The CLI i
 
 | Runner | AI Tool | Mode | Status |
 |---|---|---|---|
-| `claude` | Claude Code CLI | PTY (tty: true) | Available |
+| `claude` | Claude Code CLI | Stream JSON | Available |
 | `codex` | OpenAI Codex CLI | Stdin | Available |
 | `gemini` | Google Gemini CLI | Argument | Available |
 | `agy` | Antigravity CLI | Argument | Available |
@@ -45,10 +45,10 @@ Use `4x upgrade` to re-deploy plugin files after updating the binary.
 ```
 4x run F001 --runner claude
     │
-    ├── Generate prompt for current role
-    ├── Invoke runner subprocess with prompt
-    │     claude --dangerously-skip-permissions -p "..."
-    ├── Capture output to .4x/F001/logs/round-N-role.log
+	    ├── Generate prompt for current role
+	    ├── Invoke runner subprocess with prompt
+	    │     claude --dangerously-skip-permissions -p "..." --output-format stream-json --verbose
+	    ├── Capture output to .4x/F001/logs/round-N-role.log
     ├── Check output artifacts
     └── Transition state, repeat
 ```
@@ -62,9 +62,13 @@ Use `4x upgrade` to re-deploy plugin files after updating the binary.
 | 2 | Hard error | Loop halts, requires attention |
 | timeout | No response within limit | Treated as soft failure |
 
+### Stream JSON Mode
+
+Runners with `output_format: "stream-json"` write two files: a readable `.log` for dashboard tailing and a raw `.stream.jsonl` file for debugging. Claude Code uses this mode by default.
+
 ### PTY Mode
 
-Runners with `tty: true` (Claude Code) use a pseudo-terminal to capture full output including ANSI escape sequences. A stateful ANSI stripper cleans the log files.
+Runners with `tty: true` use a pseudo-terminal to capture full output including ANSI escape sequences. A stateful ANSI stripper cleans the log files. This path is skipped when `output_format` is `"stream-json"`.
 
 ### Stdin Mode
 

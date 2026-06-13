@@ -19,9 +19,9 @@ Creada por `4x init`. Contiene metadatos del proyecto, definiciones de runners y
   "runners": {
     "claude": {
       "command": "claude",
-      "args": ["--dangerously-skip-permissions", "-p", "{prompt}"],
+      "args": ["--dangerously-skip-permissions", "-p", "{prompt}", "--output-format", "stream-json", "--verbose"],
       "model": "opus",
-      "tty": true
+      "output_format": "stream-json"
     },
     "codex": {
       "command": "codex",
@@ -68,7 +68,8 @@ Creada por `4x init`. Contiene metadatos del proyecto, definiciones de runners y
 | `args` | Argumentos. `{prompt}` y `{promptFile}` se reemplazan en tiempo de ejecución. `{model}` se reemplaza con el modelo del rol. |
 | `model` | Modelo predeterminado para este runner |
 | `model_map` | Mapeo de nombres de modelo de rol a nombres específicos del runner (ej: `{"opus": "claude-opus-4-5-20250514"}`). Orden de búsqueda: modelo del rol → traducción model_map → nombre original como respaldo. |
-| `tty` | Usar PTY para capturar salida (necesario para herramientas CLI con salida ANSI como Claude Code) |
+| `output_format` | Con `"stream-json"`, stdout del runner se convierte en un `.log` legible y un `.stream.jsonl` raw. |
+| `tty` | Usa PTY para capturar salida. Se omite cuando `output_format` es `"stream-json"`. |
 | `stdin` | Enviar el prompt vía stdin en lugar de argumento (usado por Codex) |
 | `quiet` | Suprime la salida stdout del runner en la terminal; la salida se sigue capturando en archivos de log. |
 
