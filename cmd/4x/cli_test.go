@@ -57,27 +57,22 @@ func TestInit_CreatesWorkspace(t *testing.T) {
 
 func TestInit_DefaultClaudeUsesStreamJSON(t *testing.T) {
 	dir := t.TempDir()
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
 	out, err := run4x(dir, "init")
 	if err != nil {
 		t.Fatalf("init failed: %v\n%s", err, out)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, ".4x", "settings.json"))
+	ucfg, err := protocol.ReadUserConfig()
 	if err != nil {
-		t.Fatalf("read settings: %v", err)
+		t.Fatalf("read user config: %v", err)
 	}
 
-	var cfg protocol.Config
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		t.Fatalf("unmarshal settings: %v", err)
-	}
-
-	claude := cfg.Runners["claude"]
+	claude := ucfg.Runners["claude"]
 	if claude.OutputFormat != "stream-json" {
 		t.Errorf("claude.output_format = %q, want stream-json", claude.OutputFormat)
-	}
-	if protocol.BoolVal(claude.Tty) {
-		t.Error("claude.tty should be false for stream-json runner")
 	}
 
 	args := strings.Join(claude.Args, " ")

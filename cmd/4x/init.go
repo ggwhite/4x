@@ -28,37 +28,10 @@ func newInitCmd() *cobra.Command {
 			profile := detectProjectProfile(cwd)
 			profile.Name = projectName
 
+			ensureUserConfig()
+
 			cfg := protocol.Config{
 				Project: profile,
-				Runners: map[string]protocol.RunnerConfig{
-					"claude": {
-						Command: "claude",
-						Args: []string{
-							"--dangerously-skip-permissions",
-							"-p",
-							"{prompt}",
-							"--output-format",
-							"stream-json",
-							"--verbose",
-						},
-						Model:        "opus",
-						OutputFormat: "stream-json",
-					},
-					"codex": {
-						Command: "codex",
-						Args:    []string{"exec"},
-						Stdin:   protocol.BoolPtr(true),
-					},
-					"gemini": {
-						Command: "gemini",
-						Args:    []string{"-y", "-p", "{prompt}"},
-					},
-					"agy": {
-						Command: "agy",
-						Args:    []string{"--dangerously-skip-permissions", "-p", "{prompt}"},
-					},
-				},
-				Default: "claude",
 				Roles: map[string]protocol.RoleConfig{
 					"designer": {Model: "opus"},
 					"coder":    {Model: "sonnet"},
@@ -169,4 +142,56 @@ func detectProjectProfile(root string) protocol.ProjectConfig {
 	}
 
 	return p
+}
+
+// ensureUserConfig 若 ~/.4x/settings.json 不存在，建立包含預設 runner 設定的初始檔。
+func ensureUserConfig() {
+	if _, err := protocol.UserConfigPath(); err != nil {
+		return
+	}
+	if existing, err := protocol.ReadUserConfig(); err == nil && (existing.Locale != "" || len(existing.Runners) > 0) {
+		return
+	}
+
+	cfg := protocol.UserConfig{
+		Locale:        "en",
+		DefaultRunner: "claude",
+		Runners: map[string]protocol.RunnerConfig{
+			"claude": {
+				Command: "claude",
+				Args: []string{
+					"--dangerously-skip-permissions",
+					"-p", "{prompt}",
+					"--output-format", "stream-json",
+					"--verbose",
+				},
+				Model:        "opus",
+				OutputFormat: "stream-json",
+			},
+			"codex": {
+				Command: "codex",
+				Args:    []string{"exec"},
+				Stdin:   protocol.BoolPtr(true),
+				Quiet:   protocol.BoolPtr(true),
+			},
+			"gemini": {
+				Command: "gemini",
+				Args:    []string{"-y", "-p", "{prompt}"},
+			},
+			"agy": {
+				Command: "agy",
+				Args:    []string{"--dangerously-skip-permissions", "-p", "{prompt}"},
+			},
+			"copilot": {
+				Command: "copilot",
+				Args:    []string{"--yolo", "-p", "{prompt}"},
+			},
+		},
+	}
+	if err := protocol.WriteUserConfig(cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to create user config: %v\n", err)
+		return
+	}
+	path, _ := protocol.UserConfigPath()
+	fmt.Printf("Created %s with default runner settings\n", path)
 }

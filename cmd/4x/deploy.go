@@ -68,7 +68,16 @@ func deployPlugins(root string, cfg protocol.Config) {
 		os.WriteFile(target, data, 0o644)
 	}
 
+	allRunners := make(map[string]bool)
+	if ucfg, err := protocol.ReadUserConfig(); err == nil {
+		for name := range ucfg.Runners {
+			allRunners[name] = true
+		}
+	}
 	for name := range cfg.Runners {
+		allRunners[name] = true
+	}
+	for name := range allRunners {
 		deploys := runnerDeploys(name)
 
 		if name == "codex" {
