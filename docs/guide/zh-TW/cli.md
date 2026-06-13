@@ -154,13 +154,27 @@
 
 ## `4x done <feature-id>`
 
-將一個 pending-review 的 feature 標記為完成。
+將一個 pending-review 的 feature 標記為完成。若 feature 有 worktree（`.worktrees/4x/<id>`），會自動 merge branch 回主分支並清理 worktree 與 branch。
 
 ```
 4x done <feature-id>
 ```
 
 僅在 feature 處於 `pending-review` 階段時有效。其他階段會報錯。
+
+如果 merge 發生 conflict 或錯誤，feature 會維持 `pending-review`，worktree 會保留，並印出後續處理指引。解完 conflict 後，用 `4x merge <id>` 完成。
+
+---
+
+## `4x merge <feature-id>`
+
+完成 `4x done` 發現 conflict 後的 merge。
+
+```
+4x merge <feature-id>
+```
+
+僅在 feature 處於 `pending-review` 或 `done` 階段，且 `.worktrees/4x/<id>` 存在時有效。會在 worktree commit 已解決的 conflict、merge 回主分支，然後清理 worktree 與 branch。若 feature 仍是 `pending-review`，merge 成功後才標記為 `done`。
 
 ---
 

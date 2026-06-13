@@ -53,13 +53,14 @@ The dashboard exposes REST and SSE endpoints:
 
 #### `POST /api/done` Response
 
-Always returns HTTP 200. The `status` field is always `"done"`. Additional fields indicate merge result:
+Always returns HTTP 200. The `status` field is `"done"` only after the state transition succeeds. If merge conflict or merge error occurs, `status` remains `"pending-review"`. Additional fields indicate merge result:
 
 | Field | Type | Meaning |
 |---|---|---|
 | `merged` | bool | `true` if branch was merged and worktree cleaned up |
 | `merged` | bool | `false` if no worktree existed (state-only transition) |
 | `merge_conflict` | bool | `true` if merge had conflicts; worktree preserved |
+| `merge_error` | string | Merge error message; feature remains pending-review |
 | `conflicts` | string[] | List of conflicting files (only present when `merge_conflict: true`) |
 
 After a conflict, resolve the files in the worktree and run `4x merge <id>` to complete.

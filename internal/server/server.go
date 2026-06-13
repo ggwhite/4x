@@ -641,35 +641,11 @@ func handlePostDone(ws *protocol.Workspace, w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	newState, err := state.Transition(s, protocol.PhaseDone, "")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	newState.Active = false
-	newState.StopReason = "done"
-
-	if err := ws.WriteState(req.ID, newState); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	f, err := ws.LoadFeature(req.ID)
 	if err != nil {
 		http.Error(w, "failed to load feature: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	f.Status = "done"
-	if err := ws.SaveFeature(f); err != nil {
-		http.Error(w, "failed to save feature: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	ws.AppendEvent(req.ID, protocol.Event{
-		Type:  "transition",
-		Phase: protocol.PhaseDone,
-		Round: newState.Round,
-	})
 
 	name := req.ID
 	if f.Name != "" {
@@ -683,15 +659,54 @@ func handlePostDone(ws *protocol.Workspace, w http.ResponseWriter, r *http.Reque
 	w.Header().Set("Content-Type", "application/json")
 	if result.Conflict {
 		filesJSON, _ := json.Marshal(result.Files)
-		fmt.Fprintf(w, `{"status":"done","merge_conflict":true,"conflicts":%s}`, filesJSON)
+		fmt.Fprintf(w, `{"status":"pending-review","merge_conflict":true,"conflicts":%s}`, filesJSON)
 	} else if result.Error != "" {
 		errJSON, _ := json.Marshal(result.Error)
-		fmt.Fprintf(w, `{"status":"done","merge_error":%s}`, errJSON)
-	} else if result.Skipped {
-		fmt.Fprint(w, `{"status":"done","merged":false}`)
+		fmt.Fprintf(w, `{"status":"pending-review","merge_error":%s}`, errJSON)
 	} else {
-		fmt.Fprint(w, `{"status":"done","merged":true}`)
+		if _, err := transitionDone(ws, req.ID, s); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if result.Skipped {
+			fmt.Fprint(w, `{"status":"done","merged":false}`)
+		} else {
+			fmt.Fprint(w, `{"status":"done","merged":true}`)
+		}
 	}
+}
+
+func transitionDone(ws *protocol.Workspace, featureID string, s protocol.State) (protocol.State, error) {
+	newState, err := state.Transition(s, protocol.PhaseDone, "")
+	if err != nil {
+		return protocol.State{}, err
+	}
+	newState.Active = false
+	newState.StopReason = "done"
+
+	if err := ws.WriteState(featureID, newState); err != nil {
+		return protocol.State{}, err
+	}
+
+	f, err := ws.LoadFeature(featureID)
+	if err != nil {
+		return protocol.State{}, fmt.Errorf("failed to load feature: %w", err)
+	}
+	f.Status = "done"
+	if err := ws.SaveFeature(f); err != nil {
+		return protocol.State{}, fmt.Errorf("failed to save feature: %w", err)
+	}
+
+	if err := ws.AppendEvent(featureID, protocol.Event{
+		Type:  "transition",
+		Phase: protocol.PhaseDone,
+		Round: newState.Round,
+	}); err != nil {
+		return protocol.State{}, err
+	}
+
+	return newState, nil
 }
 
 // handleGetSettings 讀取 .4x/settings.json 原始內容並回傳，保留所有欄位（含 Config struct 未定義的）。

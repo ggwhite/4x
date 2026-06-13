@@ -1080,9 +1080,9 @@ async function markDone(fid) {
     if (!res.ok) { showToast('Failed: '+(await res.text())); return; }
     const data = await res.json();
     if (data.merge_conflict) {
-      showToast('Done, but merge has conflicts:\n'+(data.conflicts||[]).join('\n')+'\nResolve in worktree, then run: 4x merge '+fid, 'warn', 10000);
+      showToast('Merge has conflicts. Feature remains pending-review:\n'+(data.conflicts||[]).join('\n')+'\nResolve in worktree, then run: 4x merge '+fid, 'warn', 10000);
     } else if (data.merge_error) {
-      showToast('Done, but merge failed:\n'+data.merge_error, 'warn', 10000);
+      showToast('Merge failed. Feature remains pending-review:\n'+data.merge_error, 'warn', 10000);
     }
     load(); if (!current) renderDashboard(lastTasks);
   });

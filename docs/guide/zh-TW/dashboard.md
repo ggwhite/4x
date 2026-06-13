@@ -37,7 +37,7 @@
 | `/api/new` | POST | 建立新 feature |
 | `/api/run` | POST | 啟動 feature 執行（產生 `4x run` 子程序） |
 | `/api/stop` | POST | 停止正在執行的 feature |
-| `/api/done` | POST | 標記 feature 為完成 |
+| `/api/done` | POST | merge 成功後標記 feature 為完成；merge conflict/error 時維持 pending-review |
 | `/api/runs` | GET | 列出活躍的執行 |
 | `/api/events/{id}` | GET | 取得 feature 的事件 |
 | `/api/messages/{id}` | GET | 取得 feature 的訊息 |

@@ -162,7 +162,7 @@ Mark a pending-review feature as done. If the feature has a worktree (`.worktree
 
 Only works when feature is in `pending-review` phase. Errors on any other phase.
 
-If a merge conflict occurs, the worktree is preserved and guidance is printed. Use `4x merge <id>` to complete after resolving conflicts.
+If a merge conflict or merge error occurs, the feature remains in `pending-review`, the worktree is preserved, and guidance is printed. Use `4x merge <id>` to complete after resolving conflicts.
 
 ---
 
@@ -174,7 +174,7 @@ Complete a merge after resolving conflicts from `4x done`.
 4x merge <feature-id>
 ```
 
-Only works when feature is in `done` phase (must run `4x done` first) and a worktree exists at `.worktrees/4x/<id>`. Commits resolved conflicts in the worktree, merges to main, then removes the worktree and branch.
+Only works when feature is in `pending-review` or `done` phase and a worktree exists at `.worktrees/4x/<id>`. Commits resolved conflicts in the worktree, merges to main, then removes the worktree and branch. If the feature is still in `pending-review`, it is marked `done` after the merge succeeds.
 
 ---
 
@@ -294,4 +294,3 @@ Start the Model Context Protocol (MCP) server.
 | `--version` | Show MCP server version info |
 
 Starts the 4x MCP stdio server to expose 4x CLI commands as MCP tools to LLM clients (e.g., Claude Code, Cursor).
-

@@ -242,6 +242,55 @@ func TestCheckJSON_IncludesBacklogDriftWarning(t *testing.T) {
 	}
 }
 
+func TestDone_NoWorktreeMarksDone(t *testing.T) {
+	dir := t.TempDir()
+	run4x(dir, "init")
+	run4x(dir, "new", "No worktree done")
+
+	ws := &protocol.Workspace{Root: dir}
+	featureID := "F001-no-worktree-done"
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatal(err)
+	}
+	if err := ws.WriteState(featureID, protocol.State{
+		FeatureID: featureID,
+		Phase:     protocol.PhasePendingReview,
+		Round:     1,
+		Active:    false,
+		Runner:    "mock",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	f, err := ws.LoadFeature(featureID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Status = "ready-for-review"
+	if err := ws.SaveFeature(f); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := run4x(dir, "done", featureID)
+	if err != nil {
+		t.Fatalf("done failed: %v\n%s", err, out)
+	}
+
+	s, err := ws.ReadState(featureID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Phase != protocol.PhaseDone {
+		t.Fatalf("phase = %q, want done", s.Phase)
+	}
+	f, err = ws.LoadFeature(featureID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Status != "done" {
+		t.Fatalf("status = %q, want done", f.Status)
+	}
+}
+
 func writeCLIFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {

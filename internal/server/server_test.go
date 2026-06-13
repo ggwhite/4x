@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -221,6 +222,114 @@ func TestPostRun_NotFound(t *testing.T) {
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+}
+
+func TestPostDone_MergeConflictKeepsPendingReview(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	makePendingReview(t, ws, "test-feat")
+	setupConflictingWorktree(t, ws.Root, "test-feat")
+
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodPost, "/api/done", `{"id":"test-feat"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+
+	var body struct {
+		Status        string   `json:"status"`
+		MergeConflict bool     `json:"merge_conflict"`
+		Conflicts     []string `json:"conflicts"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !body.MergeConflict {
+		t.Fatalf("merge_conflict = false, body = %+v", body)
+	}
+	if body.Status != string(protocol.PhasePendingReview) {
+		t.Fatalf("status = %q, want pending-review", body.Status)
+	}
+
+	s, err := ws.ReadState("test-feat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Phase != protocol.PhasePendingReview {
+		t.Fatalf("state phase = %q, want pending-review", s.Phase)
+	}
+
+	f, err := ws.LoadFeature("test-feat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Status != "ready-for-review" {
+		t.Fatalf("feature status = %q, want ready-for-review", f.Status)
+	}
+}
+
+func makePendingReview(t *testing.T, ws *protocol.Workspace, featureID string) {
+	t.Helper()
+	s, err := ws.ReadState(featureID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Phase = protocol.PhasePendingReview
+	s.Active = false
+	if err := ws.WriteState(featureID, s); err != nil {
+		t.Fatal(err)
+	}
+	f, err := ws.LoadFeature(featureID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Status = "ready-for-review"
+	if err := ws.SaveFeature(f); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func setupConflictingWorktree(t *testing.T, root, featureID string) {
+	t.Helper()
+	runGit(t, root, "init")
+	if out, err := exec.Command("git", "-C", root, "config", "user.name", "test").CombinedOutput(); err != nil {
+		t.Fatalf("git config user.name: %s: %v", out, err)
+	}
+	if out, err := exec.Command("git", "-C", root, "config", "user.email", "test@test.com").CombinedOutput(); err != nil {
+		t.Fatalf("git config user.email: %s: %v", out, err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "conflict.txt"), []byte("base\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, root, "add", "conflict.txt")
+	runGit(t, root, "commit", "-m", "base")
+
+	wtDir := filepath.Join(root, ".worktrees", "4x", featureID)
+	runGit(t, root, "worktree", "add", wtDir, "-b", "4x/"+featureID)
+	if err := os.WriteFile(filepath.Join(wtDir, "conflict.txt"), []byte("feature\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, wtDir, "add", "conflict.txt")
+	runGit(t, wtDir, "commit", "-m", "feature")
+
+	if err := os.WriteFile(filepath.Join(root, "conflict.txt"), []byte("main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, root, "add", "conflict.txt")
+	runGit(t, root, "commit", "-m", "main")
+}
+
+func runGit(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+	cmd.Env = append(os.Environ(),
+		"GIT_AUTHOR_NAME=test",
+		"GIT_AUTHOR_EMAIL=test@test.com",
+		"GIT_COMMITTER_NAME=test",
+		"GIT_COMMITTER_EMAIL=test@test.com",
+	)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v: %s: %v", args, out, err)
 	}
 }
 

@@ -46,6 +46,39 @@ func markDone(ws *protocol.Workspace, featureID string) error {
 		return fmt.Errorf("feature %s is in phase %q, not pending-review", featureID, s.Phase)
 	}
 
+	f, _ := ws.LoadFeature(featureID)
+	name := featureID
+	if f.Name != "" {
+		name = f.Name
+	}
+	result := worktree.Merge(ws.Root, featureID, name)
+	if result.Conflict {
+		fmt.Println("Merge conflict — feature remains pending-review:")
+		for _, file := range result.Files {
+			fmt.Printf("  conflict: %s\n", file)
+		}
+		fmt.Printf("Worktree: %s\n", worktree.Dir(ws.Root, featureID))
+		fmt.Printf("After resolving: 4x merge %s\n", featureID)
+		return nil
+	}
+	if result.Error != "" {
+		fmt.Fprintf(os.Stderr, "warning: merge failed; feature remains pending-review: %s\n", result.Error)
+		fmt.Printf("Worktree preserved at: %s\n", worktree.Dir(ws.Root, featureID))
+		return nil
+	}
+
+	if err := finalizeDone(ws, featureID, s); err != nil {
+		return err
+	}
+
+	fmt.Printf("Feature %s marked as done.\n", featureID)
+	if !result.Skipped {
+		fmt.Printf("Merged and cleaned up branch 4x/%s.\n", featureID)
+	}
+	return nil
+}
+
+func finalizeDone(ws *protocol.Workspace, featureID string, s protocol.State) error {
 	newState, err := state.Transition(s, protocol.PhaseDone, "")
 	if err != nil {
 		return err
@@ -59,37 +92,9 @@ func markDone(ws *protocol.Workspace, featureID string) error {
 
 	syncFeatureStatus(ws, featureID, protocol.PhaseDone)
 
-	ws.AppendEvent(featureID, protocol.Event{
+	return ws.AppendEvent(featureID, protocol.Event{
 		Type:  "transition",
 		Phase: protocol.PhaseDone,
 		Round: newState.Round,
 	})
-
-	fmt.Printf("Feature %s marked as done.\n", featureID)
-
-	f, _ := ws.LoadFeature(featureID)
-	name := featureID
-	if f.Name != "" {
-		name = f.Name
-	}
-	result := worktree.Merge(ws.Root, featureID, name)
-	if result.Skipped {
-		return nil
-	}
-	if result.Conflict {
-		fmt.Println("Merge conflict — resolve manually:")
-		for _, file := range result.Files {
-			fmt.Printf("  conflict: %s\n", file)
-		}
-		fmt.Printf("Worktree: %s\n", worktree.Dir(ws.Root, featureID))
-		fmt.Printf("After resolving: 4x merge %s\n", featureID)
-		return nil
-	}
-	if result.Error != "" {
-		fmt.Fprintf(os.Stderr, "warning: merge failed: %s\n", result.Error)
-		fmt.Printf("Worktree preserved at: %s\n", worktree.Dir(ws.Root, featureID))
-		return nil
-	}
-	fmt.Printf("Merged and cleaned up branch 4x/%s.\n", featureID)
-	return nil
 }

@@ -35,8 +35,8 @@ func newMergeCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("cannot read state for %s: %w", featureID, err)
 			}
-			if s.Phase != protocol.PhaseDone {
-				return fmt.Errorf("feature %s is in phase %q, not done (run '4x done %s' first)", featureID, s.Phase, featureID)
+			if s.Phase != protocol.PhasePendingReview && s.Phase != protocol.PhaseDone {
+				return fmt.Errorf("feature %s is in phase %q, not pending-review or done (run '4x done %s' first)", featureID, s.Phase, featureID)
 			}
 
 			wtDir := worktree.Dir(ws.Root, featureID)
@@ -70,6 +70,13 @@ func newMergeCmd() *cobra.Command {
 			}
 			if result.Error != "" {
 				return fmt.Errorf("merge failed: %s", result.Error)
+			}
+
+			if s.Phase == protocol.PhasePendingReview {
+				if err := finalizeDone(ws, featureID, s); err != nil {
+					return err
+				}
+				fmt.Printf("Feature %s marked as done.\n", featureID)
 			}
 
 			fmt.Printf("Merged and cleaned up branch %s.\n", worktree.Branch(featureID))
