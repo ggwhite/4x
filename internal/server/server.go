@@ -477,8 +477,8 @@ func handleMessages(ws *protocol.Workspace, featureID string, w http.ResponseWri
 		}{
 			{"coder-report.md", "coder"},
 			{"review-report.md", "reviewer"},
-			{"deep-review-report.md", "deep-reviewer"},
 			{"test-report.md", "tester"},
+			{"deep-review-report.md", "deep-reviewer"},
 			{"web-test-report.md", "tester"},
 			{"gate-test-report.md", "tester"},
 		} {
