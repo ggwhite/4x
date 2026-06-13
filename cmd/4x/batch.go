@@ -307,6 +307,7 @@ func newBatchRunCmd() *cobra.Command {
 				}
 				ws.WriteState(next, s)
 
+				signal.Ignore(syscall.SIGPIPE)
 				batchCtx, batchCancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 				runnerFactory := func(logPath string, model string) runner.Runner {
 					return runner.NewRunner(ws, runnerName, runnerCfg, time.Duration(timeout)*time.Second, logPath, model)
