@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/ggwhite/4x/internal/protocol"
@@ -285,5 +286,65 @@ func TestMultiMux_OverviewBackwardCompat(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+}
+
+func TestGetLocalesMultiMux(t *testing.T) {
+	ws := setupMultiWorkspace(t, "locale-proj")
+	reg := NewProjectRegistry()
+	reg.Add(ws)
+
+	recentPath := t.TempDir() + "/recent.json"
+	rec := serveRequest(t, NewMultiMux(reg, recentPath), http.MethodGet, "/api/locales", "")
+
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	ct := rec.Header().Get("Content-Type")
+	if !strings.Contains(ct, "application/json") {
+		t.Errorf("Content-Type = %s, want application/json", ct)
+	}
+
+	var locales []string
+	if err := json.NewDecoder(rec.Body).Decode(&locales); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	want := []string{"en", "zh-TW", "zh-CN", "ja", "ko", "es"}
+	if len(locales) != len(want) {
+		t.Fatalf("locales = %v, want %v", locales, want)
+	}
+	for i, w := range want {
+		if locales[i] != w {
+			t.Errorf("locales[%d] = %s, want %s", i, locales[i], w)
+		}
+	}
+}
+
+func TestGetLocaleEnMultiMux(t *testing.T) {
+	ws := setupMultiWorkspace(t, "locale-en-proj")
+	reg := NewProjectRegistry()
+	reg.Add(ws)
+
+	recentPath := t.TempDir() + "/recent.json"
+	rec := serveRequest(t, NewMultiMux(reg, recentPath), http.MethodGet, "/api/locales/en", "")
+
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	var translations map[string]string
+	if err := json.NewDecoder(rec.Body).Decode(&translations); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	if translations["app.title"] != "4x Live" {
+		t.Errorf("app.title = %q, want '4x Live'", translations["app.title"])
+	}
+
+	cc := rec.Header().Get("Cache-Control")
+	if !strings.Contains(cc, "immutable") {
+		t.Errorf("Cache-Control = %s, want immutable", cc)
 	}
 }
