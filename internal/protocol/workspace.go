@@ -497,14 +497,14 @@ func (w *Workspace) discoverFromVerify(
 			return nil, fmt.Errorf("parse %s: %w", verifyPath, err)
 		}
 		for _, raw := range evidence.Screenshots {
-			path := normalizeScreenshotPath(raw.Path)
+			path := NormalizeScreenshotPath(raw.Path)
 			if path == "" {
 				continue
 			}
 			if strings.HasPrefix(path, "../") || path == ".." {
 				continue
 			}
-			if !isScreenshotFile(filepath.Base(path)) {
+			if !IsScreenshotFile(filepath.Base(path)) {
 				continue
 			}
 			if _, ok := seenPath[path]; ok {
@@ -556,7 +556,7 @@ func (w *Workspace) discoverFromDir(
 		}
 
 		for _, e := range entries {
-			if e.IsDir() || !isScreenshotFile(e.Name()) {
+			if e.IsDir() || !IsScreenshotFile(e.Name()) {
 				continue
 			}
 			absPath := filepath.Join(dirPath, e.Name())
@@ -568,7 +568,7 @@ func (w *Workspace) discoverFromDir(
 			if strings.HasPrefix(rel, "../") || rel == ".." {
 				continue
 			}
-			rel = normalizeScreenshotPath(rel)
+			rel = NormalizeScreenshotPath(rel)
 			if _, ok := seenPath[rel]; ok {
 				continue
 			}
@@ -658,16 +658,26 @@ func discoverRoundsFromTemplate(workspaceRoot, template string) []int {
 	return rounds
 }
 
-func isScreenshotFile(name string) bool {
+// IsScreenshotFile 判斷檔名是否為支援的截圖格式（png/jpg/jpeg/webp）。
+func IsScreenshotFile(name string) bool {
 	ext := strings.ToLower(filepath.Ext(name))
 	return ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".webp"
 }
 
-func normalizeScreenshotPath(path string) string {
+// NormalizeScreenshotPath 將截圖路徑正規化，去除前綴 ./、.4x/，並 trim 空白。
+func NormalizeScreenshotPath(path string) string {
 	p := filepath.ToSlash(strings.TrimSpace(path))
 	p = strings.TrimPrefix(p, "./")
 	p = strings.TrimPrefix(p, ".4x/")
 	return p
+}
+
+// ScreenshotDir 從 config 取得 tester 的截圖目錄，fallback 到 DefaultScreenshotDir。
+func ScreenshotDir(cfg Config) string {
+	if tester, ok := cfg.Roles[string(RoleTester)]; ok && strings.TrimSpace(tester.ScreenshotDir) != "" {
+		return tester.ScreenshotDir
+	}
+	return DefaultScreenshotDir
 }
 
 func parseScreenshotFilename(filename string) (string, string) {

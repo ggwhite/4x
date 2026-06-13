@@ -632,11 +632,12 @@ func handleFeatureScreenshots(ws *protocol.Workspace, w http.ResponseWriter, r *
 }
 
 func handleGetScreenshots(ws *protocol.Workspace, featureID string, w http.ResponseWriter) {
-	screenshotDir, err := getScreenshotDir(ws)
+	cfg, err := ws.ReadConfig()
 	if err != nil {
 		http.Error(w, "read settings: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	screenshotDir := protocol.ScreenshotDir(cfg)
 	groups, err := ws.DiscoverScreenshots(featureID, screenshotDir)
 	if err != nil {
 		http.Error(w, "discover screenshots: "+err.Error(), http.StatusInternalServerError)
@@ -679,19 +680,20 @@ func handleServeScreenshot(ws *protocol.Workspace, featureID, filename string, w
 	}
 	pathToken, ok := decodeScreenshotToken(token)
 	if !ok {
-		pathToken = normalizeScreenshotToken(token)
+		pathToken = protocol.NormalizeScreenshotPath(token)
 	}
 	name := filepath.Base(pathToken)
-	if name == "" || name == "." || !isAllowedScreenshotExt(name) {
+	if name == "" || name == "." || !protocol.IsScreenshotFile(name) {
 		http.Error(w, "unsupported screenshot type", http.StatusBadRequest)
 		return
 	}
 
-	screenshotDir, err := getScreenshotDir(ws)
+	cfg, err := ws.ReadConfig()
 	if err != nil {
 		http.Error(w, "read settings: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	screenshotDir := protocol.ScreenshotDir(cfg)
 	groups, err := ws.DiscoverScreenshots(featureID, screenshotDir)
 	if err != nil {
 		http.Error(w, "discover screenshots: "+err.Error(), http.StatusInternalServerError)
@@ -736,7 +738,7 @@ func resolveScreenshotPath(groups []protocol.ScreenshotGroup, pathToken, name st
 	if pathToken != "" {
 		for _, group := range groups {
 			for _, shot := range group.Screenshots {
-				if normalizeScreenshotToken(shot.Path) == pathToken {
+				if protocol.NormalizeScreenshotPath(shot.Path) == pathToken {
 					return shot.Path, false
 				}
 			}
@@ -760,15 +762,8 @@ func resolveScreenshotPath(groups []protocol.ScreenshotGroup, pathToken, name st
 	return "", false
 }
 
-func normalizeScreenshotToken(path string) string {
-	p := filepath.ToSlash(strings.TrimSpace(path))
-	p = strings.TrimPrefix(p, "./")
-	p = strings.TrimPrefix(p, ".4x/")
-	return p
-}
-
 func encodeScreenshotToken(path string) string {
-	normalized := normalizeScreenshotToken(path)
+	normalized := protocol.NormalizeScreenshotPath(path)
 	if normalized == "" {
 		return ""
 	}
@@ -783,24 +778,8 @@ func decodeScreenshotToken(token string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	decoded := normalizeScreenshotToken(string(data))
+	decoded := protocol.NormalizeScreenshotPath(string(data))
 	return decoded, decoded != ""
-}
-
-func getScreenshotDir(ws *protocol.Workspace) (string, error) {
-	cfg, err := ws.ReadConfig()
-	if err != nil {
-		return "", err
-	}
-	if tester, ok := cfg.Roles[string(protocol.RoleTester)]; ok && strings.TrimSpace(tester.ScreenshotDir) != "" {
-		return tester.ScreenshotDir, nil
-	}
-	return protocol.DefaultScreenshotDir, nil
-}
-
-func isAllowedScreenshotExt(name string) bool {
-	ext := strings.ToLower(filepath.Ext(name))
-	return ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".webp"
 }
 
 func screenshotContentType(name string) string {

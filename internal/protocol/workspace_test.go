@@ -888,3 +888,41 @@ func TestProcessAlive_EPERM(t *testing.T) {
 		}
 	}
 }
+
+func TestIsScreenshotFile(t *testing.T) {
+	tests := []struct {
+		name string
+		want bool
+	}{
+		{"photo.png", true},
+		{"photo.PNG", true},
+		{"photo.jpg", true},
+		{"photo.jpeg", true},
+		{"photo.webp", true},
+		{"photo.gif", false},
+		{"photo.txt", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		if got := IsScreenshotFile(tt.name); got != tt.want {
+			t.Errorf("IsScreenshotFile(%q) = %v, want %v", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestNormalizeScreenshotPath(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{".4x/e2e/feat/screenshot/01.png", "e2e/feat/screenshot/01.png"},
+		{"./e2e/feat/01.png", "e2e/feat/01.png"},
+		{"e2e/feat/01.png", "e2e/feat/01.png"},
+		{"  .4x/foo.png  ", "foo.png"},
+	}
+	for _, tt := range tests {
+		if got := NormalizeScreenshotPath(tt.input); got != tt.want {
+			t.Errorf("NormalizeScreenshotPath(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}

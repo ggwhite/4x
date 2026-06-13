@@ -273,10 +273,7 @@ func showFeatureDetail(ws *protocol.Workspace, id string) error {
 	if err != nil {
 		return err
 	}
-	screenshotDir := protocol.DefaultScreenshotDir
-	if tester, ok := cfg.Roles[string(protocol.RoleTester)]; ok && strings.TrimSpace(tester.ScreenshotDir) != "" {
-		screenshotDir = tester.ScreenshotDir
-	}
+	screenshotDir := protocol.ScreenshotDir(cfg)
 	groups, err := ws.DiscoverScreenshots(id, screenshotDir)
 	if err != nil {
 		return err
