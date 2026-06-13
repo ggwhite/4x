@@ -10,6 +10,7 @@ const (
 	PhaseDesigning      Phase = "designing"
 	PhaseCoding         Phase = "coding"
 	PhaseReviewing      Phase = "reviewing"
+	PhaseDeepReviewing  Phase = "deep-reviewing"
 	PhaseTesting        Phase = "testing"
 	PhaseAmending       Phase = "amending"
 	PhaseAccepting      Phase = "accepting"
@@ -184,10 +185,11 @@ type ReviewIssue struct {
 	Detail   string   `json:"detail"`
 }
 
-// ReviewResult 是 review verdict 的結構化結果，包含通過與否及 critical issue 計數
+// ReviewResult 是 review verdict 的結構化結果，包含通過與否及 critical/warning issue 計數
 type ReviewResult struct {
 	Passed        bool `json:"passed"`
 	CriticalCount int  `json:"criticalCount"`
+	WarningCount  int  `json:"warningCount"`
 }
 
 // Escalation 是 Coder/Tester 觸發 Designer 重新介入

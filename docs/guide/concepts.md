@@ -34,9 +34,9 @@ Escalation is written to `escalation.json`. The loop automatically routes back t
 ## State Machine
 
 ```
-init → designing → coding → reviewing → testing → accepting → pending-review → done
-                     ↑          ↓           ↓
-                     ├── amending ←──────────┘
+init → designing → coding → reviewing → deep-reviewing → testing → accepting → pending-review → done
+                     ↑          ↓              ↓
+                     ├── amending ←─────────────┘
                      ↑      ↓
                      └──────┘
 ```
@@ -48,7 +48,8 @@ init → designing → coding → reviewing → testing → accepting → pendin
 | `init` | `designing` |
 | `designing` | `coding` |
 | `coding` | `reviewing`, `designing` |
-| `reviewing` | `testing`, `amending` |
+| `reviewing` | `deep-reviewing`, `amending` |
+| `deep-reviewing` | `testing`, `amending` |
 | `amending` | `reviewing`, `designing` |
 | `testing` | `accepting`, `amending`, `designing` |
 | `accepting` | `pending-review` |

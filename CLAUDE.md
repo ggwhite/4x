@@ -41,9 +41,9 @@ docs/                權威設計規格（見 docs/AGENTS.md 索引）
 ## State Machine
 
 ```
-init → designing → coding → reviewing → testing → accepting → done
-                     ↑          ↓           ↓
-                     └── amending ←─────────┘
+init → designing → coding → reviewing → deep-reviewing → testing → accepting → done
+                     ↑          ↓              ↓
+                     └── amending ←─────────────┘
 any → blocked / needs-attention
 ```
 

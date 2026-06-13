@@ -78,6 +78,18 @@ func (m *mockRunner) Run(_ context.Context, _ string) (*runner.Result, error) {
 		report += "## Verdict\n" + verdict + "\n"
 		os.WriteFile(filepath.Join(roundDir, protocol.ReviewReport), []byte(report), 0o644)
 
+	case protocol.PhaseDeepReviewing:
+		verdict := outcome.reviewVerdict
+		if verdict == "" {
+			verdict = "PASS"
+		}
+		report := "# Deep Review Report\n\n"
+		for i := 0; i < outcome.criticalIssues; i++ {
+			report += "### [CRITICAL] Issue — file.go\n\n"
+		}
+		report += "## Verdict\n" + verdict + "\n"
+		os.WriteFile(filepath.Join(roundDir, protocol.DeepReviewReport), []byte(report), 0o644)
+
 	case protocol.PhaseTesting:
 		ve := protocol.VerifyEvidence{Passed: outcome.testPassed, Round: s.Round}
 		data, _ := json.Marshal(ve)
@@ -1096,5 +1108,141 @@ func TestRunLoop_MergedConfig(t *testing.T) {
 	final, _ := ws.ReadState(featureID)
 	if final.Phase != protocol.PhasePendingReview {
 		t.Errorf("phase = %s, want pending-review", final.Phase)
+	}
+}
+
+func TestRunLoop_DeepReviewExecuted(t *testing.T) {
+	ws := setupLoopWorkspace(t, "feat-deep")
+	feature, _ := ws.LoadFeature("feat-deep")
+	cfg, _ := ws.ReadConfig()
+	cfg.Roles = map[string]protocol.RoleConfig{
+		"reviewer": {Model: "sonnet", DeepModel: "opus"},
+	}
+
+	s := protocol.State{
+		FeatureID: "feat-deep", Phase: protocol.PhaseInit,
+		MaxRounds: 5, Active: true, Runner: "mock",
+	}
+	ws.WriteState("feat-deep", s)
+
+	mock := &mockRunner{ws: ws, featureID: "feat-deep", outcomes: []mockOutcome{
+		{},                       // designing
+		{},                       // coding
+		{reviewVerdict: "PASS"},  // reviewing
+		{reviewVerdict: "PASS"},  // deep-reviewing
+		{testPassed: true},       // testing
+		{},                       // accepting
+	}}
+
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+		t.Fatalf("runLoop error: %v", err)
+	}
+
+	final, _ := ws.ReadState("feat-deep")
+	if final.Phase != protocol.PhasePendingReview {
+		t.Errorf("phase = %s, want pending-review", final.Phase)
+	}
+
+	wantPhases := []protocol.Phase{
+		protocol.PhaseDesigning, protocol.PhaseCoding, protocol.PhaseReviewing,
+		protocol.PhaseDeepReviewing, protocol.PhaseTesting, protocol.PhaseAccepting,
+	}
+	if len(mock.phases) != len(wantPhases) {
+		t.Fatalf("ran %d phases, want %d: %v", len(mock.phases), len(wantPhases), mock.phases)
+	}
+	for i, p := range wantPhases {
+		if mock.phases[i] != p {
+			t.Errorf("phase[%d] = %s, want %s", i, mock.phases[i], p)
+		}
+	}
+}
+
+func TestRunLoop_DeepReviewFail(t *testing.T) {
+	ws := setupLoopWorkspace(t, "feat-deep-fail")
+	feature, _ := ws.LoadFeature("feat-deep-fail")
+	cfg, _ := ws.ReadConfig()
+	cfg.Roles = map[string]protocol.RoleConfig{
+		"reviewer": {Model: "sonnet", DeepModel: "opus"},
+	}
+
+	s := protocol.State{
+		FeatureID: "feat-deep-fail", Phase: protocol.PhaseInit,
+		MaxRounds: 5, Active: true, Runner: "mock",
+	}
+	ws.WriteState("feat-deep-fail", s)
+
+	mock := &mockRunner{ws: ws, featureID: "feat-deep-fail", outcomes: []mockOutcome{
+		{},                       // designing
+		{},                       // coding
+		{reviewVerdict: "PASS"},  // reviewing pass
+		{reviewVerdict: "FAIL"},  // deep-reviewing fail → amending
+		{},                       // amending
+		{reviewVerdict: "PASS"},  // reviewing pass
+		{reviewVerdict: "PASS"},  // deep-reviewing pass
+		{testPassed: true},       // testing
+		{},                       // accepting
+	}}
+
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+		t.Fatalf("runLoop error: %v", err)
+	}
+
+	final, _ := ws.ReadState("feat-deep-fail")
+	if final.Phase != protocol.PhasePendingReview {
+		t.Errorf("phase = %s, want pending-review", final.Phase)
+	}
+
+	wantPhases := []protocol.Phase{
+		protocol.PhaseDesigning, protocol.PhaseCoding, protocol.PhaseReviewing,
+		protocol.PhaseDeepReviewing, protocol.PhaseAmending, protocol.PhaseReviewing,
+		protocol.PhaseDeepReviewing, protocol.PhaseTesting, protocol.PhaseAccepting,
+	}
+	if len(mock.phases) != len(wantPhases) {
+		t.Fatalf("ran %d phases, want %d: %v", len(mock.phases), len(wantPhases), mock.phases)
+	}
+	for i, p := range wantPhases {
+		if mock.phases[i] != p {
+			t.Errorf("phase[%d] = %s, want %s", i, mock.phases[i], p)
+		}
+	}
+}
+
+func TestParseReviewVerdict_Warning(t *testing.T) {
+	tests := []struct {
+		name         string
+		content      string
+		wantPassed   bool
+		wantCritical int
+		wantWarning  int
+	}{
+		{
+			"pass with warning",
+			"### [WARNING] Missing edge case — handler.go\n\n## Verdict\nPASS\n",
+			true, 0, 1,
+		},
+		{
+			"pass with warning and critical",
+			"### [CRITICAL] Bug — a.go\n### [WARNING] Edge case — b.go\n\n## Verdict\nPASS\n",
+			true, 1, 1,
+		},
+		{
+			"warning case insensitive",
+			"### [warning] minor — c.go\n\n## Verdict\nPASS\n",
+			true, 0, 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseReviewVerdict(tt.content)
+			if got.Passed != tt.wantPassed {
+				t.Errorf("Passed = %v, want %v", got.Passed, tt.wantPassed)
+			}
+			if got.CriticalCount != tt.wantCritical {
+				t.Errorf("CriticalCount = %d, want %d", got.CriticalCount, tt.wantCritical)
+			}
+			if got.WarningCount != tt.wantWarning {
+				t.Errorf("WarningCount = %d, want %d", got.WarningCount, tt.wantWarning)
+			}
+		})
 	}
 }

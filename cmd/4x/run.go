@@ -368,12 +368,46 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			}
 		}
 
-		model, err := protocol.ResolveModel(cfg, s.Runner, role)
-		if err != nil {
-			s.Active = false
-			s.StopReason = "model-error"
-			ws.WriteState(featureID, s)
-			return fmt.Errorf("model resolution failed: %w", err)
+		var model string
+		if role == protocol.RoleDeepReviewer {
+			deepModel, err := protocol.ResolveDeepModel(cfg, s.Runner, protocol.RoleReviewer)
+			if err != nil {
+				s.Active = false
+				s.StopReason = "model-error"
+				ws.WriteState(featureID, s)
+				return fmt.Errorf("deep model resolution failed: %w", err)
+			}
+			if deepModel == "" {
+				// deep_model 未設定，跳過 deep review 直接走 testing
+				next, nextRole, stopReason := protocol.PhaseTesting, protocol.RoleTester, ""
+				newState, err := state.Transition(s, next, nextRole)
+				if err != nil {
+					return fmt.Errorf("skip deep-review transition: %w", err)
+				}
+				s = newState
+				if stopReason != "" {
+					s.Active = false
+					s.StopReason = stopReason
+				}
+				ws.WriteState(featureID, s)
+				syncFeatureStatus(ws, featureID, s.Phase)
+				ws.AppendEvent(featureID, protocol.Event{
+					Type: "transition", Phase: s.Phase, Role: s.Role, Round: s.Round,
+					Runner: s.Runner, Detail: "deep_model not configured, skipping deep review",
+				})
+				fmt.Printf("[round %d] deep-reviewing — skipped (no deep_model configured)\n", s.Round)
+				continue
+			}
+			model = deepModel
+		} else {
+			var err error
+			model, err = protocol.ResolveModel(cfg, s.Runner, role)
+			if err != nil {
+				s.Active = false
+				s.StopReason = "model-error"
+				ws.WriteState(featureID, s)
+				return fmt.Errorf("model resolution failed: %w", err)
+			}
 		}
 
 		ws.AppendEvent(featureID, protocol.Event{
@@ -527,7 +561,17 @@ func nextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) 
 		if _, err := os.Stat(report); err != nil {
 			return protocol.PhaseNeedsAttention, "", "missing-artifact: " + protocol.ReviewReport
 		}
-		if reviewPassed(ws, featureID, s.Round) {
+		if reviewPassed(ws, featureID, s.Round, protocol.ReviewReport) {
+			return protocol.PhaseDeepReviewing, protocol.RoleDeepReviewer, ""
+		}
+		return protocol.PhaseAmending, protocol.RoleCoder, ""
+
+	case protocol.PhaseDeepReviewing:
+		report := filepath.Join(ws.RoundDir(featureID, s.Round), protocol.DeepReviewReport)
+		if _, err := os.Stat(report); err != nil {
+			return protocol.PhaseNeedsAttention, "", "missing-artifact: " + protocol.DeepReviewReport
+		}
+		if reviewPassed(ws, featureID, s.Round, protocol.DeepReviewReport) {
 			return protocol.PhaseTesting, protocol.RoleTester, ""
 		}
 		return protocol.PhaseAmending, protocol.RoleCoder, ""
@@ -558,17 +602,17 @@ func nextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) 
 	}
 }
 
-func reviewPassed(ws *protocol.Workspace, featureID string, round int) bool {
+func reviewPassed(ws *protocol.Workspace, featureID string, round int, reportFile string) bool {
 	roundDir := ws.RoundDir(featureID, round)
-	data, err := os.ReadFile(filepath.Join(roundDir, protocol.ReviewReport))
+	data, err := os.ReadFile(filepath.Join(roundDir, reportFile))
 	if err != nil {
 		return false
 	}
 	result := parseReviewVerdict(string(data))
-	return result.Passed && result.CriticalCount == 0
+	return result.Passed && result.CriticalCount == 0 && result.WarningCount == 0
 }
 
-// parseReviewVerdict 從 review-report.md 擷取 verdict 與 critical issue 計數
+// parseReviewVerdict 從 review-report.md 擷取 verdict 與 critical/warning issue 計數
 func parseReviewVerdict(content string) protocol.ReviewResult {
 	lines := strings.Split(content, "\n")
 	var result protocol.ReviewResult
@@ -581,6 +625,9 @@ func parseReviewVerdict(content string) protocol.ReviewResult {
 
 		if strings.Contains(upper, "[CRITICAL]") {
 			result.CriticalCount++
+		}
+		if strings.Contains(upper, "[WARNING]") {
+			result.WarningCount++
 		}
 
 		if strings.HasPrefix(trimmed, "## Verdict") {
@@ -624,6 +671,8 @@ func roleToResumePhase(role protocol.Role) protocol.Phase {
 	case protocol.RoleCoder:
 		return protocol.PhaseCoding
 	case protocol.RoleReviewer:
+		return protocol.PhaseCoding
+	case protocol.RoleDeepReviewer:
 		return protocol.PhaseCoding
 	case protocol.RoleTester:
 		return protocol.PhaseTesting
@@ -686,6 +735,7 @@ func dryRunLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.C
 		{protocol.PhaseDesigning, protocol.RoleDesigner},
 		{protocol.PhaseCoding, protocol.RoleCoder},
 		{protocol.PhaseReviewing, protocol.RoleReviewer},
+		{protocol.PhaseDeepReviewing, protocol.RoleDeepReviewer},
 		{protocol.PhaseTesting, protocol.RoleTester},
 	}
 

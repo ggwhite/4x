@@ -12,7 +12,8 @@ var transitions = map[protocol.Phase][]protocol.Phase{
 	protocol.PhaseInit:           {protocol.PhaseDesigning},
 	protocol.PhaseDesigning:      {protocol.PhaseCoding},
 	protocol.PhaseCoding:         {protocol.PhaseReviewing, protocol.PhaseDesigning},
-	protocol.PhaseReviewing:      {protocol.PhaseTesting, protocol.PhaseAmending},
+	protocol.PhaseReviewing:      {protocol.PhaseDeepReviewing, protocol.PhaseAmending},
+	protocol.PhaseDeepReviewing:  {protocol.PhaseTesting, protocol.PhaseAmending},
 	protocol.PhaseAmending:       {protocol.PhaseReviewing, protocol.PhaseDesigning},
 	protocol.PhaseTesting:        {protocol.PhaseAccepting, protocol.PhaseAmending, protocol.PhaseDesigning},
 	protocol.PhaseAccepting:      {protocol.PhasePendingReview},
@@ -65,6 +66,8 @@ func PhaseToRole(p protocol.Phase) protocol.Role {
 		return protocol.RoleCoder
 	case protocol.PhaseReviewing:
 		return protocol.RoleReviewer
+	case protocol.PhaseDeepReviewing:
+		return protocol.RoleDeepReviewer
 	case protocol.PhaseTesting:
 		return protocol.RoleTester
 	default:

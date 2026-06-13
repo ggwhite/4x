@@ -45,7 +45,7 @@ type CheckInput struct {
 // TransitionInput 為 4x_transition 工具的輸入參數。
 type TransitionInput struct {
 	FeatureID string `json:"featureId" jsonschema:"description=Feature ID,required"`
-	To        string `json:"to" jsonschema:"description=Target phase (designing/coding/reviewing/testing/accepting/done/blocked),required"`
+	To        string `json:"to" jsonschema:"description=Target phase (designing/coding/reviewing/deep-reviewing/testing/accepting/done/blocked),required"`
 }
 
 // Status 列出所有 feature 狀態，或查詢單一 feature 的詳細資訊。
