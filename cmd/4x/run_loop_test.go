@@ -919,7 +919,7 @@ func TestCommitWorktree(t *testing.T) {
 
 	os.WriteFile(filepath.Join(wtPath, "new.go"), []byte("package main\n"), 0o644)
 
-	if err := gitops.New(root, nil, protocol.Config{}).Commit(wtPath, "F099-test", "Test Feature", 1); err != nil {
+	if err := gitops.New(root, nil, protocol.Config{}).Commit(wtPath, "F099-test", "wip(F099-test): round 1"); err != nil {
 		t.Fatalf("commitWorktree: %v", err)
 	}
 
@@ -953,7 +953,7 @@ func TestCommitWorktree_NoChanges(t *testing.T) {
 	wtPath := filepath.Join(root, ".worktrees", "F100-empty")
 	run(root, "git", "worktree", "add", wtPath, "-b", "4x/F100-empty")
 
-	if err := gitops.New(root, nil, protocol.Config{}).Commit(wtPath, "F100-empty", "Empty", 0); err != nil {
+	if err := gitops.New(root, nil, protocol.Config{}).Commit(wtPath, "F100-empty", "feat(F100-empty): Empty"); err != nil {
 		t.Fatalf("commitWorktree should succeed with no changes: %v", err)
 	}
 }
@@ -1027,7 +1027,7 @@ func TestCommitWorktree_OnDone(t *testing.T) {
 
 	os.WriteFile(filepath.Join(wtPath, "feat.go"), []byte("package main\n"), 0o644)
 
-	if err := gitops.New(root, nil, protocol.Config{}).Commit(wtPath, "F101-done", "Done Feature", 0); err != nil {
+	if err := gitops.New(root, nil, protocol.Config{}).Commit(wtPath, "F101-done", "feat(F101-done): Done Feature"); err != nil {
 		t.Fatalf("commitWorktree: %v", err)
 	}
 

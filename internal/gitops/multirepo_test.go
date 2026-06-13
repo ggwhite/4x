@@ -141,7 +141,7 @@ func TestMultiRepo_Commit(t *testing.T) {
 	// 在 core worktree 寫入變更
 	os.WriteFile(filepath.Join(wtPath, "core", "new.go"), []byte("package core\n"), 0o644)
 
-	if err := ops.Commit(wtPath, "feat-commit", "Test Commit", 1); err != nil {
+	if err := ops.Commit(wtPath, "feat-commit", "wip(feat-commit): round 1"); err != nil {
 		t.Fatalf("Commit: %v", err)
 	}
 
@@ -162,7 +162,7 @@ func TestMultiRepo_Commit_NoChanges(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SetupWorktree: %v", err)
 	}
-	if err := ops.Commit(wtPath, "feat-nochange2", "No Change", 1); err != nil {
+	if err := ops.Commit(wtPath, "feat-nochange2", "wip(feat-nochange2): round 1"); err != nil {
 		t.Errorf("Commit with no changes should not fail: %v", err)
 	}
 }
@@ -177,7 +177,7 @@ func TestMultiRepo_MergeHappyPath(t *testing.T) {
 	os.WriteFile(filepath.Join(wtPath, "core", "feature.go"), []byte("package core\n"), 0o644)
 	os.WriteFile(filepath.Join(wtPath, "gate", "feature.go"), []byte("package gate\n"), 0o644)
 
-	if err := ops.Commit(wtPath, "feat-happy", "Happy Path", 1); err != nil {
+	if err := ops.Commit(wtPath, "feat-happy", "wip(feat-happy): round 1"); err != nil {
 		t.Fatalf("Commit: %v", err)
 	}
 
@@ -229,7 +229,7 @@ func TestMultiRepo_MergeAllOrNothingRollback(t *testing.T) {
 		content := fmt.Sprintf("package %s\n// worktree version\n", name)
 		os.WriteFile(filepath.Join(wtPath, name, "conflict.go"), []byte(content), 0o644)
 	}
-	if err := ops.Commit(wtPath, "feat-conflict", "Conflict Test", 1); err != nil {
+	if err := ops.Commit(wtPath, "feat-conflict", "wip(feat-conflict): round 1"); err != nil {
 		t.Fatalf("Commit in worktrees: %v", err)
 	}
 

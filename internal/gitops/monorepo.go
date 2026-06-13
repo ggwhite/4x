@@ -56,25 +56,16 @@ func (m *monoRepo) ensureDotDir(wtDir string) {
 	syncDotDirContents(m.root, dotDir)
 }
 
-func (m *monoRepo) Commit(wtPath, featureID, featureName string, round int) error {
+func (m *monoRepo) Commit(wtPath, featureID, msg string) error {
 	if out, err := exec.Command("git", "-C", wtPath, "add", "-A").CombinedOutput(); err != nil {
 		return fmt.Errorf("git add: %s: %w", string(out), err)
 	}
-
 	if exec.Command("git", "-C", wtPath, "diff", "--cached", "--quiet").Run() == nil {
 		return nil
-	}
-
-	var msg string
-	if round > 0 {
-		msg = fmt.Sprintf("wip(%s): round %d", featureID, round)
-	} else {
-		msg = fmt.Sprintf("feat(%s): %s", featureID, featureName)
 	}
 	if out, err := exec.Command("git", "-C", wtPath, "commit", "-m", msg).CombinedOutput(); err != nil {
 		return fmt.Errorf("git commit: %s: %w", string(out), err)
 	}
-
 	fmt.Printf("  committed: %s\n", msg)
 	return nil
 }

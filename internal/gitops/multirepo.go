@@ -96,28 +96,18 @@ func (m *multiRepo) ensureDotDir(wtDir string) {
 	syncDotDirContents(m.root, dotDir)
 }
 
-func (m *multiRepo) Commit(wtRoot, featureID, featureName string, round int) error {
-	var msg string
-	if round > 0 {
-		msg = fmt.Sprintf("wip(%s): round %d", featureID, round)
-	} else {
-		msg = fmt.Sprintf("feat(%s): %s", featureID, featureName)
-	}
-
+func (m *multiRepo) Commit(wtRoot, featureID, msg string) error {
 	for name := range m.cfg.Workspace.Repos {
 		repoDir := filepath.Join(wtRoot, name)
 		if _, err := os.Stat(repoDir); err != nil {
 			continue
 		}
-
 		if out, err := exec.Command("git", "-C", repoDir, "add", "-A").CombinedOutput(); err != nil {
 			return fmt.Errorf("git add %s: %s: %w", name, string(out), err)
 		}
-
 		if exec.Command("git", "-C", repoDir, "diff", "--cached", "--quiet").Run() == nil {
 			continue
 		}
-
 		if out, err := exec.Command("git", "-C", repoDir, "commit", "-m", msg).CombinedOutput(); err != nil {
 			return fmt.Errorf("git commit %s: %s: %w", name, string(out), err)
 		}

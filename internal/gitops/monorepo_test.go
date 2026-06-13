@@ -105,7 +105,7 @@ func TestMonoRepo_Commit_NoChanges(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SetupWorktree: %v", err)
 	}
-	if err := ops.Commit(wtPath, "feat-nochange", "No Change", 1); err != nil {
+	if err := ops.Commit(wtPath, "feat-nochange", "wip(feat-nochange): round 1"); err != nil {
 		t.Errorf("Commit with no changes should not fail: %v", err)
 	}
 }
@@ -120,7 +120,7 @@ func TestMonoRepo_CommitAndMerge(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(wtPath, "new.go"), []byte("package main\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := ops.Commit(wtPath, "feat-merge", "Test Feature", 1); err != nil {
+	if err := ops.Commit(wtPath, "feat-merge", "wip(feat-merge): round 1"); err != nil {
 		t.Fatalf("Commit: %v", err)
 	}
 

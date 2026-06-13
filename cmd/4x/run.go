@@ -264,7 +264,7 @@ func newRunCmd() *cobra.Command {
 				finalState, _ := ws.ReadState(featureID)
 				if finalState.Phase == protocol.PhaseDone || finalState.Phase == protocol.PhasePendingReview {
 					if commitStrategy == "on-done" {
-						if err := ops.Commit(wtPath, featureID, feature.Name, 0); err != nil {
+						if err := ops.Commit(wtPath, featureID, fmt.Sprintf("feat(%s): %s", featureID, feature.Name)); err != nil {
 							fmt.Fprintf(os.Stderr, "  auto-commit failed: %v\n", err)
 						}
 					}
@@ -522,7 +522,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 
 		if commitStrategy == "per-round" && runnerWs.Root != ws.Root &&
 			(phase == protocol.PhaseCoding || phase == protocol.PhaseAmending) {
-			if err := ops.Commit(runnerWs.Root, featureID, feature.Name, s.Round); err != nil {
+			if err := ops.Commit(runnerWs.Root, featureID, fmt.Sprintf("wip(%s): round %d", featureID, s.Round)); err != nil {
 				fmt.Fprintf(os.Stderr, "  auto-commit round %d failed: %v\n", s.Round, err)
 			}
 		}
