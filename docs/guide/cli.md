@@ -73,7 +73,7 @@ If the feature is in `blocked` or `needs-attention` phase, automatically recover
 
 Automatically checks dependency gate — blocks if depended features are not done.
 
-If `isolation: "worktree"` is set in config, runs in a git worktree under `.worktrees/4x/<feature-id>/`.
+If `isolation: "worktree"` is set in config, runs in a git worktree under `.worktrees/4x/<feature-id>/`. In multi-repo mode (workspace.repos configured), each repo gets its own worktree under `.worktrees/4x/<feature-id>/<repo-name>/`, and workspace-level files (go.work, Makefile, etc.) are copied alongside. Coder prompts include a `== Workspace Repos ==` section listing each repo name and path.
 
 ---
 
@@ -199,7 +199,7 @@ Mark a pending-review feature as done. If the feature has a worktree (`.worktree
 
 Only works when feature is in `pending-review` phase. Errors on any other phase.
 
-If a merge conflict or merge error occurs, the feature remains in `pending-review`, the worktree is preserved, and guidance is printed. Use `4x merge <id>` to complete after resolving conflicts.
+If a merge conflict or merge error occurs, the feature remains in `pending-review`, the worktree is preserved, and guidance is printed. In multi-repo mode, the conflicting repo name is printed as `repo: <name>`. Use `4x merge <id>` to complete after resolving conflicts.
 
 ---
 
