@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -25,11 +26,8 @@ import (
 var settingsMu sync.Mutex
 var mergeMu sync.Mutex
 
-//go:embed static/index.html
-var indexHTML string
-
-//go:embed static/locales/*.json
-var localeFS embed.FS
+//go:embed static
+var staticFS embed.FS
 
 var supportedLocales = []string{"en", "zh-TW", "zh-CN", "ja", "ko", "es"}
 
@@ -153,10 +151,8 @@ func NewMux(ws *protocol.Workspace, pm *ProcessManager) http.Handler {
 		}
 		handleGetLocales(w)
 	})
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprint(w, indexHTML)
-	})
+	sub, _ := fs.Sub(staticFS, "static")
+	mux.Handle("/", http.FileServer(http.FS(sub)))
 
 	return mux
 }
@@ -892,9 +888,9 @@ func handleGetLocales(w http.ResponseWriter) {
 func handleGetLocale(w http.ResponseWriter, r *http.Request) {
 	lang := strings.TrimPrefix(r.URL.Path, "/api/locales/")
 	filename := "static/locales/" + lang + ".json"
-	data, err := localeFS.ReadFile(filename)
+	data, err := staticFS.ReadFile(filename)
 	if err != nil {
-		data, _ = localeFS.ReadFile("static/locales/en.json")
+		data, _ = staticFS.ReadFile("static/locales/en.json")
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")

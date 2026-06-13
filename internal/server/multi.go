@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -442,11 +443,9 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 		handleGetLocales(w)
 	})
 
-	// Index HTML
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprint(w, indexHTML)
-	})
+	// Static files (index.html + JS/CSS)
+	sub, _ := fs.Sub(staticFS, "static")
+	mux.Handle("/", http.FileServer(http.FS(sub)))
 
 	return recoverMiddleware(mux)
 }
