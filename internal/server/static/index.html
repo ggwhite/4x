@@ -742,7 +742,8 @@ document.addEventListener('keydown', e => {
   else if ((e.metaKey||e.ctrlKey) && !e.shiftKey && e.key===',') { e.preventDefault(); openProjectSettings(); }
   else if ((e.metaKey||e.ctrlKey) && e.shiftKey && e.key===',') { e.preventDefault(); openSettings(); }
   else if (e.key==='Escape') {
-    if (document.getElementById('project-settings-modal').classList.contains('open')) closeProjectSettings();
+    if (document.getElementById('global-settings-modal').classList.contains('open')) closeGlobalSettings();
+    else if (document.getElementById('project-settings-modal').classList.contains('open')) closeProjectSettings();
     else if (document.getElementById('picker-modal').classList.contains('open')) closeProjectPicker();
     else if (document.getElementById('search-modal').classList.contains('open')) closeSearch();
     else if (document.getElementById('settings-modal').classList.contains('open')) closeSettings();
@@ -1457,7 +1458,7 @@ function renderTaskItem(task) {
   const duration = !isActive && task.createdAt && task.updatedAt ? formatDuration(task.createdAt, task.updatedAt) : '';
   const timePart = elapsed ? ` · ⏱ ${elapsed}` : duration ? ` · ⏱ ${duration}` : '';
   const roundPart = task.round ? t('common.round').replace('{round}', task.round) : '';
-  const roleInfo = ROLES[task.phase?.replace('ing','er').replace('accept','acceptor')] || {};
+  const roleInfo = ROLES[{designing:'designer',coding:'coder',reviewing:'reviewer',testing:'tester',accepting:'acceptor',amending:'coder'}[task.phase]] || {};
   const emoji = isActive && roleInfo.emoji ? roleInfo.emoji + ' ' : '';
   let pi = '';
   if (isActive) {
@@ -1604,6 +1605,9 @@ async function loadDetail(task) {
     meta.push(`<span>⬡ ${task.runners.map(r => `<span style="color:${runnerColor(r)}">${esc(r)}</span>`).join(' · ')}</span>`);
   } else if (task.runner) {
     meta.push(`<span>⬡ ${task.runner}</span>`);
+  }
+  if (task.pid) {
+    meta.push(`<span class="text-zinc-600">pid ${task.pid}</span>`);
   }
   document.getElementById('h-meta').innerHTML = meta.join('<span class="text-zinc-700">·</span>');
   disconnectLogSSE();
@@ -1878,11 +1882,11 @@ async function openRunModal(fid) {
   const sel = document.getElementById('run-runner');
   sel.innerHTML = '';
   try {
-    const s = await fetch(apiBase()+'/api/settings').then(r => r.json());
+    const s = await fetch(apiBase()+'/api/merged-config').then(r => r.json());
     const runners = s.runners || {};
     const names = Object.keys(runners);
     if (names.length === 0) names.push('claude');
-    const def = (s.project && s.project.default) || names[0];
+    const def = s.default || names[0];
     names.forEach(n => { const o = document.createElement('option'); o.value = n; o.textContent = n; if (n === def) o.selected = true; sel.appendChild(o); });
   } catch { sel.innerHTML = '<option value="claude">claude</option>'; }
   document.getElementById('run-modal').classList.add('open');
