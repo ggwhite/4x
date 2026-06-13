@@ -48,7 +48,7 @@ cd my-project
 
 4x 會自動偵測你的專案語言（Go、TypeScript、Java、Rust、Python）並預填 build/test/lint 命令。
 
-如果 `.4x/` 已經存在，`init` 會報錯結束 — 使用 `4x upgrade` 來更新 plugin 檔。
+如果 `.4x/` 已經存在，`init` 會報錯結束 — 使用 `4x sync` 來更新 plugin 檔。
 
 ## 建立 Feature
 
@@ -118,8 +118,8 @@ cat .4x/F001/commit-plan.md
 當你更新 `4x` binary 後，重新部署內嵌的 plugin：
 
 ```bash
-4x upgrade            # 部署新檔案
-4x upgrade --dry-run  # 僅預覽變更
+4x sync            # 部署新檔案
+4x sync --dry-run  # 僅預覽變更
 ```
 
 ## 下一步

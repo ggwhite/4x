@@ -38,7 +38,7 @@ Runner 在 `.4x/settings.json` 的 `runners` 键下配置。CLI 以子进程方�
 |---|---|
 | `shared/CREATOR.md` | Feature Creator 流程 — 引导 AI 通过 `4x new` 创建 feature |
 
-更新二进制文件后，使用 `4x upgrade` 重新部署插件文件。
+更新二进制文件后，使用 `4x sync` 重新部署插件文件。
 
 ## Runner 执行模型
 

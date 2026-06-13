@@ -178,12 +178,12 @@ pending-review 기능을 완료로 표시합니다.
 
 ---
 
-## `4x upgrade`
+## `4x sync`
 
 기존 프로젝트에 내장된 플러그인 파일을 다시 배포합니다.
 
 ```
-4x upgrade [--dry-run]
+4x sync [--dry-run]
 ```
 
 | 플래그 | 설명 |

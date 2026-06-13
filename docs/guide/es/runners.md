@@ -38,7 +38,7 @@ Además, los archivos de instrucciones compartidos se despliegan en `.4x/plugins
 |---|---|
 | `shared/CREATOR.md` | Flujo de Feature Creator — guía a la IA para crear features con `4x new` |
 
-Usa `4x upgrade` para volver a desplegar archivos de plugins después de actualizar el binario.
+Usa `4x sync` para volver a desplegar archivos de plugins después de actualizar el binario.
 
 ## Modelo de ejecución de runners
 

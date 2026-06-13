@@ -192,12 +192,12 @@
 
 ---
 
-## `4x upgrade`
+## `4x sync`
 
 將內嵌的 plugin 檔重新部署到既有專案。
 
 ```
-4x upgrade [--dry-run]
+4x sync [--dry-run]
 ```
 
 | 旗標 | 說明 |

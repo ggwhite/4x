@@ -178,12 +178,12 @@ Feature が `pending-review` フェーズにある場合のみ動作します。
 
 ---
 
-## `4x upgrade`
+## `4x sync`
 
 既存プロジェクトに埋め込みプラグインファイルを再デプロイします。
 
 ```
-4x upgrade [--dry-run]
+4x sync [--dry-run]
 ```
 
 | フラグ | 説明 |

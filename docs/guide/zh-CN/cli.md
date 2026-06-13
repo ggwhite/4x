@@ -178,12 +178,12 @@
 
 ---
 
-## `4x upgrade`
+## `4x sync`
 
 重新部署嵌入的插件文件到现有项目。
 
 ```
-4x upgrade [--dry-run]
+4x sync [--dry-run]
 ```
 
 | 标志 | 说明 |

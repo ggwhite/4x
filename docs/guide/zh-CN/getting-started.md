@@ -48,7 +48,7 @@ cd my-project
 
 4x 会自动检测项目语言（Go、TypeScript、Java、Rust、Python）并预填构建/测试/lint 命令。
 
-如果 `.4x/` 已存在，`init` 会报错退出 — 使用 `4x upgrade` 来刷新插件文件。
+如果 `.4x/` 已存在，`init` 会报错退出 — 使用 `4x sync` 来刷新插件文件。
 
 ## 创建 Feature
 
@@ -118,8 +118,8 @@ cat .4x/F001/commit-plan.md
 更新 `4x` 二进制文件后，重新部署嵌入的插件：
 
 ```bash
-4x upgrade            # deploy new files
-4x upgrade --dry-run  # preview changes only
+4x sync            # deploy new files
+4x sync --dry-run  # preview changes only
 ```
 
 ## 下一步

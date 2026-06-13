@@ -48,7 +48,7 @@ This creates a `.4x/` directory with:
 
 4x auto-detects your project language (Go, TypeScript, Java, Rust, Python) and pre-fills build/test/lint commands.
 
-If `.4x/` already exists, `init` exits with an error — use `4x upgrade` to refresh plugin files.
+If `.4x/` already exists, `init` exits with an error — use `4x sync` to refresh plugin files.
 
 ## Create a Feature
 
@@ -118,8 +118,8 @@ cat .4x/F001/commit-plan.md
 When you update the `4x` binary, re-deploy embedded plugins:
 
 ```bash
-4x upgrade            # deploy new files
-4x upgrade --dry-run  # preview changes only
+4x sync            # deploy new files
+4x sync --dry-run  # preview changes only
 ```
 
 ## Next Steps

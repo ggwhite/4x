@@ -225,12 +225,12 @@ Currently supported key: `locale`.
 
 ---
 
-## `4x upgrade`
+## `4x sync`
 
-Re-deploy embedded plugin files to an existing project.
+Sync embedded plugin files to the project.
 
 ```
-4x upgrade [--dry-run]
+4x sync [--dry-run]
 ```
 
 | Flag | Description |

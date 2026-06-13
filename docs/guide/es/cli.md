@@ -178,12 +178,12 @@ Clave soportada actualmente: `locale`.
 
 ---
 
-## `4x upgrade`
+## `4x sync`
 
 Volver a desplegar archivos de plugins embebidos en un proyecto existente.
 
 ```
-4x upgrade [--dry-run]
+4x sync [--dry-run]
 ```
 
 | Bandera | Descripción |

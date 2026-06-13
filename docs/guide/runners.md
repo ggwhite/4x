@@ -38,7 +38,7 @@ Additionally, shared instruction files are deployed to `.4x/plugins/shared/` for
 |---|---|
 | `shared/CREATOR.md` | Feature Creator flow — guides AI through `4x new` scaffold |
 
-Use `4x upgrade` to re-deploy plugin files after updating the binary.
+Use `4x sync` to re-deploy plugin files after updating the binary.
 
 ## Runner Execution Model
 

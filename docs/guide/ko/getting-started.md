@@ -48,7 +48,7 @@ cd my-project
 
 4x는 프로젝트 언어(Go, TypeScript, Java, Rust, Python)를 자동 감지하고 빌드/테스트/린트 명령어를 미리 채웁니다.
 
-`.4x/`가 이미 존재하면 `init`은 오류와 함께 종료됩니다 — 플러그인 파일을 갱신하려면 `4x upgrade`를 사용하세요.
+`.4x/`가 이미 존재하면 `init`은 오류와 함께 종료됩니다 — 플러그인 파일을 갱신하려면 `4x sync`를 사용하세요.
 
 ## 기능 생성
 
@@ -118,8 +118,8 @@ cat .4x/F001/commit-plan.md
 `4x` 바이너리를 업데이트한 후 내장된 플러그인을 다시 배포합니다:
 
 ```bash
-4x upgrade            # 새 파일 배포
-4x upgrade --dry-run  # 변경사항만 미리보기
+4x sync            # 새 파일 배포
+4x sync --dry-run  # 변경사항만 미리보기
 ```
 
 ## 다음 단계

@@ -38,7 +38,7 @@ Runner 在 `.4x/settings.json` 的 `runners` 區段中設定。CLI 以子程序�
 |---|---|
 | `shared/CREATOR.md` | Feature Creator 流程 — 引導 AI 透過 `4x new` 建立 feature |
 
-更新 binary 後使用 `4x upgrade` 重新部署 plugin 檔。
+更新 binary 後使用 `4x sync` 重新部署 plugin 檔。
 
 ## Runner 執行模型
 
