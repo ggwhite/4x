@@ -228,6 +228,7 @@ function disconnectSSE() { if (sseSource) { sseSource.close(); sseSource = null;
 function classify(tasks) {
   const g = { running: [], review: [], pending: [], todo: [], done: [] };
   (tasks||[]).forEach(f => { const a = f.active && f.phase && f.phase!=='done'; if (a) g.running.push(f); else if (f.status==='ready-for-review' || f.phase==='pending-review') g.review.push(f); else if (f.status==='done') g.done.push(f); else if (f.status==='in-progress' || f.status==='needs-attention') g.pending.push(f); else g.todo.push(f); });
+  g.todo.sort((a, b) => { const pa = a.priority != null ? a.priority : 999, pb = b.priority != null ? b.priority : 999; return pa - pb || a.id.localeCompare(b.id); });
   g.done.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
   return g;
 }
