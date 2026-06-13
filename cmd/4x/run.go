@@ -379,8 +379,8 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 				return fmt.Errorf("deep model resolution failed: %w", err)
 			}
 			if deepModel == "" {
-				// deep_model 未設定，跳過 deep review 直接走 testing
-				next, nextRole, stopReason := protocol.PhaseTesting, protocol.RoleTester, ""
+				// deep_model 未設定，跳過 deep review 直接走 accepting
+				next, nextRole, stopReason := protocol.PhaseAccepting, protocol.RoleDesigner, ""
 				newState, err := state.Transition(s, next, nextRole)
 				if err != nil {
 					return fmt.Errorf("skip deep-review transition: %w", err)
@@ -563,16 +563,6 @@ func nextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) 
 			return protocol.PhaseNeedsAttention, "", "missing-artifact: " + protocol.ReviewReport
 		}
 		if reviewPassed(ws, featureID, s.Round, protocol.ReviewReport) {
-			return protocol.PhaseDeepReviewing, protocol.RoleDeepReviewer, ""
-		}
-		return protocol.PhaseAmending, protocol.RoleCoder, ""
-
-	case protocol.PhaseDeepReviewing:
-		report := filepath.Join(ws.RoundDir(featureID, s.Round), protocol.DeepReviewReport)
-		if _, err := os.Stat(report); err != nil {
-			return protocol.PhaseNeedsAttention, "", "missing-artifact: " + protocol.DeepReviewReport
-		}
-		if reviewPassed(ws, featureID, s.Round, protocol.DeepReviewReport) {
 			return protocol.PhaseTesting, protocol.RoleTester, ""
 		}
 		return protocol.PhaseAmending, protocol.RoleCoder, ""
@@ -584,16 +574,24 @@ func nextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) 
 			}
 			return protocol.PhaseNeedsAttention, "", esc.Reason
 		}
-		// guard 已包含 verify.json passed 檢查，不需重複讀取
 		result := guard.CheckTestingToAccepting(ws, featureID, s.Round)
 		if result.Pass {
-			return protocol.PhaseAccepting, protocol.RoleDesigner, ""
+			return protocol.PhaseDeepReviewing, protocol.RoleDeepReviewer, ""
 		}
-		// guard 失敗：若 verify 未通過 → amending；否則缺少 artifact → needs-attention
 		if !verifyPassed(ws, featureID, s.Round) {
 			return protocol.PhaseAmending, protocol.RoleCoder, ""
 		}
 		return protocol.PhaseNeedsAttention, "", strings.Join(result.Errors, "; ")
+
+	case protocol.PhaseDeepReviewing:
+		report := filepath.Join(ws.RoundDir(featureID, s.Round), protocol.DeepReviewReport)
+		if _, err := os.Stat(report); err != nil {
+			return protocol.PhaseNeedsAttention, "", "missing-artifact: " + protocol.DeepReviewReport
+		}
+		if reviewPassed(ws, featureID, s.Round, protocol.DeepReviewReport) {
+			return protocol.PhaseAccepting, protocol.RoleDesigner, ""
+		}
+		return protocol.PhaseAmending, protocol.RoleCoder, ""
 
 	case protocol.PhaseAccepting:
 		return protocol.PhasePendingReview, "", ""
@@ -736,8 +734,8 @@ func dryRunLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.C
 		{protocol.PhaseDesigning, protocol.RoleDesigner},
 		{protocol.PhaseCoding, protocol.RoleCoder},
 		{protocol.PhaseReviewing, protocol.RoleReviewer},
-		{protocol.PhaseDeepReviewing, protocol.RoleDeepReviewer},
 		{protocol.PhaseTesting, protocol.RoleTester},
+		{protocol.PhaseDeepReviewing, protocol.RoleDeepReviewer},
 	}
 
 	for _, p := range phases {

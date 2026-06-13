@@ -1129,8 +1129,8 @@ func TestRunLoop_DeepReviewExecuted(t *testing.T) {
 		{},                       // designing
 		{},                       // coding
 		{reviewVerdict: "PASS"},  // reviewing
-		{reviewVerdict: "PASS"},  // deep-reviewing
 		{testPassed: true},       // testing
+		{reviewVerdict: "PASS"},  // deep-reviewing
 		{},                       // accepting
 	}}
 
@@ -1145,7 +1145,7 @@ func TestRunLoop_DeepReviewExecuted(t *testing.T) {
 
 	wantPhases := []protocol.Phase{
 		protocol.PhaseDesigning, protocol.PhaseCoding, protocol.PhaseReviewing,
-		protocol.PhaseDeepReviewing, protocol.PhaseTesting, protocol.PhaseAccepting,
+		protocol.PhaseTesting, protocol.PhaseDeepReviewing, protocol.PhaseAccepting,
 	}
 	if len(mock.phases) != len(wantPhases) {
 		t.Fatalf("ran %d phases, want %d: %v", len(mock.phases), len(wantPhases), mock.phases)
@@ -1175,11 +1175,12 @@ func TestRunLoop_DeepReviewFail(t *testing.T) {
 		{},                       // designing
 		{},                       // coding
 		{reviewVerdict: "PASS"},  // reviewing pass
+		{testPassed: true},       // testing pass
 		{reviewVerdict: "FAIL"},  // deep-reviewing fail → amending
-		{},                       // amending
+		{},                       // amending (coder)
 		{reviewVerdict: "PASS"},  // reviewing pass
+		{testPassed: true},       // testing pass
 		{reviewVerdict: "PASS"},  // deep-reviewing pass
-		{testPassed: true},       // testing
 		{},                       // accepting
 	}}
 
@@ -1194,8 +1195,9 @@ func TestRunLoop_DeepReviewFail(t *testing.T) {
 
 	wantPhases := []protocol.Phase{
 		protocol.PhaseDesigning, protocol.PhaseCoding, protocol.PhaseReviewing,
-		protocol.PhaseDeepReviewing, protocol.PhaseAmending, protocol.PhaseReviewing,
-		protocol.PhaseDeepReviewing, protocol.PhaseTesting, protocol.PhaseAccepting,
+		protocol.PhaseTesting, protocol.PhaseDeepReviewing, protocol.PhaseAmending,
+		protocol.PhaseReviewing, protocol.PhaseTesting, protocol.PhaseDeepReviewing,
+		protocol.PhaseAccepting,
 	}
 	if len(mock.phases) != len(wantPhases) {
 		t.Fatalf("ran %d phases, want %d: %v", len(mock.phases), len(wantPhases), mock.phases)
