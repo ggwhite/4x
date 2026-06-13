@@ -21,7 +21,7 @@
 <div class="flex" style="height:calc(100vh - 36px)">
 
   <!-- Sidebar -->
-  <div id="sidebar" class="w-80 border-r overflow-y-auto flex flex-col" style="border-color:var(--border)">
+  <div id="sidebar" class="w-80 border-r overflow-hidden flex flex-col" style="border-color:var(--border)">
     <div class="p-4 border-b flex items-center gap-2 cursor-pointer transition-colors glass" style="border-color:var(--border)" onclick="goHome()">
       <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 pulse-dot"></div>
       <h1 class="text-base font-bold tracking-tight" data-i18n="app.title">4x Live</h1>
@@ -31,10 +31,10 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
       </button>
     </div>
-    <div id="task-list" class="flex-1 flex flex-col overflow-hidden">
-      <div id="tl-top" class="flex-shrink-0 overflow-y-auto p-2"></div>
-      <div class="flex-1 min-h-0"></div>
-      <div id="tl-bottom" class="flex-shrink-0 overflow-y-auto p-2 border-t" style="border-color:var(--border)"></div>
+    <div id="task-list" class="flex-1 flex flex-col min-h-0 overflow-hidden">
+      <div id="tl-top" class="flex-shrink-0 p-2"></div>
+      <div class="flex-1"></div>
+      <div id="tl-bottom" class="min-h-0 overflow-y-auto p-2 border-t" style="border-color:var(--border)"></div>
     </div>
   </div>
 

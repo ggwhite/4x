@@ -370,35 +370,29 @@ function renderSidebar() {
     items.forEach(f => {
       const wrapper = document.createElement('div');
       wrapper.innerHTML = renderTaskItem(f);
-      const el = wrapper.firstChild;
-      container.appendChild(el);
+      container.appendChild(wrapper.firstChild);
     });
   }
 
-  // Top sections: Running, Review, Pending
-  const topSections = [
+  [
     { key: 'running', title: t('sidebar.running'), items: groups.running },
     { key: 'review', title: t('sidebar.review'), items: groups.review },
     { key: 'pending', title: t('sidebar.pending'), items: groups.pending },
-  ];
-  topSections.forEach(s => {
+  ].forEach(s => {
     if (!s.items.length) return;
     const collapsed = sectionHeader(s.key, s.title, s.items.length, s.items, topEl);
     if (!collapsed) sectionItems(s.items, topEl);
   });
 
-  // Bottom sections: Todo, Done
-  const bottomSections = [
+  [
     { key: 'todo', title: t('sidebar.todo'), items: groups.todo },
     { key: 'done', title: t('sidebar.done'), items: groups.done },
-  ];
-  bottomSections.forEach(s => {
+  ].forEach(s => {
     if (!s.items.length) return;
     const collapsed = sectionHeader(s.key, s.title, s.items.length, s.items, bottomEl);
     if (!collapsed) sectionItems(s.items, bottomEl);
   });
 
-  // Hide bottom border if empty
   bottomEl.style.borderTop = (groups.todo.length || groups.done.length) ? '' : 'none';
 }
 
