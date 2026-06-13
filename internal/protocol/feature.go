@@ -9,7 +9,7 @@ import (
 
 var (
 	nonAlphaNum            = regexp.MustCompile(`[^a-z0-9]+`)
-	featureNumRe           = regexp.MustCompile(`^F(\d{3})-`)
+	featureNumRe           = regexp.MustCompile(`^F(\d{3,})-`)
 	maxFeatureIDSlugLength = 23
 )
 

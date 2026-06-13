@@ -21,9 +21,89 @@ Rough estimate per feature:
 
 ---
 
-## End-to-End Workflow
+## Real-world Workflow (with AI Agent)
 
-The complete flow from creating a task to shipping it. 4x handles the AI development; you handle the final review and merge.
+This is how the author actually uses 4x day-to-day — not raw CLI commands, but an AI-assisted loop where you stay in the same conversation throughout.
+
+### 1. Create Feature
+
+Ask the AI agent to create a feature for you:
+
+```
+> 4x new "Add Redis cache for order query API"
+# => Created: F001-add-redis-cache-for-or
+```
+
+### 2. Brainstorm — Spec & Plan
+
+Before running the loop, ask the agent to brainstorm the design:
+
+```
+> brainstorm F001
+```
+
+The agent uses the brainstorming skill to explore requirements, trade-offs, and edge cases with you. Once aligned, it produces two artifacts:
+
+- `docs/design/F001-add-redis-cache-for-or-spec.md` — design spec
+- `docs/design/F001-add-redis-cache-for-or-plan.md` — implementation plan
+
+These files follow the naming convention declared in `CLAUDE.md` under **Docs Routing**: `docs/design/{feature-id}-spec.md` and `docs/design/{feature-id}-plan.md`.
+
+The spec becomes the Designer's reference input — a well-brainstormed spec means the Designer produces better task briefs, which means fewer review rejections and retry rounds.
+
+### 3. Run the Loop
+
+```bash
+4x run F001 --runner claude
+```
+
+Open the dashboard in another terminal to watch progress:
+
+```bash
+4x live -w
+```
+
+### 4. AI Code Review
+
+When the loop finishes (`pending-review`), ask your AI agent to review the diff:
+
+```
+> help me review the diff on branch 4x/F001-add-redis-cache-for-or
+```
+
+The agent reads `final-report.md`, diffs the branch against main, and points out issues. Fix what needs fixing — either manually or by asking the agent.
+
+### 5. Merge & Cleanup
+
+Once you're satisfied, ask the agent to merge and clean up:
+
+```
+> merge it and clean up the worktree
+```
+
+The agent runs:
+```bash
+git merge 4x/F001-add-redis-cache-for-or
+git worktree remove .worktrees/4x/F001-add-redis-cache-for-or
+git branch -d 4x/F001-add-redis-cache-for-or
+```
+
+### 6. Mark Done in Dashboard
+
+Open the dashboard (`4x live -w`) and click **Mark Done** on the feature card. This is intentionally a human action — the AI loop never auto-completes a feature.
+
+### Why This Works
+
+- **Brainstorming before coding** — the spec grounds the entire loop; ambiguity is resolved upfront, not mid-implementation
+- **You stay in one conversation** — no context-switching between terminals and tools
+- **The AI agent already has full context** from brainstorming and running the feature, so its review is informed
+- **Mark Done is manual** — you're the final gatekeeper, not the AI
+
+---
+
+## End-to-End Workflow (CLI Only)
+
+The same flow as above, but using CLI commands directly — useful when you're not in an AI agent session.
 
 ### Step 1: Create a Task
 
