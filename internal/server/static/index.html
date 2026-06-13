@@ -370,10 +370,6 @@ function t(key) {
   return _i18nDict[key] || key;
 }
 
-function i18n(key) {
-  return t(key);
-}
-
 function detectLocale() {
   const saved = localStorage.getItem('4x-locale');
   if (saved && LOCALE_NAMES[saved]) return saved;
@@ -416,7 +412,7 @@ async function switchLocale(lang) {
   applyI18n();
   document.documentElement.lang = lang;
   if (current && activeProjectId) {
-    const task = lastTasks.find(t => t.id === current);
+    const task = lastTasks.find(f => f.id === current);
     if (task) {
       const tab = activeDetailTab;
       await loadDetail(task);
@@ -445,11 +441,11 @@ let activeRuns = [];
 
 function showToast(msg, type='error', duration=5000) {
   const c = document.getElementById('toast-container');
-  const t = document.createElement('div');
-  t.className = `toast toast-${type}`;
-  t.textContent = msg;
-  c.appendChild(t);
-  setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity .3s'; setTimeout(() => t.remove(), 300); }, duration);
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.textContent = msg;
+  c.appendChild(el);
+  setTimeout(() => { el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(() => el.remove(), 300); }, duration);
 }
 
 function apiBase() { return activeProjectId ? '/api/project/' + activeProjectId : ''; }
@@ -477,7 +473,7 @@ function applyTheme(id) {
 }
 function renderThemeGrid() {
   const el = document.getElementById('theme-grid');
-  el.innerHTML = THEMES.map(t => `<div style="text-align:center"><div class="theme-card ${settings.theme===t.id?'selected':''}" onclick="applyTheme('${t.id}')" style="background:${t.bg}"><div class="dots"><span style="background:#ff5f57"></span><span style="background:#febc2e"></span><span style="background:#28c840"></span></div><div class="lines"><span style="background:${t.line};width:70%"></span><span style="background:${t.line};width:50%"></span><span style="background:${t.line};width:60%"></span></div></div><div style="font-size:11px;color:var(--text-3);margin-top:6px">${t.name}</div></div>`).join('');
+  el.innerHTML = THEMES.map(th => `<div style="text-align:center"><div class="theme-card ${settings.theme===th.id?'selected':''}" onclick="applyTheme('${th.id}')" style="background:${th.bg}"><div class="dots"><span style="background:#ff5f57"></span><span style="background:#febc2e"></span><span style="background:#28c840"></span></div><div class="lines"><span style="background:${th.line};width:70%"></span><span style="background:${th.line};width:50%"></span><span style="background:${th.line};width:60%"></span></div></div><div style="font-size:11px;color:var(--text-3);margin-top:6px">${th.name}</div></div>`).join('');
 }
 function applyFont() {
   document.documentElement.style.setProperty('--font-content', settings.fontContent+'px');
@@ -522,13 +518,13 @@ function renderTabs() {
 }
 function switchTab(pid) { activeProjectId=pid; current=null; lastMsgCount=0; disconnectSSE(); saveTabState(); renderTabs(); goHome(); }
 function closeTab(pid) {
-  openTabs = openTabs.filter(t => t.id !== pid);
+  openTabs = openTabs.filter(tb => tb.id !== pid);
   if (activeProjectId === pid) { activeProjectId = openTabs.length > 0 ? openTabs[0].id : null; current = null; disconnectSSE(); }
   saveTabState(); renderTabs();
   if (activeProjectId) load(); else renderProjectPicker();
 }
 function addTab(project) {
-  if (!openTabs.find(t => t.id === project.id)) openTabs.push({ id: project.id, name: project.name });
+  if (!openTabs.find(tb => tb.id === project.id)) openTabs.push({ id: project.id, name: project.name });
   activeProjectId = project.id; saveTabState(); renderTabs(); load();
 }
 
@@ -547,7 +543,7 @@ function showProjectPicker() {
 function closeProjectPicker() { document.getElementById('picker-modal').classList.remove('open'); }
 function renderRecentList() {
   const el = document.getElementById('recent-list');
-  const unopened = projects.filter(p => !openTabs.find(t => t.id === p.id));
+  const unopened = projects.filter(p => !openTabs.find(tb => tb.id === p.id));
   if (unopened.length === 0) { el.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-4);font-size:13px">${t('picker.noRecent')}</div>`; return; }
   el.innerHTML = unopened.map(p => `<div class="search-item" onclick="openExistingProject('${escAttr(p.id)}')"><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:var(--text-1)">${esc(p.name)}</div><div style="font-size:11px;color:var(--text-4);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.path)}</div></div><span style="font-size:11px;color:var(--text-4)">${t('dashboard.tasks').replace('{count}', p.taskCount)}</span></div>`).join('');
 }
@@ -625,7 +621,7 @@ function renderProjectPicker() {
 
 async function loadAllTabTasks() {
   for (const tab of openTabs) {
-    try { const tasks = await (await fetch('/api/project/' + tab.id + '/api/tasks')).json(); allTabTasks[tab.id] = (tasks || []).map(t => ({ ...t, _projectId: tab.id, _projectName: tab.name })); }
+    try { const tasks = await (await fetch('/api/project/' + tab.id + '/api/tasks')).json(); allTabTasks[tab.id] = (tasks || []).map(f => ({ ...f, _projectId: tab.id, _projectName: tab.name })); }
     catch { allTabTasks[tab.id] = []; }
   }
 }
@@ -640,7 +636,7 @@ function renderSearchResults(query) {
   const el = document.getElementById('search-results');
   let pool = [], scopeId = null, actualQuery = query;
   const sm = query.match(/^@(\S+)\s*(.*)/);
-  if (sm) { actualQuery = sm[2]; const tab = openTabs.find(t => t.name.toLowerCase().includes(sm[1].toLowerCase()) || t.id.toLowerCase().includes(sm[1].toLowerCase())); if (tab) scopeId = tab.id; }
+  if (sm) { actualQuery = sm[2]; const tab = openTabs.find(tb => tb.name.toLowerCase().includes(sm[1].toLowerCase()) || tb.id.toLowerCase().includes(sm[1].toLowerCase())); if (tab) scopeId = tab.id; }
   for (const tab of openTabs) { if (scopeId && tab.id !== scopeId) continue; pool.push(...(allTabTasks[tab.id] || [])); }
   searchFiltered = actualQuery ? pool.map(task => ({...task, _score: Math.max(fuzzyScore(actualQuery, task.id), fuzzyScore(actualQuery, task.name))})).filter(task => task._score > 0).sort((a, b) => b._score - a._score) : pool;
   if (searchIdx >= searchFiltered.length) searchIdx = Math.max(0, searchFiltered.length - 1);
@@ -657,9 +653,9 @@ function renderSearchResults(query) {
 }
 function highlightSearch(idx) { const items = document.getElementById('search-results').children; if (items[searchIdx]) items[searchIdx].classList.remove('active'); searchIdx = idx; if (items[searchIdx]) items[searchIdx].classList.add('active'); }
 function selectSearch(idx) {
-  const t = searchFiltered[idx]; if (!t) return; closeSearch();
-  if (t._projectId && t._projectId !== activeProjectId) switchTab(t._projectId);
-  current = t.id; load(); loadDetail(t);
+  const item = searchFiltered[idx]; if (!item) return; closeSearch();
+  if (item._projectId && item._projectId !== activeProjectId) switchTab(item._projectId);
+  current = item.id; load(); loadDetail(item);
 }
 function onSearchKey(e) {
   if (e.key==='ArrowDown') { e.preventDefault(); searchIdx=Math.min(searchIdx+1,searchFiltered.length-1); renderSearchResults(document.getElementById('search-input').value); }
@@ -1190,7 +1186,7 @@ function disconnectSSE() { if (sseSource) { sseSource.close(); sseSource = null;
 
 function classify(tasks) {
   const g = { running: [], review: [], pending: [], todo: [], done: [] };
-  (tasks||[]).forEach(t => { const a = t.active && t.phase && t.phase!=='done'; if (a) g.running.push(t); else if (t.status==='ready-for-review' || t.phase==='pending-review') g.review.push(t); else if (t.status==='done') g.done.push(t); else if (t.status==='in-progress' || t.status==='needs-attention') g.pending.push(t); else g.todo.push(t); });
+  (tasks||[]).forEach(f => { const a = f.active && f.phase && f.phase!=='done'; if (a) g.running.push(f); else if (f.status==='ready-for-review' || f.phase==='pending-review') g.review.push(f); else if (f.status==='done') g.done.push(f); else if (f.status==='in-progress' || f.status==='needs-attention') g.pending.push(f); else g.todo.push(f); });
   g.done.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
   return g;
 }
@@ -1201,14 +1197,14 @@ function renderDashboard(tasks) {
   el.classList.remove('hidden');
   const g = classify(tasks), total = tasks.length;
   const buckets = {'1':0,'2':0,'3-4':0,'5+':0};
-  const doneTasks = g.done.filter(t => t.round > 0);
-  doneTasks.forEach(t => { if (t.round<=1) buckets['1']++; else if (t.round===2) buckets['2']++; else if (t.round<=4) buckets['3-4']++; else buckets['5+']++; });
+  const doneTasks = g.done.filter(f => f.round > 0);
+  doneTasks.forEach(f => { if (f.round<=1) buckets['1']++; else if (f.round===2) buckets['2']++; else if (f.round<=4) buckets['3-4']++; else buckets['5+']++; });
   const maxB = Math.max(1, ...Object.values(buckets));
   const rP=total?g.running.length/total:0, rvP=total?g.review.length/total:0, pP=total?g.pending.length/total:0, tP=total?g.todo.length/total:0;
   const a1=rP*360, a2=a1+rvP*360, a3=a2+pP*360, a4=a3+tP*360;
   const donut = total ? `conic-gradient(#10b981 0deg ${a1}deg,#f59e0b ${a1}deg ${a2}deg,#3b82f6 ${a2}deg ${a3}deg,#a78bfa ${a3}deg ${a4}deg,#22c55e ${a4}deg 360deg)` : 'conic-gradient(#27272a 0deg 360deg)';
   const recent = g.done.slice(-8).reverse();
-  const activeTab = openTabs.find(t => t.id === activeProjectId);
+  const activeTab = openTabs.find(tb => tb.id === activeProjectId);
   const pName = activeTab ? activeTab.name : '4x Live';
   el.innerHTML = `<div class="flex items-center gap-3 mb-6"><span class="text-lg font-bold">${esc(pName)}</span><span class="ml-auto px-3 py-1 text-xs border border-zinc-700/50 rounded-full text-zinc-400">${t('dashboard.tasks').replace('{count}', total)}</span><button onclick="openSettings()" title="${t('settings.titleShortcut')}" class="ml-2 text-zinc-500 hover:text-white transition-colors"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
 <div class="grid grid-cols-5 gap-4 mb-8">
@@ -1219,10 +1215,10 @@ function renderDashboard(tasks) {
 <div class="rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5 text-center"><div class="text-3xl font-bold text-green-400">${g.done.length}</div><div class="text-xs text-zinc-500 mt-1 uppercase tracking-wider">${t('sidebar.done')}</div></div></div>
 <div class="grid grid-cols-2 gap-4 mb-8">
 <div class="rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5"><div class="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-4">${t('dashboard.status')}</div><div class="flex items-center gap-6"><div class="relative w-28 h-28 flex-shrink-0"><div class="w-28 h-28 rounded-full" style="background:${donut}"></div><div class="absolute inset-3 rounded-full bg-zinc-900 flex items-center justify-center flex-col"><span class="text-xl font-bold">${total}</span><span class="text-[10px] text-zinc-500">${t('dashboard.total')}</span></div></div><div class="space-y-2 text-xs"><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>${t('sidebar.running')}<span class="ml-auto text-zinc-400 font-bold">${g.running.length}</span></div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>${t('sidebar.review')}<span class="ml-auto text-zinc-400 font-bold">${g.review.length}</span></div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>${t('sidebar.pending')}<span class="ml-auto text-zinc-400 font-bold">${g.pending.length}</span></div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span>${t('sidebar.todo')}<span class="ml-auto text-zinc-400 font-bold">${g.todo.length}</span></div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>${t('sidebar.done')}<span class="ml-auto text-zinc-400 font-bold">${g.done.length}</span></div></div></div></div>
-<div class="rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5"><div class="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-4">${t('dashboard.roundsDist')}</div><div class="space-y-3">${Object.entries(buckets).map(([l,c])=>{const p=maxB?(c/maxB)*100:0;const co={'1':'#10b981','2':'#3b82f6','3-4':'#f59e0b','5+':'#ef4444'};return `<div class="flex items-center gap-3"><span class="text-xs text-zinc-500 w-8 text-right">${l}R</span><div class="flex-1 h-5 bg-zinc-800/50 rounded overflow-hidden"><div class="h-full rounded" style="width:${p}%;background:${co[l]}"></div></div><span class="text-xs font-bold text-zinc-300 w-6 text-right">${c}</span></div>`;}).join('')}</div>${doneTasks.length>0?`<div class="text-[10px] text-zinc-600 mt-3">${t('dashboard.avgRounds').replace('{avg}', (doneTasks.reduce((s,t)=>s+t.round,0)/doneTasks.length).toFixed(1))}</div>`:''}</div></div>
-${recent.length>0?`<div class="rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5"><div class="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-4">${t('dashboard.recentCompletions')}</div><div class="space-y-2">${recent.map(t=>`<div class="flex items-center gap-3 py-1.5 cursor-pointer hover:bg-zinc-800/30 rounded px-2 -mx-2 transition-colors" onclick="current='${t.id}';load();loadDetail(${JSON.stringify(t).replace(/"/g,'&quot;')})"><span class="text-emerald-500/60 text-xs">✓</span><span class="text-xs font-semibold text-emerald-400/80">${t.id}</span><span class="text-xs text-zinc-400 truncate flex-1">${esc(t.name)}</span>${t.round?`<span class="text-[10px] text-zinc-600">${t.round}R</span>`:''}</div>`).join('')}</div></div>`:''}
-${g.running.length>0?`<div class="rounded-xl border border-emerald-500/20 bg-emerald-950/20 p-5 mt-4"><div class="text-[10px] font-bold text-emerald-500/70 uppercase tracking-wider mb-4">${t('dashboard.currentlyRunning')}</div><div class="space-y-2">${g.running.map(t=>`<div class="flex items-center gap-3 py-1.5 cursor-pointer hover:bg-emerald-900/20 rounded px-2 -mx-2 transition-colors" onclick="current='${t.id}';load();loadDetail(${JSON.stringify(t).replace(/"/g,'&quot;')})"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span><span class="text-xs font-semibold text-emerald-400">${t.id}</span><span class="text-xs text-zinc-400 truncate flex-1">${esc(t.name)}</span><span class="text-[10px] text-emerald-400/70">${t.phase||''}</span>${t.round?`<span class="text-[10px] text-zinc-600">R${t.round}</span>`:''}</div>`).join('')}</div></div>`:''}
-${g.review.length>0?`<div class="rounded-xl border border-amber-500/20 bg-amber-950/20 p-5 mt-4"><div class="text-[10px] font-bold text-amber-500/70 uppercase tracking-wider mb-4">${t('dashboard.pendingReview')}</div><div class="space-y-2">${g.review.map(t=>`<div class="flex items-center gap-3 py-1.5 cursor-pointer hover:bg-amber-900/20 rounded px-2 -mx-2 transition-colors" onclick="current='${t.id}';load();loadDetail(${JSON.stringify(t).replace(/"/g,'&quot;')})"><span class="text-amber-400 text-xs">⏳</span><span class="text-xs font-semibold text-amber-400">${t.id}</span><span class="text-xs text-zinc-400 truncate flex-1">${esc(t.name)}</span>${t.round?`<span class="text-[10px] text-zinc-600">${t.round}R</span>`:''}<button class="px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/30 rounded hover:bg-amber-500/20 transition-colors" onclick="event.stopPropagation();markDone('${t.id}')">${i18n('status.done')}</button></div>`).join('')}</div></div>`:''}`;
+<div class="rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5"><div class="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-4">${t('dashboard.roundsDist')}</div><div class="space-y-3">${Object.entries(buckets).map(([l,c])=>{const p=maxB?(c/maxB)*100:0;const co={'1':'#10b981','2':'#3b82f6','3-4':'#f59e0b','5+':'#ef4444'};return `<div class="flex items-center gap-3"><span class="text-xs text-zinc-500 w-8 text-right">${l}R</span><div class="flex-1 h-5 bg-zinc-800/50 rounded overflow-hidden"><div class="h-full rounded" style="width:${p}%;background:${co[l]}"></div></div><span class="text-xs font-bold text-zinc-300 w-6 text-right">${c}</span></div>`;}).join('')}</div>${doneTasks.length>0?`<div class="text-[10px] text-zinc-600 mt-3">${t('dashboard.avgRounds').replace('{avg}', (doneTasks.reduce((s,d)=>s+d.round,0)/doneTasks.length).toFixed(1))}</div>`:''}</div></div>
+${recent.length>0?`<div class="rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-5"><div class="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-4">${t('dashboard.recentCompletions')}</div><div class="space-y-2">${recent.map(f=>`<div class="flex items-center gap-3 py-1.5 cursor-pointer hover:bg-zinc-800/30 rounded px-2 -mx-2 transition-colors" onclick="current='${f.id}';load();loadDetail(${JSON.stringify(f).replace(/"/g,'&quot;')})"><span class="text-emerald-500/60 text-xs">✓</span><span class="text-xs font-semibold text-emerald-400/80">${f.id}</span><span class="text-xs text-zinc-400 truncate flex-1">${esc(f.name)}</span>${f.round?`<span class="text-[10px] text-zinc-600">${f.round}R</span>`:''}</div>`).join('')}</div></div>`:''}
+${g.running.length>0?`<div class="rounded-xl border border-emerald-500/20 bg-emerald-950/20 p-5 mt-4"><div class="text-[10px] font-bold text-emerald-500/70 uppercase tracking-wider mb-4">${t('dashboard.currentlyRunning')}</div><div class="space-y-2">${g.running.map(f=>`<div class="flex items-center gap-3 py-1.5 cursor-pointer hover:bg-emerald-900/20 rounded px-2 -mx-2 transition-colors" onclick="current='${f.id}';load();loadDetail(${JSON.stringify(f).replace(/"/g,'&quot;')})"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span><span class="text-xs font-semibold text-emerald-400">${f.id}</span><span class="text-xs text-zinc-400 truncate flex-1">${esc(f.name)}</span><span class="text-[10px] text-emerald-400/70">${f.phase||''}</span>${f.round?`<span class="text-[10px] text-zinc-600">R${f.round}</span>`:''}</div>`).join('')}</div></div>`:''}
+${g.review.length>0?`<div class="rounded-xl border border-amber-500/20 bg-amber-950/20 p-5 mt-4"><div class="text-[10px] font-bold text-amber-500/70 uppercase tracking-wider mb-4">${t('dashboard.pendingReview')}</div><div class="space-y-2">${g.review.map(f=>`<div class="flex items-center gap-3 py-1.5 cursor-pointer hover:bg-amber-900/20 rounded px-2 -mx-2 transition-colors" onclick="current='${f.id}';load();loadDetail(${JSON.stringify(f).replace(/"/g,'&quot;')})"><span class="text-amber-400 text-xs">⏳</span><span class="text-xs font-semibold text-amber-400">${f.id}</span><span class="text-xs text-zinc-400 truncate flex-1">${esc(f.name)}</span>${f.round?`<span class="text-[10px] text-zinc-600">${f.round}R</span>`:''}<button class="px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/30 rounded hover:bg-amber-500/20 transition-colors" onclick="event.stopPropagation();markDone('${f.id}')">${t('status.done')}</button></div>`).join('')}</div></div>`:''}`;
 }
 
 const _sectionCollapsed = { done: true };
@@ -1278,7 +1274,7 @@ function openSectionPopup(key) {
     modal.onclick = (e) => { if (e.target === modal) modal.classList.remove('open'); };
     document.body.appendChild(modal);
   }
-  modal.innerHTML = `<div class="modal-panel fade-in" style="width:480px;max-height:80vh;display:flex;flex-direction:column"><div class="flex items-center p-4 border-b" style="border-color:var(--border)"><span class="font-bold">${title}</span><span class="ml-auto text-xs text-zinc-500">${t('common.items').replace('{count}', items.length)}</span></div><div class="flex-1 overflow-y-auto p-2">${items.map(t => renderTaskItem(t)).join('')}</div></div>`;
+  modal.innerHTML = `<div class="modal-panel fade-in" style="width:480px;max-height:80vh;display:flex;flex-direction:column"><div class="flex items-center p-4 border-b" style="border-color:var(--border)"><span class="font-bold">${title}</span><span class="ml-auto text-xs text-zinc-500">${t('common.items').replace('{count}', items.length)}</span></div><div class="flex-1 overflow-y-auto p-2">${items.map(f => renderTaskItem(f)).join('')}</div></div>`;
   modal.classList.add('open');
 }
 
@@ -1306,9 +1302,9 @@ function renderSidebar() {
   }
 
   function sectionItems(items, container) {
-    items.forEach(t => {
+    items.forEach(f => {
       const wrapper = document.createElement('div');
-      wrapper.innerHTML = renderTaskItem(t);
+      wrapper.innerHTML = renderTaskItem(f);
       const el = wrapper.firstChild;
       container.appendChild(el);
     });
@@ -1353,34 +1349,34 @@ async function load() {
   if (!current) renderDashboard(lastTasks);
 }
 
-async function loadDetail(t) {
+async function loadDetail(task) {
   document.getElementById('dashboard').classList.add('hidden');
   document.getElementById('header').classList.remove('hidden');
   document.getElementById('messages').innerHTML = ''; lastMsgCount = 0; currentLogFile = null;
-  document.getElementById('h-id').textContent = t.id;
-  document.getElementById('h-name').textContent = t.name;
-  document.getElementById('h-badge').innerHTML = badge(t.status, t.phase, t.active);
-  const isRunning = t.active && t.phase && t.phase !== 'done';
-  const hRunId = getRunId(t.id);
+  document.getElementById('h-id').textContent = task.id;
+  document.getElementById('h-name').textContent = task.name;
+  document.getElementById('h-badge').innerHTML = badge(task.status, task.phase, task.active);
+  const isRunning = task.active && task.phase && task.phase !== 'done';
+  const hRunId = getRunId(task.id);
   let hAction = '';
   if (isRunning && hRunId) {
-    hAction = `<button class="w-7 h-7 flex items-center justify-center rounded text-red-400 hover:bg-red-500/20 transition-colors" onclick="stopRun('${hRunId}')" title="${i18n('run.stop')}">■</button>`;
-  } else if (t.status !== 'done') {
-    hAction = `<button class="w-7 h-7 flex items-center justify-center rounded hover:bg-emerald-500/20 transition-colors" style="color:var(--accent)" onclick="openRunModal('${t.id}')" title="${i18n('run.run')}">▶</button>`;
+    hAction = `<button class="w-7 h-7 flex items-center justify-center rounded text-red-400 hover:bg-red-500/20 transition-colors" onclick="stopRun('${hRunId}')" title="${t('run.stop')}">■</button>`;
+  } else if (task.status !== 'done') {
+    hAction = `<button class="w-7 h-7 flex items-center justify-center rounded hover:bg-emerald-500/20 transition-colors" style="color:var(--accent)" onclick="openRunModal('${task.id}')" title="${t('run.run')}">▶</button>`;
   }
   document.getElementById('h-play-stop').innerHTML = hAction;
   const meta = [];
-  if (t.phase) meta.push(`<span>${PHASE_ICON[t.phase]||'○'} ${t.phase}</span>`);
-  if (t.round) meta.push(`<span>⟳ ${i18n('common.round').replace('{round}', t.round)}</span>`);
-  if (isRunning && t.createdAt) {
-    meta.push(`<span>⏱ ${formatElapsed(t.createdAt)}</span>`);
-  } else if (!isRunning && t.createdAt && t.updatedAt) {
-    meta.push(`<span>⏱ ${formatDuration(t.createdAt, t.updatedAt)}</span>`);
+  if (task.phase) meta.push(`<span>${PHASE_ICON[task.phase]||'○'} ${task.phase}</span>`);
+  if (task.round) meta.push(`<span>⟳ ${t('common.round').replace('{round}', task.round)}</span>`);
+  if (isRunning && task.createdAt) {
+    meta.push(`<span>⏱ ${formatElapsed(task.createdAt)}</span>`);
+  } else if (!isRunning && task.createdAt && task.updatedAt) {
+    meta.push(`<span>⏱ ${formatDuration(task.createdAt, task.updatedAt)}</span>`);
   }
-  if (t.runners && t.runners.length) {
-    meta.push(`<span>⬡ ${t.runners.map(r => `<span style="color:${runnerColor(r)}">${esc(r)}</span>`).join(' · ')}</span>`);
-  } else if (t.runner) {
-    meta.push(`<span>⬡ ${t.runner}</span>`);
+  if (task.runners && task.runners.length) {
+    meta.push(`<span>⬡ ${task.runners.map(r => `<span style="color:${runnerColor(r)}">${esc(r)}</span>`).join(' · ')}</span>`);
+  } else if (task.runner) {
+    meta.push(`<span>⬡ ${task.runner}</span>`);
   }
   document.getElementById('h-meta').innerHTML = meta.join('<span class="text-zinc-700">·</span>');
   disconnectLogSSE();
@@ -1388,7 +1384,7 @@ async function loadDetail(t) {
   activeDetailTab = 'overview';
   document.getElementById('overview-panel').innerHTML = '';
   setDetailTabUI('overview');
-  loadOverview(t.id);
+  loadOverview(task.id);
 }
 
 function renderMsgCard(m) {
@@ -1699,7 +1695,7 @@ async function init() {
   applyI18n();
   await loadProjects();
   const saved = loadTabState();
-  if (saved.tabs.length > 0) { for (const tab of saved.tabs) { if (projects.find(p => p.id === tab.id)) openTabs.push(tab); } activeProjectId = openTabs.find(t => t.id === saved.active) ? saved.active : (openTabs[0] ? openTabs[0].id : null); }
+  if (saved.tabs.length > 0) { for (const tab of saved.tabs) { if (projects.find(p => p.id === tab.id)) openTabs.push(tab); } activeProjectId = openTabs.find(tb => tb.id === saved.active) ? saved.active : (openTabs[0] ? openTabs[0].id : null); }
   if (openTabs.length === 0 && projects.length > 0) { projects.forEach(p => openTabs.push({ id: p.id, name: p.name })); activeProjectId = openTabs[0] ? openTabs[0].id : null; }
   saveTabState(); renderTabs();
   if (activeProjectId) load(); else renderProjectPicker();
