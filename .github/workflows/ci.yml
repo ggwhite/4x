@@ -23,7 +23,15 @@ jobs:
         run: go vet ./...
 
       - name: Test
-        run: go test ./...
+        run: go test -race ./...
+
+      - name: Check CLI docs
+        run: bash scripts/check-docs.sh
+
+      - name: Check i18n keys
+        run: make check-i18n
 
       - name: Check docs sync
-        run: bash scripts/check-docs.sh
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        run: make check-docs-sync
