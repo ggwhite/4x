@@ -297,6 +297,28 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 		}
 		compatError(w, len(entries), "/api/project/{id}/api/settings")
 	})
+	mux.HandleFunc("/api/user-config", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			handleGetUserConfig(w)
+			return
+		}
+		if r.Method == http.MethodPut {
+			handlePutUserConfig(w, r)
+			return
+		}
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	})
+	mux.HandleFunc("/api/merged-config", func(w http.ResponseWriter, r *http.Request) {
+		entries := reg.List()
+		if len(entries) == 1 {
+			entry := reg.getEntry(entries[0].ID)
+			if entry != nil {
+				entry.mux.ServeHTTP(w, r)
+				return
+			}
+		}
+		compatError(w, len(entries), "/api/project/{id}/api/merged-config")
+	})
 	for _, route := range []string{"/api/run", "/api/runs", "/api/stop", "/api/new"} {
 		mux.HandleFunc(route, func(w http.ResponseWriter, r *http.Request) {
 			entries := reg.List()

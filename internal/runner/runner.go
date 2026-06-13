@@ -69,7 +69,7 @@ func (r *SubprocessRunner) Run(ctx context.Context, prompt string) (*Result, err
 		return r.runStreamJSON(ctx, cmd, logFile, start, prompt)
 	}
 
-	usePty := r.Config.Tty && logFile != nil
+	usePty := protocol.BoolVal(r.Config.Tty) && logFile != nil
 	var ptmx *os.File
 
 	if usePty {
@@ -95,7 +95,7 @@ func (r *SubprocessRunner) Run(ctx context.Context, prompt string) (*Result, err
 	}
 
 	if logFile != nil {
-		if r.Config.Quiet {
+		if protocol.BoolVal(r.Config.Quiet) {
 			stripped := newPromptStripper(logFile)
 			cmd.Stdout = stripped
 			cmd.Stderr = stripped
@@ -104,7 +104,7 @@ func (r *SubprocessRunner) Run(ctx context.Context, prompt string) (*Result, err
 			cmd.Stderr = io.MultiWriter(os.Stderr, logFile)
 		}
 	} else {
-		if r.Config.Quiet {
+		if protocol.BoolVal(r.Config.Quiet) {
 			cmd.Stdout = io.Discard
 			cmd.Stderr = io.Discard
 		} else {
@@ -112,7 +112,7 @@ func (r *SubprocessRunner) Run(ctx context.Context, prompt string) (*Result, err
 		}
 		cmd.Stderr = os.Stderr
 	}
-	if r.Config.Stdin {
+	if protocol.BoolVal(r.Config.Stdin) {
 		cmd.Stdin = strings.NewReader(prompt)
 	}
 
@@ -134,7 +134,7 @@ func (r *SubprocessRunner) runStreamJSON(ctx context.Context, cmd *exec.Cmd, log
 
 	cmd.Stdout = processor
 	cmd.Stderr = processor
-	if r.Config.Stdin {
+	if protocol.BoolVal(r.Config.Stdin) {
 		cmd.Stdin = strings.NewReader(prompt)
 	}
 

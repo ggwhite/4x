@@ -1,0 +1,127 @@
+<h2>改良 Frost 主題 — Overview Tab</h2>
+<p class="subtitle">Feature detail 的 Overview 頁面，包含 description、details、subtasks、spec/plan</p>
+
+<div class="mockup">
+  <div class="mockup-header">After — Overview Tab</div>
+  <div class="mockup-body" style="padding:0">
+    <div style="background:linear-gradient(180deg,#0c1222 0%,#0f172a 40%,#111827 100%);color:#e2e8f0;font-family:ui-monospace,monospace;font-size:12px;min-height:600px">
+      <!-- Header (same as before) -->
+      <div style="padding:16px 20px;border-bottom:1px solid rgba(51,65,85,.4);background:rgba(15,23,42,.5);backdrop-filter:blur(12px)">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:11px;color:#475569;cursor:pointer">🏠</span>
+          <span style="font-size:14px;font-weight:700">F001</span>
+          <span style="font-size:13px;color:#94a3b8">User authentication with OAuth2</span>
+          <span style="margin-left:auto;font-size:10px;padding:3px 10px;border-radius:12px;background:rgba(16,185,129,.15);color:#34d399;border:1px solid rgba(16,185,129,.3);display:flex;align-items:center;gap:4px"><span style="width:5px;height:5px;border-radius:50%;background:#34d399;display:inline-block"></span> In Progress</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:8px;font-size:10px;color:#475569">
+          <span>💻 coding</span>
+          <span>⟳ Round 2</span>
+          <span>⏱ 1h 23m</span>
+          <span style="font-size:9px;padding:1px 5px;border-radius:3px;border:1px solid rgba(16,185,129,.2);color:#34d399">claude</span>
+        </div>
+        <div style="display:flex;gap:16px;margin-top:10px;padding-top:8px;border-top:1px solid rgba(51,65,85,.3)">
+          <span style="font-size:11px;font-weight:600;color:#38bdf8;border-bottom:2px solid #38bdf8;padding-bottom:4px">Overview</span>
+          <span style="font-size:11px;font-weight:600;color:#475569;padding-bottom:4px">Messages</span>
+          <span style="font-size:11px;font-weight:600;color:#475569;padding-bottom:4px">Logs</span>
+        </div>
+      </div>
+
+      <!-- Overview Content -->
+      <div style="padding:20px 24px">
+
+        <!-- Description -->
+        <div style="margin-bottom:24px">
+          <div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Description</div>
+          <div style="padding:14px 16px;border-radius:10px;background:rgba(30,41,59,.3);border:1px solid rgba(51,65,85,.3);backdrop-filter:blur(8px);font-size:12px;line-height:1.8;color:#94a3b8">
+            實作 OAuth2 使用者認證流程，支援 Google 和 GitHub 兩種 provider。需處理 token 刷新、session 管理、以及錯誤回退機制。
+          </div>
+        </div>
+
+        <!-- Feature Details -->
+        <div style="margin-bottom:24px">
+          <div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Feature Details</div>
+          <div style="padding:14px 16px;border-radius:10px;background:rgba(30,41,59,.3);border:1px solid rgba(51,65,85,.3);backdrop-filter:blur(8px);display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;gap:8px;align-items:center">
+              <span style="font-size:11px;color:#64748b;width:70px;flex-shrink:0">Priority</span>
+              <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.15)">high</span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <span style="font-size:11px;color:#64748b;width:70px;flex-shrink:0">Repos</span>
+              <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(56,189,248,.08);color:#7dd3fc;border:1px solid rgba(56,189,248,.12)">auth-service → ./</span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:start">
+              <span style="font-size:11px;color:#64748b;width:70px;flex-shrink:0">Rules</span>
+              <div style="font-size:11px;color:#94a3b8;line-height:1.6">
+                <div>• 不可修改現有 session middleware</div>
+                <div>• Token 必須用 Redis 儲存</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subtasks -->
+        <div style="margin-bottom:24px">
+          <div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Subtasks</div>
+          <div style="padding:14px 16px;border-radius:10px;background:rgba(30,41,59,.3);border:1px solid rgba(51,65,85,.3);backdrop-filter:blur(8px);display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="color:#4ade80;font-size:12px">✓</span>
+              <span style="font-size:11px;color:#64748b;text-decoration:line-through">ST-1</span>
+              <span style="font-size:12px;color:#64748b;text-decoration:line-through">Google OAuth2 provider 整合</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="color:#4ade80;font-size:12px">✓</span>
+              <span style="font-size:11px;color:#64748b;text-decoration:line-through">ST-2</span>
+              <span style="font-size:12px;color:#64748b;text-decoration:line-through">GitHub OAuth2 provider 整合</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="color:#475569;font-size:12px">○</span>
+              <span style="font-size:11px;color:#94a3b8">ST-3</span>
+              <span style="font-size:12px;color:#e2e8f0">Token 刷新與 Redis session 管理</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="color:#475569;font-size:12px">○</span>
+              <span style="font-size:11px;color:#94a3b8">ST-4</span>
+              <span style="font-size:12px;color:#e2e8f0">錯誤回退與 logout 流程</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Spec (collapsible) -->
+        <div style="margin-bottom:16px">
+          <div style="display:flex;align-items:center;gap:8px;padding:10px 0;border-top:1px solid rgba(51,65,85,.3);cursor:pointer">
+            <span style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.08em">Spec</span>
+            <span style="font-size:10px;color:#475569;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">docs/design/F001-spec.md</span>
+            <span style="font-size:10px;color:#475569">▶</span>
+          </div>
+        </div>
+
+        <!-- Plan (collapsible) -->
+        <div style="margin-bottom:16px">
+          <div style="display:flex;align-items:center;gap:8px;padding:10px 0;border-top:1px solid rgba(51,65,85,.3);cursor:pointer">
+            <span style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.08em">Plan</span>
+            <span style="font-size:10px;color:#475569;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">docs/design/F001-plan.md</span>
+            <span style="font-size:10px;color:#475569">▶</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="approve" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Overview 設計 OK</h3>
+      <p>卡片化的 section、glass 質感、subtask 樣式都可以</p>
+    </div>
+  </div>
+  <div class="option" data-choice="adjust" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>需要調整</h3>
+      <p>在 terminal 告訴我哪裡要改</p>
+    </div>
+  </div>
+</div>

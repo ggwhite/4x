@@ -1026,3 +1026,75 @@ func TestCommitWorktree_OnDone(t *testing.T) {
 		t.Errorf("commit message = %q, want feat(F101-done): Done Feature", strings.TrimSpace(string(out)))
 	}
 }
+
+func TestRunLoop_MergedConfig(t *testing.T) {
+	root := t.TempDir()
+
+	// project config 沒有 runners，只設 default runner 名稱
+	projectCfg := protocol.Config{
+		Project: protocol.ProjectConfig{Name: "merge-test"},
+		Default: "mock",
+		ModelTiers: map[string]map[string]string{
+			"opus":   {"mock": "mock-opus"},
+			"sonnet": {"mock": "mock-sonnet"},
+		},
+	}
+	if err := protocol.Init(root, projectCfg); err != nil {
+		t.Fatal(err)
+	}
+	ws := &protocol.Workspace{Root: root}
+
+	featureID := "feat-merge"
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatal(err)
+	}
+	ws.SaveFeature(protocol.Feature{ID: featureID, Name: "Merge Test", Status: "not-started"})
+
+	// user config 有 runner 定義，project config 沒有
+	origHome := os.Getenv("HOME")
+	tmpHome := t.TempDir()
+	os.Setenv("HOME", tmpHome)
+	defer os.Setenv("HOME", origHome)
+	os.MkdirAll(filepath.Join(tmpHome, ".4x"), 0o755)
+
+	userCfg := protocol.UserConfig{
+		Runners: map[string]protocol.RunnerConfig{
+			"mock": {Command: "echo"},
+		},
+	}
+	if err := protocol.WriteUserConfig(userCfg); err != nil {
+		t.Fatal(err)
+	}
+
+	// 模擬 run.go 的 merge 流程
+	cfg, _ := ws.ReadConfig()
+	uCfg, _ := protocol.ReadUserConfig()
+	merged := protocol.MergeConfig(uCfg, cfg)
+
+	// 驗證 user-only runner 被 merge 進來
+	rc, ok := merged.Runners["mock"]
+	if !ok {
+		t.Fatal("merged config should have mock runner from user config")
+	}
+	if rc.Command != "echo" {
+		t.Errorf("Command = %q, want echo", rc.Command)
+	}
+
+	// 驗證 runLoop 以 merged config 正常運作
+	feature, _ := ws.LoadFeature(featureID)
+	s := protocol.State{
+		FeatureID: featureID, Phase: protocol.PhaseInit,
+		MaxRounds: 5, Active: true, Runner: "mock",
+	}
+	ws.WriteState(featureID, s)
+
+	mock := &mockRunner{ws: ws, featureID: featureID}
+	if err := runLoop(context.Background(), ws, ws, feature, merged, s, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+		t.Fatalf("runLoop with merged config should succeed: %v", err)
+	}
+
+	final, _ := ws.ReadState(featureID)
+	if final.Phase != protocol.PhasePendingReview {
+		t.Errorf("phase = %s, want pending-review", final.Phase)
+	}
+}

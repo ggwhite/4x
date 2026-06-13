@@ -80,6 +80,24 @@ func NewMux(ws *protocol.Workspace, pm *ProcessManager) http.Handler {
 		}
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	})
+	mux.HandleFunc("/api/user-config", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			handleGetUserConfig(w)
+			return
+		}
+		if r.Method == http.MethodPut {
+			handlePutUserConfig(w, r)
+			return
+		}
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	})
+	mux.HandleFunc("/api/merged-config", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			handleGetMergedConfig(ws, w)
+			return
+		}
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	})
 	mux.HandleFunc("/api/done", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -850,6 +868,89 @@ func handleGetLocale(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	w.Write(data)
+}
+
+var userConfigMu sync.Mutex
+
+// handleGetUserConfig 讀取 ~/.4x/settings.json 回傳 user config
+func handleGetUserConfig(w http.ResponseWriter) {
+	userConfigMu.Lock()
+	cfg, err := protocol.ReadUserConfig()
+	userConfigMu.Unlock()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(data)
+}
+
+// handlePutUserConfig 接受 user config JSON，驗證後備份並寫入 ~/.4x/settings.json
+func handlePutUserConfig(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
+	if err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			http.Error(w, "request too large", http.StatusRequestEntityTooLarge)
+		} else {
+			http.Error(w, "read error: "+err.Error(), http.StatusBadRequest)
+		}
+		return
+	}
+
+	var cfg protocol.UserConfig
+	if err := json.Unmarshal(body, &cfg); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	userConfigMu.Lock()
+	defer userConfigMu.Unlock()
+
+	path, err := protocol.UserConfigPath()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if oldData, err := os.ReadFile(path); err == nil {
+		os.WriteFile(path+".bak", oldData, 0o644)
+	}
+
+	if err := protocol.WriteUserConfig(cfg); err != nil {
+		http.Error(w, "write error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	result, _ := json.MarshalIndent(cfg, "", "  ")
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(result)
+}
+
+// handleGetMergedConfig 回傳 user + project merge 後的最終 config
+func handleGetMergedConfig(ws *protocol.Workspace, w http.ResponseWriter) {
+	projectCfg, err := ws.ReadConfig()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	userConfigMu.Lock()
+	userCfg, _ := protocol.ReadUserConfig()
+	userConfigMu.Unlock()
+	merged := protocol.MergeConfig(userCfg, projectCfg)
+
+	data, err := json.MarshalIndent(merged, "", "  ")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
 	w.Write(data)
 }
 

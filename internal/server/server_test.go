@@ -772,3 +772,114 @@ func TestGetLocaleUnknownFallback(t *testing.T) {
 		t.Errorf("fallback should return en.json, got app.title = %q", translations["app.title"])
 	}
 }
+
+func TestGetUserConfig(t *testing.T) {
+	ws := setupServerWorkspace(t)
+
+	tmpHome := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpHome)
+	defer os.Setenv("HOME", origHome)
+
+	userCfg := protocol.UserConfig{Locale: "zh-TW", Theme: "dark"}
+	protocol.WriteUserConfig(userCfg)
+
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/user-config", "")
+	if rec.Code != 200 {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	var got protocol.UserConfig
+	json.Unmarshal(rec.Body.Bytes(), &got)
+	if got.Locale != "zh-TW" {
+		t.Errorf("Locale = %q", got.Locale)
+	}
+	if got.Theme != "dark" {
+		t.Errorf("Theme = %q", got.Theme)
+	}
+}
+
+func TestGetUserConfig_NotExists(t *testing.T) {
+	ws := setupServerWorkspace(t)
+
+	tmpHome := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpHome)
+	defer os.Setenv("HOME", origHome)
+
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/user-config", "")
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, want 200 (empty config)", rec.Code)
+	}
+}
+
+func TestPutUserConfig(t *testing.T) {
+	ws := setupServerWorkspace(t)
+
+	tmpHome := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpHome)
+	defer os.Setenv("HOME", origHome)
+
+	protocol.WriteUserConfig(protocol.UserConfig{Locale: "en"})
+
+	body := `{"locale":"ja","theme":"light"}`
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodPut, "/api/user-config", body)
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	cfg, _ := protocol.ReadUserConfig()
+	if cfg.Locale != "ja" {
+		t.Errorf("Locale = %q, want ja", cfg.Locale)
+	}
+	if cfg.Theme != "light" {
+		t.Errorf("Theme = %q, want light", cfg.Theme)
+	}
+}
+
+func TestPutUserConfig_BackupCreated(t *testing.T) {
+	ws := setupServerWorkspace(t)
+
+	tmpHome := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpHome)
+	defer os.Setenv("HOME", origHome)
+
+	protocol.WriteUserConfig(protocol.UserConfig{Locale: "en"})
+
+	body := `{"locale":"ja"}`
+	serveRequest(t, NewMux(ws, nil), http.MethodPut, "/api/user-config", body)
+
+	path, _ := protocol.UserConfigPath()
+	bakPath := path + ".bak"
+	if _, err := os.Stat(bakPath); err != nil {
+		t.Errorf("backup not created: %v", err)
+	}
+}
+
+func TestGetMergedConfig(t *testing.T) {
+	ws := setupServerWorkspace(t)
+
+	tmpHome := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpHome)
+	defer os.Setenv("HOME", origHome)
+
+	userCfg := protocol.UserConfig{
+		DefaultRunner: "claude",
+		Runners: map[string]protocol.RunnerConfig{
+			"claude": {Command: "/opt/claude"},
+		},
+	}
+	protocol.WriteUserConfig(userCfg)
+
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/merged-config", "")
+	if rec.Code != 200 {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	var got protocol.Config
+	json.Unmarshal(rec.Body.Bytes(), &got)
+	if got.Runners["claude"].Command != "/opt/claude" {
+		t.Errorf("merged runner command = %q", got.Runners["claude"].Command)
+	}
+}

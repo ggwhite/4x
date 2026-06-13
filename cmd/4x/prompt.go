@@ -52,6 +52,11 @@ func newPromptCmd() *cobra.Command {
 			}
 
 			cfg, _ := ws.ReadConfig()
+			if userCfg, err := protocol.ReadUserConfig(); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: failed to read user config: %v\n", err)
+			} else {
+				cfg = protocol.MergeConfig(userCfg, cfg)
+			}
 			locale, localeName := resolveLocale()
 
 			var roleInc []string
@@ -192,7 +197,10 @@ var localeNames = map[string]string{
 }
 
 func resolveLocale() (code, name string) {
-	ucfg, _ := protocol.ReadUserConfig()
+	ucfg, err := protocol.ReadUserConfig()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to read user config: %v\n", err)
+	}
 	if ucfg.Locale != "" {
 		code = ucfg.Locale
 	} else {

@@ -97,13 +97,51 @@ If `{model}` is not present in `args`, the runner auto-appends `--model <model>`
 
 ## User Config (`~/.4x/settings.json`)
 
-Global user preferences. Managed via `4x config`.
+Global user preferences and runner defaults. Cross-project settings managed via `4x config` or the dashboard's **Global Settings** editor (⚙G button in sidebar).
+
+```json
+{
+  "locale": "zh-TW",
+  "theme": "dark",
+  "default_runner": "claude",
+  "runners": {
+    "claude": {
+      "command": "/usr/local/bin/claude",
+      "args": ["--dangerously-skip-permissions", "-p", "{prompt}"],
+      "tty": true
+    }
+  },
+  "roles": {
+    "designer": { "model": "opus" },
+    "coder": { "model": "sonnet" }
+  }
+}
+```
+
+### User Config Fields
+
+| Field | Description |
+|---|---|
+| `locale` | Language for role prompt instructions |
+| `theme` | Dashboard theme (`dark`/`light`) |
+| `default_runner` | Default runner name (overridden by project) |
+| `runners` | Runner definitions (command, args, tty, etc.) |
+| `roles` | Role model defaults |
+
+### CLI
 
 ```bash
 4x config set locale zh-TW
-4x config get locale
+4x config set theme dark
+4x config set default_runner claude
+4x config set runner.claude.command /usr/local/bin/claude
+4x config set runner.claude.tty true
+4x config set role.designer.model opus
+4x config get runner.claude.command
 4x config list
 ```
+
+`args` is an array field — edit `~/.4x/settings.json` directly to set it.
 
 ### Locale
 
@@ -124,3 +162,14 @@ Sets the language for role prompt instructions. Supported values:
 | `vi` | Vietnamese |
 
 The locale is also inferred from the `LANG` environment variable if not explicitly set.
+
+## Settings Merge
+
+When `4x run` or `4x prompt` executes, user-level and project-level settings are deep-merged:
+
+- **Priority:** project > user > defaults
+- **Runner merge:** per-field — project's non-zero fields override user's. `args` replaces entirely (not appended). `tiers` merges at key level.
+- **Role merge:** per-field — same as runner.
+- **Project-only fields** (`project`, `isolation`, `commit`, `max_concurrent_runs`, `hub_repos`, `rules`, `model_tiers`): always taken from project config, never overridden by user config.
+
+The dashboard's project settings editor shows the **raw** project config, not the merged result. Use the **Merged** tab in project settings to see the final effective settings after merge.

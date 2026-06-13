@@ -230,9 +230,9 @@ type RunnerConfig struct {
 	Args         []string          `json:"args"`
 	Model        string            `json:"model,omitempty"`
 	Tiers        map[string]string `json:"tiers,omitempty"`
-	Stdin        bool              `json:"stdin,omitempty"`
-	Tty          bool              `json:"tty,omitempty"`
-	Quiet        bool              `json:"quiet,omitempty"`
+	Stdin        *bool             `json:"stdin,omitempty"`
+	Tty          *bool             `json:"tty,omitempty"`
+	Quiet        *bool             `json:"quiet,omitempty"`
 	OutputFormat string            `json:"output_format,omitempty"`
 }
 
@@ -246,5 +246,22 @@ type RoleConfig struct {
 
 // UserConfig 是 ~/.4x/settings.json 的使用者層級設定
 type UserConfig struct {
-	Locale string `json:"locale,omitempty"`
+	Locale        string                  `json:"locale,omitempty"`
+	Theme         string                  `json:"theme,omitempty"`
+	DefaultRunner string                  `json:"default_runner,omitempty"`
+	Runners       map[string]RunnerConfig `json:"runners,omitempty"`
+	Roles         map[string]RoleConfig   `json:"roles,omitempty"`
+}
+
+// BoolPtr 建立 *bool 指標，用於 RunnerConfig 布林欄位的初始化
+func BoolPtr(b bool) *bool {
+	return &b
+}
+
+// BoolVal 安全取 *bool 的值，nil 視為 false
+func BoolVal(p *bool) bool {
+	if p == nil {
+		return false
+	}
+	return *p
 }
