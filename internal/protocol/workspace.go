@@ -501,6 +501,12 @@ func (w *Workspace) discoverFromVerify(
 			if path == "" {
 				continue
 			}
+			if strings.HasPrefix(path, "../") || path == ".." {
+				continue
+			}
+			if !isScreenshotFile(filepath.Base(path)) {
+				continue
+			}
 			if _, ok := seenPath[path]; ok {
 				continue
 			}

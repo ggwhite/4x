@@ -671,10 +671,10 @@ async function loadScreenshots(fid) {
   }
   panel.innerHTML = (data.groups || []).map(group => {
     const cards = (group.screenshots || []).map((shot, idx) => {
-      const desc = esc(shot.description || shot.filename || shot.path || '');
+      const desc = shot.description || shot.filename || shot.path || '';
       return `<div class="screenshot-card">
-        <img src="${escAttr(shot.url)}" class="screenshot-thumb" loading="lazy" alt="${desc}" onclick="openLightbox('${escAttr(fid)}', ${group.round}, ${idx})">
-        <div class="screenshot-meta">${desc}</div>
+        <img src="${escAttr(apiBase()+shot.url)}" class="screenshot-thumb" loading="lazy" alt="${escAttr(desc)}" onclick="openLightbox('${escAttr(fid)}', ${group.round}, ${idx})">
+        <div class="screenshot-meta">${esc(desc)}</div>
       </div>`;
     }).join('');
     return `<div class="screenshot-group">
@@ -700,7 +700,7 @@ function updateLightbox() {
   if (lightboxState.index < 0) lightboxState.index = items.length - 1;
   if (lightboxState.index >= items.length) lightboxState.index = 0;
   const item = items[lightboxState.index];
-  document.getElementById('lb-img').src = item.url;
+  document.getElementById('lb-img').src = apiBase() + item.url;
   document.getElementById('lb-img').alt = item.description || item.filename || '';
   const step = item.step ? `[${item.step}] ` : '';
   document.getElementById('lb-caption').textContent = step + (item.description || item.filename || '');
