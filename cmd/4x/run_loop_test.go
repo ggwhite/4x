@@ -1210,6 +1210,112 @@ func TestRunLoop_DeepReviewFail(t *testing.T) {
 	}
 }
 
+// mockOps 實作 gitops.Ops 介面，讓測試可注入可控的 ScopeDetector。
+type mockOps struct {
+	changedRepos []string
+}
+
+func (m *mockOps) SetupWorktree(_ string) (string, error)    { return "", nil }
+func (m *mockOps) Commit(_, _, _ string) error               { return nil }
+func (m *mockOps) Merge(_, _ string) gitops.MergeResult      { return gitops.MergeResult{} }
+func (m *mockOps) Cleanup(_ string) error                    { return nil }
+func (m *mockOps) DetectChangedRepos() []string              { return m.changedRepos }
+func (m *mockOps) CaptureBaseline(_ string, _ []string) error { return nil }
+func (m *mockOps) IsMultiRepo() bool                         { return false }
+
+// TestRunLoop_GuardFailStopsLoop 驗證：非 designer runner 完成後若 guard.Check 回傳 Pass==false，
+// loop 立即停止並轉入 needs-attention，StopReason 包含 guard error 摘要。
+func TestRunLoop_GuardFailStopsLoop(t *testing.T) {
+	ws := setupLoopWorkspace(t, "feat-guard-fail")
+	// 覆寫 feature：設 Repos 使 scope check 有作用
+	f := protocol.Feature{ID: "feat-guard-fail", Name: "Guard Fail Test", Status: "not-started", Repos: []string{"allowed-repo"}}
+	ws.SaveFeature(f)
+	feature, _ := ws.LoadFeature("feat-guard-fail")
+	cfg, _ := ws.ReadConfig()
+
+	s := protocol.State{
+		FeatureID: "feat-guard-fail", Phase: protocol.PhaseInit,
+		MaxRounds: 5, Active: true, Runner: "mock",
+	}
+	ws.WriteState("feat-guard-fail", s)
+
+	// designer 和 coder 均成功；注入的 ops 讓 guard 在 coder 後失敗
+	mock := &mockRunner{ws: ws, featureID: "feat-guard-fail", outcomes: []mockOutcome{
+		{},
+		{},
+	}}
+	ops := &mockOps{changedRepos: []string{"out-of-scope-repo"}}
+
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, ops, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+		t.Fatalf("runLoop error: %v", err)
+	}
+
+	final, _ := ws.ReadState("feat-guard-fail")
+	if final.Phase != protocol.PhaseNeedsAttention {
+		t.Errorf("phase = %s, want needs-attention", final.Phase)
+	}
+	if final.Active {
+		t.Error("feature should be inactive after guard failure")
+	}
+	if !strings.Contains(final.StopReason, "scope violation") {
+		t.Errorf("stopReason = %q, want scope violation detail", final.StopReason)
+	}
+	// 確認 designer 和 coder 都有執行（guard 跳過 designer、在 coder 後失敗）
+	if len(mock.phases) < 2 {
+		t.Fatalf("expected designing + coding, got: %v", mock.phases)
+	}
+	if mock.phases[0] != protocol.PhaseDesigning {
+		t.Errorf("phases[0] = %s, want designing", mock.phases[0])
+	}
+	if mock.phases[1] != protocol.PhaseCoding {
+		t.Errorf("phases[1] = %s, want coding", mock.phases[1])
+	}
+}
+
+// TestRunLoop_DesignerSkipsGuard 驗證：designer phase 完成後不呼叫 guard.Check，
+// 即使 guard 一定失敗，loop 仍能繼續到下一個 phase（coder）。
+func TestRunLoop_DesignerSkipsGuard(t *testing.T) {
+	ws := setupLoopWorkspace(t, "feat-designer-skip-guard")
+	f := protocol.Feature{ID: "feat-designer-skip-guard", Name: "Designer Skip Guard", Status: "not-started", Repos: []string{"allowed-repo"}}
+	ws.SaveFeature(f)
+	feature, _ := ws.LoadFeature("feat-designer-skip-guard")
+	cfg, _ := ws.ReadConfig()
+
+	s := protocol.State{
+		FeatureID: "feat-designer-skip-guard", Phase: protocol.PhaseInit,
+		MaxRounds: 5, Active: true, Runner: "mock",
+	}
+	ws.WriteState("feat-designer-skip-guard", s)
+
+	mock := &mockRunner{ws: ws, featureID: "feat-designer-skip-guard", outcomes: []mockOutcome{
+		{},
+		{},
+	}}
+	// guard 一定失敗：任何 scope 都被標記為 out-of-scope
+	ops := &mockOps{changedRepos: []string{"out-of-scope-repo"}}
+
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, ops, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+		t.Fatalf("runLoop error: %v", err)
+	}
+
+	// designer 跳過 guard → loop 繼續到 coder → coder 後 guard 失敗 → needs-attention
+	// 若 designer 誤觸 guard，loop 在 designing 後即停，coding 不會出現在 mock.phases
+	final, _ := ws.ReadState("feat-designer-skip-guard")
+	if final.Phase != protocol.PhaseNeedsAttention {
+		t.Errorf("phase = %s, want needs-attention (guard failed at coder)", final.Phase)
+	}
+	sawCoding := false
+	for _, p := range mock.phases {
+		if p == protocol.PhaseCoding {
+			sawCoding = true
+			break
+		}
+	}
+	if !sawCoding {
+		t.Errorf("coding phase never ran — guard may have incorrectly blocked designer; phases = %v", mock.phases)
+	}
+}
+
 func TestParseReviewVerdict_Warning(t *testing.T) {
 	tests := []struct {
 		name         string

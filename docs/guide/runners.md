@@ -60,6 +60,7 @@ Use `4x sync` to re-deploy plugin files after updating the binary.
 | 0 | Success | Proceed to next phase |
 | 1 | Soft failure | Feature moves to `blocked` |
 | 2 | Hard error | Loop halts, requires attention |
+| negative (e.g. -1) | Signal kill (SIGKILL/SIGTERM) | Treated as hard error (same as exit 2) |
 | timeout | No response within limit | Treated as soft failure |
 
 ### Stream JSON Mode

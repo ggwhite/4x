@@ -70,8 +70,9 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
 |---|---|---|
 | `designing` | `task-brief.md` missing | → `needs-attention` |
 | `coding` / `amending` | `escalation.json` with `spec-mismatch` or `criteria-wrong` | → `designing` |
-| `reviewing` | Verdict line starts with FAIL or has `[CRITICAL]` | → `amending` |
+| `reviewing` | Verdict does not start with `PASS` (must be explicit `PASS` or `CONDITIONAL PASS`) | → `amending` |
 | `testing` | `verify.json` not passed or artifacts missing | → `amending` |
+| any (non-designer) | Guard check finds scope violation, baseline drift, or missing required file | → `needs-attention` |
 
 ---
 
