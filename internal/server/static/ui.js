@@ -494,8 +494,10 @@ function renderMsgCard(m) {
   const preview = lines.length > 1 ? lines.find(l => !l.startsWith('#')) || lines[1] : '';
   const previewText = preview ? `<span class="text-xs text-zinc-600 truncate ml-2 flex-1">${esc(preview.slice(0,80))}</span>` : '';
   const emoji = r.emoji || '';
+  const modelLabel = (m.model || 'Auto').replace(/^./, c => c.toUpperCase());
   const dur = m.duration > 0 ? `<span class="text-[10px] text-zinc-600 flex-shrink-0">${fmtSec(m.duration)}</span>` : '';
-  header.innerHTML = `<span class="text-xs font-semibold flex-shrink-0" style="color:${r.color}">${emoji} ${r.name}</span><span class="text-xs text-zinc-600 flex-shrink-0">${m.label}${m.round?' · Round '+m.round:''}</span>${previewText}${dur}<span class="msg-chevron text-zinc-600 text-xs ml-auto flex-shrink-0">▶</span>`;
+  const modelTag = `<span class="text-[10px] text-zinc-600 flex-shrink-0">${esc(modelLabel)}</span>`;
+  header.innerHTML = `<span class="text-xs font-semibold flex-shrink-0" style="color:${r.color}">${emoji} ${r.name}</span><span class="text-xs text-zinc-600 flex-shrink-0">${m.label}${m.round?' · Round '+m.round:''}</span>${previewText}${modelTag}${dur}<span class="msg-chevron text-zinc-600 text-xs ml-auto flex-shrink-0">▶</span>`;
   const body = document.createElement('div');
   body.className = 'msg-body collapsed md-body px-4 py-3 overflow-y-auto';
   body.style.color = 'var(--text-2)';

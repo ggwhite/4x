@@ -450,11 +450,12 @@ type messageInfo struct {
 	File     string `json:"file"`
 	Round    int    `json:"round,omitempty"`
 	Duration int    `json:"duration,omitempty"` // seconds
+	Model    string `json:"model,omitempty"`
 }
 
 func handleMessages(ws *protocol.Workspace, featureID string, w http.ResponseWriter) {
 	dir := ws.FeatureDir(featureID)
-	durations := buildPhaseDurations(ws, featureID)
+	phases := buildPhaseInfo(ws, featureID)
 	var messages []messageInfo
 
 	for _, f := range []struct {
@@ -471,7 +472,8 @@ func handleMessages(ws *protocol.Workspace, featureID string, w http.ResponseWri
 				Label:    f.name,
 				Content:  content,
 				File:     f.name,
-				Duration: durations[durationKey{"designer", 0}],
+				Duration: phases[durationKey{"designer", 0}].duration,
+				Model:    phases[durationKey{"designer", 0}].model,
 			})
 		}
 	}
@@ -505,7 +507,8 @@ func handleMessages(ws *protocol.Workspace, featureID string, w http.ResponseWri
 					Content:  content,
 					File:     filepath.Join(entry.Name(), f.name),
 					Round:    roundNum,
-					Duration: durations[durationKey{f.role, roundNum}],
+					Duration: phases[durationKey{f.role, roundNum}].duration,
+				Model:    phases[durationKey{f.role, roundNum}].model,
 				})
 			}
 		}
@@ -536,8 +539,13 @@ type durationKey struct {
 	round int
 }
 
-func buildPhaseDurations(ws *protocol.Workspace, featureID string) map[durationKey]int {
-	result := make(map[durationKey]int)
+type phaseInfo struct {
+	duration int
+	model    string
+}
+
+func buildPhaseInfo(ws *protocol.Workspace, featureID string) map[durationKey]phaseInfo {
+	result := make(map[durationKey]phaseInfo)
 	path := filepath.Join(ws.FeatureDir(featureID), protocol.EventsFile)
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -549,6 +557,7 @@ func buildPhaseDurations(ws *protocol.Workspace, featureID string) map[durationK
 		Type  string `json:"type"`
 		Role  string `json:"role"`
 		Round int    `json:"round"`
+		Model string `json:"model"`
 	}
 
 	starts := make(map[durationKey]time.Time)
@@ -566,10 +575,20 @@ func buildPhaseDurations(ws *protocol.Workspace, featureID string) map[durationK
 			if t, err := time.Parse(time.RFC3339, e.Ts); err == nil {
 				starts[key] = t
 			}
+			info := result[key]
+			if e.Model != "" {
+				info.model = e.Model
+			}
+			result[key] = info
 		case "run-end":
 			if start, ok := starts[key]; ok {
 				if t, err := time.Parse(time.RFC3339, e.Ts); err == nil {
-					result[key] = int(t.Sub(start).Seconds())
+					info := result[key]
+					info.duration = int(t.Sub(start).Seconds())
+					if e.Model != "" {
+						info.model = e.Model
+					}
+					result[key] = info
 				}
 			}
 		}
