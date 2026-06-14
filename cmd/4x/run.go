@@ -716,8 +716,9 @@ func parseReviewVerdict(content string) protocol.ReviewResult {
 			inVerdict = true
 			continue
 		}
-		if inVerdict && !verdictFound && trimmed != "" {
-			if strings.HasPrefix(upper, "PASS") {
+		if inVerdict && !verdictFound {
+			// 空白行視為無 verdict（FAIL）；必須明確 PASS 或 CONDITIONAL PASS 才算通過
+			if strings.HasPrefix(upper, "PASS") || strings.HasPrefix(upper, "CONDITIONAL PASS") {
 				result.Passed = true
 			}
 			verdictFound = true
