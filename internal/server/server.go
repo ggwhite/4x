@@ -180,12 +180,12 @@ func NewMux(ws *protocol.Workspace, pm *ProcessManager) http.Handler {
 	sub, _ := fs.Sub(staticFS, "static")
 	mux.Handle("/", http.FileServer(http.FS(sub)))
 
-	return logging.Middleware(mux)
+	return mux
 }
 
 // Start 啟動 dashboard web server。
 func Start(ws *protocol.Workspace, pm *ProcessManager, port int) error {
-	return http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", port), NewMux(ws, pm))
+	return http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", port), logging.Middleware(NewMux(ws, pm)))
 }
 
 // StartMulti 啟動多專案 dashboard server，ctx 取消時 graceful shutdown
@@ -751,15 +751,19 @@ func handleLogs(ws *protocol.Workspace, rest string, w http.ResponseWriter) {
 }
 
 var roleOrder = map[string]int{
-	"designer":      0,
-	"coder":         1,
-	"reviewer":      2,
-	"tester":        3,
-	"deep-reviewer": 4,
-	"acceptor":      5,
+	"designer":       0,
+	"coder":          1,
+	"reviewer":       2,
+	"tester":         3,
+	"deep-reviewer":  4,
+	"deep-fix":       5,
+	"deep-reverify":  6,
+	"acceptor":       7,
 }
 
-// logSortKey 將 "round-N-role.log" 轉成數字 key，確保按執行順序排列
+// logSortKey 將 "round-N-role.log" 轉成數字 key，確保按執行順序排列。
+// deep-fix-1、deep-reverify-2 等帶迭代號的 role 會去掉尾部數字做 base role 比對，
+// 迭代號作為子排序依據。
 func logSortKey(name string) int {
 	name = strings.TrimSuffix(name, ".log")
 	parts := strings.SplitN(name, "-", 3)
@@ -768,11 +772,18 @@ func logSortKey(name string) int {
 	}
 	round, _ := strconv.Atoi(parts[1])
 	role := parts[2]
+	iter := 0
+	if idx := strings.LastIndex(role, "-"); idx > 0 {
+		if n, err := strconv.Atoi(role[idx+1:]); err == nil {
+			iter = n
+			role = role[:idx]
+		}
+	}
 	order, ok := roleOrder[role]
 	if !ok {
 		order = 99
 	}
-	return round*100 + order
+	return round*1000 + order*10 + iter
 }
 
 type roleTiming struct {

@@ -166,6 +166,8 @@ const ROLES = {
   'deep-reviewer':{name:'Deep Review',emoji:'🔍',color:'#4ade80',bg:'rgba(74,222,128,.08)'},
   tester:{name:'Tester',emoji:'🧪',color:'#fb923c',bg:'rgba(251,146,60,.08)'},
   acceptor:{name:'Acceptor',emoji:'⭐',color:'#facc15',bg:'rgba(250,204,21,.08)'},
+  'deep-fix':{name:'Deep Fix',emoji:'🔧',color:'#f472b6',bg:'rgba(244,114,182,.08)'},
+  'deep-reverify':{name:'Deep Reverify',emoji:'🔬',color:'#a78bfa',bg:'rgba(167,139,250,.08)'},
 };
 const PHASE_ICON = { designing:'◆',coding:'◆',reviewing:'◆','deep-reviewing':'◆',testing:'◆',accepting:'◆',amending:'◆','pending-review':'⏳',done:'✓',blocked:'✕','needs-attention':'!',init:'○','not-started':'○' };
 

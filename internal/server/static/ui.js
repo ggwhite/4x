@@ -760,7 +760,7 @@ async function loadLogs(fid) {
     return;
   }
   list.innerHTML = logs.map(l => {
-    const role = l.name.replace(/^round-\d+-/, '').replace(/\.log$/, '');
+    const role = l.name.replace(/^round-\d+-/, '').replace(/\.log$/, '').replace(/^(deep-(?:fix|reverify))-\d+$/, '$1');
     const r = ROLES[role] || {name:role,color:'#666',bg:'rgba(100,100,100,.05)'};
     const kb = (l.size/1024).toFixed(1);
     const isLive = l.durationMs == null && l.startedAt;
