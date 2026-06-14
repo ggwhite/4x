@@ -96,9 +96,19 @@ PASS / FAIL
       "summary": "short factual result",
       "startedAt": "RFC3339 timestamp",
       "finishedAt": "RFC3339 timestamp"
+    },
+    {
+      "command": "4x status __bad__ --json",
+      "exitCode": 1,
+      "expectedExitCode": 1,
+      "durationMs": 100,
+      "summary": "error path outputs correct JSON",
+      "startedAt": "RFC3339 timestamp",
+      "finishedAt": "RFC3339 timestamp"
     }
   ]
 }
+Note: expectedExitCode defaults to 0 when omitted. Set it when the command is expected to fail (e.g. error path validation).
 
 == Constraints ==
 - Do NOT modify source code — only run tests and report

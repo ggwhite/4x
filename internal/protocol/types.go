@@ -230,12 +230,13 @@ type VerifyEvidence struct {
 
 // VerifyCommand 是單一 verify command 的結果
 type VerifyCommand struct {
-	Command    string    `json:"command"`
-	ExitCode   int       `json:"exitCode"`
-	DurationMs int64     `json:"durationMs"`
-	Summary    string    `json:"summary"`
-	StartedAt  time.Time `json:"startedAt"`
-	FinishedAt time.Time `json:"finishedAt"`
+	Command          string    `json:"command"`
+	ExitCode         int       `json:"exitCode"`
+	ExpectedExitCode *int      `json:"expectedExitCode,omitempty"`
+	DurationMs       int64     `json:"durationMs"`
+	Summary          string    `json:"summary"`
+	StartedAt        time.Time `json:"startedAt"`
+	FinishedAt       time.Time `json:"finishedAt"`
 }
 
 // TestStrategy 是 test-strategy.yaml 的結構

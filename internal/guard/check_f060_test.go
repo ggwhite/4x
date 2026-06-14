@@ -63,6 +63,59 @@ func TestCheckTestingToAccepting_EmptyCommandsPasses(t *testing.T) {
 	}
 }
 
+// W7：expectedExitCode 非零且實際 exit code 吻合 → Pass。
+func TestCheckTestingToAccepting_ExpectedNonZeroExitPasses(t *testing.T) {
+	ws := setupGuardWorkspace(t, "feat-1")
+	roundDir := ws.RoundDir("feat-1", 1)
+	featureDir := ws.FeatureDir("feat-1")
+
+	expectedOne := 1
+	ev := protocol.VerifyEvidence{
+		Passed: true,
+		Round:  1,
+		Commands: []protocol.VerifyCommand{
+			{Command: "make build", ExitCode: 0},
+			{Command: "status __nonexistent__ --json", ExitCode: 1, ExpectedExitCode: &expectedOne},
+		},
+	}
+	data, _ := json.Marshal(ev)
+	writeFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))
+	writeFile(t, filepath.Join(roundDir, protocol.TestReport), "# Test")
+	writeFile(t, filepath.Join(featureDir, protocol.FinalReport), "# Final")
+	writeFile(t, filepath.Join(featureDir, protocol.CommitPlan), "# Commit Plan")
+
+	result := CheckTestingToAccepting(ws, "feat-1", 1)
+	if !result.Pass {
+		t.Fatalf("exit 1 matching expectedExitCode=1 should pass, got errors: %v", result.Errors)
+	}
+}
+
+// W7：expectedExitCode 非零但實際 exit code 不符 → Fail。
+func TestCheckTestingToAccepting_ExpectedNonZeroMismatchFails(t *testing.T) {
+	ws := setupGuardWorkspace(t, "feat-1")
+	roundDir := ws.RoundDir("feat-1", 1)
+	featureDir := ws.FeatureDir("feat-1")
+
+	expectedOne := 1
+	ev := protocol.VerifyEvidence{
+		Passed: true,
+		Round:  1,
+		Commands: []protocol.VerifyCommand{
+			{Command: "should-fail-but-passed", ExitCode: 0, ExpectedExitCode: &expectedOne},
+		},
+	}
+	data, _ := json.Marshal(ev)
+	writeFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))
+	writeFile(t, filepath.Join(roundDir, protocol.TestReport), "# Test")
+	writeFile(t, filepath.Join(featureDir, protocol.FinalReport), "# Final")
+	writeFile(t, filepath.Join(featureDir, protocol.CommitPlan), "# Commit Plan")
+
+	result := CheckTestingToAccepting(ws, "feat-1", 1)
+	if result.Pass {
+		t.Fatal("exit 0 with expectedExitCode=1 should fail")
+	}
+}
+
 // W7：所有 command exit 0 + passed==true → Pass。
 func TestCheckTestingToAccepting_AllCommandsZeroPasses(t *testing.T) {
 	ws := setupGuardWorkspace(t, "feat-1")

@@ -184,13 +184,18 @@ func checkTestingToAccepting(ws *protocol.Workspace, featureID string, round int
 	}
 
 	// W7：交叉驗證 tester 自報的 passed 與各 command 實際 exit code。
-	// passed==true 但任一 command 非 0 退出視為謊報。Commands 為空（舊資料）時天然略過。
+	// passed==true 但任一 command 的 exit code 與預期不符視為謊報。
+	// ExpectedExitCode 未設定時預設為 0（向後相容）。
 	if evidence.Passed {
 		for _, c := range evidence.Commands {
-			if c.ExitCode != 0 {
+			expected := 0
+			if c.ExpectedExitCode != nil {
+				expected = *c.ExpectedExitCode
+			}
+			if c.ExitCode != expected {
 				r.Pass = false
 				r.Errors = append(r.Errors, fmt.Sprintf(
-					"verify.json claims passed but command %q exited %d", c.Command, c.ExitCode))
+					"verify.json claims passed but command %q exited %d (expected %d)", c.Command, c.ExitCode, expected))
 			}
 		}
 	}
