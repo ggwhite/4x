@@ -226,6 +226,7 @@ func newBatchRunCmd() *cobra.Command {
 	var runnerName string
 	var maxRounds int
 	var timeout int
+	var noAutoMerge bool
 
 	cmd := &cobra.Command{
 		Use:   "run",
@@ -313,7 +314,22 @@ func newBatchRunCmd() *cobra.Command {
 				return updated.Status, runErr
 			}
 
-			completed := runBatchSchedule(ws, plan, statusMap, maxRounds, runnerName, runFeature)
+			// autoMerge 對 ready-for-review 的 feature 走 done.go 的共用 helper（ops.Merge + finalizeDone），
+			// 回傳 MergeResult 供 runBatchSchedule 決定衝突暫停 / 錯誤續跑 / 成功標 done。
+			autoMerge := func(featureID string) gitops.MergeResult {
+				st, err := ws.ReadState(featureID)
+				if err != nil {
+					return gitops.MergeResult{Error: fmt.Sprintf("cannot read state for %s: %v", featureID, err)}
+				}
+				f, _ := ws.LoadFeature(featureID)
+				name := featureID
+				if f.Name != "" {
+					name = f.Name
+				}
+				return autoMergeFeature(ws, cfg, st, featureID, name)
+			}
+
+			completed := runBatchSchedule(ws, plan, statusMap, maxRounds, runnerName, runFeature, noAutoMerge, autoMerge)
 
 			fmt.Printf("\n══════════════════════════════════════\n")
 			fmt.Printf("  BATCH COMPLETE: %d/%d features done\n", completed, len(plan.Schedule))
@@ -325,6 +341,7 @@ func newBatchRunCmd() *cobra.Command {
 	cmd.Flags().StringVar(&runnerName, "runner", "", "runner plugin name")
 	cmd.Flags().IntVar(&maxRounds, "max-rounds", 0, "max rounds per feature (default: 5)")
 	cmd.Flags().IntVar(&timeout, "timeout", 3600, "plugin timeout in seconds")
+	cmd.Flags().BoolVar(&noAutoMerge, "no-auto-merge", false, "feature 完成後停在 pending-review，不自動 merge 回 main")
 	return cmd
 }
 
@@ -334,9 +351,14 @@ const maxFeatureFailures = 2
 // runBatchSchedule 依 plan 順序挑選並執行 feature，套用 4x run 啟動前的三道 gate（W4：
 // dependency 檢查、已 done 跳過、PID 記錄）與失敗重跑上限（W12）。runFeature 注入實際執行
 // （worktree + runLoop）並回傳跑完後的最新 status，測試可替換為模擬。回傳完成的 feature 數。
+//
+// F068：feature 完成（ready-for-review）後若 !noAutoMerge 且 autoMerge != nil，呼叫注入的
+// autoMerge 把 worktree 改動合回 main——衝突則 graceful pause（保留 worktree、回傳目前 completed），
+// 非衝突錯誤則警告後續跑，成功（含 skipped）則標記 done。autoMerge 注入式（mirror runFeature）讓測試可替換。
 func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap map[string]protocol.Status,
 	maxRounds int, runnerName string,
-	runFeature func(next string, feature protocol.Feature, s protocol.State) (protocol.Status, error)) int {
+	runFeature func(next string, feature protocol.Feature, s protocol.State) (protocol.Status, error),
+	noAutoMerge bool, autoMerge func(featureID string) gitops.MergeResult) int {
 
 	stopFile := filepath.Join(ws.DotDir(), "batch-stop")
 	completed := 0
@@ -449,6 +471,33 @@ func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap m
 
 		if runErr != nil {
 			fmt.Printf("  feature %s failed: %v\n", next, runErr)
+		}
+
+		// F068：feature 完成（ready-for-review/pending-review）後自動 merge 回 main，
+		// 使下一個 feature 的 worktree 從含本輪改動的最新 main 開出 branch。
+		if !noAutoMerge && updatedStatus == protocol.StatusReadyForReview && autoMerge != nil {
+			result := autoMerge(next)
+			switch {
+			case result.Conflict:
+				// M2：衝突 → graceful pause。保留 pending-review 與 worktree、不計入 completed、停止主迴圈。
+				fmt.Printf("\n⏸ auto-merge conflict on %s — pausing batch (%d done):\n", next, completed)
+				for _, file := range result.Files {
+					fmt.Printf("  conflict: %s\n", file)
+				}
+				if result.ConflictRepo != "" {
+					fmt.Printf("  repo: %s\n", result.ConflictRepo)
+				}
+				fmt.Printf("  worktree: %s\n", gitops.Dir(ws.Root, next))
+				fmt.Printf("  resolve conflicts, then run '4x merge %s' and re-run '4x batch run' to continue.\n", next)
+				return completed
+			case result.Error != "":
+				// M3：非衝突錯誤 → 警告後嘗試下一個 feature；feature 仍算 ready-for-review（batchCompleted）。
+				fmt.Fprintf(os.Stderr, "  warning: auto-merge failed for %s; feature remains pending-review: %s\n", next, result.Error)
+				fmt.Printf("  worktree preserved at: %s\n", gitops.Dir(ws.Root, next))
+			default:
+				// M1/M4：成功或 skipped（非 worktree 模式）→ 標記 done。
+				statusMap[next] = protocol.StatusDone
+			}
 		}
 
 		if batchCompleted(updatedStatus) {

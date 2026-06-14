@@ -54,14 +54,13 @@ func markDone(ws *protocol.Workspace, featureID string) error {
 		cfg = protocol.MergeConfig(userCfg, cfg)
 	}
 
-	ops := gitops.New(ws.Root, ws, cfg)
-
 	f, _ := ws.LoadFeature(featureID)
 	name := featureID
 	if f.Name != "" {
 		name = f.Name
 	}
-	result := ops.Merge(featureID, name)
+
+	result := autoMergeFeature(ws, cfg, s, featureID, name)
 	if result.Conflict {
 		fmt.Println("Merge conflict — feature remains pending-review:")
 		for _, file := range result.Files {
@@ -80,15 +79,26 @@ func markDone(ws *protocol.Workspace, featureID string) error {
 		return nil
 	}
 
-	if err := finalizeDone(ws, featureID, s); err != nil {
-		return err
-	}
-
 	fmt.Printf("Feature %s marked as done.\n", featureID)
 	if !result.Skipped {
 		fmt.Printf("Merged and cleaned up branch %s.\n", gitops.Branch(featureID))
 	}
 	return nil
+}
+
+// autoMergeFeature 對 pending-review 的 feature 執行 merge，成功（含 skipped）時 finalizeDone 標記 done，
+// 回傳 MergeResult 供呼叫端決定後續（衝突→暫停、錯誤→警告續跑、成功→done）。不印任何訊息。
+//
+// 衝突（result.Conflict）與非衝突錯誤（result.Error != ""）時保持 pending-review、不 finalize；
+// 其餘情況（含非 worktree 模式的 Skipped）視為成功並 finalizeDone。merge 邏輯只走
+// ops.Merge + finalizeDone 一處，batch 與 done 共用此 helper，不重寫第二份流程。
+func autoMergeFeature(ws *protocol.Workspace, cfg protocol.Config, s protocol.State, featureID, featureName string) gitops.MergeResult {
+	ops := gitops.New(ws.Root, ws, cfg)
+	result := ops.Merge(featureID, featureName)
+	if !result.Conflict && result.Error == "" {
+		_ = finalizeDone(ws, featureID, s)
+	}
+	return result
 }
 
 func finalizeDone(ws *protocol.Workspace, featureID string, s protocol.State) error {
