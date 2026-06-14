@@ -377,6 +377,9 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 	// 讀到不完整的 report 誤以為 phase 完成
 	cleanStaleArtifact(ws, featureID, s.Phase, s.Round)
 
+	designerEscalations := 0
+	const maxDesignerEscalations = 2
+
 	for s.Active {
 		if ctx.Err() != nil {
 			s.Active = false
@@ -582,6 +585,17 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 
 		if err := executePhaseHooks(ctx, ws, featureID, &s, loopHooks["pre"], next, "pre", hookLogDir); err != nil {
 			return err
+		}
+
+		// 防止 coder ↔ designer 無限 escalation 循環
+		if next == protocol.PhaseDesigning && phase != protocol.PhaseInit {
+			designerEscalations++
+			if designerEscalations > maxDesignerEscalations {
+				next = protocol.PhaseNeedsAttention
+				nextRole = role
+				stopReason = fmt.Sprintf("escalation-loop: designer escalated %d times in round %d", designerEscalations, s.Round)
+				fmt.Printf("  ⚠ stopping: coder↔designer escalation loop detected (%d times)\n", designerEscalations)
+			}
 		}
 
 		newState, err := state.Transition(s, next, nextRole)
