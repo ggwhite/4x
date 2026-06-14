@@ -212,6 +212,7 @@ async function markDone(fid) {
 }
 function goHome() {
   current=null; lastMsgCount=0; disconnectSSE(); disconnectLogSSE();
+  if (_logDurTimer) { clearInterval(_logDurTimer); _logDurTimer = null; }
   closeLightbox();
   document.getElementById('header').classList.add('hidden');
   document.getElementById('overview-panel').classList.add('hidden');
@@ -219,7 +220,8 @@ function goHome() {
   document.getElementById('messages').innerHTML = '';
   document.getElementById('screenshots-panel').classList.add('hidden');
   document.getElementById('screenshots-tab-btn').style.display = 'none';
-  document.getElementById('logs-panel').classList.add('hidden');
+  const lp = document.getElementById('logs-panel');
+  lp.classList.add('hidden'); lp.style.display = 'none';
   document.getElementById('dashboard').classList.remove('hidden');
   activeDetailTab = 'overview';
   if (activeProjectId) { load(); renderDashboard(lastTasks); } else renderProjectPicker();

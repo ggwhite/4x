@@ -787,6 +787,28 @@ func logSortKey(name string) int {
 	return round*1000 + order*10 + iter
 }
 
+// logKeyFromEvent 將 events.jsonl 的 role 名稱映射到實際 log 檔名。
+// mini-coder / re-verifier 會帶迭代號（deep-fix-1、deep-reverify-2），
+// 用 iterCount 追蹤每個 round+role 的出現次數。
+func logKeyFromEvent(round int, role, eventType string, iterCount map[string]int) string {
+	switch role {
+	case "mini-coder":
+		counterKey := fmt.Sprintf("%d-mini-coder", round)
+		if eventType == "phase-start" {
+			iterCount[counterKey]++
+		}
+		return fmt.Sprintf("round-%d-deep-fix-%d.log", round, iterCount[counterKey])
+	case "re-verifier":
+		counterKey := fmt.Sprintf("%d-re-verifier", round)
+		if eventType == "phase-start" {
+			iterCount[counterKey]++
+		}
+		return fmt.Sprintf("round-%d-deep-reverify-%d.log", round, iterCount[counterKey])
+	default:
+		return fmt.Sprintf("round-%d-%s.log", round, role)
+	}
+}
+
 type roleTiming struct {
 	DurationMs *int64
 	StartedAt  *string
@@ -808,16 +830,24 @@ func parseRoleTimings(featureDir string) map[string]roleTiming {
 	starts := map[string]time.Time{}
 	ended := map[string]bool{}
 	timings := map[string]roleTiming{}
+	iterCount := map[string]int{}
+	var lastEventTs time.Time
 	for _, line := range strings.Split(string(data), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
 		var ev event
-		if err := json.Unmarshal([]byte(line), &ev); err != nil || ev.Role == "" {
+		if err := json.Unmarshal([]byte(line), &ev); err != nil {
 			continue
 		}
-		key := fmt.Sprintf("round-%d-%s.log", ev.Round, ev.Role)
+		if !ev.Ts.IsZero() {
+			lastEventTs = ev.Ts
+		}
+		if ev.Role == "" {
+			continue
+		}
+		key := logKeyFromEvent(ev.Round, string(ev.Role), ev.Type, iterCount)
 		switch ev.Type {
 		case "phase-start":
 			starts[key] = ev.Ts
@@ -830,7 +860,13 @@ func parseRoleTimings(featureDir string) map[string]roleTiming {
 		}
 	}
 	for key, ts := range starts {
-		if !ended[key] {
+		if ended[key] {
+			continue
+		}
+		if !lastEventTs.IsZero() && lastEventTs.After(ts) {
+			ms := lastEventTs.Sub(ts).Milliseconds()
+			timings[key] = roleTiming{DurationMs: &ms}
+		} else {
 			s := ts.UTC().Format(time.RFC3339)
 			timings[key] = roleTiming{StartedAt: &s}
 		}
