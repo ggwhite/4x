@@ -8,13 +8,19 @@ async function init() {
       list.forEach(l => SUPPORTED_LOCALES.push(l));
     }
   } catch {}
-  await loadLocale(detectLocale());
+  let configLocale = null;
+  try {
+    const ucResp = await fetch('/api/user-config');
+    if (ucResp.ok) { const uc = await ucResp.json(); if (uc.locale) configLocale = uc.locale; }
+  } catch {}
+  await loadLocale(configLocale || detectLocale());
   applyI18n();
   await loadProjects();
   const saved = loadTabState();
   if (saved.tabs.length > 0) { for (const tab of saved.tabs) { if (projects.find(p => p.id === tab.id)) openTabs.push(tab); } activeProjectId = openTabs.find(tb => tb.id === saved.active) ? saved.active : (openTabs[0] ? openTabs[0].id : null); }
   if (openTabs.length === 0 && projects.length > 0) { projects.forEach(p => openTabs.push({ id: p.id, name: p.name })); activeProjectId = openTabs[0] ? openTabs[0].id : null; }
   saveTabState(); renderTabs();
-  if (activeProjectId) load(); else renderProjectPicker();
+  if (activeProjectId) await load(); else renderProjectPicker();
+  startRefreshTimer();
 }
 init();

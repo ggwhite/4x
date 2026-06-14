@@ -12,8 +12,6 @@ function t(key) {
 }
 
 function detectLocale() {
-  const saved = localStorage.getItem('4x-locale');
-  if (saved && LOCALE_NAMES[saved]) return saved;
   const nav = navigator.language || 'en';
   if (LOCALE_NAMES[nav]) return nav;
   const prefix = nav.split('-')[0];
@@ -47,7 +45,6 @@ function applyI18n() {
 }
 
 async function switchLocale(lang) {
-  localStorage.setItem('4x-locale', lang);
   const loaded = await loadLocale(lang);
   if (!loaded) return;
   applyI18n();

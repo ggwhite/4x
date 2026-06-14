@@ -679,4 +679,4 @@ async function saveProjectSettings() {
     if (btn) { const orig = btn.textContent; btn.textContent = t('projectSettings.saved'); setTimeout(() => { btn.textContent = orig; }, 1500); }
   } catch(err) { showToast(t('toast.connectionError').replace('{error}', err.message)); }
 }
-function initSettings() { applyTheme(settings.theme); applyFont(); startRefreshTimer(); }
+function initSettings() { applyTheme(settings.theme); applyFont(); }
