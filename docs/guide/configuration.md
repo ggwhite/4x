@@ -97,6 +97,19 @@ If `{model}` is not present in `args`, the runner auto-appends `--model <model>`
 | `commit` | Commit strategy: `"per-round"` (default), `"on-done"`, or `"never"` |
 | `profiles` | Named pipeline profiles (role subsets); see [Profiles](#profiles) |
 | `parallel_review_test` | Run reviewer and tester concurrently during the reviewing phase (default `false`) |
+| `auto_discover_features` | Auto-create features from `[NEW-FEATURE]` markers in the deep review report (default `false`); see [Auto-Discover Features](#auto-discover-features) |
+| `max_discovered_features` | Max features auto-created per run; unset or `<= 0` applies the default (`3`) |
+
+### Auto-Discover Features
+
+When `auto_discover_features` is `true`, the run loop parses the final deep review report (`deep-review-report.md`) after it **passes** and turns each `[NEW-FEATURE]` marker into a new feature YAML — capturing out-of-scope issues the deep reviewer spotted instead of letting them get buried.
+
+- **Trigger point**: only fires when the final deep review passes (the first-pass PASS, or a PASS after self-heal). Intermediate rounds, reviewer/tester failures, and deep-review FAIL/needs-attention paths never reach it.
+- **Dedup**: each candidate is compared (token-overlap similarity) against every existing feature's name + description, and against candidates already kept in the same batch. Similar candidates are skipped.
+- **Cap**: at most `max_discovered_features` (default `3`) features are created per run; the rest are recorded as capped.
+- **Output**: a `discovered-features.md` summary is written under `.4x/<feature-id>/` listing created / skipped-as-duplicate / capped candidates, and a `feature-discovered` event is appended per created feature.
+
+All of this happens in the CLI layer (plain text parse + file writes, no LLM call) and never blocks the transition to `accepting` — any error is logged best-effort.
 
 ### Profiles
 

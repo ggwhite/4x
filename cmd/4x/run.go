@@ -1142,6 +1142,7 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 
 	// 3. PASS → accepting。
 	if reviewPassed(ws, featureID, round, protocol.DeepReviewReport) {
+		autoDiscoverFeatures(ws, feature, cfg, round)
 		return deepTransitionAccepting(ws, featureID, s)
 	}
 
@@ -1216,6 +1217,7 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 
 		// 4d. re-verifier 已把 deep-review-report.md 的 Verdict 改 PASS → accepting。
 		if reviewPassed(ws, featureID, round, protocol.DeepReviewReport) {
+			autoDiscoverFeatures(ws, feature, cfg, round)
 			return deepTransitionAccepting(ws, featureID, s)
 		}
 	}
@@ -1357,6 +1359,124 @@ func deepTransitionAccepting(ws *protocol.Workspace, featureID string, s *protoc
 		Type: "transition", Phase: s.Phase, Role: s.Role, Round: s.Round, Runner: s.Runner,
 	})
 	return true, nil
+}
+
+// autoDiscoverFeatures 在 final deep review PASS 後執行：parse deep-review-report.md 的
+// [NEW-FEATURE] 標記，去重、套數量上限後建立新 feature，並寫出 discovered-features.md 摘要。
+// 只在兩個 deep review PASS return 點（首次 PASS、self-heal 後 re-verifier 改 PASS）被呼叫，
+// 中間輪與 FAIL/needs-attention 路徑都到不了，因此等同「只在 final deep review 觸發」。
+// 為 best-effort：任何錯誤只記 log，絕不中斷 accepting 轉換。
+func autoDiscoverFeatures(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, round int) {
+	if !cfg.AutoDiscoverFeatures {
+		return
+	}
+
+	reportPath := filepath.Join(ws.RoundDir(feature.ID, round), protocol.DeepReviewReport)
+	data, err := os.ReadFile(reportPath)
+	if err != nil {
+		slog.Warn("auto-discover: read deep-review report failed", "feature", feature.ID, "round", round, "error", err)
+		return
+	}
+
+	cands := protocol.ParseDiscoveredFeatures(string(data))
+	if len(cands) == 0 {
+		return
+	}
+
+	existing, _ := ws.ListFeatures()
+	kept := protocol.DedupeDiscovered(cands, existing)
+
+	max := protocol.ResolveMaxDiscoveredFeatures(cfg)
+	var capped []protocol.DiscoveredFeature
+	if len(kept) > max {
+		capped = kept[max:]
+		kept = kept[:max]
+	}
+
+	// skipped 為被去重濾掉的候選（出現在 cands 但不在 kept/capped 中）。
+	keptOrCapped := make(map[string]struct{})
+	for _, d := range kept {
+		keptOrCapped[d.Title] = struct{}{}
+	}
+	for _, d := range capped {
+		keptOrCapped[d.Title] = struct{}{}
+	}
+	var skipped []protocol.DiscoveredFeature
+	for _, c := range cands {
+		if _, ok := keptOrCapped[c.Title]; !ok {
+			skipped = append(skipped, c)
+		}
+	}
+
+	var createdList []discoveredCreated
+	for _, d := range kept {
+		next, nerr := protocol.NextFeatureNumber(ws)
+		if nerr != nil {
+			slog.Warn("auto-discover: next feature number failed", "feature", feature.ID, "title", d.Title, "error", nerr)
+			continue
+		}
+		id := protocol.GenerateFeatureID(next, d.Title)
+		f := protocol.Feature{
+			ID:          id,
+			Name:        fmt.Sprintf("F%03d: %s", next, d.Title),
+			Description: d.Description,
+			Status:      protocol.StatusNotStarted,
+		}
+		if serr := ws.SaveFeature(f); serr != nil {
+			slog.Warn("auto-discover: save feature failed", "feature", feature.ID, "title", d.Title, "error", serr)
+			continue
+		}
+		createdList = append(createdList, discoveredCreated{id: id, title: d.Title})
+		ws.AppendEvent(feature.ID, protocol.Event{
+			Type: "feature-discovered", Phase: protocol.PhaseDeepReviewing, Round: round, Detail: id,
+		})
+	}
+
+	writeDiscoveredFeaturesReport(ws, feature.ID, createdList, skipped, capped)
+
+	fmt.Printf("[round %d] auto-discovered %d feature(s)\n", round, len(createdList))
+}
+
+// discoveredCreated 記錄一筆已建立的 feature（id 與 title），供摘要報告列出。
+type discoveredCreated struct{ id, title string }
+
+// writeDiscoveredFeaturesReport 寫出 .4x/{featureID}/discovered-features.md 摘要：
+// 列出已建立、因重複略過、因超過上限略過的候選 feature。
+func writeDiscoveredFeaturesReport(ws *protocol.Workspace, featureID string, created []discoveredCreated, skipped, capped []protocol.DiscoveredFeature) {
+	var b strings.Builder
+	b.WriteString("# Discovered Features\n\n")
+
+	b.WriteString("## Created\n")
+	if len(created) == 0 {
+		b.WriteString("None\n")
+	} else {
+		for _, c := range created {
+			fmt.Fprintf(&b, "- %s — %s\n", c.id, c.title)
+		}
+	}
+
+	b.WriteString("\n## Skipped (duplicate)\n")
+	if len(skipped) == 0 {
+		b.WriteString("None\n")
+	} else {
+		for _, d := range skipped {
+			fmt.Fprintf(&b, "- %s\n", d.Title)
+		}
+	}
+
+	b.WriteString("\n## Capped (over limit)\n")
+	if len(capped) == 0 {
+		b.WriteString("None\n")
+	} else {
+		for _, d := range capped {
+			fmt.Fprintf(&b, "- %s\n", d.Title)
+		}
+	}
+
+	path := filepath.Join(ws.FeatureDir(featureID), "discovered-features.md")
+	if err := os.WriteFile(path, []byte(b.String()), 0o644); err != nil {
+		slog.Error("write discovered-features report failed", "feature", featureID, "error", err)
+	}
 }
 
 // writeDeepReviewFailReport 由 CLI 在 deep-reviewing 終止場景（如 mini-coder scope-exceed）
@@ -1664,4 +1784,3 @@ func startLiveSync(wt, main *protocol.Workspace, featureID string, round int) fu
 		wg.Wait()
 	}
 }
-

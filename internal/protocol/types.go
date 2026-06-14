@@ -311,6 +311,11 @@ type Config struct {
 	Profiles map[string]ProfileConfig `json:"profiles,omitempty"`
 	// ParallelReviewTest 啟用後，reviewer 與 tester 在 reviewing phase 並行執行（共用 worktree）。
 	ParallelReviewTest bool `json:"parallel_review_test,omitempty"`
+	// AutoDiscoverFeatures 啟用後，run loop 在 final deep review PASS 後會 parse
+	// deep-review-report.md 的 [NEW-FEATURE] 標記並自動建立 feature。預設 false。
+	AutoDiscoverFeatures bool `json:"auto_discover_features,omitempty"`
+	// MaxDiscoveredFeatures 限制單次 run 最多自動建立幾張 feature；未設定或 <= 0 時套預設值（3）。
+	MaxDiscoveredFeatures int `json:"max_discovered_features,omitempty"`
 }
 
 // ProfileConfig 描述一個 pipeline profile：啟用哪些 role、以及 coder 的 model tier 覆蓋。
