@@ -77,7 +77,7 @@ func (r *SubprocessRunner) Run(ctx context.Context, prompt string) (*Result, err
 
 	if usePty {
 		var err error
-		ptmx, err = startPty(cmd)
+		ptmx, err = startPty(ctx, cmd)
 		if err != nil {
 			return nil, fmt.Errorf("runner %s failed to start (pty): %w", r.Name, err)
 		}

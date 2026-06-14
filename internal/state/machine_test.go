@@ -125,6 +125,21 @@ func TestTransition_DoneSetsActivefalse(t *testing.T) {
 	}
 }
 
+// W2（AC-3）：transition 到 abandoned 後 Active 必須為 false。
+func TestTransition_AbandonedSetsActiveFalse(t *testing.T) {
+	s := protocol.State{Phase: protocol.PhaseCoding, Round: 2, Active: true}
+	got, err := Transition(s, protocol.PhaseAbandoned, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Phase != protocol.PhaseAbandoned {
+		t.Errorf("Phase = %s, want abandoned", got.Phase)
+	}
+	if got.Active {
+		t.Error("Active = true, want false after transition to abandoned")
+	}
+}
+
 func TestTransition_FirstCodingRound(t *testing.T) {
 	s := protocol.State{Phase: protocol.PhaseDesigning, Round: 0}
 	got, err := Transition(s, protocol.PhaseCoding, protocol.RoleCoder)

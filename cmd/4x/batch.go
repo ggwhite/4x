@@ -7,11 +7,13 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/ggwhite/4x/internal/batch"
 	"github.com/ggwhite/4x/internal/gitops"
+	"github.com/ggwhite/4x/internal/guard"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/runner"
 	"github.com/spf13/cobra"
@@ -283,74 +285,12 @@ func newBatchRunCmd() *cobra.Command {
 				statusMap[f.ID] = f.Status
 			}
 
-			stopFile := filepath.Join(ws.DotDir(), "batch-stop")
-
-			completed := 0
-			for {
-				if _, err := os.Stat(stopFile); err == nil {
-					os.Remove(stopFile)
-					fmt.Printf("\n⏸ batch-stop detected — stopping gracefully (%d done)\n", completed)
-					break
-				}
-
-				next := ""
-				for _, s := range plan.Schedule {
-					if batchCompleted(statusMap[s.FeatureID]) {
-						continue
-					}
-					allDone := true
-					for _, dep := range s.CanStartAfter {
-						if !batchCompleted(statusMap[dep]) {
-							allDone = false
-							break
-						}
-					}
-					if allDone {
-						next = s.FeatureID
-						break
-					}
-				}
-
-				if next == "" {
-					break
-				}
-
-				fmt.Printf("\n══════════════════════════════════════\n")
-				fmt.Printf("  BATCH: %s (%d/%d done)\n", next, completed, len(plan.Schedule))
-				fmt.Printf("══════════════════════════════════════\n\n")
-
-				feature, err := ws.LoadFeature(next)
-				if err != nil {
-					fmt.Printf("  error loading feature: %v\n", err)
-					statusMap[next] = protocol.StatusBlocked
-					continue
-				}
-
-				if err := ws.InitFeatureDir(next); err != nil {
-					return err
-				}
-
-				rounds := maxRounds
-				if rounds <= 0 {
-					rounds = 5
-				}
-
-				s := protocol.State{
-					FeatureID: next,
-					Phase:     protocol.PhaseInit,
-					MaxRounds: rounds,
-					Active:    true,
-					Runner:    runnerName,
-					CreatedAt: time.Now(),
-				}
-				if existing, err := ws.ReadState(next); err == nil {
-					s = existing
-					s.Active = true
-				}
-				_ = ws.WriteState(next, s)
-
+			// runFeature 執行單一 feature 的完整 runLoop（含 worktree 隔離），回傳跑完後的最新 status。
+			// 抽出成 callback 讓 runBatchSchedule 的排程 / gate / 失敗追蹤邏輯可獨立測試。
+			runFeature := func(next string, feature protocol.Feature, s protocol.State) (protocol.Status, error) {
 				signal.Ignore(syscall.SIGPIPE)
 				batchCtx, batchCancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+				defer batchCancel()
 				batchOps := gitops.New(ws.Root, ws, cfg)
 
 				batchRunnerWs := ws
@@ -358,10 +298,7 @@ func newBatchRunCmd() *cobra.Command {
 				if cfg.Isolation == "worktree" {
 					wtPath, wtErr := batchOps.SetupWorktree(next)
 					if wtErr != nil {
-						fmt.Printf("  worktree setup failed: %v\n", wtErr)
-						statusMap[next] = protocol.StatusBlocked
-						batchCancel()
-						continue
+						return protocol.StatusBlocked, fmt.Errorf("worktree setup failed: %w", wtErr)
 					}
 					batchRunnerWs = &protocol.Workspace{Root: wtPath}
 					commitStrategy = "per-round"
@@ -370,21 +307,13 @@ func newBatchRunCmd() *cobra.Command {
 				runnerFactory := func(logPath string, model string) runner.Runner {
 					return runner.NewRunner(batchRunnerWs, runnerName, runnerCfg, time.Duration(timeout)*time.Second, logPath, model)
 				}
-				err = runLoop(batchCtx, ws, batchRunnerWs, feature, cfg, s, batchOps, runnerFactory, commitStrategy)
-				batchCancel()
+				runErr := runLoop(batchCtx, ws, batchRunnerWs, feature, cfg, s, batchOps, runnerFactory, commitStrategy)
 
 				updated, _ := ws.LoadFeature(next)
-				statusMap[next] = updated.Status
+				return updated.Status, runErr
+			}
 
-				if err != nil {
-					fmt.Printf("  feature %s failed: %v\n", next, err)
-				}
-
-				if batchCompleted(updated.Status) {
-					completed++
-				}
-
-				}
+			completed := runBatchSchedule(ws, plan, statusMap, maxRounds, runnerName, runFeature)
 
 			fmt.Printf("\n══════════════════════════════════════\n")
 			fmt.Printf("  BATCH COMPLETE: %d/%d features done\n", completed, len(plan.Schedule))
@@ -397,6 +326,137 @@ func newBatchRunCmd() *cobra.Command {
 	cmd.Flags().IntVar(&maxRounds, "max-rounds", 0, "max rounds per feature (default: 5)")
 	cmd.Flags().IntVar(&timeout, "timeout", 3600, "plugin timeout in seconds")
 	return cmd
+}
+
+// maxFeatureFailures 是 batch 對單一 feature 連續跑出失敗狀態的容忍上限，達標後跳過避免無限重跑。
+const maxFeatureFailures = 2
+
+// runBatchSchedule 依 plan 順序挑選並執行 feature，套用 4x run 啟動前的三道 gate（W4：
+// dependency 檢查、已 done 跳過、PID 記錄）與失敗重跑上限（W12）。runFeature 注入實際執行
+// （worktree + runLoop）並回傳跑完後的最新 status，測試可替換為模擬。回傳完成的 feature 數。
+func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap map[string]protocol.Status,
+	maxRounds int, runnerName string,
+	runFeature func(next string, feature protocol.Feature, s protocol.State) (protocol.Status, error)) int {
+
+	stopFile := filepath.Join(ws.DotDir(), "batch-stop")
+	completed := 0
+	// W12：追蹤每個 feature 跑出失敗狀態（needs-attention/blocked）的次數，
+	// 達 maxFeatureFailures 後從 selection 跳過。loggedSkip 確保 skip 訊息只印一次。
+	failedFeatures := map[string]int{}
+	loggedSkip := map[string]bool{}
+
+	for {
+		if _, err := os.Stat(stopFile); err == nil {
+			os.Remove(stopFile)
+			fmt.Printf("\n⏸ batch-stop detected — stopping gracefully (%d done)\n", completed)
+			break
+		}
+
+		next := ""
+		for _, s := range plan.Schedule {
+			if batchCompleted(statusMap[s.FeatureID]) {
+				continue
+			}
+			if failedFeatures[s.FeatureID] >= maxFeatureFailures {
+				if !loggedSkip[s.FeatureID] {
+					fmt.Printf("  skipping %s: failed %d times\n", s.FeatureID, failedFeatures[s.FeatureID])
+					loggedSkip[s.FeatureID] = true
+				}
+				continue
+			}
+			allDone := true
+			for _, dep := range s.CanStartAfter {
+				if !batchCompleted(statusMap[dep]) {
+					allDone = false
+					break
+				}
+			}
+			if allDone {
+				next = s.FeatureID
+				break
+			}
+		}
+
+		if next == "" {
+			break
+		}
+
+		fmt.Printf("\n══════════════════════════════════════\n")
+		fmt.Printf("  BATCH: %s (%d/%d done)\n", next, completed, len(plan.Schedule))
+		fmt.Printf("══════════════════════════════════════\n\n")
+
+		feature, err := ws.LoadFeature(next)
+		if err != nil {
+			fmt.Printf("  error loading feature: %v\n", err)
+			statusMap[next] = protocol.StatusBlocked
+			failedFeatures[next]++
+			continue
+		}
+
+		if err := ws.InitFeatureDir(next); err != nil {
+			fmt.Printf("  init feature dir failed: %v\n", err)
+			statusMap[next] = protocol.StatusBlocked
+			failedFeatures[next]++
+			continue
+		}
+
+		// W4：套用 4x run 啟動前的 dependency gate；未完成則跳過並標記 blocked。
+		depResult := guard.CheckDependencies(ws, next)
+		if !depResult.Pass {
+			fmt.Printf("  dependency check failed: %s\n", strings.Join(depResult.Errors, "; "))
+			statusMap[next] = protocol.StatusBlocked
+			failedFeatures[next]++
+			continue
+		}
+
+		rounds := maxRounds
+		if rounds <= 0 {
+			rounds = 5
+		}
+
+		s := protocol.State{
+			FeatureID: next,
+			Phase:     protocol.PhaseInit,
+			MaxRounds: rounds,
+			Active:    true,
+			Runner:    runnerName,
+			CreatedAt: time.Now(),
+		}
+		if existing, err := ws.ReadState(next); err == nil {
+			s = existing
+			s.Active = true
+		}
+
+		// W4：resume 既有 state 時，若已 done 則跳過不重跑。
+		if s.Phase == protocol.PhaseDone {
+			fmt.Printf("  %s already done — skipping\n", next)
+			statusMap[next] = protocol.StatusDone
+			completed++
+			continue
+		}
+
+		// W4：記錄本 process PID，與 4x run 一致。
+		s.Pid = os.Getpid()
+		_ = ws.WriteState(next, s)
+
+		updatedStatus, runErr := runFeature(next, feature, s)
+		statusMap[next] = updatedStatus
+
+		// W12：跑出失敗狀態時累計，達上限後於 selection 跳過避免無限重跑。
+		if updatedStatus == protocol.StatusNeedsAttention || updatedStatus == protocol.StatusBlocked {
+			failedFeatures[next]++
+		}
+
+		if runErr != nil {
+			fmt.Printf("  feature %s failed: %v\n", next, runErr)
+		}
+
+		if batchCompleted(updatedStatus) {
+			completed++
+		}
+	}
+
+	return completed
 }
 
 func newBatchStopCmd() *cobra.Command {

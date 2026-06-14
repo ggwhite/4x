@@ -182,6 +182,18 @@ func checkTestingToAccepting(ws *protocol.Workspace, featureID string, round int
 		r.Pass = false
 		r.Errors = append(r.Errors, "verify.json did not pass")
 	}
+
+	// W7：交叉驗證 tester 自報的 passed 與各 command 實際 exit code。
+	// passed==true 但任一 command 非 0 退出視為謊報。Commands 為空（舊資料）時天然略過。
+	if evidence.Passed {
+		for _, c := range evidence.Commands {
+			if c.ExitCode != 0 {
+				r.Pass = false
+				r.Errors = append(r.Errors, fmt.Sprintf(
+					"verify.json claims passed but command %q exited %d", c.Command, c.ExitCode))
+			}
+		}
+	}
 }
 
 func missingOrEmpty(path string) bool {
@@ -246,24 +258,35 @@ func checkScope(ws *protocol.Workspace, featureID string, detector ScopeDetector
 	}
 }
 
-// detectChangedRepos 找出哪些子目錄有 uncommitted changes
+// detectChangedRepos 找出哪些子目錄有 uncommitted changes。
+// 合併 tracked 變更（git diff HEAD，含 staged + unstaged）與 untracked 檔案
+// （git ls-files --others --exclude-standard），後者是 git diff HEAD 涵蓋不到的缺口。
+// 兩條指令各自獨立容錯：單一指令失敗不影響另一指令已找到的變更。
 func detectChangedRepos(root string) []string {
-	cmd := exec.Command("git", "diff", "--name-only", "HEAD")
-	cmd.Dir = root
-	out, err := cmd.Output()
-	if err != nil {
-		return nil
+	repoSet := make(map[string]bool)
+
+	collect := func(out []byte) {
+		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			if line == "" {
+				continue
+			}
+			parts := strings.SplitN(line, "/", 2)
+			if len(parts) > 0 {
+				repoSet[parts[0]] = true
+			}
+		}
 	}
 
-	repoSet := make(map[string]bool)
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		if line == "" {
-			continue
-		}
-		parts := strings.SplitN(line, "/", 2)
-		if len(parts) > 0 {
-			repoSet[parts[0]] = true
-		}
+	diffCmd := exec.Command("git", "diff", "--name-only", "HEAD")
+	diffCmd.Dir = root
+	if out, err := diffCmd.Output(); err == nil {
+		collect(out)
+	}
+
+	untrackedCmd := exec.Command("git", "ls-files", "--others", "--exclude-standard")
+	untrackedCmd.Dir = root
+	if out, err := untrackedCmd.Output(); err == nil {
+		collect(out)
 	}
 
 	var repos []string
