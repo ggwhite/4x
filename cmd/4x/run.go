@@ -1323,7 +1323,9 @@ func parseReviewVerdict(content string) protocol.ReviewResult {
 			continue
 		}
 		if inVerdict && !verdictFound && trimmed != "" {
-			if strings.HasPrefix(upper, "PASS") || strings.HasPrefix(upper, "CONDITIONAL PASS") {
+			// strip markdown bold/italic（**PASS** → PASS）
+			clean := strings.ToUpper(strings.Trim(trimmed, "*_"))
+			if strings.HasPrefix(clean, "PASS") || strings.HasPrefix(clean, "CONDITIONAL PASS") {
 				result.Passed = true
 			}
 			verdictFound = true
