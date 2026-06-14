@@ -31,13 +31,15 @@ type mockRunner struct {
 	idx              int
 	phases           []protocol.Phase
 	roles            []protocol.Role
+	prompts          []string
 	baselineAtCoding []bool
 }
 
-func (m *mockRunner) Run(_ context.Context, _ string) (*runner.Result, error) {
+func (m *mockRunner) Run(_ context.Context, prompt string) (*runner.Result, error) {
 	s, _ := m.ws.ReadState(m.featureID)
 	m.phases = append(m.phases, s.Phase)
 	m.roles = append(m.roles, s.Role)
+	m.prompts = append(m.prompts, prompt)
 	if s.Phase == protocol.PhaseCoding {
 		baselinePath := filepath.Join(m.ws.FeatureDir(m.featureID), protocol.BaselineFile)
 		_, err := os.Stat(baselinePath)

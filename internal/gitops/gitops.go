@@ -98,6 +98,34 @@ func CopyFileIfExists(src, dst string) error {
 	return copyFileIfExists(src, dst)
 }
 
+// CopyFileIfNewer 僅在來源比目標新（或目標不存在）時複製，用於差量化 worktree sync，
+// 避免每輪 final sync 與每 2 秒 live-sync 對未變更檔案重複全量複製。
+// 回傳是否實際複製、以及錯誤；來源不存在視為靜默成功（false, nil）。
+// 比對採 mtime-only：dst 不存在則複製；兩者皆存在時 srcInfo.ModTime().After(dstInfo.ModTime()) 才複製。
+func CopyFileIfNewer(src, dst string) (copied bool, err error) {
+	srcInfo, err := os.Stat(src)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	dstInfo, err := os.Stat(dst)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return false, err
+		}
+		// 目標不存在 → 複製
+	} else if !srcInfo.ModTime().After(dstInfo.ModTime()) {
+		// 目標存在且不比來源舊 → 跳過
+		return false, nil
+	}
+	if err := copyFileIfExists(src, dst); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // syncDotDirContents 將 mainRoot 的 .4x/settings.json 和 plugins/ 複製到 dotDir。
 func syncDotDirContents(mainRoot, dotDir string) {
 	os.MkdirAll(dotDir, 0o755)
