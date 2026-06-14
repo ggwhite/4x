@@ -26,8 +26,13 @@ func TestParseReviewVerdict_Pass(t *testing.T) {
 			passed: false,
 		},
 		{
-			name: "empty verdict line",
-			content: "## Verdict\n\nPASS should be skipped\n",
+			name: "PASS after blank line",
+			content: "## Verdict\n\nPASS\n",
+			passed: true,
+		},
+		{
+			name: "only blank lines after verdict",
+			content: "## Verdict\n\n\n",
 			passed: false,
 		},
 		{
