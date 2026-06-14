@@ -27,7 +27,7 @@ The dashboard supports multiple projects simultaneously. Without path arguments,
 
 ## Feature Cards
 
-Each feature card shows tags for its priority, dependencies, and — when a non-default [pipeline profile](concepts.md#pipeline-profiles) is active — a **profile tag** (e.g. `quick`, `normal`). The profile is carried in the `profile` field of the `/api/tasks` JSON.
+Each feature card shows tags for its priority, dependencies, stop reason (if the feature halted abnormally), and — when a non-default [pipeline profile](concepts.md#pipeline-profiles) is active — a **profile tag** (e.g. `quick`, `normal`). High-priority features (P0/P1) get accent borders. Completed dependencies show a green checkmark. The `profile` and `stopReason` fields are carried in the `/api/tasks` JSON.
 
 ## Server API
 

@@ -1307,10 +1307,14 @@ func parseReviewVerdict(content string) protocol.ReviewResult {
 		trimmed := strings.TrimSpace(line)
 		upper := strings.ToUpper(trimmed)
 
-		if strings.Contains(upper, "[CRITICAL]") {
+		// 只計行首的 issue tag（### [WARNING] 或 [WARNING] 開頭），
+		// 避免把正文中引述上一輪 issue 的文字誤計為本輪 issue。
+		if strings.HasPrefix(upper, "[CRITICAL]") || strings.HasPrefix(upper, "### [CRITICAL]") ||
+			strings.HasPrefix(upper, "####") && strings.Contains(upper, "[CRITICAL]") {
 			result.CriticalCount++
 		}
-		if strings.Contains(upper, "[WARNING]") {
+		if strings.HasPrefix(upper, "[WARNING]") || strings.HasPrefix(upper, "### [WARNING]") ||
+			strings.HasPrefix(upper, "####") && strings.Contains(upper, "[WARNING]") {
 			result.WarningCount++
 		}
 

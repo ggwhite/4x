@@ -1763,6 +1763,11 @@ func TestParseReviewVerdict_Warning(t *testing.T) {
 			"### [warning] minor — c.go\n\n## Verdict\nPASS\n",
 			true, 0, 1,
 		},
+		{
+			"inline mention not counted",
+			"### [INFO] round-1 [WARNING] 已完整修正\nround-1 [WARNING]（邊界檢查）本輪已無此問題\n\n## Verdict\nPASS\n",
+			true, 0, 0,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

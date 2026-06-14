@@ -24,8 +24,11 @@ plugins/	docs/guide/runners.md
 internal/server/	docs/guide/dashboard.md
 internal/batch/	docs/guide/batch.md"
 
-results=""
-triggers=""
+# collect docs that also changed in the same diff range (already updated)
+UPDATED_DOCS=""
+for file in $DIFF_FILES; do
+  case "$file" in docs/*) UPDATED_DOCS="$UPDATED_DOCS $file" ;; esac
+done
 
 for file in $DIFF_FILES; do
   case "$file" in docs/*) continue ;; esac
@@ -38,19 +41,47 @@ for file in $DIFF_FILES; do
 done | sort -t$'\t' -k1,1 | {
   found=0
   prev_doc=""
+  skip_doc=""
+  pending_lines=""
   while IFS=$'\t' read -r doc file; do
     if [ "$doc" != "$prev_doc" ]; then
-      [ -n "$prev_doc" ] && echo ""
-      if [ -f "$doc" ]; then
-        echo "  $doc"
-      else
-        echo "  $doc (MISSING)"
+      # flush previous doc group if it wasn't skipped
+      if [ -n "$prev_doc" ] && [ "$prev_doc" != "$skip_doc" ]; then
+        [ "$found" -gt 0 ] && echo ""
+        if [ -f "$prev_doc" ]; then
+          echo "  $prev_doc"
+        else
+          echo "  $prev_doc (MISSING)"
+        fi
+        echo "$pending_lines"
+        found=$((found + 1))
       fi
       prev_doc="$doc"
-      found=1
+      pending_lines=""
+      skip_doc=""
+      # check if this doc was also updated in the diff
+      for ud in $UPDATED_DOCS; do
+        if [ "$ud" = "$doc" ]; then
+          skip_doc="$doc"
+          break
+        fi
+      done
     fi
-    echo "    - $file"
+    pending_lines="${pending_lines}    - $file
+"
   done
+
+  # flush last group
+  if [ -n "$prev_doc" ] && [ "$prev_doc" != "$skip_doc" ]; then
+    [ "$found" -gt 0 ] && echo ""
+    if [ -f "$prev_doc" ]; then
+      echo "  $prev_doc"
+    else
+      echo "  $prev_doc (MISSING)"
+    fi
+    echo "$pending_lines"
+    found=$((found + 1))
+  fi
 
   if [ "$found" -eq 0 ]; then
     echo "OK: no doc updates needed"
