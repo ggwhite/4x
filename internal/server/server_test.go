@@ -1685,3 +1685,68 @@ func TestHandleLogSSE_TwoTicks(t *testing.T) {
 		}
 	}
 }
+
+func TestPostClean(t *testing.T) {
+	ws := setupServerWorkspace(t)
+
+	doneF := protocol.Feature{ID: "clean-done", Name: "Clean Done", Status: protocol.StatusDone}
+	ws.SaveFeature(doneF)
+	ws.InitFeatureDir("clean-done")
+	ws.WriteState("clean-done", protocol.State{
+		FeatureID: "clean-done", Phase: protocol.PhaseDone, Active: false,
+	})
+	logsDir := filepath.Join(ws.FeatureDir("clean-done"), "logs")
+	os.MkdirAll(logsDir, 0o755)
+	os.WriteFile(filepath.Join(logsDir, "test.log"), make([]byte, 2048), 0o644)
+
+	handler := NewMux(ws, nil)
+	rec := serveRequest(t, handler, http.MethodPost, "/api/clean", "")
+
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, want 200, body: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp cleanResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Cleaned != 1 {
+		t.Errorf("cleaned = %d, want 1", resp.Cleaned)
+	}
+	if resp.Freed < 2048 {
+		t.Errorf("freed = %d, want >= 2048", resp.Freed)
+	}
+	if len(resp.Features) != 1 || resp.Features[0] != "clean-done" {
+		t.Errorf("features = %v, want [clean-done]", resp.Features)
+	}
+
+	if _, err := os.Stat(ws.FeatureDir("clean-done")); !os.IsNotExist(err) {
+		t.Error("workspace dir should be removed after clean")
+	}
+}
+
+func TestPostClean_NothingToClean(t *testing.T) {
+	ws := setupServerWorkspace(t)
+
+	handler := NewMux(ws, nil)
+	rec := serveRequest(t, handler, http.MethodPost, "/api/clean", "")
+
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	var resp cleanResponse
+	json.NewDecoder(rec.Body).Decode(&resp)
+	if resp.Cleaned != 0 {
+		t.Errorf("cleaned = %d, want 0", resp.Cleaned)
+	}
+}
+
+func TestPostClean_MethodNotAllowed(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	handler := NewMux(ws, nil)
+	rec := serveRequest(t, handler, http.MethodGet, "/api/clean", "")
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Errorf("GET /api/clean status = %d, want 405", rec.Code)
+	}
+}

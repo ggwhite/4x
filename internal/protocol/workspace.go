@@ -321,6 +321,108 @@ func (w *Workspace) InitFeatureDir(featureID string) error {
 	return os.MkdirAll(filepath.Join(dir, RoundsDir), 0o755)
 }
 
+// CleanCandidate 描述一個可清理的 feature workspace。
+type CleanCandidate struct {
+	FeatureID string
+	Size      int64
+}
+
+// CleanableFeatures 列出所有可清理的 feature workspace。
+// 僅納入 done 或 abandoned、有 workspace 目錄、且目前非 active 的 feature，
+// 供 4x clean 與 POST /api/clean 在實際刪除前向使用者預覽清理對象與預估空間。
+func (w *Workspace) CleanableFeatures() ([]CleanCandidate, error) {
+	features, err := w.ListFeatures()
+	if err != nil {
+		return nil, err
+	}
+
+	var candidates []CleanCandidate
+	for _, f := range features {
+		if f.Status != StatusDone && f.Status != StatusAbandoned {
+			continue
+		}
+		dir := w.FeatureDir(f.ID)
+		info, err := os.Stat(dir)
+		if err != nil || !info.IsDir() {
+			continue
+		}
+
+		s, err := w.ReadState(f.ID)
+		if err == nil {
+			w.ReconcileActive(f.ID, &s)
+			if s.Active {
+				continue
+			}
+		}
+
+		candidates = append(candidates, CleanCandidate{FeatureID: f.ID, Size: dirSize(dir)})
+	}
+	return candidates, nil
+}
+
+// dirSize 累加 path 底下所有檔案的位元組數；遇到讀取錯誤的子項目跳過不中斷。
+func dirSize(path string) int64 {
+	var total int64
+	filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
+		if err == nil && !info.IsDir() {
+			total += info.Size()
+		}
+		return nil
+	})
+	return total
+}
+
+// CleanFeature 刪除指定 feature 的 workspace 目錄，回傳釋放的位元組數。
+// 僅允許 done 或 abandoned 且非 active 的 feature；非 terminal 或仍在執行中皆回 error。
+// feature 定義（.4x/features/{id}.yaml）不受影響。
+func (w *Workspace) CleanFeature(featureID string) (int64, error) {
+	f, err := w.LoadFeature(featureID)
+	if err != nil {
+		return 0, fmt.Errorf("load feature %s: %w", featureID, err)
+	}
+	if f.Status != StatusDone && f.Status != StatusAbandoned {
+		return 0, fmt.Errorf("feature %s is %s, only done/abandoned can be cleaned", featureID, f.Status)
+	}
+
+	dir := w.FeatureDir(featureID)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return 0, fmt.Errorf("no workspace directory for %s", featureID)
+	}
+
+	s, err := w.ReadState(featureID)
+	if err == nil {
+		w.ReconcileActive(featureID, &s)
+		if s.Active {
+			return 0, fmt.Errorf("feature %s is still active (pid %d)", featureID, s.Pid)
+		}
+	}
+
+	size := dirSize(dir)
+	if err := os.RemoveAll(dir); err != nil {
+		return 0, fmt.Errorf("remove %s: %w", dir, err)
+	}
+	return size, nil
+}
+
+// HumanSize 將位元組數轉為人類可讀格式（如 "3.9M"、"124K"、"512B"）。
+func HumanSize(bytes int64) string {
+	const (
+		kb = 1024
+		mb = 1024 * kb
+		gb = 1024 * mb
+	)
+	switch {
+	case bytes >= gb:
+		return fmt.Sprintf("%.1fG", float64(bytes)/float64(gb))
+	case bytes >= mb:
+		return fmt.Sprintf("%.1fM", float64(bytes)/float64(mb))
+	case bytes >= kb:
+		return fmt.Sprintf("%.0fK", float64(bytes)/float64(kb))
+	default:
+		return fmt.Sprintf("%dB", bytes)
+	}
+}
+
 // ReadState 讀取 feature 的 state.json
 func (w *Workspace) ReadState(featureID string) (State, error) {
 	path := filepath.Join(w.FeatureDir(featureID), StateFile)

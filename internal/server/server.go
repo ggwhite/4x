@@ -123,6 +123,13 @@ func newMux(ws *protocol.Workspace, pm *ProcessManager, bm *BatchManager) http.H
 		}
 		handlePostDone(ws, w, r)
 	})
+	mux.HandleFunc("/api/clean", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		handlePostClean(ws, w)
+	})
 	mux.HandleFunc("/api/batch/status", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -1280,6 +1287,39 @@ func handlePostDone(ws *protocol.Workspace, w http.ResponseWriter, r *http.Reque
 			fmt.Fprint(w, `{"status":"done","merged":true}`)
 		}
 	}
+}
+
+// cleanResponse 是 POST /api/clean 的回應，回報清理數量、釋放空間與被清的 feature 清單。
+type cleanResponse struct {
+	Cleaned   int      `json:"cleaned"`
+	Freed     int64    `json:"freed"`
+	FreedText string   `json:"freed_human"`
+	Features  []string `json:"features"`
+}
+
+// handlePostClean 清理所有可清理的 feature workspace，回傳 JSON 統計。
+// 逐一呼叫 CleanFeature，個別失敗（如 race 中變為 active）僅跳過不中斷整批。
+func handlePostClean(ws *protocol.Workspace, w http.ResponseWriter) {
+	candidates, err := ws.CleanableFeatures()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	resp := cleanResponse{Features: []string{}}
+	for _, c := range candidates {
+		freed, err := ws.CleanFeature(c.FeatureID)
+		if err != nil {
+			continue
+		}
+		resp.Cleaned++
+		resp.Freed += freed
+		resp.Features = append(resp.Features, c.FeatureID)
+	}
+	resp.FreedText = protocol.HumanSize(resp.Freed)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }
 
 type batchRequest struct {

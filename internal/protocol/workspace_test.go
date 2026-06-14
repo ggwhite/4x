@@ -1187,3 +1187,149 @@ func TestSyncFeatureStatus_NotFound(t *testing.T) {
 		t.Error("expected error for missing feature")
 	}
 }
+
+func TestCleanableFeatures(t *testing.T) {
+	ws := setupWorkspace(t)
+
+	doneF := Feature{ID: "F001-done", Name: "Done Feature", Status: StatusDone}
+	if err := ws.SaveFeature(doneF); err != nil {
+		t.Fatal(err)
+	}
+	if err := ws.InitFeatureDir("F001-done"); err != nil {
+		t.Fatal(err)
+	}
+	if err := ws.WriteState("F001-done", State{
+		FeatureID: "F001-done", Phase: PhaseDone, Active: false,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	logsDir := filepath.Join(ws.FeatureDir("F001-done"), "logs")
+	os.MkdirAll(logsDir, 0o755)
+	os.WriteFile(filepath.Join(logsDir, "round-1-coder.stream.jsonl"), make([]byte, 1024), 0o644)
+
+	abandonedF := Feature{ID: "F002-abandoned", Name: "Abandoned", Status: StatusAbandoned}
+	if err := ws.SaveFeature(abandonedF); err != nil {
+		t.Fatal(err)
+	}
+	if err := ws.InitFeatureDir("F002-abandoned"); err != nil {
+		t.Fatal(err)
+	}
+	if err := ws.WriteState("F002-abandoned", State{
+		FeatureID: "F002-abandoned", Phase: PhaseAbandoned, Active: false,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	activeF := Feature{ID: "F003-active", Name: "Active", Status: StatusInProgress}
+	if err := ws.SaveFeature(activeF); err != nil {
+		t.Fatal(err)
+	}
+	if err := ws.InitFeatureDir("F003-active"); err != nil {
+		t.Fatal(err)
+	}
+	if err := ws.WriteState("F003-active", State{
+		FeatureID: "F003-active", Phase: PhaseCoding, Active: true, Pid: os.Getpid(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	noWorkspaceF := Feature{ID: "F004-no-ws", Name: "No Workspace", Status: StatusDone}
+	ws.SaveFeature(noWorkspaceF)
+
+	candidates, err := ws.CleanableFeatures()
+	if err != nil {
+		t.Fatalf("CleanableFeatures: %v", err)
+	}
+
+	if len(candidates) != 2 {
+		t.Fatalf("got %d candidates, want 2", len(candidates))
+	}
+	if candidates[0].FeatureID != "F001-done" {
+		t.Errorf("candidates[0].FeatureID = %q, want F001-done", candidates[0].FeatureID)
+	}
+	if candidates[0].Size < 1024 {
+		t.Errorf("candidates[0].Size = %d, want >= 1024", candidates[0].Size)
+	}
+	if candidates[1].FeatureID != "F002-abandoned" {
+		t.Errorf("candidates[1].FeatureID = %q, want F002-abandoned", candidates[1].FeatureID)
+	}
+}
+
+func TestCleanFeature(t *testing.T) {
+	ws := setupWorkspace(t)
+
+	f := Feature{ID: "F010-clean-me", Name: "Clean Me", Status: StatusDone}
+	ws.SaveFeature(f)
+	ws.InitFeatureDir("F010-clean-me")
+	ws.WriteState("F010-clean-me", State{
+		FeatureID: "F010-clean-me", Phase: PhaseDone, Active: false,
+	})
+	logsDir := filepath.Join(ws.FeatureDir("F010-clean-me"), "logs")
+	os.MkdirAll(logsDir, 0o755)
+	os.WriteFile(filepath.Join(logsDir, "stream.jsonl"), make([]byte, 2048), 0o644)
+
+	freed, err := ws.CleanFeature("F010-clean-me")
+	if err != nil {
+		t.Fatalf("CleanFeature: %v", err)
+	}
+	if freed < 2048 {
+		t.Errorf("freed = %d, want >= 2048", freed)
+	}
+
+	if _, err := os.Stat(ws.FeatureDir("F010-clean-me")); !os.IsNotExist(err) {
+		t.Error("feature dir still exists after clean")
+	}
+
+	if _, err := ws.LoadFeature("F010-clean-me"); err != nil {
+		t.Errorf("feature YAML should still exist: %v", err)
+	}
+}
+
+func TestCleanFeature_RejectsActive(t *testing.T) {
+	ws := setupWorkspace(t)
+
+	f := Feature{ID: "F011-active", Name: "Active", Status: StatusInProgress}
+	ws.SaveFeature(f)
+	ws.InitFeatureDir("F011-active")
+	ws.WriteState("F011-active", State{
+		FeatureID: "F011-active", Phase: PhaseCoding, Active: true, Pid: os.Getpid(),
+	})
+
+	_, err := ws.CleanFeature("F011-active")
+	if err == nil {
+		t.Fatal("expected error for active feature")
+	}
+}
+
+func TestCleanFeature_RejectsNonTerminal(t *testing.T) {
+	ws := setupWorkspace(t)
+
+	f := Feature{ID: "F012-blocked", Name: "Blocked", Status: StatusBlocked}
+	ws.SaveFeature(f)
+	ws.InitFeatureDir("F012-blocked")
+	ws.WriteState("F012-blocked", State{
+		FeatureID: "F012-blocked", Phase: PhaseBlocked, Active: false,
+	})
+
+	_, err := ws.CleanFeature("F012-blocked")
+	if err == nil {
+		t.Fatal("expected error for non-terminal feature")
+	}
+}
+
+func TestHumanSize(t *testing.T) {
+	cases := []struct {
+		bytes int64
+		want  string
+	}{
+		{512, "512B"},
+		{1024, "1K"},
+		{4 * 1024 * 1024, "4.0M"},
+		{2 * 1024 * 1024 * 1024, "2.0G"},
+	}
+	for _, c := range cases {
+		if got := HumanSize(c.bytes); got != c.want {
+			t.Errorf("HumanSize(%d) = %q, want %q", c.bytes, got, c.want)
+		}
+	}
+}

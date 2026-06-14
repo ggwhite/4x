@@ -228,6 +228,21 @@ In multi-repo mode, resolved conflicts are committed per repo (each repo under `
 
 ---
 
+## `4x clean [feature-id]`
+
+Remove workspace artifacts (`logs/`, `rounds/`, reports, `state.json`, `events.jsonl`) for completed features, freeing disk space. Feature definitions (`.4x/features/*.yaml`) and feature status are always preserved.
+
+```
+4x clean              # list cleanable features + sizes, confirm, then clean
+4x clean --dry-run    # list only, delete nothing
+4x clean --force      # skip confirmation prompt
+4x clean <feature-id> # clean a single feature (still must be done/abandoned)
+```
+
+Only features in `done` or `abandoned` status with an existing workspace directory are eligible. Active (running) features are never cleaned, and `blocked` / `needs-attention` features are kept so their debug artifacts remain available. Cleaning is not a state-machine transition — it does not change feature lifecycle.
+
+---
+
 ## `4x config`
 
 Manage user-level configuration (`~/.4x/settings.json`).

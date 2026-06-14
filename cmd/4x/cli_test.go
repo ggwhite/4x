@@ -665,3 +665,81 @@ func TestConfigGet_RunnerCommand(t *testing.T) {
 		t.Fatalf("config get runner.claude.command: %v", err)
 	}
 }
+
+func TestClean_DryRun(t *testing.T) {
+	dir := t.TempDir()
+	if out, err := run4x(dir, "init"); err != nil {
+		t.Fatalf("init: %v\n%s", err, out)
+	}
+	ws, err := protocol.Find(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	f := protocol.Feature{ID: "F001-test-done", Name: "Test Done", Status: protocol.StatusDone}
+	ws.SaveFeature(f)
+	ws.InitFeatureDir("F001-test-done")
+	ws.WriteState("F001-test-done", protocol.State{
+		FeatureID: "F001-test-done", Phase: protocol.PhaseDone, Active: false,
+	})
+	logsDir := filepath.Join(ws.FeatureDir("F001-test-done"), "logs")
+	os.MkdirAll(logsDir, 0o755)
+	os.WriteFile(filepath.Join(logsDir, "test.log"), make([]byte, 512), 0o644)
+
+	out, err := run4x(dir, "clean", "--dry-run")
+	if err != nil {
+		t.Fatalf("clean --dry-run: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "F001-test-done") {
+		t.Errorf("dry-run output should list feature, got: %s", out)
+	}
+
+	if _, err := os.Stat(ws.FeatureDir("F001-test-done")); os.IsNotExist(err) {
+		t.Error("dry-run should not delete workspace dir")
+	}
+}
+
+func TestClean_Force(t *testing.T) {
+	dir := t.TempDir()
+	if out, err := run4x(dir, "init"); err != nil {
+		t.Fatalf("init: %v\n%s", err, out)
+	}
+	ws, err := protocol.Find(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	f := protocol.Feature{ID: "F002-test-done", Name: "Force Clean", Status: protocol.StatusDone}
+	ws.SaveFeature(f)
+	ws.InitFeatureDir("F002-test-done")
+	ws.WriteState("F002-test-done", protocol.State{
+		FeatureID: "F002-test-done", Phase: protocol.PhaseDone, Active: false,
+	})
+
+	out, err := run4x(dir, "clean", "--force")
+	if err != nil {
+		t.Fatalf("clean --force: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "Cleaned") {
+		t.Errorf("force output should contain 'Cleaned', got: %s", out)
+	}
+
+	if _, err := os.Stat(ws.FeatureDir("F002-test-done")); !os.IsNotExist(err) {
+		t.Error("force clean should delete workspace dir")
+	}
+}
+
+func TestClean_NothingToClean(t *testing.T) {
+	dir := t.TempDir()
+	if out, err := run4x(dir, "init"); err != nil {
+		t.Fatalf("init: %v\n%s", err, out)
+	}
+
+	out, err := run4x(dir, "clean", "--dry-run")
+	if err != nil {
+		t.Fatalf("clean --dry-run: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "Nothing to clean") {
+		t.Errorf("should say nothing to clean, got: %s", out)
+	}
+}
