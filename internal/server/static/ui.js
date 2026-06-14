@@ -261,18 +261,22 @@ function dagNodeColor(task) {
 // 節點為 feature、邊為 depends（被依賴者指向依賴者）；依 depends 深度分層，同層水平排列。
 // 無任何依賴關係時回空字串（不顯示空圖）。
 function renderDag(tasks) {
-  const list = tasks || [];
-  const byId = {};
-  list.forEach(t => { byId[t.id] = t; });
+  const all = tasks || [];
+  const allById = {};
+  all.forEach(t => { allById[t.id] = t; });
+  const undone = all.filter(t => t.status !== 'done' && t.status !== 'abandoned');
 
   const edges = [];
   const involved = new Set();
-  list.forEach(t => {
+  undone.forEach(t => {
     (t.depends || []).forEach(d => {
-      if (byId[d]) { edges.push([d, t.id]); involved.add(d); involved.add(t.id); }
+      if (allById[d]) { edges.push([d, t.id]); involved.add(d); involved.add(t.id); }
     });
   });
   if (edges.length === 0) return '';
+
+  const byId = {};
+  involved.forEach(id => { if (allById[id]) byId[id] = allById[id]; });
 
   const nodes = [...involved].map(id => byId[id]);
   const depth = {};
@@ -293,7 +297,7 @@ function renderDag(tasks) {
   const layerKeys = Object.keys(layers).map(Number).sort((a, b) => a - b);
   layerKeys.forEach(k => layers[k].sort((a, b) => a.id.localeCompare(b.id)));
 
-  const NW = 150, NH = 42, GX = 28, GY = 78;
+  const NW = 200, NH = 42, GX = 32, GY = 78;
   const pos = {};
   let maxCols = 0;
   layerKeys.forEach(k => { maxCols = Math.max(maxCols, layers[k].length); });
@@ -316,15 +320,17 @@ function renderDag(tasks) {
   nodes.forEach(n => {
     const p = pos[n.id], col = dagNodeColor(n);
     const name = esc((n.name || '').slice(0, 20));
+    const clipId = 'dag-clip-' + n.id.replace(/[^a-zA-Z0-9]/g, '_');
     svgNodes += `<g class="dag-node" onclick="openFeatureDetail('${escAttr(n.id)}')" transform="translate(${p.x},${p.y})">
+      <clipPath id="${clipId}"><rect width="${NW - 4}" height="${NH}" rx="8"/></clipPath>
       <rect width="${NW}" height="${NH}" rx="8" fill="${col.bg}" stroke="${col.border}" stroke-width="1.5"/>
       <circle cx="15" cy="${NH / 2}" r="4" fill="${col.dot}"/>
-      <text x="28" y="18" class="dag-node-id" fill="${col.text}">${esc(n.id)}</text>
-      <text x="28" y="33" class="dag-node-name">${name}</text>
+      <text x="28" y="18" class="dag-node-id" fill="${col.text}" clip-path="url(#${clipId})">${esc(n.id)}</text>
+      <text x="28" y="33" class="dag-node-name" clip-path="url(#${clipId})">${name}</text>
     </g>`;
   });
 
-  return `<div class="dash-card" id="dag-view"><div class="text-[10px] font-bold dash-muted uppercase tracking-wider mb-3">${t('dag.title')}</div>
+  return `<div class="dash-card mb-4" id="dag-view"><div class="text-[10px] font-bold dash-muted uppercase tracking-wider mb-3">${t('dag.title')}</div>
     <div class="dag-scroll"><svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
       <defs><marker id="dag-arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="var(--text-4)"/></marker></defs>
       ${svgEdges}${svgNodes}
@@ -358,16 +364,18 @@ function renderBatchPanel(status) {
 
   let queueHtml = '';
   if (status && status.queue && status.queue.length) {
-    queueHtml = status.queue.map(q => {
+    const pending = status.queue.filter(q => q.state !== 'done');
+    const PL={0:{l:'P0',c:'#f87171',bg:'rgba(248,113,113,.15)'},1:{l:'P1',c:'#fb923c',bg:'rgba(251,146,60,.12)'},2:{l:'P2',c:'#facc15',bg:'rgba(250,204,21,.10)'},3:{l:'P3',c:'#60a5fa',bg:'rgba(96,165,250,.10)'}};
+    queueHtml = pending.map((q, i) => {
       let icon, cls;
-      if (q.state === 'done') { icon = '✓'; cls = 'done'; }
-      else if (q.state === 'running') { icon = '▶'; cls = 'running'; }
-      else { icon = '#' + q.position; cls = 'waiting'; }
-      return `<div class="batch-q-item batch-q-${cls}"><span class="batch-q-icon">${icon}</span><span class="batch-q-id">${esc(q.featureId)}</span><span class="batch-q-name">${esc(q.name || '')}</span></div>`;
+      if (q.state === 'running') { icon = '▶'; cls = 'running'; }
+      else { icon = '#' + (i + 1); cls = 'waiting'; }
+      const pri = q.priority != null && PL[q.priority] ? `<span style="font-size:9px;padding:1px 5px;border-radius:4px;background:${PL[q.priority].bg};color:${PL[q.priority].c};font-weight:600">${PL[q.priority].l}</span>` : '';
+      return `<div class="batch-q-item batch-q-${cls}"><span class="batch-q-icon">${icon}</span>${pri}<span class="batch-q-id">${esc(q.featureId)}</span><span class="batch-q-name">${esc(q.name || '')}</span></div>`;
     }).join('');
   }
 
-  return `<div class="dash-card" id="batch-panel"><div class="flex items-center gap-2 mb-3">
+  return `<div class="dash-card mb-4" id="batch-panel"><div class="flex items-center gap-2 mb-3">
       <span class="text-[10px] font-bold dash-muted uppercase tracking-wider">${t('batch.title')}</span>
       <div class="ml-auto flex items-center gap-2">${controls}</div>
     </div>${conflictCard}${queueHtml ? `<div class="batch-queue">${queueHtml}</div>` : ''}</div>`;

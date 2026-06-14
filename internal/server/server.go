@@ -1293,6 +1293,7 @@ type batchQueueItem struct {
 	Status    string `json:"status"`
 	Position  int    `json:"position"`
 	State     string `json:"state"`
+	Priority  *int   `json:"priority,omitempty"`
 }
 
 type batchStatusResponse struct {
@@ -1355,6 +1356,7 @@ func handleBatchStatus(ws *protocol.Workspace, bm *BatchManager, w http.Response
 					Name:      f.Name,
 					Status:    string(f.Status),
 					State:     itemState,
+					Priority:  f.Priority,
 				}
 				if itemState != "done" {
 					pos++
