@@ -65,6 +65,23 @@ Use `4x sync` to re-deploy plugin files after updating the binary.
 
 When the run loop is interrupted (e.g. Ctrl+C), context cancellation is handled as a clean interrupt — the feature is not left in `needs-attention`. The in-progress phase is treated as incomplete, and the next `4x run` resumes from that phase.
 
+### Placeholder Resolution
+
+Runner `args` may contain placeholders that the CLI substitutes before invoking the subprocess:
+
+| Placeholder | Replaced with |
+|---|---|
+| `{prompt}` | The role prompt text, inline as an argument |
+| `{promptFile}` | Path to a temp file containing the prompt |
+| `{model}` | The resolved model override for this role |
+
+Placeholder resolution **fails loudly** rather than passing a literal placeholder through to the AI CLI:
+
+- `{model}` present but no model override resolved → the runner errors with `model not resolved for runner <name>` instead of sending `--model {model}` (which the CLI would reject with an opaque error).
+- `{promptFile}` but the temp file cannot be created or written (e.g. `/tmp` full) → the runner returns the wrapped underlying error (`runner <name>: create prompt temp file: ...`) and removes any partially-created temp file, instead of sending the literal string `{promptFile}`.
+
+Any temp file created during resolution is always cleaned up, even when a later step fails.
+
 ### Stream JSON Mode
 
 Runners with `output_format: "stream-json"` write two files: a readable `.log` for dashboard tailing and a raw `.stream.jsonl` file for debugging. Claude Code uses this mode by default.

@@ -345,14 +345,44 @@ func (w *Workspace) ReconcileActive(featureID string, s *State) {
 	_ = w.WriteState(featureID, *s)
 }
 
-// WriteState 寫入 feature 的 state.json
+// WriteState 寫入 feature 的 state.json。
+//
+// 採用 write-to-temp + rename 而非直接 os.WriteFile：後者會先 truncate 再寫，
+// 在這段時間內 concurrent 的 ReadState 可能讀到截斷或半寫的 JSON 而 Unmarshal 失敗。
+// 改用同目錄 temp file 寫完再 atomic rename 覆蓋，讓讀者永遠看到完整的舊檔或完整的新檔。
 func (w *Workspace) WriteState(featureID string, s State) error {
 	s.UpdatedAt = time.Now()
 	data, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(w.FeatureDir(featureID), StateFile), data, 0o644)
+
+	dir := w.FeatureDir(featureID)
+	// temp file 必須與 state.json 同目錄，確保位於同一 filesystem，os.Rename 才保證 atomic。
+	tmp, err := os.CreateTemp(dir, ".state-*.json")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := os.Chmod(tmpPath, 0o644); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := os.Rename(tmpPath, filepath.Join(dir, StateFile)); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	return nil
 }
 
 // AppendEvent 追加一行到 events.jsonl

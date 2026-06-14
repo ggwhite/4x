@@ -130,6 +130,10 @@ Roles communicate through the `.4x/` directory, not shared context windows.
         └── escalation.json          # {needed, reason, detail}
 ```
 
+### Atomic State Writes
+
+`state.json` is read and written by multiple actors concurrently — the run loop, the dashboard server, and background reconcilers. To avoid a reader ever seeing a truncated or half-written file, `WriteState` never writes in place. It marshals the state, writes it to a temp file (`.state-*.json`) **in the same directory** (guaranteeing the same filesystem so the rename is atomic), then `os.Rename`s it over `state.json`. A reader therefore always sees either the complete old file or the complete new file — never a partial one. On any failure the temp file is removed so no `.state-*.json` debris accumulates. No file lock is used; correctness comes from the atomic rename plus `UpdatedAt` comparison.
+
 ### Feature YAML
 
 ```yaml

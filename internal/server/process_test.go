@@ -179,3 +179,72 @@ func TestProcessManager_StopNotFound(t *testing.T) {
 		t.Error("expected error for nonexistent run, got nil")
 	}
 }
+
+// TestEnsureInactive_SkipsNewerFinalState 驗證 W8：runner 在 process 結束後寫了
+// final state（UpdatedAt 晚於 endTime），ensureInactive 不可把 Active 改回去蓋掉它。
+func TestEnsureInactive_SkipsNewerFinalState(t *testing.T) {
+	ws := setupPMWorkspace(t)
+	pm := NewProcessManager(ws, 1, "echo")
+
+	endTime := time.Now().UTC()
+
+	// runner 寫的 final state：Active 已為 true 模擬尚未清掉，但 UpdatedAt 在 endTime 之後
+	s := protocol.State{
+		FeatureID:  "test-feat",
+		Phase:      protocol.PhasePendingReview,
+		Active:     true,
+		StopReason: "completed",
+	}
+	if err := ws.WriteState("test-feat", s); err != nil {
+		t.Fatal(err)
+	}
+	// WriteState 已把 UpdatedAt 設為 now（>= endTime），符合「runner 較新」的情境
+
+	pm.ensureInactive("test-feat", endTime)
+
+	got, err := ws.ReadState("test-feat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Phase != protocol.PhasePendingReview {
+		t.Errorf("Phase = %q, want pending-review (final state must not be reverted)", got.Phase)
+	}
+	if got.StopReason != "completed" {
+		t.Errorf("StopReason = %q, want completed", got.StopReason)
+	}
+}
+
+// TestEnsureInactive_ClearsStaleActive 驗證 W8：process 結束前的舊 active state
+// （UpdatedAt 早於 endTime）會被正確標記為 inactive 並設 StopReason。
+func TestEnsureInactive_ClearsStaleActive(t *testing.T) {
+	ws := setupPMWorkspace(t)
+	pm := NewProcessManager(ws, 1, "echo")
+
+	s := protocol.State{
+		FeatureID: "test-feat",
+		Phase:     protocol.PhaseCoding,
+		Active:    true,
+		Pid:       12345,
+	}
+	if err := ws.WriteState("test-feat", s); err != nil {
+		t.Fatal(err)
+	}
+
+	// endTime 設為未來，保證 state.UpdatedAt 早於它
+	endTime := time.Now().UTC().Add(time.Hour)
+	pm.ensureInactive("test-feat", endTime)
+
+	got, err := ws.ReadState("test-feat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Active {
+		t.Error("Active = true, want false")
+	}
+	if got.Pid != 0 {
+		t.Errorf("Pid = %d, want 0", got.Pid)
+	}
+	if got.StopReason != "process-exit" {
+		t.Errorf("StopReason = %q, want process-exit", got.StopReason)
+	}
+}

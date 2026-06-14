@@ -200,7 +200,10 @@ func TestBuildArgs_ModelOverrideAppended(t *testing.T) {
 		Config:        protocol.RunnerConfig{Args: []string{"-p", "{prompt}"}},
 		ModelOverride: "opus",
 	}
-	args, _ := r.buildArgs("hello")
+	args, _, err := r.buildArgs("hello")
+	if err != nil {
+		t.Fatalf("buildArgs: %v", err)
+	}
 	found := false
 	for i, a := range args {
 		if a == "--model" && i+1 < len(args) && args[i+1] == "opus" {
@@ -217,7 +220,10 @@ func TestBuildArgs_ModelPlaceholder(t *testing.T) {
 		Config:        protocol.RunnerConfig{Args: []string{"--model", "{model}", "-p", "{prompt}"}},
 		ModelOverride: "sonnet",
 	}
-	args, _ := r.buildArgs("hello")
+	args, _, err := r.buildArgs("hello")
+	if err != nil {
+		t.Fatalf("buildArgs: %v", err)
+	}
 	if args[0] != "--model" || args[1] != "sonnet" {
 		t.Errorf("expected --model sonnet, got %v", args[:2])
 	}
@@ -233,7 +239,10 @@ func TestBuildArgs_NoModelOverride(t *testing.T) {
 	r := &SubprocessRunner{
 		Config: protocol.RunnerConfig{Args: []string{"-p", "{prompt}"}},
 	}
-	args, _ := r.buildArgs("hello")
+	args, _, err := r.buildArgs("hello")
+	if err != nil {
+		t.Fatalf("buildArgs: %v", err)
+	}
 	for _, a := range args {
 		if a == "--model" {
 			t.Error("--model should not appear when ModelOverride is empty")
@@ -354,5 +363,83 @@ func TestSubprocessRunner_ContextCanceled(t *testing.T) {
 	}
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("expected context.Canceled, got %v", err)
+	}
+}
+
+// TestBuildArgs_UnresolvedModel 驗證 W16：arg 含 {model} 但 ModelOverride 為空時
+// 回傳 error，不把字面 "{model}" 傳給 CLI。
+func TestBuildArgs_UnresolvedModel(t *testing.T) {
+	r := &SubprocessRunner{
+		Name:   "claude",
+		Config: protocol.RunnerConfig{Args: []string{"--model", "{model}"}},
+	}
+	_, cleanup, err := r.buildArgs("prompt")
+	if cleanup != nil {
+		cleanup()
+	}
+	if err == nil {
+		t.Fatal("expected error for unresolved {model}, got nil")
+	}
+	if !strings.Contains(err.Error(), "model not resolved") || !strings.Contains(err.Error(), "claude") {
+		t.Errorf("error = %q, want mention of model not resolved + runner name", err)
+	}
+}
+
+// TestBuildArgs_ResolvedModel 驗證 W16 正常路徑：有 ModelOverride 時正確替換，無 error。
+func TestBuildArgs_ResolvedModel(t *testing.T) {
+	r := &SubprocessRunner{
+		Name:          "claude",
+		ModelOverride: "opus",
+		Config:        protocol.RunnerConfig{Args: []string{"--model", "{model}"}},
+	}
+	args, cleanup, err := r.buildArgs("prompt")
+	if cleanup != nil {
+		cleanup()
+	}
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(args) != 2 || args[1] != "opus" {
+		t.Errorf("args = %v, want [--model opus]", args)
+	}
+}
+
+// TestBuildArgs_PromptFileCreateFailure 驗證 W17：os.CreateTemp 失敗時回傳
+// wrap 過的 error，不 fallback 成字面 placeholder。
+func TestBuildArgs_PromptFileCreateFailure(t *testing.T) {
+	// 指向不存在的目錄，讓 os.CreateTemp 失敗
+	t.Setenv("TMPDIR", filepath.Join(t.TempDir(), "does-not-exist"))
+
+	r := &SubprocessRunner{
+		Name:   "claude",
+		Config: protocol.RunnerConfig{Args: []string{"--prompt-file", "{promptFile}"}},
+	}
+	_, cleanup, err := r.buildArgs("prompt")
+	if cleanup != nil {
+		cleanup()
+	}
+	if err == nil {
+		t.Fatal("expected error when CreateTemp fails, got nil")
+	}
+	if !strings.Contains(err.Error(), "create prompt temp file") {
+		t.Errorf("error = %q, want wrapped create prompt temp file error", err)
+	}
+}
+
+// TestBuildArgs_NoPlaceholder 驗證無 placeholder 的一般路徑不受 signature 變更影響。
+func TestBuildArgs_NoPlaceholder(t *testing.T) {
+	r := &SubprocessRunner{
+		Name:   "claude",
+		Config: protocol.RunnerConfig{Args: []string{"chat", "--json"}},
+	}
+	args, cleanup, err := r.buildArgs("prompt")
+	if cleanup != nil {
+		cleanup()
+	}
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(args) != 2 || args[0] != "chat" || args[1] != "--json" {
+		t.Errorf("args = %v, want [chat --json]", args)
 	}
 }

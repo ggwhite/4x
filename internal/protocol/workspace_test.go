@@ -7,8 +7,11 @@ import (
 	"path/filepath"
 	"reflect"
 	"strconv"
+	"strings"
+	"sync"
 	"syscall"
 	"testing"
+	"time"
 )
 
 func setupWorkspace(t *testing.T) *Workspace {
@@ -1011,3 +1014,70 @@ func TestNormalizeScreenshotPath_CleansDotDot(t *testing.T) {
 }
 
 func ptrInt(v int) *int { return &v }
+
+// TestWriteState_Atomic_NoPartialRead 驗證 W14：並行 WriteState/ReadState 下，
+// ReadState 永遠讀到完整可 Unmarshal 的 JSON，不會撞到 truncated/partial 寫入。
+func TestWriteState_Atomic_NoPartialRead(t *testing.T) {
+	ws := setupWorkspace(t)
+	const fid = "atomic-feat"
+	if err := ws.InitFeatureDir(fid); err != nil {
+		t.Fatal(err)
+	}
+
+	base := State{FeatureID: fid, Phase: PhaseCoding, Role: RoleCoder, Round: 1}
+	if err := ws.WriteState(fid, base); err != nil {
+		t.Fatal(err)
+	}
+
+	var wg sync.WaitGroup
+	stop := make(chan struct{})
+
+	// writer：持續以不同 Round 覆寫
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for round := 0; ; round++ {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			s := base
+			s.Round = round
+			if err := ws.WriteState(fid, s); err != nil {
+				t.Errorf("WriteState: %v", err)
+				return
+			}
+		}
+	}()
+
+	// readers：持續讀，任何一次讀到 partial JSON 都會讓 ReadState 回 error
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 500; j++ {
+				if _, err := ws.ReadState(fid); err != nil {
+					t.Errorf("ReadState saw partial/truncated state: %v", err)
+					return
+				}
+			}
+		}()
+	}
+
+	// 跑一小段時間後停 writer
+	time.Sleep(50 * time.Millisecond)
+	close(stop)
+	wg.Wait()
+
+	// 不該有殘留的 .state-*.json temp 檔
+	entries, err := os.ReadDir(ws.FeatureDir(fid))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), ".state-") {
+			t.Errorf("leftover temp file: %s", e.Name())
+		}
+	}
+}
