@@ -69,6 +69,8 @@ Run the Design-Code-Review-Test loop for a feature.
 
 The loop drives: init → designing → coding → reviewing → testing → accepting → pending-review. On review failure, code gets another pass. On test failure, the loop re-enters coding.
 
+Phase hooks declared in `settings.json` or the feature YAML are executed automatically before and after each phase transition within the loop. See [Phase Hooks](concepts.md#phase-hooks) for configuration details.
+
 If the feature is in `blocked` or `needs-attention` phase, automatically recovers to the appropriate resume phase based on the current role.
 
 Automatically checks dependency gate — blocks if depended features are not done.
@@ -151,6 +153,8 @@ Force a state transition.
 | `--json` | Output as JSON |
 
 Validates the transition is legal per the state machine. Auto-initializes state if it doesn't exist. The `testing → accepting` transition runs additional gates (verify.json, test-report.md, final-report.md, commit-plan.md must exist and verify must pass).
+
+If `settings.json` or the feature YAML declares `hooks`, the `pre_{phase}` hooks run before the transition and `post_{phase}` hooks run after. A `block` pre-hook failure aborts the transition; a `block` post-hook failure moves the feature to `needs-attention`. See [Phase Hooks](concepts.md#phase-hooks) for the full configuration format.
 
 ---
 

@@ -161,6 +161,81 @@ Run manually with `4x check <feature-id>`.
 
 ---
 
+## Phase Hooks
+
+Phase hooks let you run shell commands automatically before or after a phase transition — useful for spinning up Docker containers, seeding test databases, or cleaning up after testing. Hooks are executed by the CLI, not by any AI role.
+
+### Configuration
+
+Hooks are declared in `settings.json` under the `hooks` key. The key format is `pre_{phase}` or `post_{phase}`:
+
+```json
+{
+  "hooks": {
+    "pre_coding": [
+      { "run": "docker compose up -d", "on_fail": "block" }
+    ],
+    "post_testing": [
+      { "run": "docker compose down", "on_fail": "warn" }
+    ]
+  }
+}
+```
+
+Each entry is a `HookEntry` with two fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `run` | string | Shell command executed via `sh -c` |
+| `on_fail` | string | `"block"` (default) or `"warn"` (case-insensitive) |
+
+Feature YAML files can also declare a `hooks` field with the same format. When a feature defines hooks for the same key as the global config, the feature's definition **replaces** the global one entirely (no merging within a key).
+
+### Execution Order
+
+```
+pre_{target_phase} hooks (in array order)
+  ↓ any on_fail=block hook fails → transition to needs-attention, abort
+state.Transition()
+  ↓
+record transition event
+  ↓
+post_{target_phase} hooks (in array order)
+  ↓ on_fail=block hook fails → transition to needs-attention (no rollback)
+```
+
+### Failure Behavior
+
+| `on_fail` | Hook fails | Effect |
+|---|---|---|
+| `block` (default) | pre hook | Feature moved to `needs-attention`; phase transition aborted |
+| `block` (default) | post hook | Phase already changed; feature moved to `needs-attention` |
+| `warn` | either | Result logged; execution continues |
+
+### Logging
+
+Each hook execution appends a `type: "hook"` event to `events.jsonl`:
+
+```json
+{
+  "ts": "2026-06-14T10:00:00+08:00",
+  "type": "hook",
+  "phase": "coding",
+  "action": "pre_coding",
+  "command": "docker compose up -d",
+  "status": "pass",
+  "detail": "exit 0, 1.2s"
+}
+```
+
+Full stdout/stderr output is written to `.4x/{feature-id}/hook-logs/{timestamp}-hook-{n}.log`.
+
+### Hook Merging (`MergeHooks`)
+
+Global and feature hooks are merged by `MergeHooks`: all global keys are copied, then feature keys override same-named global keys entirely. Keys that appear only in global are preserved. Both nil returns nil.
+
+---
+
 ## Pending Review Gate
 
 The loop does **not** go directly to `done`. After accepting, the feature enters `pending-review` — waiting for a human to review the AI's work.
