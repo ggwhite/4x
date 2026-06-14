@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -27,6 +28,7 @@ func newRunCmd() *cobra.Command {
 	var timeout int
 	var dryRun bool
 	var jsonOutput bool
+	var profileFlag string
 
 	cmd := &cobra.Command{
 		Use:   "run <feature-id>",
@@ -93,10 +95,21 @@ func newRunCmd() *cobra.Command {
 				maxRounds = 5
 			}
 
+			// 提早驗證 --profile（unknown profile / 缺 coder）；空值時回 full/auto 不報錯。
+			if _, _, err := protocol.ResolveProfile(cfg, feature, profileFlag); err != nil {
+				if jsonOutput {
+					return jsonError(err.Error())
+				}
+				return err
+			}
+
 			if jsonOutput {
 				bgArgs := []string{"run", featureID}
 				if runnerName != "" {
 					bgArgs = append(bgArgs, "--runner", runnerName)
+				}
+				if profileFlag != "" {
+					bgArgs = append(bgArgs, "--profile", profileFlag)
 				}
 				if maxRounds > 0 {
 					bgArgs = append(bgArgs, "--max-rounds", fmt.Sprintf("%d", maxRounds))
@@ -209,6 +222,18 @@ func newRunCmd() *cobra.Command {
 				s.Runners = append(s.Runners, runnerName)
 			}
 
+			// 決定本次 run 的 profile：--profile 優先，否則沿用 resume 既有值，
+			// 再否則依 priority auto-select（或無 profiles 區段時回 full）。
+			profileOverride := profileFlag
+			if profileOverride == "" {
+				profileOverride = s.Profile
+			}
+			profileName, _, err := protocol.ResolveProfile(cfg, feature, profileOverride)
+			if err != nil {
+				return err
+			}
+			s.Profile = profileName
+
 			s.Pid = os.Getpid()
 			if err := ws.WriteState(featureID, s); err != nil {
 				return err
@@ -288,6 +313,9 @@ func newRunCmd() *cobra.Command {
 	cmd.Flags().IntVar(&timeout, "timeout", 3600, "plugin timeout in seconds")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "print prompts without calling plugin")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "start run and return JSON immediately")
+	// --profile 與 --only 互斥；目前 Go run 指令沒有 --only（屬 skill 編排層），
+	// 故此處不註冊互斥規則，未來若新增 --only 再加 MarkFlagsMutuallyExclusive。
+	cmd.Flags().StringVar(&profileFlag, "profile", "", "pipeline profile (full/normal/quick or custom); overrides priority-based auto-select")
 	return cmd
 }
 
@@ -342,12 +370,19 @@ func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, featur
 	return buf.String(), nil
 }
 
-
 func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s protocol.State, ops gitops.Ops, newRunner func(logPath string, model string) runner.Runner, commitStrategy string) error {
 	if ops == nil {
 		ops = gitops.New(ws.Root, ws, cfg)
 	}
 	featureID := feature.ID
+
+	// 解析本次 run 的 active profile：用 s.Profile 當 override 確保與啟動時一致。
+	// 無 profiles 區段時回 full（所有 role 啟用），既有行為不變。
+	profileName, pc, err := protocol.ResolveProfile(cfg, feature, s.Profile)
+	if err != nil {
+		return err
+	}
+	s.Profile = profileName
 
 	if s.Phase == protocol.PhaseInit {
 		hookLogDir := filepath.Join(ws.FeatureDir(featureID), "hook-logs")
@@ -395,6 +430,40 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 
 		if phase == protocol.PhaseDone || phase == protocol.PhasePendingReview || phase == protocol.PhaseBlocked || phase == protocol.PhaseNeedsAttention {
 			break
+		}
+
+		// pass-through：role 不在 active profile 時，沿成功路徑的下一個合法邊跳過，
+		// 不呼叫 runner、不檢查 artifact、不跑 guard。coder 永遠啟用故不會被跳過。
+		if role != "" && !pc.EnablesRole(role) {
+			next, nextRole := successorPhase(phase)
+			newState, err := state.Transition(s, next, nextRole)
+			if err != nil {
+				return fmt.Errorf("pass-through transition %s→%s: %w", phase, next, err)
+			}
+			s = newState
+			if err := ws.WriteState(featureID, s); err != nil {
+				return fmt.Errorf("write state (skip %s): %w", phase, err)
+			}
+			_ = syncFeatureStatus(ws, featureID, s.Phase)
+			ws.AppendEvent(featureID, protocol.Event{
+				Type: "phase-skipped", Phase: phase, Role: role, Round: s.Round,
+				Runner: s.Runner, Detail: "role not in profile " + profileName,
+			})
+			fmt.Printf("[round %d] %s — skipped (not in profile %s)\n", s.Round, phase, profileName)
+			continue
+		}
+
+		// S6：reviewing phase 啟用平行 reviewer + tester（兩者皆 read-only、共用 worktree）。
+		if phase == protocol.PhaseReviewing && cfg.ParallelReviewTest &&
+			pc.EnablesRole(protocol.RoleReviewer) && pc.EnablesRole(protocol.RoleTester) {
+			cont, err := runReviewTestParallel(ctx, ws, runnerWs, feature, cfg, &s, ops, newRunner)
+			if err != nil {
+				return err
+			}
+			if !cont {
+				break
+			}
+			continue
 		}
 
 		if stop, reason := state.ShouldStop(s); stop {
@@ -463,7 +532,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			model = deepModel
 		} else {
 			var err error
-			model, err = protocol.ResolveModel(cfg, s.Runner, role)
+			model, err = protocol.ResolveProfileModel(cfg, s.Runner, role, pc)
 			if err != nil {
 				s.Active = false
 				s.StopReason = "model-error"
@@ -718,6 +787,219 @@ func nextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) 
 	}
 }
 
+// successorPhase 回傳成功路徑上的下一個 phase 與其 role，皆為合法 state 邊。
+// 用於 pass-through 跳過未啟用的 role；pending-review 的 role 為空字串。
+func successorPhase(p protocol.Phase) (protocol.Phase, protocol.Role) {
+	switch p {
+	case protocol.PhaseDesigning:
+		return protocol.PhaseCoding, protocol.RoleCoder
+	case protocol.PhaseCoding:
+		return protocol.PhaseReviewing, protocol.RoleReviewer
+	case protocol.PhaseReviewing:
+		return protocol.PhaseTesting, protocol.RoleTester
+	case protocol.PhaseTesting:
+		return protocol.PhaseDeepReviewing, protocol.RoleDeepReviewer
+	case protocol.PhaseDeepReviewing:
+		return protocol.PhaseAccepting, protocol.RoleAcceptor
+	case protocol.PhaseAccepting:
+		return protocol.PhasePendingReview, ""
+	default:
+		return p, state.PhaseToRole(p)
+	}
+}
+
+// runReviewTestParallel 在 reviewing phase 同時跑 reviewer 與 tester（皆 read-only、共用
+// worktree），兩者完成後合併判定。回傳 (cont, err)：cont 為 true 表示主迴圈應 continue
+// 接手後續 phase（deep-reviewing 或 amending）；cont 為 false 且 err 為 nil 表示已落入
+// 終止狀態（blocked / needs-attention），主迴圈應 break；err 非 nil 表示 hard error 直接中止。
+func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s *protocol.State, ops gitops.Ops, newRunner func(logPath string, model string) runner.Runner) (bool, error) {
+	featureID := feature.ID
+	round := s.Round
+
+	reviewModel, err := protocol.ResolveModel(cfg, s.Runner, protocol.RoleReviewer)
+	if err != nil {
+		s.Active = false
+		s.StopReason = "model-error"
+		_ = ws.WriteState(featureID, *s)
+		return false, fmt.Errorf("model resolution failed: %w", err)
+	}
+	testModel, err := protocol.ResolveModel(cfg, s.Runner, protocol.RoleTester)
+	if err != nil {
+		s.Active = false
+		s.StopReason = "model-error"
+		_ = ws.WriteState(featureID, *s)
+		return false, fmt.Errorf("model resolution failed: %w", err)
+	}
+
+	if runnerWs.Root != ws.Root {
+		syncFeatureToWorktree(ws, runnerWs, featureID, round)
+	}
+
+	type runOutcome struct {
+		role   protocol.Role
+		model  string
+		result *runner.Result
+		err    error
+	}
+
+	runRole := func(role protocol.Role, model string) runOutcome {
+		ws.AppendEvent(featureID, protocol.Event{
+			Type: "phase-start", Phase: protocol.PhaseReviewing, Role: role, Round: round,
+			Runner: s.Runner, Model: model,
+		})
+		prompt, err := generatePrompt(ws, runnerWs, feature, cfg, role, round)
+		if err != nil {
+			prompt = fmt.Sprintf("You are the %s for feature %s, round %d. Read .4x/%s/ for context.", role, featureID, round, featureID)
+		}
+		logPath := filepath.Join(runner.LogDir(ws, featureID), runner.LogFileName(round, string(role)))
+		r := newRunner(logPath, model)
+		res, runErr := r.Run(ctx, prompt)
+		return runOutcome{role: role, model: model, result: res, err: runErr}
+	}
+
+	var stopSync func()
+	if runnerWs.Root != ws.Root {
+		stopSync = startLiveSync(runnerWs, ws, featureID, round)
+	}
+
+	fmt.Printf("[round %d] reviewing — running reviewer + tester in parallel (%s)\n", round, s.Runner)
+
+	var wg sync.WaitGroup
+	outcomes := make([]runOutcome, 2)
+	wg.Add(2)
+	go func() { defer wg.Done(); outcomes[0] = runRole(protocol.RoleReviewer, reviewModel) }()
+	go func() { defer wg.Done(); outcomes[1] = runRole(protocol.RoleTester, testModel) }()
+	wg.Wait()
+
+	if stopSync != nil {
+		stopSync()
+	}
+	if runnerWs.Root != ws.Root {
+		syncFeatureFromWorktree(runnerWs, ws, featureID, round)
+	}
+
+	// runner 執行錯誤：context cancel → interrupted；其餘 → runner-error needs-attention。
+	for _, o := range outcomes {
+		if o.err != nil {
+			if ctx.Err() == context.Canceled {
+				s.Active = false
+				s.StopReason = "interrupted"
+				_ = ws.WriteState(featureID, *s)
+				return false, ctx.Err()
+			}
+			s.Phase = protocol.PhaseNeedsAttention
+			s.Active = false
+			s.StopReason = "runner-error"
+			_ = ws.WriteState(featureID, *s)
+			ws.AppendEvent(featureID, protocol.Event{
+				Type: "run-end", Phase: protocol.PhaseReviewing, Role: o.role, Round: round,
+				Status: "error", Detail: o.err.Error(), Runner: s.Runner, Model: o.model,
+			})
+			return false, o.err
+		}
+	}
+
+	for _, o := range outcomes {
+		ws.AppendEvent(featureID, protocol.Event{
+			Type: "run-end", Phase: protocol.PhaseReviewing, Role: o.role, Round: round,
+			Status: fmt.Sprintf("exit-%d", o.result.ExitCode), Runner: s.Runner, Model: o.model,
+		})
+	}
+
+	for _, o := range outcomes {
+		if runner.IsHardError(o.result) {
+			s.Active = false
+			s.StopReason = "hard-error"
+			_ = ws.WriteState(featureID, *s)
+			return false, fmt.Errorf("runner returned hard error (exit 2)")
+		}
+	}
+	for _, o := range outcomes {
+		if runner.IsSoftFail(o.result) {
+			s.Phase = protocol.PhaseBlocked
+			s.Active = false
+			s.StopReason = "soft-fail"
+			_ = ws.WriteState(featureID, *s)
+			_ = syncFeatureStatus(ws, featureID, protocol.PhaseBlocked)
+			return false, nil
+		}
+	}
+
+	guardResult := guard.Check(ws, featureID, ops)
+	if !guardResult.Pass {
+		s.Phase = protocol.PhaseNeedsAttention
+		s.Active = false
+		s.StopReason = strings.Join(guardResult.Errors, "; ")
+		_ = ws.WriteState(featureID, *s)
+		_ = syncFeatureStatus(ws, featureID, protocol.PhaseNeedsAttention)
+		ws.AppendEvent(featureID, protocol.Event{
+			Type: "guard-fail", Phase: protocol.PhaseReviewing, Round: round,
+			Detail: s.StopReason, Runner: s.Runner,
+		})
+		return false, nil
+	}
+
+	// 合併判定。先確認 reviewer 與 tester 的 artifact 完整。
+	reviewReport := filepath.Join(ws.RoundDir(featureID, round), protocol.ReviewReport)
+	if _, err := os.Stat(reviewReport); err != nil {
+		return parallelNeedsAttention(ws, featureID, s, "missing-artifact: "+protocol.ReviewReport)
+	}
+
+	// tester escalation 優先處理（可回 designer 或停下等人）。
+	if esc := readEscalation(ws, featureID, round); esc.Needed {
+		if isDesignerEscalation(esc.Reason) {
+			return parallelTransition(ws, featureID, s, protocol.PhaseAmending, protocol.RoleCoder)
+		}
+		return parallelNeedsAttention(ws, featureID, s, esc.Reason)
+	}
+
+	reviewOK := reviewPassed(ws, featureID, round, protocol.ReviewReport)
+	verifyOK := verifyPassed(ws, featureID, round)
+
+	// reviewer FAIL 或 tester verify 未過 → amending（合法邊 reviewing→amending）。
+	if !reviewOK || !verifyOK {
+		return parallelTransition(ws, featureID, s, protocol.PhaseAmending, protocol.RoleCoder)
+	}
+
+	// 兩者皆 PASS：tester 必須備齊 final-report / commit-plan 等抵達 accepting 的 artifact。
+	if testGuard := guard.CheckTestingToAccepting(ws, featureID, round); !testGuard.Pass {
+		return parallelNeedsAttention(ws, featureID, s, strings.Join(testGuard.Errors, "; "))
+	}
+
+	// 沿合法邊兩跳：reviewing→testing→deep-reviewing，由主迴圈在 deep-reviewing 接手。
+	if cont, err := parallelTransition(ws, featureID, s, protocol.PhaseTesting, protocol.RoleTester); !cont || err != nil {
+		return cont, err
+	}
+	return parallelTransition(ws, featureID, s, protocol.PhaseDeepReviewing, protocol.RoleDeepReviewer)
+}
+
+// parallelTransition 執行一次合法 state 轉換並寫回，供平行 review/test 合併後推進 phase。
+func parallelTransition(ws *protocol.Workspace, featureID string, s *protocol.State, to protocol.Phase, role protocol.Role) (bool, error) {
+	newState, err := state.Transition(*s, to, role)
+	if err != nil {
+		return false, fmt.Errorf("parallel transition %s→%s: %w", s.Phase, to, err)
+	}
+	*s = newState
+	if err := ws.WriteState(featureID, *s); err != nil {
+		return false, fmt.Errorf("write state (%s): %w", s.Phase, err)
+	}
+	_ = syncFeatureStatus(ws, featureID, s.Phase)
+	ws.AppendEvent(featureID, protocol.Event{
+		Type: "transition", Phase: s.Phase, Role: s.Role, Round: s.Round, Runner: s.Runner,
+	})
+	return true, nil
+}
+
+// parallelNeedsAttention 把 state 落入 needs-attention 並寫回，回傳 (false, nil) 讓主迴圈 break。
+func parallelNeedsAttention(ws *protocol.Workspace, featureID string, s *protocol.State, reason string) (bool, error) {
+	s.Phase = protocol.PhaseNeedsAttention
+	s.Active = false
+	s.StopReason = reason
+	_ = ws.WriteState(featureID, *s)
+	_ = syncFeatureStatus(ws, featureID, protocol.PhaseNeedsAttention)
+	return false, nil
+}
+
 func reviewPassed(ws *protocol.Workspace, featureID string, round int, reportFile string) bool {
 	roundDir := ws.RoundDir(featureID, round)
 	data, err := os.ReadFile(filepath.Join(roundDir, reportFile))
@@ -739,10 +1021,14 @@ func parseReviewVerdict(content string) protocol.ReviewResult {
 		trimmed := strings.TrimSpace(line)
 		upper := strings.ToUpper(trimmed)
 
-		if strings.Contains(upper, "[CRITICAL]") {
+		// 只計行首的 issue tag（### [WARNING] 或 [WARNING] 開頭），
+		// 避免把正文中引述上一輪 issue 的文字誤計為本輪 issue。
+		if strings.HasPrefix(upper, "[CRITICAL]") || strings.HasPrefix(upper, "### [CRITICAL]") ||
+			strings.HasPrefix(upper, "####") && strings.Contains(upper, "[CRITICAL]") {
 			result.CriticalCount++
 		}
-		if strings.Contains(upper, "[WARNING]") {
+		if strings.HasPrefix(upper, "[WARNING]") || strings.HasPrefix(upper, "### [WARNING]") ||
+			strings.HasPrefix(upper, "####") && strings.Contains(upper, "[WARNING]") {
 			result.WarningCount++
 		}
 
@@ -881,7 +1167,6 @@ func dryRunLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.C
 	return nil
 }
 
-
 // syncFeatureToWorktree 將主 workspace 的 feature 目錄複製到 worktree，
 // 確保 runner 能讀到最新的 protocol 檔案（task-brief、上一輪 report 等）
 func syncFeatureToWorktree(main, wt *protocol.Workspace, featureID string, round int) {
@@ -952,5 +1237,3 @@ func startLiveSync(wt, main *protocol.Workspace, featureID string, round int) fu
 	}()
 	return func() { close(done) }
 }
-
-

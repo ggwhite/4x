@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/ggwhite/4x/internal/gitops"
@@ -701,8 +702,8 @@ func TestRunLoop_StaleArtifactsCleanedOnTestingEntry(t *testing.T) {
 	// mock：reviewing（已有 report）→ testing → accepting
 	mock := &mockRunner{ws: ws, featureID: "feat-stale", outcomes: []mockOutcome{
 		{reviewVerdict: "PASS"}, // reviewing（mock 會覆寫 report，但結果不變）
-		{testPassed: true},     // testing
-		{},                     // accepting
+		{testPassed: true},      // testing
+		{},                      // accepting
 	}}
 
 	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
@@ -1127,12 +1128,12 @@ func TestRunLoop_DeepReviewExecuted(t *testing.T) {
 	ws.WriteState("feat-deep", s)
 
 	mock := &mockRunner{ws: ws, featureID: "feat-deep", outcomes: []mockOutcome{
-		{},                       // designing
-		{},                       // coding
-		{reviewVerdict: "PASS"},  // reviewing
-		{testPassed: true},       // testing
-		{reviewVerdict: "PASS"},  // deep-reviewing
-		{},                       // accepting
+		{},                      // designing
+		{},                      // coding
+		{reviewVerdict: "PASS"}, // reviewing
+		{testPassed: true},      // testing
+		{reviewVerdict: "PASS"}, // deep-reviewing
+		{},                      // accepting
 	}}
 
 	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
@@ -1173,16 +1174,16 @@ func TestRunLoop_DeepReviewFail(t *testing.T) {
 	ws.WriteState("feat-deep-fail", s)
 
 	mock := &mockRunner{ws: ws, featureID: "feat-deep-fail", outcomes: []mockOutcome{
-		{},                       // designing
-		{},                       // coding
-		{reviewVerdict: "PASS"},  // reviewing pass
-		{testPassed: true},       // testing pass
-		{reviewVerdict: "FAIL"},  // deep-reviewing fail → amending
-		{},                       // amending (coder)
-		{reviewVerdict: "PASS"},  // reviewing pass
-		{testPassed: true},       // testing pass
-		{reviewVerdict: "PASS"},  // deep-reviewing pass
-		{},                       // accepting
+		{},                      // designing
+		{},                      // coding
+		{reviewVerdict: "PASS"}, // reviewing pass
+		{testPassed: true},      // testing pass
+		{reviewVerdict: "FAIL"}, // deep-reviewing fail → amending
+		{},                      // amending (coder)
+		{reviewVerdict: "PASS"}, // reviewing pass
+		{testPassed: true},      // testing pass
+		{reviewVerdict: "PASS"}, // deep-reviewing pass
+		{},                      // accepting
 	}}
 
 	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
@@ -1215,13 +1216,13 @@ type mockOps struct {
 	changedRepos []string
 }
 
-func (m *mockOps) SetupWorktree(_ string) (string, error)    { return "", nil }
-func (m *mockOps) Commit(_, _, _ string) error               { return nil }
-func (m *mockOps) Merge(_, _ string) gitops.MergeResult      { return gitops.MergeResult{} }
-func (m *mockOps) Cleanup(_ string) error                    { return nil }
-func (m *mockOps) DetectChangedRepos() []string              { return m.changedRepos }
+func (m *mockOps) SetupWorktree(_ string) (string, error)     { return "", nil }
+func (m *mockOps) Commit(_, _, _ string) error                { return nil }
+func (m *mockOps) Merge(_, _ string) gitops.MergeResult       { return gitops.MergeResult{} }
+func (m *mockOps) Cleanup(_ string) error                     { return nil }
+func (m *mockOps) DetectChangedRepos() []string               { return m.changedRepos }
 func (m *mockOps) CaptureBaseline(_ string, _ []string) error { return nil }
-func (m *mockOps) IsMultiRepo() bool                         { return false }
+func (m *mockOps) IsMultiRepo() bool                          { return false }
 
 // TestRunLoop_GuardFailStopsLoop 驗證：非 designer runner 完成後若 guard.Check 回傳 Pass==false，
 // loop 立即停止並轉入 needs-attention，StopReason 包含 guard error 摘要。
@@ -1316,6 +1317,267 @@ func TestRunLoop_DesignerSkipsGuard(t *testing.T) {
 	}
 }
 
+// readEventTypes 讀取 events.jsonl，回傳指定 type 的所有 event。
+func readEventTypes(t *testing.T, ws *protocol.Workspace, featureID, evtType string) []protocol.Event {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(ws.FeatureDir(featureID), protocol.EventsFile))
+	if err != nil {
+		t.Fatalf("read events: %v", err)
+	}
+	var out []protocol.Event
+	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		if line == "" {
+			continue
+		}
+		var evt protocol.Event
+		if json.Unmarshal([]byte(line), &evt) == nil && evt.Type == evtType {
+			out = append(out, evt)
+		}
+	}
+	return out
+}
+
+// TestRunLoop_QuickProfile 驗證 quick profile（coder+reviewer）：designer/tester/
+// deep-reviewer/acceptor 都被 pass-through，最終落 pending-review，並產生 phase-skipped event。
+func TestRunLoop_QuickProfile(t *testing.T) {
+	ws := setupLoopWorkspace(t, "feat-quick")
+	feature, _ := ws.LoadFeature("feat-quick")
+	cfg, _ := ws.ReadConfig()
+
+	s := protocol.State{
+		FeatureID: "feat-quick", Phase: protocol.PhaseInit,
+		MaxRounds: 5, Active: true, Runner: "mock", Profile: "quick",
+	}
+	ws.WriteState("feat-quick", s)
+
+	mock := &mockRunner{ws: ws, featureID: "feat-quick", outcomes: []mockOutcome{
+		{}, {reviewVerdict: "PASS"},
+	}}
+
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+		t.Fatalf("runLoop error: %v", err)
+	}
+
+	final, _ := ws.ReadState("feat-quick")
+	if final.Phase != protocol.PhasePendingReview {
+		t.Errorf("phase = %s, want pending-review", final.Phase)
+	}
+	if final.Profile != "quick" {
+		t.Errorf("profile = %q, want quick", final.Profile)
+	}
+
+	wantPhases := []protocol.Phase{protocol.PhaseCoding, protocol.PhaseReviewing}
+	if len(mock.phases) != len(wantPhases) {
+		t.Fatalf("ran %d phases, want %d: %v", len(mock.phases), len(wantPhases), mock.phases)
+	}
+	for i, p := range wantPhases {
+		if mock.phases[i] != p {
+			t.Errorf("phase[%d] = %s, want %s", i, mock.phases[i], p)
+		}
+	}
+
+	skipped := readEventTypes(t, ws, "feat-quick", "phase-skipped")
+	skippedRoles := map[protocol.Role]bool{}
+	for _, e := range skipped {
+		skippedRoles[e.Role] = true
+	}
+	for _, r := range []protocol.Role{protocol.RoleDesigner, protocol.RoleTester, protocol.RoleDeepReviewer, protocol.RoleAcceptor} {
+		if !skippedRoles[r] {
+			t.Errorf("expected phase-skipped event for role %s", r)
+		}
+	}
+}
+
+// TestRunLoop_NormalProfile 驗證 normal profile（coder/reviewer/tester/acceptor）：
+// designer 被跳過，designing→coding 不因缺 task-brief 而 needs-attention，deep-reviewer 亦跳過。
+func TestRunLoop_NormalProfile(t *testing.T) {
+	ws := setupLoopWorkspace(t, "feat-normal")
+	feature, _ := ws.LoadFeature("feat-normal")
+	cfg, _ := ws.ReadConfig()
+
+	s := protocol.State{
+		FeatureID: "feat-normal", Phase: protocol.PhaseInit,
+		MaxRounds: 5, Active: true, Runner: "mock", Profile: "normal",
+	}
+	ws.WriteState("feat-normal", s)
+
+	mock := &mockRunner{ws: ws, featureID: "feat-normal", outcomes: []mockOutcome{
+		{}, {reviewVerdict: "PASS"}, {testPassed: true}, {},
+	}}
+
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+		t.Fatalf("runLoop error: %v", err)
+	}
+
+	final, _ := ws.ReadState("feat-normal")
+	if final.Phase != protocol.PhasePendingReview {
+		t.Errorf("phase = %s, want pending-review (designer skip must not cause needs-attention)", final.Phase)
+	}
+
+	wantPhases := []protocol.Phase{
+		protocol.PhaseCoding, protocol.PhaseReviewing,
+		protocol.PhaseTesting, protocol.PhaseAccepting,
+	}
+	if len(mock.phases) != len(wantPhases) {
+		t.Fatalf("ran %d phases, want %d: %v", len(mock.phases), len(wantPhases), mock.phases)
+	}
+	for i, p := range wantPhases {
+		if mock.phases[i] != p {
+			t.Errorf("phase[%d] = %s, want %s", i, mock.phases[i], p)
+		}
+	}
+}
+
+// TestRunLoop_ProfileReviewFailSkipsTester 驗證 reviewer FAIL 時直接 amending，
+// tester 不被執行（無 testing phase 的 run-end，且 amending 緊接在 reviewing 後）。
+func TestRunLoop_ProfileReviewFailSkipsTester(t *testing.T) {
+	ws := setupLoopWorkspace(t, "feat-rf")
+	feature, _ := ws.LoadFeature("feat-rf")
+	cfg, _ := ws.ReadConfig()
+
+	s := protocol.State{
+		FeatureID: "feat-rf", Phase: protocol.PhaseInit,
+		MaxRounds: 5, Active: true, Runner: "mock", Profile: "normal",
+	}
+	ws.WriteState("feat-rf", s)
+
+	mock := &mockRunner{ws: ws, featureID: "feat-rf", outcomes: []mockOutcome{
+		{}, {reviewVerdict: "FAIL"}, {}, {reviewVerdict: "PASS"}, {testPassed: true}, {},
+	}}
+
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+		t.Fatalf("runLoop error: %v", err)
+	}
+
+	wantPhases := []protocol.Phase{
+		protocol.PhaseCoding, protocol.PhaseReviewing, protocol.PhaseAmending,
+		protocol.PhaseReviewing, protocol.PhaseTesting, protocol.PhaseAccepting,
+	}
+	if len(mock.phases) != len(wantPhases) {
+		t.Fatalf("ran %d phases, want %d: %v", len(mock.phases), len(wantPhases), mock.phases)
+	}
+	for i, p := range wantPhases {
+		if mock.phases[i] != p {
+			t.Errorf("phase[%d] = %s, want %s", i, mock.phases[i], p)
+		}
+	}
+	// 確認 tester 沒有在第一次 reviewing FAIL 後立即執行（index 2 應為 amending）。
+	if mock.phases[2] != protocol.PhaseAmending {
+		t.Errorf("after review FAIL expected amending, got %s", mock.phases[2])
+	}
+}
+
+// roleMockRunner 是 role-aware 的 mock runner：依 logPath 偵測 role 並寫對應 artifact。
+// 用於平行 review/test 測試（reviewer 與 tester 同時跑、phase 皆為 reviewing，無法用
+// phase 區分），且 concurrency-safe。
+type roleMockRunner struct {
+	ws        *protocol.Workspace
+	featureID string
+	role      string
+	mu        *sync.Mutex
+	started   *[]string
+}
+
+func (m *roleMockRunner) Run(_ context.Context, _ string) (*runner.Result, error) {
+	s, _ := m.ws.ReadState(m.featureID)
+	round := s.Round
+	roundDir := m.ws.RoundDir(m.featureID, round)
+	os.MkdirAll(roundDir, 0o755)
+	featureDir := m.ws.FeatureDir(m.featureID)
+
+	m.mu.Lock()
+	*m.started = append(*m.started, m.role)
+	m.mu.Unlock()
+
+	switch m.role {
+	case "designer":
+		os.WriteFile(filepath.Join(featureDir, protocol.TaskBrief), []byte("# Brief"), 0o644)
+		os.WriteFile(filepath.Join(featureDir, protocol.Criteria), []byte("# Criteria"), 0o644)
+	case "coder":
+		os.WriteFile(filepath.Join(roundDir, protocol.CoderReport), []byte("# Coder Report"), 0o644)
+	case "reviewer":
+		os.WriteFile(filepath.Join(roundDir, protocol.ReviewReport), []byte("## Verdict\nPASS\n"), 0o644)
+	case "tester":
+		ve := protocol.VerifyEvidence{Passed: true, Round: round}
+		data, _ := json.Marshal(ve)
+		os.WriteFile(filepath.Join(roundDir, protocol.VerifyFile), data, 0o644)
+		os.WriteFile(filepath.Join(roundDir, protocol.TestReport), []byte("# Test"), 0o644)
+		os.WriteFile(filepath.Join(featureDir, protocol.FinalReport), []byte("# Final"), 0o644)
+		os.WriteFile(filepath.Join(featureDir, protocol.CommitPlan), []byte("# Commit Plan"), 0o644)
+	}
+	return &runner.Result{ExitCode: 0}, nil
+}
+
+func roleFromLogPath(logPath string) string {
+	// deep-reviewer 須在 reviewer 之前比對（前者含後者子字串）。
+	for _, r := range []string{"designer", "coder", "deep-reviewer", "reviewer", "tester", "acceptor"} {
+		if strings.Contains(logPath, "-"+r+".") {
+			return r
+		}
+	}
+	return "unknown"
+}
+
+// TestRunLoop_ParallelReviewTest 驗證 parallel_review_test：reviewing phase 同時跑
+// reviewer + tester，兩者皆 PASS 後沿合法邊兩跳抵達 deep-reviewing（此處 deep 跳過）→ accepting。
+func TestRunLoop_ParallelReviewTest(t *testing.T) {
+	ws := setupLoopWorkspace(t, "feat-par")
+	feature, _ := ws.LoadFeature("feat-par")
+	cfg, _ := ws.ReadConfig()
+	cfg.ParallelReviewTest = true
+
+	s := protocol.State{
+		FeatureID: "feat-par", Phase: protocol.PhaseInit,
+		MaxRounds: 5, Active: true, Runner: "mock", Profile: "full",
+	}
+	ws.WriteState("feat-par", s)
+
+	var mu sync.Mutex
+	var started []string
+	factory := func(logPath, _ string) runner.Runner {
+		return &roleMockRunner{ws: ws, featureID: "feat-par", role: roleFromLogPath(logPath), mu: &mu, started: &started}
+	}
+
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, factory, "never"); err != nil {
+		t.Fatalf("runLoop error: %v", err)
+	}
+
+	final, _ := ws.ReadState("feat-par")
+	if final.Phase != protocol.PhasePendingReview {
+		t.Errorf("phase = %s, want pending-review", final.Phase)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	sawReviewer, sawTester := false, false
+	for _, r := range started {
+		if r == "reviewer" {
+			sawReviewer = true
+		}
+		if r == "tester" {
+			sawTester = true
+		}
+	}
+	if !sawReviewer || !sawTester {
+		t.Errorf("parallel reviewing should run both reviewer and tester; started=%v", started)
+	}
+
+	// reviewing phase 應同時有 reviewer 與 tester 的 phase-start event。
+	starts := readEventTypes(t, ws, "feat-par", "phase-start")
+	startReviewer, startTester := false, false
+	for _, e := range starts {
+		if e.Phase == protocol.PhaseReviewing && e.Role == protocol.RoleReviewer {
+			startReviewer = true
+		}
+		if e.Phase == protocol.PhaseReviewing && e.Role == protocol.RoleTester {
+			startTester = true
+		}
+	}
+	if !startReviewer || !startTester {
+		t.Errorf("parallel reviewing should emit phase-start for both roles (reviewer=%v tester=%v)", startReviewer, startTester)
+	}
+}
+
 func TestParseReviewVerdict_Warning(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -1338,6 +1600,11 @@ func TestParseReviewVerdict_Warning(t *testing.T) {
 			"warning case insensitive",
 			"### [warning] minor — c.go\n\n## Verdict\nPASS\n",
 			true, 0, 1,
+		},
+		{
+			"inline mention not counted",
+			"### [INFO] round-1 [WARNING] 已完整修正\nround-1 [WARNING]（邊界檢查）本輪已無此問題\n\n## Verdict\nPASS\n",
+			true, 0, 0,
 		},
 	}
 	for _, tt := range tests {

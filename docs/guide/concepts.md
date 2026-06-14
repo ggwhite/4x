@@ -22,6 +22,18 @@ Two additional roles operate later in the loop:
 
 The Acceptor uses its own dedicated model configuration (`roles.acceptor.model`) — distinct from the Designer. It reads ALL round artifacts before producing the final summary.
 
+### Pipeline Profiles
+
+A **pipeline profile** selects which roles run for a given feature, so simple work skips roles instead of always running the full six-role pipeline. Built-in profiles:
+
+| Profile | Roles |
+|---|---|
+| `full` | designer, coder, reviewer, tester, deep-reviewer, acceptor |
+| `normal` | coder, reviewer, tester, acceptor |
+| `quick` | coder, reviewer |
+
+`coder` is always required. When `profiles` are configured, the profile is auto-selected by feature priority (highest priority → `full`, then `normal`, then `quick`); `--profile` overrides the choice. A role not in the active profile is skipped — the loop transitions along the same valid state edges without invoking that runner. See [Configuration](configuration.md) for the `profiles`, `parallel_review_test`, and `coder_model` settings.
+
 ### Review: Two Phases
 
 1. **Checklist review** (standard model) — checks against project hard rules: security, concurrency, error handling, style
@@ -80,7 +92,7 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
 | Phase | Condition | Action |
 |---|---|---|
 | `designing` | `task-brief.md` missing | → `needs-attention` |
-| `coding` / `amending` | `escalation.json` with `spec-mismatch` or `criteria-wrong` | → `designing` |
+| `coding` / `amending` | `escalation.json` with `spec-mismatch`, `criteria-wrong`, or `scope-change` | → `designing` |
 | `reviewing` | Verdict does not start with `PASS` (must be explicit `PASS` or `CONDITIONAL PASS`) | → `amending` |
 | `testing` | `verify.json` not passed or artifacts missing | → `amending` |
 | any (non-designer) | Guard check finds scope violation, baseline drift, or missing required file | → `needs-attention` |
@@ -100,7 +112,7 @@ Roles communicate through the `.4x/` directory, not shared context windows.
 ├── features/
 │   └── {id}.yaml                    # Feature definition (canonical source)
 └── {feature-id}/
-    ├── state.json                   # Phase, role, round, active, runner, runners, stopReason
+    ├── state.json                   # Phase, role, round, active, runner, runners, stopReason, profile
     ├── events.jsonl                 # Audit trail
     ├── baseline.json                # Pre-coding snapshot (HEAD, branch, dirty files)
     ├── task-brief.md                # Designer → Coder: spec + architecture
@@ -134,6 +146,7 @@ repos: []
 subtasks: []
 rules: []
 depends: []
+hooks: {}    # optional phase hooks (same format as settings.json)
 ```
 
 `status` mirrors `state.json` phase for quick listing. Valid values: `not-started`, `in-progress`, `ready-for-review`, `needs-attention`, `blocked`, `done`, `abandoned`. `abandoned` features are treated as completed (won't block dependencies) but display with strikethrough in the dashboard. `depends` lists feature IDs that must be done (or abandoned) before this feature can run. `repos` lists the repository names (from `workspace.repos`) that this feature touches; empty means all repos in scope.

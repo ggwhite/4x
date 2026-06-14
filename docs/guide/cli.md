@@ -66,6 +66,9 @@ Run the Design-Code-Review-Test loop for a feature.
 | `--timeout` | `3600` | Per-phase timeout in seconds |
 | `--dry-run` | `false` | Print role prompts without calling LLM |
 | `--json` | `false` | Start run and return JSON immediately |
+| `--profile` | auto | Pipeline profile (`full`/`normal`/`quick` or custom); overrides priority-based auto-select |
+
+`--profile` selects which roles run. Built-in profiles: `full` (all 6 roles), `normal` (coder/reviewer/tester/acceptor), `quick` (coder/reviewer). Roles not in the profile are passed through (state advances along the legal edge without invoking the runner). When omitted, the profile is auto-selected by the feature's priority if a `profiles` section exists in `settings.json` (otherwise `full`). `--profile` is mutually exclusive with `--only`. See [Configuration → Profiles](configuration.md#profiles) for details.
 
 The loop drives: init → designing → coding → reviewing → testing → accepting → pending-review. On review failure, code gets another pass. On test failure, the loop re-enters coding.
 

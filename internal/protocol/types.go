@@ -97,17 +97,17 @@ func (h HookEntry) EffectiveOnFail() string {
 
 // Feature 是 features/*.yaml 的結構
 type Feature struct {
-	ID          string              `yaml:"id" json:"id"`
-	Name        string              `yaml:"name" json:"name"`
-	Description string              `yaml:"description" json:"description"`
-	Status      Status              `yaml:"status" json:"status"`
-	Priority    *int                `yaml:"priority,omitempty" json:"priority,omitempty"`
-	Repos       []string            `yaml:"repos,omitempty" json:"repos,omitempty"`
-	Subtasks    []Subtask           `yaml:"subtasks,omitempty" json:"subtasks,omitempty"`
-	Rules       []string            `yaml:"rules,omitempty" json:"rules,omitempty"`
-	Depends     []string            `yaml:"depends,omitempty" json:"depends,omitempty"`
-	Spec        string              `yaml:"spec,omitempty" json:"-"`
-	Plan        string              `yaml:"plan,omitempty" json:"-"`
+	ID          string                 `yaml:"id" json:"id"`
+	Name        string                 `yaml:"name" json:"name"`
+	Description string                 `yaml:"description" json:"description"`
+	Status      Status                 `yaml:"status" json:"status"`
+	Priority    *int                   `yaml:"priority,omitempty" json:"priority,omitempty"`
+	Repos       []string               `yaml:"repos,omitempty" json:"repos,omitempty"`
+	Subtasks    []Subtask              `yaml:"subtasks,omitempty" json:"subtasks,omitempty"`
+	Rules       []string               `yaml:"rules,omitempty" json:"rules,omitempty"`
+	Depends     []string               `yaml:"depends,omitempty" json:"depends,omitempty"`
+	Spec        string                 `yaml:"spec,omitempty" json:"-"`
+	Plan        string                 `yaml:"plan,omitempty" json:"-"`
 	Hooks       map[string][]HookEntry `yaml:"hooks,omitempty" json:"hooks,omitempty"`
 }
 
@@ -173,6 +173,8 @@ type State struct {
 	LastFailCount         int       `json:"lastFailCount"`
 	StopReason            string    `json:"stopReason,omitempty"`
 	Runners               []string  `json:"runners,omitempty"`
+	// Profile 記錄本次 run 使用的 pipeline profile 名稱，供 dashboard 顯示與 resume 沿用。
+	Profile string `json:"profile,omitempty"`
 }
 
 // Event 是 events.jsonl 的一行
@@ -288,6 +290,21 @@ type Config struct {
 	ModelTiers        map[string]map[string]string `json:"model_tiers,omitempty"`
 	Workspace         WorkspaceConfig              `json:"workspace,omitempty"`
 	Hooks             map[string][]HookEntry       `json:"hooks,omitempty"`
+	// Profiles 定義 pipeline profile（名稱 → 啟用的 role 子集），供依 feature priority
+	// 自動選擇或 --profile 手動覆蓋；為空時所有 feature 一律走 full（6 role 全跑）。
+	Profiles map[string]ProfileConfig `json:"profiles,omitempty"`
+	// ParallelReviewTest 啟用後，reviewer 與 tester 在 reviewing phase 並行執行（共用 worktree）。
+	ParallelReviewTest bool `json:"parallel_review_test,omitempty"`
+}
+
+// ProfileConfig 描述一個 pipeline profile：啟用哪些 role、以及 coder 的 model tier 覆蓋。
+// 被停用的 role 在 run loop 中以 pass-through 方式沿合法 state 邊跳過、不呼叫 runner。
+type ProfileConfig struct {
+	// Roles 是啟用的 role 名稱列表；順序不影響行為（執行順序由 canonical pipeline 決定）。
+	// 必須包含 "coder"（唯一必要 role）。
+	Roles []string `json:"roles"`
+	// CoderModel 覆蓋 roles.coder.model 的 tier；為空時沿用既有 coder model 設定。
+	CoderModel string `json:"coder_model,omitempty"`
 }
 
 // ProjectConfig 是專案基本設定，包含既有工具鏈的描述
