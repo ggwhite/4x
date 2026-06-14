@@ -763,10 +763,30 @@ async function loadLogs(fid) {
     const role = l.name.replace(/^round-\d+-/, '').replace(/\.log$/, '');
     const r = ROLES[role] || {name:role,color:'#666',bg:'rgba(100,100,100,.05)'};
     const kb = (l.size/1024).toFixed(1);
+    const isLive = l.durationMs == null && l.startedAt;
+    const dur = l.durationMs != null ? formatDuration(l.durationMs) : '';
+    const durId = isLive ? `log-dur-${esc(l.name)}` : '';
     const active = currentLogFile === l.name ? 'bg-zinc-800/50' : '';
-    return `<div class="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-zinc-800/50 transition-colors ${active}" onclick="viewLog('${fid}','${escAttr(l.name)}')"><span class="text-xs font-semibold" style="color:${r.color}">${r.emoji||''} ${r.name}</span><span class="text-xs text-zinc-500">${esc(l.name)}</span><span class="ml-auto text-[10px] text-zinc-600">${kb}KB</span></div>`;
+    const durSpan = isLive
+      ? `<span id="${durId}" class="text-[10px] text-emerald-400 ml-auto tabular-nums" data-started="${l.startedAt}"></span>`
+      : dur ? `<span class="text-[10px] text-zinc-500 ml-auto">${dur}</span>` : '';
+    return `<div class="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-zinc-800/50 transition-colors ${active}" onclick="viewLog('${fid}','${escAttr(l.name)}')"><span class="text-xs font-semibold" style="color:${r.color}">${r.emoji||''} ${r.name}</span><span class="text-xs text-zinc-500">${esc(l.name)}</span>${durSpan}<span class="${!dur && !isLive ? 'ml-auto ' : ''}text-[10px] text-zinc-600">${kb}KB</span></div>`;
   }).join('');
+  startLogDurationTimers();
   if (!logSSE) connectLogSSE(fid);
+}
+
+let _logDurTimer = null;
+function startLogDurationTimers() {
+  if (_logDurTimer) clearInterval(_logDurTimer);
+  const tick = () => {
+    document.querySelectorAll('[data-started]').forEach(el => {
+      const ms = Date.now() - new Date(el.dataset.started).getTime();
+      if (ms >= 0) el.textContent = formatDuration(ms);
+    });
+  };
+  tick();
+  _logDurTimer = setInterval(tick, 1000);
 }
 
 async function viewLog(fid, name) {

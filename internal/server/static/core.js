@@ -134,8 +134,13 @@ function fmtSec(s) {
   return `${s}s`;
 }
 function formatDuration(startIso, endIso) {
-  if (!startIso || !endIso) return '';
-  const ms = new Date(endIso).getTime() - new Date(startIso).getTime();
+  let ms;
+  if (typeof startIso === 'number') {
+    ms = startIso;
+  } else {
+    if (!startIso || !endIso) return '';
+    ms = new Date(endIso).getTime() - new Date(startIso).getTime();
+  }
   if (ms < 0) return '';
   const s = Math.floor(ms/1000), m = Math.floor(s/60), h = Math.floor(m/60), d = Math.floor(h/24);
   if (d > 0) return `${d}d ${h%24}h`;

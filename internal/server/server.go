@@ -674,8 +674,10 @@ func handleSSE(ws *protocol.Workspace, featureID string, w http.ResponseWriter, 
 }
 
 type logInfo struct {
-	Name string `json:"name"`
-	Size int64  `json:"size"`
+	Name       string  `json:"name"`
+	Size       int64   `json:"size"`
+	DurationMs *int64  `json:"durationMs,omitempty"`
+	StartedAt  *string `json:"startedAt,omitempty"`
 }
 
 type screenshotItem struct {
@@ -704,6 +706,7 @@ func handleLogs(ws *protocol.Workspace, rest string, w http.ResponseWriter) {
 
 	if len(parts) == 1 || parts[1] == "" {
 		entries, _ := os.ReadDir(logsDir)
+		timings := parseRoleTimings(ws.FeatureDir(featureID))
 		var logs []logInfo
 		for _, e := range entries {
 			if e.IsDir() || !strings.HasSuffix(e.Name(), ".log") {
@@ -713,7 +716,12 @@ func handleLogs(ws *protocol.Workspace, rest string, w http.ResponseWriter) {
 			if err != nil {
 				continue
 			}
-			logs = append(logs, logInfo{Name: e.Name(), Size: info.Size()})
+			li := logInfo{Name: e.Name(), Size: info.Size()}
+			if t, ok := timings[e.Name()]; ok {
+				li.DurationMs = t.DurationMs
+				li.StartedAt = t.StartedAt
+			}
+			logs = append(logs, li)
 		}
 		sort.Slice(logs, func(i, j int) bool {
 			return logSortKey(logs[i].Name) < logSortKey(logs[j].Name)
@@ -760,6 +768,57 @@ func logSortKey(name string) int {
 		order = 99
 	}
 	return round*100 + order
+}
+
+type roleTiming struct {
+	DurationMs *int64
+	StartedAt  *string
+}
+
+// parseRoleTimings 從 events.jsonl 讀取每個 role 的計時資訊。
+// 已結束的 role 帶 DurationMs；仍在執行的 role 帶 StartedAt（供前端動態計算）。
+func parseRoleTimings(featureDir string) map[string]roleTiming {
+	data, err := os.ReadFile(filepath.Join(featureDir, "events.jsonl"))
+	if err != nil {
+		return nil
+	}
+	type event struct {
+		Ts    time.Time `json:"ts"`
+		Type  string    `json:"type"`
+		Role  string    `json:"role"`
+		Round int       `json:"round"`
+	}
+	starts := map[string]time.Time{}
+	ended := map[string]bool{}
+	timings := map[string]roleTiming{}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var ev event
+		if err := json.Unmarshal([]byte(line), &ev); err != nil || ev.Role == "" {
+			continue
+		}
+		key := fmt.Sprintf("round-%d-%s.log", ev.Round, ev.Role)
+		switch ev.Type {
+		case "phase-start":
+			starts[key] = ev.Ts
+		case "run-end":
+			if start, ok := starts[key]; ok {
+				ms := ev.Ts.Sub(start).Milliseconds()
+				timings[key] = roleTiming{DurationMs: &ms}
+				ended[key] = true
+			}
+		}
+	}
+	for key, ts := range starts {
+		if !ended[key] {
+			s := ts.UTC().Format(time.RFC3339)
+			timings[key] = roleTiming{StartedAt: &s}
+		}
+	}
+	return timings
 }
 
 func handleFeatureScreenshots(ws *protocol.Workspace, w http.ResponseWriter, r *http.Request) {
