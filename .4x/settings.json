@@ -55,7 +55,8 @@
         "新增 Cobra subcommand 時在 cmd/4x/main.go 註冊",
         "internal/ 下新 package 要確認不會 circular dependency",
         "embed 檔案只能在同層或子目錄，不能用 ../",
-        "不要動 templates/*.md.tmpl 除非 task-brief 明確要求"
+        "不要動 templates/*.md.tmpl 除非 task-brief 明確要求",
+        "若功能涉及新增 settings.json 欄位（config schema 變更），同步更新 .4x/settings.json 加入 sensible defaults"
       ]
     },
     "reviewer": {
