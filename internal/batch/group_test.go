@@ -116,6 +116,83 @@ func TestPlanBatch_DependencyOrder(t *testing.T) {
 	}
 }
 
+func intPtr(n int) *int { return &n }
+
+// AC-4：兩個無依賴 feature priority 不同時，schedule 順序由 priority 決定（小者先）。
+func TestPlanBatch_PriorityOrdersIndependentFeatures(t *testing.T) {
+	features := []protocol.Feature{
+		{ID: "low-prio", Priority: intPtr(3)},
+		{ID: "high-prio", Priority: intPtr(1)},
+	}
+	plan, err := PlanBatch(features, nil, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Schedule[0].FeatureID != "high-prio" {
+		t.Errorf("schedule[0] = %s, want high-prio (priority=1 first)", plan.Schedule[0].FeatureID)
+	}
+}
+
+// AC-5：priority 相同（或皆 nil）時，順序穩定（依 feature ID），多次跑結果一致。
+func TestPlanBatch_StableOrderWhenPriorityEqual(t *testing.T) {
+	features := []protocol.Feature{
+		{ID: "zeta"},
+		{ID: "alpha"},
+		{ID: "mid", Priority: intPtr(2)},
+		{ID: "kilo", Priority: intPtr(2)},
+	}
+	var first []string
+	for run := 0; run < 5; run++ {
+		plan, err := PlanBatch(features, nil, 4)
+		if err != nil {
+			t.Fatal(err)
+		}
+		order := make([]string, len(plan.Schedule))
+		for i, s := range plan.Schedule {
+			order[i] = s.FeatureID
+		}
+		if run == 0 {
+			first = order
+			continue
+		}
+		for i := range order {
+			if order[i] != first[i] {
+				t.Fatalf("non-deterministic order: run %d got %v, want %v", run, order, first)
+			}
+		}
+	}
+	// priority=2 的 kilo/mid 應排在 nil priority 的 alpha/zeta 之前，且同 priority 依 ID。
+	pos := map[string]int{}
+	for i, id := range first {
+		pos[id] = i
+	}
+	if pos["mid"] >= pos["alpha"] || pos["kilo"] >= pos["zeta"] {
+		t.Errorf("priority=2 features should precede nil-priority ones: %v", first)
+	}
+	if pos["kilo"] >= pos["mid"] {
+		t.Errorf("equal priority should tie-break by ID (kilo before mid): %v", first)
+	}
+}
+
+// AC-6：depends 為硬約束——即使依賴者 priority 較高，仍不得排在被依賴者之前。
+func TestPlanBatch_PriorityNeverViolatesDependency(t *testing.T) {
+	features := []protocol.Feature{
+		{ID: "a-depends-b", Priority: intPtr(0), Depends: []string{"b-base"}},
+		{ID: "b-base", Priority: intPtr(9)},
+	}
+	plan, err := PlanBatch(features, nil, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pos := map[string]int{}
+	for i, s := range plan.Schedule {
+		pos[s.FeatureID] = i
+	}
+	if pos["b-base"] >= pos["a-depends-b"] {
+		t.Errorf("b-base must precede a-depends-b despite lower priority: %v", plan.Schedule)
+	}
+}
+
 func TestPlanBatch_CycleDetection(t *testing.T) {
 	features := []protocol.Feature{
 		{ID: "a", Depends: []string{"c"}},

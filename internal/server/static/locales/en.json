@@ -140,5 +140,17 @@
   "toast.runFailed": "Run failed: {error}",
   "toast.stopFailed": "Stop failed: {error}",
   "toast.doneSuccess": "{id} marked as done",
-  "toast.createFailed": "Create failed: {error}"
+  "toast.createFailed": "Create failed: {error}",
+  "dag.title": "Dependency Graph",
+  "batch.title": "Batch",
+  "batch.start": "Start Batch",
+  "batch.stop": "Stop Batch",
+  "batch.continue": "Continue Batch",
+  "batch.running": "Batch running",
+  "batch.confirmTitle": "Start Batch Run",
+  "batch.confirmMsg": "Run all eligible features in dependency order? Each feature is auto-merged to main on completion.",
+  "batch.conflictTitle": "Merge conflict on {id}",
+  "batch.startFailed": "Start batch failed: {error}",
+  "batch.stopFailed": "Stop batch failed: {error}",
+  "batch.continueFailed": "Continue batch failed: {error}"
 }

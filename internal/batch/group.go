@@ -2,6 +2,7 @@ package batch
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"time"
 
@@ -117,8 +118,12 @@ func detectCycle(features []protocol.Feature, adj [][]int) []string {
 	return nil
 }
 
-// topoSort 回傳 cluster 內的拓撲排序（Kahn's algorithm）
-func topoSort(indices []int, adj [][]int) []int {
+// topoSort 回傳 cluster 內的拓撲排序（Kahn's algorithm）。
+//
+// depends 仍是硬約束（拓撲序不可違反）；當多個節點同時 ready（in-degree 0）時，
+// 依 Feature.Priority 決定出隊順序——數字小者優先，nil priority 視為最低優先（最大值），
+// priority 相同再依 feature ID 穩定排序，避免 map 迭代造成的非決定性。
+func topoSort(features []protocol.Feature, indices []int, adj [][]int) []int {
 	inCluster := make(map[int]bool)
 	for _, i := range indices {
 		inCluster[i] = true
@@ -136,17 +141,21 @@ func topoSort(indices []int, adj [][]int) []int {
 		}
 	}
 
-	var queue []int
+	var ready []int
 	for _, i := range indices {
 		if inDegree[i] == 0 {
-			queue = append(queue, i)
+			ready = append(ready, i)
 		}
 	}
 
 	var sorted []int
-	for len(queue) > 0 {
-		u := queue[0]
-		queue = queue[1:]
+	for len(ready) > 0 {
+		// 在所有 ready 節點中挑選 priority 最高（數字最小）者出隊。
+		sort.Slice(ready, func(i, j int) bool {
+			return featureLess(features[ready[i]], features[ready[j]])
+		})
+		u := ready[0]
+		ready = ready[1:]
 		sorted = append(sorted, u)
 		for _, v := range adj[u] {
 			if !inCluster[v] {
@@ -154,11 +163,44 @@ func topoSort(indices []int, adj [][]int) []int {
 			}
 			inDegree[v]--
 			if inDegree[v] == 0 {
-				queue = append(queue, v)
+				ready = append(ready, v)
 			}
 		}
 	}
 	return sorted
+}
+
+// featureLess 定義同時 ready 的 feature 出隊優先序：priority 小者優先（nil 視為最大），
+// priority 相同則依 feature ID 穩定排序。
+func featureLess(a, b protocol.Feature) bool {
+	pa, pb := priorityValue(a.Priority), priorityValue(b.Priority)
+	if pa != pb {
+		return pa < pb
+	}
+	return a.ID < b.ID
+}
+
+// priorityValue 將 *int priority 轉為可比較值，nil 視為最低優先（math.MaxInt）。
+func priorityValue(p *int) int {
+	if p == nil {
+		return math.MaxInt
+	}
+	return *p
+}
+
+// clusterSortKey 回傳 cluster 的跨群排序鍵：成員中最高優先（最小 priorityValue）與最小 feature ID。
+func clusterSortKey(features []protocol.Feature, members []int) (int, string) {
+	minPrio := math.MaxInt
+	minID := ""
+	for _, m := range members {
+		if p := priorityValue(features[m].Priority); p < minPrio {
+			minPrio = p
+		}
+		if minID == "" || features[m].ID < minID {
+			minID = features[m].ID
+		}
+	}
+	return minPrio, minID
 }
 
 func buildClusters(features []protocol.Feature, uf *unionFind, adj [][]int, idx map[string]int, maxChainLen int) []Cluster {
@@ -172,12 +214,22 @@ func buildClusters(features []protocol.Feature, uf *unionFind, adj [][]int, idx 
 	for r := range groups {
 		roots = append(roots, r)
 	}
-	sort.Ints(roots)
+	// 跨 cluster 的排程順序也依 priority：以 cluster 內最高優先（priorityValue 最小）的 feature
+	// 代表整個 cluster，相同則以 cluster 內最小 feature ID 穩定排序。這讓彼此獨立（各自成 cluster）
+	// 的 feature 也能由 priority 決定先後，而非沿用 union-find root 的插入順序。
+	sort.Slice(roots, func(i, j int) bool {
+		pi, idi := clusterSortKey(features, groups[roots[i]])
+		pj, idj := clusterSortKey(features, groups[roots[j]])
+		if pi != pj {
+			return pi < pj
+		}
+		return idi < idj
+	})
 
 	var clusters []Cluster
 	for ci, root := range roots {
 		indices := groups[root]
-		sorted := topoSort(indices, adj)
+		sorted := topoSort(features, indices, adj)
 
 		chains := splitChains(sorted, adj, maxChainLen)
 

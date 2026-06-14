@@ -80,6 +80,7 @@ let searchIdx = 0;
 let searchFiltered = [];
 let refreshTimer = null;
 let activeRuns = [];
+let lastBatchStatus = null;
 
 function showToast(msg, type='error', duration=5000) {
   const c = document.getElementById('toast-container');

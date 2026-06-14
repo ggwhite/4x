@@ -140,5 +140,17 @@
   "toast.runFailed": "실행 실패: {error}",
   "toast.stopFailed": "중지 실패: {error}",
   "toast.doneSuccess": "{id} 완료로 표시됨",
-  "toast.createFailed": "생성 실패: {error}"
+  "toast.createFailed": "생성 실패: {error}",
+  "dag.title": "의존성 그래프",
+  "batch.title": "배치",
+  "batch.start": "배치 시작",
+  "batch.stop": "배치 중지",
+  "batch.continue": "배치 계속",
+  "batch.running": "배치 실행 중",
+  "batch.confirmTitle": "배치 실행 시작",
+  "batch.confirmMsg": "대상이 되는 모든 feature를 의존성 순서로 실행할까요? 각 feature는 완료 후 자동으로 main에 merge됩니다.",
+  "batch.conflictTitle": "{id}에서 merge 충돌",
+  "batch.startFailed": "배치 시작 실패: {error}",
+  "batch.stopFailed": "배치 중지 실패: {error}",
+  "batch.continueFailed": "배치 계속 실패: {error}"
 }

@@ -364,7 +364,11 @@ func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap m
 	runFeature func(next string, feature protocol.Feature, s protocol.State) (protocol.Status, error),
 	noAutoMerge bool, autoMerge func(featureID string) gitops.MergeResult) int {
 
-	stopFile := filepath.Join(ws.DotDir(), "batch-stop")
+	stopFile := filepath.Join(ws.DotDir(), protocol.BatchStopFile)
+	// 進入主迴圈前清掉上一輪殘留的衝突信號，避免 dashboard 顯示過時的 conflict。
+	if err := ws.ClearBatchConflict(); err != nil {
+		fmt.Fprintf(os.Stderr, "warn: failed to clear stale batch conflict: %v\n", err)
+	}
 	completed := 0
 	// W12：追蹤每個 feature 跑出失敗狀態（needs-attention/blocked）的次數，
 	// 達 maxFeatureFailures 後從 selection 跳過。loggedSkip 確保 skip 訊息只印一次。
@@ -488,6 +492,16 @@ func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap m
 			case result.Conflict:
 				// M2：衝突 → graceful pause。保留 pending-review 與 worktree、不計入 completed、停止主迴圈。
 				slog.Error("auto-merge conflict", "feature", next, "files", result.Files, "repo", result.ConflictRepo)
+				// S5：持久化衝突信號讓 dashboard 得知細節並提供 Continue Batch。
+				if err := ws.WriteBatchConflict(protocol.BatchConflict{
+					FeatureID:    next,
+					FeatureName:  feature.Name,
+					ConflictRepo: result.ConflictRepo,
+					Files:        result.Files,
+					DetectedAt:   time.Now().UTC(),
+				}); err != nil {
+					slog.Warn("failed to persist batch conflict", "feature", next, "error", err)
+				}
 				fmt.Printf("\n⏸ auto-merge conflict on %s — pausing batch (%d done):\n", next, completed)
 				for _, file := range result.Files {
 					fmt.Printf("  conflict: %s\n", file)
@@ -531,7 +545,7 @@ func newBatchStopCmd() *cobra.Command {
 				return err
 			}
 
-			stopFile := filepath.Join(ws.DotDir(), "batch-stop")
+			stopFile := filepath.Join(ws.DotDir(), protocol.BatchStopFile)
 			if err := os.WriteFile(stopFile, []byte("stop"), 0o644); err != nil {
 				return err
 			}

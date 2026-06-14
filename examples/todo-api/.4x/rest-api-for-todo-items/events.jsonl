@@ -1,0 +1,11 @@
+{"ts":"2026-06-11T08:27:28Z","phase":"init","type":"run-start"}
+{"ts":"2026-06-11T08:30:00Z","phase":"designing","type":"phase-start","role":"designer","round":0}
+{"ts":"2026-06-11T08:31:00Z","phase":"designing","type":"phase-end","role":"designer","round":0}
+{"ts":"2026-06-11T08:31:10Z","phase":"coding","type":"phase-start","role":"coder","round":1}
+{"ts":"2026-06-11T08:33:00Z","phase":"coding","type":"phase-end","role":"coder","round":1}
+{"ts":"2026-06-11T08:33:05Z","phase":"reviewing","type":"phase-start","role":"reviewer","round":1}
+{"ts":"2026-06-11T08:34:00Z","phase":"reviewing","type":"phase-end","role":"reviewer","round":1}
+{"ts":"2026-06-11T08:34:05Z","phase":"testing","type":"phase-start","role":"tester","round":1}
+{"ts":"2026-06-11T08:36:06Z","phase":"testing","type":"phase-end","role":"tester","round":1}
+{"ts":"2026-06-11T08:36:10Z","phase":"accepting","type":"phase-start","role":"acceptor","round":1}
+{"ts":"2026-06-11T08:36:20Z","phase":"accepting","type":"phase-end","role":"acceptor","round":1}

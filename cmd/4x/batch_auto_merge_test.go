@@ -219,3 +219,65 @@ func TestRunBatchSchedule_ResumeAfterConflict(t *testing.T) {
 		t.Errorf("second run completed = %d, want 1", completed2)
 	}
 }
+
+// AC-7：auto-merge 衝突 graceful pause 時寫出 .4x/batch-conflict.json（含 featureId 與 files）。
+func TestRunBatchSchedule_ConflictWritesSignal(t *testing.T) {
+	ws := setupLoopWorkspace(t, "feat-a")
+	batchTestFeature(t, ws, "feat-a", nil)
+
+	plan := &batch.BatchPlan{Schedule: []batch.ScheduleEntry{{FeatureID: "feat-a"}}}
+	statusMap := map[string]protocol.Status{"feat-a": "not-started"}
+
+	runFeature := func(next string, f protocol.Feature, s protocol.State) (protocol.Status, error) {
+		return protocol.StatusReadyForReview, nil
+	}
+	autoMerge := func(featureID string) gitops.MergeResult {
+		return gitops.MergeResult{Conflict: true, Files: []string{"main.go"}, ConflictRepo: "core"}
+	}
+
+	runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, false, autoMerge)
+
+	conflict, err := ws.ReadBatchConflict()
+	if err != nil {
+		t.Fatalf("ReadBatchConflict: %v", err)
+	}
+	if conflict == nil {
+		t.Fatal("expected batch-conflict.json after conflict pause, got nil")
+	}
+	if conflict.FeatureID != "feat-a" {
+		t.Errorf("conflict.FeatureID = %s, want feat-a", conflict.FeatureID)
+	}
+	if len(conflict.Files) != 1 || conflict.Files[0] != "main.go" {
+		t.Errorf("conflict.Files = %v, want [main.go]", conflict.Files)
+	}
+	if conflict.ConflictRepo != "core" {
+		t.Errorf("conflict.ConflictRepo = %s, want core", conflict.ConflictRepo)
+	}
+}
+
+// AC-8：成功 merge（無衝突）時清掉殘留的衝突信號，不留下 batch-conflict.json。
+func TestRunBatchSchedule_SuccessClearsStaleSignal(t *testing.T) {
+	ws := setupLoopWorkspace(t, "feat-a")
+	batchTestFeature(t, ws, "feat-a", nil)
+
+	// 模擬上一輪殘留的衝突信號。
+	if err := ws.WriteBatchConflict(protocol.BatchConflict{FeatureID: "old"}); err != nil {
+		t.Fatalf("WriteBatchConflict: %v", err)
+	}
+
+	plan := &batch.BatchPlan{Schedule: []batch.ScheduleEntry{{FeatureID: "feat-a"}}}
+	statusMap := map[string]protocol.Status{"feat-a": "not-started"}
+
+	runFeature := func(next string, f protocol.Feature, s protocol.State) (protocol.Status, error) {
+		return protocol.StatusReadyForReview, nil
+	}
+	autoMerge := func(featureID string) gitops.MergeResult {
+		return gitops.MergeResult{}
+	}
+
+	runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, false, autoMerge)
+
+	if conflict, _ := ws.ReadBatchConflict(); conflict != nil {
+		t.Errorf("stale conflict signal should be cleared, got %+v", *conflict)
+	}
+}

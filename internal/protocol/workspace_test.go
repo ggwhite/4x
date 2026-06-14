@@ -1081,3 +1081,58 @@ func TestWriteState_Atomic_NoPartialRead(t *testing.T) {
 		}
 	}
 }
+
+// AC-2：WriteBatchConflict → ReadBatchConflict 取回相同內容。
+func TestBatchConflictRoundtrip(t *testing.T) {
+	ws := setupWorkspace(t)
+	want := BatchConflict{
+		FeatureID:    "F099",
+		FeatureName:  "Some Feature",
+		ConflictRepo: "core",
+		Files:        []string{"main.go", "util.go"},
+		DetectedAt:   time.Now().UTC().Truncate(time.Second),
+	}
+	if err := ws.WriteBatchConflict(want); err != nil {
+		t.Fatalf("WriteBatchConflict: %v", err)
+	}
+	got, err := ws.ReadBatchConflict()
+	if err != nil {
+		t.Fatalf("ReadBatchConflict: %v", err)
+	}
+	if got == nil {
+		t.Fatal("ReadBatchConflict returned nil after write")
+	}
+	if got.FeatureID != want.FeatureID || got.FeatureName != want.FeatureName ||
+		got.ConflictRepo != want.ConflictRepo || !reflect.DeepEqual(got.Files, want.Files) {
+		t.Errorf("roundtrip mismatch: got %+v, want %+v", *got, want)
+	}
+}
+
+// AC-2：檔案不存在時 ReadBatchConflict 回 (nil, nil)。
+func TestReadBatchConflict_Missing(t *testing.T) {
+	ws := setupWorkspace(t)
+	got, err := ws.ReadBatchConflict()
+	if err != nil {
+		t.Fatalf("ReadBatchConflict on missing file: err = %v, want nil", err)
+	}
+	if got != nil {
+		t.Errorf("ReadBatchConflict on missing file: got %+v, want nil", got)
+	}
+}
+
+// AC-2：ClearBatchConflict 在檔案不存在時不報錯；存在時刪除之。
+func TestClearBatchConflict(t *testing.T) {
+	ws := setupWorkspace(t)
+	if err := ws.ClearBatchConflict(); err != nil {
+		t.Errorf("ClearBatchConflict on missing file: err = %v, want nil", err)
+	}
+	if err := ws.WriteBatchConflict(BatchConflict{FeatureID: "F1"}); err != nil {
+		t.Fatalf("WriteBatchConflict: %v", err)
+	}
+	if err := ws.ClearBatchConflict(); err != nil {
+		t.Fatalf("ClearBatchConflict: %v", err)
+	}
+	if got, _ := ws.ReadBatchConflict(); got != nil {
+		t.Error("conflict file should be gone after ClearBatchConflict")
+	}
+}

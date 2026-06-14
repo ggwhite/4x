@@ -25,7 +25,7 @@ Run multiple features in dependency-aware order.
 1. **Dependency DAG** — builds a directed graph from feature `depends` fields
 2. **Cycle detection** — errors if circular dependencies exist
 3. **Union-Find clustering** — groups features that share non-hub repositories (hub repos defined via `hub_repos` config or `workspace.repos[*].hub: true` are excluded from clustering)
-4. **Topological sort** — orders features within each cluster
+4. **Topological sort** — orders features within each cluster. When several features become eligible at the same time (no remaining unmet dependencies), they are ordered by `priority` (lower number = higher priority; features without a priority sort last). Ties on priority fall back to feature ID for a stable, deterministic order.
 5. **Chain scheduling** — splits long dependency chains (max length configurable with `--max-chain`)
 
 ```bash
@@ -69,6 +69,10 @@ Schedule (4 features):
 ```
 
 Creates a `.4x/batch-stop` signal file. The batch finishes the current feature, then exits gracefully.
+
+## Merge Conflicts
+
+When auto-merge hits a conflict, the batch pauses and writes `.4x/batch-conflict.json` recording the feature, the conflicting repo (multi-repo mode), and the affected files. The worktree is preserved so you can resolve the conflict. The signal file lets the [dashboard](dashboard.md) surface the conflict and offer a **Continue Batch** action — under the hood it clears the signal file and restarts `4x batch run`. From the CLI, resolve the files, run `4x merge <id>`, then re-run `4x batch run` to continue. The conflict file is cleared automatically at the start of every batch run.
 
 ## Checking Progress
 

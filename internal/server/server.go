@@ -23,6 +23,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/ggwhite/4x/internal/batch"
 	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/logging"
 	"github.com/ggwhite/4x/internal/protocol"
@@ -37,8 +38,14 @@ var staticFS embed.FS
 
 var supportedLocales = []string{"en", "zh-TW", "zh-CN", "ja", "ko", "es"}
 
-// NewMux 建立 dashboard 的 HTTP handler。
+// NewMux 建立 dashboard 的 HTTP handler，並以當前 4x 執行檔建立預設 BatchManager。
 func NewMux(ws *protocol.Workspace, pm *ProcessManager) http.Handler {
+	return newMux(ws, pm, NewBatchManager(ws, selfBinary()))
+}
+
+// newMux 是 NewMux 的內部實作，額外接受注入的 BatchManager 讓多專案 registry 共用同一實例
+// （供 shutdown 停止），測試亦可注入假 binName 的 BatchManager。
+func newMux(ws *protocol.Workspace, pm *ProcessManager, bm *BatchManager) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/tasks", func(w http.ResponseWriter, r *http.Request) {
@@ -115,6 +122,34 @@ func NewMux(ws *protocol.Workspace, pm *ProcessManager) http.Handler {
 			return
 		}
 		handlePostDone(ws, w, r)
+	})
+	mux.HandleFunc("/api/batch/status", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		handleBatchStatus(ws, bm, w)
+	})
+	mux.HandleFunc("/api/batch/start", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		handlePostBatchStart(ws, bm, w, r)
+	})
+	mux.HandleFunc("/api/batch/stop", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		handlePostBatchStop(bm, w)
+	})
+	mux.HandleFunc("/api/batch/continue", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		handlePostBatchContinue(ws, bm, w, r)
 	})
 	mux.HandleFunc("/api/messages/", func(w http.ResponseWriter, r *http.Request) {
 		featureID := strings.TrimPrefix(r.URL.Path, "/api/messages/")
@@ -1245,6 +1280,149 @@ func handlePostDone(ws *protocol.Workspace, w http.ResponseWriter, r *http.Reque
 			fmt.Fprint(w, `{"status":"done","merged":true}`)
 		}
 	}
+}
+
+type batchRequest struct {
+	Runner    string `json:"runner"`
+	MaxRounds int    `json:"maxRounds"`
+}
+
+type batchQueueItem struct {
+	FeatureID string `json:"featureId"`
+	Name      string `json:"name"`
+	Status    string `json:"status"`
+	Position  int    `json:"position"`
+	State     string `json:"state"`
+}
+
+type batchStatusResponse struct {
+	Running        bool                    `json:"running"`
+	Queue          []batchQueueItem        `json:"queue"`
+	CurrentFeature string                  `json:"currentFeature"`
+	Conflict       *protocol.BatchConflict `json:"conflict"`
+}
+
+// mergedConfig 讀取 project config 並套用 user config，供 batch handler 取得 runner / hub repos。
+func mergedConfig(ws *protocol.Workspace) protocol.Config {
+	cfg, _ := ws.ReadConfig()
+	if userCfg, err := protocol.ReadUserConfig(); err == nil {
+		cfg = protocol.MergeConfig(userCfg, cfg)
+	}
+	return cfg
+}
+
+// handleBatchStatus 回傳目前 batch 執行狀態、依 PlanBatch schedule 排序的佇列，以及衝突信號（若有）。
+func handleBatchStatus(ws *protocol.Workspace, bm *BatchManager, w http.ResponseWriter) {
+	cfg := mergedConfig(ws)
+
+	features, err := ws.ListFeatures()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	featByID := make(map[string]protocol.Feature, len(features))
+	var pending []protocol.Feature
+	for _, f := range features {
+		if f.Status == protocol.StatusAbandoned {
+			continue
+		}
+		featByID[f.ID] = f
+		pending = append(pending, f)
+	}
+
+	resp := batchStatusResponse{Running: bm.Running(), Queue: []batchQueueItem{}}
+
+	if len(pending) > 0 {
+		if plan, planErr := batch.PlanBatch(pending, protocol.EffectiveHubRepos(cfg), 4); planErr == nil {
+			pos := 0
+			for _, s := range plan.Schedule {
+				f := featByID[s.FeatureID]
+				itemState := "waiting"
+				if f.Status == protocol.StatusDone || f.Status == protocol.StatusReadyForReview {
+					itemState = "done"
+				} else if st, stErr := ws.ReadState(s.FeatureID); stErr == nil {
+					ws.ReconcileActive(s.FeatureID, &st)
+					if st.Active && st.Phase != protocol.PhaseDone {
+						itemState = "running"
+						if resp.CurrentFeature == "" {
+							resp.CurrentFeature = s.FeatureID
+						}
+					}
+				}
+				item := batchQueueItem{
+					FeatureID: s.FeatureID,
+					Name:      f.Name,
+					Status:    string(f.Status),
+					State:     itemState,
+				}
+				if itemState != "done" {
+					pos++
+					item.Position = pos
+				}
+				resp.Queue = append(resp.Queue, item)
+			}
+		}
+	}
+
+	conflict, _ := ws.ReadBatchConflict()
+	resp.Conflict = conflict
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+// handlePostBatchStart 啟動 batch run；若仍有未解決的 batch-conflict.json 則回 409，要求先 Continue/解衝突。
+func handlePostBatchStart(ws *protocol.Workspace, bm *BatchManager, w http.ResponseWriter, r *http.Request) {
+	if conflict, _ := ws.ReadBatchConflict(); conflict != nil {
+		writeJSONError(w, http.StatusConflict, "unresolved batch conflict — resolve and continue first")
+		return
+	}
+	startBatch(ws, bm, w, r)
+}
+
+// handlePostBatchContinue 在使用者於 worktree 解完衝突後呼叫：先清掉衝突信號再重啟 batch run。
+func handlePostBatchContinue(ws *protocol.Workspace, bm *BatchManager, w http.ResponseWriter, r *http.Request) {
+	if err := ws.ClearBatchConflict(); err != nil {
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	startBatch(ws, bm, w, r)
+}
+
+// startBatch 解析 body（runner/maxRounds，缺省用 config）並透過 BatchManager 啟動 batch run。
+func startBatch(ws *protocol.Workspace, bm *BatchManager, w http.ResponseWriter, r *http.Request) {
+	var req batchRequest
+	if r.Body != nil {
+		_ = json.NewDecoder(r.Body).Decode(&req)
+	}
+	if req.Runner == "" {
+		req.Runner = mergedConfig(ws).Default
+	}
+	if err := bm.Start(req.Runner, req.MaxRounds); err != nil {
+		writeJSONError(w, http.StatusConflict, err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprint(w, `{"ok":true}`)
+}
+
+// handlePostBatchStop 寫出 batch-stop 信號，讓 batch 跑完當前 feature 後 graceful 停止。
+func handlePostBatchStop(bm *BatchManager, w http.ResponseWriter) {
+	if err := bm.Stop(); err != nil {
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprint(w, `{"ok":true}`)
+}
+
+// writeJSONError 以 JSON `{"error": "..."}` 格式回傳錯誤與對應 HTTP status。
+func writeJSONError(w http.ResponseWriter, code int, msg string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	payload, _ := json.Marshal(map[string]string{"error": msg})
+	w.Write(payload)
 }
 
 func transitionDone(ws *protocol.Workspace, featureID string, s protocol.State, f protocol.Feature) (protocol.State, error) {

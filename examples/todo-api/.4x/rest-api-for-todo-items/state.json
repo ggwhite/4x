@@ -1,0 +1,12 @@
+{
+  "featureId": "rest-api-for-todo-items",
+  "phase": "accepting",
+  "role": "acceptor",
+  "round": 1,
+  "maxRounds": 5,
+  "active": false,
+  "runner": "copilot",
+  "label": "Round 1 acceptor",
+  "createdAt": "2026-06-11T08:30:00Z",
+  "updatedAt": "2026-06-11T08:36:00Z"
+}

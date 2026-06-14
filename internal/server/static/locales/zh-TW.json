@@ -140,5 +140,17 @@
   "toast.runFailed": "執行失敗：{error}",
   "toast.stopFailed": "停止失敗：{error}",
   "toast.doneSuccess": "{id} 已標記完成",
-  "toast.createFailed": "建立失敗：{error}"
+  "toast.createFailed": "建立失敗：{error}",
+  "dag.title": "依賴關係圖",
+  "batch.title": "批次",
+  "batch.start": "啟動批次",
+  "batch.stop": "停止批次",
+  "batch.continue": "繼續批次",
+  "batch.running": "批次執行中",
+  "batch.confirmTitle": "啟動批次執行",
+  "batch.confirmMsg": "依依賴順序執行所有符合條件的 feature？每個 feature 完成後會自動 merge 回 main。",
+  "batch.conflictTitle": "{id} 發生 merge 衝突",
+  "batch.startFailed": "啟動批次失敗：{error}",
+  "batch.stopFailed": "停止批次失敗：{error}",
+  "batch.continueFailed": "繼續批次失敗：{error}"
 }

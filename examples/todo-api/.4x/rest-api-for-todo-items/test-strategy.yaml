@@ -1,0 +1,7 @@
+web: false
+api: true
+coder_only: false
+verify_commands:
+  - "cd backend && go build ./..."
+  - "cd backend && go test ./..."
+  - "./test-e2e.sh || true"

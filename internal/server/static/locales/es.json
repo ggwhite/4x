@@ -140,5 +140,17 @@
   "toast.runFailed": "Error al ejecutar: {error}",
   "toast.stopFailed": "Error al detener: {error}",
   "toast.doneSuccess": "{id} marcado como hecho",
-  "toast.createFailed": "Error al crear: {error}"
+  "toast.createFailed": "Error al crear: {error}",
+  "dag.title": "Grafo de dependencias",
+  "batch.title": "Lote",
+  "batch.start": "Iniciar lote",
+  "batch.stop": "Detener lote",
+  "batch.continue": "Continuar lote",
+  "batch.running": "Lote en ejecución",
+  "batch.confirmTitle": "Iniciar ejecución por lotes",
+  "batch.confirmMsg": "¿Ejecutar todas las features elegibles en orden de dependencias? Cada feature se fusiona automáticamente en main al completarse.",
+  "batch.conflictTitle": "Conflicto de merge en {id}",
+  "batch.startFailed": "Error al iniciar lote: {error}",
+  "batch.stopFailed": "Error al detener lote: {error}",
+  "batch.continueFailed": "Error al continuar lote: {error}"
 }

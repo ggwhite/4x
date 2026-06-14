@@ -35,6 +35,8 @@ const (
 	TestReport       = "test-report.md"
 	VerifyFile       = "verify.json"
 	EscalationFile   = "escalation.json"
+	BatchStopFile    = "batch-stop"
+	BatchConflictFile = "batch-conflict.json"
 )
 
 // Workspace 管理 .4x/ 目錄的讀寫
@@ -394,6 +396,41 @@ func (w *Workspace) AppendEvent(featureID string, evt Event) error {
 	defer f.Close()
 	_, err = f.Write(append(data, '\n'))
 	return err
+}
+
+// WriteBatchConflict 將 batch auto-merge 衝突信號寫入 .4x/batch-conflict.json，
+// 供 dashboard 顯示衝突細節並提供 Continue Batch 操作。
+func (w *Workspace) WriteBatchConflict(c BatchConflict) error {
+	data, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(w.DotDir(), BatchConflictFile), append(data, '\n'), 0o644)
+}
+
+// ReadBatchConflict 讀取 .4x/batch-conflict.json；檔案不存在時回 (nil, nil) 代表目前無衝突。
+func (w *Workspace) ReadBatchConflict() (*BatchConflict, error) {
+	data, err := os.ReadFile(filepath.Join(w.DotDir(), BatchConflictFile))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var c BatchConflict
+	if err := json.Unmarshal(data, &c); err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
+// ClearBatchConflict 刪除 .4x/batch-conflict.json；檔案不存在時不視為錯誤。
+func (w *Workspace) ClearBatchConflict() error {
+	err := os.Remove(filepath.Join(w.DotDir(), BatchConflictFile))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 // ReadConfig 讀取 .4x/settings.json

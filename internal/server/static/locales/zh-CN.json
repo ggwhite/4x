@@ -140,5 +140,17 @@
   "toast.runFailed": "执行失败：{error}",
   "toast.stopFailed": "停止失败：{error}",
   "toast.doneSuccess": "{id} 已标记完成",
-  "toast.createFailed": "创建失败：{error}"
+  "toast.createFailed": "创建失败：{error}",
+  "dag.title": "依赖关系图",
+  "batch.title": "批次",
+  "batch.start": "启动批次",
+  "batch.stop": "停止批次",
+  "batch.continue": "继续批次",
+  "batch.running": "批次运行中",
+  "batch.confirmTitle": "启动批次运行",
+  "batch.confirmMsg": "按依赖顺序运行所有符合条件的 feature？每个 feature 完成后会自动 merge 回 main。",
+  "batch.conflictTitle": "{id} 发生 merge 冲突",
+  "batch.startFailed": "启动批次失败：{error}",
+  "batch.stopFailed": "停止批次失败：{error}",
+  "batch.continueFailed": "继续批次失败：{error}"
 }

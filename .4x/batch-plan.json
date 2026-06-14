@@ -1,0 +1,48 @@
+{
+  "generatedAt": "2026-06-11T06:06:29.839738Z",
+  "clusters": [
+    {
+      "id": "cluster-0",
+      "features": [
+        "p0-severity-gate"
+      ],
+      "chains": [
+        [
+          "p0-severity-gate"
+        ]
+      ]
+    },
+    {
+      "id": "cluster-1",
+      "features": [
+        "p0-run-loop-complete",
+        "p1-baseline-integration"
+      ],
+      "chains": [
+        [
+          "p0-run-loop-complete",
+          "p1-baseline-integration"
+        ]
+      ]
+    }
+  ],
+  "schedule": [
+    {
+      "featureId": "p0-severity-gate",
+      "slot": 0,
+      "canStartAfter": []
+    },
+    {
+      "featureId": "p0-run-loop-complete",
+      "slot": 1,
+      "canStartAfter": []
+    },
+    {
+      "featureId": "p1-baseline-integration",
+      "slot": 1,
+      "canStartAfter": [
+        "p0-run-loop-complete"
+      ]
+    }
+  ]
+}

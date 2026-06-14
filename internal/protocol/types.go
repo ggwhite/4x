@@ -270,6 +270,16 @@ type Escalation struct {
 	Detail string `json:"detail"`
 }
 
+// BatchConflict 是 batch auto-merge 遇衝突暫停時寫入的信號（.4x/batch-conflict.json）。
+// dashboard 讀此檔得知是哪個 feature、哪個 repo、哪些檔案發生衝突，供使用者解完後 Continue Batch。
+type BatchConflict struct {
+	FeatureID    string    `json:"featureId"`
+	FeatureName  string    `json:"featureName"`
+	ConflictRepo string    `json:"conflictRepo"`
+	Files        []string  `json:"files"`
+	DetectedAt   time.Time `json:"detectedAt"`
+}
+
 // WorkspaceConfig 描述 multi-repo workspace 的 repo 映射。
 // 沒有設定時代表 monorepo 模式。
 type WorkspaceConfig struct {

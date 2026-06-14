@@ -1,0 +1,23 @@
+{
+  "project": {
+    "name": "todo-api"
+  },
+  "runners": {
+    "claude": {
+      "command": "claude",
+      "args": ["-p", "{prompt}"],
+      "model": "opus"
+    },
+    "codex": {
+      "command": "codex",
+      "args": ["exec", "--prompt-file", "{promptFile}"]
+    }
+  },
+  "default_runner": "claude",
+  "roles": {
+    "coder": { "model": "sonnet" },
+    "designer": { "model": "opus" },
+    "reviewer": { "model": "sonnet", "deep_model": "opus" },
+    "tester": { "model": "sonnet" }
+  }
+}

@@ -140,5 +140,17 @@
   "toast.runFailed": "実行に失敗しました：{error}",
   "toast.stopFailed": "停止に失敗しました：{error}",
   "toast.doneSuccess": "{id} を完了にしました",
-  "toast.createFailed": "作成に失敗しました：{error}"
+  "toast.createFailed": "作成に失敗しました：{error}",
+  "dag.title": "依存関係グラフ",
+  "batch.title": "バッチ",
+  "batch.start": "バッチ開始",
+  "batch.stop": "バッチ停止",
+  "batch.continue": "バッチ続行",
+  "batch.running": "バッチ実行中",
+  "batch.confirmTitle": "バッチ実行を開始",
+  "batch.confirmMsg": "対象となるすべての feature を依存順に実行しますか？各 feature は完了後に自動で main へ merge されます。",
+  "batch.conflictTitle": "{id} で merge コンフリクト",
+  "batch.startFailed": "バッチ開始に失敗しました：{error}",
+  "batch.stopFailed": "バッチ停止に失敗しました：{error}",
+  "batch.continueFailed": "バッチ続行に失敗しました：{error}"
 }

@@ -1,0 +1,14 @@
+id: rest-api-for-todo-items
+name: "REST API for todo items"
+status: todo
+description: |
+  Implement a CRUD REST API for todo items.
+  Endpoints: GET/POST /v1/todos, GET/PUT/DELETE /v1/todos/{id}
+repos:
+  backend: ./backend
+max_rounds: 5
+acceptance:
+  - "All five endpoints return correct HTTP status codes."
+  - "Invalid input returns 400 with a structured error body."
+  - "Non-existent resource returns 404."
+  - "Integration tests pass against a real PostgreSQL instance."

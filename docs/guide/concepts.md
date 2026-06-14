@@ -123,6 +123,7 @@ Roles communicate through the `.4x/` directory, not shared context windows.
 ├── plugins/                         # Runner instruction files
 ├── batch-plan.json                  # Batch execution plan
 ├── batch-stop                       # Graceful stop signal
+├── batch-conflict.json              # Batch auto-merge conflict signal (paused)
 ├── features/
 │   └── {id}.yaml                    # Feature definition (canonical source)
 └── {feature-id}/
@@ -143,6 +144,25 @@ Roles communicate through the `.4x/` directory, not shared context windows.
         ├── verify.json              # {passed, round, role, commands[]}
         └── escalation.json          # {needed, reason, detail}
 ```
+
+### Batch Signal Files
+
+Two top-level signal files coordinate a running batch with external observers (the CLI and the dashboard):
+
+- **`batch-stop`** — an empty marker file. `4x batch run` polls for it between features and stops gracefully once it exists (see [Batch Mode](batch.md)).
+- **`batch-conflict.json`** — written when batch auto-merge hits a merge conflict and pauses. It carries enough detail for the dashboard to render the conflict without re-running git:
+
+  ```json
+  {
+    "featureId": "F003-oauth",
+    "featureName": "OAuth login",
+    "conflictRepo": "core",
+    "files": ["internal/auth/token.go"],
+    "detectedAt": "2026-06-15T00:00:00Z"
+  }
+  ```
+
+  `conflictRepo` is empty in monorepo mode. The file is cleared at the start of each batch run and when the user continues a paused batch.
 
 ### Atomic State Writes
 

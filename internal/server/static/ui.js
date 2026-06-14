@@ -237,6 +237,167 @@ function classify(tasks) {
   return g;
 }
 
+// openFeatureDetail 由 DAG 節點點擊呼叫，開啟對應 feature 的詳情面板（與 task card 同一路徑）。
+function openFeatureDetail(fid) {
+  const task = lastTasks.find(t => t.id === fid);
+  if (!task) return;
+  current = fid;
+  load();
+  loadDetail(task);
+}
+
+// dagNodeColor 依 feature 狀態決定 DAG 節點配色：done=綠、running=藍、blocked/needs-attention=紅、
+// ready-for-review=琥珀、其餘（todo/in-progress）=灰。
+function dagNodeColor(task) {
+  const running = task.active && task.phase && task.phase !== 'done';
+  if (running) return { bg: 'rgba(59,130,246,.15)', border: 'rgba(59,130,246,.5)', dot: '#3b82f6', text: '#93c5fd' };
+  if (task.status === 'done') return { bg: 'rgba(16,185,129,.15)', border: 'rgba(16,185,129,.5)', dot: '#10b981', text: '#6ee7b7' };
+  if (task.status === 'blocked' || task.status === 'needs-attention') return { bg: 'rgba(239,68,68,.15)', border: 'rgba(239,68,68,.5)', dot: '#ef4444', text: '#fca5a5' };
+  if (task.status === 'ready-for-review') return { bg: 'rgba(245,158,11,.15)', border: 'rgba(245,158,11,.5)', dot: '#f59e0b', text: '#fcd34d' };
+  return { bg: 'rgba(113,113,122,.12)', border: 'rgba(113,113,122,.4)', dot: '#a1a1aa', text: '#d4d4d8' };
+}
+
+// renderDag 由 lastTasks 建出 dependency DAG，純 SVG 渲染（無外部圖表 library）。
+// 節點為 feature、邊為 depends（被依賴者指向依賴者）；依 depends 深度分層，同層水平排列。
+// 無任何依賴關係時回空字串（不顯示空圖）。
+function renderDag(tasks) {
+  const list = tasks || [];
+  const byId = {};
+  list.forEach(t => { byId[t.id] = t; });
+
+  const edges = [];
+  const involved = new Set();
+  list.forEach(t => {
+    (t.depends || []).forEach(d => {
+      if (byId[d]) { edges.push([d, t.id]); involved.add(d); involved.add(t.id); }
+    });
+  });
+  if (edges.length === 0) return '';
+
+  const nodes = [...involved].map(id => byId[id]);
+  const depth = {};
+  function calcDepth(id, seen) {
+    if (depth[id] != null) return depth[id];
+    if (seen.has(id)) return 0;
+    seen.add(id);
+    let d = 0;
+    (byId[id].depends || []).forEach(dep => { if (byId[dep]) d = Math.max(d, calcDepth(dep, seen) + 1); });
+    seen.delete(id);
+    depth[id] = d;
+    return d;
+  }
+  nodes.forEach(n => calcDepth(n.id, new Set()));
+
+  const layers = {};
+  nodes.forEach(n => { (layers[depth[n.id]] = layers[depth[n.id]] || []).push(n); });
+  const layerKeys = Object.keys(layers).map(Number).sort((a, b) => a - b);
+  layerKeys.forEach(k => layers[k].sort((a, b) => a.id.localeCompare(b.id)));
+
+  const NW = 150, NH = 42, GX = 28, GY = 78;
+  const pos = {};
+  let maxCols = 0;
+  layerKeys.forEach(k => { maxCols = Math.max(maxCols, layers[k].length); });
+  layerKeys.forEach((k, li) => {
+    layers[k].forEach((n, ci) => { pos[n.id] = { x: ci * (NW + GX) + GX, y: li * GY + 16 }; });
+  });
+  const width = Math.max(maxCols * (NW + GX) + GX, NW + GX * 2);
+  const height = layerKeys.length * GY + 16;
+
+  let svgEdges = '';
+  edges.forEach(([from, to]) => {
+    const p = pos[from], c = pos[to];
+    if (!p || !c) return;
+    const x1 = p.x + NW / 2, y1 = p.y + NH, x2 = c.x + NW / 2, y2 = c.y;
+    const my = (y1 + y2) / 2;
+    svgEdges += `<path class="dag-edge" d="M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}" marker-end="url(#dag-arrow)"/>`;
+  });
+
+  let svgNodes = '';
+  nodes.forEach(n => {
+    const p = pos[n.id], col = dagNodeColor(n);
+    const name = esc((n.name || '').slice(0, 20));
+    svgNodes += `<g class="dag-node" onclick="openFeatureDetail('${escAttr(n.id)}')" transform="translate(${p.x},${p.y})">
+      <rect width="${NW}" height="${NH}" rx="8" fill="${col.bg}" stroke="${col.border}" stroke-width="1.5"/>
+      <circle cx="15" cy="${NH / 2}" r="4" fill="${col.dot}"/>
+      <text x="28" y="18" class="dag-node-id" fill="${col.text}">${esc(n.id)}</text>
+      <text x="28" y="33" class="dag-node-name">${name}</text>
+    </g>`;
+  });
+
+  return `<div class="dash-card" id="dag-view"><div class="text-[10px] font-bold dash-muted uppercase tracking-wider mb-3">${t('dag.title')}</div>
+    <div class="dag-scroll"><svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+      <defs><marker id="dag-arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="var(--text-4)"/></marker></defs>
+      ${svgEdges}${svgNodes}
+    </svg></div></div>`;
+}
+
+// renderBatchPanel 依 /api/batch/status 渲染 batch 控制區：Start/Stop/Continue、執行指示、
+// 衝突提示卡與佇列進度（done 打勾、running 標記、waiting 顯示佇列位置）。
+function renderBatchPanel(status) {
+  const running = !!(status && status.running);
+  const conflict = status && status.conflict;
+
+  let controls;
+  if (running) {
+    controls = `<span class="batch-running-ind"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span>${t('batch.running')}</span>
+      <button onclick="stopBatch()" class="batch-btn batch-btn-stop">${t('batch.stop')}</button>`;
+  } else {
+    controls = `<button onclick="startBatch()" class="batch-btn batch-btn-start">${t('batch.start')}</button>`;
+  }
+
+  let conflictCard = '';
+  if (conflict) {
+    const files = (conflict.files || []).map(f => `<li>${esc(f)}</li>`).join('');
+    const repo = conflict.conflictRepo ? `<span class="batch-conflict-repo">${esc(conflict.conflictRepo)}</span>` : '';
+    conflictCard = `<div class="batch-conflict">
+      <div class="batch-conflict-title">⚠ ${t('batch.conflictTitle').replace('{id}', esc(conflict.featureId || ''))} ${repo}</div>
+      ${files ? `<ul class="batch-conflict-files">${files}</ul>` : ''}
+      <button onclick="continueBatch()" class="batch-btn batch-btn-continue">${t('batch.continue')}</button>
+    </div>`;
+  }
+
+  let queueHtml = '';
+  if (status && status.queue && status.queue.length) {
+    queueHtml = status.queue.map(q => {
+      let icon, cls;
+      if (q.state === 'done') { icon = '✓'; cls = 'done'; }
+      else if (q.state === 'running') { icon = '▶'; cls = 'running'; }
+      else { icon = '#' + q.position; cls = 'waiting'; }
+      return `<div class="batch-q-item batch-q-${cls}"><span class="batch-q-icon">${icon}</span><span class="batch-q-id">${esc(q.featureId)}</span><span class="batch-q-name">${esc(q.name || '')}</span></div>`;
+    }).join('');
+  }
+
+  return `<div class="dash-card" id="batch-panel"><div class="flex items-center gap-2 mb-3">
+      <span class="text-[10px] font-bold dash-muted uppercase tracking-wider">${t('batch.title')}</span>
+      <div class="ml-auto flex items-center gap-2">${controls}</div>
+    </div>${conflictCard}${queueHtml ? `<div class="batch-queue">${queueHtml}</div>` : ''}</div>`;
+}
+
+// startBatch 先彈確認對話框（避免誤觸），確認後 POST /api/batch/start 啟動 batch run。
+function startBatch() {
+  showConfirm(t('batch.confirmTitle'), t('batch.confirmMsg'), async () => {
+    const res = await fetch(apiBase() + '/api/batch/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    if (!res.ok) { showToast(t('batch.startFailed').replace('{error}', await res.text())); return; }
+    load();
+  });
+}
+
+// stopBatch 送出 graceful 停止信號（batch 跑完當前 feature 後結束）。
+function stopBatch() {
+  fetch(apiBase() + '/api/batch/stop', { method: 'POST' }).then(async res => {
+    if (!res.ok) { showToast(t('batch.stopFailed').replace('{error}', await res.text())); return; }
+    load();
+  });
+}
+
+// continueBatch 在使用者解完衝突後呼叫：後端先清衝突信號再重啟 batch。
+function continueBatch() {
+  fetch(apiBase() + '/api/batch/continue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(async res => {
+    if (!res.ok) { showToast(t('batch.continueFailed').replace('{error}', await res.text())); return; }
+    load();
+  });
+}
+
 function renderDashboard(tasks) {
   const el = document.getElementById('dashboard');
   if (current) { el.classList.add('hidden'); return; }
@@ -259,6 +420,8 @@ function renderDashboard(tasks) {
 <div class="dash-card text-center"><div class="text-3xl font-bold text-blue-400">${g.pending.length}</div><div class="text-xs dash-muted mt-1 uppercase tracking-wider">${t('sidebar.pending')}</div></div>
 <div class="dash-card text-center"><div class="text-3xl font-bold text-purple-400">${g.todo.length}</div><div class="text-xs dash-muted mt-1 uppercase tracking-wider">${t('sidebar.todo')}</div></div>
 <div class="dash-card text-center"><div class="text-3xl font-bold text-green-400">${g.done.length}</div><div class="text-xs dash-muted mt-1 uppercase tracking-wider">${t('sidebar.done')}</div></div></div>
+${renderBatchPanel(lastBatchStatus)}
+${renderDag(tasks)}
 <div class="grid grid-cols-2 gap-4 mb-8">
 <div class="dash-card"><div class="text-[10px] font-bold dash-muted uppercase tracking-wider mb-4">${t('dashboard.status')}</div><div class="flex items-center gap-6"><div class="relative w-28 h-28 flex-shrink-0"><div class="w-28 h-28 rounded-full" style="background:${donut}"></div><div class="absolute inset-3 rounded-full dash-donut-center flex items-center justify-center flex-col"><span class="text-xl font-bold">${total}</span><span class="text-[10px] dash-muted">${t('dashboard.total')}</span></div></div><div class="space-y-2 text-xs"><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>${t('sidebar.running')}<span class="ml-auto dash-sub font-bold">${g.running.length}</span></div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>${t('sidebar.review')}<span class="ml-auto dash-sub font-bold">${g.review.length}</span></div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>${t('sidebar.pending')}<span class="ml-auto dash-sub font-bold">${g.pending.length}</span></div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span>${t('sidebar.todo')}<span class="ml-auto dash-sub font-bold">${g.todo.length}</span></div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>${t('sidebar.done')}<span class="ml-auto dash-sub font-bold">${g.done.length}</span></div></div></div></div>
 <div class="dash-card"><div class="text-[10px] font-bold dash-muted uppercase tracking-wider mb-4">${t('dashboard.roundsDist')}</div><div class="space-y-3">${Object.entries(buckets).map(([l,c])=>{const p=maxB?(c/maxB)*100:0;const co={'1':'#10b981','2':'#3b82f6','3-4':'#f59e0b','5+':'#ef4444'};return `<div class="flex items-center gap-3"><span class="text-xs dash-muted w-8 text-right">${l}R</span><div class="flex-1 h-5 dash-bar-bg rounded overflow-hidden"><div class="h-full rounded" style="width:${p}%;background:${co[l]}"></div></div><span class="text-xs font-bold w-6 text-right" style="color:var(--text-1)">${c}</span></div>`;}).join('')}</div>${doneTasks.length>0?`<div class="text-[10px] dash-muted mt-3">${t('dashboard.avgRounds').replace('{avg}', (doneTasks.reduce((s,d)=>s+d.round,0)/doneTasks.length).toFixed(1))}</div>`:''}</div></div>
@@ -433,12 +596,14 @@ function renderSidebar() {
 
 async function load() {
   if (!activeProjectId) { renderProjectPicker(); return; }
-  const [tasks, runs] = await Promise.all([
+  const [tasks, runs, batchStatus] = await Promise.all([
     fetch(apiBase()+'/api/tasks').then(r => r.json()).catch(() => []),
     fetch(apiBase()+'/api/runs').then(r => r.ok ? r.json() : []).catch(() => []),
+    fetch(apiBase()+'/api/batch/status').then(r => r.ok ? r.json() : null).catch(() => null),
   ]);
   lastTasks = tasks || [];
   activeRuns = runs || [];
+  lastBatchStatus = batchStatus;
   renderSidebar();
   if (!current) renderDashboard(lastTasks);
 }
