@@ -124,7 +124,9 @@ func printPlan(plan *batch.BatchPlan) error {
 }
 
 func newBatchNextCmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonOutput bool
+
+	cmd := &cobra.Command{
 		Use:   "next",
 		Short: "Show the next eligible feature to run",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -153,8 +155,10 @@ func newBatchNextCmd() *cobra.Command {
 				return err
 			}
 			statusMap := make(map[string]protocol.Status)
+			featureMap := make(map[string]protocol.Feature)
 			for _, f := range features {
 				statusMap[f.ID] = f.Status
+				featureMap[f.ID] = f
 			}
 
 			for _, s := range plan.Schedule {
@@ -169,15 +173,51 @@ func newBatchNextCmd() *cobra.Command {
 					}
 				}
 				if allDone {
-					fmt.Println(s.FeatureID)
+					if !jsonOutput {
+						fmt.Println(s.FeatureID)
+						return nil
+					}
+
+					result := struct {
+						FeatureID       string   `json:"featureId"`
+						Slot            int      `json:"slot"`
+						SubtaskFrontier []string `json:"subtaskFrontier"`
+					}{
+						FeatureID: s.FeatureID,
+						Slot:      s.Slot,
+					}
+
+					if f, ok := featureMap[s.FeatureID]; ok && len(f.Subtasks) > 0 {
+						frontier, err := batch.SubtaskFrontier(f.Subtasks)
+						if err != nil {
+							return fmt.Errorf("feature %s subtask dependency error: %w", s.FeatureID, err)
+						}
+						result.SubtaskFrontier = frontier
+					}
+					if result.SubtaskFrontier == nil {
+						result.SubtaskFrontier = []string{}
+					}
+
+					out, err := json.MarshalIndent(result, "", "  ")
+					if err != nil {
+						return err
+					}
+					fmt.Println(string(out))
 					return nil
 				}
 			}
 
-			fmt.Println("No eligible features (all done or blocked by dependencies).")
+			if jsonOutput {
+				fmt.Println("null")
+			} else {
+				fmt.Println("No eligible features (all done or blocked by dependencies).")
+			}
 			return nil
 		},
 	}
+
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output in JSON format with subtask frontier")
+	return cmd
 }
 
 func newBatchRunCmd() *cobra.Command {
