@@ -71,7 +71,7 @@ The loop drives: init → designing → coding → reviewing → testing → acc
 
 After each non-designer runner completes, guardrail checks are enforced automatically (scope, baseline, required files). A violation transitions the feature to `needs-attention` and stops the loop. Designer is exempt — it does not modify source code.
 
-Review verdicts must start with `PASS` to pass. Ambiguous output (`TODO`, `ERROR`, garbled text, missing `## Verdict` block) is treated as failure.
+Review verdicts must start with `PASS` to pass. Blank lines between the `## Verdict` heading and the verdict text are ignored. Ambiguous output (`TODO`, `ERROR`, garbled text, missing `## Verdict` block) is treated as failure.
 
 If the feature is in `blocked` or `needs-attention` phase, automatically recovers to the appropriate resume phase based on the current role.
 

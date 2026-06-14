@@ -63,6 +63,8 @@ Use `4x sync` to re-deploy plugin files after updating the binary.
 | negative (e.g. -1) | Signal kill (SIGKILL/SIGTERM) | Treated as hard error (same as exit 2) |
 | timeout | No response within limit | Treated as soft failure |
 
+When the run loop is interrupted (e.g. Ctrl+C), context cancellation is handled as a clean interrupt — the feature is not left in `needs-attention`. The in-progress phase is treated as incomplete, and the next `4x run` resumes from that phase.
+
 ### Stream JSON Mode
 
 Runners with `output_format: "stream-json"` write two files: a readable `.log` for dashboard tailing and a raw `.stream.jsonl` file for debugging. Claude Code uses this mode by default.

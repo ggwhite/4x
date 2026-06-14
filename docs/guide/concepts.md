@@ -11,6 +11,17 @@
 
 Each role is **isolated** — the Coder never sees prior review feedback during implementation. The Tester validates against criteria written by the Designer, not the Coder.
 
+### Additional Loop Roles
+
+Two additional roles operate later in the loop:
+
+| Role | Phase | Responsibility |
+|---|---|---|
+| **Deep Reviewer** | `deep-reviewing` | Adversarial review — finds the worst-case bugs across the full diff |
+| **Acceptor** | `accepting` | Aggregates all round findings into `final-report.md` and `commit-plan.md` for human review |
+
+The Acceptor uses its own dedicated model configuration (`roles.acceptor.model`) — distinct from the Designer. It reads ALL round artifacts before producing the final summary.
+
 ### Review: Two Phases
 
 1. **Checklist review** (standard model) — checks against project hard rules: security, concurrency, error handling, style
