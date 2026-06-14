@@ -747,6 +747,10 @@ func nextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) 
 		return protocol.PhaseNeedsAttention, "", strings.Join(result.Errors, "; ")
 
 	case protocol.PhaseDeepReviewing:
+		// deep-reviewing 由 runDeepReviewPhase 完整接管（F063）：在正常執行路徑上，
+		// 主迴圈一遇到此 phase 即呼叫 runDeepReviewPhase 並 continue/break，不會落到這裡。
+		// 此 case 僅保留供 dry-run 診斷等間接查詢使用，回傳值需符合 F063 設計意圖：
+		// deep-review FAIL 後走 needs-attention（自癒已在 phase 內完成），不回 amending。
 		report := filepath.Join(ws.RoundDir(featureID, s.Round), protocol.DeepReviewReport)
 		if _, err := os.Stat(report); err != nil {
 			return protocol.PhaseNeedsAttention, "", "missing-artifact: " + protocol.DeepReviewReport
@@ -754,7 +758,7 @@ func nextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) 
 		if reviewPassed(ws, featureID, s.Round, protocol.DeepReviewReport) {
 			return protocol.PhaseAccepting, protocol.RoleAcceptor, ""
 		}
-		return protocol.PhaseAmending, protocol.RoleCoder, ""
+		return protocol.PhaseNeedsAttention, "", "deep-review self-heal exhausted"
 
 	case protocol.PhaseAccepting:
 		report := filepath.Join(ws.FeatureDir(featureID), protocol.FinalReport)
