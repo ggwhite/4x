@@ -49,7 +49,7 @@
       ]
     },
     "coder": {
-      "model": "sonnet",
+      "model": "opus",
       "instructions": [
         "每次改動後跑 go build ./cmd/4x && go vet ./... && go test -race ./...，改到 locale 或 docs 時加跑 make check-i18n && make check-docs",
         "新增 Cobra subcommand 時在 cmd/4x/main.go 註冊",

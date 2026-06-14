@@ -350,6 +350,12 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 	featureID := feature.ID
 
 	if s.Phase == protocol.PhaseInit {
+		hookLogDir := filepath.Join(ws.FeatureDir(featureID), "hook-logs")
+		initHooks := resolveHooks(cfg, feature, protocol.PhaseDesigning)
+		if err := executePhaseHooks(ctx, ws, featureID, &s, initHooks["pre"], protocol.PhaseDesigning, "pre", hookLogDir); err != nil {
+			return err
+		}
+
 		var err error
 		s, err = state.Transition(s, protocol.PhaseDesigning, protocol.RoleDesigner)
 		if err != nil {
@@ -360,6 +366,10 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		}
 		if err := syncFeatureStatus(ws, featureID, s.Phase); err != nil {
 			fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+		}
+
+		if err := executePhaseHooks(ctx, ws, featureID, &s, initHooks["post"], protocol.PhaseDesigning, "post", hookLogDir); err != nil {
+			return err
 		}
 	}
 
@@ -563,9 +573,15 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 
 		next, nextRole, stopReason := nextPhaseAfter(ws, featureID, s)
 
-		// needs-attention/blocked 保留原 role，讓 recovery 能判斷該回哪個 phase
 		if (next == protocol.PhaseNeedsAttention || next == protocol.PhaseBlocked) && nextRole == "" {
 			nextRole = role
+		}
+
+		loopHooks := resolveHooks(cfg, feature, next)
+		hookLogDir := filepath.Join(ws.FeatureDir(featureID), "hook-logs")
+
+		if err := executePhaseHooks(ctx, ws, featureID, &s, loopHooks["pre"], next, "pre", hookLogDir); err != nil {
+			return err
 		}
 
 		newState, err := state.Transition(s, next, nextRole)
@@ -586,6 +602,10 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			Type: "transition", Phase: s.Phase, Role: s.Role, Round: s.Round,
 			Runner: s.Runner,
 		})
+
+		if err := executePhaseHooks(ctx, ws, featureID, &s, loopHooks["post"], next, "post", hookLogDir); err != nil {
+			return err
+		}
 	}
 
 	switch s.Phase {

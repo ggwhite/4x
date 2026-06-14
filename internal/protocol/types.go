@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -78,19 +79,36 @@ func PhaseToStatus(phase Phase) Status {
 	}
 }
 
+// HookEntry 描述一個 phase hook 的 shell command 與失敗策略。
+// 失敗策略 on_fail 未設定時預設為 "block"（中止 phase 轉換）；
+// 設為 "warn" 則只記錄警告，不中止流程。
+type HookEntry struct {
+	Run    string `json:"run" yaml:"run"`
+	OnFail string `json:"on_fail,omitempty" yaml:"on_fail,omitempty"`
+}
+
+// EffectiveOnFail 回傳實際的失敗策略，未設定時預設 "block"。
+func (h HookEntry) EffectiveOnFail() string {
+	if h.OnFail == "" {
+		return "block"
+	}
+	return strings.ToLower(h.OnFail)
+}
+
 // Feature 是 features/*.yaml 的結構
 type Feature struct {
-	ID          string    `yaml:"id" json:"id"`
-	Name        string    `yaml:"name" json:"name"`
-	Description string    `yaml:"description" json:"description"`
-	Status      Status    `yaml:"status" json:"status"`
-	Priority    *int      `yaml:"priority,omitempty" json:"priority,omitempty"`
-	Repos       []string  `yaml:"repos,omitempty" json:"repos,omitempty"`
-	Subtasks    []Subtask `yaml:"subtasks,omitempty" json:"subtasks,omitempty"`
-	Rules       []string  `yaml:"rules,omitempty" json:"rules,omitempty"`
-	Depends     []string  `yaml:"depends,omitempty" json:"depends,omitempty"`
-	Spec        string    `yaml:"spec,omitempty" json:"-"`
-	Plan        string    `yaml:"plan,omitempty" json:"-"`
+	ID          string              `yaml:"id" json:"id"`
+	Name        string              `yaml:"name" json:"name"`
+	Description string              `yaml:"description" json:"description"`
+	Status      Status              `yaml:"status" json:"status"`
+	Priority    *int                `yaml:"priority,omitempty" json:"priority,omitempty"`
+	Repos       []string            `yaml:"repos,omitempty" json:"repos,omitempty"`
+	Subtasks    []Subtask           `yaml:"subtasks,omitempty" json:"subtasks,omitempty"`
+	Rules       []string            `yaml:"rules,omitempty" json:"rules,omitempty"`
+	Depends     []string            `yaml:"depends,omitempty" json:"depends,omitempty"`
+	Spec        string              `yaml:"spec,omitempty" json:"-"`
+	Plan        string              `yaml:"plan,omitempty" json:"-"`
+	Hooks       map[string][]HookEntry `yaml:"hooks,omitempty" json:"hooks,omitempty"`
 }
 
 // BacklogMirror 是根目錄 feature_list.json 的 legacy mirror 結構。
@@ -269,6 +287,7 @@ type Config struct {
 	Commit            string                       `json:"commit,omitempty"`
 	ModelTiers        map[string]map[string]string `json:"model_tiers,omitempty"`
 	Workspace         WorkspaceConfig              `json:"workspace,omitempty"`
+	Hooks             map[string][]HookEntry       `json:"hooks,omitempty"`
 }
 
 // ProjectConfig 是專案基本設定，包含既有工具鏈的描述
