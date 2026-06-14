@@ -2,6 +2,7 @@ package server
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -1291,5 +1292,396 @@ func TestPostDone_StateChangedDuringMergeReturns409(t *testing.T) {
 	}
 	if s.Phase != protocol.PhaseCoding {
 		t.Errorf("phase = %q, want coding (not transitioned to done)", s.Phase)
+	}
+}
+
+// setupLogSSEWorkspace 建立帶有 logs 目錄的測試 workspace，回傳 ws 與 logsDir 路徑。
+func setupLogSSEWorkspace(t *testing.T) (*protocol.Workspace, string) {
+	t.Helper()
+	ws := setupServerWorkspace(t)
+	logsDir := filepath.Join(ws.FeatureDir("test-feat"), "logs")
+	if err := os.MkdirAll(logsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return ws, logsDir
+}
+
+// collectLogSSEMessages 啟動 httptest server 執行 handleLogSSE，於 ctx 取消前收集所有 data 行，
+// 回傳解析出的 content 清單（每個 SSE message 的 content 欄位）。
+func collectLogSSEMessages(t *testing.T, ws *protocol.Workspace, ctx context.Context) []string {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handleLogSSE(ws, "test-feat", w, r)
+	}))
+	t.Cleanup(srv.Close)
+
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		// context 取消會導致 request error，屬正常
+		return nil
+	}
+	defer resp.Body.Close()
+
+	var contents []string
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		raw := strings.TrimPrefix(line, "data: ")
+		var msg map[string]string
+		if err := json.Unmarshal([]byte(raw), &msg); err != nil {
+			continue
+		}
+		if c, ok := msg["content"]; ok {
+			contents = append(contents, c)
+		}
+	}
+	return contents
+}
+
+// TestHandleLogSSE_SmallDelta 驗證 delta < 32KB 時收到單一 message，content 等於寫入內容，
+// 且 SSE message 格式為 {"file":"...","content":"..."}。
+func TestHandleLogSSE_SmallDelta(t *testing.T) {
+	ws, logsDir := setupLogSSEWorkspace(t)
+	logPath := filepath.Join(logsDir, "run.log")
+	written := []byte("hello log content")
+	if err := os.WriteFile(logPath, written, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// 等待至少一個 message，再取消連線
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handleLogSSE(ws, "test-feat", w, r)
+	}))
+	defer srv.Close()
+
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	scanner := bufio.NewScanner(resp.Body)
+	var gotMsg map[string]string
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		raw := strings.TrimPrefix(line, "data: ")
+		var msg map[string]string
+		if err := json.Unmarshal([]byte(raw), &msg); err != nil {
+			t.Fatalf("invalid JSON: %s", raw)
+		}
+		gotMsg = msg
+		cancel() // 收到第一個 message 就夠了
+		break
+	}
+
+	if gotMsg == nil {
+		t.Fatal("no SSE message received")
+	}
+	if _, ok := gotMsg["file"]; !ok {
+		t.Errorf("message missing 'file' key: %v", gotMsg)
+	}
+	if _, ok := gotMsg["content"]; !ok {
+		t.Errorf("message missing 'content' key: %v", gotMsg)
+	}
+	if gotMsg["content"] != string(written) {
+		t.Errorf("content = %q, want %q", gotMsg["content"], string(written))
+	}
+}
+
+// TestHandleLogSSE_LargeDelta 驗證 delta > 32KB（100KB）時收到多個 message，
+// content 拼接後 byte 完全等於寫入內容，無遺漏/重複。
+func TestHandleLogSSE_LargeDelta(t *testing.T) {
+	ws, logsDir := setupLogSSEWorkspace(t)
+	logPath := filepath.Join(logsDir, "run.log")
+	written := bytes.Repeat([]byte("x"), 100*1024) // 100KB
+	if err := os.WriteFile(logPath, written, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handleLogSSE(ws, "test-feat", w, r)
+	}))
+	defer srv.Close()
+
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	var collected []string
+	totalLen := 0
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		raw := strings.TrimPrefix(line, "data: ")
+		var msg map[string]string
+		if err := json.Unmarshal([]byte(raw), &msg); err != nil {
+			continue
+		}
+		if c, ok := msg["content"]; ok {
+			collected = append(collected, c)
+			totalLen += len(c)
+		}
+		if totalLen >= len(written) {
+			cancel()
+			break
+		}
+	}
+
+	if len(collected) < 2 {
+		t.Errorf("want ≥2 messages for 100KB delta, got %d", len(collected))
+	}
+	joined := strings.Join(collected, "")
+	if joined != string(written) {
+		t.Errorf("joined content len=%d, want %d; content mismatch", len(joined), len(written))
+	}
+}
+
+// TestHandleLogSSE_Boundary 驗證 delta 剛好 32KB 與 32KB+1 位元組的邊界行為。
+func TestHandleLogSSE_Boundary(t *testing.T) {
+	cases := []struct {
+		name    string
+		size    int
+		wantMsgs int
+	}{
+		{"exactly-32KB", 32 * 1024, 1},
+		{"32KB-plus-one", 32*1024 + 1, 2},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			ws, logsDir := setupLogSSEWorkspace(t)
+			logPath := filepath.Join(logsDir, "run.log")
+			written := bytes.Repeat([]byte("b"), tc.size)
+			if err := os.WriteFile(logPath, written, 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+			defer cancel()
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				handleLogSSE(ws, "test-feat", w, r)
+			}))
+			defer srv.Close()
+
+			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+
+			var collected []string
+			totalLen := 0
+			scanner := bufio.NewScanner(resp.Body)
+			for scanner.Scan() {
+				line := scanner.Text()
+				if !strings.HasPrefix(line, "data: ") {
+					continue
+				}
+				raw := strings.TrimPrefix(line, "data: ")
+				var msg map[string]string
+				if err := json.Unmarshal([]byte(raw), &msg); err != nil {
+					continue
+				}
+				if c, ok := msg["content"]; ok {
+					collected = append(collected, c)
+					totalLen += len(c)
+				}
+				if totalLen >= tc.size {
+					cancel()
+					break
+				}
+			}
+
+			if len(collected) != tc.wantMsgs {
+				t.Errorf("messages = %d, want %d", len(collected), tc.wantMsgs)
+			}
+			joined := strings.Join(collected, "")
+			if joined != string(written) {
+				t.Errorf("content mismatch: len=%d, want %d", len(joined), len(written))
+			}
+		})
+	}
+}
+
+// TestHandleLogSSE_MultibyteBoundary 驗證含 CJK／emoji 的 delta >32KB 時，
+// 多位元組字元即使橫跨 32KB chunk 邊界也不會被切半損毀為 U+FFFD，
+// 拼接後 byte 完全等於寫入內容（AC-6 回歸測試）。
+func TestHandleLogSSE_MultibyteBoundary(t *testing.T) {
+	ws, logsDir := setupLogSSEWorkspace(t)
+	logPath := filepath.Join(logsDir, "run.log")
+
+	// 混用 3-byte CJK 與 4-byte emoji，使各 32KB 邊界落點不對齊字元邊界。
+	unit := []byte("中文測試🎉日本語パターン")
+	var written []byte
+	for len(written) < 96*1024 { // 跨越多個 32KB 邊界
+		written = append(written, unit...)
+	}
+	if err := os.WriteFile(logPath, written, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handleLogSSE(ws, "test-feat", w, r)
+	}))
+	defer srv.Close()
+
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	var joined []byte
+	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		raw := strings.TrimPrefix(line, "data: ")
+		var msg map[string]string
+		if err := json.Unmarshal([]byte(raw), &msg); err != nil {
+			continue
+		}
+		if c, ok := msg["content"]; ok {
+			joined = append(joined, []byte(c)...)
+		}
+		if len(joined) >= len(written) {
+			cancel()
+			break
+		}
+	}
+
+	if strings.ContainsRune(string(joined), '�') {
+		t.Errorf("content 含 U+FFFD，多位元組字元在 32KB 邊界被損毀")
+	}
+	if !bytes.Equal(joined, written) {
+		t.Errorf("拼接後 byte 不一致：joined len=%d, want %d", len(joined), len(written))
+	}
+}
+
+// TestHandleLogSSE_TwoTicks 驗證兩次 tick 之間追加內容時，lastOffset 正確推進，
+// 第二次 tick 只推送新增的部分，不重複舊內容。
+func TestHandleLogSSE_TwoTicks(t *testing.T) {
+	ws, logsDir := setupLogSSEWorkspace(t)
+	logPath := filepath.Join(logsDir, "run.log")
+	firstWrite := []byte("first chunk\n")
+	if err := os.WriteFile(logPath, firstWrite, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handleLogSSE(ws, "test-feat", w, r)
+	}))
+	defer srv.Close()
+
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	scanner := bufio.NewScanner(resp.Body)
+	msgCh := make(chan string, 32)
+	go func() {
+		for scanner.Scan() {
+			line := scanner.Text()
+			if !strings.HasPrefix(line, "data: ") {
+				continue
+			}
+			raw := strings.TrimPrefix(line, "data: ")
+			var msg map[string]string
+			if err := json.Unmarshal([]byte(raw), &msg); err != nil {
+				continue
+			}
+			if c, ok := msg["content"]; ok {
+				msgCh <- c
+			}
+		}
+		close(msgCh)
+	}()
+
+	waitMsg := func(want string) {
+		t.Helper()
+		deadline := time.After(6 * time.Second)
+		for {
+			select {
+			case got, ok := <-msgCh:
+				if !ok {
+					t.Fatalf("channel closed waiting for %q", want)
+				}
+				if strings.Contains(got, want) {
+					return
+				}
+			case <-deadline:
+				t.Fatalf("timeout waiting for message containing %q", want)
+			}
+		}
+	}
+
+	// 第一次 tick 後收到 firstWrite
+	waitMsg("first chunk")
+
+	// 追加第二段內容
+	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondWrite := []byte("second chunk\n")
+	if _, err := f.Write(secondWrite); err != nil {
+		f.Close()
+		t.Fatal(err)
+	}
+	f.Close()
+
+	// 第二次 tick 後只收到 secondWrite，不含 firstWrite
+	deadline := time.After(6 * time.Second)
+	for {
+		select {
+		case got, ok := <-msgCh:
+			if !ok {
+				t.Fatal("channel closed before second message")
+			}
+			if strings.Contains(got, "first chunk") {
+				t.Errorf("second message should not contain first chunk, got: %q", got)
+			}
+			if strings.Contains(got, "second chunk") {
+				cancel()
+				return
+			}
+		case <-deadline:
+			t.Fatal("timeout waiting for second message containing 'second chunk'")
+		}
 	}
 }

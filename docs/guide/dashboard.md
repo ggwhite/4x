@@ -91,6 +91,8 @@ Feature detail includes a **Screenshots** tab when screenshots exist for that fe
 
 The event stream tracks a byte offset into `events.jsonl` and only sends newly appended lines. If the file is **truncated or rotated** — for example `4x transition --to init` resets the feature and rewrites `events.jsonl` from scratch — the new file size drops below the tracked offset. The stream detects this (`size < lastOffset`), resets the offset to 0, and re-reads the whole file from the beginning so the client recovers instead of silently stalling forever. A size equal to the offset still means "no new content" and is skipped.
 
+The log stream (`/sse/logs/{id}`) likewise tracks a byte offset and only sends newly appended content. To avoid per-tick garbage, it reuses a single fixed 32KB read buffer allocated once per connection instead of allocating a new buffer sized to each delta. On every tick it loop-reads from the offset to EOF; a delta larger than 32KB is split across several SSE messages, each carrying the same `{"file": "...", "content": "..."}` payload. The client appends content as it arrives, so splitting is transparent. When `size <= lastOffset` (no new content) the tick is skipped without opening the file.
+
 ### Multi-Project Routing
 
 With multiple projects, endpoints are prefixed with `/api/project/{project-id}/...` and `/sse/project/{project-id}/...`. Single-project mode uses the unprefixed paths for backward compatibility.

@@ -21,6 +21,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/logging"
@@ -1014,6 +1015,9 @@ func handleLogSSE(ws *protocol.Workspace, featureID string, w http.ResponseWrite
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
+	// 在連線生命週期內共用一個固定 32KB buffer，避免每秒 tick 重新分配造成 GC 壓力。
+	buf := make([]byte, 32*1024)
+
 	for {
 		select {
 		case <-r.Context().Done():
@@ -1044,17 +1048,62 @@ func handleLogSSE(ws *protocol.Workspace, featureID string, w http.ResponseWrite
 			if lastOffset > 0 {
 				f.Seek(lastOffset, 0)
 			}
-			buf := make([]byte, info.Size()-lastOffset)
-			n, _ := f.Read(buf)
-			f.Close()
-			if n > 0 {
-				chunk, _ := json.Marshal(map[string]string{"file": current, "content": string(buf[:n])})
-				fmt.Fprintf(w, "data: %s\n\n", chunk)
+			// carry 保留上一個 32KB chunk 尾端不完整的 UTF-8 位元組。
+			// 固定切分會把橫跨邊界的多位元組字元切兩半，各自 json.Marshal 會被
+			// 替換成不可逆的 U+FFFD；故只 emit 完整 rune，殘段併入下一輪前綴。
+			var carry []byte
+			for {
+				n, readErr := f.Read(buf)
+				if n > 0 {
+					data := buf[:n]
+					if len(carry) > 0 {
+						data = append(append(make([]byte, 0, len(carry)+n), carry...), buf[:n]...)
+					}
+					complete, rest := splitCompleteUTF8(data)
+					if len(complete) > 0 {
+						chunk, _ := json.Marshal(map[string]string{"file": current, "content": string(complete)})
+						fmt.Fprintf(w, "data: %s\n\n", chunk)
+					}
+					carry = append(carry[:0], rest...)
+					lastOffset += int64(n)
+				}
+				if readErr != nil {
+					// EOF：殘段即使不完整也必須送出，否則檔尾遺失（與舊行為一致）。
+					if len(carry) > 0 {
+						chunk, _ := json.Marshal(map[string]string{"file": current, "content": string(carry)})
+						fmt.Fprintf(w, "data: %s\n\n", chunk)
+					}
+					break
+				}
 			}
-			lastOffset += int64(n)
+			f.Close()
 			flusher.Flush()
 		}
 	}
+}
+
+// splitCompleteUTF8 將 data 切成「結尾為完整 UTF-8 rune 的前段 complete」與
+// 「結尾不完整的殘段 rest」。當 log 的 32KB chunk 邊界剛好落在多位元組字元中間時，
+// 殘段（最長 3 bytes）需保留併入下一輪 Read 前綴後再嘗試送出，避免字元被切半損毀。
+// 回傳的 complete／rest 共用 data 底層陣列，呼叫端若需跨輪保留 rest 應自行複製。
+func splitCompleteUTF8(data []byte) (complete, rest []byte) {
+	if len(data) == 0 {
+		return data, nil
+	}
+	// 從尾端往前找最後一個 rune 的起始位元組（非 continuation byte）
+	i := len(data) - 1
+	for i >= 0 && !utf8.RuneStart(data[i]) {
+		i--
+	}
+	// 整段都是 continuation bytes（理論上不會發生），全部送出避免卡死
+	if i < 0 {
+		return data, nil
+	}
+	// 最後一個 rune 已完整 → 整段皆可送出；否則保留該 rune 起點之後為殘段
+	if utf8.FullRune(data[i:]) {
+		return data, nil
+	}
+	return data[:i], data[i:]
 }
 
 func findLatestLog(dir string) string {
