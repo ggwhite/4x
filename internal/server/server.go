@@ -458,25 +458,20 @@ func handleMessages(ws *protocol.Workspace, featureID string, w http.ResponseWri
 	phases := buildPhaseInfo(ws, featureID)
 	var messages []messageInfo
 
-	{
-		var designParts []string
-		var designFiles []string
-		for _, name := range []string{protocol.TaskBrief, protocol.Criteria} {
-			content := readIfExists(filepath.Join(dir, name))
-			if content != "" {
-				designParts = append(designParts, "# "+name+"\n\n"+content)
-				designFiles = append(designFiles, name)
+	for i, name := range []string{protocol.TaskBrief, protocol.Criteria} {
+		content := readIfExists(filepath.Join(dir, name))
+		if content != "" {
+			mi := messageInfo{
+				Role:    "designer",
+				Label:   name,
+				Content: content,
+				File:    name,
 			}
-		}
-		if len(designParts) > 0 {
-			messages = append(messages, messageInfo{
-				Role:     "designer",
-				Label:    strings.Join(designFiles, " + "),
-				Content:  strings.Join(designParts, "\n\n---\n\n"),
-				File:     designFiles[0],
-				Duration: phases[durationKey{"designer", 0}].duration,
-				Model:    phases[durationKey{"designer", 0}].model,
-			})
+			if i == 0 {
+				mi.Duration = phases[durationKey{"designer", 0}].duration
+				mi.Model = phases[durationKey{"designer", 0}].model
+			}
+			messages = append(messages, mi)
 		}
 	}
 
