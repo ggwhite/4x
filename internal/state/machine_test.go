@@ -197,7 +197,7 @@ func TestPhaseToRole(t *testing.T) {
 		want  protocol.Role
 	}{
 		{protocol.PhaseDesigning, protocol.RoleDesigner},
-		{protocol.PhaseAccepting, protocol.RoleDesigner},
+		{protocol.PhaseAccepting, protocol.RoleAcceptor},
 		{protocol.PhaseCoding, protocol.RoleCoder},
 		{protocol.PhaseAmending, protocol.RoleCoder},
 		{protocol.PhaseReviewing, protocol.RoleReviewer},

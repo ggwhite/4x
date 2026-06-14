@@ -426,7 +426,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 				return fmt.Errorf("deep model resolution failed: %w", err)
 			}
 			if deepModel == "" {
-				next, nextRole, stopReason := protocol.PhaseAccepting, protocol.RoleDesigner, ""
+				next, nextRole, stopReason := protocol.PhaseAccepting, protocol.RoleAcceptor, ""
 				newState, err := state.Transition(s, next, nextRole)
 				if err != nil {
 					return fmt.Errorf("skip deep-review transition: %w", err)
@@ -645,7 +645,7 @@ func nextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) 
 			return protocol.PhaseNeedsAttention, "", "missing-artifact: " + protocol.DeepReviewReport
 		}
 		if reviewPassed(ws, featureID, s.Round, protocol.DeepReviewReport) {
-			return protocol.PhaseAccepting, protocol.RoleDesigner, ""
+			return protocol.PhaseAccepting, protocol.RoleAcceptor, ""
 		}
 		return protocol.PhaseAmending, protocol.RoleCoder, ""
 
