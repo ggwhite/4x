@@ -319,6 +319,11 @@ function renderTaskItem(task) {
     const parts = [roundPart, timePart.replace(/^ · /, '')].filter(Boolean).join(' · ');
     pi = `<div class="flex items-center gap-1.5 mt-1.5"><span class="text-[11px] text-zinc-600">${parts}</span></div>`;
   }
+  if (!isActive && task.stopReason && task.stopReason !== 'pending-review' && task.stopReason !== 'done') {
+    const srColors = {'scope-change':'#f59e0b','runner-error':'#ef4444','hard-error':'#ef4444','soft-fail':'#f59e0b','interrupted':'#a78bfa','escalation':'#f59e0b','model-error':'#ef4444'};
+    const srColor = srColors[task.stopReason] || '#a1a1aa';
+    pi += `<div class="flex items-center gap-1 mt-1"><span style="font-size:9px;padding:1px 5px;border-radius:4px;background:${srColor}18;color:${srColor};font-weight:600">⚠ ${task.stopReason}</span></div>`;
+  }
   const badge = phaseBadge(task.phase, task.round);
   const di = task.status==='done' ? '<span class="text-emerald-500/60 text-xs">✓</span>' : '';
   const doneBtn = task.status==='ready-for-review' ? `<button class="ml-auto px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/30 rounded hover:bg-amber-500/20 transition-colors" onclick="event.stopPropagation();markDone('${task.id}')">${t('sidebar.markDone')}</button>` : '';
@@ -339,7 +344,7 @@ function renderTaskItem(task) {
     const planTag = task.hasPlan ? '<span style="font-size:9px;padding:1px 4px;border-radius:4px;background:rgba(59,130,246,.12);color:#60a5fa">plan</span>' : '';
     docTags = specTag + planTag;
   }
-  const depTag = (task.depends && task.depends.length && task.status !== 'done') ? task.depends.map(d => `<span style="font-size:9px;padding:1px 4px;border-radius:4px;background:rgba(251,146,60,.10);color:#fb923c">→ ${d}</span>`).join('') : '';
+  const depTag = (task.depends && task.depends.length && task.status !== 'done') ? task.depends.map(d => {const dt=lastTasks.find(t=>t.id===d);const done=dt&&dt.status==='done';return done?`<span style="font-size:9px;padding:1px 4px;border-radius:4px;background:rgba(16,185,129,.12);color:#34d399">✓ ${d}</span>`:`<span style="font-size:9px;padding:1px 4px;border-radius:4px;background:rgba(251,146,60,.10);color:#fb923c">→ ${d}</span>`;}).join('') : '';
   const tagsLine = (prioTag || docTags || depTag) ? `<div class="flex gap-1 mt-1 flex-wrap">${prioTag}${docTags}${depTag}</div>` : '';
   return `<div class="${cls}" style="${cardStyle}" onclick="current='${task.id}';load();loadDetail(${JSON.stringify(task).replace(/"/g,'&quot;')})" onmouseenter="this.querySelector('.play-btn')&&(this.querySelector('.play-btn').style.opacity='1')" onmouseleave="this.querySelector('.play-btn')&&(this.querySelector('.play-btn').style.opacity='0')"><div class="flex items-start gap-2">${di}<div class="flex-1 min-w-0"><div class="flex items-center gap-2"><span class="text-[13px] font-medium truncate flex-1">${esc(task.name)}</span>${badge}</div><div class="text-[11px] text-zinc-600 mt-0.5">${task.id}</div>${pi}${tagsLine}${rtLine}</div>${doneBtn || actionBtn}</div></div>`;
 }
