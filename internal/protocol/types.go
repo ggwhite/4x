@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -91,7 +92,7 @@ func (h HookEntry) EffectiveOnFail() string {
 	if h.OnFail == "" {
 		return "block"
 	}
-	return h.OnFail
+	return strings.ToLower(h.OnFail)
 }
 
 // Feature 是 features/*.yaml 的結構

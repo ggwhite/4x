@@ -15,7 +15,6 @@ import (
 
 	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/guard"
-	"github.com/ggwhite/4x/internal/hook"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/runner"
 	"github.com/ggwhite/4x/internal/state"
@@ -350,17 +349,8 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 	if s.Phase == protocol.PhaseInit {
 		hookLogDir := filepath.Join(ws.FeatureDir(featureID), "hook-logs")
 		initHooks := resolveHooks(cfg, feature, protocol.PhaseDesigning)
-		if preHooks := initHooks["pre"]; len(preHooks) > 0 {
-			results, err := hook.Execute(preHooks, hookLogDir)
-			for _, r := range results {
-				ws.AppendEvent(featureID, hook.ToEvent(r, protocol.PhaseDesigning, "pre_designing"))
-			}
-			if err != nil {
-				s.Active = false
-				s.StopReason = "pre-hook-fail"
-				_ = ws.WriteState(featureID, s)
-				return fmt.Errorf("pre_designing hook failed: %w", err)
-			}
+		if err := executePhaseHooks(ctx, ws, featureID, &s, initHooks["pre"], protocol.PhaseDesigning, "pre", hookLogDir); err != nil {
+			return err
 		}
 
 		var err error
@@ -375,19 +365,8 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 		}
 
-		if postHooks := initHooks["post"]; len(postHooks) > 0 {
-			results, hookErr := hook.Execute(postHooks, hookLogDir)
-			for _, r := range results {
-				ws.AppendEvent(featureID, hook.ToEvent(r, protocol.PhaseDesigning, "post_designing"))
-			}
-			if hookErr != nil {
-				s.Phase = protocol.PhaseNeedsAttention
-				s.Active = false
-				s.StopReason = "post-hook-fail"
-				_ = ws.WriteState(featureID, s)
-				_ = syncFeatureStatus(ws, featureID, s.Phase)
-				return fmt.Errorf("post_designing hook failed: %w", hookErr)
-			}
+		if err := executePhaseHooks(ctx, ws, featureID, &s, initHooks["post"], protocol.PhaseDesigning, "post", hookLogDir); err != nil {
+			return err
 		}
 	}
 
@@ -566,17 +545,8 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		loopHooks := resolveHooks(cfg, feature, next)
 		hookLogDir := filepath.Join(ws.FeatureDir(featureID), "hook-logs")
 
-		if preHooks := loopHooks["pre"]; len(preHooks) > 0 {
-			results, err := hook.Execute(preHooks, hookLogDir)
-			for _, r := range results {
-				ws.AppendEvent(featureID, hook.ToEvent(r, next, "pre_"+string(next)))
-			}
-			if err != nil {
-				s.Active = false
-				s.StopReason = "pre-hook-fail"
-				_ = ws.WriteState(featureID, s)
-				return fmt.Errorf("pre_%s hook failed: %w", next, err)
-			}
+		if err := executePhaseHooks(ctx, ws, featureID, &s, loopHooks["pre"], next, "pre", hookLogDir); err != nil {
+			return err
 		}
 
 		newState, err := state.Transition(s, next, nextRole)
@@ -593,25 +563,14 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		}
 		_ = syncFeatureStatus(ws, featureID, s.Phase)
 
-		if postHooks := loopHooks["post"]; len(postHooks) > 0 {
-			results, hookErr := hook.Execute(postHooks, hookLogDir)
-			for _, r := range results {
-				ws.AppendEvent(featureID, hook.ToEvent(r, next, "post_"+string(next)))
-			}
-			if hookErr != nil {
-				s.Phase = protocol.PhaseNeedsAttention
-				s.Active = false
-				s.StopReason = "post-hook-fail"
-				_ = ws.WriteState(featureID, s)
-				_ = syncFeatureStatus(ws, featureID, s.Phase)
-				return fmt.Errorf("post_%s hook failed: %w", next, hookErr)
-			}
-		}
-
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "transition", Phase: s.Phase, Role: s.Role, Round: s.Round,
 			Runner: s.Runner,
 		})
+
+		if err := executePhaseHooks(ctx, ws, featureID, &s, loopHooks["post"], next, "post", hookLogDir); err != nil {
+			return err
+		}
 	}
 
 	switch s.Phase {

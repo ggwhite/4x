@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"context"
 	"path/filepath"
 	"strings"
 	"time"
@@ -97,17 +98,11 @@ func newTransitionCmd() *cobra.Command {
 			hooksMap := resolveHooks(cfg, feature, toPhase)
 			hookLogDir := filepath.Join(ws.FeatureDir(featureID), "hook-logs")
 
-			if preHooks := hooksMap["pre"]; len(preHooks) > 0 {
-				results, err := hook.Execute(preHooks, hookLogDir)
-				for _, r := range results {
-					ws.AppendEvent(featureID, hook.ToEvent(r, toPhase, "pre_"+string(toPhase)))
+			if err := executePhaseHooks(context.Background(), ws, featureID, &s, hooksMap["pre"], toPhase, "pre", hookLogDir); err != nil {
+				if jsonOutput {
+					return jsonError(err.Error())
 				}
-				if err != nil {
-					if jsonOutput {
-						return jsonError(fmt.Sprintf("pre_%s hook failed: %v", toPhase, err))
-					}
-					return fmt.Errorf("pre_%s hook failed: %w", toPhase, err)
-				}
+				return err
 			}
 
 			newState, err := state.Transition(s, toPhase, toRole)
@@ -133,31 +128,19 @@ func newTransitionCmd() *cobra.Command {
 				fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 			}
 
-			if postHooks := hooksMap["post"]; len(postHooks) > 0 {
-				results, hookErr := hook.Execute(postHooks, hookLogDir)
-				for _, r := range results {
-					ws.AppendEvent(featureID, hook.ToEvent(r, toPhase, "post_"+string(toPhase)))
-				}
-				if hookErr != nil {
-					naState, naErr := state.Transition(newState, protocol.PhaseNeedsAttention, "")
-					if naErr == nil {
-						naState.Active = false
-						ws.WriteState(featureID, naState)
-						syncFeatureStatus(ws, featureID, protocol.PhaseNeedsAttention)
-					}
-					if jsonOutput {
-						return jsonError(fmt.Sprintf("post_%s hook failed: %v", toPhase, hookErr))
-					}
-					return fmt.Errorf("post_%s hook failed: %w", toPhase, hookErr)
-				}
-			}
-
 			ws.AppendEvent(featureID, protocol.Event{
 				Phase: toPhase,
 				Type:  "transition",
 				Role:  toRole,
 				Round: newState.Round,
 			})
+
+			if err := executePhaseHooks(context.Background(), ws, featureID, &newState, hooksMap["post"], toPhase, "post", hookLogDir); err != nil {
+				if jsonOutput {
+					return jsonError(err.Error())
+				}
+				return err
+			}
 
 			if jsonOutput {
 				result := struct {
@@ -184,6 +167,35 @@ func newTransitionCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 	cmd.MarkFlagRequired("to")
 	return cmd
+}
+
+// executePhaseHooks 執行指定 timing（"pre"/"post"）的 phase hooks，記錄事件，失敗時統一處理狀態。
+func executePhaseHooks(ctx context.Context, ws *protocol.Workspace, featureID string, s *protocol.State,
+	hooks []protocol.HookEntry, phase protocol.Phase, timing string, logDir string) error {
+	if len(hooks) == 0 {
+		return nil
+	}
+	action := timing + "_" + string(phase)
+	results, err := hook.Execute(ctx, hooks, logDir)
+	for _, r := range results {
+		ws.AppendEvent(featureID, hook.ToEvent(r, phase, action))
+	}
+	if err != nil {
+		naState, naErr := state.Transition(*s, protocol.PhaseNeedsAttention, "")
+		if naErr == nil {
+			*s = naState
+		} else {
+			s.Phase = protocol.PhaseNeedsAttention
+		}
+		s.Active = false
+		if s.StopReason == "" {
+			s.StopReason = timing + "-hook-fail"
+		}
+		_ = ws.WriteState(featureID, *s)
+		_ = syncFeatureStatus(ws, featureID, s.Phase)
+		return fmt.Errorf("%s hook failed: %w", action, err)
+	}
+	return nil
 }
 
 // resolveHooks 根據 config 和 feature 的 hooks 設定，回傳目標 phase 的 pre/post hooks。

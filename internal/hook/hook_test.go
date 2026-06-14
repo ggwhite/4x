@@ -1,6 +1,7 @@
 package hook
 
 import (
+	"context"
 	"os"
 	"strings"
 	"testing"
@@ -10,7 +11,7 @@ import (
 
 func TestExecute_Success(t *testing.T) {
 	hooks := []protocol.HookEntry{{Run: "echo hello", OnFail: "block"}}
-	results, err := Execute(hooks, t.TempDir())
+	results, err := Execute(context.Background(), hooks,t.TempDir())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -27,7 +28,7 @@ func TestExecute_Success(t *testing.T) {
 
 func TestExecute_BlockFail_ReturnsError(t *testing.T) {
 	hooks := []protocol.HookEntry{{Run: "exit 1", OnFail: "block"}}
-	_, err := Execute(hooks, t.TempDir())
+	_, err := Execute(context.Background(), hooks,t.TempDir())
 	if err == nil {
 		t.Fatal("expected error for block hook failure")
 	}
@@ -35,7 +36,7 @@ func TestExecute_BlockFail_ReturnsError(t *testing.T) {
 
 func TestExecute_WarnFail_NoError(t *testing.T) {
 	hooks := []protocol.HookEntry{{Run: "exit 1", OnFail: "warn"}}
-	results, err := Execute(hooks, t.TempDir())
+	results, err := Execute(context.Background(), hooks,t.TempDir())
 	if err != nil {
 		t.Fatalf("warn hook should not return error, got: %v", err)
 	}
@@ -49,7 +50,7 @@ func TestExecute_BlockFail_StopsEarly(t *testing.T) {
 		{Run: "exit 1", OnFail: "block"},
 		{Run: "echo second"},
 	}
-	results, err := Execute(hooks, t.TempDir())
+	results, err := Execute(context.Background(), hooks,t.TempDir())
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -61,7 +62,7 @@ func TestExecute_BlockFail_StopsEarly(t *testing.T) {
 func TestExecute_LogFile_ContainsOutput(t *testing.T) {
 	hooks := []protocol.HookEntry{{Run: "echo hello && echo err >&2"}}
 	logDir := t.TempDir()
-	results, err := Execute(hooks, logDir)
+	results, err := Execute(context.Background(), hooks,logDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +85,7 @@ func TestExecute_LogFile_ContainsOutput(t *testing.T) {
 func TestExecute_DefaultOnFail_Block(t *testing.T) {
 	// 不設定 on_fail，預設應該是 block
 	hooks := []protocol.HookEntry{{Run: "exit 2"}}
-	_, err := Execute(hooks, t.TempDir())
+	_, err := Execute(context.Background(), hooks,t.TempDir())
 	if err == nil {
 		t.Fatal("expected error: default on_fail should be block")
 	}

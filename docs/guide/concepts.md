@@ -187,7 +187,7 @@ Each entry is a `HookEntry` with two fields:
 | Field | Type | Description |
 |---|---|---|
 | `run` | string | Shell command executed via `sh -c` |
-| `on_fail` | string | `"block"` (default) or `"warn"` |
+| `on_fail` | string | `"block"` (default) or `"warn"` (case-insensitive) |
 
 Feature YAML files can also declare a `hooks` field with the same format. When a feature defines hooks for the same key as the global config, the feature's definition **replaces** the global one entirely (no merging within a key).
 
@@ -195,19 +195,20 @@ Feature YAML files can also declare a `hooks` field with the same format. When a
 
 ```
 pre_{target_phase} hooks (in array order)
-  ↓ any on_fail=block hook fails → abort, phase not changed
+  ↓ any on_fail=block hook fails → transition to needs-attention, abort
 state.Transition()
+  ↓
+record transition event
   ↓
 post_{target_phase} hooks (in array order)
   ↓ on_fail=block hook fails → transition to needs-attention (no rollback)
-record event
 ```
 
 ### Failure Behavior
 
 | `on_fail` | Hook fails | Effect |
 |---|---|---|
-| `block` (default) | pre hook | Phase transition aborted; error returned |
+| `block` (default) | pre hook | Feature moved to `needs-attention`; phase transition aborted |
 | `block` (default) | post hook | Phase already changed; feature moved to `needs-attention` |
 | `warn` | either | Result logged; execution continues |
 

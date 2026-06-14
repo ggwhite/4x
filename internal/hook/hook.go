@@ -2,6 +2,7 @@ package hook
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -24,7 +25,7 @@ type Result struct {
 // Execute 依序執行 hooks，logDir 用來存放 stdout/stderr output 檔。
 // 遇到 on_fail=block 的 hook 失敗時立即停止並回傳 error；
 // on_fail=warn 的 hook 失敗只記錄 result，不中止後續執行。
-func Execute(hooks []protocol.HookEntry, logDir string) ([]Result, error) {
+func Execute(ctx context.Context, hooks []protocol.HookEntry, logDir string) ([]Result, error) {
 	if len(hooks) == 0 {
 		return nil, nil
 	}
@@ -42,7 +43,7 @@ func Execute(hooks []protocol.HookEntry, logDir string) ([]Result, error) {
 
 	for i, h := range hooks {
 		start := time.Now()
-		cmd := exec.Command("sh", "-c", h.Run)
+		cmd := exec.CommandContext(ctx, "sh", "-c", h.Run)
 
 		var output bytes.Buffer
 		cmd.Stdout = &output
@@ -68,7 +69,7 @@ func Execute(hooks []protocol.HookEntry, logDir string) ([]Result, error) {
 
 		logFile := ""
 		if logDirReady {
-			ts := time.Now().Format("20060102-150405")
+			ts := time.Now().Format("20060102-150405.000")
 			candidate := filepath.Join(logDir, fmt.Sprintf("%s-hook-%d.log", ts, i))
 			if werr := os.WriteFile(candidate, output.Bytes(), 0o644); werr != nil {
 				fmt.Fprintf(os.Stderr, "hook: failed to write log file %q: %v\n", candidate, werr)

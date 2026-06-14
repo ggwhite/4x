@@ -1,6 +1,7 @@
 package hook
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,7 +20,7 @@ func TestIntegration_FullHookCycle(t *testing.T) {
 		{Run: "echo done", OnFail: "warn"},
 	}
 
-	results, err := Execute(hooks, logDir)
+	results, err := Execute(context.Background(), hooks,logDir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -55,7 +56,7 @@ func TestIntegration_MixedBlockWarn(t *testing.T) {
 		{Run: "echo after-warn"},
 	}
 
-	results, err := Execute(hooks, logDir)
+	results, err := Execute(context.Background(), hooks,logDir)
 	if err != nil {
 		t.Fatalf("warn hooks should not stop execution: %v", err)
 	}
@@ -80,7 +81,7 @@ func TestIntegration_BlockStopsChain(t *testing.T) {
 		{Run: "touch " + shouldNotExist},
 	}
 
-	results, err := Execute(hooks, logDir)
+	results, err := Execute(context.Background(), hooks,logDir)
 	if err == nil {
 		t.Fatal("expected error for block hook failure")
 	}
@@ -94,7 +95,7 @@ func TestIntegration_BlockStopsChain(t *testing.T) {
 
 func TestIntegration_ToEvent_FailDetail(t *testing.T) {
 	hooks := []protocol.HookEntry{{Run: "exit 5", OnFail: "warn"}}
-	results, _ := Execute(hooks, t.TempDir())
+	results, _ := Execute(context.Background(), hooks,t.TempDir())
 
 	evt := ToEvent(results[0], protocol.PhaseTesting, "post_testing")
 	if evt.Status != "fail" {
