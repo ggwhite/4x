@@ -60,7 +60,7 @@ The dashboard exposes REST and SSE endpoints:
 
 #### `POST /api/done` Response
 
-Always returns HTTP 200. The `status` field is `"done"` only after the state transition succeeds. If merge conflict or merge error occurs, `status` remains `"pending-review"`. Additional fields indicate merge result:
+Returns HTTP 200 in the normal case. The `status` field is `"done"` only after the state transition succeeds. If merge conflict or merge error occurs, `status` remains `"pending-review"`. Additional fields indicate merge result:
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -71,6 +71,8 @@ Always returns HTTP 200. The `status` field is `"done"` only after the state tra
 | `conflicts` | string[] | List of conflicting files (only present when `merge_conflict: true`) |
 
 After a conflict, resolve the files in the worktree and run `4x merge <id>` to complete.
+
+If the feature's phase changes during the merge (a runner or background reconciler updated `state.json` while the merge was running), the endpoint returns **HTTP 409 Conflict** with `{"status":"<currentPhase>","error":"state changed during merge"}` and does not perform the done transition — this guards against overwriting a newer state with a stale pre-merge snapshot.
 
 ### Screenshots Tab
 
