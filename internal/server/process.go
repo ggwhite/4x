@@ -157,8 +157,9 @@ func (pm *ProcessManager) wait(id string, info *RunInfo) {
 	delete(pm.runs, id)
 	pm.mu.Unlock()
 
-	// 以 process 結束當下時間作為比較門檻：runner 若已寫過 final state，
-	// 其 UpdatedAt 必然 >= 此時間，ensureInactive 便不會用較舊的 in-memory 值蓋掉它。
+	// 以 process 結束當下時間作為比較門檻：若 runner 衍生的 child process
+	// （如 `4x transition`）在 main process 退出後才寫 final state，其 UpdatedAt
+	// 會 >= 此時間，ensureInactive 便不會用較舊的 in-memory 值蓋掉它。
 	pm.ensureInactive(info.FeatureID, time.Now().UTC())
 
 	close(info.done)
