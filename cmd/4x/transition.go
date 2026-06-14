@@ -113,7 +113,7 @@ func newTransitionCmd() *cobra.Command {
 				return err
 			}
 
-			if toPhase == protocol.PhaseDone || toPhase == protocol.PhasePendingReview || toPhase == protocol.PhaseBlocked {
+			if toPhase == protocol.PhaseDone || toPhase == protocol.PhasePendingReview || toPhase == protocol.PhaseBlocked || toPhase == protocol.PhaseAbandoned {
 				newState.Active = false
 			}
 

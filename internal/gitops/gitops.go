@@ -77,18 +77,25 @@ func ensureGitignore(root, entry string) {
 	f.WriteString(entry + "\n")
 }
 
-func copyFileIfExists(src, dst string) {
+// copyFileIfExists 複製檔案；來源不存在視為靜默成功（回 nil），
+// 僅讀寫失敗（如 disk full、目標不可寫）才回傳 error，讓上游能記錄真因。
+func copyFileIfExists(src, dst string) error {
 	data, err := os.ReadFile(src)
 	if err != nil {
-		return
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
 	}
-	os.MkdirAll(filepath.Dir(dst), 0o755)
-	os.WriteFile(dst, data, 0o644)
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(dst, data, 0o644)
 }
 
-// CopyFileIfExists 複製檔案，來源不存在時靜默忽略。供外部 package 使用。
-func CopyFileIfExists(src, dst string) {
-	copyFileIfExists(src, dst)
+// CopyFileIfExists 複製檔案，來源不存在時靜默忽略（回 nil）；讀寫失敗回傳 error。供外部 package 使用。
+func CopyFileIfExists(src, dst string) error {
+	return copyFileIfExists(src, dst)
 }
 
 // syncDotDirContents 將 mainRoot 的 .4x/settings.json 和 plugins/ 複製到 dotDir。

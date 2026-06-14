@@ -49,6 +49,8 @@ func Transition(s protocol.State, to protocol.Phase, role protocol.Role) (protoc
 	switch {
 	case to == protocol.PhaseDone:
 		s.Active = false
+	case to == protocol.PhaseAbandoned:
+		s.Active = false
 	case to == protocol.PhaseCoding && s.Round == 0:
 		s.Round = 1
 	case to == protocol.PhaseAmending:

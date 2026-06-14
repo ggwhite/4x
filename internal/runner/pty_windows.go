@@ -3,11 +3,12 @@
 package runner
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 )
 
-func startPty(cmd *exec.Cmd) (*os.File, error) {
-	return nil, fmt.Errorf("pty not supported on windows")
+func startPty(ctx context.Context, cmd *exec.Cmd) (*os.File, func(), error) {
+	return nil, nil, fmt.Errorf("pty not supported on windows")
 }

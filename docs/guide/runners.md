@@ -90,6 +90,8 @@ Runners with `output_format: "stream-json"` write two files: a readable `.log` f
 
 Runners with `tty: true` use a pseudo-terminal to capture full output including ANSI escape sequences. A stateful ANSI stripper cleans the log files. This path is skipped when `output_format` is `"stream-json"`.
 
+The PTY child runs in its own session/process group. When the run context is cancelled (e.g. timeout or Ctrl+C), the whole process group is sent `SIGTERM`, escalating to `SIGKILL` after 5 seconds if it has not exited — so no orphaned child outlives the run.
+
 ### Stdin Mode
 
 Runners with `stdin: true` (Codex) receive the prompt via standard input instead of command-line arguments.

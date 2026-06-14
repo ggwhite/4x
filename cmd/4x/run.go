@@ -429,7 +429,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		phase := s.Phase
 		role := state.PhaseToRole(phase)
 
-		if phase == protocol.PhaseDone || phase == protocol.PhasePendingReview || phase == protocol.PhaseBlocked || phase == protocol.PhaseNeedsAttention {
+		if phase == protocol.PhaseDone || phase == protocol.PhasePendingReview || phase == protocol.PhaseBlocked || phase == protocol.PhaseNeedsAttention || phase == protocol.PhaseAbandoned {
 			break
 		}
 
@@ -557,7 +557,9 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			stopSync()
 		}
 		if runnerWs.Root != ws.Root {
-			syncFeatureFromWorktree(runnerWs, ws, featureID, s.Round)
+			if serr := syncFeatureFromWorktree(runnerWs, ws, featureID, s.Round); serr != nil {
+				fmt.Fprintf(os.Stderr, "warning: %v\n", serr)
+			}
 		}
 		if err != nil {
 			if ctx.Err() == context.Canceled {
@@ -652,6 +654,25 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		if err != nil {
 			return fmt.Errorf("loop transition %s→%s: %w", s.Phase, next, err)
 		}
+
+		// W1：reviewer FAIL（→ amending）時追蹤連續無進展輪次。
+		// 用轉換前的 s.Round 讀本輪 review-report.md 的失敗計數，與上輪基準比較：
+		// 持平或更差 → ConsecutiveNoProgress++；改善 → reset。首輪（尚無基準）只建立 LastFailCount。
+		if next == protocol.PhaseAmending {
+			cur := reviewFailCount(ws, featureID, s.Round)
+			// 首輪 amending 僅建立基準、不 increment。額外要求 cur > 0：
+			// 否則 review-report 缺失/格式異常使 cur 恆為 0 時，LastFailCount 會一直停在 0，
+			// 「首輪」條件每輪都成立，ConsecutiveNoProgress 永遠無法遞增而漏掉 no-progress 停止。
+			if newState.LastFailCount == 0 && newState.ConsecutiveNoProgress == 0 && cur > 0 {
+				// 首輪 amending：僅建立基準，不 increment
+			} else if cur >= newState.LastFailCount {
+				newState.ConsecutiveNoProgress++
+			} else {
+				newState.ConsecutiveNoProgress = 0
+			}
+			newState.LastFailCount = cur
+		}
+
 		s = newState
 		if stopReason != "" {
 			s.Active = false
@@ -704,6 +725,10 @@ func nextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) 
 		brief := filepath.Join(ws.FeatureDir(featureID), protocol.TaskBrief)
 		if _, err := os.Stat(brief); err != nil {
 			return protocol.PhaseNeedsAttention, "", "missing-artifact: " + protocol.TaskBrief
+		}
+		criteria := filepath.Join(ws.FeatureDir(featureID), protocol.Criteria)
+		if _, err := os.Stat(criteria); err != nil {
+			return protocol.PhaseNeedsAttention, "", "missing-artifact: " + protocol.Criteria
 		}
 		return protocol.PhaseCoding, protocol.RoleCoder, ""
 
@@ -860,7 +885,9 @@ func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 		stopSync()
 	}
 	if runnerWs.Root != ws.Root {
-		syncFeatureFromWorktree(runnerWs, ws, featureID, round)
+		if serr := syncFeatureFromWorktree(runnerWs, ws, featureID, round); serr != nil {
+			fmt.Fprintf(os.Stderr, "warning: %v\n", serr)
+		}
 	}
 
 	// runner 執行錯誤：context cancel → interrupted；其餘 → runner-error needs-attention。
@@ -1184,7 +1211,9 @@ func runDeepSubRole(ctx context.Context, ws *protocol.Workspace, runnerWs *proto
 		stopSync()
 	}
 	if runnerWs.Root != ws.Root {
-		syncFeatureFromWorktree(runnerWs, ws, featureID, round)
+		if serr := syncFeatureFromWorktree(runnerWs, ws, featureID, round); serr != nil {
+			fmt.Fprintf(os.Stderr, "warning: %v\n", serr)
+		}
 	}
 
 	if runErr != nil {
@@ -1333,6 +1362,18 @@ func parseReviewVerdict(content string) protocol.ReviewResult {
 	}
 
 	return result
+}
+
+// reviewFailCount 回傳指定 round 的 review-report.md 失敗計數（critical + warning）。
+// 供 run loop 判斷連續輪次是否有進展（失敗數下降）使用；report 不存在時回 0。
+func reviewFailCount(ws *protocol.Workspace, featureID string, round int) int {
+	roundDir := ws.RoundDir(featureID, round)
+	data, err := os.ReadFile(filepath.Join(roundDir, protocol.ReviewReport))
+	if err != nil {
+		return 0
+	}
+	result := parseReviewVerdict(string(data))
+	return result.CriticalCount + result.WarningCount
 }
 
 // verifyPassed 檢查 verify.json 的 passed 欄位，用於 guard 失敗時判斷是測試未通過還是 artifact 缺失
@@ -1485,37 +1526,60 @@ func syncFeatureToWorktree(main, wt *protocol.Workspace, featureID string, round
 	}
 }
 
-// syncFeatureFromWorktree 將 worktree 裡 runner 寫的 protocol 檔案複製回主 workspace
-func syncFeatureFromWorktree(wt, main *protocol.Workspace, featureID string, round int) {
+// syncFeatureFromWorktree 將 worktree 裡 runner 寫的 protocol 檔案複製回主 workspace。
+// 回傳彙整後的 error（任一 MkdirAll / ReadDir / CopyFileIfExists 失敗），讓 caller 能在
+// disk full 等情況印出真因，而非只看到下游的 missing-artifact。來源檔不存在不算 error。
+func syncFeatureFromWorktree(wt, main *protocol.Workspace, featureID string, round int) error {
 	srcDir := wt.FeatureDir(featureID)
 	dstDir := main.FeatureDir(featureID)
-	os.MkdirAll(dstDir, 0o755)
+	var errs []string
+	if err := os.MkdirAll(dstDir, 0o755); err != nil {
+		errs = append(errs, err.Error())
+	}
 
 	// feature-level 檔案
 	for _, name := range []string{
 		protocol.TaskBrief, protocol.Criteria, protocol.TestStratFile,
 		protocol.FinalReport, protocol.CommitPlan,
 	} {
-		gitops.CopyFileIfExists(filepath.Join(srcDir, name), filepath.Join(dstDir, name))
+		if err := gitops.CopyFileIfExists(filepath.Join(srcDir, name), filepath.Join(dstDir, name)); err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", name, err))
+		}
 	}
 
 	// round 目錄
 	srcRound := wt.RoundDir(featureID, round)
 	dstRound := main.RoundDir(featureID, round)
-	os.MkdirAll(dstRound, 0o755)
-	entries, _ := os.ReadDir(srcRound)
+	if err := os.MkdirAll(dstRound, 0o755); err != nil {
+		errs = append(errs, err.Error())
+	}
+	entries, err := os.ReadDir(srcRound)
+	if err != nil && !os.IsNotExist(err) {
+		errs = append(errs, fmt.Sprintf("read round dir: %v", err))
+	}
 	for _, e := range entries {
 		if !e.IsDir() {
-			gitops.CopyFileIfExists(filepath.Join(srcRound, e.Name()), filepath.Join(dstRound, e.Name()))
+			if err := gitops.CopyFileIfExists(filepath.Join(srcRound, e.Name()), filepath.Join(dstRound, e.Name())); err != nil {
+				errs = append(errs, fmt.Sprintf("%s: %v", e.Name(), err))
+			}
 		}
 	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("sync from worktree: %s", strings.Join(errs, "; "))
+	}
+	return nil
 }
 
 // startLiveSync 啟動背景 goroutine，每 2 秒將 worktree 的 protocol 檔案同步回 main workspace。
-// 回傳 stop function，呼叫後停止同步。
+// 回傳的 stop function 為阻塞式：close(done) 後 wg.Wait() 確保 in-flight 的 sync 完成才返回，
+// 避免 caller 隨即執行的 final sync 與背景 sync 競爭寫同一批檔案。
 func startLiveSync(wt, main *protocol.Workspace, featureID string, round int) func() {
 	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		ticker := time.NewTicker(2 * time.Second)
 		defer ticker.Stop()
 		for {
@@ -1523,9 +1587,14 @@ func startLiveSync(wt, main *protocol.Workspace, featureID string, round int) fu
 			case <-done:
 				return
 			case <-ticker.C:
-				syncFeatureFromWorktree(wt, main, featureID, round)
+				if err := syncFeatureFromWorktree(wt, main, featureID, round); err != nil {
+					fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+				}
 			}
 		}
 	}()
-	return func() { close(done) }
+	return func() {
+		close(done)
+		wg.Wait()
+	}
 }
