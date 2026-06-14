@@ -21,28 +21,19 @@ func newStatusCmd() *cobra.Command {
 		Use:   "status [feature-id]",
 		Short: "Show feature status",
 		Args:  cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: withJsonError(&jsonOutput, func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
 			if err != nil {
-				if jsonOutput {
-					return jsonError(err.Error())
-				}
 				return err
 			}
 			ws, err := protocol.Find(cwd)
 			if err != nil {
-				if jsonOutput {
-					return jsonError(err.Error())
-				}
 				return err
 			}
 
 			if len(args) == 1 {
 				featureID, err := ws.ResolveFeatureID(args[0])
 				if err != nil {
-					if jsonOutput {
-						return jsonError(err.Error())
-					}
 					return err
 				}
 				if jsonOutput {
@@ -54,7 +45,7 @@ func newStatusCmd() *cobra.Command {
 				return showAllFeaturesJSON(ws)
 			}
 			return showAllFeatures(ws, pending)
-		},
+		}),
 	}
 
 	cmd.Flags().BoolVar(&pending, "pending", false, "show only non-done features")

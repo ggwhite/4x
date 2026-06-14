@@ -25,36 +25,24 @@ func newTransitionCmd() *cobra.Command {
 		Use:   "transition <feature-id>",
 		Short: "Transition feature to a new phase",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: withJsonError(&jsonOutput, func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
 			if err != nil {
-				if jsonOutput {
-					return jsonError(err.Error())
-				}
 				return err
 			}
 			ws, err := protocol.Find(cwd)
 			if err != nil {
-				if jsonOutput {
-					return jsonError(err.Error())
-				}
 				return err
 			}
 
 			featureID, err := ws.ResolveFeatureID(args[0])
 			if err != nil {
-				if jsonOutput {
-					return jsonError(err.Error())
-				}
 				return err
 			}
 
 			s, err := ws.ReadState(featureID)
 			if err != nil {
 				if err := ws.InitFeatureDir(featureID); err != nil {
-					if jsonOutput {
-						return jsonError(err.Error())
-					}
 					return err
 				}
 				s = protocol.State{
@@ -66,9 +54,6 @@ func newTransitionCmd() *cobra.Command {
 					CreatedAt: time.Now(),
 				}
 				if err := ws.WriteState(featureID, s); err != nil {
-					if jsonOutput {
-						return jsonError(err.Error())
-					}
 					return err
 				}
 			}
@@ -82,11 +67,7 @@ func newTransitionCmd() *cobra.Command {
 			if s.Phase == protocol.PhaseTesting && toPhase == protocol.PhaseAccepting {
 				result := guard.CheckTestingToAccepting(ws, featureID, s.Round)
 				if !result.Pass {
-					errMsg := fmt.Sprintf("testing → accepting blocked: %s", strings.Join(result.Errors, "; "))
-					if jsonOutput {
-						return jsonError(errMsg)
-					}
-					return fmt.Errorf("%s", errMsg)
+					return fmt.Errorf("testing → accepting blocked: %s", strings.Join(result.Errors, "; "))
 				}
 			}
 
@@ -99,17 +80,11 @@ func newTransitionCmd() *cobra.Command {
 			hookLogDir := filepath.Join(ws.FeatureDir(featureID), "hook-logs")
 
 			if err := executePhaseHooks(context.Background(), ws, featureID, &s, hooksMap["pre"], toPhase, "pre", hookLogDir); err != nil {
-				if jsonOutput {
-					return jsonError(err.Error())
-				}
 				return err
 			}
 
 			newState, err := state.Transition(s, toPhase, toRole)
 			if err != nil {
-				if jsonOutput {
-					return jsonError(err.Error())
-				}
 				return err
 			}
 
@@ -118,9 +93,6 @@ func newTransitionCmd() *cobra.Command {
 			}
 
 			if err := ws.WriteState(featureID, newState); err != nil {
-				if jsonOutput {
-					return jsonError(err.Error())
-				}
 				return err
 			}
 
@@ -136,9 +108,6 @@ func newTransitionCmd() *cobra.Command {
 			})
 
 			if err := executePhaseHooks(context.Background(), ws, featureID, &newState, hooksMap["post"], toPhase, "post", hookLogDir); err != nil {
-				if jsonOutput {
-					return jsonError(err.Error())
-				}
 				return err
 			}
 
@@ -159,7 +128,7 @@ func newTransitionCmd() *cobra.Command {
 
 			fmt.Printf("%s → %s (role: %s, round: %d)\n", s.Phase, toPhase, toRole, newState.Round)
 			return nil
-		},
+		}),
 	}
 
 	cmd.Flags().StringVar(&to, "to", "", "target phase (required)")

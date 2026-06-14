@@ -34,42 +34,27 @@ func newRunCmd() *cobra.Command {
 		Use:   "run <feature-id>",
 		Short: "Run the Design-Code-Review-Test loop for a feature",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: withJsonError(&jsonOutput, func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
 			if err != nil {
-				if jsonOutput {
-					return jsonError(err.Error())
-				}
 				return err
 			}
 			ws, err := protocol.Find(cwd)
 			if err != nil {
-				if jsonOutput {
-					return jsonError(err.Error())
-				}
 				return err
 			}
 
 			featureID, err := ws.ResolveFeatureID(args[0])
 			if err != nil {
-				if jsonOutput {
-					return jsonError(err.Error())
-				}
 				return err
 			}
 			feature, err := ws.LoadFeature(featureID)
 			if err != nil {
-				if jsonOutput {
-					return jsonError(err.Error())
-				}
 				return err
 			}
 
 			cfg, err := ws.ReadConfig()
 			if err != nil {
-				if jsonOutput {
-					return jsonError(err.Error())
-				}
 				return err
 			}
 
@@ -84,11 +69,7 @@ func newRunCmd() *cobra.Command {
 			}
 			_, ok := cfg.Runners[runnerName]
 			if !ok {
-				errMsg := fmt.Sprintf("runner %q not found in config", runnerName)
-				if jsonOutput {
-					return jsonError(errMsg)
-				}
-				return fmt.Errorf("%s", errMsg)
+				return fmt.Errorf("runner %q not found in config", runnerName)
 			}
 
 			if maxRounds <= 0 {
@@ -97,9 +78,6 @@ func newRunCmd() *cobra.Command {
 
 			// 提早驗證 --profile（unknown profile / 缺 coder）；空值時回 full/auto 不報錯。
 			if _, _, err := protocol.ResolveProfile(cfg, feature, profileFlag); err != nil {
-				if jsonOutput {
-					return jsonError(err.Error())
-				}
 				return err
 			}
 
@@ -128,7 +106,7 @@ func newRunCmd() *cobra.Command {
 				bgCmd.Stderr = nil
 
 				if err := bgCmd.Start(); err != nil {
-					return jsonError(fmt.Sprintf("failed to start run: %v", err))
+					return fmt.Errorf("failed to start run: %w", err)
 				}
 				go bgCmd.Wait()
 
@@ -305,7 +283,7 @@ func newRunCmd() *cobra.Command {
 			}
 
 			return loopErr
-		},
+		}),
 	}
 
 	cmd.Flags().StringVar(&runnerName, "runner", "", "runner plugin name (default: config default)")
