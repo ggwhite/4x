@@ -418,6 +418,45 @@ func TestInitFeatureDir_CreatesRoundsDir(t *testing.T) {
 	}
 }
 
+func TestReadTestStrategy_Absent(t *testing.T) {
+	ws := setupWorkspace(t)
+	if err := ws.InitFeatureDir("feat-ts"); err != nil {
+		t.Fatal(err)
+	}
+	ts, err := ws.ReadTestStrategy("feat-ts")
+	if err != nil {
+		t.Fatalf("expected nil error for absent file, got %v", err)
+	}
+	if ts.HealthCheck != nil {
+		t.Errorf("expected nil HealthCheck, got %v", ts.HealthCheck)
+	}
+}
+
+func TestReadTestStrategy_WithHealthCheck(t *testing.T) {
+	ws := setupWorkspace(t)
+	if err := ws.InitFeatureDir("feat-ts"); err != nil {
+		t.Fatal(err)
+	}
+	content := "verify_commands:\n  - go test ./...\nhealth_check:\n  commands:\n    - make build\n  recovery:\n    - make dev-up\n  timeout: 60\n"
+	path := filepath.Join(ws.FeatureDir("feat-ts"), TestStratFile)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ts, err := ws.ReadTestStrategy("feat-ts")
+	if err != nil {
+		t.Fatalf("ReadTestStrategy: %v", err)
+	}
+	if ts.HealthCheck == nil {
+		t.Fatal("expected non-nil HealthCheck")
+	}
+	if len(ts.HealthCheck.Commands) != 1 || ts.HealthCheck.Commands[0] != "make build" {
+		t.Errorf("commands = %v", ts.HealthCheck.Commands)
+	}
+	if ts.HealthCheck.Timeout != 60 {
+		t.Errorf("timeout = %d, want 60", ts.HealthCheck.Timeout)
+	}
+}
+
 func TestRoundDir(t *testing.T) {
 	ws := &Workspace{Root: "/fake"}
 	got := ws.RoundDir("feat-1", 3)

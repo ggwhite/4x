@@ -78,6 +78,8 @@ Review verdicts must start with `PASS` to pass. Blank lines between the `## Verd
 
 Phase hooks declared in `settings.json` or the feature YAML are executed automatically before and after each phase transition within the loop. See [Phase Hooks](concepts.md#phase-hooks) for configuration details.
 
+When entering the `testing` phase (after `pre_testing` hooks, before the Tester runner is spawned), a health check verifies the environment if `health_check` is configured. Check commands run in order; on failure the recovery commands run once and the checks are retried once. If the environment still fails, the feature transitions to `needs-attention` and the loop stops. See [Health Check](concepts.md#health-check) for configuration details.
+
 If the feature is in `blocked` or `needs-attention` phase, automatically recovers to the appropriate resume phase based on the current role.
 
 Automatically checks dependency gate — blocks if depended features are not done.

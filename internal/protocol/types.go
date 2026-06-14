@@ -239,13 +239,23 @@ type VerifyCommand struct {
 	FinishedAt       time.Time `json:"finishedAt"`
 }
 
+// HealthCheck 是 testing phase 啟動前的環境檢查設定。
+// Commands 逐一執行任一失敗即停；失敗時若有 Recovery 則逐一執行後重跑一次 Commands。
+// Timeout 為每個 command 的逾時秒數，未設定（0）時由呼叫端套用預設 30 秒。
+type HealthCheck struct {
+	Commands []string `yaml:"commands" json:"commands"`
+	Recovery []string `yaml:"recovery,omitempty" json:"recovery,omitempty"`
+	Timeout  int      `yaml:"timeout,omitempty" json:"timeout,omitempty"`
+}
+
 // TestStrategy 是 test-strategy.yaml 的結構
 type TestStrategy struct {
-	Web       bool     `yaml:"web" json:"web"`
-	API       bool     `yaml:"api" json:"api"`
-	Gate      bool     `yaml:"gate" json:"gate"`
-	CoderOnly bool     `yaml:"coder_only" json:"coder_only"`
-	Verify    []string `yaml:"verify_commands" json:"verify_commands"`
+	Web         bool         `yaml:"web" json:"web"`
+	API         bool         `yaml:"api" json:"api"`
+	Gate        bool         `yaml:"gate" json:"gate"`
+	CoderOnly   bool         `yaml:"coder_only" json:"coder_only"`
+	Verify      []string     `yaml:"verify_commands" json:"verify_commands"`
+	HealthCheck *HealthCheck `yaml:"health_check,omitempty" json:"health_check,omitempty"`
 }
 
 // ReviewIssue 是 reviewer 發現的問題
@@ -311,6 +321,9 @@ type Config struct {
 	Profiles map[string]ProfileConfig `json:"profiles,omitempty"`
 	// ParallelReviewTest 啟用後，reviewer 與 tester 在 reviewing phase 並行執行（共用 worktree）。
 	ParallelReviewTest bool `json:"parallel_review_test,omitempty"`
+	// HealthCheck 是全域（settings.json）的 testing phase 前環境檢查設定，
+	// 未設為 nil（跳過）；可被 per-feature test-strategy.yaml 整組覆蓋。
+	HealthCheck *HealthCheck `json:"health_check,omitempty"`
 }
 
 // ProfileConfig 描述一個 pipeline profile：啟用哪些 role、以及 coder 的 model tier 覆蓋。
