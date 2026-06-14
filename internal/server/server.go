@@ -1325,11 +1325,10 @@ func handleBatchStatus(ws *protocol.Workspace, bm *BatchManager, w http.Response
 	featByID := make(map[string]protocol.Feature, len(features))
 	var pending []protocol.Feature
 	for _, f := range features {
-		if f.Status == protocol.StatusAbandoned {
-			continue
-		}
 		featByID[f.ID] = f
-		pending = append(pending, f)
+		if f.Status != protocol.StatusDone && f.Status != protocol.StatusAbandoned {
+			pending = append(pending, f)
+		}
 	}
 
 	resp := batchStatusResponse{Running: bm.Running(), Queue: []batchQueueItem{}}
