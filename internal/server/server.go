@@ -216,6 +216,7 @@ type taskInfo struct {
 	Runner    string   `json:"runner"`
 	Runners   []string `json:"runners,omitempty"`
 	Priority  *int     `json:"priority,omitempty"`
+	Profile   string   `json:"profile,omitempty"`
 	HasSpec   bool     `json:"hasSpec,omitempty"`
 	HasPlan   bool     `json:"hasPlan,omitempty"`
 	Depends   []string `json:"depends,omitempty"`
@@ -396,6 +397,7 @@ func handleTasks(ws *protocol.Workspace, w http.ResponseWriter) {
 			t.Pid = s.Pid
 			t.Runner = s.Runner
 			t.Runners = s.Runners
+			t.Profile = s.Profile
 			if !s.CreatedAt.IsZero() {
 				t.CreatedAt = s.CreatedAt.Format(time.RFC3339)
 			}
