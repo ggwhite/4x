@@ -86,8 +86,7 @@ func (m *monoRepo) Merge(featureID, featureName string) MergeResult {
 		return MergeResult{Error: fmt.Sprintf("current branch is %s — switch to main/master first", branch)}
 	}
 
-	msg := fmt.Sprintf("Merge branch '%s' — %s", branch, featureName)
-	out, err := exec.Command("git", "-C", m.root, "merge", "--no-ff", "-m", msg, branch).CombinedOutput()
+	out, err := exec.Command("git", "-C", m.root, "merge", "--squash", branch).CombinedOutput()
 	if err != nil {
 		files := conflictFiles(m.root)
 		exec.Command("git", "-C", m.root, "merge", "--abort").Run()
@@ -96,7 +95,11 @@ func (m *monoRepo) Merge(featureID, featureName string) MergeResult {
 		}
 		return MergeResult{Error: strings.TrimSpace(string(out))}
 	}
-	_ = out
+
+	msg := fmt.Sprintf("feat(%s): %s", featureID, featureName)
+	if out, err := exec.Command("git", "-C", m.root, "commit", "-m", msg).CombinedOutput(); err != nil {
+		return MergeResult{Error: strings.TrimSpace(string(out))}
+	}
 
 	m.Cleanup(featureID)
 	return MergeResult{}

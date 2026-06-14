@@ -123,7 +123,7 @@ func (m *multiRepo) Merge(featureID, featureName string) MergeResult {
 	}
 
 	branch := Branch(featureID)
-	msg := fmt.Sprintf("Merge branch '%s' — %s", branch, featureName)
+	msg := fmt.Sprintf("feat(%s): %s", featureID, featureName)
 
 	type repoHead struct {
 		name     string
@@ -149,7 +149,7 @@ func (m *multiRepo) Merge(featureID, featureName string) MergeResult {
 
 	var merged []repoHead
 	for _, rh := range preHeads {
-		out, err := exec.Command("git", "-C", rh.repoPath, "merge", "--no-ff", "-m", msg, branch).CombinedOutput()
+		out, err := exec.Command("git", "-C", rh.repoPath, "merge", "--squash", branch).CombinedOutput()
 		if err != nil {
 			files := conflictFiles(rh.repoPath)
 			exec.Command("git", "-C", rh.repoPath, "merge", "--abort").Run()
@@ -163,7 +163,12 @@ func (m *multiRepo) Merge(featureID, featureName string) MergeResult {
 			}
 			return MergeResult{Error: fmt.Sprintf("%s: %s", rh.name, strings.TrimSpace(string(out)))}
 		}
-		_ = out
+		if out, err := exec.Command("git", "-C", rh.repoPath, "commit", "-m", msg).CombinedOutput(); err != nil {
+			for _, done := range merged {
+				exec.Command("git", "-C", done.repoPath, "reset", "--hard", done.head).Run()
+			}
+			return MergeResult{Error: fmt.Sprintf("%s: %s", rh.name, strings.TrimSpace(string(out)))}
+		}
 		merged = append(merged, rh)
 	}
 
