@@ -64,7 +64,7 @@ The dashboard exposes REST and SSE endpoints:
 
 #### `POST /api/done` Response
 
-Always returns HTTP 200. The `status` field is `"done"` only after the state transition succeeds. If merge conflict or merge error occurs, `status` remains `"pending-review"`. Additional fields indicate merge result:
+Returns HTTP 200 in the normal case. The `status` field is `"done"` only after the state transition succeeds. If merge conflict or merge error occurs, `status` remains `"pending-review"`. Additional fields indicate merge result:
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -76,6 +76,8 @@ Always returns HTTP 200. The `status` field is `"done"` only after the state tra
 
 After a conflict, resolve the files in the worktree and run `4x merge <id>` to complete.
 
+If the feature's phase changes during the merge (a runner or background reconciler updated `state.json` while the merge was running), the endpoint returns **HTTP 409 Conflict** with `{"status":"<currentPhase>","error":"state changed during merge"}` and does not perform the done transition — this guards against overwriting a newer state with a stale pre-merge snapshot.
+
 ### Screenshots Tab
 
 Feature detail includes a **Screenshots** tab when screenshots exist for that feature. Screenshots are grouped by round, displayed as thumbnails, and can be opened in a lightbox with left/right navigation and ESC-to-close.
@@ -86,6 +88,8 @@ Feature detail includes a **Screenshots** tab when screenshots exist for that fe
 |---|---|
 | `/sse/events/{id}` | Stream events for a feature (1-second polling) |
 | `/sse/logs/{id}` | Stream the latest log file for a feature |
+
+The event stream tracks a byte offset into `events.jsonl` and only sends newly appended lines. If the file is **truncated or rotated** — for example `4x transition --to init` resets the feature and rewrites `events.jsonl` from scratch — the new file size drops below the tracked offset. The stream detects this (`size < lastOffset`), resets the offset to 0, and re-reads the whole file from the beginning so the client recovers instead of silently stalling forever. A size equal to the offset still means "no new content" and is skipped.
 
 ### Multi-Project Routing
 
@@ -107,6 +111,8 @@ The dashboard manages runner subprocesses:
 - Respects `max_concurrent_runs` from project config
 - Captures stdout/stderr as run-output/run-error events
 - Graceful shutdown: SIGTERM → 5 seconds → SIGKILL
+
+When a runner subprocess exits, the server marks the feature inactive (`Active=false`, `StopReason=process-exit`). This is guarded against a race: a runner may write its own final `state.json` (e.g. `pending-review`) just before exiting. The server records the process exit time and, before overwriting, re-reads the state — if `state.json` was updated **at or after** the exit time (`UpdatedAt >= endTime`), the runner's final state is kept and the inactive write is skipped. This prevents the server from reverting a freshly-written phase or clobbering its `StopReason` with a stale in-memory snapshot.
 
 ## Platforms
 

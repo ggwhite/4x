@@ -46,9 +46,12 @@ func (r *SubprocessRunner) Run(ctx context.Context, prompt string) (*Result, err
 		defer cancel()
 	}
 
-	args, cleanup := r.buildArgs(prompt)
+	args, cleanup, err := r.buildArgs(prompt)
 	if cleanup != nil {
 		defer cleanup()
+	}
+	if err != nil {
+		return nil, fmt.Errorf("runner %s failed to build args: %w", r.Name, err)
 	}
 
 	var logFile *os.File
@@ -116,7 +119,7 @@ func (r *SubprocessRunner) Run(ctx context.Context, prompt string) (*Result, err
 		cmd.Stdin = strings.NewReader(prompt)
 	}
 
-	err := cmd.Run()
+	err = cmd.Run()
 	duration := time.Since(start).Seconds()
 	return r.buildResult(ctx, err, duration)
 }
@@ -175,7 +178,14 @@ func (r *SubprocessRunner) buildResult(ctx context.Context, err error, duration 
 	return result, nil
 }
 
-func (r *SubprocessRunner) buildArgs(prompt string) ([]string, func()) {
+// buildArgs 把 config args 中的 {prompt}、{promptFile}、{model} placeholder 展開成實際值。
+//
+// 任一 placeholder 無法解析時回傳 error 而非把字面 placeholder 傳給 CLI：
+//   - {promptFile} 建立 temp file 失敗 → 包裝原始 error 回傳（過去靜默 fallback，報錯不指向真因）。
+//   - {model} 但 ModelOverride 為空 → 回傳 "model not resolved" error（過去會把 "--model {model}" 傳給 CLI 致其報錯）。
+//
+// 回傳的 cleanup 負責移除已建立的 prompt temp file；error 發生在建檔之後時，呼叫端須先呼叫 cleanup 再返回。
+func (r *SubprocessRunner) buildArgs(prompt string) ([]string, func(), error) {
 	args := make([]string, len(r.Config.Args))
 	var cleanup func()
 	modelHandled := false
@@ -186,21 +196,23 @@ func (r *SubprocessRunner) buildArgs(prompt string) ([]string, func()) {
 			args[i] = strings.ReplaceAll(arg, "{prompt}", prompt)
 		case strings.Contains(arg, "{promptFile}"):
 			f, err := os.CreateTemp("", "4x-prompt-*.md")
-			if err == nil {
-				f.WriteString(prompt)
+			if err != nil {
+				return nil, cleanup, fmt.Errorf("runner %s: create prompt temp file: %w", r.Name, err)
+			}
+			if _, err := f.WriteString(prompt); err != nil {
 				f.Close()
-				args[i] = strings.ReplaceAll(arg, "{promptFile}", f.Name())
-				cleanup = func() { os.Remove(f.Name()) }
-			} else {
-				args[i] = arg
+				os.Remove(f.Name())
+				return nil, cleanup, fmt.Errorf("runner %s: write prompt temp file: %w", r.Name, err)
 			}
+			f.Close()
+			args[i] = strings.ReplaceAll(arg, "{promptFile}", f.Name())
+			cleanup = func() { os.Remove(f.Name()) }
 		case strings.Contains(arg, "{model}"):
-			if r.ModelOverride != "" {
-				args[i] = strings.ReplaceAll(arg, "{model}", r.ModelOverride)
-				modelHandled = true
-			} else {
-				args[i] = arg
+			if r.ModelOverride == "" {
+				return nil, cleanup, fmt.Errorf("model not resolved for runner %s", r.Name)
 			}
+			args[i] = strings.ReplaceAll(arg, "{model}", r.ModelOverride)
+			modelHandled = true
 		default:
 			args[i] = arg
 		}
@@ -210,7 +222,7 @@ func (r *SubprocessRunner) buildArgs(prompt string) ([]string, func()) {
 		args = append(args, "--model", r.ModelOverride)
 	}
 
-	return args, cleanup
+	return args, cleanup, nil
 }
 
 func IsSoftFail(r *Result) bool {

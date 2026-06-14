@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -1139,5 +1140,156 @@ func TestScreenshots_ServeImageDirectly(t *testing.T) {
 	}
 	if cc := rec2.Header().Get("Cache-Control"); !strings.Contains(cc, "max-age") {
 		t.Errorf("Cache-Control = %q, want max-age", cc)
+	}
+}
+
+// TestSSE_TruncationResetsOffset 驗證 W9：events.jsonl 被 truncate 後（size < lastOffset），
+// SSE 會 reset offset 從頭重讀，後續新 event 仍能正常推送，而非永遠卡住。
+func TestSSE_TruncationResetsOffset(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	path := filepath.Join(ws.FeatureDir("test-feat"), protocol.EventsFile)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handleSSE(ws, "test-feat", w, r)
+	}))
+	defer srv.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	dataCh := make(chan string, 16)
+	go func() {
+		scanner := bufio.NewScanner(resp.Body)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.HasPrefix(line, "data: ") {
+				dataCh <- strings.TrimPrefix(line, "data: ")
+			}
+		}
+	}()
+
+	waitFor := func(want string) {
+		t.Helper()
+		deadline := time.After(6 * time.Second)
+		for {
+			select {
+			case d := <-dataCh:
+				if strings.Contains(d, want) {
+					return
+				}
+			case <-deadline:
+				t.Fatalf("timed out waiting for event containing %q", want)
+			}
+		}
+	}
+
+	// 寫兩個 event，應收到
+	if err := ws.AppendEvent("test-feat", protocol.Event{Type: "run-output", Detail: "evt-one"}); err != nil {
+		t.Fatal(err)
+	}
+	waitFor("evt-one")
+	if err := ws.AppendEvent("test-feat", protocol.Event{Type: "run-output", Detail: "evt-two"}); err != nil {
+		t.Fatal(err)
+	}
+	waitFor("evt-two")
+
+	// truncate 模擬 4x transition --to init 重置 events.jsonl
+	if err := os.Truncate(path, 0); err != nil {
+		t.Fatal(err)
+	}
+	// truncate 後寫入的新 event 必須能被推送
+	if err := ws.AppendEvent("test-feat", protocol.Event{Type: "run-output", Detail: "evt-after-truncate"}); err != nil {
+		t.Fatal(err)
+	}
+	waitFor("evt-after-truncate")
+}
+
+// setupMergeableWorktree 建立一個可成功 merge 的 monorepo worktree：
+// root 在 base commit（state.json=pending-review），worktree branch 依 mutate 內容修改後 commit。
+func setupMergeableWorktree(t *testing.T, ws *protocol.Workspace, featureID string, mutate func(wtRoot string)) {
+	t.Helper()
+	root := ws.Root
+	runGit(t, root, "init")
+	runGit(t, root, "config", "user.name", "test")
+	runGit(t, root, "config", "user.email", "test@test.com")
+
+	makePendingReview(t, ws, featureID)
+	runGit(t, root, "add", "-A")
+	runGit(t, root, "commit", "-m", "base")
+
+	wtDir := filepath.Join(root, ".worktrees", "4x", featureID)
+	runGit(t, root, "worktree", "add", wtDir, "-b", "4x/"+featureID)
+
+	mutate(wtDir)
+	runGit(t, wtDir, "add", "-A")
+	runGit(t, wtDir, "commit", "-m", "feature change")
+}
+
+// TestPostDone_HappyPathReReadsState 驗證 W15 正常路徑：merge 成功後 re-read
+// 仍是 pending-review，呼叫 transitionDone，response 回 done。
+func TestPostDone_HappyPathReReadsState(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	// worktree 只改一個無關檔案，state.json 維持 pending-review
+	setupMergeableWorktree(t, ws, "test-feat", func(wtRoot string) {
+		if err := os.WriteFile(filepath.Join(wtRoot, "unrelated.txt"), []byte("change\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodPost, "/api/done", `{"id":"test-feat"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"status":"done"`) {
+		t.Errorf("body = %s, want status done", rec.Body.String())
+	}
+
+	s, err := ws.ReadState("test-feat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Phase != protocol.PhaseDone {
+		t.Errorf("phase = %q, want done", s.Phase)
+	}
+}
+
+// TestPostDone_StateChangedDuringMergeReturns409 驗證 W15：merge 把 state.json
+// 改成非 pending-review 的 phase 後，re-read 偵測到變動 → 回 409，不呼叫 transitionDone。
+func TestPostDone_StateChangedDuringMergeReturns409(t *testing.T) {
+	ws := setupServerWorkspace(t)
+	// worktree 把 state.json 的 phase 改為 coding，merge 後 root 的 state.json 會變 coding
+	setupMergeableWorktree(t, ws, "test-feat", func(wtRoot string) {
+		wtWs := &protocol.Workspace{Root: wtRoot}
+		s, err := wtWs.ReadState("test-feat")
+		if err != nil {
+			t.Fatal(err)
+		}
+		s.Phase = protocol.PhaseCoding
+		if err := wtWs.WriteState("test-feat", s); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	rec := serveRequest(t, NewMux(ws, nil), http.MethodPost, "/api/done", `{"id":"test-feat"}`)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "state changed during merge") {
+		t.Errorf("body = %s, want state-changed error", rec.Body.String())
+	}
+
+	s, err := ws.ReadState("test-feat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Phase != protocol.PhaseCoding {
+		t.Errorf("phase = %q, want coding (not transitioned to done)", s.Phase)
 	}
 }

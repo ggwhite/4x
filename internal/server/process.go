@@ -157,19 +157,29 @@ func (pm *ProcessManager) wait(id string, info *RunInfo) {
 	delete(pm.runs, id)
 	pm.mu.Unlock()
 
-	pm.ensureInactive(info.FeatureID)
+	// 以 process 結束當下時間作為比較門檻：若 runner 衍生的 child process
+	// （如 `4x transition`）在 main process 退出後才寫 final state，其 UpdatedAt
+	// 會 >= 此時間，ensureInactive 便不會用較舊的 in-memory 值蓋掉它。
+	pm.ensureInactive(info.FeatureID, time.Now().UTC())
 
 	close(info.done)
 }
 
 // ensureInactive 確保 subprocess 結束後 state.json 的 active 被設為 false，
 // 防止 process crash 導致 dashboard 永遠顯示 running。
-func (pm *ProcessManager) ensureInactive(featureID string) {
+//
+// endTime 為 process 結束的時間點。若 ReadState 讀到的 state 其 UpdatedAt 在
+// endTime 之後（含同時），代表 runner 已在 process 結束時或之後自行寫過 final state
+// （如 pending-review），此時直接跳過，避免用較舊的狀態把 phase 倒退或蓋掉 StopReason。
+func (pm *ProcessManager) ensureInactive(featureID string, endTime time.Time) {
 	s, err := pm.ws.ReadState(featureID)
 	if err != nil {
 		return
 	}
 	if !s.Active {
+		return
+	}
+	if !s.UpdatedAt.Before(endTime) {
 		return
 	}
 	s.Active = false
