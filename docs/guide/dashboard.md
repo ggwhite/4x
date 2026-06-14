@@ -85,6 +85,8 @@ Feature detail includes a **Screenshots** tab when screenshots exist for that fe
 | `/sse/events/{id}` | Stream events for a feature (1-second polling) |
 | `/sse/logs/{id}` | Stream the latest log file for a feature |
 
+The event stream tracks a byte offset into `events.jsonl` and only sends newly appended lines. If the file is **truncated or rotated** — for example `4x transition --to init` resets the feature and rewrites `events.jsonl` from scratch — the new file size drops below the tracked offset. The stream detects this (`size < lastOffset`), resets the offset to 0, and re-reads the whole file from the beginning so the client recovers instead of silently stalling forever. A size equal to the offset still means "no new content" and is skipped.
+
 ### Multi-Project Routing
 
 With multiple projects, endpoints are prefixed with `/api/project/{project-id}/...` and `/sse/project/{project-id}/...`. Single-project mode uses the unprefixed paths for backward compatibility.
@@ -105,6 +107,8 @@ The dashboard manages runner subprocesses:
 - Respects `max_concurrent_runs` from project config
 - Captures stdout/stderr as run-output/run-error events
 - Graceful shutdown: SIGTERM → 5 seconds → SIGKILL
+
+When a runner subprocess exits, the server marks the feature inactive (`Active=false`, `StopReason=process-exit`). This is guarded against a race: a runner may write its own final `state.json` (e.g. `pending-review`) just before exiting. The server records the process exit time and, before overwriting, re-reads the state — if `state.json` was updated **after** the exit time (`UpdatedAt > endTime`), the runner's final state is kept and the inactive write is skipped. This prevents the server from reverting a freshly-written phase or clobbering its `StopReason` with a stale in-memory snapshot.
 
 ## Platforms
 
