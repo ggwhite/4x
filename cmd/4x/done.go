@@ -117,7 +117,7 @@ func finalizeDone(ws *protocol.Workspace, featureID string, s protocol.State) er
 		return err
 	}
 
-	syncFeatureStatus(ws, featureID, protocol.PhaseDone)
+	ws.SyncFeatureStatus(featureID, protocol.PhaseDone)
 
 	return ws.AppendEvent(featureID, protocol.Event{
 		Type:  "transition",

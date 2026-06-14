@@ -300,6 +300,21 @@ func (w *Workspace) SaveFeature(f Feature) error {
 	return os.WriteFile(filepath.Join(dir, f.ID+".yaml"), data, 0o644)
 }
 
+// SyncFeatureStatus 將 feature YAML 的 Status 欄位同步為對應 phase 的狀態。
+// 內部依序執行 LoadFeature → PhaseToStatus → SaveFeature，供 cmd/4x 與
+// internal/server 共用，避免 status 同步邏輯分散兩處。
+func (w *Workspace) SyncFeatureStatus(featureID string, phase Phase) error {
+	f, err := w.LoadFeature(featureID)
+	if err != nil {
+		return fmt.Errorf("sync feature status: load: %w", err)
+	}
+	f.Status = PhaseToStatus(phase)
+	if err := w.SaveFeature(f); err != nil {
+		return fmt.Errorf("sync feature status: save: %w", err)
+	}
+	return nil
+}
+
 // InitFeatureDir 建立 feature 的運行時目錄
 func (w *Workspace) InitFeatureDir(featureID string) error {
 	dir := w.FeatureDir(featureID)

@@ -1136,3 +1136,54 @@ func TestClearBatchConflict(t *testing.T) {
 		t.Error("conflict file should be gone after ClearBatchConflict")
 	}
 }
+
+func TestSyncFeatureStatus(t *testing.T) {
+	ws := setupWorkspace(t)
+
+	f := Feature{ID: "feat-1", Name: "Test", Status: StatusNotStarted}
+	if err := ws.SaveFeature(f); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ws.SyncFeatureStatus("feat-1", PhaseCoding); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := ws.LoadFeature("feat-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != StatusInProgress {
+		t.Errorf("status = %s, want %s", got.Status, StatusInProgress)
+	}
+}
+
+func TestSyncFeatureStatus_Done(t *testing.T) {
+	ws := setupWorkspace(t)
+
+	f := Feature{ID: "feat-2", Name: "Test", Status: StatusInProgress}
+	if err := ws.SaveFeature(f); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ws.SyncFeatureStatus("feat-2", PhaseDone); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := ws.LoadFeature("feat-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != StatusDone {
+		t.Errorf("status = %s, want %s", got.Status, StatusDone)
+	}
+}
+
+func TestSyncFeatureStatus_NotFound(t *testing.T) {
+	ws := setupWorkspace(t)
+
+	err := ws.SyncFeatureStatus("nonexist", PhaseCoding)
+	if err == nil {
+		t.Error("expected error for missing feature")
+	}
+}

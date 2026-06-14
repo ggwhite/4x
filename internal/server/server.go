@@ -1269,7 +1269,7 @@ func handlePostDone(ws *protocol.Workspace, w http.ResponseWriter, r *http.Reque
 			return
 		}
 
-		if _, err := transitionDone(ws, req.ID, fresh, f); err != nil {
+		if _, err := transitionDone(ws, req.ID, fresh); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -1426,7 +1426,7 @@ func writeJSONError(w http.ResponseWriter, code int, msg string) {
 	w.Write(payload)
 }
 
-func transitionDone(ws *protocol.Workspace, featureID string, s protocol.State, f protocol.Feature) (protocol.State, error) {
+func transitionDone(ws *protocol.Workspace, featureID string, s protocol.State) (protocol.State, error) {
 	newState, err := state.Transition(s, protocol.PhaseDone, protocol.RoleDesigner)
 	if err != nil {
 		return protocol.State{}, err
@@ -1438,9 +1438,8 @@ func transitionDone(ws *protocol.Workspace, featureID string, s protocol.State, 
 		return protocol.State{}, err
 	}
 
-	f.Status = protocol.PhaseToStatus(protocol.PhaseDone)
-	if err := ws.SaveFeature(f); err != nil {
-		return protocol.State{}, fmt.Errorf("failed to save feature: %w", err)
+	if err := ws.SyncFeatureStatus(featureID, protocol.PhaseDone); err != nil {
+		return protocol.State{}, fmt.Errorf("failed to sync feature status: %w", err)
 	}
 
 	if err := ws.AppendEvent(featureID, protocol.Event{

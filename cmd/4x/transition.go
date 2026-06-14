@@ -97,7 +97,7 @@ func newTransitionCmd() *cobra.Command {
 				return err
 			}
 
-			if err := syncFeatureStatus(ws, featureID, toPhase); err != nil {
+			if err := ws.SyncFeatureStatus(featureID, toPhase); err != nil {
 				slog.Warn("sync feature status failed", "feature", featureID, "phase", toPhase, "error", err)
 			}
 
@@ -162,7 +162,7 @@ func executePhaseHooks(ctx context.Context, ws *protocol.Workspace, featureID st
 			s.StopReason = timing + "-hook-fail"
 		}
 		_ = ws.WriteState(featureID, *s)
-		_ = syncFeatureStatus(ws, featureID, s.Phase)
+		_ = ws.SyncFeatureStatus(featureID, s.Phase)
 		return fmt.Errorf("%s hook failed: %w", action, err)
 	}
 	return nil
@@ -185,17 +185,4 @@ func resolveHooks(cfg protocol.Config, feature protocol.Feature, targetPhase pro
 		result["post"] = h
 	}
 	return result
-}
-
-// syncFeatureStatus 將 feature YAML 的 Status 欄位同步為對應 phase 的狀態
-func syncFeatureStatus(ws *protocol.Workspace, featureID string, phase protocol.Phase) error {
-	f, err := ws.LoadFeature(featureID)
-	if err != nil {
-		return fmt.Errorf("sync feature status: load: %w", err)
-	}
-	f.Status = protocol.PhaseToStatus(phase)
-	if err := ws.SaveFeature(f); err != nil {
-		return fmt.Errorf("sync feature status: save: %w", err)
-	}
-	return nil
 }
