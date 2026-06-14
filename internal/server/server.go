@@ -15,6 +15,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -638,6 +640,9 @@ func handleLogs(ws *protocol.Workspace, rest string, w http.ResponseWriter) {
 			}
 			logs = append(logs, logInfo{Name: e.Name(), Size: info.Size()})
 		}
+		sort.Slice(logs, func(i, j int) bool {
+			return logSortKey(logs[i].Name) < logSortKey(logs[j].Name)
+		})
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(logs)
 		return
@@ -655,6 +660,31 @@ func handleLogs(ws *protocol.Workspace, rest string, w http.ResponseWriter) {
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Write(data)
+}
+
+var roleOrder = map[string]int{
+	"designer":      0,
+	"coder":         1,
+	"reviewer":      2,
+	"tester":        3,
+	"deep-reviewer": 4,
+	"acceptor":      5,
+}
+
+// logSortKey 將 "round-N-role.log" 轉成數字 key，確保按執行順序排列
+func logSortKey(name string) int {
+	name = strings.TrimSuffix(name, ".log")
+	parts := strings.SplitN(name, "-", 3)
+	if len(parts) < 3 || parts[0] != "round" {
+		return 999999
+	}
+	round, _ := strconv.Atoi(parts[1])
+	role := parts[2]
+	order, ok := roleOrder[role]
+	if !ok {
+		order = 99
+	}
+	return round*100 + order
 }
 
 func handleFeatureScreenshots(ws *protocol.Workspace, w http.ResponseWriter, r *http.Request) {
