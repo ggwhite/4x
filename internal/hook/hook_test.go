@@ -76,6 +76,9 @@ func TestExecute_LogFile_ContainsOutput(t *testing.T) {
 	if !strings.Contains(content, "hello") {
 		t.Errorf("log should contain stdout, got: %q", content)
 	}
+	if !strings.Contains(content, "err") {
+		t.Errorf("log should contain stderr, got: %q", content)
+	}
 }
 
 func TestExecute_DefaultOnFail_Block(t *testing.T) {

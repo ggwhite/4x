@@ -28,8 +28,14 @@ func Execute(hooks []protocol.HookEntry, logDir string) ([]Result, error) {
 	if len(hooks) == 0 {
 		return nil, nil
 	}
+
+	logDirReady := false
 	if logDir != "" {
-		os.MkdirAll(logDir, 0o755)
+		if err := os.MkdirAll(logDir, 0o755); err != nil {
+			fmt.Fprintf(os.Stderr, "hook: failed to create log dir %q: %v\n", logDir, err)
+		} else {
+			logDirReady = true
+		}
 	}
 
 	var results []Result
@@ -61,10 +67,14 @@ func Execute(hooks []protocol.HookEntry, logDir string) ([]Result, error) {
 		}
 
 		logFile := ""
-		if logDir != "" {
+		if logDirReady {
 			ts := time.Now().Format("20060102-150405")
-			logFile = filepath.Join(logDir, fmt.Sprintf("%s-hook-%d.log", ts, i))
-			os.WriteFile(logFile, output.Bytes(), 0o644)
+			candidate := filepath.Join(logDir, fmt.Sprintf("%s-hook-%d.log", ts, i))
+			if werr := os.WriteFile(candidate, output.Bytes(), 0o644); werr != nil {
+				fmt.Fprintf(os.Stderr, "hook: failed to write log file %q: %v\n", candidate, werr)
+			} else {
+				logFile = candidate
+			}
 		}
 
 		r := Result{
