@@ -1,5 +1,21 @@
 package protocol
 
+// MergeHooks 合併全域和 feature 的 hooks，feature 同名 key 整組替換全域。
+// 兩者皆為 nil 時回傳 nil；否則複製 global 所有 key，再由 feature 的 key 整組覆蓋。
+func MergeHooks(global, feature map[string][]HookEntry) map[string][]HookEntry {
+	if global == nil && feature == nil {
+		return nil
+	}
+	merged := make(map[string][]HookEntry)
+	for k, v := range global {
+		merged[k] = v
+	}
+	for k, v := range feature {
+		merged[k] = v
+	}
+	return merged
+}
+
 // MergeConfig 合併 user-level 和 project-level 設定。
 // project 非零值欄位覆蓋 user；project-only 欄位（Project、Isolation 等）直接使用 project 的值。
 func MergeConfig(user UserConfig, project Config) Config {

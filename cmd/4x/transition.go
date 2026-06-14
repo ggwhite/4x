@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/ggwhite/4x/internal/guard"
+	"github.com/ggwhite/4x/internal/hook"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/state"
 	"github.com/spf13/cobra"
@@ -87,6 +89,27 @@ func newTransitionCmd() *cobra.Command {
 				}
 			}
 
+			cfg, cfgErr := ws.ReadConfig()
+			if cfgErr != nil {
+				cfg = protocol.Config{}
+			}
+			feature, _ := ws.LoadFeature(featureID)
+			hooksMap := resolveHooks(cfg, feature, toPhase)
+			hookLogDir := filepath.Join(ws.FeatureDir(featureID), "hook-logs")
+
+			if preHooks := hooksMap["pre"]; len(preHooks) > 0 {
+				results, err := hook.Execute(preHooks, hookLogDir)
+				for _, r := range results {
+					ws.AppendEvent(featureID, hook.ToEvent(r, toPhase, "pre_"+string(toPhase)))
+				}
+				if err != nil {
+					if jsonOutput {
+						return jsonError(fmt.Sprintf("pre_%s hook failed: %v", toPhase, err))
+					}
+					return fmt.Errorf("pre_%s hook failed: %w", toPhase, err)
+				}
+			}
+
 			newState, err := state.Transition(s, toPhase, toRole)
 			if err != nil {
 				if jsonOutput {
@@ -108,6 +131,25 @@ func newTransitionCmd() *cobra.Command {
 
 			if err := syncFeatureStatus(ws, featureID, toPhase); err != nil {
 				fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+			}
+
+			if postHooks := hooksMap["post"]; len(postHooks) > 0 {
+				results, hookErr := hook.Execute(postHooks, hookLogDir)
+				for _, r := range results {
+					ws.AppendEvent(featureID, hook.ToEvent(r, toPhase, "post_"+string(toPhase)))
+				}
+				if hookErr != nil {
+					naState, naErr := state.Transition(newState, protocol.PhaseNeedsAttention, "")
+					if naErr == nil {
+						naState.Active = false
+						ws.WriteState(featureID, naState)
+						syncFeatureStatus(ws, featureID, protocol.PhaseNeedsAttention)
+					}
+					if jsonOutput {
+						return jsonError(fmt.Sprintf("post_%s hook failed: %v", toPhase, hookErr))
+					}
+					return fmt.Errorf("post_%s hook failed: %w", toPhase, hookErr)
+				}
 			}
 
 			ws.AppendEvent(featureID, protocol.Event{
@@ -142,6 +184,25 @@ func newTransitionCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 	cmd.MarkFlagRequired("to")
 	return cmd
+}
+
+// resolveHooks 根據 config 和 feature 的 hooks 設定，回傳目標 phase 的 pre/post hooks。
+// feature hooks 同名 key 整組取代全域。
+func resolveHooks(cfg protocol.Config, feature protocol.Feature, targetPhase protocol.Phase) map[string][]protocol.HookEntry {
+	merged := protocol.MergeHooks(cfg.Hooks, feature.Hooks)
+	if merged == nil {
+		return nil
+	}
+	result := make(map[string][]protocol.HookEntry)
+	preKey := "pre_" + string(targetPhase)
+	postKey := "post_" + string(targetPhase)
+	if h, ok := merged[preKey]; ok {
+		result["pre"] = h
+	}
+	if h, ok := merged[postKey]; ok {
+		result["post"] = h
+	}
+	return result
 }
 
 // syncFeatureStatus 將 feature YAML 的 Status 欄位同步為對應 phase 的狀態
