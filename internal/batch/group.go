@@ -86,10 +86,14 @@ func detectCycle(features []protocol.Feature, adj [][]int) []string {
 		color[u] = 1
 		for _, v := range adj[u] {
 			if color[v] == 1 {
-				cyclePath = []string{features[v].ID, features[u].ID}
-				for p := u; parent[p] != -1 && parent[p] != v; p = parent[p] {
-					cyclePath = append(cyclePath, features[parent[p]].ID)
+				path := []string{features[v].ID}
+				for p := u; p != v; p = parent[p] {
+					path = append(path, features[p].ID)
 				}
+				for i, j := 1, len(path)-1; i < j; i, j = i+1, j-1 {
+					path[i], path[j] = path[j], path[i]
+				}
+				cyclePath = path
 				return true
 			}
 			if color[v] == 0 {

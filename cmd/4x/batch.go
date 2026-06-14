@@ -124,7 +124,9 @@ func printPlan(plan *batch.BatchPlan) error {
 }
 
 func newBatchNextCmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonOutput bool
+
+	cmd := &cobra.Command{
 		Use:   "next",
 		Short: "Show the next eligible feature to run",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -171,6 +173,11 @@ func newBatchNextCmd() *cobra.Command {
 					}
 				}
 				if allDone {
+					if !jsonOutput {
+						fmt.Println(s.FeatureID)
+						return nil
+					}
+
 					result := struct {
 						FeatureID       string   `json:"featureId"`
 						Slot            int      `json:"slot"`
@@ -200,10 +207,17 @@ func newBatchNextCmd() *cobra.Command {
 				}
 			}
 
-			fmt.Println("No eligible features (all done or blocked by dependencies).")
+			if jsonOutput {
+				fmt.Println("null")
+			} else {
+				fmt.Println("No eligible features (all done or blocked by dependencies).")
+			}
 			return nil
 		},
 	}
+
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output in JSON format with subtask frontier")
+	return cmd
 }
 
 func newBatchRunCmd() *cobra.Command {

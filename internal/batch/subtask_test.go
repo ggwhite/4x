@@ -1,6 +1,7 @@
 package batch
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/ggwhite/4x/internal/protocol"
@@ -34,6 +35,20 @@ func TestBuildSubtaskGraph_UnknownDep(t *testing.T) {
 	}
 }
 
+func TestBuildSubtaskGraph_DuplicateID(t *testing.T) {
+	subtasks := []protocol.Subtask{
+		{ID: "a", Status: "done"},
+		{ID: "a", Status: "not-started"},
+	}
+	_, err := BuildSubtaskGraph(subtasks)
+	if err == nil {
+		t.Error("expected error for duplicate subtask ID")
+	}
+	if !strings.Contains(err.Error(), "duplicate") {
+		t.Errorf("error should mention duplicate, got: %v", err)
+	}
+}
+
 func TestDetectSubtaskCycle_NoCycle(t *testing.T) {
 	subtasks := []protocol.Subtask{
 		{ID: "a", Status: "not-started"},
@@ -60,6 +75,15 @@ func TestDetectSubtaskCycle_WithCycle(t *testing.T) {
 	}
 	if len(cycle) < 2 {
 		t.Errorf("cycle path too short: %v", cycle)
+	}
+	cycleSet := make(map[string]bool)
+	for _, id := range cycle {
+		cycleSet[id] = true
+	}
+	for _, expected := range []string{"a", "b", "c"} {
+		if !cycleSet[expected] {
+			t.Errorf("cycle %v should contain %q", cycle, expected)
+		}
 	}
 }
 
@@ -125,6 +149,9 @@ func TestSubtaskFrontier_AllDone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if frontier == nil {
+		t.Error("frontier should be non-nil empty slice, got nil")
+	}
 	if len(frontier) != 0 {
 		t.Errorf("frontier = %v, want []", frontier)
 	}
@@ -162,5 +189,31 @@ func TestSubtaskFrontier_PartialDone(t *testing.T) {
 	}
 	if len(frontier) != 1 || frontier[0] != "b" {
 		t.Errorf("frontier = %v, want [b]", frontier)
+	}
+}
+
+func TestSubtaskFrontier_ReadyForReview(t *testing.T) {
+	subtasks := []protocol.Subtask{
+		{ID: "a", Status: "ready-for-review"},
+		{ID: "b", Status: "not-started", Depends: []string{"a"}},
+	}
+	frontier, err := SubtaskFrontier(subtasks)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(frontier) != 1 || frontier[0] != "b" {
+		t.Errorf("frontier = %v, want [b] (ready-for-review should count as completed)", frontier)
+	}
+}
+
+func TestSubtaskFrontier_DuplicateIDError(t *testing.T) {
+	subtasks := []protocol.Subtask{
+		{ID: "a", Status: "done"},
+		{ID: "a", Status: "not-started"},
+		{ID: "b", Status: "not-started", Depends: []string{"a"}},
+	}
+	_, err := SubtaskFrontier(subtasks)
+	if err == nil {
+		t.Error("expected error for duplicate subtask ID")
 	}
 }

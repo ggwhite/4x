@@ -271,8 +271,14 @@ Writes `.4x/batch-plan.json`.
 Show the next eligible feature to run (based on the plan and current status).
 
 ```
-4x batch next
+4x batch next [--json]
 ```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--json` | `false` | Output in JSON format with subtask frontier |
+
+Without `--json`, prints the feature ID as plain text (backward compatible). With `--json`, outputs a JSON object including `subtaskFrontier` — the subtasks whose dependencies are all completed. Returns `null` in JSON mode when no eligible features remain.
 
 ### `4x batch run`
 

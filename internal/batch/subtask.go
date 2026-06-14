@@ -6,12 +6,19 @@ import (
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
+func subtaskCompleted(status string) bool {
+	return status == string(protocol.StatusDone) || status == string(protocol.StatusReadyForReview)
+}
+
 // BuildSubtaskGraph 解析 subtask depends 欄位，建立鄰接表（依賴方向：被依賴者 → 依賴者）。
 // subtask A depends B → 邊 B→A（B 完成後 A 才能跑）。
-// 若 depends 引用不存在的 subtask ID，回傳 error 並含出問題的 subtask ID 與未知的 dep ID。
+// 若有重複 subtask ID 或 depends 引用不存在的 ID，回傳 error。
 func BuildSubtaskGraph(subtasks []protocol.Subtask) (map[string][]string, error) {
 	ids := make(map[string]bool, len(subtasks))
 	for _, st := range subtasks {
+		if ids[st.ID] {
+			return nil, fmt.Errorf("duplicate subtask ID %q", st.ID)
+		}
 		ids[st.ID] = true
 	}
 
@@ -28,7 +35,7 @@ func BuildSubtaskGraph(subtasks []protocol.Subtask) (map[string][]string, error)
 }
 
 // DetectSubtaskCycle 用三色 DFS 偵測 subtask 依賴圖中的環形依賴。
-// 有環回傳環路徑（subtask ID slice，長度 ≥ 2）；無環回傳 nil。
+// 有環回傳環路徑（subtask ID slice，依實際依賴方向排列）；無環回傳 nil。
 func DetectSubtaskCycle(subtasks []protocol.Subtask, adj map[string][]string) []string {
 	color := make(map[string]int) // 0=white, 1=gray, 2=black
 	parent := make(map[string]string)
@@ -39,10 +46,14 @@ func DetectSubtaskCycle(subtasks []protocol.Subtask, adj map[string][]string) []
 		color[u] = 1
 		for _, v := range adj[u] {
 			if color[v] == 1 {
-				cyclePath = []string{v, u}
-				for p := u; parent[p] != "" && parent[p] != v; p = parent[p] {
-					cyclePath = append(cyclePath, parent[p])
+				path := []string{v}
+				for p := u; p != v; p = parent[p] {
+					path = append(path, p)
 				}
+				for i, j := 1, len(path)-1; i < j; i, j = i+1, j-1 {
+					path[i], path[j] = path[j], path[i]
+				}
+				cyclePath = path
 				return true
 			}
 			if color[v] == 0 {
@@ -68,7 +79,6 @@ func DetectSubtaskCycle(subtasks []protocol.Subtask, adj map[string][]string) []
 
 // SubtaskFrontier 回傳所有前置已完成的未完成 subtask ID。
 // 內部先建圖、偵測環（有環回傳 error），再過濾出 frontier。
-// subtask status == "done" 視為已完成。
 func SubtaskFrontier(subtasks []protocol.Subtask) ([]string, error) {
 	adj, err := BuildSubtaskGraph(subtasks)
 	if err != nil {
@@ -81,12 +91,12 @@ func SubtaskFrontier(subtasks []protocol.Subtask) ([]string, error) {
 
 	doneSet := make(map[string]bool, len(subtasks))
 	for _, st := range subtasks {
-		if st.Status == "done" {
+		if subtaskCompleted(st.Status) {
 			doneSet[st.ID] = true
 		}
 	}
 
-	var frontier []string
+	frontier := []string{}
 	for _, st := range subtasks {
 		if doneSet[st.ID] {
 			continue

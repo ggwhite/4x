@@ -73,9 +73,24 @@ Creates a `.4x/batch-stop` signal file. The batch finishes the current feature, 
 ## Checking Progress
 
 ```bash
-# See which feature is next
+# See which feature is next (prints feature ID)
 4x batch next
+
+# JSON output with subtask frontier info
+4x batch next --json
 
 # Overview of all features
 4x status
 ```
+
+With `--json`, the output includes subtask dependency frontier — the set of subtasks whose dependencies are all completed and are ready to work on:
+
+```json
+{
+  "featureId": "F044-subtask-frontier",
+  "slot": 0,
+  "subtaskFrontier": ["parse-depends", "build-dag"]
+}
+```
+
+Returns `null` when no eligible features remain.
