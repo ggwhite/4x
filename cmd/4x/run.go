@@ -179,7 +179,11 @@ func newRunCmd() *cobra.Command {
 				s = existing
 				s.Active = true
 				s.Runner = runnerName
-				s.MaxRounds = s.Round + maxRounds
+				s.StopReason = ""
+				newMax := s.Round + maxRounds
+				if newMax > s.MaxRounds {
+					s.MaxRounds = newMax
+				}
 				if s.Phase == protocol.PhaseDone {
 					return fmt.Errorf("feature %s is already done", featureID)
 				}
@@ -191,7 +195,6 @@ func newRunCmd() *cobra.Command {
 						return fmt.Errorf("recovery transition %s → %s: %w", s.Phase, resumePhase, err)
 					}
 					s = ns
-					s.StopReason = ""
 				}
 			}
 
@@ -360,6 +363,10 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		}
 	}
 
+	// resume 時清除當前 phase 可能的半成品 artifact，防止 SIGKILL 後 nextPhaseAfter
+	// 讀到不完整的 report 誤以為 phase 完成
+	cleanStaleArtifact(ws, featureID, s.Phase, s.Round)
+
 	for s.Active {
 		if ctx.Err() != nil {
 			s.Active = false
@@ -490,6 +497,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			syncFeatureFromWorktree(runnerWs, ws, featureID, s.Round)
 		}
 		if err != nil {
+			s.Phase = protocol.PhaseNeedsAttention
 			s.Active = false
 			s.StopReason = "runner-error"
 			_ = ws.WriteState(featureID, s)
@@ -642,6 +650,10 @@ func nextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) 
 		return protocol.PhaseAmending, protocol.RoleCoder, ""
 
 	case protocol.PhaseAccepting:
+		report := filepath.Join(ws.FeatureDir(featureID), protocol.FinalReport)
+		if _, err := os.Stat(report); err != nil {
+			return protocol.PhaseNeedsAttention, "", "missing-artifact: " + protocol.FinalReport
+		}
 		return protocol.PhasePendingReview, "", ""
 
 	default:
@@ -708,11 +720,30 @@ func verifyPassed(ws *protocol.Workspace, featureID string, round int) bool {
 	return ve.Passed
 }
 
+// cleanStaleArtifact 清除當前 phase 的 output artifact。
+// resume 場景下（SIGKILL、runner-error），runner 可能寫了半成品 report，
+// 若不清除，nextPhaseAfter 會誤認為 phase 完成而跳到下一步。
+func cleanStaleArtifact(ws *protocol.Workspace, featureID string, phase protocol.Phase, round int) {
+	roundDir := ws.RoundDir(featureID, round)
+	switch phase {
+	case protocol.PhaseCoding, protocol.PhaseAmending:
+		os.Remove(filepath.Join(roundDir, protocol.CoderReport))
+	case protocol.PhaseReviewing:
+		os.Remove(filepath.Join(roundDir, protocol.ReviewReport))
+	case protocol.PhaseTesting:
+		os.Remove(filepath.Join(roundDir, protocol.TestReport))
+		os.Remove(filepath.Join(roundDir, protocol.VerifyFile))
+	case protocol.PhaseDeepReviewing:
+		os.Remove(filepath.Join(roundDir, protocol.DeepReviewReport))
+	case protocol.PhaseAccepting:
+		os.Remove(filepath.Join(ws.FeatureDir(featureID), protocol.FinalReport))
+		os.Remove(filepath.Join(ws.FeatureDir(featureID), protocol.CommitPlan))
+	}
+}
+
 // roleToResumePhase 根據 role 推斷 blocked/needs-attention 後應恢復到哪個 phase。
-// 回傳值必須在 state machine 的 blocked/needs-attention 合法目標內：
-//   blocked → designing, coding, testing
-//   needs-attention → designing, coding
-// reviewer 回 coding（讓 coder 修正後重新 review）。
+// 除了 designer 之外都回 coding，讓 coder 根據上一輪的 report 修正後重走流程。
+// tester 失敗也回 coding 而非 testing，避免 tester 反覆重跑相同的失敗。
 func roleToResumePhase(role protocol.Role) protocol.Phase {
 	switch role {
 	case protocol.RoleCoder:
@@ -722,7 +753,9 @@ func roleToResumePhase(role protocol.Role) protocol.Phase {
 	case protocol.RoleDeepReviewer:
 		return protocol.PhaseCoding
 	case protocol.RoleTester:
-		return protocol.PhaseTesting
+		return protocol.PhaseCoding
+	case protocol.RoleAcceptor:
+		return protocol.PhaseCoding
 	default:
 		return protocol.PhaseDesigning
 	}
