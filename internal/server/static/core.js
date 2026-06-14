@@ -126,6 +126,13 @@ function formatElapsed(iso) {
   if (m > 0) return `${m}m ${s%60}s`;
   return `${s}s`;
 }
+function fmtSec(s) {
+  if (!s || s <= 0) return '';
+  const m = Math.floor(s/60), h = Math.floor(m/60);
+  if (h > 0) return `${h}h ${m%60}m`;
+  if (m > 0) return `${m}m ${s%60}s`;
+  return `${s}s`;
+}
 function formatDuration(startIso, endIso) {
   if (!startIso || !endIso) return '';
   const ms = new Date(endIso).getTime() - new Date(startIso).getTime();

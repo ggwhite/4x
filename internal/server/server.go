@@ -444,15 +444,17 @@ func handleOverview(ws *protocol.Workspace, featureID string, w http.ResponseWri
 }
 
 type messageInfo struct {
-	Role    string `json:"role"`
-	Label   string `json:"label"`
-	Content string `json:"content"`
-	File    string `json:"file"`
-	Round   int    `json:"round,omitempty"`
+	Role     string `json:"role"`
+	Label    string `json:"label"`
+	Content  string `json:"content"`
+	File     string `json:"file"`
+	Round    int    `json:"round,omitempty"`
+	Duration int    `json:"duration,omitempty"` // seconds
 }
 
 func handleMessages(ws *protocol.Workspace, featureID string, w http.ResponseWriter) {
 	dir := ws.FeatureDir(featureID)
+	durations := buildPhaseDurations(ws, featureID)
 	var messages []messageInfo
 
 	for _, f := range []struct {
@@ -465,10 +467,11 @@ func handleMessages(ws *protocol.Workspace, featureID string, w http.ResponseWri
 		content := readIfExists(filepath.Join(dir, f.name))
 		if content != "" {
 			messages = append(messages, messageInfo{
-				Role:    f.role,
-				Label:   f.name,
-				Content: content,
-				File:    f.name,
+				Role:     f.role,
+				Label:    f.name,
+				Content:  content,
+				File:     f.name,
+				Duration: durations[durationKey{"designer", 0}],
 			})
 		}
 	}
@@ -497,11 +500,12 @@ func handleMessages(ws *protocol.Workspace, featureID string, w http.ResponseWri
 			content := readIfExists(filepath.Join(roundPath, f.name))
 			if content != "" {
 				messages = append(messages, messageInfo{
-					Role:    f.role,
-					Label:   f.name,
-					Content: content,
-					File:    filepath.Join(entry.Name(), f.name),
-					Round:   roundNum,
+					Role:     f.role,
+					Label:    f.name,
+					Content:  content,
+					File:     filepath.Join(entry.Name(), f.name),
+					Round:    roundNum,
+					Duration: durations[durationKey{f.role, roundNum}],
 				})
 			}
 		}
@@ -525,6 +529,52 @@ func handleMessages(ws *protocol.Workspace, featureID string, w http.ResponseWri
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(messages)
+}
+
+type durationKey struct {
+	role  string
+	round int
+}
+
+func buildPhaseDurations(ws *protocol.Workspace, featureID string) map[durationKey]int {
+	result := make(map[durationKey]int)
+	path := filepath.Join(ws.FeatureDir(featureID), protocol.EventsFile)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return result
+	}
+
+	type eventEntry struct {
+		Ts    string `json:"ts"`
+		Type  string `json:"type"`
+		Role  string `json:"role"`
+		Round int    `json:"round"`
+	}
+
+	starts := make(map[durationKey]time.Time)
+	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		if line == "" {
+			continue
+		}
+		var e eventEntry
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			continue
+		}
+		key := durationKey{e.Role, e.Round}
+		switch e.Type {
+		case "phase-start":
+			if t, err := time.Parse(time.RFC3339, e.Ts); err == nil {
+				starts[key] = t
+			}
+		case "run-end":
+			if start, ok := starts[key]; ok {
+				if t, err := time.Parse(time.RFC3339, e.Ts); err == nil {
+					result[key] = int(t.Sub(start).Seconds())
+				}
+			}
+		}
+	}
+	return result
 }
 
 func handleEvents(ws *protocol.Workspace, featureID string, w http.ResponseWriter) {
