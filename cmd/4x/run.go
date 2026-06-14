@@ -371,6 +371,34 @@ func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, featur
 	return buf.String(), nil
 }
 
+// promptResult 是 prefetch goroutine 透過 channel 回傳的生成結果。
+type promptResult struct {
+	prompt string
+	err    error
+}
+
+// promptPrefetch 保存一個已在背景啟動的 prompt 預生成任務；以 role+round 為 key，
+// 消費端 mismatch 時丟棄並退回同步生成，確保不會用錯 prompt。
+type promptPrefetch struct {
+	role  protocol.Role
+	round int
+	ch    chan promptResult
+}
+
+// prefetchablePhase 回報某 phase 是否會在主迴圈頂端走同步 generatePrompt（line 530），
+// 只有這些 phase 值得預生成 prompt。reviewing 僅在非平行模式下才走頂端路徑
+// （平行 runReviewTestParallel 自行呼叫 generatePrompt，不經頂端）。
+func prefetchablePhase(phase protocol.Phase, cfg protocol.Config) bool {
+	switch phase {
+	case protocol.PhaseCoding, protocol.PhaseAmending, protocol.PhaseTesting, protocol.PhaseAccepting:
+		return true
+	case protocol.PhaseReviewing:
+		return !cfg.ParallelReviewTest
+	default:
+		return false
+	}
+}
+
 func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s protocol.State, ops gitops.Ops, newRunner func(logPath string, model string) runner.Runner, commitStrategy string) error {
 	if ops == nil {
 		ops = gitops.New(ws.Root, ws, cfg)
@@ -415,6 +443,14 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 
 	designerEscalations := 0
 	const maxDesignerEscalations = 2
+
+	// P3：per-round auto-commit 改為背景執行，不阻塞下一個 phase 的 prompt 生成與 runner 啟動。
+	// defer Wait 一次涵蓋 runLoop 所有 return 路徑，確保 process exit / batch 結束前背景 commit 都完成。
+	var commitWG sync.WaitGroup
+	defer commitWG.Wait()
+
+	// P1：保存上一輪 transition 後背景啟動的 prompt 預生成；消費端以 role+round 比對。
+	var pending *promptPrefetch
 
 	for s.Active {
 		if ctx.Err() != nil {
@@ -527,9 +563,24 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			Runner: s.Runner, Model: model,
 		})
 
-		prompt, err := generatePrompt(ws, runnerWs, feature, cfg, role, s.Round, 0)
-		if err != nil {
-			prompt = fmt.Sprintf("You are the %s for feature %s, round %d. Read .4x/%s/ for context.", role, featureID, s.Round, featureID)
+		// P1：優先取用上一輪背景預生成的 prompt（role+round 比對）；prefetch 失敗或無
+		// matching prefetch 則退回同步 generatePrompt，同步亦失敗才用 minimal prompt。
+		var prompt string
+		gotPrefetch := false
+		if pending != nil && pending.role == role && pending.round == s.Round {
+			res := <-pending.ch
+			if res.err == nil {
+				prompt = res.prompt
+				gotPrefetch = true
+			}
+		}
+		pending = nil // 已消費或不匹配，一律清掉避免下一輪誤用
+		if !gotPrefetch {
+			p, gerr := generatePrompt(ws, runnerWs, feature, cfg, role, s.Round, 0)
+			if gerr != nil {
+				p = fmt.Sprintf("You are the %s for feature %s, round %d. Read .4x/%s/ for context.", role, featureID, s.Round, featureID)
+			}
+			prompt = p
 		}
 
 		logPath := filepath.Join(runner.LogDir(ws, featureID), runner.LogFileName(s.Round, string(role)))
@@ -602,13 +653,6 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			return nil
 		}
 
-		if commitStrategy == "per-round" && runnerWs.Root != ws.Root &&
-			(phase == protocol.PhaseCoding || phase == protocol.PhaseAmending) {
-			if err := ops.Commit(runnerWs.Root, featureID, fmt.Sprintf("wip(%s): round %d", featureID, s.Round)); err != nil {
-				fmt.Fprintf(os.Stderr, "  auto-commit round %d failed: %v\n", s.Round, err)
-			}
-		}
-
 		if phase == protocol.PhaseCoding || phase == protocol.PhaseAmending {
 			guardResult := guard.Check(ws, featureID, ops)
 			if !guardResult.Pass {
@@ -622,6 +666,19 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 					Detail: s.StopReason, Runner: s.Runner,
 				})
 				return nil
+			}
+
+			// P3：guard 通過後才在背景啟動 per-round auto-commit。guard.Check 已先觀察乾淨的
+			// working tree，背景 commit 不再與 guard 競爭，也不阻塞下一個 phase 的啟動。
+			// 行為變更：guard 失敗（→ needs-attention）那輪不再自動 wip-commit，未提交 diff 便於人工檢視。
+			if commitStrategy == "per-round" && runnerWs.Root != ws.Root {
+				commitWG.Add(1)
+				go func(wtRoot string, round int) {
+					defer commitWG.Done()
+					if err := ops.Commit(wtRoot, featureID, fmt.Sprintf("wip(%s): round %d", featureID, round)); err != nil {
+						fmt.Fprintf(os.Stderr, "  auto-commit round %d failed: %v\n", round, err)
+					}
+				}(runnerWs.Root, s.Round)
 			}
 		}
 
@@ -689,6 +746,22 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 
 		if err := executePhaseHooks(ctx, ws, featureID, &s, loopHooks["post"], next, "post", hookLogDir); err != nil {
 			return err
+		}
+
+		// P1：post-hooks 跑完後，若下一輪會走頂端同步 generatePrompt，背景預生成其 prompt，
+		// 與下一輪頂端的 syncFeatureToWorktree/startLiveSync 並行。放在 post-hooks 之後啟動，
+		// 完全避開「hook 改寫 prompt 輸入檔（planning docs / includes）→ prefetch 讀到舊內容」的競爭。
+		// key 用 PhaseToRole(s.Phase) 與 s.Round，確保與消費端的 role/round 比對一致。
+		if s.Active {
+			nextRole := state.PhaseToRole(s.Phase)
+			if prefetchablePhase(s.Phase, cfg) && nextRole != "" && pc.EnablesRole(nextRole) {
+				ch := make(chan promptResult, 1)
+				pending = &promptPrefetch{role: nextRole, round: s.Round, ch: ch}
+				go func(role protocol.Role, round int) {
+					p, gerr := generatePrompt(ws, runnerWs, feature, cfg, role, round, 0)
+					ch <- promptResult{prompt: p, err: gerr}
+				}(nextRole, s.Round)
+			}
 		}
 	}
 
@@ -1541,7 +1614,7 @@ func syncFeatureFromWorktree(wt, main *protocol.Workspace, featureID string, rou
 		protocol.TaskBrief, protocol.Criteria, protocol.TestStratFile,
 		protocol.FinalReport, protocol.CommitPlan,
 	} {
-		if err := gitops.CopyFileIfExists(filepath.Join(srcDir, name), filepath.Join(dstDir, name)); err != nil {
+		if _, err := gitops.CopyFileIfNewer(filepath.Join(srcDir, name), filepath.Join(dstDir, name)); err != nil {
 			errs = append(errs, fmt.Sprintf("%s: %v", name, err))
 		}
 	}
@@ -1558,7 +1631,7 @@ func syncFeatureFromWorktree(wt, main *protocol.Workspace, featureID string, rou
 	}
 	for _, e := range entries {
 		if !e.IsDir() {
-			if err := gitops.CopyFileIfExists(filepath.Join(srcRound, e.Name()), filepath.Join(dstRound, e.Name())); err != nil {
+			if _, err := gitops.CopyFileIfNewer(filepath.Join(srcRound, e.Name()), filepath.Join(dstRound, e.Name())); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", e.Name(), err))
 			}
 		}
