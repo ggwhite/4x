@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -88,6 +89,7 @@ func newBatchPlanCmd() *cobra.Command {
 			if err := os.WriteFile(planPath, data, 0o644); err != nil {
 				return err
 			}
+			slog.Info("batch operation", "action", "plan", "features", len(plan.Schedule), "path", planPath)
 			fmt.Printf("Wrote %s\n", planPath)
 			return printPlan(plan)
 		},
@@ -246,7 +248,7 @@ func newBatchRunCmd() *cobra.Command {
 				return err
 			}
 			if userCfg, err := protocol.ReadUserConfig(); err != nil {
-				fmt.Fprintf(os.Stderr, "warning: failed to read user config: %v\n", err)
+				slog.Warn("failed to read user config", "error", err)
 			} else {
 				cfg = protocol.MergeConfig(userCfg, cfg)
 			}
@@ -329,8 +331,10 @@ func newBatchRunCmd() *cobra.Command {
 				return autoMergeFeature(ws, cfg, st, featureID, name)
 			}
 
+			slog.Info("batch operation", "action", "run", "features", len(plan.Schedule), "runner", runnerName)
 			completed := runBatchSchedule(ws, plan, statusMap, maxRounds, runnerName, runFeature, noAutoMerge, autoMerge)
 
+			slog.Info("batch operation", "action", "complete", "completed", completed, "total", len(plan.Schedule))
 			fmt.Printf("\n══════════════════════════════════════\n")
 			fmt.Printf("  BATCH COMPLETE: %d/%d features done\n", completed, len(plan.Schedule))
 			fmt.Printf("══════════════════════════════════════\n")
@@ -403,6 +407,7 @@ func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap m
 			break
 		}
 
+		slog.Info("batch feature", "feature", next, "status", "started", "completed", completed, "total", len(plan.Schedule))
 		fmt.Printf("\n══════════════════════════════════════\n")
 		fmt.Printf("  BATCH: %s (%d/%d done)\n", next, completed, len(plan.Schedule))
 		fmt.Printf("══════════════════════════════════════\n\n")
@@ -464,6 +469,8 @@ func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap m
 		updatedStatus, runErr := runFeature(next, feature, s)
 		statusMap[next] = updatedStatus
 
+		slog.Info("batch feature", "feature", next, "status", "completed", "result", string(updatedStatus))
+
 		// W12：跑出失敗狀態時累計，達上限後於 selection 跳過避免無限重跑。
 		if updatedStatus == protocol.StatusNeedsAttention || updatedStatus == protocol.StatusBlocked {
 			failedFeatures[next]++
@@ -480,6 +487,7 @@ func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap m
 			switch {
 			case result.Conflict:
 				// M2：衝突 → graceful pause。保留 pending-review 與 worktree、不計入 completed、停止主迴圈。
+				slog.Error("auto-merge conflict", "feature", next, "files", result.Files, "repo", result.ConflictRepo)
 				fmt.Printf("\n⏸ auto-merge conflict on %s — pausing batch (%d done):\n", next, completed)
 				for _, file := range result.Files {
 					fmt.Printf("  conflict: %s\n", file)
@@ -492,10 +500,11 @@ func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap m
 				return completed
 			case result.Error != "":
 				// M3：非衝突錯誤 → 警告後嘗試下一個 feature；feature 仍算 ready-for-review（batchCompleted）。
-				fmt.Fprintf(os.Stderr, "  warning: auto-merge failed for %s; feature remains pending-review: %s\n", next, result.Error)
+				slog.Error("auto-merge failed", "feature", next, "error", result.Error)
 				fmt.Printf("  worktree preserved at: %s\n", gitops.Dir(ws.Root, next))
 			default:
 				// M1/M4：成功或 skipped（非 worktree 模式）→ 標記 done。
+				slog.Info("auto-merge succeeded", "feature", next, "skipped", result.Skipped)
 				statusMap[next] = protocol.StatusDone
 			}
 		}
@@ -526,6 +535,7 @@ func newBatchStopCmd() *cobra.Command {
 			if err := os.WriteFile(stopFile, []byte("stop"), 0o644); err != nil {
 				return err
 			}
+			slog.Info("batch operation", "action", "stop")
 			fmt.Println("Stop signal sent — batch will finish current feature then exit.")
 			return nil
 		},

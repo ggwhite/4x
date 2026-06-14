@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/ggwhite/4x/internal/gitops"
@@ -40,7 +41,7 @@ func newMergeCmd() *cobra.Command {
 
 			cfg, err := ws.ReadConfig()
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "warning: cannot read config, using defaults: %v\n", err)
+				slog.Warn("cannot read config, using defaults", "error", err)
 			}
 			if userCfg, err := protocol.ReadUserConfig(); err == nil {
 				cfg = protocol.MergeConfig(userCfg, cfg)

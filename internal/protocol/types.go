@@ -361,6 +361,12 @@ type UserConfig struct {
 	DefaultRunner string                  `json:"default_runner,omitempty"`
 	Runners       map[string]RunnerConfig `json:"runners,omitempty"`
 	Roles         map[string]RoleConfig   `json:"roles,omitempty"`
+	// LogLevel 設定 structured logging 的最低輸出等級（debug/info/warn/error），
+	// 為空時預設 "info"；可被環境變數 FOURX_LOG_LEVEL 覆蓋。
+	LogLevel string `json:"logLevel,omitempty"`
+	// LogRetainDays 設定 ~/.4x/logs/ 下 log 檔的保留天數，
+	// 超過此天數的 log 檔會在 Init() 時自動清除；為零時預設 7 天。
+	LogRetainDays int `json:"logRetainDays,omitempty"`
 }
 
 // RunnerPreset 描述一個受支援 runner 的預設設定

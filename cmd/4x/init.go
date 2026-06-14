@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -159,7 +160,7 @@ func ensureUserConfig() {
 		Runners:       protocol.SupportedRunnerMap(),
 	}
 	if err := protocol.WriteUserConfig(cfg); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: failed to create user config: %v\n", err)
+		slog.Warn("failed to create user config", "error", err)
 		return
 	}
 	path, _ := protocol.UserConfigPath()

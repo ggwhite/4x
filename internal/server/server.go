@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -22,6 +23,7 @@ import (
 	"time"
 
 	"github.com/ggwhite/4x/internal/gitops"
+	"github.com/ggwhite/4x/internal/logging"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/state"
 )
@@ -178,7 +180,7 @@ func NewMux(ws *protocol.Workspace, pm *ProcessManager) http.Handler {
 	sub, _ := fs.Sub(staticFS, "static")
 	mux.Handle("/", http.FileServer(http.FS(sub)))
 
-	return mux
+	return logging.Middleware(mux)
 }
 
 // Start 啟動 dashboard web server。
@@ -621,6 +623,9 @@ func handleSSE(ws *protocol.Workspace, featureID string, w http.ResponseWriter, 
 		return
 	}
 
+	slog.Debug("sse connected", "feature", featureID)
+	defer slog.Debug("sse disconnected", "feature", featureID)
+
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -982,6 +987,9 @@ func handleLogSSE(ws *protocol.Workspace, featureID string, w http.ResponseWrite
 		return
 	}
 
+	slog.Debug("log sse connected", "feature", featureID)
+	defer slog.Debug("log sse disconnected", "feature", featureID)
+
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -1173,6 +1181,7 @@ func transitionDone(ws *protocol.Workspace, featureID string, s protocol.State, 
 
 // handleGetSettings 讀取 .4x/settings.json 原始內容並回傳，保留所有欄位（含 Config struct 未定義的）。
 func handleGetSettings(ws *protocol.Workspace, w http.ResponseWriter) {
+	slog.Debug("config loaded", "project", filepath.Base(ws.Root))
 	settingsPath := filepath.Join(ws.DotDir(), protocol.ConfigFile)
 	data, err := os.ReadFile(settingsPath)
 	if err != nil {
@@ -1255,6 +1264,7 @@ func handlePutSettings(ws *protocol.Workspace, w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	slog.Debug("config saved", "project", filepath.Base(ws.Root))
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(result)
 }

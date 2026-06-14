@@ -1,10 +1,11 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
-	"context"
 	"path/filepath"
 	"strings"
 	"time"
@@ -97,7 +98,7 @@ func newTransitionCmd() *cobra.Command {
 			}
 
 			if err := syncFeatureStatus(ws, featureID, toPhase); err != nil {
-				fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+				slog.Warn("sync feature status failed", "feature", featureID, "phase", toPhase, "error", err)
 			}
 
 			ws.AppendEvent(featureID, protocol.Event{

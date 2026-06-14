@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"os"
+	"log/slog"
 	"os/exec"
 	"strconv"
 	"sync"
@@ -90,6 +90,7 @@ func (pm *ProcessManager) Start(featureID, runner string, maxRounds int) (*RunIn
 	}
 
 	if err := cmd.Start(); err != nil {
+		slog.Error("process failed", "feature", featureID, "error", err)
 		return nil, fmt.Errorf("start subprocess: %w", err)
 	}
 
@@ -108,6 +109,8 @@ func (pm *ProcessManager) Start(featureID, runner string, maxRounds int) (*RunIn
 		done:      make(chan struct{}),
 	}
 	pm.runs[id] = info
+
+	slog.Info("process started", "feature", featureID, "pid", info.Pid)
 
 	go pm.pipeOutput(featureID, stdout, "run-output")
 	go pm.pipeOutput(featureID, stderr, "run-error")
@@ -151,11 +154,17 @@ func (pm *ProcessManager) pipeOutput(featureID string, r io.Reader, eventType st
 }
 
 func (pm *ProcessManager) wait(id string, info *RunInfo) {
-	_ = info.Cmd.Wait()
+	err := info.Cmd.Wait()
 
 	pm.mu.Lock()
 	delete(pm.runs, id)
 	pm.mu.Unlock()
+
+	if err != nil {
+		slog.Error("process failed", "feature", info.FeatureID, "pid", info.Pid, "error", err)
+	} else {
+		slog.Info("process stopped", "feature", info.FeatureID, "pid", info.Pid)
+	}
 
 	// 以 process 結束當下時間作為比較門檻：若 runner 衍生的 child process
 	// （如 `4x transition`）在 main process 退出後才寫 final state，其 UpdatedAt
@@ -188,7 +197,7 @@ func (pm *ProcessManager) ensureInactive(featureID string, endTime time.Time) {
 		s.StopReason = "process-exit"
 	}
 	if err := pm.ws.WriteState(featureID, s); err != nil {
-		fmt.Fprintf(os.Stderr, "[4x] ensureInactive: failed to write state for %s: %v\n", featureID, err)
+		slog.Error("ensureInactive: failed to write state", "feature", featureID, "error", err)
 	}
 }
 

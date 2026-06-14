@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 
+	"github.com/ggwhite/4x/internal/logging"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -58,6 +60,7 @@ func (r *ProjectRegistry) Add(ws *protocol.Workspace) string {
 	pm := newProcessManagerFromConfig(ws)
 	r.ids[id] = true
 	r.entries = append(r.entries, &registryEntry{id: id, ws: ws, mux: NewMux(ws, pm), pm: pm})
+	slog.Info("project added", "id", id, "path", ws.Root)
 	return id
 }
 
@@ -73,6 +76,7 @@ func (r *ProjectRegistry) Remove(id string) bool {
 			}
 			r.entries = append(r.entries[:i], r.entries[i+1:]...)
 			delete(r.ids, id)
+			slog.Info("project removed", "id", id)
 			return true
 		}
 	}
@@ -497,7 +501,7 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 	sub, _ := fs.Sub(staticFS, "static")
 	mux.Handle("/", http.FileServer(http.FS(sub)))
 
-	return recoverMiddleware(mux)
+	return logging.Middleware(recoverMiddleware(mux))
 }
 
 // recoverMiddleware 攔截 handler panic，回傳 500 而非 crash 整個 server
@@ -505,7 +509,7 @@ func recoverMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if rv := recover(); rv != nil {
-				fmt.Fprintf(os.Stderr, "[4x] panic in %s %s: %v\n", r.Method, r.URL.Path, rv)
+				slog.Error("panic recovered", "method", r.Method, "path", r.URL.Path, "error", rv)
 				http.Error(w, "internal server error", http.StatusInternalServerError)
 			}
 		}()

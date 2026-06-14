@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/ggwhite/4x/internal/gitops"
@@ -48,7 +49,7 @@ func markDone(ws *protocol.Workspace, featureID string) error {
 
 	cfg, err := ws.ReadConfig()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "warning: cannot read config, using defaults: %v\n", err)
+		slog.Warn("cannot read config, using defaults", "error", err)
 	}
 	if userCfg, err := protocol.ReadUserConfig(); err == nil {
 		cfg = protocol.MergeConfig(userCfg, cfg)
@@ -74,7 +75,7 @@ func markDone(ws *protocol.Workspace, featureID string) error {
 		return nil
 	}
 	if result.Error != "" {
-		fmt.Fprintf(os.Stderr, "warning: merge failed; feature remains pending-review: %s\n", result.Error)
+		slog.Error("merge failed", "feature", featureID, "error", result.Error)
 		fmt.Printf("Worktree preserved at: %s\n", gitops.Dir(ws.Root, featureID))
 		return nil
 	}

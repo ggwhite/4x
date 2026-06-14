@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -40,7 +41,7 @@ With paths, opens each as a project tab.`,
 				for _, path := range args {
 					ws, err := protocol.Find(path)
 					if err != nil {
-						fmt.Fprintf(os.Stderr, "warning: %s — %v\n", path, err)
+						slog.Warn("project load failed", "path", path, "error", err)
 						continue
 					}
 					reg.Add(ws)
@@ -63,6 +64,7 @@ With paths, opens each as a project tab.`,
 			fmt.Printf("4x Live — %s\n", url)
 			if len(projects) > 0 {
 				for _, p := range projects {
+					slog.Info("project loaded", "name", p.Name, "path", p.Path)
 					fmt.Printf("  + %s (%s)\n", p.Name, p.Path)
 				}
 			} else {
@@ -79,6 +81,7 @@ With paths, opens each as a project tab.`,
 			signal.Ignore(syscall.SIGPIPE)
 			ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 			defer stop()
+			slog.Info("server started", "port", port, "pid", os.Getpid())
 			fmt.Printf("  pid: %d\n", os.Getpid())
 			return server.StartMulti(ctx, reg, port, recentPath)
 		},
@@ -105,11 +108,11 @@ func openBrowser(url string) {
 
 func launchNativeApp(port int) {
 	if runtime.GOOS != "darwin" {
-		fmt.Fprintf(os.Stderr, "native app not supported on %s yet\n", runtime.GOOS)
+		slog.Warn("native app not supported", "os", runtime.GOOS)
 		return
 	}
 	cmd := exec.Command("open", "-a", "4x Live", "--args", fmt.Sprintf("--port=%d", port))
 	if err := cmd.Start(); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: could not launch native app: %v\n", err)
+		slog.Warn("could not launch native app", "error", err)
 	}
 }

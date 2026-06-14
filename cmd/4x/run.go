@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -59,7 +60,7 @@ func newRunCmd() *cobra.Command {
 			}
 
 			if userCfg, err := protocol.ReadUserConfig(); err != nil {
-				fmt.Fprintf(os.Stderr, "warning: failed to read user config: %v\n", err)
+				slog.Warn("failed to read user config", "error", err)
 			} else {
 				cfg = protocol.MergeConfig(userCfg, cfg)
 			}
@@ -129,7 +130,7 @@ func newRunCmd() *cobra.Command {
 			depResult := guard.CheckDependencies(ws, featureID)
 			if !depResult.Pass {
 				for _, e := range depResult.Errors {
-					fmt.Fprintf(os.Stderr, "  blocked: %s\n", e)
+					slog.Warn("dependency blocked", "feature", featureID, "reason", e)
 				}
 				return fmt.Errorf("feature %s has unmet dependencies", featureID)
 			}
@@ -224,6 +225,8 @@ func newRunCmd() *cobra.Command {
 				Runner: runnerName,
 			})
 
+			slog.Info("feature run started", "feature", featureID, "runner", runnerName, "maxRounds", maxRounds, "profile", s.Profile)
+
 			if dryRun {
 				return dryRunLoop(ws, feature, cfg, s)
 			}
@@ -274,7 +277,9 @@ func newRunCmd() *cobra.Command {
 				if finalState.Phase == protocol.PhaseDone || finalState.Phase == protocol.PhasePendingReview {
 					if commitStrategy == "on-done" {
 						if err := ops.Commit(wtPath, featureID, fmt.Sprintf("feat(%s): %s", featureID, feature.Name)); err != nil {
-							fmt.Fprintf(os.Stderr, "  auto-commit failed: %v\n", err)
+							slog.Error("auto-commit failed", "feature", featureID, "error", err)
+						} else {
+							slog.Info("auto-commit", "feature", featureID, "strategy", commitStrategy)
 						}
 					}
 					fmt.Printf("  branch: 4x/%s\n", featureID)
@@ -407,7 +412,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			return fmt.Errorf("write state (init→designing): %w", err)
 		}
 		if err := syncFeatureStatus(ws, featureID, s.Phase); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+			slog.Warn("sync feature status failed", "feature", featureID, "phase", s.Phase, "error", err)
 		}
 
 		if err := executePhaseHooks(ctx, ws, featureID, &s, initHooks["post"], protocol.PhaseDesigning, "post", hookLogDir); err != nil {
@@ -435,7 +440,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			s.Active = false
 			s.StopReason = "interrupted"
 			if err := ws.WriteState(featureID, s); err != nil {
-				fmt.Fprintf(os.Stderr, "warning: write state: %v\n", err)
+				slog.Warn("write state failed", "feature", featureID, "error", err)
 			}
 			return ctx.Err()
 		}
@@ -499,12 +504,13 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			s.StopReason = reason
 			s.Phase = protocol.PhaseNeedsAttention
 			if err := ws.WriteState(featureID, s); err != nil {
-				fmt.Fprintf(os.Stderr, "warning: write state: %v\n", err)
+				slog.Warn("write state failed", "feature", featureID, "error", err)
 			}
 			if err := syncFeatureStatus(ws, featureID, s.Phase); err != nil {
-				fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+				slog.Warn("sync feature status failed", "feature", featureID, "error", err)
 			}
 			ws.AppendEvent(featureID, protocol.Event{Type: "escalation", Phase: s.Phase, Detail: reason, Runner: s.Runner})
+			slog.Info("run stopped", "feature", featureID, "reason", reason, "round", s.Round)
 			fmt.Printf("  stopped: %s\n", reason)
 			return nil
 		}
@@ -540,6 +546,8 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			Type: "phase-start", Phase: phase, Role: role, Round: s.Round,
 			Runner: s.Runner, Model: model,
 		})
+
+		slog.Info("phase transition", "feature", featureID, "phase", phase, "role", role, "round", s.Round, "model", model)
 
 		// P1：優先取用上一輪背景預生成的 prompt（role+round 比對）；prefetch 失敗或無
 		// matching prefetch 則退回同步 generatePrompt，同步亦失敗才用 minimal prompt。
@@ -580,14 +588,18 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			fmt.Printf("[round %d] %s (%s) — invoking %s\n", s.Round, phase, role, s.Runner)
 		}
 
+		slog.Info("plugin invocation", "feature", featureID, "role", role, "runner", s.Runner, "model", model, "round", s.Round, "status", "started")
+		invokeStart := time.Now()
 		result, err := r.Run(ctx, prompt)
+		invokeDur := time.Since(invokeStart)
+		slog.Info("plugin invocation", "feature", featureID, "role", role, "runner", s.Runner, "model", model, "round", s.Round, "status", "completed", "duration_ms", invokeDur.Milliseconds())
 
 		if stopSync != nil {
 			stopSync()
 		}
 		if runnerWs.Root != ws.Root {
 			if serr := syncFeatureFromWorktree(runnerWs, ws, featureID, s.Round); serr != nil {
-				fmt.Fprintf(os.Stderr, "warning: %v\n", serr)
+				slog.Warn("sync from worktree failed", "feature", featureID, "round", s.Round, "error", serr)
 			}
 		}
 		if err != nil {
@@ -654,7 +666,9 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 				go func(wtRoot string, round int) {
 					defer commitWG.Done()
 					if err := ops.Commit(wtRoot, featureID, fmt.Sprintf("wip(%s): round %d", featureID, round)); err != nil {
-						fmt.Fprintf(os.Stderr, "  auto-commit round %d failed: %v\n", round, err)
+						slog.Error("auto-commit failed", "feature", featureID, "round", round, "error", err)
+					} else {
+						slog.Info("auto-commit", "feature", featureID, "round", round, "strategy", "per-round")
 					}
 				}(runnerWs.Root, s.Round)
 			}
@@ -936,7 +950,7 @@ func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 	}
 	if runnerWs.Root != ws.Root {
 		if serr := syncFeatureFromWorktree(runnerWs, ws, featureID, round); serr != nil {
-			fmt.Fprintf(os.Stderr, "warning: %v\n", serr)
+			slog.Warn("sync from worktree failed", "feature", featureID, "round", round, "error", serr)
 		}
 	}
 
@@ -1164,7 +1178,9 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 		// mini-coder 改了 source code：worktree + per-round 模式下比照 coder 即時 commit。
 		if commitStrategy == "per-round" && runnerWs.Root != ws.Root {
 			if err := ops.Commit(runnerWs.Root, featureID, fmt.Sprintf("wip(%s): round %d deep-fix %d", featureID, round, iter)); err != nil {
-				fmt.Fprintf(os.Stderr, "  auto-commit deep-fix %d failed: %v\n", iter, err)
+				slog.Error("auto-commit deep-fix failed", "feature", featureID, "round", round, "iteration", iter, "error", err)
+			} else {
+				slog.Info("auto-commit", "feature", featureID, "round", round, "iteration", iter, "strategy", "deep-fix")
 			}
 		}
 
@@ -1262,7 +1278,7 @@ func runDeepSubRole(ctx context.Context, ws *protocol.Workspace, runnerWs *proto
 	}
 	if runnerWs.Root != ws.Root {
 		if serr := syncFeatureFromWorktree(runnerWs, ws, featureID, round); serr != nil {
-			fmt.Fprintf(os.Stderr, "warning: %v\n", serr)
+			slog.Warn("sync from worktree failed", "feature", featureID, "round", round, "role", role, "error", serr)
 		}
 	}
 
@@ -1350,7 +1366,7 @@ func writeDeepReviewFailReport(ws *protocol.Workspace, featureID string, round i
 	content := fmt.Sprintf("# Deep Review Report — Round %d\n\n## Summary\nFAIL — %s\n\n## Issues\n### [CRITICAL] %s\n%s\n\n## Verdict\nFAIL\n",
 		round, reason, reason, detail)
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		fmt.Fprintf(os.Stderr, "  write deep-review FAIL report failed: %v\n", err)
+		slog.Error("write deep-review FAIL report failed", "feature", featureID, "round", round, "error", err)
 	}
 }
 
@@ -1361,7 +1377,7 @@ func writeDeepEscalation(ws *protocol.Workspace, featureID string, round int, re
 	data, _ := json.Marshal(esc)
 	path := filepath.Join(ws.RoundDir(featureID, round), protocol.EscalationFile)
 	if err := os.WriteFile(path, data, 0o644); err != nil {
-		fmt.Fprintf(os.Stderr, "  write deep-review escalation failed: %v\n", err)
+		slog.Error("write deep-review escalation failed", "feature", featureID, "round", round, "error", err)
 	}
 }
 
@@ -1638,7 +1654,7 @@ func startLiveSync(wt, main *protocol.Workspace, featureID string, round int) fu
 				return
 			case <-ticker.C:
 				if err := syncFeatureFromWorktree(wt, main, featureID, round); err != nil {
-					fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+					slog.Warn("live sync failed", "feature", featureID, "round", round, "error", err)
 				}
 			}
 		}

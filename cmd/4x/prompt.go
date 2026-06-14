@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -54,7 +55,7 @@ func newPromptCmd() *cobra.Command {
 
 			cfg, _ := ws.ReadConfig()
 			if userCfg, err := protocol.ReadUserConfig(); err != nil {
-				fmt.Fprintf(os.Stderr, "warning: failed to read user config: %v\n", err)
+				slog.Warn("failed to read user config", "error", err)
 			} else {
 				cfg = protocol.MergeConfig(userCfg, cfg)
 			}
@@ -177,7 +178,7 @@ func loadIncludes(root string, paths []string) []includeContent {
 		}
 		data, err := os.ReadFile(abs)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "warning: include %s: %v\n", p, err)
+			slog.Warn("include file read failed", "path", p, "error", err)
 			continue
 		}
 		result = append(result, includeContent{Path: p, Content: string(data)})
@@ -234,7 +235,7 @@ var localeNames = map[string]string{
 func resolveLocale() (code, name string) {
 	ucfg, err := protocol.ReadUserConfig()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "warning: failed to read user config: %v\n", err)
+		slog.Warn("failed to read user config", "error", err)
 	}
 	if ucfg.Locale != "" {
 		code = ucfg.Locale
