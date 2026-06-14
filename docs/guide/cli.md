@@ -296,7 +296,7 @@ Without `--json`, prints the feature ID as plain text (backward compatible). Wit
 Run eligible features sequentially in dependency order.
 
 ```
-4x batch run [--runner <name>] [--max-rounds <n>] [--timeout <seconds>]
+4x batch run [--runner <name>] [--max-rounds <n>] [--timeout <seconds>] [--no-auto-merge]
 ```
 
 | Flag | Default | Description |
@@ -304,8 +304,11 @@ Run eligible features sequentially in dependency order.
 | `--runner` | config default | Runner plugin name |
 | `--max-rounds` | `5` | Max rounds per feature |
 | `--timeout` | `3600` | Per-phase timeout in seconds |
+| `--no-auto-merge` | `false` | Leave each completed feature at `pending-review` instead of auto-merging back to main |
 
 Polls for `.4x/batch-stop` file between features for graceful shutdown.
+
+By default, after a feature completes (reaches `pending-review`), the batch automatically merges its worktree branch back to main so the next feature branches from the updated main — enabling unattended continuous batches. On a merge conflict the batch pauses gracefully, leaving the feature at `pending-review` and the worktree intact; resolve the conflict, run `4x merge <id>`, then re-run `4x batch run` to continue. Non-conflict merge errors print a warning and the batch continues with the next feature. Pass `--no-auto-merge` to restore the old behavior (features stop at `pending-review` for manual review).
 
 If `isolation: "worktree"` is set in config, each feature runs in its own isolated worktree. In multi-repo mode, each feature gets a composite worktree (`.worktrees/4x/<feature-id>/`) with per-repo sub-directories, and commits are made per round (not deferred to completion). Hub repos (from `hub_repos` config or `workspace.repos[*].hub: true`) are excluded from shared-repo clustering to allow parallel execution.
 
