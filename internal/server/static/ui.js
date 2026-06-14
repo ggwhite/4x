@@ -290,6 +290,17 @@ function renderTaskItem(task) {
     cardStyle = 'background:var(--glass)';
   } else if (task.status==='done') {
     cls += 'border border-transparent opacity-40 hover:opacity-70 ';
+  } else if (task.status==='ready-for-review') {
+    cls += 'border ';
+    cardStyle = 'background:linear-gradient(135deg,rgba(251,191,36,.06),var(--glass));border-color:rgba(251,191,36,.2)';
+  } else if (task.priority != null && task.priority <= 1) {
+    cls += 'border ';
+    const prioBorders = {0:'rgba(248,113,113,.2)',1:'rgba(251,146,60,.2)'};
+    const prioBgs = {0:'rgba(248,113,113,.04)',1:'rgba(251,146,60,.04)'};
+    cardStyle = `background:linear-gradient(135deg,${prioBgs[task.priority]||'transparent'},var(--glass));border-color:${prioBorders[task.priority]||'transparent'}`;
+  } else if (task.priority != null && task.priority <= 2) {
+    cls += 'border ';
+    cardStyle = 'background:linear-gradient(135deg,rgba(250,204,21,.03),var(--glass));border-color:rgba(250,204,21,.15)';
   } else {
     cls += 'border border-transparent hover:border-zinc-700/30 ';
   }
