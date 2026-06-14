@@ -609,8 +609,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			}
 		}
 
-		// designer 不改 source code，略過 scope/baseline 檢查
-		if role != protocol.RoleDesigner {
+		if phase == protocol.PhaseCoding || phase == protocol.PhaseAmending {
 			guardResult := guard.Check(ws, featureID, ops)
 			if !guardResult.Pass {
 				s.Phase = protocol.PhaseNeedsAttention
@@ -1598,3 +1597,4 @@ func startLiveSync(wt, main *protocol.Workspace, featureID string, round int) fu
 		wg.Wait()
 	}
 }
+
