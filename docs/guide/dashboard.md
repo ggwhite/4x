@@ -25,6 +25,10 @@ Real-time monitoring of your AI development loop.
 
 The dashboard supports multiple projects simultaneously. Without path arguments, it loads from `~/.4x/recent-projects.json` (LRU, max 20 entries).
 
+## Feature Cards
+
+Each feature card shows tags for its priority, dependencies, and — when a non-default [pipeline profile](concepts.md#pipeline-profiles) is active — a **profile tag** (e.g. `quick`, `normal`). The profile is carried in the `profile` field of the `/api/tasks` JSON.
+
 ## Server API
 
 The dashboard exposes REST and SSE endpoints:

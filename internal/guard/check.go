@@ -96,6 +96,19 @@ func checkRequiredFiles(ws *protocol.Workspace, featureID string, r *CheckResult
 		return
 	}
 
+	// 依 active profile 決定哪些 role 的產出物為必要：profile 未啟用 designer 時不要求
+	// task-brief/criteria；未啟用 tester 時不要求 tester 交付物。profile 無法解析時退回
+	// 全部必要（向後相容，等同 full）。
+	designerEnabled, testerEnabled := true, true
+	if cfg, cfgErr := ws.ReadConfig(); cfgErr == nil {
+		if feature, featErr := ws.LoadFeature(featureID); featErr == nil {
+			if _, pc, perr := protocol.ResolveProfile(cfg, feature, state.Profile); perr == nil {
+				designerEnabled = pc.EnablesRole(protocol.RoleDesigner)
+				testerEnabled = pc.EnablesRole(protocol.RoleTester)
+			}
+		}
+	}
+
 	needsDesignOutputs := map[protocol.Phase]bool{
 		protocol.PhaseCoding:        true,
 		protocol.PhaseReviewing:     true,
@@ -105,10 +118,10 @@ func checkRequiredFiles(ws *protocol.Workspace, featureID string, r *CheckResult
 		protocol.PhasePendingReview: true,
 		protocol.PhaseDone:          true,
 	}
-	if needsDesignOutputs[state.Phase] {
+	if needsDesignOutputs[state.Phase] && designerEnabled {
 		required = append(required, protocol.TaskBrief, protocol.Criteria)
 	}
-	if state.Phase == protocol.PhaseAccepting || state.Phase == protocol.PhasePendingReview || state.Phase == protocol.PhaseDone {
+	if testerEnabled && (state.Phase == protocol.PhaseAccepting || state.Phase == protocol.PhasePendingReview || state.Phase == protocol.PhaseDone) {
 		roundDir := ws.RoundDir(featureID, state.Round)
 		if _, err := os.Stat(roundDir); err == nil {
 			checkTestingToAccepting(ws, featureID, state.Round, r)
@@ -259,4 +272,3 @@ func detectChangedRepos(root string) []string {
 	}
 	return repos
 }
-

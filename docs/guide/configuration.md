@@ -94,6 +94,35 @@ If `{model}` is not present in `args`, the runner auto-appends `--model <model>`
 | `isolation` | Set to `"worktree"` to run features in git worktrees |
 | `max_concurrent_runs` | Max concurrent runs via the dashboard server |
 | `commit` | Commit strategy: `"per-round"` (default), `"on-done"`, or `"never"` |
+| `profiles` | Named pipeline profiles (role subsets); see [Profiles](#profiles) |
+| `parallel_review_test` | Run reviewer and tester concurrently during the reviewing phase (default `false`) |
+
+### Profiles
+
+A profile selects which roles run for a feature, so simple features can skip the full 6-role pipeline. Roles not listed are passed through — the state advances along the legal edge without invoking the runner, checking artifacts, or running guards. `coder` is the only required role; a profile missing it is a configuration error.
+
+```json
+"profiles": {
+  "full":   { "roles": ["designer", "coder", "reviewer", "tester", "deep-reviewer", "acceptor"] },
+  "normal": { "roles": ["coder", "reviewer", "tester", "acceptor"] },
+  "quick":  { "roles": ["coder", "reviewer"], "coder_model": "opus" }
+}
+```
+
+| Field | Description |
+|---|---|
+| `roles` | Enabled role names (order is irrelevant; execution order follows the canonical pipeline) |
+| `coder_model` | Optional tier override for the coder model in this profile |
+
+**Selection precedence:**
+
+1. `4x run --profile <name>` — explicit override (looked up in `profiles`, then the built-in defaults).
+2. Otherwise, if a `profiles` section exists, auto-select by the feature's `priority`: `null`/`0`/`1` → `full`, `2` → `normal`, `≥3` → `quick`.
+3. If no `profiles` section exists, every feature runs `full` (priority-based auto-select is disabled — backward compatible).
+
+The three built-in profiles (`full`/`normal`/`quick`) are always available as fallbacks even without a `profiles` section. The active profile name is recorded in the feature state and shown on the dashboard card.
+
+When `parallel_review_test` is `true` and the active profile enables both `reviewer` and `tester`, the two read-only roles run concurrently in the same worktree during the reviewing phase; both passing advances to deep review, otherwise the loop re-enters coding.
 
 ## User Config (`~/.4x/settings.json`)
 
