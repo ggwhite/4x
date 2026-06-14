@@ -398,7 +398,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		}
 
 		// 清除上一輪遺留的 feature-level 產出物，避免舊文件通過新一輪的 guard 檢查
-		if phase == protocol.PhaseTesting {
+		if phase == protocol.PhaseTesting || phase == protocol.PhaseAmending {
 			os.Remove(filepath.Join(ws.FeatureDir(featureID), protocol.FinalReport))
 			os.Remove(filepath.Join(ws.FeatureDir(featureID), protocol.CommitPlan))
 		}
@@ -772,6 +772,7 @@ func dryRunLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.C
 		{protocol.PhaseReviewing, protocol.RoleReviewer},
 		{protocol.PhaseTesting, protocol.RoleTester},
 		{protocol.PhaseDeepReviewing, protocol.RoleDeepReviewer},
+		{protocol.PhaseAccepting, protocol.RoleAcceptor},
 	}
 
 	for _, p := range phases {

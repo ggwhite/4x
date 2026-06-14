@@ -501,14 +501,20 @@ func handleMessages(ws *protocol.Workspace, featureID string, w http.ResponseWri
 		}
 	}
 
-	final := readIfExists(filepath.Join(dir, protocol.FinalReport))
-	if final != "" {
-		messages = append(messages, messageInfo{
-			Role:    "acceptor",
-			Label:   protocol.FinalReport,
-			Content: final,
-			File:    protocol.FinalReport,
-		})
+	s, _ := ws.ReadState(featureID)
+	showAcceptor := s.Phase == protocol.PhaseAccepting ||
+		s.Phase == protocol.PhasePendingReview ||
+		s.Phase == protocol.PhaseDone
+	if showAcceptor {
+		final := readIfExists(filepath.Join(dir, protocol.FinalReport))
+		if final != "" {
+			messages = append(messages, messageInfo{
+				Role:    "acceptor",
+				Label:   protocol.FinalReport,
+				Content: final,
+				File:    protocol.FinalReport,
+			})
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

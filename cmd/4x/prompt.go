@@ -289,6 +289,7 @@ var roleTemplateFiles = map[protocol.Role]string{
 	protocol.RoleReviewer:     "reviewer.md.tmpl",
 	protocol.RoleDeepReviewer: "deep-reviewer.md.tmpl",
 	protocol.RoleTester:       "tester.md.tmpl",
+	protocol.RoleAcceptor:     "acceptor.md.tmpl",
 }
 
 func loadRoleTemplate(r protocol.Role) (*template.Template, error) {
