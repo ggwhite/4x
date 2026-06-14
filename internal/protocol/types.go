@@ -19,6 +19,7 @@ const (
 	PhaseAccepting      Phase = "accepting"
 	PhasePendingReview  Phase = "pending-review"
 	PhaseDone           Phase = "done"
+	PhaseAbandoned      Phase = "abandoned"
 	PhaseBlocked        Phase = "blocked"
 	PhaseNeedsAttention Phase = "needs-attention"
 )
@@ -51,6 +52,7 @@ const (
 	StatusNotStarted     Status = "not-started"
 	StatusInProgress     Status = "in-progress"
 	StatusDone           Status = "done"
+	StatusAbandoned      Status = "abandoned"
 	StatusBlocked        Status = "blocked"
 	StatusNeedsAttention Status = "needs-attention"
 	StatusReadyForReview Status = "ready-for-review"
@@ -63,6 +65,8 @@ func PhaseToStatus(phase Phase) Status {
 		return StatusReadyForReview
 	case PhaseDone:
 		return StatusDone
+	case PhaseAbandoned:
+		return StatusAbandoned
 	case PhaseBlocked:
 		return StatusBlocked
 	case PhaseNeedsAttention:

@@ -83,7 +83,7 @@ func categorize(f protocol.Feature, active bool) int {
 	if f.Status == protocol.StatusInProgress || f.Status == protocol.StatusNeedsAttention {
 		return 2 // pending (in-progress but not actively running)
 	}
-	if f.Status == protocol.StatusDone {
+	if f.Status == protocol.StatusDone || f.Status == protocol.StatusAbandoned {
 		return 4
 	}
 	return 3 // not-started = todo

@@ -24,6 +24,7 @@
   "status.inProgress": "En progreso",
   "status.review": "En revisión",
   "status.done": "Completado",
+  "status.abandoned": "Abandonado",
   "status.blocked": "Bloqueado",
   "status.backlog": "Pendiente",
   "status.notStarted": "No iniciado",

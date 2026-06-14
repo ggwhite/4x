@@ -384,5 +384,5 @@ func newBatchStopCmd() *cobra.Command {
 }
 
 func batchCompleted(s protocol.Status) bool {
-	return s == protocol.StatusDone || s == protocol.StatusReadyForReview
+	return s == protocol.StatusDone || s == protocol.StatusAbandoned || s == protocol.StatusReadyForReview
 }

@@ -135,6 +135,7 @@ function renderSearchResults(query) {
     let b; if (isActive) b=`<span style="padding:2px 8px;font-size:10px;font-weight:600;background:rgba(16,185,129,.15);color:#34d399;border:1px solid rgba(16,185,129,.3);border-radius:99px">${t('status.inProgress')}</span>`;
     else if (task.status==='ready-for-review') b=`<span style="padding:2px 8px;font-size:10px;font-weight:600;background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.3);border-radius:99px">${t('status.review')}</span>`;
     else if (task.status==='done') b=`<span style="padding:2px 8px;font-size:10px;color:var(--text-3);border:1px solid var(--border);border-radius:99px">${t('status.done')}</span>`;
+    else if (task.status==='abandoned') b=`<span style="padding:2px 8px;font-size:10px;color:var(--text-4);border:1px solid var(--border);border-radius:99px;text-decoration:line-through">${t('status.abandoned')}</span>`;
     else if (task.status==='blocked') b=`<span style="padding:2px 8px;font-size:10px;color:#f87171;border:1px solid rgba(248,113,113,.3);border-radius:99px">${t('status.blocked')}</span>`;
     else b=`<span style="padding:2px 8px;font-size:10px;color:var(--text-4);border:1px solid var(--border);border-radius:99px">${t('status.notStarted')}</span>`;
     return `<div class="search-item ${i===searchIdx?'active':''}" onclick="selectSearch(${i})" onmouseenter="highlightSearch(${i})">${pl}<span style="font-size:13px;font-weight:600;color:${isActive?'#34d399':'var(--accent)'};min-width:80px">${esc(task.id)}</span><span style="flex:1;font-size:13px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(task.name)}</span>${b}</div>`;
@@ -175,6 +176,7 @@ function badge(status, phase, active) {
   if (active && phase && phase!=='done') return `<span class="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span>${t('status.inProgress')}</span>`;
   if (status==='ready-for-review') return `<span class="px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/30 rounded-full">${t('status.review')}</span>`;
   if (status==='done') return `<span class="px-2 py-0.5 text-[10px] text-zinc-500 border border-zinc-700/50 rounded-full">${t('status.done')}</span>`;
+  if (status==='abandoned') return `<span class="px-2 py-0.5 text-[10px] text-zinc-600 border border-zinc-800/50 rounded-full line-through">${t('status.abandoned')}</span>`;
   if (status==='blocked') return `<span class="px-2 py-0.5 text-[10px] text-red-400 border border-red-500/30 rounded-full">${t('status.blocked')}</span>`;
   return `<span class="px-2 py-0.5 text-[10px] text-zinc-600 border border-zinc-800 rounded-full">${t('status.backlog')}</span>`;
 }
@@ -227,7 +229,7 @@ function disconnectSSE() { if (sseSource) { sseSource.close(); sseSource = null;
 
 function classify(tasks) {
   const g = { running: [], review: [], pending: [], todo: [], done: [] };
-  (tasks||[]).forEach(f => { const a = f.active && f.phase && f.phase!=='done'; if (a) g.running.push(f); else if (f.status==='ready-for-review' || f.phase==='pending-review') g.review.push(f); else if (f.status==='done') g.done.push(f); else if (f.status==='in-progress' || f.status==='needs-attention') g.pending.push(f); else g.todo.push(f); });
+  (tasks||[]).forEach(f => { const a = f.active && f.phase && f.phase!=='done'; if (a) g.running.push(f); else if (f.status==='ready-for-review' || f.phase==='pending-review') g.review.push(f); else if (f.status==='done' || f.status==='abandoned') g.done.push(f); else if (f.status==='in-progress' || f.status==='needs-attention') g.pending.push(f); else g.todo.push(f); });
   g.todo.sort((a, b) => { const pa = a.priority != null ? a.priority : 999, pb = b.priority != null ? b.priority : 999; return pa - pb || a.id.localeCompare(b.id); });
   g.done.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
   return g;

@@ -24,6 +24,7 @@
   "status.inProgress": "진행 중",
   "status.review": "검토 중",
   "status.done": "완료",
+  "status.abandoned": "폐기",
   "status.blocked": "차단됨",
   "status.backlog": "백로그",
   "status.notStarted": "시작 전",

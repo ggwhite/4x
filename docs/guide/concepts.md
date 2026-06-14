@@ -56,7 +56,7 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
 | `pending-review` | `done` |
 | `blocked` | `designing`, `coding`, `testing` |
 | `needs-attention` | `designing`, `coding`, `testing` |
-| any | `blocked`, `needs-attention`, `done` |
+| any | `blocked`, `needs-attention`, `done`, `abandoned` |
 
 ### Round Counter
 
@@ -120,7 +120,7 @@ rules: []
 depends: []
 ```
 
-`status` mirrors `state.json` phase for quick listing. `depends` lists feature IDs that must be done before this feature can run. `repos` lists the repository names (from `workspace.repos`) that this feature touches; empty means all repos in scope.
+`status` mirrors `state.json` phase for quick listing. Valid values: `not-started`, `in-progress`, `ready-for-review`, `needs-attention`, `blocked`, `done`, `abandoned`. `abandoned` features are treated as completed (won't block dependencies) but display with strikethrough in the dashboard. `depends` lists feature IDs that must be done (or abandoned) before this feature can run. `repos` lists the repository names (from `workspace.repos`) that this feature touches; empty means all repos in scope.
 
 ### Workspace Config (Multi-Repo)
 

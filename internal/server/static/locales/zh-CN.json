@@ -24,6 +24,7 @@
   "status.inProgress": "运行中",
   "status.review": "审查中",
   "status.done": "完成",
+  "status.abandoned": "废弃",
   "status.blocked": "阻塞",
   "status.backlog": "待办",
   "status.notStarted": "未开始",

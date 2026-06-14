@@ -10,7 +10,7 @@
     "description": { "type": "string" },
     "status": {
       "type": "string",
-      "enum": ["not-started", "in-progress", "ready-for-review", "needs-attention", "blocked", "done"]
+      "enum": ["not-started", "in-progress", "ready-for-review", "needs-attention", "blocked", "done", "abandoned"]
     },
     "priority": { "type": "integer", "minimum": 0 },
     "repos": {

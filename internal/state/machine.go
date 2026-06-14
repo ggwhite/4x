@@ -24,7 +24,7 @@ var transitions = map[protocol.Phase][]protocol.Phase{
 
 // CanTransition 檢查從 from 到 to 是否合法
 func CanTransition(from, to protocol.Phase) bool {
-	if to == protocol.PhaseBlocked || to == protocol.PhaseNeedsAttention || to == protocol.PhaseDone {
+	if to == protocol.PhaseBlocked || to == protocol.PhaseNeedsAttention || to == protocol.PhaseDone || to == protocol.PhaseAbandoned {
 		return true
 	}
 	allowed, ok := transitions[from]
