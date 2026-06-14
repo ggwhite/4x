@@ -55,7 +55,8 @@
         "新增 Cobra subcommand 時在 cmd/4x/main.go 註冊",
         "internal/ 下新 package 要確認不會 circular dependency",
         "embed 檔案只能在同層或子目錄，不能用 ../",
-        "不要動 templates/*.md.tmpl 除非 task-brief 明確要求"
+        "不要動 templates/*.md.tmpl 除非 task-brief 明確要求",
+        "若功能涉及新增 settings.json 欄位（config schema 變更），同步更新 .4x/settings.json 加入 sensible defaults"
       ]
     },
     "reviewer": {
@@ -79,6 +80,14 @@
         "截圖存到 .4x/e2e/{feature-id}/screenshot/，檔名格式 {step}-{description}.png（如 01-dashboard-loaded.png）",
         "Playwright 未安裝時先跑 npx playwright install chromium",
         "verify.json 必須每項 AC 都有對應的 pass/fail 結果"
+      ]
+    },
+    "acceptor": {
+      "model": "opus",
+      "instructions": [
+        "必須讀取所有 round 的 review-report、test-report、deep-review-report，不只最後一輪",
+        "All Issues Raised 表格要列出每個 issue 的來源 role、round、severity、是否已修",
+        "對 OPEN 的 issue 要誠實標註，不可隱藏未解決的問題"
       ]
     }
   }
