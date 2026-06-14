@@ -366,6 +366,18 @@ func TestSubprocessRunner_ContextCanceled(t *testing.T) {
 	}
 }
 
+func TestDeepFixLogFileName(t *testing.T) {
+	if got := DeepFixLogFileName(2, 1); got != "round-2-deep-fix-1.log" {
+		t.Errorf("got %q, want round-2-deep-fix-1.log", got)
+	}
+}
+
+func TestDeepReverifyLogFileName(t *testing.T) {
+	if got := DeepReverifyLogFileName(3, 2); got != "round-3-deep-reverify-2.log" {
+		t.Errorf("got %q, want round-3-deep-reverify-2.log", got)
+	}
+}
+
 // TestBuildArgs_UnresolvedModel 驗證 W16：arg 含 {model} 但 ModelOverride 為空時
 // 回傳 error，不把字面 "{model}" 傳給 CLI。
 func TestBuildArgs_UnresolvedModel(t *testing.T) {
@@ -407,7 +419,6 @@ func TestBuildArgs_ResolvedModel(t *testing.T) {
 // TestBuildArgs_PromptFileCreateFailure 驗證 W17：os.CreateTemp 失敗時回傳
 // wrap 過的 error，不 fallback 成字面 placeholder。
 func TestBuildArgs_PromptFileCreateFailure(t *testing.T) {
-	// 指向不存在的目錄，讓 os.CreateTemp 失敗
 	t.Setenv("TMPDIR", filepath.Join(t.TempDir(), "does-not-exist"))
 
 	r := &SubprocessRunner{

@@ -30,12 +30,14 @@ type mockRunner struct {
 	outcomes         []mockOutcome
 	idx              int
 	phases           []protocol.Phase
+	roles            []protocol.Role
 	baselineAtCoding []bool
 }
 
 func (m *mockRunner) Run(_ context.Context, _ string) (*runner.Result, error) {
 	s, _ := m.ws.ReadState(m.featureID)
 	m.phases = append(m.phases, s.Phase)
+	m.roles = append(m.roles, s.Role)
 	if s.Phase == protocol.PhaseCoding {
 		baselinePath := filepath.Join(m.ws.FeatureDir(m.featureID), protocol.BaselineFile)
 		_, err := os.Stat(baselinePath)
@@ -81,16 +83,23 @@ func (m *mockRunner) Run(_ context.Context, _ string) (*runner.Result, error) {
 		os.WriteFile(filepath.Join(roundDir, protocol.ReviewReport), []byte(report), 0o644)
 
 	case protocol.PhaseDeepReviewing:
-		verdict := outcome.reviewVerdict
-		if verdict == "" {
-			verdict = "PASS"
+		// deep-reviewing phase 內三個子 role 共用同一 phase，依 role 區分產出物：
+		// mini-coder 寫 coder-report（模擬修正）；deep-reviewer 與 re-verifier 寫 / 改 deep-review-report 的 Verdict。
+		switch s.Role {
+		case protocol.RoleMiniCoder:
+			os.WriteFile(filepath.Join(roundDir, protocol.CoderReport), []byte("# Mini Coder Report"), 0o644)
+		default:
+			verdict := outcome.reviewVerdict
+			if verdict == "" {
+				verdict = "PASS"
+			}
+			report := "# Deep Review Report\n\n"
+			for i := 0; i < outcome.criticalIssues; i++ {
+				report += "### [CRITICAL] Issue — file.go\n\n"
+			}
+			report += "## Verdict\n" + verdict + "\n"
+			os.WriteFile(filepath.Join(roundDir, protocol.DeepReviewReport), []byte(report), 0o644)
 		}
-		report := "# Deep Review Report\n\n"
-		for i := 0; i < outcome.criticalIssues; i++ {
-			report += "### [CRITICAL] Issue — file.go\n\n"
-		}
-		report += "## Verdict\n" + verdict + "\n"
-		os.WriteFile(filepath.Join(roundDir, protocol.DeepReviewReport), []byte(report), 0o644)
 
 	case protocol.PhaseTesting:
 		ve := protocol.VerifyEvidence{Passed: outcome.testPassed, Round: s.Round}
@@ -1159,7 +1168,10 @@ func TestRunLoop_DeepReviewExecuted(t *testing.T) {
 	}
 }
 
-func TestRunLoop_DeepReviewFail(t *testing.T) {
+// TestRunLoop_DeepReviewSelfHeal 驗證 F063：deep reviewer FAIL 時不回主迴圈重跑整條流程，
+// 而是在 deep-reviewing phase 內 spawn mini-coder + re-verifier 自癒，re-verifier 把 Verdict
+// 改 PASS 後直接放行 accepting。reviewer / tester 不重跑。
+func TestRunLoop_DeepReviewSelfHeal(t *testing.T) {
 	ws := setupLoopWorkspace(t, "feat-deep-fail")
 	feature, _ := ws.LoadFeature("feat-deep-fail")
 	cfg, _ := ws.ReadConfig()
@@ -1174,16 +1186,14 @@ func TestRunLoop_DeepReviewFail(t *testing.T) {
 	ws.WriteState("feat-deep-fail", s)
 
 	mock := &mockRunner{ws: ws, featureID: "feat-deep-fail", outcomes: []mockOutcome{
-		{},                      // designing
-		{},                      // coding
-		{reviewVerdict: "PASS"}, // reviewing pass
-		{testPassed: true},      // testing pass
-		{reviewVerdict: "FAIL"}, // deep-reviewing fail → amending
-		{},                      // amending (coder)
-		{reviewVerdict: "PASS"}, // reviewing pass
-		{testPassed: true},      // testing pass
-		{reviewVerdict: "PASS"}, // deep-reviewing pass
-		{},                      // accepting
+		{},                      // designer
+		{},                      // coder
+		{reviewVerdict: "PASS"}, // reviewer pass
+		{testPassed: true},      // tester pass
+		{reviewVerdict: "FAIL"}, // deep-reviewer FAIL → self-heal
+		{},                      // mini-coder (writes coder-report)
+		{reviewVerdict: "PASS"}, // re-verifier → deep-review-report PASS
+		{},                      // acceptor
 	}}
 
 	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
@@ -1194,20 +1204,172 @@ func TestRunLoop_DeepReviewFail(t *testing.T) {
 	if final.Phase != protocol.PhasePendingReview {
 		t.Errorf("phase = %s, want pending-review", final.Phase)
 	}
+	if final.Round != 1 {
+		t.Errorf("round = %d, want 1 (self-heal must not increment round)", final.Round)
+	}
 
-	wantPhases := []protocol.Phase{
-		protocol.PhaseDesigning, protocol.PhaseCoding, protocol.PhaseReviewing,
-		protocol.PhaseTesting, protocol.PhaseDeepReviewing, protocol.PhaseAmending,
-		protocol.PhaseReviewing, protocol.PhaseTesting, protocol.PhaseDeepReviewing,
-		protocol.PhaseAccepting,
+	wantRoles := []protocol.Role{
+		protocol.RoleDesigner, protocol.RoleCoder, protocol.RoleReviewer,
+		protocol.RoleTester, protocol.RoleDeepReviewer, protocol.RoleMiniCoder,
+		protocol.RoleReVerifier, protocol.RoleAcceptor,
 	}
-	if len(mock.phases) != len(wantPhases) {
-		t.Fatalf("ran %d phases, want %d: %v", len(mock.phases), len(wantPhases), mock.phases)
+	if len(mock.roles) != len(wantRoles) {
+		t.Fatalf("ran %d roles, want %d: %v", len(mock.roles), len(wantRoles), mock.roles)
 	}
-	for i, p := range wantPhases {
-		if mock.phases[i] != p {
-			t.Errorf("phase[%d] = %s, want %s", i, mock.phases[i], p)
+	for i, r := range wantRoles {
+		if mock.roles[i] != r {
+			t.Errorf("role[%d] = %s, want %s", i, mock.roles[i], r)
 		}
+	}
+
+	// reviewer 與 tester 各只跑一次（沒有因 deep review 內部修正而重跑）。
+	reviewerCount, testerCount := 0, 0
+	for _, r := range mock.roles {
+		switch r {
+		case protocol.RoleReviewer:
+			reviewerCount++
+		case protocol.RoleTester:
+			testerCount++
+		}
+	}
+	if reviewerCount != 1 || testerCount != 1 {
+		t.Errorf("reviewer ran %d, tester ran %d; both should run exactly once", reviewerCount, testerCount)
+	}
+}
+
+// TestRunLoop_DeepReviewSelfHealExhausted 驗證自癒循環跑滿 max_fix_rounds 仍 FAIL 時，
+// escalate 到 needs-attention 並維持 FAIL 報告，不會無限重跑。
+func TestRunLoop_DeepReviewSelfHealExhausted(t *testing.T) {
+	ws := setupLoopWorkspace(t, "feat-deep-exhaust")
+	feature, _ := ws.LoadFeature("feat-deep-exhaust")
+	cfg, _ := ws.ReadConfig()
+	cfg.Roles = map[string]protocol.RoleConfig{
+		"reviewer":      {Model: "sonnet", DeepModel: "opus"},
+		"deep-reviewer": {MaxFixRounds: 2},
+	}
+
+	s := protocol.State{
+		FeatureID: "feat-deep-exhaust", Phase: protocol.PhaseInit,
+		MaxRounds: 5, Active: true, Runner: "mock",
+	}
+	ws.WriteState("feat-deep-exhaust", s)
+
+	mock := &mockRunner{ws: ws, featureID: "feat-deep-exhaust", outcomes: []mockOutcome{
+		{},                      // designer
+		{},                      // coder
+		{reviewVerdict: "PASS"}, // reviewer pass
+		{testPassed: true},      // tester pass
+		{reviewVerdict: "FAIL"}, // deep-reviewer FAIL → self-heal iter 1
+		{},                      // mini-coder iter 1
+		{reviewVerdict: "FAIL"}, // re-verifier iter 1 still FAIL → iter 2
+		{},                      // mini-coder iter 2
+		{reviewVerdict: "FAIL"}, // re-verifier iter 2 still FAIL → exhausted
+	}}
+
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+		t.Fatalf("runLoop error: %v", err)
+	}
+
+	final, _ := ws.ReadState("feat-deep-exhaust")
+	if final.Phase != protocol.PhaseNeedsAttention {
+		t.Errorf("phase = %s, want needs-attention", final.Phase)
+	}
+	if !strings.Contains(final.StopReason, "exhausted") {
+		t.Errorf("stopReason = %q, want it to mention exhausted", final.StopReason)
+	}
+
+	wantRoles := []protocol.Role{
+		protocol.RoleDesigner, protocol.RoleCoder, protocol.RoleReviewer,
+		protocol.RoleTester, protocol.RoleDeepReviewer,
+		protocol.RoleMiniCoder, protocol.RoleReVerifier,
+		protocol.RoleMiniCoder, protocol.RoleReVerifier,
+	}
+	if len(mock.roles) != len(wantRoles) {
+		t.Fatalf("ran %d roles, want %d: %v", len(mock.roles), len(wantRoles), mock.roles)
+	}
+	for i, r := range wantRoles {
+		if mock.roles[i] != r {
+			t.Errorf("role[%d] = %s, want %s", i, mock.roles[i], r)
+		}
+	}
+
+	// deep-review-report.md 必須維持 FAIL。
+	if reviewPassed(ws, "feat-deep-exhaust", 1, protocol.DeepReviewReport) {
+		t.Error("deep-review-report should remain FAIL after exhaustion")
+	}
+}
+
+// roleAwareOps 只在當前 state.Role 等於 failForRole 時回報 out-of-scope，
+// 用於模擬「正常 coder 在 scope 內，但 mini-coder 超出 scope」的情境。
+type roleAwareOps struct {
+	mockOps
+	ws          *protocol.Workspace
+	featureID   string
+	failForRole protocol.Role
+}
+
+func (m *roleAwareOps) DetectChangedRepos() []string {
+	s, _ := m.ws.ReadState(m.featureID)
+	if s.Role == m.failForRole {
+		return []string{"out-of-scope-repo"}
+	}
+	return nil
+}
+
+// TestRunLoop_DeepReviewMiniCoderScopeExceed 驗證：mini-coder 改動超出原始 scope 時，
+// 自癒循環立即停下、寫出 FAIL 報告與 escalation，並轉入 needs-attention（不繼續修）。
+func TestRunLoop_DeepReviewMiniCoderScopeExceed(t *testing.T) {
+	ws := setupLoopWorkspace(t, "feat-deep-scope")
+	f := protocol.Feature{ID: "feat-deep-scope", Name: "Deep Scope Test", Status: "not-started", Repos: []string{"allowed-repo"}}
+	ws.SaveFeature(f)
+	feature, _ := ws.LoadFeature("feat-deep-scope")
+	cfg, _ := ws.ReadConfig()
+	cfg.Roles = map[string]protocol.RoleConfig{
+		"reviewer": {Model: "sonnet", DeepModel: "opus"},
+	}
+
+	s := protocol.State{
+		FeatureID: "feat-deep-scope", Phase: protocol.PhaseInit,
+		MaxRounds: 5, Active: true, Runner: "mock",
+	}
+	ws.WriteState("feat-deep-scope", s)
+
+	mock := &mockRunner{ws: ws, featureID: "feat-deep-scope", outcomes: []mockOutcome{
+		{},                      // designer
+		{},                      // coder
+		{reviewVerdict: "PASS"}, // reviewer pass
+		{testPassed: true},      // tester pass
+		{reviewVerdict: "FAIL"}, // deep-reviewer FAIL → self-heal
+		{},                      // mini-coder (will trip scope guard)
+	}}
+	ops := &roleAwareOps{ws: ws, featureID: "feat-deep-scope", failForRole: protocol.RoleMiniCoder}
+
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, ops, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+		t.Fatalf("runLoop error: %v", err)
+	}
+
+	final, _ := ws.ReadState("feat-deep-scope")
+	if final.Phase != protocol.PhaseNeedsAttention {
+		t.Errorf("phase = %s, want needs-attention", final.Phase)
+	}
+	if !strings.Contains(final.StopReason, "scope-exceed") {
+		t.Errorf("stopReason = %q, want it to mention scope-exceed", final.StopReason)
+	}
+
+	// re-verifier 不應執行（scope-exceed 立刻停止）。
+	for _, r := range mock.roles {
+		if r == protocol.RoleReVerifier {
+			t.Error("re-verifier should not run after mini-coder scope-exceed")
+		}
+	}
+
+	// deep-review-report 應被改寫為 FAIL，且 escalation.json 應存在。
+	if reviewPassed(ws, "feat-deep-scope", 1, protocol.DeepReviewReport) {
+		t.Error("deep-review-report should be FAIL after scope-exceed")
+	}
+	esc := readEscalation(ws, "feat-deep-scope", 1)
+	if !esc.Needed || esc.Reason != "scope-change" {
+		t.Errorf("escalation = %+v, want needed scope-change", esc)
 	}
 }
 

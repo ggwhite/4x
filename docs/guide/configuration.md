@@ -83,6 +83,7 @@ If `{model}` is not present in `args`, the runner auto-appends `--model <model>`
 |---|---|
 | `model` | Model name for this role |
 | `deep_model` | Model for adversarial review pass (reviewer only) |
+| `max_fix_rounds` | Max self-heal iterations in the `deep-reviewing` phase (`deep-reviewer` only; default 2). Each iteration runs a scoped mini-coder + re-verifier; exceeding the cap escalates to `needs-attention`. |
 | `instructions` | Additional instructions injected into the role prompt |
 | `includes` | Files to include in the role prompt |
 

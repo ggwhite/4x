@@ -39,6 +39,19 @@ A **pipeline profile** selects which roles run for a given feature, so simple wo
 1. **Checklist review** (standard model) — checks against project hard rules: security, concurrency, error handling, style
 2. **Adversarial review** (deep model) — "What's the worst bug hiding in this diff?" Findings rated by severity.
 
+### Deep Review Self-Healing
+
+When the Deep Reviewer finds blocking issues, the `deep-reviewing` phase repairs them **in place** instead of sending the work all the way back through `amending → reviewing → testing`. Since the Reviewer and Tester already passed before deep review, re-running the whole expensive chain (especially the deep model) is wasteful.
+
+Inside the same phase the loop spawns two scoped sub-roles, repeating until the report passes or a cap is hit:
+
+| Sub-role | Model | Reads | Writes | Scope |
+|---|---|---|---|---|
+| **mini-coder** | coder model | `deep-review-report.md` `## Issues` only (not `task-brief.md`) | source code, `coder-report.md` | only the issues the deep reviewer named |
+| **re-verifier** | reviewer model | the prior issues + the mini-coder's diff for this iteration | `deep-reverify-{n}.md`, updates the `## Verdict` of `deep-review-report.md` | verifies old issues are fixed and the new diff introduces no bug |
+
+The phase stays `deep-reviewing` throughout — the sub-roles are not state-machine phases. When the re-verifier confirms a clean PASS, the loop advances to `accepting`. The loop runs at most `roles.deep-reviewer.max_fix_rounds` iterations (default 2); if the mini-coder edits files outside the feature scope, or the cap is reached while still failing, the feature escalates to `needs-attention` with the FAIL report preserved.
+
 ### Escalation
 
 The Coder or Tester can escalate back to the Designer when:
@@ -95,6 +108,7 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
 | `coding` / `amending` | `escalation.json` with `spec-mismatch`, `criteria-wrong`, or `scope-change` | → `designing` |
 | `reviewing` | Verdict does not start with `PASS` (must be explicit `PASS` or `CONDITIONAL PASS`) | → `amending` |
 | `testing` | `verify.json` not passed or artifacts missing | → `amending` |
+| `deep-reviewing` | Deep review FAILs | self-heal in place (mini-coder + re-verifier), up to `max_fix_rounds`; PASS → `accepting`, otherwise → `needs-attention` |
 | any (non-designer) | Guard check finds scope violation, baseline drift, or missing required file | → `needs-attention` |
 
 ---

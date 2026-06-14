@@ -69,6 +69,9 @@
         "確認 embed 路徑在 go build 時不會壞掉"
       ]
     },
+    "deep-reviewer": {
+      "max_fix_rounds": 2
+    },
     "tester": {
       "model": "sonnet",
       "instructions": [

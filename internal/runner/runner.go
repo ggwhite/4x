@@ -399,3 +399,15 @@ func LogFileName(round int, role string) string {
 func StreamLogFileName(round int, role string) string {
 	return fmt.Sprintf("round-%d-%s.stream.jsonl", round, role)
 }
+
+// DeepFixLogFileName 產生 deep-reviewing 自癒循環中 mini-coder 的 log 檔名：
+// round-<round>-deep-fix-<iteration>.log。
+func DeepFixLogFileName(round, iteration int) string {
+	return fmt.Sprintf("round-%d-deep-fix-%d.log", round, iteration)
+}
+
+// DeepReverifyLogFileName 產生 deep-reviewing 自癒循環中 re-verifier 的 log 檔名：
+// round-<round>-deep-reverify-<iteration>.log。
+func DeepReverifyLogFileName(round, iteration int) string {
+	return fmt.Sprintf("round-%d-deep-reverify-%d.log", round, iteration)
+}
