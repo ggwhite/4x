@@ -660,7 +660,10 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		// 持平或更差 → ConsecutiveNoProgress++；改善 → reset。首輪（尚無基準）只建立 LastFailCount。
 		if next == protocol.PhaseAmending {
 			cur := reviewFailCount(ws, featureID, s.Round)
-			if newState.LastFailCount == 0 && newState.ConsecutiveNoProgress == 0 {
+			// 首輪 amending 僅建立基準、不 increment。額外要求 cur > 0：
+			// 否則 review-report 缺失/格式異常使 cur 恆為 0 時，LastFailCount 會一直停在 0，
+			// 「首輪」條件每輪都成立，ConsecutiveNoProgress 永遠無法遞增而漏掉 no-progress 停止。
+			if newState.LastFailCount == 0 && newState.ConsecutiveNoProgress == 0 && cur > 0 {
 				// 首輪 amending：僅建立基準，不 increment
 			} else if cur >= newState.LastFailCount {
 				newState.ConsecutiveNoProgress++

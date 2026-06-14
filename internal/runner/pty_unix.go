@@ -36,7 +36,6 @@ func watchPtyContext(ctx context.Context, pid int) {
 		case <-ctx.Done():
 			_ = syscall.Kill(-pid, syscall.SIGTERM)
 			deadline := time.NewTimer(5 * time.Second)
-			defer deadline.Stop()
 			for {
 				select {
 				case <-deadline.C:
@@ -44,6 +43,7 @@ func watchPtyContext(ctx context.Context, pid int) {
 					return
 				case <-ticker.C:
 					if syscall.Kill(-pid, 0) != nil {
+						deadline.Stop()
 						return
 					}
 				}

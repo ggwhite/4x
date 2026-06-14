@@ -98,6 +98,45 @@ func TestRunLoop_ImprovementResetsNoProgress(t *testing.T) {
 	}
 }
 
+// W1 邊界：review verdict 為 FAIL 但失敗計數恆為 0（report 格式異常）時，
+// 「首輪建立基準」判斷不得因 LastFailCount 一直停在 0 而每輪重複成立，
+// ConsecutiveNoProgress 仍須遞增並在累積到 3 後停止（cur > 0 守衛）。
+func TestRunLoop_ZeroFailCountStillStops(t *testing.T) {
+	ws := setupLoopWorkspace(t, "feat-1")
+	feature, _ := ws.LoadFeature("feat-1")
+	cfg, _ := ws.ReadConfig()
+
+	s := protocol.State{
+		FeatureID: "feat-1", Phase: protocol.PhaseInit,
+		MaxRounds: 10, Active: true, Runner: "mock",
+	}
+	ws.WriteState("feat-1", s)
+
+	// 每輪 review 都 FAIL 但 criticalIssues=0 → reviewFailCount 恆為 0。
+	mock := &mockRunner{ws: ws, featureID: "feat-1", outcomes: []mockOutcome{
+		{}, {},
+		{reviewVerdict: "FAIL", criticalIssues: 0}, {},
+		{reviewVerdict: "FAIL", criticalIssues: 0}, {},
+		{reviewVerdict: "FAIL", criticalIssues: 0}, {},
+		{reviewVerdict: "FAIL", criticalIssues: 0},
+	}}
+
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+		t.Fatalf("runLoop error: %v", err)
+	}
+
+	final, _ := ws.ReadState("feat-1")
+	if final.Phase != protocol.PhaseNeedsAttention {
+		t.Errorf("phase = %s, want needs-attention", final.Phase)
+	}
+	if final.ConsecutiveNoProgress != 3 {
+		t.Errorf("ConsecutiveNoProgress = %d, want 3", final.ConsecutiveNoProgress)
+	}
+	if final.Round >= final.MaxRounds {
+		t.Errorf("round = %d reached maxRounds = %d, expected earlier no-progress stop", final.Round, final.MaxRounds)
+	}
+}
+
 // W2 / AC-4：run loop 主迴圈遇到 phase == abandoned 時立即 break，不呼叫 runner。
 func TestRunLoop_AbandonedBreaksWithoutRunner(t *testing.T) {
 	ws := setupLoopWorkspace(t, "feat-1")
