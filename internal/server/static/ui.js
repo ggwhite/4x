@@ -211,7 +211,7 @@ async function markDone(fid) {
   });
 }
 function goHome() {
-  current=null; lastMsgCount=0; disconnectSSE(); disconnectLogSSE();
+  current=null; lastMsgCount=0; disconnectSSE(); disconnectLogSSE(); stopLogsRefresh();
   if (_logDurTimer) { clearInterval(_logDurTimer); _logDurTimer = null; }
   closeLightbox();
   document.getElementById('header').classList.add('hidden');
@@ -311,12 +311,15 @@ function renderTaskItem(task) {
   const duration = !isActive && task.createdAt && task.updatedAt ? formatDuration(task.createdAt, task.updatedAt) : '';
   const timePart = elapsed ? ` · ⏱ ${elapsed}` : duration ? ` · ⏱ ${duration}` : '';
   const roundPart = task.round ? t('common.round').replace('{round}', task.round) : '';
-  const roleInfo = ROLES[{designing:'designer',coding:'coder',reviewing:'reviewer','deep-reviewing':'reviewer',testing:'tester',accepting:'acceptor',amending:'coder'}[task.phase]] || {};
+  const phaseRoleMap = {designing:'designer',coding:'coder',reviewing:'reviewer','deep-reviewing':'deep-reviewer',testing:'tester',accepting:'acceptor',amending:'coder'};
+  const roleInfo = ROLES[phaseRoleMap[task.phase]] || {};
+  const parallelTester = isActive && task.phase === 'reviewing' ? ROLES['tester'] : null;
   const emoji = isActive && roleInfo.emoji ? roleInfo.emoji + ' ' : '';
   let pi = '';
   if (isActive) {
     const dotStyle = pc ? `background:${pc.color};box-shadow:0 0 4px ${pc.border}` : 'background:#34d399';
-    pi = `<div class="flex items-center gap-1.5 mt-1.5 flex-wrap"><span class="w-1.5 h-1.5 rounded-full pulse-dot" style="${dotStyle}"></span><span class="text-[11px]" style="color:${pc?pc.color:'#34d399'}">${emoji}${task.phase}</span><span class="text-[11px] text-zinc-600">${timePart}</span></div>`;
+    const phaseText = parallelTester ? `${emoji}reviewing ${parallelTester.emoji} testing` : `${emoji}${task.phase}`;
+    pi = `<div class="flex items-center gap-1.5 mt-1.5 flex-wrap"><span class="w-1.5 h-1.5 rounded-full pulse-dot" style="${dotStyle}"></span><span class="text-[11px]" style="color:${pc?pc.color:'#34d399'}">${phaseText}</span><span class="text-[11px] text-zinc-600">${timePart}</span></div>`;
   } else if (hasState && (roundPart || timePart)) {
     const parts = [roundPart, timePart.replace(/^ · /, '')].filter(Boolean).join(' · ');
     pi = `<div class="flex items-center gap-1.5 mt-1.5"><span class="text-[11px] text-zinc-600">${parts}</span></div>`;
@@ -457,7 +460,11 @@ async function loadDetail(task) {
   }
   document.getElementById('h-play-stop').innerHTML = hAction;
   const meta = [];
-  if (task.phase) meta.push(`<span>${PHASE_ICON[task.phase]||'○'} ${task.phase}</span>`);
+  if (task.phase) {
+    const pi = PHASE_ICON[task.phase]||'○';
+    const phaseLabel = isRunning && task.phase === 'reviewing' ? `${pi} 🔍 reviewing 🧪 testing` : `${pi} ${task.phase}`;
+    meta.push(`<span>${phaseLabel}</span>`);
+  }
   if (task.round) meta.push(`<span>⟳ ${t('common.round').replace('{round}', task.round)}</span>`);
   if (isRunning && task.createdAt) {
     meta.push(`<span>⏱ ${formatElapsed(task.createdAt)}</span>`);
@@ -652,15 +659,23 @@ function toggleDocSection(id) {
   }
 }
 
+let _logsRefreshTimer = null;
 function switchDetailTab(tab) {
   activeDetailTab = tab;
   setDetailTabUI(tab);
   if (tab !== 'messages') disconnectSSE();
-  if (tab !== 'logs') { disconnectLogSSE(); currentLogFile = null; }
+  if (tab !== 'logs') { disconnectLogSSE(); currentLogFile = null; stopLogsRefresh(); }
   if (tab === 'overview' && current) loadOverview(current);
   if (tab === 'messages' && current) { connectSSE(current); loadMessages(current); }
   if (tab === 'screenshots' && current) loadScreenshots(current);
-  if (tab === 'logs' && current) loadLogs(current);
+  if (tab === 'logs' && current) { loadLogs(current); startLogsRefresh(current); }
+}
+function startLogsRefresh(fid) {
+  stopLogsRefresh();
+  _logsRefreshTimer = setInterval(() => { if (activeDetailTab === 'logs') loadLogs(fid); }, 10000);
+}
+function stopLogsRefresh() {
+  if (_logsRefreshTimer) { clearInterval(_logsRefreshTimer); _logsRefreshTimer = null; }
 }
 
 async function fetchScreenshots(fid, force) {
