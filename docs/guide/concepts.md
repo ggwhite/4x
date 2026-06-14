@@ -22,6 +22,18 @@ Two additional roles operate later in the loop:
 
 The Acceptor uses its own dedicated model configuration (`roles.acceptor.model`) — distinct from the Designer. It reads ALL round artifacts before producing the final summary.
 
+### Pipeline Profiles
+
+A **pipeline profile** selects which roles run for a given feature, so simple work skips roles instead of always running the full six-role pipeline. Built-in profiles:
+
+| Profile | Roles |
+|---|---|
+| `full` | designer, coder, reviewer, tester, deep-reviewer, acceptor |
+| `normal` | coder, reviewer, tester, acceptor |
+| `quick` | coder, reviewer |
+
+`coder` is always required. When `profiles` are configured, the profile is auto-selected by feature priority (highest priority → `full`, then `normal`, then `quick`); `--profile` overrides the choice. A role not in the active profile is skipped — the loop transitions along the same valid state edges without invoking that runner. See [Configuration](configuration.md) for the `profiles`, `parallel_review_test`, and `coder_model` settings.
+
 ### Review: Two Phases
 
 1. **Checklist review** (standard model) — checks against project hard rules: security, concurrency, error handling, style
