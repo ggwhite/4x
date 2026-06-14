@@ -532,6 +532,11 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 
 		next, nextRole, stopReason := nextPhaseAfter(ws, featureID, s)
 
+		// needs-attention/blocked 保留原 role，讓 recovery 能判斷該回哪個 phase
+		if (next == protocol.PhaseNeedsAttention || next == protocol.PhaseBlocked) && nextRole == "" {
+			nextRole = role
+		}
+
 		newState, err := state.Transition(s, next, nextRole)
 		if err != nil {
 			return fmt.Errorf("loop transition %s→%s: %w", s.Phase, next, err)
