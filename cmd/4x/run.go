@@ -327,7 +327,7 @@ func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, featur
 		Locale:           locale,
 		LocaleName:       localeName,
 		RoleInstructions: roleInstructions(cfg, role),
-		ProjectIncludes:  loadIncludes(ws.Root, cfg.Project.Includes),
+		ProjectIncludes:  append(loadIncludes(ws.Root, cfg.Project.Includes), discoverConventionFiles(ws.Root, cfg.Project.Includes)...),
 		RoleIncludes:     loadIncludes(ws.Root, roleInc),
 		PlanningDoc:      loadPlanningDocs(ws.Root, feature.ID),
 		RepoMap:          repoMap,

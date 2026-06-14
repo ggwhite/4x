@@ -60,7 +60,7 @@ Use the Write tool. Do NOT just print the content — write to disk.
 {{- end}}
 {{- end}}
 
-== Review Angles (run ALL seven, report findings from each) ==
+== Review Angles (run ALL eleven, report findings from each) ==
 
 === Correctness Angles (bugs that break behavior) ===
 
@@ -100,14 +100,64 @@ Check that each change is at the right depth. Special cases layered on shared
 infrastructure suggest the fix is not deep enough — prefer generalizing the
 underlying mechanism.
 
+=== Convention & History Angles ===
+
+**Angle 8 — Convention compliance**
+Read every "Included" section above (project CLAUDE.md, AGENTS.md, or similar).
+For each changed file, check whether the diff violates any convention stated there:
+naming rules, comment requirements, error handling style, architectural boundaries,
+forbidden patterns. Quote the specific rule being violated.
+
+**Angle 9 — Git history regression check**
+For each changed file, run `git log --oneline -20 -- <file>` and `git blame` on the
+changed regions. Look for:
+- Lines that were previously fixed (commit message says "fix"/"bugfix") being reverted or weakened
+- Guards or validations added by past bug-fix commits being removed without justification
+- Patterns that a past commit explicitly moved away from being reintroduced
+Report the original fix commit hash and what invariant is at risk.
+
+**Angle 10 — Code comment compliance**
+For each changed file, scan ALL comments in the file (not just the diff) for:
+- `// WARNING:`, `// IMPORTANT:`, `// NOTE:`, `// HACK:`, `// TODO:` markers
+  that state constraints the diff may violate
+- Comments that say "do not change X without updating Y" — verify Y was updated
+- Stale comments: if the diff changes behavior, check that nearby comments still
+  match the new behavior. Flag comments that describe the OLD behavior.
+
+**Angle 11 — Past review feedback**
+Check if prior rounds of this feature had review findings on the same files:
+- Read previous round reports: {{.DotDir}}/{{.Feature.ID}}/rounds/round-*/review-report.md
+  and deep-review-report.md (for rounds before {{.Round}})
+- If a prior round flagged an issue in a file that this round also touches, verify
+  the issue was actually fixed — not just worked around or reintroduced
+- Flag any recurring pattern across rounds (same mistake in different files)
+
 == Methodology ==
 - For each changed file, read the FULL file (not just the diff) to understand context
 - For each acceptance criterion, trace through the code path and verify it works
 - Think about what happens with: nil/empty inputs, concurrent calls, error paths, boundary values
 - If you find a potential issue, verify it by reading the actual code before reporting
-- For each candidate finding, self-verify: is this CONFIRMED (provably wrong from code),
-  PLAUSIBLE (realistic failure path exists), or REFUTED (impossible by type/invariant)?
-  Only report CONFIRMED and PLAUSIBLE findings
+
+== Confidence Scoring ==
+For each finding, assign a confidence score 0–100:
+- **90–100**: Provably wrong from code — type error, logic inversion, missing nil check
+  with reachable nil path. You can show exact input → wrong output.
+- **70–89**: Strong evidence of a real bug — realistic failure path exists but requires
+  specific timing, input, or state that you cannot fully prove is reachable.
+- **50–69**: Suspicious pattern that MIGHT be a bug — warrants investigation but could
+  have a justification you cannot see.
+- **Below 50**: Do NOT report. If you are not at least 50% sure, it is noise.
+
+Only include findings with confidence ≥ 50 in the report. Issues with confidence ≥ 80
+block the review (equivalent to CRITICAL/WARNING). Issues 50–79 are advisory (INFO).
+
+== False-Positive Filtering ==
+Before reporting any finding, ask yourself these questions. If ANY answer is "yes", DROP it:
+- Is this a style/formatting issue that a linter would catch? → DROP
+- Is this already flagged in review-report.md from the checklist reviewer? → DROP
+- Is this a pre-existing issue in code the diff did NOT touch? → DROP
+- Is this about a hypothetical future requirement, not current behavior? → DROP
+- Does the project's convention files explicitly allow this pattern? → DROP
 
 == deep-review-report.md format ==
 # Deep Review Report — Round {{.Round}}
@@ -118,23 +168,27 @@ PASS / FAIL — brief overall assessment
 |---|---|---|---|
 | AC-1 | ... | file:line | YES/NO/PARTIAL |
 ## Issues
-### [SEVERITY] Angle N: Category — file/path:line
+### [SEVERITY] Angle N: Category — file/path:line (confidence: NN)
 **What**: Description of the issue
 **Why it matters**: Impact if not fixed
 **Evidence**: Code snippet or reasoning showing the bug
-**Verdict**: CONFIRMED / PLAUSIBLE (with justification)
+**Confidence**: NN/100 — justification for the score
 **Suggested fix**: How to fix it
+## Statistics
+- Total candidates evaluated: N
+- Dropped (below threshold / false-positive): N
+- Reported: N (N blocking, N advisory)
 ## Verdict
 PASS / FAIL
 
-== Severity ==
-- [CRITICAL]: Incorrect behavior, data loss, security hole — blocks transition
-- [WARNING]: Likely bug or missing edge case — blocks transition
-- [INFO]: Style, naming, minor improvement — does not block
+== Severity (derived from confidence) ==
+- [CRITICAL]: confidence ≥ 80, incorrect behavior / data loss / security hole — blocks
+- [WARNING]: confidence ≥ 80, likely bug or missing edge case — blocks
+- [INFO]: confidence 50–79, suspicious but not proven — advisory, does not block
 
 == Constraints ==
 - You may NOT modify source code
-- PASS only when zero CRITICAL AND zero WARNING issues
+- PASS only when zero CRITICAL AND zero WARNING issues (confidence ≥ 80)
 - Do not repeat issues already found in review-report.md
 - Every issue must have concrete evidence (file path, line number, code snippet)
-- Do not report style/formatting issues — focus on correctness
+- Report Statistics section even when all findings are dropped — show you did the work

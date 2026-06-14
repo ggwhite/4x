@@ -75,7 +75,7 @@ func newPromptCmd() *cobra.Command {
 				Locale:           locale,
 				LocaleName:       localeName,
 				RoleInstructions: roleInstructions(cfg, r),
-				ProjectIncludes:  loadIncludes(ws.Root, cfg.Project.Includes),
+				ProjectIncludes:  append(loadIncludes(ws.Root, cfg.Project.Includes), discoverConventionFiles(ws.Root, cfg.Project.Includes)...),
 				RoleIncludes:     loadIncludes(ws.Root, roleInc),
 				PlanningDoc:      loadPlanningDocs(ws.Root, feature.ID),
 			}
@@ -180,6 +180,38 @@ func loadIncludes(root string, paths []string) []includeContent {
 			continue
 		}
 		result = append(result, includeContent{Path: p, Content: string(data)})
+	}
+	return result
+}
+
+// discoverConventionFiles 探測專案根目錄下的 agent 慣例檔案（CLAUDE.md、AGENTS.md 等），
+// 排除已在 explicit includes 中列出的檔案，避免重複注入
+func discoverConventionFiles(root string, explicitIncludes []string) []includeContent {
+	conventionFiles := []string{
+		"CLAUDE.md",
+		"AGENTS.md",
+		"GEMINI.md",
+		"COPILOT.md",
+		"CURSORRULES",
+		".cursorrules",
+	}
+
+	explicit := make(map[string]bool, len(explicitIncludes))
+	for _, p := range explicitIncludes {
+		explicit[p] = true
+	}
+
+	var result []includeContent
+	for _, name := range conventionFiles {
+		if explicit[name] {
+			continue
+		}
+		abs := filepath.Join(root, name)
+		data, err := os.ReadFile(abs)
+		if err != nil {
+			continue
+		}
+		result = append(result, includeContent{Path: name, Content: string(data)})
 	}
 	return result
 }
