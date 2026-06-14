@@ -469,6 +469,9 @@ func (w *Workspace) DiscoverScreenshots(featureID, screenshotDir string) ([]Scre
 	if err := w.discoverFromDir(featureID, screenshotDir, rounds, byRound, seenPath); err != nil {
 		return nil, err
 	}
+	if wtRoot := w.WorktreePath(featureID); wtRoot != "" && wtRoot != w.Root {
+		w.discoverFromWorktree(wtRoot, featureID, screenshotDir, rounds, byRound, seenPath)
+	}
 
 	keys := make([]int, 0, len(byRound))
 	for round, shots := range byRound {
@@ -705,6 +708,74 @@ func NormalizeScreenshotPath(path string) string {
 	p = strings.TrimPrefix(p, ".4x/")
 	p = filepath.ToSlash(filepath.Clean(filepath.FromSlash(p)))
 	return p
+}
+
+// WorktreePath 從 events.jsonl 解析 feature 的 worktree 路徑。
+// 若 feature 未使用 worktree 或 events.jsonl 不存在，回傳空字串。
+func (w *Workspace) WorktreePath(featureID string) string {
+	eventsPath := filepath.Join(w.FeatureDir(featureID), EventsFile)
+	data, err := os.ReadFile(eventsPath)
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.SplitN(string(data), "\n", 5) {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var ev struct {
+			Type   string `json:"type"`
+			Detail string `json:"detail"`
+		}
+		if json.Unmarshal([]byte(line), &ev) != nil {
+			continue
+		}
+		if ev.Type == "run-output" && strings.HasPrefix(ev.Detail, "worktree: ") {
+			return strings.TrimPrefix(ev.Detail, "worktree: ")
+		}
+	}
+	return ""
+}
+
+func (w *Workspace) discoverFromWorktree(
+	wtRoot, featureID, screenshotDir string,
+	rounds []int,
+	byRound map[int][]Screenshot,
+	seenPath map[string]struct{},
+) {
+	targets := resolveScreenshotDirs(wtRoot, featureID, screenshotDir, rounds)
+	for _, target := range targets {
+		dirPath := target.Dir
+		if !filepath.IsAbs(dirPath) {
+			dirPath = filepath.Join(wtRoot, dirPath)
+		}
+		entries, err := os.ReadDir(dirPath)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if e.IsDir() || !IsScreenshotFile(e.Name()) {
+				continue
+			}
+			absPath := filepath.Join(dirPath, e.Name())
+			rel, err := filepath.Rel(w.Root, absPath)
+			if err != nil || strings.HasPrefix(rel, "..") {
+				continue
+			}
+			rel = filepath.ToSlash(rel)
+			normalized := NormalizeScreenshotPath(rel)
+			if _, seen := seenPath[normalized]; seen {
+				continue
+			}
+			seenPath[normalized] = struct{}{}
+			step, desc := parseScreenshotFilename(e.Name())
+			byRound[target.Round] = append(byRound[target.Round], Screenshot{
+				Path:        rel,
+				Step:        step,
+				Description: desc,
+			})
+		}
+	}
 }
 
 // ScreenshotDir 從 config 取得 tester 的截圖目錄，fallback 到 DefaultScreenshotDir。
