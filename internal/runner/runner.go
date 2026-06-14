@@ -155,12 +155,18 @@ func (r *SubprocessRunner) buildResult(ctx context.Context, err error, duration 
 	}
 
 	if err != nil {
+		if ctx.Err() == context.Canceled {
+			return &Result{ExitCode: 0, DurationSec: duration, LogFile: r.LogPath}, context.Canceled
+		}
 		if ctx.Err() == context.DeadlineExceeded {
 			return &Result{ExitCode: ExitSoftFail, DurationSec: duration, LogFile: r.LogPath},
 				fmt.Errorf("runner %s timed out after %v", r.Name, r.Timeout)
 		}
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			result.ExitCode = exitErr.ExitCode()
+			if result.ExitCode < 0 {
+				result.ExitCode = ExitHardError
+			}
 		} else {
 			return nil, fmt.Errorf("runner %s failed to start: %w", r.Name, err)
 		}

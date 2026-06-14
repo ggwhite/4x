@@ -60,8 +60,10 @@ func Transition(s protocol.State, to protocol.Phase, role protocol.Role) (protoc
 // PhaseToRole 回傳某 phase 預設對應的 role
 func PhaseToRole(p protocol.Phase) protocol.Role {
 	switch p {
-	case protocol.PhaseDesigning, protocol.PhaseAccepting:
+	case protocol.PhaseDesigning:
 		return protocol.RoleDesigner
+	case protocol.PhaseAccepting:
+		return protocol.RoleAcceptor
 	case protocol.PhaseCoding, protocol.PhaseAmending:
 		return protocol.RoleCoder
 	case protocol.PhaseReviewing:
