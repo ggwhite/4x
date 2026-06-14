@@ -507,6 +507,12 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			syncFeatureFromWorktree(runnerWs, ws, featureID, s.Round)
 		}
 		if err != nil {
+			if ctx.Err() == context.Canceled {
+				s.Active = false
+				s.StopReason = "interrupted"
+				_ = ws.WriteState(featureID, s)
+				return ctx.Err()
+			}
 			s.Phase = protocol.PhaseNeedsAttention
 			s.Active = false
 			s.StopReason = "runner-error"
@@ -545,6 +551,23 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			(phase == protocol.PhaseCoding || phase == protocol.PhaseAmending) {
 			if err := ops.Commit(runnerWs.Root, featureID, fmt.Sprintf("wip(%s): round %d", featureID, s.Round)); err != nil {
 				fmt.Fprintf(os.Stderr, "  auto-commit round %d failed: %v\n", s.Round, err)
+			}
+		}
+
+		// designer 不改 source code，略過 scope/baseline 檢查
+		if role != protocol.RoleDesigner {
+			guardResult := guard.Check(ws, featureID, ops)
+			if !guardResult.Pass {
+				s.Phase = protocol.PhaseNeedsAttention
+				s.Active = false
+				s.StopReason = strings.Join(guardResult.Errors, "; ")
+				_ = ws.WriteState(featureID, s)
+				_ = syncFeatureStatus(ws, featureID, protocol.PhaseNeedsAttention)
+				ws.AppendEvent(featureID, protocol.Event{
+					Type: "guard-fail", Phase: phase, Role: role, Round: s.Round,
+					Detail: s.StopReason, Runner: s.Runner,
+				})
+				return nil
 			}
 		}
 
@@ -714,9 +737,7 @@ func parseReviewVerdict(content string) protocol.ReviewResult {
 			continue
 		}
 		if inVerdict && !verdictFound && trimmed != "" {
-			if strings.HasPrefix(upper, "FAIL") {
-				result.Passed = false
-			} else {
+			if strings.HasPrefix(upper, "PASS") || strings.HasPrefix(upper, "CONDITIONAL PASS") {
 				result.Passed = true
 			}
 			verdictFound = true

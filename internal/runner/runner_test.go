@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -321,5 +322,37 @@ func TestSubprocessRunner_NoOutputFormat_UsesOldPath(t *testing.T) {
 	rawPath := strings.TrimSuffix(logPath, ".log") + ".stream.jsonl"
 	if _, err := os.Stat(rawPath); err == nil {
 		t.Error("stream.jsonl should not exist for non-stream-json runner")
+	}
+}
+
+func TestSubprocessRunner_SignalKill_TreatedAsHardError(t *testing.T) {
+	r, cleanup := setupRunner(t, "#!/bin/sh\nkill -9 $$\n")
+	defer cleanup()
+
+	result, err := r.Run(context.Background(), "test prompt")
+	if err != nil {
+		t.Fatalf("Run should not error for signal kill: %v", err)
+	}
+	if !IsHardError(result) {
+		t.Errorf("signal kill should be treated as hard error, got exit %d", result.ExitCode)
+	}
+}
+
+func TestSubprocessRunner_ContextCanceled(t *testing.T) {
+	r, cleanup := setupRunner(t, "#!/bin/sh\nsleep 10\n")
+	defer cleanup()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		cancel()
+	}()
+
+	_, err := r.Run(ctx, "test prompt")
+	if err == nil {
+		t.Fatal("expected error for context cancel")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("expected context.Canceled, got %v", err)
 	}
 }
