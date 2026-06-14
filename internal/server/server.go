@@ -573,7 +573,12 @@ func handleSSE(ws *protocol.Workspace, featureID string, w http.ResponseWriter, 
 			if err != nil {
 				continue
 			}
-			if info.Size() <= lastOffset {
+			// 檔案被 truncate/rotate（如 4x transition --to init 重置 events.jsonl）後
+			// size 會小於 lastOffset，此時 reset 回 0 從頭重讀，否則 SSE 會永遠卡住不再送新 event。
+			if info.Size() < lastOffset {
+				lastOffset = 0
+			}
+			if info.Size() == lastOffset {
 				continue
 			}
 			f, err := os.Open(path)
@@ -984,7 +989,21 @@ func handlePostDone(ws *protocol.Workspace, w http.ResponseWriter, r *http.Reque
 		errJSON, _ := json.Marshal(result.Error)
 		fmt.Fprintf(w, `{"status":"pending-review","merge_error":%s}`, errJSON)
 	} else {
-		if _, err := transitionDone(ws, req.ID, s, f); err != nil {
+		// merge 可能耗時數秒，期間 runner 或 ensureInactive 可能改過 state。
+		// 重新讀取最新 state，避免用 merge 前的 stale 值覆蓋其他欄位更新。
+		fresh, err := ws.ReadState(req.ID)
+		if err != nil {
+			http.Error(w, "failed to re-read state: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if fresh.Phase != protocol.PhasePendingReview {
+			w.WriteHeader(http.StatusConflict)
+			statusJSON, _ := json.Marshal(string(fresh.Phase))
+			fmt.Fprintf(w, `{"status":%s,"error":"state changed during merge"}`, statusJSON)
+			return
+		}
+
+		if _, err := transitionDone(ws, req.ID, fresh, f); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
