@@ -168,6 +168,20 @@ Two top-level signal files coordinate a running batch with external observers (t
 
 `state.json` is read and written by multiple actors concurrently — the run loop, the dashboard server, and background reconcilers. To avoid a reader ever seeing a truncated or half-written file, `WriteState` never writes in place. It marshals the state, writes it to a temp file (`.state-*.json`) **in the same directory** (guaranteeing the same filesystem so the rename is atomic), then `os.Rename`s it over `state.json`. A reader therefore always sees either the complete old file or the complete new file — never a partial one. On any failure the temp file is removed so no `.state-*.json` debris accumulates. No file lock is used; correctness comes from the atomic rename plus `UpdatedAt` comparison.
 
+### Workspace Cleanup
+
+Once a feature reaches a terminal state, its `.4x/{feature-id}/` artifacts (logs, `rounds/`, reports, `state.json`, `events.jsonl`) are only useful for retrospective debugging — but the per-round logs (`*.stream.jsonl` especially) keep accumulating disk space. `4x clean` removes these artifacts while preserving the feature's identity.
+
+Three protocol functions in `internal/protocol/workspace.go` back the CLI command and the [`POST /api/clean`](dashboard.md#post-apiclean) endpoint:
+
+- **`CleanableFeatures() ([]CleanCandidate, error)`** — lists every feature whose status is `done` or `abandoned`, has an existing workspace directory, and is **not active**. Active state is decided by reading `state.json` and running `ReconcileActive` (so a stale `active: true` left by a crashed run is corrected before the check). Each `CleanCandidate` carries the `FeatureID` and the directory `Size` in bytes (summed via `filepath.Walk`).
+- **`CleanFeature(featureID string) (int64, error)`** — re-validates that the feature is `done`/`abandoned` and not active, then `os.RemoveAll`s its workspace directory and returns the freed byte count. A non-terminal (`blocked`/`needs-attention`) or still-active feature returns an error and is left untouched.
+- **`HumanSize(bytes int64) string`** — formats a byte count as a human-readable string (`512B`, `124K`, `3.9M`, `1.2G`).
+
+The feature definition at `.4x/features/{id}.yaml` is **never** touched — cleaning removes only the working artifacts, so the feature still appears (with its `done`/`abandoned` status) in listings and the dashboard, just without its detailed history. Cleanup is **not** a state-machine transition; it neither reads nor writes the phase graph. `.4x/settings.json`, `.4x/plugins/`, and `.4x/e2e/` are also out of scope.
+
+See [`4x clean`](cli.md#4x-clean-feature-id) for the CLI and [Workspace Cleanup API](dashboard.md#post-apiclean) for the dashboard button.
+
 ### Feature YAML
 
 ```yaml
