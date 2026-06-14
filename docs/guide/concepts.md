@@ -92,7 +92,7 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
 | Phase | Condition | Action |
 |---|---|---|
 | `designing` | `task-brief.md` missing | → `needs-attention` |
-| `coding` / `amending` | `escalation.json` with `spec-mismatch` or `criteria-wrong` | → `designing` |
+| `coding` / `amending` | `escalation.json` with `spec-mismatch`, `criteria-wrong`, or `scope-change` | → `designing` |
 | `reviewing` | Verdict does not start with `PASS` (must be explicit `PASS` or `CONDITIONAL PASS`) | → `amending` |
 | `testing` | `verify.json` not passed or artifacts missing | → `amending` |
 | any (non-designer) | Guard check finds scope violation, baseline drift, or missing required file | → `needs-attention` |
@@ -112,7 +112,7 @@ Roles communicate through the `.4x/` directory, not shared context windows.
 ├── features/
 │   └── {id}.yaml                    # Feature definition (canonical source)
 └── {feature-id}/
-    ├── state.json                   # Phase, role, round, active, runner, runners, stopReason
+    ├── state.json                   # Phase, role, round, active, runner, runners, stopReason, profile
     ├── events.jsonl                 # Audit trail
     ├── baseline.json                # Pre-coding snapshot (HEAD, branch, dirty files)
     ├── task-brief.md                # Designer → Coder: spec + architecture
@@ -142,6 +142,7 @@ repos: []
 subtasks: []
 rules: []
 depends: []
+hooks: {}    # optional phase hooks (same format as settings.json)
 ```
 
 `status` mirrors `state.json` phase for quick listing. Valid values: `not-started`, `in-progress`, `ready-for-review`, `needs-attention`, `blocked`, `done`, `abandoned`. `abandoned` features are treated as completed (won't block dependencies) but display with strikethrough in the dashboard. `depends` lists feature IDs that must be done (or abandoned) before this feature can run. `repos` lists the repository names (from `workspace.repos`) that this feature touches; empty means all repos in scope.
