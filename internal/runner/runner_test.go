@@ -356,3 +356,15 @@ func TestSubprocessRunner_ContextCanceled(t *testing.T) {
 		t.Errorf("expected context.Canceled, got %v", err)
 	}
 }
+
+func TestDeepFixLogFileName(t *testing.T) {
+	if got := DeepFixLogFileName(2, 1); got != "round-2-deep-fix-1.log" {
+		t.Errorf("got %q, want round-2-deep-fix-1.log", got)
+	}
+}
+
+func TestDeepReverifyLogFileName(t *testing.T) {
+	if got := DeepReverifyLogFileName(3, 2); got != "round-3-deep-reverify-2.log" {
+		t.Errorf("got %q, want round-3-deep-reverify-2.log", got)
+	}
+}

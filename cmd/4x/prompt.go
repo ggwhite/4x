@@ -99,6 +99,7 @@ type promptData struct {
 	Project          protocol.ProjectConfig
 	Role             protocol.Role
 	Round            int
+	Iteration        int
 	Config           protocol.Config
 	DotDir           string
 	Locale           string
@@ -290,6 +291,8 @@ var roleTemplateFiles = map[protocol.Role]string{
 	protocol.RoleDeepReviewer: "deep-reviewer.md.tmpl",
 	protocol.RoleTester:       "tester.md.tmpl",
 	protocol.RoleAcceptor:     "acceptor.md.tmpl",
+	protocol.RoleMiniCoder:    "mini-coder.md.tmpl",
+	protocol.RoleReVerifier:   "re-verifier.md.tmpl",
 }
 
 func loadRoleTemplate(r protocol.Role) (*template.Template, error) {

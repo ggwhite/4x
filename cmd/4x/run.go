@@ -319,7 +319,7 @@ func newRunCmd() *cobra.Command {
 	return cmd
 }
 
-func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, role protocol.Role, round int) (string, error) {
+func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, role protocol.Role, round, iteration int) (string, error) {
 	tmpl, err := loadRoleTemplate(role)
 	if err != nil {
 		return "", fmt.Errorf("no template for role %s: %w", role, err)
@@ -353,6 +353,7 @@ func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, featur
 		Project:          cfg.Project,
 		Role:             role,
 		Round:            round,
+		Iteration:        iteration,
 		Config:           cfg,
 		DotDir:           runnerWs.DotDir(),
 		Locale:           locale,
@@ -466,6 +467,19 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			continue
 		}
 
+		// F063：deep-reviewing phase 由自癒循環接管 — deep reviewer FAIL 時在同一 phase
+		// 內 spawn mini-coder + re-verifier 修正，通過才放行 accepting，不回主迴圈重跑整條流程。
+		if phase == protocol.PhaseDeepReviewing {
+			cont, err := runDeepReviewPhase(ctx, ws, runnerWs, feature, cfg, &s, ops, newRunner, commitStrategy)
+			if err != nil {
+				return err
+			}
+			if !cont {
+				break
+			}
+			continue
+		}
+
 		if stop, reason := state.ShouldStop(s); stop {
 			s.Active = false
 			s.StopReason = reason
@@ -498,47 +512,14 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			}
 		}
 
-		var model string
-		if role == protocol.RoleDeepReviewer {
-			deepModel, err := protocol.ResolveDeepModel(cfg, s.Runner, protocol.RoleReviewer)
-			if err != nil {
-				s.Active = false
-				s.StopReason = "model-error"
-				_ = ws.WriteState(featureID, s)
-				return fmt.Errorf("deep model resolution failed: %w", err)
-			}
-			if deepModel == "" {
-				next, nextRole, stopReason := protocol.PhaseAccepting, protocol.RoleAcceptor, ""
-				newState, err := state.Transition(s, next, nextRole)
-				if err != nil {
-					return fmt.Errorf("skip deep-review transition: %w", err)
-				}
-				s = newState
-				if stopReason != "" {
-					s.Active = false
-					s.StopReason = stopReason
-				}
-				if err := ws.WriteState(featureID, s); err != nil {
-					return fmt.Errorf("write state (skip deep-review): %w", err)
-				}
-				_ = syncFeatureStatus(ws, featureID, s.Phase)
-				ws.AppendEvent(featureID, protocol.Event{
-					Type: "transition", Phase: s.Phase, Role: s.Role, Round: s.Round,
-					Runner: s.Runner, Detail: "deep_model not configured, skipping deep review",
-				})
-				fmt.Printf("[round %d] deep-reviewing — skipped (no deep_model configured)\n", s.Round)
-				continue
-			}
-			model = deepModel
-		} else {
-			var err error
-			model, err = protocol.ResolveProfileModel(cfg, s.Runner, role, pc)
-			if err != nil {
-				s.Active = false
-				s.StopReason = "model-error"
-				_ = ws.WriteState(featureID, s)
-				return fmt.Errorf("model resolution failed: %w", err)
-			}
+		// deep-reviewing phase 已由 runDeepReviewPhase 接管（含 deep_model 解析與跳過邏輯），
+		// 故此處 role 必不為 deep-reviewer，直接走 profile-aware 解析。
+		model, err := protocol.ResolveProfileModel(cfg, s.Runner, role, pc)
+		if err != nil {
+			s.Active = false
+			s.StopReason = "model-error"
+			_ = ws.WriteState(featureID, s)
+			return fmt.Errorf("model resolution failed: %w", err)
 		}
 
 		ws.AppendEvent(featureID, protocol.Event{
@@ -546,7 +527,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			Runner: s.Runner, Model: model,
 		})
 
-		prompt, err := generatePrompt(ws, runnerWs, feature, cfg, role, s.Round)
+		prompt, err := generatePrompt(ws, runnerWs, feature, cfg, role, s.Round, 0)
 		if err != nil {
 			prompt = fmt.Sprintf("You are the %s for feature %s, round %d. Read .4x/%s/ for context.", role, featureID, s.Round, featureID)
 		}
@@ -847,7 +828,7 @@ func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 			Type: "phase-start", Phase: protocol.PhaseReviewing, Role: role, Round: round,
 			Runner: s.Runner, Model: model,
 		})
-		prompt, err := generatePrompt(ws, runnerWs, feature, cfg, role, round)
+		prompt, err := generatePrompt(ws, runnerWs, feature, cfg, role, round, 0)
 		if err != nil {
 			prompt = fmt.Sprintf("You are the %s for feature %s, round %d. Read .4x/%s/ for context.", role, featureID, round, featureID)
 		}
@@ -1000,6 +981,307 @@ func parallelNeedsAttention(ws *protocol.Workspace, featureID string, s *protoco
 	return false, nil
 }
 
+// runDeepReviewPhase 在 deep-reviewing phase 內執行自癒循環：先跑 deep reviewer，FAIL 時
+// 不回主迴圈，而是在同一 phase 內反覆 spawn mini-coder（只修被點名的 issue）與 re-verifier
+// （只驗舊 issue + 掃本輪新 diff），通過才推進 accepting；最多跑 max_fix_rounds 輪，超過則
+// 維持 FAIL 報告並 escalate 到 needs-attention。
+//
+// 回傳 (cont, err)：cont 為 true 表示主迴圈應 continue（已推進 accepting 或跳過 deep review）；
+// cont 為 false 且 err 為 nil 表示已落入終止狀態（needs-attention / blocked），主迴圈應 break；
+// err 非 nil 表示 hard error 或 context cancel，直接中止。
+func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s *protocol.State, ops gitops.Ops, newRunner func(logPath string, model string) runner.Runner, commitStrategy string) (bool, error) {
+	featureID := feature.ID
+	round := s.Round
+
+	// active profile 用於解析 mini-coder 的 coder model（含 profile 的 coder_model 覆蓋）。
+	_, pc, err := protocol.ResolveProfile(cfg, feature, s.Profile)
+	if err != nil {
+		s.Active = false
+		s.StopReason = "profile-error"
+		_ = ws.WriteState(featureID, *s)
+		return false, fmt.Errorf("resolve profile: %w", err)
+	}
+
+	// 1. 解析 deep_model（deep_model 掛在 reviewer role 上）；未設定時跳過 deep review 直接 accepting。
+	deepModel, err := protocol.ResolveDeepModel(cfg, s.Runner, protocol.RoleReviewer)
+	if err != nil {
+		s.Active = false
+		s.StopReason = "model-error"
+		_ = ws.WriteState(featureID, *s)
+		return false, fmt.Errorf("deep model resolution failed: %w", err)
+	}
+	if deepModel == "" {
+		newState, err := state.Transition(*s, protocol.PhaseAccepting, protocol.RoleAcceptor)
+		if err != nil {
+			return false, fmt.Errorf("skip deep-review transition: %w", err)
+		}
+		*s = newState
+		if err := ws.WriteState(featureID, *s); err != nil {
+			return false, fmt.Errorf("write state (skip deep-review): %w", err)
+		}
+		_ = syncFeatureStatus(ws, featureID, s.Phase)
+		ws.AppendEvent(featureID, protocol.Event{
+			Type: "transition", Phase: s.Phase, Role: s.Role, Round: round,
+			Runner: s.Runner, Detail: "deep_model not configured, skipping deep review",
+		})
+		fmt.Printf("[round %d] deep-reviewing — skipped (no deep_model configured)\n", round)
+		return true, nil
+	}
+
+	// 2. 跑 deep reviewer。
+	s.Role = protocol.RoleDeepReviewer
+	if err := ws.WriteState(featureID, *s); err != nil {
+		return false, fmt.Errorf("write state (deep-reviewer): %w", err)
+	}
+	if ok, err := runDeepSubRole(ctx, ws, runnerWs, feature, cfg, s, newRunner,
+		protocol.RoleDeepReviewer, deepModel, runner.LogFileName(round, string(protocol.RoleDeepReviewer)), round, 0); !ok || err != nil {
+		return ok, err
+	}
+	if ok, err := deepGuardCheck(ws, featureID, s, ops, protocol.RoleDeepReviewer); !ok || err != nil {
+		return ok, err
+	}
+	reportPath := filepath.Join(ws.RoundDir(featureID, round), protocol.DeepReviewReport)
+	if _, statErr := os.Stat(reportPath); statErr != nil {
+		return parallelNeedsAttention(ws, featureID, s, "missing-artifact: "+protocol.DeepReviewReport)
+	}
+
+	// 3. PASS → accepting。
+	if reviewPassed(ws, featureID, round, protocol.DeepReviewReport) {
+		return deepTransitionAccepting(ws, featureID, s)
+	}
+
+	// 4. FAIL → 內部自癒循環。
+	maxFix := protocol.ResolveMaxFixRounds(cfg, protocol.RoleDeepReviewer)
+	coderModel, err := protocol.ResolveProfileModel(cfg, s.Runner, protocol.RoleCoder, pc)
+	if err != nil {
+		s.Active = false
+		s.StopReason = "model-error"
+		_ = ws.WriteState(featureID, *s)
+		return false, fmt.Errorf("coder model resolution failed: %w", err)
+	}
+	reviewModel, err := protocol.ResolveModel(cfg, s.Runner, protocol.RoleReviewer)
+	if err != nil {
+		s.Active = false
+		s.StopReason = "model-error"
+		_ = ws.WriteState(featureID, *s)
+		return false, fmt.Errorf("reviewer model resolution failed: %w", err)
+	}
+
+	for iter := 1; iter <= maxFix; iter++ {
+		fmt.Printf("[round %d] deep-reviewing — self-heal iteration %d/%d\n", round, iter, maxFix)
+
+		// 4a. mini-coder（model = coder model，不用昂貴 deep_model），phase 維持 deep-reviewing。
+		s.Role = protocol.RoleMiniCoder
+		if err := ws.WriteState(featureID, *s); err != nil {
+			return false, fmt.Errorf("write state (mini-coder): %w", err)
+		}
+		if ok, err := runDeepSubRole(ctx, ws, runnerWs, feature, cfg, s, newRunner,
+			protocol.RoleMiniCoder, coderModel, runner.DeepFixLogFileName(round, iter), round, iter); !ok || err != nil {
+			return ok, err
+		}
+
+		// mini-coder 改了 source code：worktree + per-round 模式下比照 coder 即時 commit。
+		if commitStrategy == "per-round" && runnerWs.Root != ws.Root {
+			if err := ops.Commit(runnerWs.Root, featureID, fmt.Sprintf("wip(%s): round %d deep-fix %d", featureID, round, iter)); err != nil {
+				fmt.Fprintf(os.Stderr, "  auto-commit deep-fix %d failed: %v\n", iter, err)
+			}
+		}
+
+		// 4b. guard 檢查：mini-coder 改動超出原始 scope → 寫 FAIL 報告 + escalation，停下等人。
+		if guardResult := guard.Check(ws, featureID, ops); !guardResult.Pass {
+			reason := strings.Join(guardResult.Errors, "; ")
+			writeDeepReviewFailReport(ws, featureID, round, "scope-exceed", reason)
+			writeDeepEscalation(ws, featureID, round, "scope-change", "mini-coder scope-exceed: "+reason)
+			s.Phase = protocol.PhaseNeedsAttention
+			s.Active = false
+			s.StopReason = "deep-fix scope-exceed: " + reason
+			_ = ws.WriteState(featureID, *s)
+			_ = syncFeatureStatus(ws, featureID, protocol.PhaseNeedsAttention)
+			ws.AppendEvent(featureID, protocol.Event{
+				Type: "guard-fail", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleMiniCoder,
+				Round: round, Detail: s.StopReason, Runner: s.Runner,
+			})
+			return false, nil
+		}
+
+		// 4c. re-verifier（model = reviewer model，scoped 驗證，不用昂貴 opus），read-only。
+		s.Role = protocol.RoleReVerifier
+		if err := ws.WriteState(featureID, *s); err != nil {
+			return false, fmt.Errorf("write state (re-verifier): %w", err)
+		}
+		if ok, err := runDeepSubRole(ctx, ws, runnerWs, feature, cfg, s, newRunner,
+			protocol.RoleReVerifier, reviewModel, runner.DeepReverifyLogFileName(round, iter), round, iter); !ok || err != nil {
+			return ok, err
+		}
+		if ok, err := deepGuardCheck(ws, featureID, s, ops, protocol.RoleReVerifier); !ok || err != nil {
+			return ok, err
+		}
+
+		// 4d. re-verifier 已把 deep-review-report.md 的 Verdict 改 PASS → accepting。
+		if reviewPassed(ws, featureID, round, protocol.DeepReviewReport) {
+			return deepTransitionAccepting(ws, featureID, s)
+		}
+	}
+
+	// 5. 跑滿 maxFix 仍 FAIL → 維持 FAIL 報告 + escalate 到 needs-attention。
+	writeDeepEscalation(ws, featureID, round, "blocker",
+		fmt.Sprintf("deep-review self-heal exhausted after %d iterations", maxFix))
+	s.Phase = protocol.PhaseNeedsAttention
+	s.Active = false
+	s.StopReason = fmt.Sprintf("deep-review self-heal exhausted after %d iterations", maxFix)
+	_ = ws.WriteState(featureID, *s)
+	_ = syncFeatureStatus(ws, featureID, protocol.PhaseNeedsAttention)
+	ws.AppendEvent(featureID, protocol.Event{
+		Type: "escalation", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleDeepReviewer,
+		Round: round, Detail: s.StopReason, Runner: s.Runner,
+	})
+	fmt.Printf("[round %d] deep-reviewing — self-heal exhausted (%d iterations), escalating\n", round, maxFix)
+	return false, nil
+}
+
+// runDeepSubRole 在 deep-reviewing phase 內 spawn 一個子 role（deep-reviewer / mini-coder /
+// re-verifier），處理 phase-start/run-end event、prompt 產生、runner 執行與 worktree 同步，
+// 並分類 context cancel / runner error / hard error / soft fail。phase 全程維持 deep-reviewing。
+//
+// 回傳 (ok, err)：ok 為 true 表示 runner 正常結束，caller 可繼續；ok 為 false 且 err 為 nil
+// 表示已寫入終止狀態（needs-attention / blocked）；err 非 nil 表示 hard error 或 cancel。
+func runDeepSubRole(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s *protocol.State, newRunner func(logPath string, model string) runner.Runner, role protocol.Role, model, logName string, round, iteration int) (bool, error) {
+	featureID := feature.ID
+
+	ws.AppendEvent(featureID, protocol.Event{
+		Type: "phase-start", Phase: protocol.PhaseDeepReviewing, Role: role, Round: round,
+		Runner: s.Runner, Model: model,
+	})
+
+	prompt, err := generatePrompt(ws, runnerWs, feature, cfg, role, round, iteration)
+	if err != nil {
+		prompt = fmt.Sprintf("You are the %s for feature %s, round %d. Read .4x/%s/ for context.", role, featureID, round, featureID)
+	}
+	logPath := filepath.Join(runner.LogDir(ws, featureID), logName)
+	r := newRunner(logPath, model)
+
+	if runnerWs.Root != ws.Root {
+		syncFeatureToWorktree(ws, runnerWs, featureID, round)
+	}
+	var stopSync func()
+	if runnerWs.Root != ws.Root {
+		stopSync = startLiveSync(runnerWs, ws, featureID, round)
+	}
+
+	if model != "" {
+		fmt.Printf("[round %d] deep-reviewing (%s) — invoking %s (model: %s)\n", round, role, s.Runner, model)
+	} else {
+		fmt.Printf("[round %d] deep-reviewing (%s) — invoking %s\n", round, role, s.Runner)
+	}
+
+	result, runErr := r.Run(ctx, prompt)
+
+	if stopSync != nil {
+		stopSync()
+	}
+	if runnerWs.Root != ws.Root {
+		syncFeatureFromWorktree(runnerWs, ws, featureID, round)
+	}
+
+	if runErr != nil {
+		if ctx.Err() == context.Canceled {
+			s.Active = false
+			s.StopReason = "interrupted"
+			_ = ws.WriteState(featureID, *s)
+			return false, ctx.Err()
+		}
+		s.Phase = protocol.PhaseNeedsAttention
+		s.Active = false
+		s.StopReason = "runner-error"
+		_ = ws.WriteState(featureID, *s)
+		ws.AppendEvent(featureID, protocol.Event{
+			Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: role, Round: round,
+			Status: "error", Detail: runErr.Error(), Runner: s.Runner, Model: model,
+		})
+		return false, runErr
+	}
+
+	ws.AppendEvent(featureID, protocol.Event{
+		Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: role, Round: round,
+		Status: fmt.Sprintf("exit-%d", result.ExitCode), Runner: s.Runner, Model: model,
+	})
+
+	if runner.IsHardError(result) {
+		s.Active = false
+		s.StopReason = "hard-error"
+		_ = ws.WriteState(featureID, *s)
+		return false, fmt.Errorf("runner returned hard error (exit 2)")
+	}
+	if runner.IsSoftFail(result) {
+		s.Phase = protocol.PhaseBlocked
+		s.Active = false
+		s.StopReason = "soft-fail"
+		_ = ws.WriteState(featureID, *s)
+		_ = syncFeatureStatus(ws, featureID, protocol.PhaseBlocked)
+		return false, nil
+	}
+	return true, nil
+}
+
+// deepGuardCheck 在 deep-reviewing phase 內對 read-only 子 role（deep-reviewer / re-verifier）
+// 跑 guardrail 檢查；失敗時落入 needs-attention 並回傳 (false, nil)。
+func deepGuardCheck(ws *protocol.Workspace, featureID string, s *protocol.State, ops gitops.Ops, role protocol.Role) (bool, error) {
+	guardResult := guard.Check(ws, featureID, ops)
+	if guardResult.Pass {
+		return true, nil
+	}
+	s.Phase = protocol.PhaseNeedsAttention
+	s.Active = false
+	s.StopReason = strings.Join(guardResult.Errors, "; ")
+	_ = ws.WriteState(featureID, *s)
+	_ = syncFeatureStatus(ws, featureID, protocol.PhaseNeedsAttention)
+	ws.AppendEvent(featureID, protocol.Event{
+		Type: "guard-fail", Phase: protocol.PhaseDeepReviewing, Role: role,
+		Round: s.Round, Detail: s.StopReason, Runner: s.Runner,
+	})
+	return false, nil
+}
+
+// deepTransitionAccepting 把 state 從 deep-reviewing 推進到 accepting 並寫回，
+// 供自癒循環在 deep review PASS 時放行。
+func deepTransitionAccepting(ws *protocol.Workspace, featureID string, s *protocol.State) (bool, error) {
+	newState, err := state.Transition(*s, protocol.PhaseAccepting, protocol.RoleAcceptor)
+	if err != nil {
+		return false, fmt.Errorf("deep-review→accepting transition: %w", err)
+	}
+	*s = newState
+	if err := ws.WriteState(featureID, *s); err != nil {
+		return false, fmt.Errorf("write state (accepting): %w", err)
+	}
+	_ = syncFeatureStatus(ws, featureID, s.Phase)
+	ws.AppendEvent(featureID, protocol.Event{
+		Type: "transition", Phase: s.Phase, Role: s.Role, Round: s.Round, Runner: s.Runner,
+	})
+	return true, nil
+}
+
+// writeDeepReviewFailReport 由 CLI 在 deep-reviewing 終止場景（如 mini-coder scope-exceed）
+// 直接寫出 FAIL 的 deep-review-report.md，標注原因供 dashboard 與 acceptor 辨識。
+func writeDeepReviewFailReport(ws *protocol.Workspace, featureID string, round int, reason, detail string) {
+	path := filepath.Join(ws.RoundDir(featureID, round), protocol.DeepReviewReport)
+	content := fmt.Sprintf("# Deep Review Report — Round %d\n\n## Summary\nFAIL — %s\n\n## Issues\n### [CRITICAL] %s\n%s\n\n## Verdict\nFAIL\n",
+		round, reason, reason, detail)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		fmt.Fprintf(os.Stderr, "  write deep-review FAIL report failed: %v\n", err)
+	}
+}
+
+// writeDeepEscalation 由 CLI 在 deep-reviewing 終止場景寫出 escalation.json，讓 resume 與
+// dashboard 能辨識升級原因（scope-change / blocker）。
+func writeDeepEscalation(ws *protocol.Workspace, featureID string, round int, reason, detail string) {
+	esc := protocol.Escalation{Needed: true, Reason: reason, Detail: detail}
+	data, _ := json.Marshal(esc)
+	path := filepath.Join(ws.RoundDir(featureID, round), protocol.EscalationFile)
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		fmt.Fprintf(os.Stderr, "  write deep-review escalation failed: %v\n", err)
+	}
+}
+
 func reviewPassed(ws *protocol.Workspace, featureID string, round int, reportFile string) bool {
 	roundDir := ws.RoundDir(featureID, round)
 	data, err := os.ReadFile(filepath.Join(roundDir, reportFile))
@@ -1089,6 +1371,10 @@ func roleToResumePhase(role protocol.Role) protocol.Phase {
 		return protocol.PhaseCoding
 	case protocol.RoleDeepReviewer:
 		return protocol.PhaseCoding
+	case protocol.RoleMiniCoder:
+		return protocol.PhaseCoding
+	case protocol.RoleReVerifier:
+		return protocol.PhaseCoding
 	case protocol.RoleTester:
 		return protocol.PhaseCoding
 	case protocol.RoleAcceptor:
@@ -1152,7 +1438,7 @@ func dryRunLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.C
 
 	for _, p := range phases {
 		fmt.Printf("=== %s (%s) ===\n", p.phase, p.role)
-		prompt, err := generatePrompt(ws, ws, feature, cfg, p.role, 1)
+		prompt, err := generatePrompt(ws, ws, feature, cfg, p.role, 1, 0)
 		if err != nil {
 			fmt.Printf("  (error: %v)\n\n", err)
 			continue

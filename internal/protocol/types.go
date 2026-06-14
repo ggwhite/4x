@@ -35,6 +35,11 @@ const (
 	RoleDeepReviewer Role = "deep-reviewer"
 	RoleTester       Role = "tester"
 	RoleAcceptor     Role = "acceptor"
+	// RoleMiniCoder 與 RoleReVerifier 是 deep-reviewing phase 內自癒循環的子 role，
+	// 不對應任何 state machine phase（全程維持 deep-reviewing），僅用於 prompt template
+	// 與 event/log 辨識。
+	RoleMiniCoder  Role = "mini-coder"
+	RoleReVerifier Role = "re-verifier"
 )
 
 // Severity 表示 review issue 的嚴重等級
@@ -340,6 +345,9 @@ type RoleConfig struct {
 	ScreenshotDir string   `json:"screenshot_dir,omitempty"`
 	Instructions  []string `json:"instructions,omitempty"`
 	Includes      []string `json:"includes,omitempty"`
+	// MaxFixRounds 限制 deep-reviewing phase 內自癒循環（mini-coder + re-verifier）
+	// 的最大迭代次數，僅對 deep-reviewer role 有意義；未設定時由 ResolveMaxFixRounds 套預設值。
+	MaxFixRounds int `json:"max_fix_rounds,omitempty"`
 }
 
 // DefaultScreenshotDir 是 tester 預設截圖目錄，可用 {feature-id}、{round} 變數。

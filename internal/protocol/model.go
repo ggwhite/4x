@@ -4,6 +4,19 @@ import "fmt"
 
 const defaultTier = "sonnet"
 
+// defaultMaxFixRounds 是 deep-reviewing phase 內自癒循環的預設最大迭代次數。
+const defaultMaxFixRounds = 2
+
+// ResolveMaxFixRounds 解析 deep-reviewing phase 自癒循環的最大修正輪數。
+// 讀取 cfg.Roles[role].MaxFixRounds（role 一般為 RoleDeepReviewer）；
+// 未設定或 <= 0 時回傳預設 defaultMaxFixRounds（2）。
+func ResolveMaxFixRounds(cfg Config, role Role) int {
+	if rc, ok := cfg.Roles[string(role)]; ok && rc.MaxFixRounds > 0 {
+		return rc.MaxFixRounds
+	}
+	return defaultMaxFixRounds
+}
+
 // ResolveModel 根據抽象 tier 解析出指定 runner 認識的 model name。
 // 優先序：runners[name].tiers[tier] > model_tiers[tier][runner] > error。
 // 若 tier 在兩處都找不到對應，回傳 error 而非 pass through tier name。

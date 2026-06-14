@@ -140,3 +140,32 @@ func TestResolveDeepModel_NoDeepModel(t *testing.T) {
 		t.Errorf("got %q, want empty", got)
 	}
 }
+
+func TestResolveMaxFixRounds_Default(t *testing.T) {
+	cfg := Config{}
+	if got := ResolveMaxFixRounds(cfg, RoleDeepReviewer); got != defaultMaxFixRounds {
+		t.Errorf("got %d, want default %d", got, defaultMaxFixRounds)
+	}
+}
+
+func TestResolveMaxFixRounds_Configured(t *testing.T) {
+	cfg := Config{
+		Roles: map[string]RoleConfig{
+			"deep-reviewer": {MaxFixRounds: 5},
+		},
+	}
+	if got := ResolveMaxFixRounds(cfg, RoleDeepReviewer); got != 5 {
+		t.Errorf("got %d, want 5", got)
+	}
+}
+
+func TestResolveMaxFixRounds_NonPositiveFallsBackToDefault(t *testing.T) {
+	cfg := Config{
+		Roles: map[string]RoleConfig{
+			"deep-reviewer": {MaxFixRounds: 0},
+		},
+	}
+	if got := ResolveMaxFixRounds(cfg, RoleDeepReviewer); got != defaultMaxFixRounds {
+		t.Errorf("got %d, want default %d", got, defaultMaxFixRounds)
+	}
+}
