@@ -90,13 +90,16 @@ func markDone(ws *protocol.Workspace, featureID string) error {
 // 回傳 MergeResult 供呼叫端決定後續（衝突→暫停、錯誤→警告續跑、成功→done）。不印任何訊息。
 //
 // 衝突（result.Conflict）與非衝突錯誤（result.Error != ""）時保持 pending-review、不 finalize；
-// 其餘情況（含非 worktree 模式的 Skipped）視為成功並 finalizeDone。merge 邏輯只走
-// ops.Merge + finalizeDone 一處，batch 與 done 共用此 helper，不重寫第二份流程。
+// 其餘情況（含非 worktree 模式的 Skipped）視為成功並 finalizeDone。若 finalizeDone 失敗，
+// 將錯誤編入 result.Error（不另改 MergeResult 結構），讓呼叫端走錯誤分支處理而非靜默忽略。
+// merge 邏輯只走 ops.Merge + finalizeDone 一處，batch 與 done 共用此 helper，不重寫第二份流程。
 func autoMergeFeature(ws *protocol.Workspace, cfg protocol.Config, s protocol.State, featureID, featureName string) gitops.MergeResult {
 	ops := gitops.New(ws.Root, ws, cfg)
 	result := ops.Merge(featureID, featureName)
 	if !result.Conflict && result.Error == "" {
-		_ = finalizeDone(ws, featureID, s)
+		if err := finalizeDone(ws, featureID, s); err != nil {
+			result.Error = fmt.Sprintf("finalize state failed: %v", err)
+		}
 	}
 	return result
 }
