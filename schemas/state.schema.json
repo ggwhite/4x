@@ -15,6 +15,7 @@
       "enum": ["designer", "coder", "reviewer", "deep-reviewer", "tester", "acceptor"]
     },
     "round": { "type": "integer", "minimum": 0 },
+    "profile": { "type": "string", "description": "本次 run 使用的 profile 名稱" },
     "maxRounds": { "type": "integer", "minimum": 1 },
     "active": { "type": "boolean" },
     "runner": { "type": "string" },
