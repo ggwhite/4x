@@ -155,12 +155,6 @@ function onSearchKey(e) {
 }
 
 document.addEventListener('keydown', e => {
-  const lightbox = document.getElementById('screenshot-lightbox');
-  if (lightbox && !lightbox.classList.contains('hidden')) {
-    if (e.key === 'Escape') { e.preventDefault(); closeLightbox(); return; }
-    if (e.key === 'ArrowLeft') { e.preventDefault(); lightboxNav(-1); return; }
-    if (e.key === 'ArrowRight') { e.preventDefault(); lightboxNav(1); return; }
-  }
   if ((e.metaKey||e.ctrlKey) && e.key==='k') { e.preventDefault(); openSearch(); }
   else if ((e.metaKey||e.ctrlKey) && !e.shiftKey && e.key===',') { e.preventDefault(); activeProjectId?openProjectSettings():openGlobalSettings(); }
   else if ((e.metaKey||e.ctrlKey) && e.shiftKey && e.key===',') { e.preventDefault(); openGlobalSettings(); }
@@ -218,8 +212,6 @@ function goHome() {
   document.getElementById('overview-panel').classList.add('hidden');
   document.getElementById('messages').classList.add('hidden');
   document.getElementById('messages').innerHTML = '';
-  document.getElementById('screenshots-panel').classList.add('hidden');
-  document.getElementById('screenshots-tab-btn').style.display = 'none';
   const lp = document.getElementById('logs-panel');
   lp.classList.add('hidden'); lp.style.display = 'none';
   document.getElementById('dashboard').classList.remove('hidden');
@@ -662,11 +654,8 @@ async function loadDetail(task) {
   disconnectSSE();
   activeDetailTab = 'overview';
   document.getElementById('overview-panel').innerHTML = '';
-  document.getElementById('screenshots-panel').innerHTML = '';
-  document.getElementById('screenshots-tab-btn').style.display = 'none';
   setDetailTabUI('overview');
   loadOverview(task.id);
-  refreshScreenshotsTab(task.id);
 }
 
 function renderMsgCard(m) {
@@ -720,7 +709,6 @@ async function loadMessages(id) {
 }
 
 const overviewCache = {};
-const screenshotsCache = {};
 let activeDetailTab = 'overview';
 let logSSE = null;
 let currentLogFile = null;
@@ -728,7 +716,6 @@ let currentLogFile = null;
 // multiLogBuffers 以 file 名為 key 累積各 log 內容，供 renderMultiLog 分區渲染。
 let multiLogActive = false;
 let multiLogBuffers = {};
-let lightboxState = { featureID: '', round: 0, index: 0, items: [] };
 
 function setDetailTabUI(tab) {
   document.querySelectorAll('.detail-tab').forEach(b => {
@@ -740,7 +727,6 @@ function setDetailTabUI(tab) {
   });
   document.getElementById('overview-panel').classList.toggle('hidden', tab !== 'overview');
   document.getElementById('messages').classList.toggle('hidden', tab !== 'messages');
-  document.getElementById('screenshots-panel').classList.toggle('hidden', tab !== 'screenshots');
   const logsPanel = document.getElementById('logs-panel');
   if (tab === 'logs') { logsPanel.classList.remove('hidden'); logsPanel.style.display = 'flex'; }
   else { logsPanel.classList.add('hidden'); logsPanel.style.display = 'none'; }
@@ -849,7 +835,6 @@ function switchDetailTab(tab) {
   if (tab !== 'logs') { disconnectLogSSE(); currentLogFile = null; stopLogsRefresh(); }
   if (tab === 'overview' && current) loadOverview(current);
   if (tab === 'messages' && current) { connectSSE(current); loadMessages(current); }
-  if (tab === 'screenshots' && current) loadScreenshots(current);
   if (tab === 'logs' && current) { loadLogs(current); startLogsRefresh(current); }
 }
 function startLogsRefresh(fid) {
@@ -858,91 +843,6 @@ function startLogsRefresh(fid) {
 }
 function stopLogsRefresh() {
   if (_logsRefreshTimer) { clearInterval(_logsRefreshTimer); _logsRefreshTimer = null; }
-}
-
-async function fetchScreenshots(fid, force) {
-  if (!force && screenshotsCache[fid]) return screenshotsCache[fid];
-  const resp = await fetch(apiBase()+'/api/features/'+fid+'/screenshots');
-  if (!resp.ok) throw new Error(await resp.text());
-  const data = await resp.json();
-  screenshotsCache[fid] = data || { groups: [], total: 0 };
-  return screenshotsCache[fid];
-}
-
-async function refreshScreenshotsTab(fid) {
-  const btn = document.getElementById('screenshots-tab-btn');
-  try {
-    const data = await fetchScreenshots(fid, true);
-    btn.style.display = data.total > 0 ? '' : 'none';
-    if (data.total === 0 && activeDetailTab === 'screenshots') {
-      switchDetailTab('overview');
-    }
-  } catch {
-    btn.style.display = 'none';
-  }
-}
-
-async function loadScreenshots(fid) {
-  const panel = document.getElementById('screenshots-panel');
-  panel.classList.remove('hidden');
-  panel.innerHTML = `<div class="text-zinc-600 text-sm mt-8 text-center">${t('common.loading')}</div>`;
-  let data;
-  try {
-    data = await fetchScreenshots(fid, false);
-  } catch {
-    panel.innerHTML = `<div class="text-red-400 text-sm mt-8 text-center">${t('picker.connectionError')}</div>`;
-    return;
-  }
-  if (!data || !data.total) {
-    panel.innerHTML = `<div class="text-zinc-600 text-sm mt-8 text-center">${t('screenshots.none')}</div>`;
-    return;
-  }
-  panel.innerHTML = (data.groups || []).map(group => {
-    const cards = (group.screenshots || []).map((shot, idx) => {
-      const desc = shot.description || shot.filename || shot.path || '';
-      return `<div class="screenshot-card">
-        <img src="${escAttr(apiBase()+shot.url)}" class="screenshot-thumb" loading="lazy" alt="${escAttr(desc)}" onclick="openLightbox('${escAttr(fid)}', ${group.round}, ${idx})">
-        <div class="screenshot-meta">${esc(desc)}</div>
-      </div>`;
-    }).join('');
-    return `<div class="screenshot-group">
-      <h3 class="text-sm font-semibold mb-3" style="color:var(--text-2)">${t('screenshots.round').replace('{round}', group.round)}</h3>
-      <div class="screenshot-grid">${cards}</div>
-    </div>`;
-  }).join('');
-}
-
-function openLightbox(fid, round, index) {
-  const data = screenshotsCache[fid];
-  if (!data || !data.groups) return;
-  const group = data.groups.find(g => g.round === round);
-  if (!group || !group.screenshots || group.screenshots.length === 0) return;
-  lightboxState = { featureID: fid, round, index, items: group.screenshots };
-  updateLightbox();
-  document.getElementById('screenshot-lightbox').classList.remove('hidden');
-}
-
-function updateLightbox() {
-  const items = lightboxState.items || [];
-  if (!items.length) return;
-  if (lightboxState.index < 0) lightboxState.index = items.length - 1;
-  if (lightboxState.index >= items.length) lightboxState.index = 0;
-  const item = items[lightboxState.index];
-  document.getElementById('lb-img').src = apiBase() + item.url;
-  document.getElementById('lb-img').alt = item.description || item.filename || '';
-  const step = item.step ? `[${item.step}] ` : '';
-  document.getElementById('lb-caption').textContent = step + (item.description || item.filename || '');
-}
-
-function lightboxNav(dir) {
-  if (!lightboxState.items || !lightboxState.items.length) return;
-  lightboxState.index += dir;
-  updateLightbox();
-}
-
-function closeLightbox(e) {
-  if (e && e.target !== document.getElementById('screenshot-lightbox')) return;
-  document.getElementById('screenshot-lightbox').classList.add('hidden');
 }
 
 async function loadLogs(fid) {

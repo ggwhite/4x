@@ -121,69 +121,6 @@
   .dash-sub { color: var(--text-2) !important; }
   .dash-bar-bg { background: var(--bg-input); }
   .dash-donut-center { background: var(--bg-body); }
-  .screenshot-group { margin-bottom: 24px; }
-  .screenshot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
-  .screenshot-card { display: flex; flex-direction: column; gap: 6px; }
-  .screenshot-thumb {
-    width: 100%;
-    aspect-ratio: 4 / 3;
-    object-fit: cover;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    cursor: pointer;
-    transition: transform .15s ease;
-    background: var(--bg-input);
-  }
-  .screenshot-thumb:hover { transform: scale(1.02); }
-  .screenshot-meta { font-size: 11px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .screenshot-lightbox {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, .85);
-    z-index: 9999;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .screenshot-lightbox.hidden { display: none; }
-  .lightbox-image {
-    max-width: 90vw;
-    max-height: 90vh;
-    object-fit: contain;
-    border-radius: 8px;
-  }
-  .lightbox-nav {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    border: none;
-    color: #fff;
-    font-size: 32px;
-    padding: 8px 16px;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, .12);
-    cursor: pointer;
-  }
-  #lb-prev { left: 16px; }
-  #lb-next { right: 16px; }
-  .lightbox-caption {
-    position: absolute;
-    bottom: 24px;
-    left: 50%;
-    transform: translateX(-50%);
-    color: rgba(255, 255, 255, .85);
-    font-size: 13px;
-  }
-  .lightbox-close {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    border: none;
-    background: none;
-    color: #fff;
-    font-size: 30px;
-    cursor: pointer;
-  }
 
 /* ── Dependency DAG (F065) ───────────────────────────────────────────────── */
 .dag-scroll { overflow-x: auto; padding: 4px 0; }
