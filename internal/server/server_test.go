@@ -67,7 +67,7 @@ func serveRequest(t *testing.T, handler http.Handler, method, path, body string)
 
 func TestGetTasks(t *testing.T) {
 	ws := setupServerWorkspace(t)
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/tasks", "")
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodGet, "/api/tasks", "")
 
 	if rec.Code != 200 {
 		t.Fatalf("status = %d, want 200", rec.Code)
@@ -93,7 +93,7 @@ func TestGetTasks(t *testing.T) {
 
 func TestGetEvents_Empty(t *testing.T) {
 	ws := setupServerWorkspace(t)
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/events/test-feat", "")
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodGet, "/api/events/test-feat", "")
 
 	if rec.Code != 200 {
 		t.Fatalf("status = %d, want 200", rec.Code)
@@ -120,7 +120,7 @@ func TestGetEvents_WithData(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/events/test-feat", "")
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodGet, "/api/events/test-feat", "")
 
 	var events []json.RawMessage
 	if err := json.NewDecoder(rec.Body).Decode(&events); err != nil {
@@ -133,7 +133,7 @@ func TestGetEvents_WithData(t *testing.T) {
 
 func TestGetMessages_Empty(t *testing.T) {
 	ws := setupServerWorkspace(t)
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/messages/test-feat", "")
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodGet, "/api/messages/test-feat", "")
 
 	if rec.Code != 200 {
 		t.Fatalf("status = %d, want 200", rec.Code)
@@ -142,7 +142,7 @@ func TestGetMessages_Empty(t *testing.T) {
 
 func TestIndexHTML(t *testing.T) {
 	ws := setupServerWorkspace(t)
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/", "")
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodGet, "/", "")
 
 	if rec.Code != 200 {
 		t.Fatalf("status = %d, want 200", rec.Code)
@@ -161,7 +161,7 @@ func TestSSEEndpoint_ContentType(t *testing.T) {
 	req.Header.Set("Accept", "text/event-stream")
 	rec := httptest.NewRecorder()
 
-	NewMux(ws, nil).ServeHTTP(rec, req)
+	NewMux(protocol.NewCachedWorkspace(ws), nil).ServeHTTP(rec, req)
 
 	ct := rec.Header().Get("Content-Type")
 	if ct != "text/event-stream" {
@@ -181,7 +181,7 @@ func TestPostRun(t *testing.T) {
 	defer pm.Shutdown()
 
 	body := `{"featureId":"test-feat","maxRounds":3}`
-	rec := serveRequest(t, NewMux(ws, pm), http.MethodPost, "/api/run", body)
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), pm), http.MethodPost, "/api/run", body)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
@@ -203,7 +203,7 @@ func TestPostRun_Conflict(t *testing.T) {
 	ws := setupServerWorkspace(t)
 	pm := NewProcessManager(ws, 1, fakeRunCommand(t))
 	defer pm.Shutdown()
-	handler := NewMux(ws, pm)
+	handler := NewMux(protocol.NewCachedWorkspace(ws), pm)
 
 	body := `{"featureId":"test-feat"}`
 	serveRequest(t, handler, http.MethodPost, "/api/run", body)
@@ -220,7 +220,7 @@ func TestPostRun_NotFound(t *testing.T) {
 	defer pm.Shutdown()
 
 	body := `{"featureId":"missing"}`
-	rec := serveRequest(t, NewMux(ws, pm), http.MethodPost, "/api/run", body)
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), pm), http.MethodPost, "/api/run", body)
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404", rec.Code)
@@ -232,7 +232,7 @@ func TestPostDone_MergeConflictKeepsPendingReview(t *testing.T) {
 	makePendingReview(t, ws, "test-feat")
 	setupConflictingWorktree(t, ws.Root, "test-feat")
 
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodPost, "/api/done", `{"id":"test-feat"}`)
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodPost, "/api/done", `{"id":"test-feat"}`)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
 	}
@@ -338,7 +338,7 @@ func runGit(t *testing.T, dir string, args ...string) {
 func TestGetRuns(t *testing.T) {
 	ws, pm := setupServerWithPM(t)
 	defer pm.Shutdown()
-	handler := NewMux(ws, pm)
+	handler := NewMux(protocol.NewCachedWorkspace(ws), pm)
 
 	body := `{"featureId":"test-feat"}`
 	serveRequest(t, handler, http.MethodPost, "/api/run", body)
@@ -357,7 +357,7 @@ func TestGetRuns(t *testing.T) {
 func TestPostStop(t *testing.T) {
 	ws, pm := setupServerWithPM(t)
 	defer pm.Shutdown()
-	handler := NewMux(ws, pm)
+	handler := NewMux(protocol.NewCachedWorkspace(ws), pm)
 
 	runBody := `{"featureId":"test-feat"}`
 	resp := serveRequest(t, handler, http.MethodPost, "/api/run", runBody)
@@ -379,7 +379,7 @@ func TestPostStop_NotFound(t *testing.T) {
 	defer pm.Shutdown()
 
 	body := `{"id":"nonexistent"}`
-	rec := serveRequest(t, NewMux(ws, pm), http.MethodPost, "/api/stop", body)
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), pm), http.MethodPost, "/api/stop", body)
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404", rec.Code)
@@ -391,7 +391,7 @@ func TestPostNew(t *testing.T) {
 	defer pm.Shutdown()
 
 	body := `{"name":"My New Feature","description":"test desc"}`
-	rec := serveRequest(t, NewMux(ws, pm), http.MethodPost, "/api/new", body)
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), pm), http.MethodPost, "/api/new", body)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
@@ -417,7 +417,7 @@ func TestPostNew_MissingName(t *testing.T) {
 	defer pm.Shutdown()
 
 	body := `{"description":"no name"}`
-	rec := serveRequest(t, NewMux(ws, pm), http.MethodPost, "/api/new", body)
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), pm), http.MethodPost, "/api/new", body)
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", rec.Code)
@@ -426,7 +426,7 @@ func TestPostNew_MissingName(t *testing.T) {
 
 func TestGetSettings(t *testing.T) {
 	ws := setupServerWorkspace(t)
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/settings", "")
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodGet, "/api/settings", "")
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
@@ -444,7 +444,7 @@ func TestGetSettings(t *testing.T) {
 func TestPutSettings_Valid(t *testing.T) {
 	ws := setupServerWorkspace(t)
 	body := `{"project":{"name":"updated-name","description":"new desc"},"default_runner":"claude"}`
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodPut, "/api/settings", body)
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodPut, "/api/settings", body)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body: %s", rec.Code, rec.Body.String())
@@ -463,7 +463,7 @@ func TestPutSettings_Valid(t *testing.T) {
 func TestPutSettings_BackupCreated(t *testing.T) {
 	ws := setupServerWorkspace(t)
 	body := `{"project":{"name":"backup-test"}}`
-	serveRequest(t, NewMux(ws, nil), http.MethodPut, "/api/settings", body)
+	serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodPut, "/api/settings", body)
 
 	bakPath := filepath.Join(ws.DotDir(), "settings.json.bak")
 	if _, err := os.Stat(bakPath); err != nil {
@@ -473,7 +473,7 @@ func TestPutSettings_BackupCreated(t *testing.T) {
 
 func TestPutSettings_InvalidJSON(t *testing.T) {
 	ws := setupServerWorkspace(t)
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodPut, "/api/settings", `{broken json`)
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodPut, "/api/settings", `{broken json`)
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", rec.Code)
@@ -482,7 +482,7 @@ func TestPutSettings_InvalidJSON(t *testing.T) {
 
 func TestPutSettings_MissingProjectName(t *testing.T) {
 	ws := setupServerWorkspace(t)
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodPut, "/api/settings", `{"project":{"name":""}}`)
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodPut, "/api/settings", `{"project":{"name":""}}`)
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", rec.Code)
@@ -500,7 +500,7 @@ func TestPutSettings_FullReplacement(t *testing.T) {
 
 	// PUT 不含 custom_key — 全量替換，custom_key 應被移除
 	body := `{"project":{"name":"test"}}`
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodPut, "/api/settings", body)
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodPut, "/api/settings", body)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
@@ -517,7 +517,7 @@ func TestPutSettings_FullReplacement(t *testing.T) {
 
 func TestPutSettings_MethodNotAllowed(t *testing.T) {
 	ws := setupServerWorkspace(t)
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodPost, "/api/settings", `{}`)
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodPost, "/api/settings", `{}`)
 
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("status = %d, want 405", rec.Code)
@@ -599,7 +599,7 @@ func TestGetScreenshots(t *testing.T) {
 	ws := setupServerWorkspace(t)
 	seedScreenshots(t, ws, "test-feat")
 
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/features/test-feat/screenshots", "")
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodGet, "/api/features/test-feat/screenshots", "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
 	}
@@ -625,7 +625,7 @@ func TestServeScreenshot(t *testing.T) {
 	ws := setupServerWorkspace(t)
 	seedScreenshots(t, ws, "test-feat")
 
-	mux := NewMux(ws, nil)
+	mux := NewMux(protocol.NewCachedWorkspace(ws), nil)
 
 	// 先從 listing 取得 opaque token URL
 	listRec := httptest.NewRecorder()
@@ -670,7 +670,7 @@ func TestServeScreenshot(t *testing.T) {
 
 func TestServeScreenshot_InvalidExtensionRejected(t *testing.T) {
 	ws := setupServerWorkspace(t)
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/features/test-feat/screenshots/state.json", "")
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodGet, "/api/features/test-feat/screenshots/state.json", "")
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", rec.Code)
 	}
@@ -680,7 +680,7 @@ func TestGetScreenshots_UniqueURLForSameFilenameAcrossRounds(t *testing.T) {
 	ws := setupServerWorkspace(t)
 	seedSameNameScreenshots(t, ws, "test-feat")
 
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/features/test-feat/screenshots", "")
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodGet, "/api/features/test-feat/screenshots", "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
 	}
@@ -707,7 +707,7 @@ func TestServeScreenshot_SameFilenameAcrossRoundsByEncodedPath(t *testing.T) {
 	seedSameNameScreenshots(t, ws, "test-feat")
 
 	round1 := encodeScreenshotToken("e2e/test-feat/round-1/01-login.png")
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/features/test-feat/screenshots/"+round1, "")
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodGet, "/api/features/test-feat/screenshots/"+round1, "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
 	}
@@ -716,7 +716,7 @@ func TestServeScreenshot_SameFilenameAcrossRoundsByEncodedPath(t *testing.T) {
 	}
 
 	round2 := encodeScreenshotToken("e2e/test-feat/round-2/01-login.png")
-	rec = serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/features/test-feat/screenshots/"+round2, "")
+	rec = serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodGet, "/api/features/test-feat/screenshots/"+round2, "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
 	}
@@ -729,7 +729,7 @@ func TestServeScreenshot_AmbiguousBasenameRejected(t *testing.T) {
 	ws := setupServerWorkspace(t)
 	seedSameNameScreenshots(t, ws, "test-feat")
 
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/features/test-feat/screenshots/01-login.png", "")
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodGet, "/api/features/test-feat/screenshots/01-login.png", "")
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", rec.Code)
 	}
@@ -737,7 +737,7 @@ func TestServeScreenshot_AmbiguousBasenameRejected(t *testing.T) {
 
 func TestScreenshots_InvalidFeatureID(t *testing.T) {
 	ws := setupServerWorkspace(t)
-	mux := NewMux(ws, NewProcessManager(ws, 1, "echo"))
+	mux := NewMux(protocol.NewCachedWorkspace(ws), NewProcessManager(ws, 1, "echo"))
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/api/features/feat..evil/screenshots", nil)
@@ -760,7 +760,7 @@ func TestGetOverview(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/overview/test-feat", "")
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodGet, "/api/overview/test-feat", "")
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
@@ -792,7 +792,7 @@ func TestGetOverview(t *testing.T) {
 
 func TestGetOverview_NotFound(t *testing.T) {
 	ws := setupServerWorkspace(t)
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/overview/nonexistent", "")
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodGet, "/api/overview/nonexistent", "")
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404", rec.Code)
@@ -801,7 +801,7 @@ func TestGetOverview_NotFound(t *testing.T) {
 
 func TestGetOverview_NoDocs(t *testing.T) {
 	ws := setupServerWorkspace(t)
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/overview/test-feat", "")
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodGet, "/api/overview/test-feat", "")
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
@@ -844,7 +844,7 @@ func TestGetOverview_YAMLPathOverride(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/overview/test-feat", "")
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodGet, "/api/overview/test-feat", "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
@@ -888,7 +888,7 @@ func TestGetOverview_YAMLPathOverrideEmptyFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/overview/test-feat", "")
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodGet, "/api/overview/test-feat", "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
@@ -907,7 +907,7 @@ func TestGetOverview_YAMLPathOverrideEmptyFile(t *testing.T) {
 
 func TestGetLocales(t *testing.T) {
 	ws := setupServerWorkspace(t)
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/locales", "")
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodGet, "/api/locales", "")
 
 	if rec.Code != 200 {
 		t.Fatalf("status = %d, want 200", rec.Code)
@@ -936,7 +936,7 @@ func TestGetLocales(t *testing.T) {
 
 func TestGetLocaleEN(t *testing.T) {
 	ws := setupServerWorkspace(t)
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/locales/en", "")
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodGet, "/api/locales/en", "")
 
 	if rec.Code != 200 {
 		t.Fatalf("status = %d, want 200", rec.Code)
@@ -964,7 +964,7 @@ func TestGetLocaleEN(t *testing.T) {
 
 func TestGetLocaleZhTW(t *testing.T) {
 	ws := setupServerWorkspace(t)
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/locales/zh-TW", "")
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodGet, "/api/locales/zh-TW", "")
 
 	if rec.Code != 200 {
 		t.Fatalf("status = %d, want 200", rec.Code)
@@ -982,7 +982,7 @@ func TestGetLocaleZhTW(t *testing.T) {
 
 func TestGetLocaleUnknownFallback(t *testing.T) {
 	ws := setupServerWorkspace(t)
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/locales/nonexistent", "")
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodGet, "/api/locales/nonexistent", "")
 
 	if rec.Code != 200 {
 		t.Fatalf("status = %d, want 200", rec.Code)
@@ -1009,7 +1009,7 @@ func TestGetUserConfig(t *testing.T) {
 	userCfg := protocol.UserConfig{Locale: "zh-TW", Theme: "dark"}
 	protocol.WriteUserConfig(userCfg)
 
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/user-config", "")
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodGet, "/api/user-config", "")
 	if rec.Code != 200 {
 		t.Fatalf("status = %d", rec.Code)
 	}
@@ -1031,7 +1031,7 @@ func TestGetUserConfig_NotExists(t *testing.T) {
 	os.Setenv("HOME", tmpHome)
 	defer os.Setenv("HOME", origHome)
 
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/user-config", "")
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodGet, "/api/user-config", "")
 	if rec.Code != 200 {
 		t.Fatalf("status = %d, want 200 (empty config)", rec.Code)
 	}
@@ -1048,7 +1048,7 @@ func TestPutUserConfig(t *testing.T) {
 	protocol.WriteUserConfig(protocol.UserConfig{Locale: "en"})
 
 	body := `{"locale":"ja","theme":"light"}`
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodPut, "/api/user-config", body)
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodPut, "/api/user-config", body)
 	if rec.Code != 200 {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
@@ -1073,7 +1073,7 @@ func TestPutUserConfig_BackupCreated(t *testing.T) {
 	protocol.WriteUserConfig(protocol.UserConfig{Locale: "en"})
 
 	body := `{"locale":"ja"}`
-	serveRequest(t, NewMux(ws, nil), http.MethodPut, "/api/user-config", body)
+	serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodPut, "/api/user-config", body)
 
 	path, _ := protocol.UserConfigPath()
 	bakPath := path + ".bak"
@@ -1098,7 +1098,7 @@ func TestGetMergedConfig(t *testing.T) {
 	}
 	protocol.WriteUserConfig(userCfg)
 
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodGet, "/api/merged-config", "")
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodGet, "/api/merged-config", "")
 	if rec.Code != 200 {
 		t.Fatalf("status = %d", rec.Code)
 	}
@@ -1116,7 +1116,7 @@ func TestScreenshots_ServeImageDirectly(t *testing.T) {
 	pngData := []byte("\x89PNG\r\n\x1a\ntest-image-data")
 	os.WriteFile(filepath.Join(shotDir, "01-overview.png"), pngData, 0o644)
 
-	mux := NewMux(ws, NewProcessManager(ws, 1, "echo"))
+	mux := NewMux(protocol.NewCachedWorkspace(ws), NewProcessManager(ws, 1, "echo"))
 
 	// 先取得 listing 以獲得 URL token
 	rec := httptest.NewRecorder()
@@ -1151,7 +1151,7 @@ func TestSSE_TruncationResetsOffset(t *testing.T) {
 	path := filepath.Join(ws.FeatureDir("test-feat"), protocol.EventsFile)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		handleSSE(ws, "test-feat", w, r)
+		handleSSE(protocol.NewCachedWorkspace(ws), "test-feat", w, r)
 	}))
 	defer srv.Close()
 
@@ -1244,7 +1244,7 @@ func TestPostDone_HappyPathReReadsState(t *testing.T) {
 		}
 	})
 
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodPost, "/api/done", `{"id":"test-feat"}`)
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodPost, "/api/done", `{"id":"test-feat"}`)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
 	}
@@ -1278,7 +1278,7 @@ func TestPostDone_StateChangedDuringMergeReturns409(t *testing.T) {
 		}
 	})
 
-	rec := serveRequest(t, NewMux(ws, nil), http.MethodPost, "/api/done", `{"id":"test-feat"}`)
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), nil), http.MethodPost, "/api/done", `{"id":"test-feat"}`)
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("status = %d, want 409: %s", rec.Code, rec.Body.String())
 	}
@@ -1311,7 +1311,7 @@ func setupLogSSEWorkspace(t *testing.T) (*protocol.Workspace, string) {
 func collectLogSSEMessages(t *testing.T, ws *protocol.Workspace, ctx context.Context) []string {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		handleLogSSE(ws, "test-feat", w, r)
+		handleLogSSE(protocol.NewCachedWorkspace(ws), "test-feat", w, r)
 	}))
 	t.Cleanup(srv.Close)
 
@@ -1357,7 +1357,7 @@ func TestHandleLogSSE_SmallDelta(t *testing.T) {
 
 	// 等待至少一個 message，再取消連線
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		handleLogSSE(ws, "test-feat", w, r)
+		handleLogSSE(protocol.NewCachedWorkspace(ws), "test-feat", w, r)
 	}))
 	defer srv.Close()
 
@@ -1419,8 +1419,9 @@ func TestHandleLogSSE_MultiFile(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	cws := protocol.NewCachedWorkspace(ws)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		handleLogSSE(ws, "test-feat", w, r)
+		handleLogSSE(cws, "test-feat", w, r)
 	}))
 	defer srv.Close()
 
@@ -1478,7 +1479,7 @@ func TestHandleLogSSE_LargeDelta(t *testing.T) {
 	defer cancel()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		handleLogSSE(ws, "test-feat", w, r)
+		handleLogSSE(protocol.NewCachedWorkspace(ws), "test-feat", w, r)
 	}))
 	defer srv.Close()
 
@@ -1545,7 +1546,7 @@ func TestHandleLogSSE_Boundary(t *testing.T) {
 			defer cancel()
 
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				handleLogSSE(ws, "test-feat", w, r)
+				handleLogSSE(protocol.NewCachedWorkspace(ws), "test-feat", w, r)
 			}))
 			defer srv.Close()
 
@@ -1611,7 +1612,7 @@ func TestHandleLogSSE_MultibyteBoundary(t *testing.T) {
 	defer cancel()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		handleLogSSE(ws, "test-feat", w, r)
+		handleLogSSE(protocol.NewCachedWorkspace(ws), "test-feat", w, r)
 	}))
 	defer srv.Close()
 
@@ -1666,7 +1667,7 @@ func TestHandleLogSSE_TwoTicks(t *testing.T) {
 	defer cancel()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		handleLogSSE(ws, "test-feat", w, r)
+		handleLogSSE(protocol.NewCachedWorkspace(ws), "test-feat", w, r)
 	}))
 	defer srv.Close()
 

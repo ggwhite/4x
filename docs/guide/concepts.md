@@ -200,6 +200,19 @@ Two top-level signal files coordinate a running batch with external observers (t
 
 `state.json` is read and written by multiple actors concurrently — the run loop, the dashboard server, and background reconcilers. To avoid a reader ever seeing a truncated or half-written file, `WriteState` never writes in place. It marshals the state, writes it to a temp file (`.state-*.json`) **in the same directory** (guaranteeing the same filesystem so the rename is atomic), then `os.Rename`s it over `state.json`. A reader therefore always sees either the complete old file or the complete new file — never a partial one. On any failure the temp file is removed so no `.state-*.json` debris accumulates. No file lock is used; correctness comes from the atomic rename plus `UpdatedAt` comparison.
 
+### Workspace Read Cache (Dashboard Server)
+
+The CLI is a short-lived process: each command reads the `.4x/` files it needs once and exits, so it always uses a plain `*protocol.Workspace`. The dashboard server (`4x live`) is the opposite — it is long-running and every API request re-reads the same files. In a multi-project × multi-feature workspace (e.g. 5 projects × 50 features) a single request can trigger hundreds of YAML/JSON parses.
+
+To avoid that, the server wraps each workspace in a `*protocol.CachedWorkspace` (`internal/protocol/cached.go`), an mtime-based in-memory cache over the read-only operations declared by the `WorkspaceReader` interface (`internal/protocol/reader.go`):
+
+- **`ReadConfig`** — caches `settings.json`; `os.Stat` compares the file mtime, re-parsing only when it changes.
+- **`ListFeatures`** — caches the full feature list; `os.ReadDir` compares the `.yaml` file set and each file's mtime, re-parsing only when a file is added, removed, or modified. Returns a copy so callers can mutate freely.
+- **`LoadFeature`** — caches each feature by id, keyed on the YAML's mtime.
+- **`ReadState`** — intentionally **not** cached (changes frequently, small file, fast parse); it falls through to the embedded `*Workspace`.
+
+Invalidation is implicit: write methods (`SaveFeature`, `WriteState`, …) need not notify the cache because the next read detects the new mtime. The cache is opt-in — only the server constructs a `CachedWorkspace`; the CLI keeps using `*Workspace` with identical behaviour. Because Go embedding has no virtual dispatch, internal `*Workspace` method calls (e.g. `CompareBacklogMirror` calling `w.ListFeatures()`) still run the uncached original; this is acceptable since those paths are not server hot-paths.
+
 ### Feature YAML
 
 ```yaml

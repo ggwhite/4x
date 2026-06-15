@@ -35,13 +35,13 @@ var mergeMu sync.Mutex
 var supportedLocales = []string{"en", "zh-TW", "zh-CN", "ja", "ko", "es"}
 
 // NewMux 建立 dashboard 的 HTTP handler，並以當前 4x 執行檔建立預設 BatchManager。
-func NewMux(ws *protocol.Workspace, pm *ProcessManager) http.Handler {
-	return newMux(ws, pm, NewBatchManager(ws, selfBinary()))
+func NewMux(ws *protocol.CachedWorkspace, pm *ProcessManager) http.Handler {
+	return newMux(ws, pm, NewBatchManager(ws.Workspace, selfBinary()))
 }
 
 // newMux 是 NewMux 的內部實作，額外接受注入的 BatchManager 讓多專案 registry 共用同一實例
 // （供 shutdown 停止），測試亦可注入假 binName 的 BatchManager。
-func newMux(ws *protocol.Workspace, pm *ProcessManager, bm *BatchManager) http.Handler {
+func newMux(ws *protocol.CachedWorkspace, pm *ProcessManager, bm *BatchManager) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/tasks", func(w http.ResponseWriter, r *http.Request) {
@@ -215,7 +215,7 @@ func newMux(ws *protocol.Workspace, pm *ProcessManager, bm *BatchManager) http.H
 }
 
 // Start 啟動 dashboard web server。
-func Start(ws *protocol.Workspace, pm *ProcessManager, port int) error {
+func Start(ws *protocol.CachedWorkspace, pm *ProcessManager, port int) error {
 	return http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", port), logging.Middleware(NewMux(ws, pm)))
 }
 
@@ -280,7 +280,7 @@ type runRequest struct {
 	MaxRounds int    `json:"maxRounds"`
 }
 
-func handlePostRun(ws *protocol.Workspace, pm *ProcessManager, w http.ResponseWriter, r *http.Request) {
+func handlePostRun(ws *protocol.CachedWorkspace, pm *ProcessManager, w http.ResponseWriter, r *http.Request) {
 	var req runRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
@@ -361,7 +361,7 @@ type newResponse struct {
 	Name string `json:"name"`
 }
 
-func handlePostNew(ws *protocol.Workspace, w http.ResponseWriter, r *http.Request) {
+func handlePostNew(ws *protocol.CachedWorkspace, w http.ResponseWriter, r *http.Request) {
 	var req newRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
@@ -372,7 +372,7 @@ func handlePostNew(ws *protocol.Workspace, w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	next, err := protocol.NextFeatureNumber(ws)
+	next, err := protocol.NextFeatureNumber(ws.Workspace)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -402,7 +402,7 @@ func handlePostNew(ws *protocol.Workspace, w http.ResponseWriter, r *http.Reques
 	json.NewEncoder(w).Encode(newResponse{ID: id, Name: req.Name})
 }
 
-func handleTasks(ws *protocol.Workspace, w http.ResponseWriter) {
+func handleTasks(ws *protocol.CachedWorkspace, w http.ResponseWriter) {
 	features, err := ws.ListFeatures()
 	if err != nil {
 		http.Error(w, err.Error(), 500)
@@ -450,7 +450,7 @@ func handleTasks(ws *protocol.Workspace, w http.ResponseWriter) {
 	json.NewEncoder(w).Encode(tasks)
 }
 
-func handleOverview(ws *protocol.Workspace, featureID string, w http.ResponseWriter) {
+func handleOverview(ws *protocol.CachedWorkspace, featureID string, w http.ResponseWriter) {
 	f, err := ws.LoadFeature(featureID)
 	if err != nil {
 		http.Error(w, "feature not found", http.StatusNotFound)
@@ -489,7 +489,7 @@ type messageInfo struct {
 	Model    string `json:"model,omitempty"`
 }
 
-func handleMessages(ws *protocol.Workspace, featureID string, w http.ResponseWriter) {
+func handleMessages(ws *protocol.CachedWorkspace, featureID string, w http.ResponseWriter) {
 	dir := ws.FeatureDir(featureID)
 	phases := buildPhaseInfo(ws, featureID)
 	var messages []messageInfo
@@ -577,7 +577,7 @@ type phaseInfo struct {
 	model    string
 }
 
-func buildPhaseInfo(ws *protocol.Workspace, featureID string) map[durationKey]phaseInfo {
+func buildPhaseInfo(ws *protocol.CachedWorkspace, featureID string) map[durationKey]phaseInfo {
 	result := make(map[durationKey]phaseInfo)
 	path := filepath.Join(ws.FeatureDir(featureID), protocol.EventsFile)
 	data, err := os.ReadFile(path)
@@ -629,7 +629,7 @@ func buildPhaseInfo(ws *protocol.Workspace, featureID string) map[durationKey]ph
 	return result
 }
 
-func handleEvents(ws *protocol.Workspace, featureID string, w http.ResponseWriter) {
+func handleEvents(ws *protocol.CachedWorkspace, featureID string, w http.ResponseWriter) {
 	path := filepath.Join(ws.FeatureDir(featureID), protocol.EventsFile)
 	content := readIfExists(path)
 	if content == "" {
@@ -650,7 +650,7 @@ func handleEvents(ws *protocol.Workspace, featureID string, w http.ResponseWrite
 }
 
 // handleSSE 用 polling 方式 tail events.jsonl 並以 SSE 推送
-func handleSSE(ws *protocol.Workspace, featureID string, w http.ResponseWriter, r *http.Request) {
+func handleSSE(ws *protocol.CachedWorkspace, featureID string, w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "streaming not supported", http.StatusInternalServerError)
@@ -738,7 +738,7 @@ type screenshotsResponse struct {
 }
 
 // handleLogs 處理 /api/logs/<featureId> 列表或 /api/logs/<featureId>/<filename> 內容
-func handleLogs(ws *protocol.Workspace, rest string, w http.ResponseWriter) {
+func handleLogs(ws *protocol.CachedWorkspace, rest string, w http.ResponseWriter) {
 	parts := strings.SplitN(rest, "/", 2)
 	featureID := parts[0]
 	logsDir := filepath.Join(ws.FeatureDir(featureID), "logs")
@@ -926,7 +926,7 @@ func parseRoleTimings(featureDir string) map[string]roleTiming {
 	return timings
 }
 
-func handleFeatureScreenshots(ws *protocol.Workspace, w http.ResponseWriter, r *http.Request) {
+func handleFeatureScreenshots(ws *protocol.CachedWorkspace, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -954,7 +954,7 @@ func handleFeatureScreenshots(ws *protocol.Workspace, w http.ResponseWriter, r *
 }
 
 // getMergedScreenshotDir 讀取 project config 並合併 user config，回傳 screenshotDir。
-func getMergedScreenshotDir(ws *protocol.Workspace) string {
+func getMergedScreenshotDir(ws *protocol.CachedWorkspace) string {
 	cfg, err := ws.LoadMergedConfig()
 	if err != nil {
 		return protocol.DefaultScreenshotDir
@@ -962,7 +962,7 @@ func getMergedScreenshotDir(ws *protocol.Workspace) string {
 	return protocol.ScreenshotDir(cfg)
 }
 
-func handleGetScreenshots(ws *protocol.Workspace, featureID string, w http.ResponseWriter) {
+func handleGetScreenshots(ws *protocol.CachedWorkspace, featureID string, w http.ResponseWriter) {
 	screenshotDir := getMergedScreenshotDir(ws)
 	groups, err := ws.DiscoverScreenshots(featureID, screenshotDir)
 	if err != nil {
@@ -998,7 +998,7 @@ func handleGetScreenshots(ws *protocol.Workspace, featureID string, w http.Respo
 	json.NewEncoder(w).Encode(resp)
 }
 
-func handleServeScreenshot(ws *protocol.Workspace, featureID, filename string, w http.ResponseWriter, r *http.Request) {
+func handleServeScreenshot(ws *protocol.CachedWorkspace, featureID, filename string, w http.ResponseWriter, r *http.Request) {
 	token, err := url.PathUnescape(filename)
 	if err != nil {
 		http.Error(w, "invalid filename", http.StatusBadRequest)
@@ -1083,7 +1083,7 @@ func screenshotContentType(name string) string {
 }
 
 // handleLogSSE 即時 tail log 檔案。支援 ?file= 指定特定檔案，未指定則追蹤最新的。
-func handleLogSSE(ws *protocol.Workspace, featureID string, w http.ResponseWriter, r *http.Request) {
+func handleLogSSE(ws *protocol.CachedWorkspace, featureID string, w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "streaming not supported", http.StatusInternalServerError)
@@ -1251,7 +1251,7 @@ type doneRequest struct {
 	ID string `json:"id"`
 }
 
-func handlePostDone(ws *protocol.Workspace, w http.ResponseWriter, r *http.Request) {
+func handlePostDone(ws *protocol.CachedWorkspace, w http.ResponseWriter, r *http.Request) {
 	var req doneRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
@@ -1285,7 +1285,7 @@ func handlePostDone(ws *protocol.Workspace, w http.ResponseWriter, r *http.Reque
 	}
 
 	cfg, _ := ws.LoadMergedConfig()
-	ops := gitops.New(ws.Root, ws, cfg)
+	ops := gitops.New(ws.Root, ws.Workspace, cfg)
 
 	mergeMu.Lock()
 	result := ops.Merge(req.ID, name)
@@ -1361,7 +1361,7 @@ func loadSavedBatchPlan(ws *protocol.Workspace) (*batch.BatchPlan, error) {
 }
 
 // mergedConfig 讀取 project config 並套用 user config，供 batch handler 取得 runner / hub repos。
-func mergedConfig(ws *protocol.Workspace) protocol.Config {
+func mergedConfig(ws *protocol.CachedWorkspace) protocol.Config {
 	cfg, _ := ws.LoadMergedConfig()
 	return cfg
 }
@@ -1369,7 +1369,7 @@ func mergedConfig(ws *protocol.Workspace) protocol.Config {
 // handleBatchStatus 回傳目前 batch 執行狀態、依 PlanBatch schedule 排序的佇列，以及衝突信號（若有）。
 // batch 在跑時讀已儲存的 batch-plan.json（這次 batch 的計畫）；
 // 未跑時用 pending features 即時 plan（預覽下次會跑什麼）。
-func handleBatchStatus(ws *protocol.Workspace, bm *BatchManager, w http.ResponseWriter) {
+func handleBatchStatus(ws *protocol.CachedWorkspace, bm *BatchManager, w http.ResponseWriter) {
 	cfg := mergedConfig(ws)
 
 	features, err := ws.ListFeatures()
@@ -1388,7 +1388,7 @@ func handleBatchStatus(ws *protocol.Workspace, bm *BatchManager, w http.Response
 	var schedule []batch.ScheduleEntry
 
 	if bm.Running() {
-		if saved, err := loadSavedBatchPlan(ws); err == nil && saved != nil {
+		if saved, err := loadSavedBatchPlan(ws.Workspace); err == nil && saved != nil {
 			schedule = saved.Schedule
 		}
 	}
@@ -1448,7 +1448,7 @@ func handleBatchStatus(ws *protocol.Workspace, bm *BatchManager, w http.Response
 }
 
 // handlePostBatchStart 啟動 batch run；若仍有未解決的 batch-conflict.json 則回 409，要求先 Continue/解衝突。
-func handlePostBatchStart(ws *protocol.Workspace, bm *BatchManager, w http.ResponseWriter, r *http.Request) {
+func handlePostBatchStart(ws *protocol.CachedWorkspace, bm *BatchManager, w http.ResponseWriter, r *http.Request) {
 	if conflict, _ := ws.ReadBatchConflict(); conflict != nil {
 		writeJSONError(w, http.StatusConflict, "unresolved batch conflict — resolve and continue first")
 		return
@@ -1457,7 +1457,7 @@ func handlePostBatchStart(ws *protocol.Workspace, bm *BatchManager, w http.Respo
 }
 
 // handlePostBatchContinue 在使用者於 worktree 解完衝突後呼叫：先清掉衝突信號再重啟 batch run。
-func handlePostBatchContinue(ws *protocol.Workspace, bm *BatchManager, w http.ResponseWriter, r *http.Request) {
+func handlePostBatchContinue(ws *protocol.CachedWorkspace, bm *BatchManager, w http.ResponseWriter, r *http.Request) {
 	if err := ws.ClearBatchConflict(); err != nil {
 		writeJSONError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -1466,7 +1466,7 @@ func handlePostBatchContinue(ws *protocol.Workspace, bm *BatchManager, w http.Re
 }
 
 // startBatch 解析 body（runner/maxRounds，缺省用 config）並透過 BatchManager 啟動 batch run。
-func startBatch(ws *protocol.Workspace, bm *BatchManager, w http.ResponseWriter, r *http.Request) {
+func startBatch(ws *protocol.CachedWorkspace, bm *BatchManager, w http.ResponseWriter, r *http.Request) {
 	var req batchRequest
 	if r.Body != nil {
 		_ = json.NewDecoder(r.Body).Decode(&req)
@@ -1500,7 +1500,7 @@ func writeJSONError(w http.ResponseWriter, code int, msg string) {
 	w.Write(payload)
 }
 
-func transitionDone(ws *protocol.Workspace, featureID string, s protocol.State) (protocol.State, error) {
+func transitionDone(ws *protocol.CachedWorkspace, featureID string, s protocol.State) (protocol.State, error) {
 	newState, err := state.Transition(s, protocol.PhaseDone, protocol.RoleDesigner)
 	if err != nil {
 		return protocol.State{}, err
@@ -1528,7 +1528,7 @@ func transitionDone(ws *protocol.Workspace, featureID string, s protocol.State) 
 }
 
 // handleGetSettings 讀取 .4x/settings.json 原始內容並回傳，保留所有欄位（含 Config struct 未定義的）。
-func handleGetSettings(ws *protocol.Workspace, w http.ResponseWriter) {
+func handleGetSettings(ws *protocol.CachedWorkspace, w http.ResponseWriter) {
 	slog.Debug("config loaded", "project", filepath.Base(ws.Root))
 	settingsPath := filepath.Join(ws.DotDir(), protocol.ConfigFile)
 	data, err := os.ReadFile(settingsPath)
@@ -1542,7 +1542,7 @@ func handleGetSettings(ws *protocol.Workspace, w http.ResponseWriter) {
 
 // handlePutSettings 接受完整的設定 JSON，驗證後備份並原子寫入 .4x/settings.json。
 // 全量替換：前端送什麼就寫什麼，不做 merge。
-func handlePutSettings(ws *protocol.Workspace, w http.ResponseWriter, r *http.Request) {
+func handlePutSettings(ws *protocol.CachedWorkspace, w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
 	if err != nil {
 		var maxErr *http.MaxBytesError
@@ -1617,7 +1617,7 @@ func handlePutSettings(ws *protocol.Workspace, w http.ResponseWriter, r *http.Re
 	w.Write(result)
 }
 
-func reloadProcessManager(ws *protocol.Workspace, pm *ProcessManager) {
+func reloadProcessManager(ws *protocol.CachedWorkspace, pm *ProcessManager) {
 	if pm == nil {
 		return
 	}
@@ -1730,7 +1730,7 @@ func handlePutUserConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleGetMergedConfig 回傳 user + project merge 後的最終 config
-func handleGetMergedConfig(ws *protocol.Workspace, w http.ResponseWriter) {
+func handleGetMergedConfig(ws *protocol.CachedWorkspace, w http.ResponseWriter) {
 	projectCfg, err := ws.ReadConfig()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
