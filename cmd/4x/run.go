@@ -395,9 +395,6 @@ func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, featur
 	for _, opt := range opts {
 		opt(&data)
 	}
-	for _, opt := range opts {
-		opt(&data)
-	}
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
 		return "", err
@@ -654,6 +651,8 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 
 		logPath := filepath.Join(runner.LogDir(ws, featureID), runner.LogFileName(s.Round, string(role)))
 		r := newRunner(logPath, model)
+
+		commitWG.Wait()
 
 		if runnerWs.Root != ws.Root {
 			syncFeatureToWorktree(ws, runnerWs, featureID, s.Round)
@@ -1809,11 +1808,11 @@ func parseReviewVerdict(content string) protocol.ReviewResult {
 		// 只計行首的 issue tag（### [WARNING] 或 [WARNING] 開頭），
 		// 避免把正文中引述上一輪 issue 的文字誤計為本輪 issue。
 		if strings.HasPrefix(upper, "[CRITICAL]") || strings.HasPrefix(upper, "### [CRITICAL]") ||
-			strings.HasPrefix(upper, "####") && strings.Contains(upper, "[CRITICAL]") {
+			strings.HasPrefix(upper, "#### [CRITICAL]") {
 			result.CriticalCount++
 		}
 		if strings.HasPrefix(upper, "[WARNING]") || strings.HasPrefix(upper, "### [WARNING]") ||
-			strings.HasPrefix(upper, "####") && strings.Contains(upper, "[WARNING]") {
+			strings.HasPrefix(upper, "#### [WARNING]") {
 			result.WarningCount++
 		}
 
