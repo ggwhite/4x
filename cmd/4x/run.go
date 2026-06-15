@@ -1260,11 +1260,11 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 	for _, o := range outcomes {
 		if runner.IsSoftFail(o.result) {
 			cleanup()
-			s.Phase = protocol.PhaseBlocked
+			s.Phase = protocol.PhaseNeedsAttention
 			s.Active = false
-			s.StopReason = "soft-fail"
+			s.StopReason = "deep-reviewer-soft-fail"
 			_ = ws.WriteState(featureID, *s)
-			_ = ws.SyncFeatureStatus(featureID, protocol.PhaseBlocked)
+			_ = ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention)
 			return false, nil
 		}
 	}
@@ -1331,11 +1331,11 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 	}
 	if runner.IsSoftFail(synthRes) {
 		cleanup()
-		s.Phase = protocol.PhaseBlocked
+		s.Phase = protocol.PhaseNeedsAttention
 		s.Active = false
-		s.StopReason = "soft-fail"
+		s.StopReason = "synthesizer-soft-fail"
 		_ = ws.WriteState(featureID, *s)
-		_ = ws.SyncFeatureStatus(featureID, protocol.PhaseBlocked)
+		_ = ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention)
 		return false, nil
 	}
 
