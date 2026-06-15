@@ -237,6 +237,8 @@ type VerifyCommand struct {
 	Summary          string    `json:"summary"`
 	StartedAt        time.Time `json:"startedAt"`
 	FinishedAt       time.Time `json:"finishedAt"`
+	Group            string    `json:"group,omitempty"`
+	Skipped          bool      `json:"skipped,omitempty"`
 }
 
 // HealthCheck 是 testing phase 啟動前的環境檢查設定。
@@ -250,12 +252,13 @@ type HealthCheck struct {
 
 // TestStrategy 是 test-strategy.yaml 的結構
 type TestStrategy struct {
-	Web         bool         `yaml:"web" json:"web"`
-	API         bool         `yaml:"api" json:"api"`
-	Gate        bool         `yaml:"gate" json:"gate"`
-	CoderOnly   bool         `yaml:"coder_only" json:"coder_only"`
-	Verify      []string     `yaml:"verify_commands" json:"verify_commands"`
-	HealthCheck *HealthCheck `yaml:"health_check,omitempty" json:"health_check,omitempty"`
+	Web          bool                `yaml:"web" json:"web"`
+	API          bool                `yaml:"api" json:"api"`
+	Gate         bool                `yaml:"gate" json:"gate"`
+	CoderOnly    bool                `yaml:"coder_only" json:"coder_only"`
+	Verify       []string            `yaml:"verify_commands" json:"verify_commands"`
+	HealthCheck  *HealthCheck        `yaml:"health_check,omitempty" json:"health_check,omitempty"`
+	VerifyGroups map[string][]string `yaml:"verify_groups,omitempty" json:"verify_groups,omitempty"`
 }
 
 // ReviewIssue 是 reviewer 發現的問題

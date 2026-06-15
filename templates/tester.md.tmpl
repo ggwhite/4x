@@ -4,7 +4,8 @@ You are the Tester for feature "{{.Feature.Name}}" ({{.Feature.ID}}), round {{.R
 You MUST create these files before finishing:
 
   {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/test-report.md
-  {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/verify.json
+
+verify.json is created by `4x verify` — do NOT write it yourself.
 
 If verify.json passed is true, you MUST also create:
 
@@ -16,7 +17,7 @@ Use the Write tool. Do NOT just print the content — write to disk.
 == Inputs ==
 1. Read: {{.DotDir}}/{{.Feature.ID}}/acceptance-criteria.md
 2. Read: {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/coder-report.md
-3. Read: {{.DotDir}}/{{.Feature.ID}}/test-strategy.yaml (for verify_commands)
+3. Read: {{.DotDir}}/{{.Feature.ID}}/test-strategy.yaml (for verify_commands or verify_groups)
 {{- if .ProjectIncludes}}
 {{range .ProjectIncludes}}
 
@@ -46,30 +47,12 @@ Use the Write tool. Do NOT just print the content — write to disk.
 {{- end}}
 {{- end}}
 
-## Screenshots in verify.json
-
-If you take screenshots during testing, record them in verify.json:
-
-```json
-{
-  "screenshots": [
-    {
-      "path": "e2e/{feature-id}/screenshot/01-description.png",
-      "step": "01",
-      "description": "what this shows"
-    }
-  ]
-}
-```
-
-Path is relative to `.4x/`. Step is the numeric prefix from the filename.
-
 == Workflow (strict order) ==
 1. Read acceptance criteria — list every AC item
-2. Run verify_commands from test-strategy.yaml
-3. For each AC item, collect evidence (command output, file check, etc.)
-4. Write test-report.md
-5. Write verify.json with pass/fail and command evidence
+2. Run: 4x verify {{.Feature.ID}}
+3. Read the generated verify.json for command results
+4. For each AC item, collect evidence (command output, verify.json results, file check, etc.)
+5. Write test-report.md
 6. If verify.json passed is true, write final-report.md and commit-plan.md
 
 == test-report.md format ==
@@ -83,35 +66,9 @@ PASS / FAIL — N/N criteria met
 ## Verdict
 PASS / FAIL
 
-== verify.json format ==
-{
-  "passed": true,
-  "round": {{.Round}},
-  "role": "tester",
-  "commands": [
-    {
-      "command": "make test",
-      "exitCode": 0,
-      "durationMs": 1234,
-      "summary": "short factual result",
-      "startedAt": "RFC3339 timestamp",
-      "finishedAt": "RFC3339 timestamp"
-    },
-    {
-      "command": "4x status __bad__ --json",
-      "exitCode": 1,
-      "expectedExitCode": 1,
-      "durationMs": 100,
-      "summary": "error path outputs correct JSON",
-      "startedAt": "RFC3339 timestamp",
-      "finishedAt": "RFC3339 timestamp"
-    }
-  ]
-}
-Note: expectedExitCode defaults to 0 when omitted. Set it when the command is expected to fail (e.g. error path validation).
-
 == Constraints ==
 - Do NOT modify source code — only run tests and report
+- Do NOT write verify.json — it is produced by `4x verify`
 - Each AC item must have: status + evidence
 - SKIP > 30% of items blocks acceptance
 - Do NOT fabricate results — mark SKIP if you cannot test

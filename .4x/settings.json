@@ -35,6 +35,7 @@
   },
   "isolation": "worktree",
   "parallel_review_test": true,
+  "auto_discover_features": true,
   "max_concurrent_runs": 5,
   "roles": {
     "designer": {
@@ -71,21 +72,12 @@
       ]
     },
     "deep-reviewer": {
-      "max_fix_rounds": 2
+      "max_fix_rounds": 2,
+      "parallel_reviewers": 3
     },
     "tester": {
       "model": "sonnet",
       "instructions": [
-        "根據 test-strategy.yaml 決定測試方式：coder_only=true 用 go test，web=true 用 webwright，api=true 用 httptest",
-        "Go 測試：用 go test，t.TempDir() 做 workspace 隔離，不要污染實際 .4x/",
-        "Web UI 測試（test-strategy.yaml web=true）：用 Playwright headless 模式測試 4x live dashboard",
-        "Web UI 測試必須完全隔離：在 /tmp 建立獨立 workspace（4x init），用未佔用的隨機 port 啟動獨立的 4x live instance（不可使用 port 4567 或其他使用者正在使用的 port），測試結束後 kill 該 instance 並清除 /tmp workspace",
-        "嚴禁影響使用者環境：不可對使用者正在執行的 4x live server 發送任何 API 請求（如註冊 project、修改設定），不可修改使用者的 ~/.4x/ 目錄內容，不可打開可見的瀏覽器視窗",
-        "Playwright 必須使用 headless 模式（不加 --headed），不可彈出瀏覽器視窗干擾使用者操作",
-        "Web UI 測試流程：建隔離 workspace → 啟動獨立 4x live（背景、隨機 port）→ 寫 Playwright 腳本(.ts) → npx playwright test --headed=false 執行 → 截圖 → kill server → 清理 workspace",
-        "Web UI 測試腳本存到 .4x/e2e/{feature-id}/，檔名用描述性名稱如 run-feature.spec.ts",
-        "截圖存到 .4x/e2e/{feature-id}/screenshot/，檔名格式 {step}-{description}.png（如 01-dashboard-loaded.png）",
-        "Playwright 未安裝時先跑 npx playwright install chromium",
         "verify.json 必須每項 AC 都有對應的 pass/fail 結果"
       ]
     },
