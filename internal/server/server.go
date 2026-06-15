@@ -545,7 +545,9 @@ func handleTasks(ws *protocol.CachedWorkspace, w http.ResponseWriter) {
 		t.HasPlan = protocol.ResolveDesignDoc(ws.Root, f, "plan").Source != ""
 		t.Depends = f.Depends
 		if s, err := ws.ReadState(f.ID); err == nil {
-			ws.ReconcileActive(f.ID, &s)
+			if err := ws.ReconcileActive(f.ID, &s); err != nil {
+				slog.Warn("failed to reconcile active state", "feature", f.ID, "error", err)
+			}
 			t.Phase = string(s.Phase)
 			t.Role = string(s.Role)
 			t.Round = s.Round
@@ -1576,7 +1578,9 @@ func handleBatchStatus(ws *protocol.CachedWorkspace, bm *BatchManager, w http.Re
 		} else if f.Status == feature.StatusNeedsAttention || f.Status == feature.StatusBlocked {
 			itemState = "error"
 		} else if st, stErr := ws.ReadState(s.FeatureID); stErr == nil {
-			ws.ReconcileActive(s.FeatureID, &st)
+			if err := ws.ReconcileActive(s.FeatureID, &st); err != nil {
+				slog.Warn("failed to reconcile active state", "feature", s.FeatureID, "error", err)
+			}
 			if st.Active && st.Phase != protocol.PhaseDone {
 				itemState = "running"
 				if resp.CurrentFeature == "" {

@@ -198,6 +198,7 @@ func (w *Workspace) ListFeatures() ([]feature.Feature, error) {
 		id := e.Name()[:len(e.Name())-5]
 		f, err := w.LoadFeature(id)
 		if err != nil {
+			slog.Warn("skipped malformed feature YAML", "id", id, "error", err)
 			continue
 		}
 		features = append(features, f)
@@ -239,7 +240,7 @@ func (w *Workspace) CompareBacklogMirror() ([]feature.BacklogDrift, error) {
 	return feature.CompareBacklogMirror(features, BacklogFile, mirror), nil
 }
 
-// SaveFeature 寫入 feature YAML
+// SaveFeature 寫入 feature YAML，採用 write-to-temp + rename 確保原子性
 func (w *Workspace) SaveFeature(f feature.Feature) error {
 	dir := filepath.Join(w.DotDir(), FeaturesDir)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -249,7 +250,31 @@ func (w *Workspace) SaveFeature(f feature.Feature) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(dir, f.ID+".yaml"), data, 0o644)
+
+	tmp, err := os.CreateTemp(dir, ".feature-*.yaml")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := os.Chmod(tmpPath, 0o644); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := os.Rename(tmpPath, filepath.Join(dir, f.ID+".yaml")); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	return nil
 }
 
 // SyncFeatureStatus 將 feature YAML 的 Status 欄位同步為對應 phase 的狀態。
@@ -304,7 +329,9 @@ func (w *Workspace) CleanableFeatures() ([]CleanCandidate, error) {
 		if err != nil {
 			continue
 		}
-		w.ReconcileActive(f.ID, &s)
+		if err := w.ReconcileActive(f.ID, &s); err != nil {
+			slog.Warn("failed to reconcile active state", "feature", f.ID, "error", err)
+		}
 		if s.Active {
 			continue
 		}
@@ -348,7 +375,9 @@ func (w *Workspace) CleanFeature(featureID string) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("cannot read state for %s, refusing to clean: %w", featureID, err)
 	}
-	w.ReconcileActive(featureID, &s)
+	if err := w.ReconcileActive(featureID, &s); err != nil {
+		slog.Warn("failed to reconcile active state", "feature", featureID, "error", err)
+	}
 	if s.Active {
 		return 0, fmt.Errorf("feature %s is still active (pid %d)", featureID, s.Pid)
 	}
@@ -395,19 +424,19 @@ func (w *Workspace) ReadState(featureID string) (State, error) {
 
 // ReconcileActive 以 process 存在為權威來源校正 Active 欄位。
 // 若 state 記錄 Active=true 但 PID 已不存在，自動將 Active 設為 false 並回寫。
-func (w *Workspace) ReconcileActive(featureID string, s *State) {
+func (w *Workspace) ReconcileActive(featureID string, s *State) error {
 	if !s.Active {
-		return
+		return nil
 	}
 	if ProcessAlive(s.Pid) {
-		return
+		return nil
 	}
 	s.Active = false
 	if s.StopReason == "" {
 		s.StopReason = "process-gone"
 	}
 	s.Pid = 0
-	_ = w.WriteState(featureID, *s)
+	return w.WriteState(featureID, *s)
 }
 
 // WriteState 寫入 feature 的 state.json。

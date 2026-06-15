@@ -3,6 +3,7 @@ package protocol
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ggwhite/4x/internal/feature"
 )
@@ -39,8 +40,17 @@ func ResolveDesignDoc(root string, feature feature.Feature, docType string) Desi
 		if !filepath.IsAbs(abs) {
 			abs = filepath.Join(root, yamlPath)
 		}
-		if content, err := os.ReadFile(abs); err == nil {
-			return DesignDoc{Content: string(content), Source: yamlPath}
+		resolved, err := filepath.EvalSymlinks(abs)
+		if err == nil {
+			resolvedRoot, rootErr := filepath.EvalSymlinks(root)
+			if rootErr == nil {
+				cleanRoot := resolvedRoot + string(filepath.Separator)
+				if strings.HasPrefix(resolved, cleanRoot) || resolved == resolvedRoot {
+					if content, err := os.ReadFile(resolved); err == nil {
+						return DesignDoc{Content: string(content), Source: yamlPath}
+					}
+				}
+			}
 		}
 	}
 

@@ -791,7 +791,9 @@ func TestReconcileActive_DeadPid(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ws.ReconcileActive("feat-recon", &s)
+	if err := ws.ReconcileActive("feat-recon", &s); err != nil {
+		t.Fatal(err)
+	}
 
 	if s.Active {
 		t.Error("Active should be false after reconcile with dead PID")
@@ -824,7 +826,9 @@ func TestReconcileActive_LivePid(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ws.ReconcileActive("feat-live", &s)
+	if err := ws.ReconcileActive("feat-live", &s); err != nil {
+		t.Fatal(err)
+	}
 
 	if !s.Active {
 		t.Error("Active should remain true for live PID")
@@ -846,7 +850,9 @@ func TestReconcileActive_ZeroPid(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ws.ReconcileActive("feat-zero", &s)
+	if err := ws.ReconcileActive("feat-zero", &s); err != nil {
+		t.Fatal(err)
+	}
 
 	if s.Active {
 		t.Error("Active should be false when PID is 0")
