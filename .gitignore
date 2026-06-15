@@ -9,6 +9,9 @@ vendor/
 # 4x runtime (feature work dirs, but track settings + feature definitions)
 .4x/*/
 .4x/*.bak
+.4x/batch-*
+.4x/batch.*
+.4x/coder-report.md
 !.4x/settings.json
 !.4x/features/
 
