@@ -97,6 +97,8 @@
   "field.screenshotDir": "Directorio de capturas",
   "field.instructions": "Instrucciones",
   "field.hubRepos": "Repositorios Hub",
+  "field.parallelReviewTest": "Review + Test en paralelo",
+  "field.autoDiscoverFeatures": "Auto-descubrir Features",
   "field.add": "Agregar...",
   "logs.noLogs": "Aún no hay registros",
   "browse.up": ".. (subir)",

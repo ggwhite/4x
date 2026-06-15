@@ -97,6 +97,8 @@
   "field.screenshotDir": "Screenshot Dir",
   "field.instructions": "Instructions",
   "field.hubRepos": "Hub Repos",
+  "field.parallelReviewTest": "Parallel Review + Test",
+  "field.autoDiscoverFeatures": "Auto-Discover Features",
   "field.add": "Add...",
   "logs.noLogs": "No logs yet",
   "browse.up": ".. (up)",

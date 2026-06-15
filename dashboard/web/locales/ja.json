@@ -97,6 +97,8 @@
   "field.screenshotDir": "スクリーンショットディレクトリ",
   "field.instructions": "指示",
   "field.hubRepos": "Hub リポジトリ",
+  "field.parallelReviewTest": "並列 Review + Test",
+  "field.autoDiscoverFeatures": "Feature 自動検出",
   "field.add": "追加...",
   "logs.noLogs": "まだログがありません",
   "browse.up": ".. (上へ)",

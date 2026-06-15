@@ -404,6 +404,13 @@ function psTagField(label, id, items) {
   </div>`;
 }
 
+function psCheckbox(label, id, checked) {
+  return `<div class="ps-field-row" data-label="${escAttr(label.toLowerCase())}" data-key="${escAttr(id.toLowerCase())}" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <label style="font-size:13px;color:var(--text-2);min-width:160px">${label}</label>
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input id="${id}" type="checkbox"${checked?' checked':''} onchange="autoSave()"></label>
+  </div>`;
+}
+
 function renderProjectSettingsForm() {
   const s = _projectSettings || {};
   const proj = s.project || {};
@@ -456,6 +463,8 @@ function renderProjectSettingsForm() {
       <option value="never"${s.commit==='never'?' selected':''}>never</option>
     </select>
   </div>`;
+  html += psCheckbox(t('field.parallelReviewTest'), 'ps-parallel-review-test', s.parallel_review_test);
+  html += psCheckbox(t('field.autoDiscoverFeatures'), 'ps-auto-discover', s.auto_discover_features);
   html += psTagField(t('field.hubRepos'), 'ps-hubrepos', s.hub_repos);
   html += psTagField(t('field.rules'), 'ps-rules', s.rules);
   html += `</div>`;
@@ -583,6 +592,10 @@ function collectFormData() {
   if (maxRunsEl) { const v = parseInt(maxRunsEl.value); if (v > 0) obj.max_concurrent_runs = v; }
   const commit = (document.getElementById('ps-commit') || {}).value?.trim();
   if (commit) obj.commit = commit;
+  const parallelRT = (document.getElementById('ps-parallel-review-test') || {}).checked;
+  obj.parallel_review_test = !!parallelRT;
+  const autoDiscover = (document.getElementById('ps-auto-discover') || {}).checked;
+  obj.auto_discover_features = !!autoDiscover;
   const hubRepos = getTagItems('ps-hubrepos');
   if (hubRepos.length) obj.hub_repos = hubRepos;
   const topRules = getTagItems('ps-rules');

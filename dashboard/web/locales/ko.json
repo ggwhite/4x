@@ -97,6 +97,8 @@
   "field.screenshotDir": "스크린샷 디렉터리",
   "field.instructions": "지시사항",
   "field.hubRepos": "Hub 저장소",
+  "field.parallelReviewTest": "병렬 Review + Test",
+  "field.autoDiscoverFeatures": "Feature 자동 발견",
   "field.add": "추가...",
   "logs.noLogs": "아직 로그가 없습니다",
   "browse.up": ".. (위로)",

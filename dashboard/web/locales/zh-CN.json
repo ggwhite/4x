@@ -97,6 +97,8 @@
   "field.screenshotDir": "截图目录",
   "field.instructions": "指令",
   "field.hubRepos": "Hub 仓库",
+  "field.parallelReviewTest": "并行 Review + Test",
+  "field.autoDiscoverFeatures": "自动发现 Feature",
   "field.add": "添加...",
   "logs.noLogs": "暂无日志",
   "browse.up": ".. (上层)",
