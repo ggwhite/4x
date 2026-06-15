@@ -211,12 +211,26 @@ PASS / FAIL — brief overall assessment
 **Evidence**: Code snippet or reasoning showing the bug
 **Confidence**: NN/100 — justification for the score
 **Suggested fix**: How to fix it
+## Discovered Issues
+[NEW-FEATURE] <簡短標題>
+<一到數行描述：問題現狀、建議方向>
 ## Statistics
 - Total candidates evaluated: N
 - Dropped (below threshold / false-positive): N
 - Reported: N (N blocking, N advisory)
 ## Verdict
 PASS / FAIL
+
+== Discovered Issues (out-of-scope feature candidates) ==
+在 report 的 `## Discovered Issues` section 列出你發現但**超出本 feature scope**、值得另開
+feature 追蹤的 issue（bug / 技術債 / 缺口）。每個 issue 用以下「固定格式」，一個 block 一個
+issue；沒有就留 None：
+
+[NEW-FEATURE] <簡短標題>
+<一到數行描述：問題現狀、建議方向>
+
+不要把屬於本 feature scope 的問題放這裡（那些走 Issues section）。
+
 {{end}}
 == Severity (derived from confidence) ==
 - [CRITICAL]: confidence ≥ 80, incorrect behavior / data loss / security hole — blocks

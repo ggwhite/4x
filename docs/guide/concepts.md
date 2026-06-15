@@ -67,6 +67,19 @@ Angles are split evenly and without overlap: with the default `parallel_reviewer
 
 When `parallel_reviewers` is unset or `≤ 1`, the loop falls back to the original single-agent flow: one deep reviewer renders all 11 angles and writes `deep-review-report.md` directly, with no partial reports or synthesizer.
 
+### Auto-Discovered Features
+
+A deep reviewer often spots issues that are real but **outside the current feature's scope** — a latent bug, tech debt, a missing capability. Without a place to land, those notes get buried in the report. When `auto_discover_features` is enabled, the run loop captures them automatically.
+
+The deep reviewer writes each out-of-scope candidate as a `[NEW-FEATURE] <title>` block (followed by a short description) in the `## Discovered Issues` section of `deep-review-report.md`. After a **final deep review PASS** (the only two return paths that reach `accepting` — first-pass PASS, and a self-heal re-verifier flipping to PASS), the loop parses those blocks and, entirely in the CLI layer (no LLM call):
+
+- **Dedupes** each candidate against existing features and against already-kept candidates, using a Jaccard token-overlap similarity check.
+- **Caps** the count at `max_discovered_features` (default `3`); the rest are recorded as capped.
+- **Creates** the kept candidates as new feature YAMLs (status `not-started`, reusing the same numbering as `4x new`), appending a `feature-discovered` event per creation.
+- **Summarizes** the outcome (created / skipped-as-duplicate / capped) to `.4x/{feature-id}/discovered-features.md`.
+
+The step is best-effort: any error is logged and never blocks the transition to `accepting`. It runs only on the final deep review PASS — intermediate rounds and FAIL/`needs-attention` paths never reach it. See [Configuration → Auto-Discover Features](configuration.md#auto-discover-features) for the settings.
+
 ### Escalation
 
 The Coder or Tester can escalate back to the Designer when:

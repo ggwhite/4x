@@ -344,6 +344,11 @@ type Config struct {
 	// TestProfiles 讓專案覆寫或擴充內建 test profile（key 為 profile 名稱）。
 	// 與 Profiles（pipeline profile）語意不同，不可混用。
 	TestProfiles map[string]TestProfileOverride `json:"test_profiles,omitempty"`
+	// AutoDiscoverFeatures 啟用後，run loop 在 final deep review PASS 後會 parse
+	// deep-review-report.md 的 [NEW-FEATURE] 標記並自動建立 feature。預設 false。
+	AutoDiscoverFeatures bool `json:"auto_discover_features,omitempty"`
+	// MaxDiscoveredFeatures 限制單次 run 最多自動建立幾張 feature；未設定或 <= 0 時套預設值（3）。
+	MaxDiscoveredFeatures int `json:"max_discovered_features,omitempty"`
 }
 
 // ProfileConfig 描述一個 pipeline profile：啟用哪些 role、以及 coder 的 model tier 覆蓋。

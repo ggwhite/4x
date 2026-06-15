@@ -835,6 +835,13 @@ func logKeyFromEvent(round int, role, eventType string, iterCount map[string]int
 			iterCount[counterKey]++
 		}
 		return fmt.Sprintf("round-%d-deep-reverify-%d.log", round, iterCount[counterKey])
+	case "deep-reviewer":
+		counterKey := fmt.Sprintf("%d-deep-reviewer", round)
+		if eventType == "phase-start" {
+			iterCount[counterKey]++
+		}
+		cnt := iterCount[counterKey]
+		return fmt.Sprintf("round-%d-deep-reviewer-%d.log", round, cnt)
 	default:
 		return fmt.Sprintf("round-%d-%s.log", round, role)
 	}
@@ -900,6 +907,17 @@ func parseRoleTimings(featureDir string) map[string]roleTiming {
 		} else {
 			s := ts.UTC().Format(time.RFC3339)
 			timings[key] = roleTiming{StartedAt: &s}
+		}
+	}
+	// 非平行 deep review 的 log 檔名為 round-N-deep-reviewer.log（無後綴），
+	// 但 events 的第 1 個 phase-start 會產生 round-N-deep-reviewer-1.log key。
+	// 把 -1 的 timing 也寫入無後綴 key，讓兩種模式都能查到。
+	for key, t := range timings {
+		if strings.Contains(key, "-deep-reviewer-1.log") {
+			alt := strings.Replace(key, "-deep-reviewer-1.log", "-deep-reviewer.log", 1)
+			if _, exists := timings[alt]; !exists {
+				timings[alt] = t
+			}
 		}
 	}
 	return timings

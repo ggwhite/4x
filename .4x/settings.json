@@ -35,6 +35,7 @@
   },
   "isolation": "worktree",
   "parallel_review_test": true,
+  "auto_discover_features": false,
   "max_concurrent_runs": 5,
   "roles": {
     "designer": {
