@@ -3,6 +3,7 @@ package protocol
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -88,6 +89,22 @@ func (w *Workspace) RoundDir(featureID string, round int) string {
 // ReadConfig 讀取 .4x/settings.json
 func (w *Workspace) ReadConfig() (Config, error) {
 	return ReadConfig(w.DotDir())
+}
+
+// LoadMergedConfig 讀取 project config 並合併 user config，封裝散落各處的三行 boilerplate。
+// project config 讀取失敗時回傳 error 由呼叫端決定如何處理；
+// user config 讀取失敗時印 slog.Warn 但不中斷（沿用既有各站點的處理慣例）。
+func (w *Workspace) LoadMergedConfig() (Config, error) {
+	cfg, err := w.ReadConfig()
+	if err != nil {
+		return Config{}, err
+	}
+	if userCfg, err := ReadUserConfig(); err != nil {
+		slog.Warn("failed to read user config", "error", err)
+	} else {
+		cfg = MergeConfig(userCfg, cfg)
+	}
+	return cfg, nil
 }
 
 // ResolveFeatureID 用前綴比對找出唯一 feature ID（大小寫不敏感）

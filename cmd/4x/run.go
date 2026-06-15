@@ -73,15 +73,9 @@ func newRunCmd() *cobra.Command {
 				return err
 			}
 
-			cfg, err := ws.ReadConfig()
+			cfg, err := ws.LoadMergedConfig()
 			if err != nil {
 				return err
-			}
-
-			if userCfg, err := protocol.ReadUserConfig(); err != nil {
-				slog.Warn("failed to read user config", "error", err)
-			} else {
-				cfg = protocol.MergeConfig(userCfg, cfg)
 			}
 
 			if runnerName == "" {

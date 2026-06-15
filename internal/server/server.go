@@ -955,12 +955,9 @@ func handleFeatureScreenshots(ws *protocol.Workspace, w http.ResponseWriter, r *
 
 // getMergedScreenshotDir 讀取 project config 並合併 user config，回傳 screenshotDir。
 func getMergedScreenshotDir(ws *protocol.Workspace) string {
-	cfg, err := ws.ReadConfig()
+	cfg, err := ws.LoadMergedConfig()
 	if err != nil {
 		return protocol.DefaultScreenshotDir
-	}
-	if userCfg, err := protocol.ReadUserConfig(); err == nil {
-		cfg = protocol.MergeConfig(userCfg, cfg)
 	}
 	return protocol.ScreenshotDir(cfg)
 }
@@ -1287,10 +1284,7 @@ func handlePostDone(ws *protocol.Workspace, w http.ResponseWriter, r *http.Reque
 		name = f.Name
 	}
 
-	cfg, _ := ws.ReadConfig()
-	if userCfg, err := protocol.ReadUserConfig(); err == nil {
-		cfg = protocol.MergeConfig(userCfg, cfg)
-	}
+	cfg, _ := ws.LoadMergedConfig()
 	ops := gitops.New(ws.Root, ws, cfg)
 
 	mergeMu.Lock()
@@ -1368,10 +1362,7 @@ func loadSavedBatchPlan(ws *protocol.Workspace) (*batch.BatchPlan, error) {
 
 // mergedConfig 讀取 project config 並套用 user config，供 batch handler 取得 runner / hub repos。
 func mergedConfig(ws *protocol.Workspace) protocol.Config {
-	cfg, _ := ws.ReadConfig()
-	if userCfg, err := protocol.ReadUserConfig(); err == nil {
-		cfg = protocol.MergeConfig(userCfg, cfg)
-	}
+	cfg, _ := ws.LoadMergedConfig()
 	return cfg
 }
 

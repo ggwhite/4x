@@ -33,10 +33,7 @@ func newCheckCmd() *cobra.Command {
 				return err
 			}
 
-			cfg, _ := ws.ReadConfig()
-			if userCfg, err := protocol.ReadUserConfig(); err == nil {
-				cfg = protocol.MergeConfig(userCfg, cfg)
-			}
+			cfg, _ := ws.LoadMergedConfig()
 			ops := gitops.New(ws.Root, ws, cfg)
 
 			result := guard.Check(ws, featureID, ops)

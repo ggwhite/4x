@@ -47,12 +47,9 @@ func markDone(ws *protocol.Workspace, featureID string) error {
 		return fmt.Errorf("feature %s is in phase %q, not pending-review", featureID, s.Phase)
 	}
 
-	cfg, err := ws.ReadConfig()
+	cfg, err := ws.LoadMergedConfig()
 	if err != nil {
 		slog.Warn("cannot read config, using defaults", "error", err)
-	}
-	if userCfg, err := protocol.ReadUserConfig(); err == nil {
-		cfg = protocol.MergeConfig(userCfg, cfg)
 	}
 
 	f, _ := ws.LoadFeature(featureID)

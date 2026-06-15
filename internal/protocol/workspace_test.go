@@ -1226,3 +1226,40 @@ func TestSyncFeatureStatus_NotFound(t *testing.T) {
 		t.Error("expected error for missing feature")
 	}
 }
+
+func TestLoadMergedConfig(t *testing.T) {
+	tmp := t.TempDir()
+	dotDir := filepath.Join(tmp, ".4x")
+	if err := os.MkdirAll(dotDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := Config{
+		Project: ProjectConfig{Name: "test-proj"},
+		Default: "claude",
+	}
+	data, _ := json.MarshalIndent(cfg, "", "  ")
+	if err := os.WriteFile(filepath.Join(dotDir, "settings.json"), data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ws := &Workspace{Root: tmp}
+	got, err := ws.LoadMergedConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Project.Name != "test-proj" {
+		t.Errorf("Project.Name = %q, want test-proj", got.Project.Name)
+	}
+	if got.Default != "claude" {
+		t.Errorf("Default = %q, want claude", got.Default)
+	}
+}
+
+func TestLoadMergedConfig_NoProjectConfig_ReturnsError(t *testing.T) {
+	tmp := t.TempDir()
+	ws := &Workspace{Root: tmp}
+	if _, err := ws.LoadMergedConfig(); err == nil {
+		t.Fatal("expected error when settings.json missing")
+	}
+}

@@ -276,12 +276,9 @@ func showFeatureDetail(ws *protocol.Workspace, id string) error {
 		}
 	}
 
-	cfg, err := ws.ReadConfig()
+	cfg, err := ws.LoadMergedConfig()
 	if err != nil {
 		return err
-	}
-	if userCfg, err := protocol.ReadUserConfig(); err == nil {
-		cfg = protocol.MergeConfig(userCfg, cfg)
 	}
 	screenshotDir := protocol.ScreenshotDir(cfg)
 	groups, err := ws.DiscoverScreenshots(id, screenshotDir)
