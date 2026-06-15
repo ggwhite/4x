@@ -158,13 +158,114 @@ document.addEventListener('keydown', e => {
   if ((e.metaKey||e.ctrlKey) && e.key==='k') { e.preventDefault(); openSearch(); }
   else if ((e.metaKey||e.ctrlKey) && !e.shiftKey && e.key===',') { e.preventDefault(); activeProjectId?openProjectSettings():openGlobalSettings(); }
   else if ((e.metaKey||e.ctrlKey) && e.shiftKey && e.key===',') { e.preventDefault(); openGlobalSettings(); }
+  else if (e.key==='?' && !e.metaKey && !e.ctrlKey && document.activeElement.tagName!=='INPUT' && document.activeElement.tagName!=='TEXTAREA') { e.preventDefault(); showShortcutsHelp(); }
   else if (e.key==='Escape') {
-    if (document.getElementById('global-settings-modal').classList.contains('open')) closeGlobalSettings();
+    const hm = document.getElementById('help-modal');
+    if (hm && hm.classList.contains('open')) { hm.remove(); }
+    else if (document.getElementById('global-settings-modal').classList.contains('open')) closeGlobalSettings();
     else if (document.getElementById('project-settings-modal').classList.contains('open')) closeProjectSettings();
     else if (document.getElementById('picker-modal').classList.contains('open')) closeProjectPicker();
     else if (document.getElementById('search-modal').classList.contains('open')) closeSearch();
   }
 });
+
+function showShortcutsHelp(initialTab) {
+  if (document.getElementById('help-modal')) { document.getElementById('help-modal').remove(); return; }
+  const kbd = (k) => `<kbd style="font-size:12px;padding:3px 8px;border-radius:6px;background:var(--bg-input);border:1px solid var(--border);color:var(--text-1);font-family:ui-monospace,monospace;min-width:36px;text-align:center">${esc(k)}</kbd>`;
+  const row = (label, key) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)"><span style="color:var(--text-2);font-size:13px">${esc(label)}</span>${kbd(key)}</div>`;
+  const h2 = (text) => `<div style="font-size:13px;font-weight:700;color:var(--text-1);margin:16px 0 8px">${esc(text)}</div>`;
+  const p = (text) => `<div style="font-size:13px;color:var(--text-2);line-height:1.6;margin:8px 0">${text}</div>`;
+
+  const tabs = {
+    overview: {
+      label: t('help.overview') || 'Overview',
+      icon: '◎',
+      content: h2(t('help.whatIs4x') || 'What is 4x?')
+        + p(t('help.whatIs4xDesc') || '4x is a multi-role AI development loop that orchestrates Design → Code → Review → Test phases. Like 4X strategy games, it conquers codebases through specialized roles.')
+        + h2(t('help.workflow') || 'Workflow')
+        + p('1. <b>Designer</b> — ' + (t('help.designerDesc') || 'reads spec/plan, produces task brief'))
+        + p('2. <b>Coder</b> — ' + (t('help.coderDesc') || 'implements tasks following TDD'))
+        + p('3. <b>Reviewer</b> — ' + (t('help.reviewerDesc') || 'reviews code for bugs and quality'))
+        + p('4. <b>Tester</b> — ' + (t('help.testerDesc') || 'runs verification commands'))
+        + p('5. <b>Deep Review</b> — ' + (t('help.deepReviewDesc') || 'final architectural review'))
+        + h2(t('help.dashboard') || 'Dashboard')
+        + p(t('help.dashboardDesc') || 'This dashboard shows real-time status of all features across projects. The sidebar lists features grouped by status; the main area shows overview, messages, and logs.')
+    },
+    cli: {
+      label: 'CLI',
+      icon: '⌘',
+      content: h2(t('help.cliCommands') || 'CLI Commands')
+        + p('<code>4x new</code> — ' + (t('help.cmdNew') || 'Create a new feature'))
+        + p('<code>4x run</code> — ' + (t('help.cmdRun') || 'Run the Design→Code→Review→Test loop'))
+        + p('<code>4x status</code> — ' + (t('help.cmdStatus') || 'Show feature status'))
+        + p('<code>4x batch</code> — ' + (t('help.cmdBatch') || 'Batch operations for multiple features'))
+        + p('<code>4x clean</code> — ' + (t('help.cmdClean') || 'Remove workspace artifacts for completed features'))
+        + p('<code>4x live</code> — ' + (t('help.cmdLive') || 'Start the dashboard server'))
+        + p('<code>4x check</code> — ' + (t('help.cmdCheck') || 'Run guardrail checks'))
+        + p('<code>4x verify</code> — ' + (t('help.cmdVerify') || 'Run verify commands from test-strategy.yaml'))
+        + p('<code>4x prompt</code> — ' + (t('help.cmdPrompt') || 'Generate a role prompt for the current phase'))
+        + p('<code>4x doctor</code> — ' + (t('help.cmdDoctor') || 'Check settings and workspace health'))
+    },
+    shortcuts: {
+      label: t('shortcuts.title') || 'Shortcuts',
+      icon: '⌨',
+      content: h2(t('help.navigation') || 'Navigation')
+        + row(t('shortcuts.search') || 'Search', '⌘ K')
+        + row(t('shortcuts.settings') || 'Settings', '⌘ ,')
+        + row(t('shortcuts.globalSettings') || 'Global Settings', '⌘ ⇧ ,')
+        + h2(t('help.view') || 'View')
+        + row(t('shortcuts.reload') || 'Reload', '⌘ R')
+        + row('Full Screen', '⌃ ⌘ F')
+        + h2(t('help.general') || 'General')
+        + row(t('help.helpGuide') || 'Help Guide', '?')
+        + row(t('shortcuts.close') || 'Close dialog', 'Esc')
+    },
+    phases: {
+      label: t('help.phases') || 'Phases',
+      icon: '↻',
+      content: h2(t('help.stateMachine') || 'State Machine')
+        + p(t('help.stateMachineDesc') || 'Features progress through phases:')
+        + p('<code>init → designing → coding → reviewing → testing → deep-reviewing → accepting → done</code>')
+        + p(t('help.amendingDesc') || 'If review or testing finds issues, the feature goes back to <code>amending</code> then returns to <code>coding</code>.')
+        + h2(t('help.terminalStates') || 'Terminal States')
+        + p('<b>done</b> — ' + (t('help.doneDesc') || 'Feature completed successfully'))
+        + p('<b>abandoned</b> — ' + (t('help.abandonedDesc') || 'Feature was abandoned'))
+        + p('<b>blocked</b> — ' + (t('help.blockedDesc') || 'Feature is blocked, needs attention'))
+    }
+  };
+
+  const tabKeys = Object.keys(tabs);
+  let active = initialTab && tabs[initialTab] ? initialTab : 'overview';
+
+  const overlay = document.createElement('div');
+  overlay.id = 'help-modal';
+  overlay.className = 'modal-backdrop open';
+  const panel = document.createElement('div');
+  panel.className = 'modal-panel fade-in';
+  panel.style.cssText = 'width:560px;max-height:80vh;display:flex;flex-direction:column';
+
+  function render() {
+    panel.innerHTML = '<div style="padding:20px 24px 0;flex-shrink:0">'
+      + '<div style="font-size:16px;font-weight:700;margin-bottom:12px">4x Guide</div>'
+      + '<div style="display:flex;gap:0;border-bottom:1px solid var(--border)">'
+      + tabKeys.map(k => {
+        const isActive = k === active;
+        return `<button data-tab="${k}" style="padding:8px 14px;font-size:12px;font-weight:600;border:none;background:none;cursor:pointer;color:${isActive?'var(--accent)':'var(--text-3)'};border-bottom:2px solid ${isActive?'var(--accent)':'transparent'};transition:all .15s">${tabs[k].icon} ${tabs[k].label}</button>`;
+      }).join('')
+      + '</div></div>'
+      + '<div style="padding:8px 24px 24px;overflow-y:auto;flex:1">' + tabs[active].content + '</div>';
+    panel.querySelectorAll('[data-tab]').forEach(btn => {
+      btn.onmouseover = () => { if (btn.dataset.tab !== active) btn.style.color = 'var(--text-2)'; };
+      btn.onmouseout = () => { if (btn.dataset.tab !== active) btn.style.color = 'var(--text-3)'; };
+      btn.onclick = () => { active = btn.dataset.tab; render(); };
+    });
+  }
+
+  render();
+  overlay.appendChild(panel);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
 
 function badge(status, phase, active) {
   if (active && phase && phase!=='done') return `<span class="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span>${t('status.inProgress')}</span>`;
