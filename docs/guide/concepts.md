@@ -233,6 +233,10 @@ hooks: {}    # optional phase hooks (same format as settings.json)
 
 `status` mirrors `state.json` phase for quick listing. Valid values: `not-started`, `in-progress`, `ready-for-review`, `needs-attention`, `blocked`, `done`, `abandoned`. `abandoned` features are treated as completed (won't block dependencies) but display with strikethrough in the dashboard. `depends` lists feature IDs that must be done (or abandoned) before this feature can run. `repos` lists the repository names (from `workspace.repos`) that this feature touches; empty means all repos in scope.
 
+### Feature Creation
+
+The `Feature`/`Subtask`/`Status` types and the creation logic live in the standalone `internal/feature` package (ID generation, backlog drift, screenshot helpers moved there too). `protocol.Workspace` and `protocol.CachedWorkspace` satisfy the `feature.Store` interface, and `feature` does not import `protocol` (one-way dependency, decoupled through `Store`). Both the CLI (`4x new`) and the dashboard (`POST /api/new`) create features through the single `feature.Create(store, opts)` entry point, so numbering, ID truncation, and default fields behave identically regardless of entry point.
+
 ### Workspace Config (Multi-Repo)
 
 By default, 4x operates in monorepo mode. To work across multiple repositories, declare them in `.4x/settings.json`:

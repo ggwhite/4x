@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	feat "github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/guard"
 	"github.com/ggwhite/4x/internal/health"
@@ -345,7 +346,7 @@ func withSynthesizerReports(reports []includeContent) promptOption {
 	}
 }
 
-func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, role protocol.Role, round, iteration int, opts ...promptOption) (string, error) {
+func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature feat.Feature, cfg protocol.Config, role protocol.Role, round, iteration int, opts ...promptOption) (string, error) {
 	tmpl, err := loadRoleTemplate(role)
 	if err != nil {
 		return "", fmt.Errorf("no template for role %s: %w", role, err)
@@ -432,7 +433,7 @@ func prefetchablePhase(phase protocol.Phase, cfg protocol.Config) bool {
 	}
 }
 
-func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s protocol.State, ops gitops.Ops, newRunner func(logPath string, model string) runner.Runner, commitStrategy string) error {
+func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature feat.Feature, cfg protocol.Config, s protocol.State, ops gitops.Ops, newRunner func(logPath string, model string) runner.Runner, commitStrategy string) error {
 	if ops == nil {
 		ops = gitops.New(ws.Root, ws, cfg)
 	}
@@ -968,7 +969,7 @@ func successorPhase(p protocol.Phase) (protocol.Phase, protocol.Role) {
 // worktree），兩者完成後合併判定。回傳 (cont, err)：cont 為 true 表示主迴圈應 continue
 // 接手後續 phase（deep-reviewing 或 amending）；cont 為 false 且 err 為 nil 表示已落入
 // 終止狀態（blocked / needs-attention），主迴圈應 break；err 非 nil 表示 hard error 直接中止。
-func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s *protocol.State, ops gitops.Ops, newRunner func(logPath string, model string) runner.Runner) (bool, error) {
+func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature feat.Feature, cfg protocol.Config, s *protocol.State, ops gitops.Ops, newRunner func(logPath string, model string) runner.Runner) (bool, error) {
 	featureID := feature.ID
 	round := s.Round
 
@@ -1165,7 +1166,7 @@ func parallelNeedsAttention(ws *protocol.Workspace, featureID string, s *protoco
 //
 // 回傳 (ok, err)：語意同 runDeepSubRole；ok 為 true 時 deep-review-report.md 已產出，
 // caller 接續走 reviewPassed → accepting / self-heal 分支。
-func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s *protocol.State, ops gitops.Ops, newRunner func(logPath string, model string) runner.Runner, deepModel string, groups [][]int, round int) (bool, error) {
+func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature feat.Feature, cfg protocol.Config, s *protocol.State, ops gitops.Ops, newRunner func(logPath string, model string) runner.Runner, deepModel string, groups [][]int, round int) (bool, error) {
 	featureID := feature.ID
 
 	if runnerWs.Root != ws.Root {
@@ -1355,7 +1356,7 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 // 回傳 (cont, err)：cont 為 true 表示主迴圈應 continue（已推進 accepting 或跳過 deep review）；
 // cont 為 false 且 err 為 nil 表示已落入終止狀態（needs-attention / blocked），主迴圈應 break；
 // err 非 nil 表示 hard error 或 context cancel，直接中止。
-func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s *protocol.State, ops gitops.Ops, newRunner func(logPath string, model string) runner.Runner, commitStrategy string) (bool, error) {
+func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature feat.Feature, cfg protocol.Config, s *protocol.State, ops gitops.Ops, newRunner func(logPath string, model string) runner.Runner, commitStrategy string) (bool, error) {
 	featureID := feature.ID
 	round := s.Round
 
@@ -1527,7 +1528,7 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 //
 // 回傳 (ok, err)：ok 為 true 表示 runner 正常結束，caller 可繼續；ok 為 false 且 err 為 nil
 // 表示已寫入終止狀態（needs-attention / blocked）；err 非 nil 表示 hard error 或 cancel。
-func runDeepSubRole(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s *protocol.State, newRunner func(logPath string, model string) runner.Runner, role protocol.Role, model, logName string, round, iteration int) (bool, error) {
+func runDeepSubRole(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature feat.Feature, cfg protocol.Config, s *protocol.State, newRunner func(logPath string, model string) runner.Runner, role protocol.Role, model, logName string, round, iteration int) (bool, error) {
 	featureID := feature.ID
 
 	ws.AppendEvent(featureID, protocol.Event{
@@ -1649,7 +1650,7 @@ func deepTransitionAccepting(ws *protocol.Workspace, featureID string, s *protoc
 // 只在兩個 deep review PASS return 點（首次 PASS、self-heal 後 re-verifier 改 PASS）被呼叫，
 // 中間輪與 FAIL/needs-attention 路徑都到不了，因此等同「只在 final deep review 觸發」。
 // 為 best-effort：任何錯誤只記 log，絕不中斷 accepting 轉換。
-func autoDiscoverFeatures(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, round int) {
+func autoDiscoverFeatures(ws *protocol.Workspace, feature feat.Feature, cfg protocol.Config, round int) {
 	if !cfg.AutoDiscoverFeatures {
 		return
 	}
@@ -1693,17 +1694,17 @@ func autoDiscoverFeatures(ws *protocol.Workspace, feature protocol.Feature, cfg 
 
 	var createdList []discoveredCreated
 	for _, d := range kept {
-		next, nerr := protocol.NextFeatureNumber(ws)
+		next, nerr := feat.NextNumber(ws)
 		if nerr != nil {
 			slog.Warn("auto-discover: next feature number failed", "feature", feature.ID, "title", d.Title, "error", nerr)
 			continue
 		}
-		id := protocol.GenerateFeatureID(next, d.Title)
-		f := protocol.Feature{
+		id := feat.GenerateFeatureID(next, d.Title)
+		f := feat.Feature{
 			ID:          id,
 			Name:        fmt.Sprintf("F%03d: %s", next, d.Title),
 			Description: d.Description,
-			Status:      protocol.StatusNotStarted,
+			Status:      feat.StatusNotStarted,
 		}
 		if serr := ws.SaveFeature(f); serr != nil {
 			slog.Warn("auto-discover: save feature failed", "feature", feature.ID, "title", d.Title, "error", serr)
@@ -1943,7 +1944,7 @@ func captureBaselineOnce(ws *protocol.Workspace, ops gitops.Ops, featureID strin
 	return nil
 }
 
-func dryRunLoop(ws *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s protocol.State) error {
+func dryRunLoop(ws *protocol.Workspace, feature feat.Feature, cfg protocol.Config, s protocol.State) error {
 	phases := []struct {
 		phase protocol.Phase
 		role  protocol.Role

@@ -6,7 +6,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/ggwhite/4x/internal/protocol"
+	"github.com/ggwhite/4x/internal/feature"
 )
 
 // ScheduleEntry 是 batch-plan.json 裡每個 feature 的排程
@@ -31,7 +31,7 @@ type BatchPlan struct {
 }
 
 // PlanBatch 從 features 產生完整的 batch 執行計畫
-func PlanBatch(features []protocol.Feature, hubRepos []string, maxChainLength int) (*BatchPlan, error) {
+func PlanBatch(features []feature.Feature, hubRepos []string, maxChainLength int) (*BatchPlan, error) {
 	if maxChainLength <= 0 {
 		maxChainLength = 4
 	}
@@ -61,7 +61,7 @@ func PlanBatch(features []protocol.Feature, hubRepos []string, maxChainLength in
 	}, nil
 }
 
-func buildDependencyGraph(features []protocol.Feature, idx map[string]int) [][]int {
+func buildDependencyGraph(features []feature.Feature, idx map[string]int) [][]int {
 	adj := make([][]int, len(features))
 	for i, f := range features {
 		for _, depID := range f.Depends {
@@ -73,7 +73,7 @@ func buildDependencyGraph(features []protocol.Feature, idx map[string]int) [][]i
 	return adj
 }
 
-func detectCycle(features []protocol.Feature, adj [][]int) []string {
+func detectCycle(features []feature.Feature, adj [][]int) []string {
 	n := len(features)
 	color := make([]int, n) // 0=white, 1=gray, 2=black
 	parent := make([]int, n)
@@ -123,7 +123,7 @@ func detectCycle(features []protocol.Feature, adj [][]int) []string {
 // depends 仍是硬約束（拓撲序不可違反）；當多個節點同時 ready（in-degree 0）時，
 // 依 Feature.Priority 決定出隊順序——數字小者優先，nil priority 視為最低優先（最大值），
 // priority 相同再依 feature ID 穩定排序，避免 map 迭代造成的非決定性。
-func topoSort(features []protocol.Feature, indices []int, adj [][]int) []int {
+func topoSort(features []feature.Feature, indices []int, adj [][]int) []int {
 	inCluster := make(map[int]bool)
 	for _, i := range indices {
 		inCluster[i] = true
@@ -172,7 +172,7 @@ func topoSort(features []protocol.Feature, indices []int, adj [][]int) []int {
 
 // featureLess 定義同時 ready 的 feature 出隊優先序：priority 小者優先（nil 視為最大），
 // priority 相同則依 feature ID 穩定排序。
-func featureLess(a, b protocol.Feature) bool {
+func featureLess(a, b feature.Feature) bool {
 	pa, pb := priorityValue(a.Priority), priorityValue(b.Priority)
 	if pa != pb {
 		return pa < pb
@@ -189,7 +189,7 @@ func priorityValue(p *int) int {
 }
 
 // clusterSortKey 回傳 cluster 的跨群排序鍵：成員中最高優先（最小 priorityValue）與最小 feature ID。
-func clusterSortKey(features []protocol.Feature, members []int) (int, string) {
+func clusterSortKey(features []feature.Feature, members []int) (int, string) {
 	minPrio := math.MaxInt
 	minID := ""
 	for _, m := range members {
@@ -203,7 +203,7 @@ func clusterSortKey(features []protocol.Feature, members []int) (int, string) {
 	return minPrio, minID
 }
 
-func buildClusters(features []protocol.Feature, uf *unionFind, adj [][]int, idx map[string]int, maxChainLen int) []Cluster {
+func buildClusters(features []feature.Feature, uf *unionFind, adj [][]int, idx map[string]int, maxChainLen int) []Cluster {
 	groups := make(map[int][]int)
 	for i := range features {
 		root := uf.find(i)
@@ -306,7 +306,7 @@ func splitChains(sorted []int, adj [][]int, maxLen int) [][]int {
 	return chains
 }
 
-func buildSchedule(features []protocol.Feature, clusters []Cluster, idx map[string]int) []ScheduleEntry {
+func buildSchedule(features []feature.Feature, clusters []Cluster, idx map[string]int) []ScheduleEntry {
 	var schedule []ScheduleEntry
 	for slot, cluster := range clusters {
 		for _, chain := range cluster.Chains {
@@ -345,7 +345,7 @@ func buildSchedule(features []protocol.Feature, clusters []Cluster, idx map[stri
 }
 
 // mergeByDependency 把有依賴的 features 合入同 cluster
-func mergeByDependency(features []protocol.Feature, idx map[string]int, uf *unionFind) {
+func mergeByDependency(features []feature.Feature, idx map[string]int, uf *unionFind) {
 	for i, f := range features {
 		for _, depID := range f.Depends {
 			if j, ok := idx[depID]; ok {
@@ -356,7 +356,7 @@ func mergeByDependency(features []protocol.Feature, idx map[string]int, uf *unio
 }
 
 // mergeBySharedRepos 把共用 non-hub repo 的 features 合入同 cluster
-func mergeBySharedRepos(features []protocol.Feature, hubRepos []string, uf *unionFind) {
+func mergeBySharedRepos(features []feature.Feature, hubRepos []string, uf *unionFind) {
 	hubSet := make(map[string]bool)
 	for _, r := range hubRepos {
 		hubSet[r] = true

@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/spf13/cobra"
 )
@@ -19,7 +20,7 @@ func newNewCmd() *cobra.Command {
 		subtasks   []string
 		rules      []string
 		depends    []string
-		priority int
+		priority   int
 	)
 
 	cmd := &cobra.Command{
@@ -51,7 +52,9 @@ Examples:
 
 			name := args[0]
 
-			next, err := protocol.NextFeatureNumber(ws)
+			// 先取號組 display name：CLI 是單 process，與 Create 內部 NextNumber 取得同一號碼，
+			// 故此 next 與最終 f.ID 的流水號一致。
+			next, err := feature.NextNumber(ws)
 			if err != nil {
 				if jsonOutput {
 					return jsonError(err.Error())
@@ -59,24 +62,13 @@ Examples:
 				return err
 			}
 
-			var id string
-			if customID != "" {
-				id = protocol.GenerateFeatureIDFromSlug(next, customID)
-			} else {
-				id = protocol.GenerateFeatureID(next, name)
-			}
-
-			var repoMap []string
-			repoMap = append(repoMap, repos...)
-
-			displayName := fmt.Sprintf("F%03d: %s", next, name)
-
+			// 既有行為：未指定 --desc 時 description 預設為原始 name（非 display name）。
 			description := name
 			if desc != "" {
 				description = desc
 			}
 
-			var parsedSubtasks []protocol.Subtask
+			var parsedSubtasks []feature.Subtask
 			for _, s := range subtasks {
 				st, err := parseSubtask(s)
 				if err != nil {
@@ -88,21 +80,33 @@ Examples:
 				parsedSubtasks = append(parsedSubtasks, st)
 			}
 
-			feature := protocol.Feature{
-				ID:          id,
-				Name:        displayName,
+			// 傳「原始 name」給 Create，使 ID 由原始 name 產生並沿用既有截斷規則
+			// （若傳 display name，"F001: " 前綴會被併入 slug 產生 F001-f001-... 的重複前綴）。
+			opts := feature.CreateOpts{
+				Name:        name,
 				Description: description,
-				Status:      protocol.StatusNotStarted,
-				Repos:       repoMap,
+				CustomID:    customID,
 				Subtasks:    parsedSubtasks,
 				Rules:       rules,
 				Depends:     depends,
+				Repos:       repos,
 			}
 			if cmd.Flags().Changed("priority") {
-				feature.Priority = &priority
+				opts.Priority = &priority
 			}
 
-			if err := ws.SaveFeature(feature); err != nil {
+			f, err := feature.Create(ws, opts)
+			if err != nil {
+				if jsonOutput {
+					return jsonError(err.Error())
+				}
+				return err
+			}
+
+			// CLI 既有行為：feature.Name 儲存為 "F{NNN}: <name>" 的 display name。
+			// Create 以原始 name 存檔後，這裡覆寫為 display name 並回存。
+			f.Name = fmt.Sprintf("F%03d: %s", next, name)
+			if err := ws.SaveFeature(f); err != nil {
 				if jsonOutput {
 					return jsonError(err.Error())
 				}
@@ -115,22 +119,22 @@ Examples:
 					Name      string `json:"name"`
 					Path      string `json:"path"`
 				}{
-					FeatureID: id,
-					Name:      displayName,
-					Path:      fmt.Sprintf(".4x/features/%s.yaml", id),
+					FeatureID: f.ID,
+					Name:      f.Name,
+					Path:      fmt.Sprintf(".4x/features/%s.yaml", f.ID),
 				}
 				data, _ := json.MarshalIndent(result, "", "  ")
 				fmt.Println(string(data))
 				return nil
 			}
 
-			fmt.Printf("Created feature: %s (%s)\n", id, name)
-			fmt.Printf("  File: .4x/features/%s.yaml\n", id)
+			fmt.Printf("Created feature: %s (%s)\n", f.ID, name)
+			fmt.Printf("  File: .4x/features/%s.yaml\n", f.ID)
 			if len(parsedSubtasks) > 0 {
 				fmt.Printf("  Subtasks: %d\n", len(parsedSubtasks))
 			}
 			fmt.Println()
-			fmt.Printf("Run: 4x run %s\n", id)
+			fmt.Printf("Run: 4x run %s\n", f.ID)
 			return nil
 		},
 	}
@@ -147,12 +151,12 @@ Examples:
 }
 
 // parseSubtask 解析 "id:name" 或 "id:name:description" 格式的 subtask 字串。
-func parseSubtask(s string) (protocol.Subtask, error) {
+func parseSubtask(s string) (feature.Subtask, error) {
 	parts := strings.SplitN(s, ":", 3)
 	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
-		return protocol.Subtask{}, fmt.Errorf("subtask format must be \"id:name\" or \"id:name:description\", got %q", s)
+		return feature.Subtask{}, fmt.Errorf("subtask format must be \"id:name\" or \"id:name:description\", got %q", s)
 	}
-	st := protocol.Subtask{
+	st := feature.Subtask{
 		ID:   strings.TrimSpace(parts[0]),
 		Name: strings.TrimSpace(parts[1]),
 	}

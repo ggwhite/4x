@@ -12,6 +12,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/ggwhite/4x/internal/feature"
 )
 
 func setupWorkspace(t *testing.T) *Workspace {
@@ -127,7 +129,7 @@ func TestConfigRoundtrip(t *testing.T) {
 func TestFeatureCRUD(t *testing.T) {
 	ws := setupWorkspace(t)
 
-	f := Feature{
+	f := feature.Feature{
 		ID:          "test-feature",
 		Name:        "Test Feature",
 		Description: "A test",
@@ -145,7 +147,7 @@ func TestFeatureCRUD(t *testing.T) {
 		t.Errorf("LoadFeature = %+v, want ID=%s Name=%s", got, f.ID, f.Name)
 	}
 
-	f2 := Feature{ID: "second-feature", Name: "Second", Status: "done"}
+	f2 := feature.Feature{ID: "second-feature", Name: "Second", Status: "done"}
 	if err := ws.SaveFeature(f2); err != nil {
 		t.Fatalf("SaveFeature 2: %v", err)
 	}
@@ -159,84 +161,9 @@ func TestFeatureCRUD(t *testing.T) {
 	}
 }
 
-func TestCompareBacklogMirror_Matching(t *testing.T) {
-	features := []Feature{{
-		ID:          "feat-a",
-		Name:        "Feature A",
-		Description: "desc",
-		Status:      "not-started",
-	}}
-	mirror := BacklogMirror{Features: []BacklogFeature{{
-		ID:          "feat-a",
-		Name:        "Feature A",
-		Description: "desc",
-		Status:      "not-started",
-	}}}
-
-	drift := CompareBacklogMirror(features, mirror)
-	if len(drift) != 0 {
-		t.Fatalf("drift = %+v, want none", drift)
-	}
-}
-
-func TestCompareBacklogMirror_MissingExtraAndMismatch(t *testing.T) {
-	features := []Feature{
-		{ID: "feat-b", Name: "Feature B", Description: "desc b", Status: "done"},
-		{ID: "feat-a", Name: "Feature A", Description: "desc a", Status: "not-started"},
-	}
-	mirror := BacklogMirror{Features: []BacklogFeature{
-		{ID: "feat-a", Name: "Old Feature A", Description: "desc a", Status: "todo"},
-		{ID: "feat-c", Name: "Feature C", Status: "todo"},
-	}}
-
-	drift := CompareBacklogMirror(features, mirror)
-	if len(drift) != 4 {
-		t.Fatalf("drift count = %d, want 4: %+v", len(drift), drift)
-	}
-
-	want := []BacklogDrift{
-		{Kind: BacklogDriftMismatch, FeatureID: "feat-a", Field: "name"},
-		{Kind: BacklogDriftMismatch, FeatureID: "feat-a", Field: "status"},
-		{Kind: BacklogDriftMissing, FeatureID: "feat-b"},
-		{Kind: BacklogDriftExtra, FeatureID: "feat-c"},
-	}
-	for i := range want {
-		if drift[i].Kind != want[i].Kind || drift[i].FeatureID != want[i].FeatureID || drift[i].Field != want[i].Field {
-			t.Fatalf("drift[%d] = %+v, want %+v", i, drift[i], want[i])
-		}
-		if drift[i].Message == "" {
-			t.Fatalf("drift[%d] missing message", i)
-		}
-	}
-}
-
-func TestCompareBacklogMirror_MissingPriority(t *testing.T) {
-	features := []Feature{{
-		ID:          "feat-a",
-		Name:        "Feature A",
-		Description: "desc",
-		Status:      "not-started",
-		Priority:    ptrInt(2),
-	}}
-	mirror := BacklogMirror{Features: []BacklogFeature{{
-		ID:          "feat-a",
-		Name:        "Feature A",
-		Description: "desc",
-		Status:      "not-started",
-	}}}
-
-	drift := CompareBacklogMirror(features, mirror)
-	if len(drift) != 1 {
-		t.Fatalf("drift count = %d, want 1: %+v", len(drift), drift)
-	}
-	if drift[0].Kind != BacklogDriftMismatch || drift[0].FeatureID != "feat-a" || drift[0].Field != "priority" {
-		t.Fatalf("drift[0] = %+v, want priority mismatch", drift[0])
-	}
-}
-
 func TestWorkspaceCompareBacklogMirror_AbsentFile(t *testing.T) {
 	ws := setupWorkspace(t)
-	if err := ws.SaveFeature(Feature{ID: "feat-a", Name: "Feature A", Status: "not-started"}); err != nil {
+	if err := ws.SaveFeature(feature.Feature{ID: "feat-a", Name: "Feature A", Status: "not-started"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -251,7 +178,7 @@ func TestWorkspaceCompareBacklogMirror_AbsentFile(t *testing.T) {
 
 func TestWorkspaceCompareBacklogMirror_ReadsRootFeatureList(t *testing.T) {
 	ws := setupWorkspace(t)
-	if err := ws.SaveFeature(Feature{ID: "feat-a", Name: "Feature A", Status: "done"}); err != nil {
+	if err := ws.SaveFeature(feature.Feature{ID: "feat-a", Name: "Feature A", Status: "done"}); err != nil {
 		t.Fatal(err)
 	}
 	data := `{"version":1,"features":[{"id":"feat-a","name":"Feature A","status":"todo"}]}`
@@ -481,7 +408,7 @@ func TestDiscoverScreenshots(t *testing.T) {
 		Passed: true,
 		Round:  2,
 		Role:   RoleTester,
-		Screenshots: []Screenshot{
+		Screenshots: []feature.Screenshot{
 			{Path: ".4x/e2e/feat-shot/screenshot/02-round-two.png", Step: "02", Description: "round two"},
 		},
 	}
@@ -500,11 +427,11 @@ func TestDiscoverScreenshots(t *testing.T) {
 		}
 	}
 
-	groups, err := ws.DiscoverScreenshots(featureID, DefaultScreenshotDir)
+	groups, err := ws.DiscoverScreenshots(featureID, feature.DefaultScreenshotDir)
 	if err != nil {
 		t.Fatalf("DiscoverScreenshots: %v", err)
 	}
-	// DefaultScreenshotDir 沒有 {round} 佔位符，dir 掃描會分配到最新已知 round（2）。
+	// feature.DefaultScreenshotDir 沒有 {round} 佔位符，dir 掃描會分配到最新已知 round（2）。
 	// round 2 包含 verify.json 的 02-round-two.png，加上 dir 掃描的 01-round-one.png 與 03-third-shot.webp。
 	if len(groups) != 1 {
 		t.Fatalf("groups = %d, want 1 (all go to latest round)", len(groups))
@@ -554,7 +481,7 @@ func TestDiscoverScreenshotsMerge(t *testing.T) {
 		Passed: true,
 		Round:  1,
 		Role:   RoleTester,
-		Screenshots: []Screenshot{
+		Screenshots: []feature.Screenshot{
 			{Path: "e2e/feat-merge-shot/screenshot/01-login.png", Step: "01", Description: "login"},
 		},
 	}
@@ -573,7 +500,7 @@ func TestDiscoverScreenshotsMerge(t *testing.T) {
 		}
 	}
 
-	groups, err := ws.DiscoverScreenshots(featureID, DefaultScreenshotDir)
+	groups, err := ws.DiscoverScreenshots(featureID, feature.DefaultScreenshotDir)
 	if err != nil {
 		t.Fatalf("DiscoverScreenshots: %v", err)
 	}
@@ -711,7 +638,7 @@ func TestDiscoverScreenshotsRoundUnion(t *testing.T) {
 	}
 	verify := VerifyEvidence{
 		Passed: true, Round: 1, Role: RoleTester,
-		Screenshots: []Screenshot{
+		Screenshots: []feature.Screenshot{
 			{Path: "e2e/feat-round-union/round-1/01-login.png", Step: "01", Description: "login"},
 		},
 	}
@@ -951,8 +878,8 @@ func TestIsScreenshotFile(t *testing.T) {
 		{"", false},
 	}
 	for _, tt := range tests {
-		if got := IsScreenshotFile(tt.name); got != tt.want {
-			t.Errorf("IsScreenshotFile(%q) = %v, want %v", tt.name, got, tt.want)
+		if got := feature.IsScreenshotFile(tt.name); got != tt.want {
+			t.Errorf("feature.IsScreenshotFile(%q) = %v, want %v", tt.name, got, tt.want)
 		}
 	}
 }
@@ -968,8 +895,8 @@ func TestNormalizeScreenshotPath(t *testing.T) {
 		{"  .4x/foo.png  ", "foo.png"},
 	}
 	for _, tt := range tests {
-		if got := NormalizeScreenshotPath(tt.input); got != tt.want {
-			t.Errorf("NormalizeScreenshotPath(%q) = %q, want %q", tt.input, got, tt.want)
+		if got := feature.NormalizeScreenshotPath(tt.input); got != tt.want {
+			t.Errorf("feature.NormalizeScreenshotPath(%q) = %q, want %q", tt.input, got, tt.want)
 		}
 	}
 }
@@ -996,7 +923,7 @@ func TestDiscoverScreenshots_NoRoundPlaceholder_UsesLatestRound(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	groups, err := ws.DiscoverScreenshots(featureID, DefaultScreenshotDir)
+	groups, err := ws.DiscoverScreenshots(featureID, feature.DefaultScreenshotDir)
 	if err != nil {
 		t.Fatalf("DiscoverScreenshots: %v", err)
 	}
@@ -1045,9 +972,9 @@ func TestNormalizeScreenshotPath_CleansDotDot(t *testing.T) {
 		{"e2e/feat/../feat2/01.png", "e2e/feat2/01.png"},
 	}
 	for _, tt := range tests {
-		got := NormalizeScreenshotPath(tt.input)
+		got := feature.NormalizeScreenshotPath(tt.input)
 		if got != tt.want {
-			t.Errorf("NormalizeScreenshotPath(%q) = %q, want %q", tt.input, got, tt.want)
+			t.Errorf("feature.NormalizeScreenshotPath(%q) = %q, want %q", tt.input, got, tt.want)
 		}
 	}
 }
@@ -1238,7 +1165,7 @@ func TestClearBatchPID(t *testing.T) {
 func TestSyncFeatureStatus(t *testing.T) {
 	ws := setupWorkspace(t)
 
-	f := Feature{ID: "feat-1", Name: "Test", Status: StatusNotStarted}
+	f := feature.Feature{ID: "feat-1", Name: "Test", Status: feature.StatusNotStarted}
 	if err := ws.SaveFeature(f); err != nil {
 		t.Fatal(err)
 	}
@@ -1251,15 +1178,15 @@ func TestSyncFeatureStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Status != StatusInProgress {
-		t.Errorf("status = %s, want %s", got.Status, StatusInProgress)
+	if got.Status != feature.StatusInProgress {
+		t.Errorf("status = %s, want %s", got.Status, feature.StatusInProgress)
 	}
 }
 
 func TestSyncFeatureStatus_Done(t *testing.T) {
 	ws := setupWorkspace(t)
 
-	f := Feature{ID: "feat-2", Name: "Test", Status: StatusInProgress}
+	f := feature.Feature{ID: "feat-2", Name: "Test", Status: feature.StatusInProgress}
 	if err := ws.SaveFeature(f); err != nil {
 		t.Fatal(err)
 	}
@@ -1272,8 +1199,8 @@ func TestSyncFeatureStatus_Done(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Status != StatusDone {
-		t.Errorf("status = %s, want %s", got.Status, StatusDone)
+	if got.Status != feature.StatusDone {
+		t.Errorf("status = %s, want %s", got.Status, feature.StatusDone)
 	}
 }
 
@@ -1302,8 +1229,8 @@ func TestWriteReadBatchReport_Roundtrip(t *testing.T) {
 		Runner:         "claude",
 		RunningFeature: "F002",
 		Features: []BatchFeatureReport{
-			{ID: "F001", Name: "feat one", FinalStatus: StatusDone, DurationMs: 1500, Rounds: 2},
-			{ID: "F002", Name: "feat two", FinalStatus: StatusBlocked, DurationMs: 800, Rounds: 5, StopReason: "max-rounds"},
+			{ID: "F001", Name: "feat one", FinalStatus: feature.StatusDone, DurationMs: 1500, Rounds: 2},
+			{ID: "F002", Name: "feat two", FinalStatus: feature.StatusBlocked, DurationMs: 800, Rounds: 5, StopReason: "max-rounds"},
 		},
 	}
 
@@ -1372,4 +1299,3 @@ func TestLoadMergedConfig_NoProjectConfig_ReturnsError(t *testing.T) {
 		t.Fatal("expected error when settings.json missing")
 	}
 }
-

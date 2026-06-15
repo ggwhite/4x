@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -19,7 +20,7 @@ func setupMultiWorkspace(t *testing.T, name string) *protocol.Workspace {
 		t.Fatal(err)
 	}
 	ws := &protocol.Workspace{Root: root}
-	f := protocol.Feature{ID: "feat-1", Name: "Feature One", Status: "in-progress"}
+	f := feature.Feature{ID: "feat-1", Name: "Feature One", Status: "in-progress"}
 	if err := ws.SaveFeature(f); err != nil {
 		t.Fatal(err)
 	}

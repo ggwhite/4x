@@ -23,6 +23,7 @@ import (
 
 	web "github.com/ggwhite/4x/dashboard/web"
 	"github.com/ggwhite/4x/internal/batch"
+	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/logging"
 	"github.com/ggwhite/4x/internal/protocol"
@@ -387,19 +388,19 @@ type taskInfo struct {
 }
 
 type overviewInfo struct {
-	ID          string             `json:"id"`
-	Name        string             `json:"name"`
-	Description string             `json:"description"`
-	Status      string             `json:"status"`
-	Priority    *int               `json:"priority,omitempty"`
-	Repos       []string           `json:"repos,omitempty"`
-	Subtasks    []protocol.Subtask `json:"subtasks,omitempty"`
-	Rules       []string           `json:"rules,omitempty"`
-	Depends     []string           `json:"depends,omitempty"`
-	Spec        string             `json:"spec"`
-	Plan        string             `json:"plan"`
-	SpecSource  string             `json:"specSource"`
-	PlanSource  string             `json:"planSource"`
+	ID          string            `json:"id"`
+	Name        string            `json:"name"`
+	Description string            `json:"description"`
+	Status      string            `json:"status"`
+	Priority    *int              `json:"priority,omitempty"`
+	Repos       []string          `json:"repos,omitempty"`
+	Subtasks    []feature.Subtask `json:"subtasks,omitempty"`
+	Rules       []string          `json:"rules,omitempty"`
+	Depends     []string          `json:"depends,omitempty"`
+	Spec        string            `json:"spec"`
+	Plan        string            `json:"plan"`
+	SpecSource  string            `json:"specSource"`
+	PlanSource  string            `json:"planSource"`
 }
 
 type runRequest struct {
@@ -480,8 +481,13 @@ func handlePostStop(pm *ProcessManager, w http.ResponseWriter, r *http.Request) 
 }
 
 type newRequest struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	Name        string            `json:"name"`
+	Description string            `json:"description"`
+	CustomID    string            `json:"customId,omitempty"`
+	Subtasks    []feature.Subtask `json:"subtasks,omitempty"`
+	Rules       []string          `json:"rules,omitempty"`
+	Depends     []string          `json:"depends,omitempty"`
+	Priority    *int              `json:"priority,omitempty"`
 }
 
 type newResponse struct {
@@ -500,34 +506,24 @@ func handlePostNew(ws *protocol.CachedWorkspace, w http.ResponseWriter, r *http.
 		return
 	}
 
-	next, err := protocol.NextFeatureNumber(ws.Workspace)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	id := protocol.GenerateFeatureID(next, req.Name)
-
-	description := req.Description
-	if description == "" {
-		description = req.Name
-	}
-	feature := protocol.Feature{
-		ID:          id,
+	// 與 CLI 共用 feature.Create；*protocol.CachedWorkspace 隱式滿足 feature.Store。
+	// 只傳 name(+description) 的舊 request 維持向下相容（其餘欄位為零值）。
+	f, err := feature.Create(ws, feature.CreateOpts{
 		Name:        req.Name,
-		Description: description,
-		Status:      protocol.StatusNotStarted,
-	}
-	if err := ws.SaveFeature(feature); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if err := ws.InitFeatureDir(id); err != nil {
+		Description: req.Description,
+		CustomID:    req.CustomID,
+		Subtasks:    req.Subtasks,
+		Rules:       req.Rules,
+		Depends:     req.Depends,
+		Priority:    req.Priority,
+	})
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(newResponse{ID: id, Name: req.Name})
+	json.NewEncoder(w).Encode(newResponse{ID: f.ID, Name: f.Name})
 }
 
 func handleTasks(ws *protocol.CachedWorkspace, w http.ResponseWriter) {
@@ -1085,7 +1081,7 @@ func handleFeatureScreenshots(ws *protocol.CachedWorkspace, w http.ResponseWrite
 func getMergedScreenshotDir(ws *protocol.CachedWorkspace) string {
 	cfg, err := ws.LoadMergedConfig()
 	if err != nil {
-		return protocol.DefaultScreenshotDir
+		return feature.DefaultScreenshotDir
 	}
 	return protocol.ScreenshotDir(cfg)
 }
@@ -1139,8 +1135,8 @@ func handleServeScreenshot(ws *protocol.CachedWorkspace, featureID, filename str
 		http.Error(w, "invalid screenshot token", http.StatusBadRequest)
 		return
 	}
-	relPath := protocol.NormalizeScreenshotPath(string(data))
-	if relPath == "" || !protocol.IsScreenshotFile(filepath.Base(relPath)) {
+	relPath := feature.NormalizeScreenshotPath(string(data))
+	if relPath == "" || !feature.IsScreenshotFile(filepath.Base(relPath)) {
 		http.Error(w, "unsupported screenshot type", http.StatusBadRequest)
 		return
 	}
@@ -1190,7 +1186,7 @@ func handleServeScreenshot(ws *protocol.CachedWorkspace, featureID, filename str
 }
 
 func encodeScreenshotToken(path string) string {
-	normalized := protocol.NormalizeScreenshotPath(path)
+	normalized := feature.NormalizeScreenshotPath(path)
 	if normalized == "" {
 		return ""
 	}
@@ -1540,7 +1536,7 @@ func handleBatchStatus(ws *protocol.CachedWorkspace, bm *BatchManager, w http.Re
 		return
 	}
 
-	featByID := make(map[string]protocol.Feature, len(features))
+	featByID := make(map[string]feature.Feature, len(features))
 	for _, f := range features {
 		featByID[f.ID] = f
 	}
@@ -1555,9 +1551,9 @@ func handleBatchStatus(ws *protocol.CachedWorkspace, bm *BatchManager, w http.Re
 		}
 	}
 	if schedule == nil {
-		var pending []protocol.Feature
+		var pending []feature.Feature
 		for _, f := range features {
-			if f.Status != protocol.StatusDone && f.Status != protocol.StatusAbandoned {
+			if f.Status != feature.StatusDone && f.Status != feature.StatusAbandoned {
 				pending = append(pending, f)
 			}
 		}
@@ -1575,9 +1571,9 @@ func handleBatchStatus(ws *protocol.CachedWorkspace, bm *BatchManager, w http.Re
 			continue
 		}
 		itemState := "waiting"
-		if f.Status == protocol.StatusDone || f.Status == protocol.StatusReadyForReview {
+		if f.Status == feature.StatusDone || f.Status == feature.StatusReadyForReview {
 			itemState = "done"
-		} else if f.Status == protocol.StatusNeedsAttention || f.Status == protocol.StatusBlocked {
+		} else if f.Status == feature.StatusNeedsAttention || f.Status == feature.StatusBlocked {
 			itemState = "error"
 		} else if st, stErr := ws.ReadState(s.FeatureID); stErr == nil {
 			ws.ReconcileActive(s.FeatureID, &st)

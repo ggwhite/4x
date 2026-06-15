@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -212,7 +213,7 @@ func (m *multiRepo) DetectChangedRepos() []string {
 
 func (m *multiRepo) CaptureBaseline(featureID string, featureRepos []string) error {
 	repoPaths := protocol.ResolveFeatureRepoPaths(
-		protocol.Feature{Repos: featureRepos}, m.cfg, m.root,
+		feature.Feature{Repos: featureRepos}, m.cfg, m.root,
 	)
 	baseline := protocol.Baseline{CreatedAt: time.Now()}
 	for name, fullPath := range repoPaths {

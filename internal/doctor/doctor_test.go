@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -191,7 +192,7 @@ func setupWorkspace(t *testing.T) string {
 	return root
 }
 
-func writeFeature(t *testing.T, root, id string, status protocol.Status) {
+func writeFeature(t *testing.T, root, id string, status feature.Status) {
 	t.Helper()
 	body := "id: " + id + "\nname: " + id + "\nstatus: " + string(status) + "\n"
 	path := filepath.Join(root, ".4x", "features", id+".yaml")
@@ -202,7 +203,7 @@ func writeFeature(t *testing.T, root, id string, status protocol.Status) {
 
 func TestCheckWorkspace_OrphanedWorktree(t *testing.T) {
 	root := setupWorkspace(t)
-	writeFeature(t, root, "F001", protocol.StatusDone)
+	writeFeature(t, root, "F001", feature.StatusDone)
 	if err := os.MkdirAll(filepath.Join(root, ".worktrees", "4x", "F001"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -229,7 +230,7 @@ func TestCheckWorkspace_DanglingWorktree(t *testing.T) {
 
 func TestCheckWorkspace_ActiveWorktreeNotReported(t *testing.T) {
 	root := setupWorkspace(t)
-	writeFeature(t, root, "F002", protocol.StatusInProgress)
+	writeFeature(t, root, "F002", feature.StatusInProgress)
 	if err := os.MkdirAll(filepath.Join(root, ".worktrees", "4x", "F002"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -242,7 +243,7 @@ func TestCheckWorkspace_ActiveWorktreeNotReported(t *testing.T) {
 
 func TestCheckWorkspace_StaleState(t *testing.T) {
 	root := setupWorkspace(t)
-	writeFeature(t, root, "F003", protocol.StatusInProgress)
+	writeFeature(t, root, "F003", feature.StatusInProgress)
 	ws := &protocol.Workspace{Root: root}
 	if err := os.MkdirAll(filepath.Join(root, ".4x", "F003"), 0o755); err != nil {
 		t.Fatal(err)
@@ -274,7 +275,7 @@ func TestCheckWorkspace_StaleState(t *testing.T) {
 
 func TestCheckWorkspace_MalformedYAML(t *testing.T) {
 	root := setupWorkspace(t)
-	writeFeature(t, root, "F004", protocol.StatusInProgress)
+	writeFeature(t, root, "F004", feature.StatusInProgress)
 	bad := filepath.Join(root, ".4x", "features", "F005.yaml")
 	if err := os.WriteFile(bad, []byte("id: F005\nname: [unterminated\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -295,7 +296,7 @@ func TestDiagnose_BadSettingsDoesNotAbort(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, ".4x", "settings.json"), []byte("{ not json"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	writeFeature(t, root, "F010", protocol.StatusInProgress)
+	writeFeature(t, root, "F010", feature.StatusInProgress)
 
 	report, err := Diagnose(Options{Root: root})
 	if err != nil {
@@ -320,7 +321,7 @@ func TestDiagnose_ReadOnly(t *testing.T) {
 	if err := protocol.WriteConfig(filepath.Join(root, ".4x"), cfg); err != nil {
 		t.Fatal(err)
 	}
-	writeFeature(t, root, "F020", protocol.StatusInProgress)
+	writeFeature(t, root, "F020", feature.StatusInProgress)
 	ws := &protocol.Workspace{Root: root}
 	if err := os.MkdirAll(filepath.Join(root, ".4x", "F020"), 0o755); err != nil {
 		t.Fatal(err)

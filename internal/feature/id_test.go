@@ -1,6 +1,46 @@
-package protocol
+package feature
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
+
+// mockStore 是 in-memory 的 Store 實作，供 feature package 測試使用，不碰檔案系統。
+type mockStore struct {
+	features map[string]Feature
+	dirs     []string
+}
+
+func newMockStore() *mockStore {
+	return &mockStore{features: map[string]Feature{}}
+}
+
+func (m *mockStore) DotDir() string              { return "/tmp/test" }
+func (m *mockStore) FeatureDir(id string) string { return "/tmp/test/" + id }
+func (m *mockStore) RoundDir(id string, round int) string {
+	return fmt.Sprintf("/tmp/test/%s/rounds/round-%d", id, round)
+}
+func (m *mockStore) SaveFeature(f Feature) error { m.features[f.ID] = f; return nil }
+
+func (m *mockStore) LoadFeature(id string) (Feature, error) {
+	f, ok := m.features[id]
+	if !ok {
+		return Feature{}, fmt.Errorf("not found: %s", id)
+	}
+	return f, nil
+}
+
+func (m *mockStore) ListFeatures() ([]Feature, error) {
+	ff := make([]Feature, 0, len(m.features))
+	for _, f := range m.features {
+		ff = append(ff, f)
+	}
+	return ff, nil
+}
+
+func (m *mockStore) InitFeatureDir(id string) error { m.dirs = append(m.dirs, id); return nil }
+
+func (m *mockStore) ResolveFeatureID(prefix string) (string, error) { return prefix, nil }
 
 func TestGenerateFeatureID(t *testing.T) {
 	tests := []struct {
@@ -46,15 +86,10 @@ func TestGenerateFeatureIDFromSlug(t *testing.T) {
 	}
 }
 
-func TestNextFeatureNumber(t *testing.T) {
-	root := t.TempDir()
-	cfg := Config{Project: ProjectConfig{Name: "test"}}
-	if err := Init(root, cfg); err != nil {
-		t.Fatal(err)
-	}
-	ws := &Workspace{Root: root}
+func TestNextNumber(t *testing.T) {
+	store := newMockStore()
 
-	n, err := NextFeatureNumber(ws)
+	n, err := NextNumber(store)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,11 +97,8 @@ func TestNextFeatureNumber(t *testing.T) {
 		t.Errorf("got %d, want 1", n)
 	}
 
-	f := Feature{ID: "F003-test", Name: "test", Status: "not-started"}
-	if err := ws.SaveFeature(f); err != nil {
-		t.Fatal(err)
-	}
-	n, err = NextFeatureNumber(ws)
+	store.features["F003-test"] = Feature{ID: "F003-test", Name: "test"}
+	n, err = NextNumber(store)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,11 +106,8 @@ func TestNextFeatureNumber(t *testing.T) {
 		t.Errorf("got %d, want 4", n)
 	}
 
-	f2 := Feature{ID: "F1000-four-digit", Name: "four-digit", Status: "not-started"}
-	if err := ws.SaveFeature(f2); err != nil {
-		t.Fatal(err)
-	}
-	n, err = NextFeatureNumber(ws)
+	store.features["F1000-four-digit"] = Feature{ID: "F1000-four-digit", Name: "four-digit"}
+	n, err = NextNumber(store)
 	if err != nil {
 		t.Fatal(err)
 	}

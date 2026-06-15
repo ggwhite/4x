@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -15,12 +16,12 @@ func TestIntegration_FullHookCycle(t *testing.T) {
 	markerDir := t.TempDir()
 	marker := filepath.Join(markerDir, "marker")
 
-	hooks := []protocol.HookEntry{
+	hooks := []feature.HookEntry{
 		{Run: "touch " + marker, OnFail: "block"},
 		{Run: "echo done", OnFail: "warn"},
 	}
 
-	results, err := Execute(context.Background(), hooks,logDir)
+	results, err := Execute(context.Background(), hooks, logDir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -50,13 +51,13 @@ func TestIntegration_FullHookCycle(t *testing.T) {
 func TestIntegration_MixedBlockWarn(t *testing.T) {
 	logDir := t.TempDir()
 
-	hooks := []protocol.HookEntry{
+	hooks := []feature.HookEntry{
 		{Run: "echo ok", OnFail: "warn"},
 		{Run: "exit 42", OnFail: "warn"},
 		{Run: "echo after-warn"},
 	}
 
-	results, err := Execute(context.Background(), hooks,logDir)
+	results, err := Execute(context.Background(), hooks, logDir)
 	if err != nil {
 		t.Fatalf("warn hooks should not stop execution: %v", err)
 	}
@@ -76,12 +77,12 @@ func TestIntegration_BlockStopsChain(t *testing.T) {
 	markerDir := t.TempDir()
 	shouldNotExist := filepath.Join(markerDir, "should-not-exist")
 
-	hooks := []protocol.HookEntry{
+	hooks := []feature.HookEntry{
 		{Run: "exit 1", OnFail: "block"},
 		{Run: "touch " + shouldNotExist},
 	}
 
-	results, err := Execute(context.Background(), hooks,logDir)
+	results, err := Execute(context.Background(), hooks, logDir)
 	if err == nil {
 		t.Fatal("expected error for block hook failure")
 	}
@@ -94,8 +95,8 @@ func TestIntegration_BlockStopsChain(t *testing.T) {
 }
 
 func TestIntegration_ToEvent_FailDetail(t *testing.T) {
-	hooks := []protocol.HookEntry{{Run: "exit 5", OnFail: "warn"}}
-	results, _ := Execute(context.Background(), hooks,t.TempDir())
+	hooks := []feature.HookEntry{{Run: "exit 5", OnFail: "warn"}}
+	results, _ := Execute(context.Background(), hooks, t.TempDir())
 
 	evt := ToEvent(results[0], protocol.PhaseTesting, "post_testing")
 	if evt.Status != "fail" {

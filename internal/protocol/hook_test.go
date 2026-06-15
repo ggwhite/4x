@@ -3,11 +3,13 @@ package protocol
 import (
 	"encoding/json"
 	"testing"
+
+	feat "github.com/ggwhite/4x/internal/feature"
 )
 
 func TestHookEntry_Unmarshal(t *testing.T) {
 	raw := `{"run": "docker compose up -d", "on_fail": "warn"}`
-	var h HookEntry
+	var h feat.HookEntry
 	if err := json.Unmarshal([]byte(raw), &h); err != nil {
 		t.Fatal(err)
 	}
@@ -21,7 +23,7 @@ func TestHookEntry_Unmarshal(t *testing.T) {
 
 func TestHookEntry_OnFail_DefaultBlock(t *testing.T) {
 	raw := `{"run": "echo hello"}`
-	var h HookEntry
+	var h feat.HookEntry
 	if err := json.Unmarshal([]byte(raw), &h); err != nil {
 		t.Fatal(err)
 	}
@@ -31,18 +33,18 @@ func TestHookEntry_OnFail_DefaultBlock(t *testing.T) {
 }
 
 func TestHookEntry_OnFail_Explicit(t *testing.T) {
-	h := HookEntry{Run: "echo hi", OnFail: "warn"}
+	h := feat.HookEntry{Run: "echo hi", OnFail: "warn"}
 	if h.EffectiveOnFail() != "warn" {
 		t.Errorf("EffectiveOnFail() = %q, want warn", h.EffectiveOnFail())
 	}
 }
 
 func TestMergeHooks_FeatureOverridesGlobal(t *testing.T) {
-	global := map[string][]HookEntry{
+	global := map[string][]feat.HookEntry{
 		"pre_coding":   {{Run: "global-setup", OnFail: "block"}},
 		"post_testing": {{Run: "global-cleanup"}},
 	}
-	feature := map[string][]HookEntry{
+	feature := map[string][]feat.HookEntry{
 		"pre_coding": {{Run: "feature-setup", OnFail: "warn"}},
 	}
 	got := MergeHooks(global, feature)
@@ -62,7 +64,7 @@ func TestMergeHooks_BothNil(t *testing.T) {
 }
 
 func TestMergeHooks_GlobalNilFeatureOnly(t *testing.T) {
-	feature := map[string][]HookEntry{
+	feature := map[string][]feat.HookEntry{
 		"pre_coding": {{Run: "setup"}},
 	}
 	got := MergeHooks(nil, feature)

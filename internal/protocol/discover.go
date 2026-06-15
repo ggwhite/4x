@@ -1,6 +1,10 @@
 package protocol
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/ggwhite/4x/internal/feature"
+)
 
 // newFeatureMarker 是 deep reviewer 在 report 中標記「值得另開 feature 的 issue」的前綴。
 const newFeatureMarker = "[NEW-FEATURE]"
@@ -99,7 +103,7 @@ func IsSimilarFeature(a, b string) bool {
 // DedupeDiscovered 過濾候選 feature：保留的 candidate 必須與每個 existing feature
 // （Name+" "+Description）都不相似，且與已保留的 candidate 也不相似（batch 內去重）。
 // 比對對象是 candidate 的 Title+" "+Description。回傳順序維持輸入順序。
-func DedupeDiscovered(candidates []DiscoveredFeature, existing []Feature) []DiscoveredFeature {
+func DedupeDiscovered(candidates []DiscoveredFeature, existing []feature.Feature) []DiscoveredFeature {
 	var kept []DiscoveredFeature
 
 	for _, c := range candidates {

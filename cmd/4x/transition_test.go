@@ -3,17 +3,18 @@ package main
 import (
 	"testing"
 
+	feat "github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
 func TestResolveHooks_PreAndPost(t *testing.T) {
 	cfg := protocol.Config{
-		Hooks: map[string][]protocol.HookEntry{
+		Hooks: map[string][]feat.HookEntry{
 			"pre_coding":  {{Run: "setup", OnFail: "block"}},
 			"post_coding": {{Run: "cleanup"}},
 		},
 	}
-	feature := protocol.Feature{}
+	feature := feat.Feature{}
 	got := resolveHooks(cfg, feature, protocol.PhaseCoding)
 	if pre := got["pre"]; len(pre) != 1 || pre[0].Run != "setup" {
 		t.Errorf("expected pre hook 'setup', got %+v", pre)
@@ -25,12 +26,12 @@ func TestResolveHooks_PreAndPost(t *testing.T) {
 
 func TestResolveHooks_FeatureOverridesGlobal(t *testing.T) {
 	cfg := protocol.Config{
-		Hooks: map[string][]protocol.HookEntry{
+		Hooks: map[string][]feat.HookEntry{
 			"pre_coding": {{Run: "global-setup"}},
 		},
 	}
-	feature := protocol.Feature{
-		Hooks: map[string][]protocol.HookEntry{
+	feature := feat.Feature{
+		Hooks: map[string][]feat.HookEntry{
 			"pre_coding": {{Run: "feature-setup", OnFail: "warn"}},
 		},
 	}
@@ -42,7 +43,7 @@ func TestResolveHooks_FeatureOverridesGlobal(t *testing.T) {
 
 func TestResolveHooks_NoHooks(t *testing.T) {
 	cfg := protocol.Config{}
-	feature := protocol.Feature{}
+	feature := feat.Feature{}
 	got := resolveHooks(cfg, feature, protocol.PhaseCoding)
 	if got != nil {
 		t.Errorf("expected nil when no hooks, got %+v", got)
@@ -51,11 +52,11 @@ func TestResolveHooks_NoHooks(t *testing.T) {
 
 func TestResolveHooks_OtherPhaseNotReturned(t *testing.T) {
 	cfg := protocol.Config{
-		Hooks: map[string][]protocol.HookEntry{
+		Hooks: map[string][]feat.HookEntry{
 			"pre_testing": {{Run: "test-setup"}},
 		},
 	}
-	feature := protocol.Feature{}
+	feature := feat.Feature{}
 	got := resolveHooks(cfg, feature, protocol.PhaseCoding)
 	if len(got) != 0 {
 		t.Errorf("should not return hooks for other phase, got %+v", got)

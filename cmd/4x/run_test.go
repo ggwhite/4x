@@ -11,59 +11,59 @@ func TestParseReviewVerdict_Pass(t *testing.T) {
 		passed  bool
 	}{
 		{
-			name: "PASS verdict",
+			name:    "PASS verdict",
 			content: "## Verdict\nPASS\n",
-			passed: true,
+			passed:  true,
 		},
 		{
-			name: "CONDITIONAL PASS verdict",
+			name:    "CONDITIONAL PASS verdict",
 			content: "## Verdict\nCONDITIONAL PASS\n",
-			passed: true,
+			passed:  true,
 		},
 		{
-			name: "FAIL verdict",
+			name:    "FAIL verdict",
 			content: "## Verdict\nFAIL\n",
-			passed: false,
+			passed:  false,
 		},
 		{
-			name: "PASS after blank line",
+			name:    "PASS after blank line",
 			content: "## Verdict\n\nPASS\n",
-			passed: true,
+			passed:  true,
 		},
 		{
-			name: "only blank lines after verdict",
+			name:    "only blank lines after verdict",
 			content: "## Verdict\n\n\n",
-			passed: false,
+			passed:  false,
 		},
 		{
-			name: "no verdict section",
+			name:    "no verdict section",
 			content: "## Summary\nsome text\n",
-			passed: false,
+			passed:  false,
 		},
 		{
-			name: "empty content",
+			name:    "empty content",
 			content: "",
-			passed: false,
+			passed:  false,
 		},
 		{
-			name: "TODO verdict",
+			name:    "TODO verdict",
 			content: "## Verdict\nTODO\n",
-			passed: false,
+			passed:  false,
 		},
 		{
-			name: "ERROR verdict",
+			name:    "ERROR verdict",
 			content: "## Verdict\nERROR\n",
-			passed: false,
+			passed:  false,
 		},
 		{
-			name: "PENDING verdict",
+			name:    "PENDING verdict",
 			content: "## Verdict\nPENDING\n",
-			passed: false,
+			passed:  false,
 		},
 		{
-			name: "garbled verdict",
+			name:    "garbled verdict",
 			content: "## Verdict\n\xf0\xf1\xf2\n",
-			passed: false,
+			passed:  false,
 		},
 	}
 	for _, tt := range tests {

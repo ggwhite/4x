@@ -3,11 +3,11 @@ package batch
 import (
 	"testing"
 
-	"github.com/ggwhite/4x/internal/protocol"
+	"github.com/ggwhite/4x/internal/feature"
 )
 
 func TestPlanBatch_SingleFeature(t *testing.T) {
-	features := []protocol.Feature{
+	features := []feature.Feature{
 		{ID: "feat-a", Name: "A"},
 	}
 	plan, err := PlanBatch(features, nil, 4)
@@ -26,7 +26,7 @@ func TestPlanBatch_SingleFeature(t *testing.T) {
 }
 
 func TestPlanBatch_IndependentFeatures(t *testing.T) {
-	features := []protocol.Feature{
+	features := []feature.Feature{
 		{ID: "a", Repos: []string{"repo-1"}},
 		{ID: "b", Repos: []string{"repo-2"}},
 		{ID: "c", Repos: []string{"repo-3"}},
@@ -41,7 +41,7 @@ func TestPlanBatch_IndependentFeatures(t *testing.T) {
 }
 
 func TestPlanBatch_SharedRepoMergesClusters(t *testing.T) {
-	features := []protocol.Feature{
+	features := []feature.Feature{
 		{ID: "a", Repos: []string{"shared"}},
 		{ID: "b", Repos: []string{"shared"}},
 		{ID: "c", Repos: []string{"other"}},
@@ -56,7 +56,7 @@ func TestPlanBatch_SharedRepoMergesClusters(t *testing.T) {
 }
 
 func TestPlanBatch_HubRepoNotMerged(t *testing.T) {
-	features := []protocol.Feature{
+	features := []feature.Feature{
 		{ID: "a", Repos: []string{"hub-repo"}},
 		{ID: "b", Repos: []string{"hub-repo"}},
 	}
@@ -70,7 +70,7 @@ func TestPlanBatch_HubRepoNotMerged(t *testing.T) {
 }
 
 func TestPlanBatch_DependencyMergesClusters(t *testing.T) {
-	features := []protocol.Feature{
+	features := []feature.Feature{
 		{ID: "auth", Repos: []string{"repo-1"}},
 		{ID: "api", Repos: []string{"repo-2"}, Depends: []string{"auth"}},
 	}
@@ -91,7 +91,7 @@ func TestPlanBatch_DependencyMergesClusters(t *testing.T) {
 }
 
 func TestPlanBatch_DependencyOrder(t *testing.T) {
-	features := []protocol.Feature{
+	features := []feature.Feature{
 		{ID: "auth"},
 		{ID: "api", Depends: []string{"auth"}},
 		{ID: "ui", Depends: []string{"api"}},
@@ -120,7 +120,7 @@ func intPtr(n int) *int { return &n }
 
 // AC-4：兩個無依賴 feature priority 不同時，schedule 順序由 priority 決定（小者先）。
 func TestPlanBatch_PriorityOrdersIndependentFeatures(t *testing.T) {
-	features := []protocol.Feature{
+	features := []feature.Feature{
 		{ID: "low-prio", Priority: intPtr(3)},
 		{ID: "high-prio", Priority: intPtr(1)},
 	}
@@ -135,7 +135,7 @@ func TestPlanBatch_PriorityOrdersIndependentFeatures(t *testing.T) {
 
 // AC-5：priority 相同（或皆 nil）時，順序穩定（依 feature ID），多次跑結果一致。
 func TestPlanBatch_StableOrderWhenPriorityEqual(t *testing.T) {
-	features := []protocol.Feature{
+	features := []feature.Feature{
 		{ID: "zeta"},
 		{ID: "alpha"},
 		{ID: "mid", Priority: intPtr(2)},
@@ -176,7 +176,7 @@ func TestPlanBatch_StableOrderWhenPriorityEqual(t *testing.T) {
 
 // AC-6：depends 為硬約束——即使依賴者 priority 較高，仍不得排在被依賴者之前。
 func TestPlanBatch_PriorityNeverViolatesDependency(t *testing.T) {
-	features := []protocol.Feature{
+	features := []feature.Feature{
 		{ID: "a-depends-b", Priority: intPtr(0), Depends: []string{"b-base"}},
 		{ID: "b-base", Priority: intPtr(9)},
 	}
@@ -194,7 +194,7 @@ func TestPlanBatch_PriorityNeverViolatesDependency(t *testing.T) {
 }
 
 func TestPlanBatch_CycleDetection(t *testing.T) {
-	features := []protocol.Feature{
+	features := []feature.Feature{
 		{ID: "a", Depends: []string{"c"}},
 		{ID: "b", Depends: []string{"a"}},
 		{ID: "c", Depends: []string{"b"}},
@@ -206,7 +206,7 @@ func TestPlanBatch_CycleDetection(t *testing.T) {
 }
 
 func TestPlanBatch_MaxChainLength(t *testing.T) {
-	features := []protocol.Feature{
+	features := []feature.Feature{
 		{ID: "a"},
 		{ID: "b", Depends: []string{"a"}},
 		{ID: "c", Depends: []string{"b"}},
@@ -227,7 +227,7 @@ func TestPlanBatch_MaxChainLength(t *testing.T) {
 }
 
 func TestPlanBatch_ScheduleCanStartAfter(t *testing.T) {
-	features := []protocol.Feature{
+	features := []feature.Feature{
 		{ID: "base"},
 		{ID: "dep", Depends: []string{"base"}},
 	}

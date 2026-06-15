@@ -1145,16 +1145,61 @@ async function stopRun(runId) {
 function openNewFeature() {
   document.getElementById('new-feat-name').value = '';
   document.getElementById('new-feat-desc').value = '';
+  document.getElementById('new-feat-priority').value = '';
+  document.getElementById('new-feat-custom-id').value = '';
+  document.getElementById('new-feat-depends').value = '';
+  document.getElementById('new-feat-rules').value = '';
+  document.getElementById('new-feat-subtasks-list').innerHTML = '';
+  document.getElementById('new-feat-advanced').hidden = true;
+  document.getElementById('new-feat-adv-arrow').textContent = '▶';
   document.getElementById('new-feature-modal').classList.add('open');
   setTimeout(() => document.getElementById('new-feat-name').focus(), 100);
 }
 function closeNewFeature() { document.getElementById('new-feature-modal').classList.remove('open'); }
+function toggleAdvanced() {
+  const el = document.getElementById('new-feat-advanced');
+  el.hidden = !el.hidden;
+  document.getElementById('new-feat-adv-arrow').textContent = el.hidden ? '▶' : '▼';
+}
+function addSubtaskRow() {
+  const list = document.getElementById('new-feat-subtasks-list');
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:6px;margin-bottom:4px;align-items:center';
+  const inputStyle = 'background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text-1);font-size:12px;font-family:inherit;outline:none;box-sizing:border-box';
+  row.innerHTML = `
+    <input type="text" placeholder="id" class="st-id" style="width:80px;${inputStyle}">
+    <input type="text" placeholder="name" class="st-name" style="flex:1;${inputStyle}">
+    <button type="button" onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:14px;padding:2px 6px">✕</button>`;
+  list.appendChild(row);
+}
 async function submitNewFeature(andRun) {
   const name = document.getElementById('new-feat-name').value.trim();
   if (!name) return;
   const description = document.getElementById('new-feat-desc').value.trim();
+  const priorityVal = document.getElementById('new-feat-priority').value;
+  const customId = document.getElementById('new-feat-custom-id').value.trim();
+  const dependsRaw = document.getElementById('new-feat-depends').value.trim();
+  const rulesRaw = document.getElementById('new-feat-rules').value.trim();
+
+  const body = { name, description };
+  if (priorityVal !== '') body.priority = parseInt(priorityVal, 10);
+  if (customId) body.customId = customId;
+  if (dependsRaw) body.depends = dependsRaw.split(',').map(s => s.trim()).filter(Boolean);
+  if (rulesRaw) body.rules = rulesRaw.split(',').map(s => s.trim()).filter(Boolean);
+
+  const subtaskRows = document.querySelectorAll('#new-feat-subtasks-list > div');
+  if (subtaskRows.length > 0) {
+    const subtasks = [];
+    subtaskRows.forEach(row => {
+      const id = row.querySelector('.st-id').value.trim();
+      const stName = row.querySelector('.st-name').value.trim();
+      if (id && stName) subtasks.push({ id, name: stName, status: 'pending' });
+    });
+    if (subtasks.length > 0) body.subtasks = subtasks;
+  }
+
   closeNewFeature();
-  const res = await fetch(apiBase()+'/api/new', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name, description}) });
+  const res = await fetch(apiBase()+'/api/new', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
   if (!res.ok) { showToast(t('toast.createFailed').replace('{error}', await res.text())); return; }
   const data = await res.json();
   await load();

@@ -9,6 +9,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/spf13/cobra"
 )
@@ -54,7 +55,7 @@ func newStatusCmd() *cobra.Command {
 }
 
 type featureRow struct {
-	feature   protocol.Feature
+	feature   feature.Feature
 	phase     string
 	round     string
 	active    bool
@@ -64,17 +65,17 @@ type featureRow struct {
 	updatedAt time.Time
 }
 
-func categorize(f protocol.Feature, active bool) int {
-	if f.Status == protocol.StatusInProgress && active {
+func categorize(f feature.Feature, active bool) int {
+	if f.Status == feature.StatusInProgress && active {
 		return 0 // running
 	}
-	if f.Status == protocol.StatusReadyForReview {
+	if f.Status == feature.StatusReadyForReview {
 		return 1 // review
 	}
-	if f.Status == protocol.StatusInProgress || f.Status == protocol.StatusNeedsAttention {
+	if f.Status == feature.StatusInProgress || f.Status == feature.StatusNeedsAttention {
 		return 2 // pending (in-progress but not actively running)
 	}
-	if f.Status == protocol.StatusDone || f.Status == protocol.StatusAbandoned {
+	if f.Status == feature.StatusDone || f.Status == feature.StatusAbandoned {
 		return 4
 	}
 	return 3 // not-started = todo
@@ -362,8 +363,8 @@ func showAllFeaturesJSON(ws *protocol.Workspace) error {
 }
 
 type featureDetailJSON struct {
-	Feature protocol.Feature `json:"feature"`
-	State   *protocol.State  `json:"state"`
+	Feature feature.Feature `json:"feature"`
+	State   *protocol.State `json:"state"`
 }
 
 func showFeatureDetailJSON(ws *protocol.Workspace, id string) error {

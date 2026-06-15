@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -28,11 +29,11 @@ func TestBuildBatchReportCounts(t *testing.T) {
 		{FeatureID: "F003"},
 		{FeatureID: "F004"},
 	}}
-	statusMap := map[string]protocol.Status{
-		"F001": protocol.StatusDone,
-		"F002": protocol.StatusReadyForReview,
-		"F003": protocol.StatusBlocked,
-		"F004": protocol.StatusInProgress,
+	statusMap := map[string]feature.Status{
+		"F001": feature.StatusDone,
+		"F002": feature.StatusReadyForReview,
+		"F003": feature.StatusBlocked,
+		"F004": feature.StatusInProgress,
 	}
 
 	started := time.Unix(1000, 0)
@@ -65,7 +66,7 @@ func TestBuildBatchReportFeatureDuration(t *testing.T) {
 	}
 
 	plan := &BatchPlan{Schedule: []ScheduleEntry{{FeatureID: "F001"}}}
-	statusMap := map[string]protocol.Status{"F001": protocol.StatusNeedsAttention}
+	statusMap := map[string]feature.Status{"F001": feature.StatusNeedsAttention}
 	r := BuildBatchReport(ws, plan, statusMap, "claude", time.Unix(0, 0), time.Unix(1, 0), protocol.BatchOutcomeCompleted, "", "")
 
 	fr := r.Features[0]
@@ -88,9 +89,9 @@ func ExampleBuildBatchReport() {
 		{FeatureID: "F001"},
 		{FeatureID: "F002"},
 	}}
-	statusMap := map[string]protocol.Status{
-		"F001": protocol.StatusDone,
-		"F002": protocol.StatusBlocked,
+	statusMap := map[string]feature.Status{
+		"F001": feature.StatusDone,
+		"F002": feature.StatusBlocked,
 	}
 
 	started := time.Unix(0, 0)

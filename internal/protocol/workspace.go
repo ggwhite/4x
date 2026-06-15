@@ -11,7 +11,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ggwhite/4x/internal/feature"
 	"gopkg.in/yaml.v3"
+)
+
+// 編譯期斷言：Workspace 與 CachedWorkspace 必須滿足 feature.Store，
+// 方法簽名一旦改動即在編譯期報錯，不延遲到呼叫端。
+var (
+	_ feature.Store = (*Workspace)(nil)
+	_ feature.Store = (*CachedWorkspace)(nil)
 )
 
 const (
@@ -141,15 +149,15 @@ func (w *Workspace) ResolveFeatureID(prefix string) (string, error) {
 }
 
 // LoadFeature 讀取 .4x/features/{id}.yaml
-func (w *Workspace) LoadFeature(id string) (Feature, error) {
+func (w *Workspace) LoadFeature(id string) (feature.Feature, error) {
 	path := filepath.Join(w.DotDir(), FeaturesDir, id+".yaml")
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return Feature{}, fmt.Errorf("read feature %s: %w", id, err)
+		return feature.Feature{}, fmt.Errorf("read feature %s: %w", id, err)
 	}
-	var f Feature
+	var f feature.Feature
 	if err := yaml.Unmarshal(data, &f); err != nil {
-		return Feature{}, fmt.Errorf("parse feature %s: %w", id, err)
+		return feature.Feature{}, fmt.Errorf("parse feature %s: %w", id, err)
 	}
 	return f, nil
 }
@@ -173,7 +181,7 @@ func (w *Workspace) ReadTestStrategy(featureID string) (TestStrategy, error) {
 }
 
 // ListFeatures 列出所有 feature
-func (w *Workspace) ListFeatures() ([]Feature, error) {
+func (w *Workspace) ListFeatures() ([]feature.Feature, error) {
 	dir := filepath.Join(w.DotDir(), FeaturesDir)
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -182,7 +190,7 @@ func (w *Workspace) ListFeatures() ([]Feature, error) {
 		}
 		return nil, err
 	}
-	var features []Feature
+	var features []feature.Feature
 	for _, e := range entries {
 		if e.IsDir() || filepath.Ext(e.Name()) != ".yaml" {
 			continue
@@ -201,25 +209,25 @@ func (w *Workspace) ListFeatures() ([]Feature, error) {
 }
 
 // ReadBacklogMirror 讀取根目錄 feature_list.json；不存在時回傳 present=false。
-func (w *Workspace) ReadBacklogMirror() (BacklogMirror, bool, error) {
+func (w *Workspace) ReadBacklogMirror() (feature.BacklogMirror, bool, error) {
 	path := filepath.Join(w.Root, BacklogFile)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return BacklogMirror{}, false, nil
+			return feature.BacklogMirror{}, false, nil
 		}
-		return BacklogMirror{}, false, fmt.Errorf("read %s: %w", BacklogFile, err)
+		return feature.BacklogMirror{}, false, fmt.Errorf("read %s: %w", BacklogFile, err)
 	}
 
-	var mirror BacklogMirror
+	var mirror feature.BacklogMirror
 	if err := json.Unmarshal(data, &mirror); err != nil {
-		return BacklogMirror{}, true, fmt.Errorf("parse %s: %w", BacklogFile, err)
+		return feature.BacklogMirror{}, true, fmt.Errorf("parse %s: %w", BacklogFile, err)
 	}
 	return mirror, true, nil
 }
 
 // CompareBacklogMirror 比對 canonical feature YAML 與 legacy feature_list.json mirror。
-func (w *Workspace) CompareBacklogMirror() ([]BacklogDrift, error) {
+func (w *Workspace) CompareBacklogMirror() ([]feature.BacklogDrift, error) {
 	mirror, present, err := w.ReadBacklogMirror()
 	if err != nil || !present {
 		return nil, err
@@ -228,104 +236,11 @@ func (w *Workspace) CompareBacklogMirror() ([]BacklogDrift, error) {
 	if err != nil {
 		return nil, err
 	}
-	return CompareBacklogMirror(features, mirror), nil
-}
-
-// CompareBacklogMirror 比對 feature YAML 清單與 legacy backlog mirror，並以 feature ID 穩定排序。
-func CompareBacklogMirror(features []Feature, mirror BacklogMirror) []BacklogDrift {
-	canonical := make(map[string]Feature, len(features))
-	for _, f := range features {
-		canonical[f.ID] = f
-	}
-
-	backlog := make(map[string]BacklogFeature, len(mirror.Features))
-	for _, f := range mirror.Features {
-		backlog[f.ID] = f
-	}
-
-	var drift []BacklogDrift
-	for _, f := range features {
-		entry, ok := backlog[f.ID]
-		if !ok {
-			drift = append(drift, BacklogDrift{
-				Kind:      BacklogDriftMissing,
-				FeatureID: f.ID,
-				Message:   fmt.Sprintf("%s missing entry for feature %q", BacklogFile, f.ID),
-			})
-			continue
-		}
-		drift = appendFieldDrift(drift, f.ID, "name", f.Name, entry.Name)
-		drift = appendFieldDrift(drift, f.ID, "description", f.Description, entry.Description)
-		drift = appendFieldDrift(drift, f.ID, "status", string(f.Status), entry.Status)
-		drift = appendPriorityDrift(drift, f, entry)
-	}
-
-	for _, entry := range mirror.Features {
-		if _, ok := canonical[entry.ID]; !ok {
-			drift = append(drift, BacklogDrift{
-				Kind:      BacklogDriftExtra,
-				FeatureID: entry.ID,
-				Message:   fmt.Sprintf("%s has extra entry %q", BacklogFile, entry.ID),
-			})
-		}
-	}
-
-	sort.Slice(drift, func(i, j int) bool {
-		if drift[i].FeatureID != drift[j].FeatureID {
-			return drift[i].FeatureID < drift[j].FeatureID
-		}
-		if drift[i].Kind != drift[j].Kind {
-			return drift[i].Kind < drift[j].Kind
-		}
-		return drift[i].Field < drift[j].Field
-	})
-	return drift
-}
-
-func appendFieldDrift(drift []BacklogDrift, featureID, field, canonical, mirror string) []BacklogDrift {
-	if canonical == mirror {
-		return drift
-	}
-	return append(drift, BacklogDrift{
-		Kind:      BacklogDriftMismatch,
-		FeatureID: featureID,
-		Field:     field,
-		Canonical: canonical,
-		Mirror:    mirror,
-		Message: fmt.Sprintf(
-			"%s mismatch for feature %q field %q: canonical %q, mirror %q",
-			BacklogFile,
-			featureID,
-			field,
-			canonical,
-			mirror,
-		),
-	})
-}
-
-func appendPriorityDrift(drift []BacklogDrift, feature Feature, mirror BacklogFeature) []BacklogDrift {
-	if feature.Priority == nil && mirror.Priority == nil {
-		return drift
-	}
-	var canonical string
-	if feature.Priority != nil {
-		canonical = strconv.Itoa(*feature.Priority)
-	}
-	if mirror.Priority == nil {
-		if feature.Priority == nil {
-			return drift
-		}
-		return appendFieldDrift(drift, feature.ID, "priority", canonical, "")
-	}
-	mirrorStr := strconv.Itoa(*mirror.Priority)
-	if feature.Priority == nil {
-		return appendFieldDrift(drift, feature.ID, "priority", "", mirrorStr)
-	}
-	return appendFieldDrift(drift, feature.ID, "priority", canonical, mirrorStr)
+	return feature.CompareBacklogMirror(features, BacklogFile, mirror), nil
 }
 
 // SaveFeature 寫入 feature YAML
-func (w *Workspace) SaveFeature(f Feature) error {
+func (w *Workspace) SaveFeature(f feature.Feature) error {
 	dir := filepath.Join(w.DotDir(), FeaturesDir)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
@@ -375,7 +290,7 @@ func (w *Workspace) CleanableFeatures() ([]CleanCandidate, error) {
 
 	var candidates []CleanCandidate
 	for _, f := range features {
-		if f.Status != StatusDone && f.Status != StatusAbandoned {
+		if f.Status != feature.StatusDone && f.Status != feature.StatusAbandoned {
 			continue
 		}
 		dir := w.FeatureDir(f.ID)
@@ -419,7 +334,7 @@ func (w *Workspace) CleanFeature(featureID string) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("load feature %s: %w", featureID, err)
 	}
-	if f.Status != StatusDone && f.Status != StatusAbandoned {
+	if f.Status != feature.StatusDone && f.Status != feature.StatusAbandoned {
 		return 0, fmt.Errorf("feature %s is %s, only done/abandoned can be cleaned", featureID, f.Status)
 	}
 
@@ -723,19 +638,13 @@ func ReadUserConfig() (UserConfig, error) {
 	return cfg, nil
 }
 
-// ScreenshotGroup 表示同一 round 的截圖清單。
-type ScreenshotGroup struct {
-	Round       int          `json:"round"`
-	Screenshots []Screenshot `json:"screenshots"`
-}
-
 // DiscoverScreenshots 會合併 verify.json 與截圖目錄掃描結果，並按 round 分組回傳。
-func (w *Workspace) DiscoverScreenshots(featureID, screenshotDir string) ([]ScreenshotGroup, error) {
+func (w *Workspace) DiscoverScreenshots(featureID, screenshotDir string) ([]feature.ScreenshotGroup, error) {
 	if screenshotDir == "" {
-		screenshotDir = DefaultScreenshotDir
+		screenshotDir = feature.DefaultScreenshotDir
 	}
 
-	byRound := make(map[int][]Screenshot)
+	byRound := make(map[int][]feature.Screenshot)
 	seenPath := make(map[string]struct{})
 
 	rounds, err := w.discoverFromVerify(featureID, byRound, seenPath)
@@ -754,22 +663,22 @@ func (w *Workspace) DiscoverScreenshots(featureID, screenshotDir string) ([]Scre
 		if len(shots) == 0 {
 			continue
 		}
-		sortScreenshots(shots)
+		feature.SortScreenshots(shots)
 		byRound[round] = shots
 		keys = append(keys, round)
 	}
 	sort.Ints(keys)
 
-	groups := make([]ScreenshotGroup, 0, len(keys))
+	groups := make([]feature.ScreenshotGroup, 0, len(keys))
 	for _, round := range keys {
-		groups = append(groups, ScreenshotGroup{Round: round, Screenshots: byRound[round]})
+		groups = append(groups, feature.ScreenshotGroup{Round: round, Screenshots: byRound[round]})
 	}
 	return groups, nil
 }
 
 func (w *Workspace) discoverFromVerify(
 	featureID string,
-	byRound map[int][]Screenshot,
+	byRound map[int][]feature.Screenshot,
 	seenPath map[string]struct{},
 ) ([]int, error) {
 	roundsDir := filepath.Join(w.FeatureDir(featureID), RoundsDir)
@@ -806,14 +715,14 @@ func (w *Workspace) discoverFromVerify(
 			return nil, fmt.Errorf("parse %s: %w", verifyPath, err)
 		}
 		for _, raw := range evidence.Screenshots {
-			path := NormalizeScreenshotPath(raw.Path)
+			path := feature.NormalizeScreenshotPath(raw.Path)
 			if path == "" {
 				continue
 			}
 			if strings.HasPrefix(path, "../") || path == ".." {
 				continue
 			}
-			if !IsScreenshotFile(filepath.Base(path)) {
+			if !feature.IsScreenshotFile(filepath.Base(path)) {
 				continue
 			}
 			if _, ok := seenPath[path]; ok {
@@ -822,7 +731,7 @@ func (w *Workspace) discoverFromVerify(
 			shot := raw
 			shot.Path = path
 			if shot.Step == "" || shot.Description == "" {
-				step, desc := parseScreenshotFilename(filepath.Base(path))
+				step, desc := feature.ParseScreenshotFilename(filepath.Base(path))
 				if shot.Step == "" {
 					shot.Step = step
 				}
@@ -847,7 +756,7 @@ func (w *Workspace) discoverFromVerify(
 func (w *Workspace) discoverFromDir(
 	featureID, screenshotDir string,
 	rounds []int,
-	byRound map[int][]Screenshot,
+	byRound map[int][]feature.Screenshot,
 	seenPath map[string]struct{},
 ) error {
 	targets := resolveScreenshotDirs(w.Root, featureID, screenshotDir, rounds)
@@ -865,7 +774,7 @@ func (w *Workspace) discoverFromDir(
 		}
 
 		for _, e := range entries {
-			if e.IsDir() || !IsScreenshotFile(e.Name()) {
+			if e.IsDir() || !feature.IsScreenshotFile(e.Name()) {
 				continue
 			}
 			absPath := filepath.Join(dirPath, e.Name())
@@ -877,12 +786,12 @@ func (w *Workspace) discoverFromDir(
 			if strings.HasPrefix(rel, "../") || rel == ".." {
 				continue
 			}
-			rel = NormalizeScreenshotPath(rel)
+			rel = feature.NormalizeScreenshotPath(rel)
 			if _, ok := seenPath[rel]; ok {
 				continue
 			}
-			step, desc := parseScreenshotFilename(e.Name())
-			shot := Screenshot{Path: rel, Step: step, Description: desc}
+			step, desc := feature.ParseScreenshotFilename(e.Name())
+			shot := feature.Screenshot{Path: rel, Step: step, Description: desc}
 			byRound[target.Round] = append(byRound[target.Round], shot)
 			seenPath[rel] = struct{}{}
 		}
@@ -971,21 +880,6 @@ func discoverRoundsFromTemplate(workspaceRoot, template string) []int {
 	return rounds
 }
 
-// IsScreenshotFile 判斷檔名是否為支援的截圖格式（png/jpg/jpeg/webp）。
-func IsScreenshotFile(name string) bool {
-	ext := strings.ToLower(filepath.Ext(name))
-	return ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".webp"
-}
-
-// NormalizeScreenshotPath 將截圖路徑正規化，去除前綴 ./、.4x/，清除 .. 分量，並 trim 空白。
-func NormalizeScreenshotPath(path string) string {
-	p := filepath.ToSlash(strings.TrimSpace(path))
-	p = strings.TrimPrefix(p, "./")
-	p = strings.TrimPrefix(p, ".4x/")
-	p = filepath.ToSlash(filepath.Clean(filepath.FromSlash(p)))
-	return p
-}
-
 // WorktreePath 從 events.jsonl 解析 feature 的 worktree 路徑。
 // 若 feature 未使用 worktree 或 events.jsonl 不存在，回傳空字串。
 func (w *Workspace) WorktreePath(featureID string) string {
@@ -1016,7 +910,7 @@ func (w *Workspace) WorktreePath(featureID string) string {
 func (w *Workspace) discoverFromWorktree(
 	wtRoot, featureID, screenshotDir string,
 	rounds []int,
-	byRound map[int][]Screenshot,
+	byRound map[int][]feature.Screenshot,
 	seenPath map[string]struct{},
 ) {
 	targets := resolveScreenshotDirs(wtRoot, featureID, screenshotDir, rounds)
@@ -1030,7 +924,7 @@ func (w *Workspace) discoverFromWorktree(
 			continue
 		}
 		for _, e := range entries {
-			if e.IsDir() || !IsScreenshotFile(e.Name()) {
+			if e.IsDir() || !feature.IsScreenshotFile(e.Name()) {
 				continue
 			}
 			absPath := filepath.Join(dirPath, e.Name())
@@ -1039,13 +933,13 @@ func (w *Workspace) discoverFromWorktree(
 				continue
 			}
 			rel = filepath.ToSlash(rel)
-			normalized := NormalizeScreenshotPath(rel)
+			normalized := feature.NormalizeScreenshotPath(rel)
 			if _, seen := seenPath[normalized]; seen {
 				continue
 			}
 			seenPath[normalized] = struct{}{}
-			step, desc := parseScreenshotFilename(e.Name())
-			byRound[target.Round] = append(byRound[target.Round], Screenshot{
+			step, desc := feature.ParseScreenshotFilename(e.Name())
+			byRound[target.Round] = append(byRound[target.Round], feature.Screenshot{
 				Path:        rel,
 				Step:        step,
 				Description: desc,
@@ -1054,51 +948,12 @@ func (w *Workspace) discoverFromWorktree(
 	}
 }
 
-// ScreenshotDir 從 config 取得 tester 的截圖目錄，fallback 到 DefaultScreenshotDir。
+// ScreenshotDir 從 config 取得 tester 的截圖目錄，fallback 到 feature.DefaultScreenshotDir。
 func ScreenshotDir(cfg Config) string {
 	if tester, ok := cfg.Roles[string(RoleTester)]; ok && strings.TrimSpace(tester.ScreenshotDir) != "" {
 		return tester.ScreenshotDir
 	}
-	return DefaultScreenshotDir
-}
-
-func parseScreenshotFilename(filename string) (string, string) {
-	base := strings.TrimSuffix(filename, filepath.Ext(filename))
-	if base == "" {
-		return "", ""
-	}
-	idx := strings.Index(base, "-")
-	if idx <= 0 {
-		return "", strings.ReplaceAll(base, "-", " ")
-	}
-	step := base[:idx]
-	desc := strings.TrimSpace(strings.ReplaceAll(base[idx+1:], "-", " "))
-	return step, desc
-}
-
-func sortScreenshots(items []Screenshot) {
-	sort.Slice(items, func(i, j int) bool {
-		leftN, leftOK := parseStepNumber(items[i].Step)
-		rightN, rightOK := parseStepNumber(items[j].Step)
-		if leftOK && rightOK && leftN != rightN {
-			return leftN < rightN
-		}
-		if items[i].Step != items[j].Step {
-			return items[i].Step < items[j].Step
-		}
-		return items[i].Path < items[j].Path
-	})
-}
-
-func parseStepNumber(step string) (int, bool) {
-	if step == "" {
-		return 0, false
-	}
-	n, err := strconv.Atoi(step)
-	if err != nil {
-		return 0, false
-	}
-	return n, true
+	return feature.DefaultScreenshotDir
 }
 
 // WriteUserConfig 寫入 ~/.4x/settings.json

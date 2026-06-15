@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -17,7 +18,7 @@ func renderDeep(t *testing.T, role protocol.Role, opts ...promptOption) string {
 		t.Fatalf("load template: %v", err)
 	}
 	data := promptData{
-		Feature: protocol.Feature{ID: "F062", Name: "Parallel Deep Review"},
+		Feature: feature.Feature{ID: "F062", Name: "Parallel Deep Review"},
 		Round:   1,
 		DotDir:  ".4x",
 		Locale:  "zh-TW", LocaleName: "繁體中文",

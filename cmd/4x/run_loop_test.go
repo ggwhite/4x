@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/runner"
@@ -147,7 +148,7 @@ func setupLoopWorkspace(t *testing.T, featureID string) *protocol.Workspace {
 	if err := ws.InitFeatureDir(featureID); err != nil {
 		t.Fatal(err)
 	}
-	f := protocol.Feature{ID: featureID, Name: "Test Feature", Status: "not-started"}
+	f := feature.Feature{ID: featureID, Name: "Test Feature", Status: "not-started"}
 	ws.SaveFeature(f)
 	return ws
 }
@@ -551,7 +552,7 @@ func TestRunLoop_BaselineUsesFeatureRepoScope(t *testing.T) {
 	if err := ws.InitFeatureDir("feat-scope"); err != nil {
 		t.Fatal(err)
 	}
-	f := protocol.Feature{
+	f := feature.Feature{
 		ID:     "feat-scope",
 		Name:   "Scope Test",
 		Status: "not-started",
@@ -1073,7 +1074,7 @@ func TestRunLoop_MergedConfig(t *testing.T) {
 	if err := ws.InitFeatureDir(featureID); err != nil {
 		t.Fatal(err)
 	}
-	ws.SaveFeature(protocol.Feature{ID: featureID, Name: "Merge Test", Status: "not-started"})
+	ws.SaveFeature(feature.Feature{ID: featureID, Name: "Merge Test", Status: "not-started"})
 
 	// user config 有 runner 定義，project config 沒有
 	origHome := os.Getenv("HOME")
@@ -1322,7 +1323,7 @@ func (m *roleAwareOps) DetectChangedRepos() []string {
 // 自癒循環立即停下、寫出 FAIL 報告與 escalation，並轉入 needs-attention（不繼續修）。
 func TestRunLoop_DeepReviewMiniCoderScopeExceed(t *testing.T) {
 	ws := setupLoopWorkspace(t, "feat-deep-scope")
-	f := protocol.Feature{ID: "feat-deep-scope", Name: "Deep Scope Test", Status: "not-started", Repos: []string{"allowed-repo"}}
+	f := feature.Feature{ID: "feat-deep-scope", Name: "Deep Scope Test", Status: "not-started", Repos: []string{"allowed-repo"}}
 	ws.SaveFeature(f)
 	feature, _ := ws.LoadFeature("feat-deep-scope")
 	cfg, _ := ws.ReadConfig()
@@ -1393,7 +1394,7 @@ func (m *mockOps) IsMultiRepo() bool                          { return false }
 func TestRunLoop_GuardFailStopsLoop(t *testing.T) {
 	ws := setupLoopWorkspace(t, "feat-guard-fail")
 	// 覆寫 feature：設 Repos 使 scope check 有作用
-	f := protocol.Feature{ID: "feat-guard-fail", Name: "Guard Fail Test", Status: "not-started", Repos: []string{"allowed-repo"}}
+	f := feature.Feature{ID: "feat-guard-fail", Name: "Guard Fail Test", Status: "not-started", Repos: []string{"allowed-repo"}}
 	ws.SaveFeature(f)
 	feature, _ := ws.LoadFeature("feat-guard-fail")
 	cfg, _ := ws.ReadConfig()
@@ -1441,7 +1442,7 @@ func TestRunLoop_GuardFailStopsLoop(t *testing.T) {
 // 即使 guard 一定失敗，loop 仍能繼續到下一個 phase（coder）。
 func TestRunLoop_DesignerSkipsGuard(t *testing.T) {
 	ws := setupLoopWorkspace(t, "feat-designer-skip-guard")
-	f := protocol.Feature{ID: "feat-designer-skip-guard", Name: "Designer Skip Guard", Status: "not-started", Repos: []string{"allowed-repo"}}
+	f := feature.Feature{ID: "feat-designer-skip-guard", Name: "Designer Skip Guard", Status: "not-started", Repos: []string{"allowed-repo"}}
 	ws.SaveFeature(f)
 	feature, _ := ws.LoadFeature("feat-designer-skip-guard")
 	cfg, _ := ws.ReadConfig()

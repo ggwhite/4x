@@ -31,6 +31,10 @@ The project tab bar ends with two actions: **Add Project** (folder-plus icon) an
 
 Each feature card shows tags for its priority, dependencies, stop reason (if the feature halted abnormally), and — when a non-default [pipeline profile](concepts.md#pipeline-profiles) is active — a **profile tag** (e.g. `quick`, `normal`). High-priority features (P0/P1) get accent borders. Completed dependencies show a green checkmark. The `profile` and `stopReason` fields are carried in the `/api/tasks` JSON.
 
+## New Feature Form
+
+The **New Feature** modal is a progressive form. The basic area always shows **Name** (required), **Description** (optional, defaults to the name), and a **Priority** select (P0–P3 or none). An **Advanced** toggle reveals **Custom ID** (leave empty to auto-generate), **Depends** (comma-separated feature IDs), **Rules** (comma-separated), and a dynamic **Subtasks** list (add/remove rows of id + name). Submitting `POST`s to [`/api/new`](#rest); the CLI `4x new` and the dashboard now share a single creation path (`feature.Create`, see [Concepts](concepts.md#feature-creation)), so both honor the same flags/fields and ID generation.
+
 ## Dependency DAG
 
 The overview renders a dependency graph of all features as inline SVG — no external charting library (d3, mermaid, chart.js) is loaded. Features are laid out in layers by dependency depth; edges run from each feature to the features it depends on. Node color follows phase status: green = done, blue = running (active run or an in-progress phase such as coding/reviewing/testing), gray = todo, red = blocked / needs-attention. Clicking a node opens that feature's detail, the same path as clicking a feature card. The graph is rebuilt from the cached `/api/tasks` data on every polling cycle, so colors update live as features advance.
@@ -50,7 +54,7 @@ Read-heavy endpoints (`/api/tasks`, `/api/overview`, `/api/projects`, `/api/sett
 | Endpoint | Method | Description |
 |---|---|---|
 | `/api/tasks` | GET | List all features |
-| `/api/new` | POST | Create a new feature |
+| `/api/new` | POST | Create a new feature (accepts `name`, `description`, plus optional `customId`, `priority`, `depends`, `rules`, `subtasks`) |
 | `/api/run` | POST | Start a feature run (spawns `4x run` subprocess) |
 | `/api/stop` | POST | Stop a running feature |
 | `/api/done` | POST | Mark feature as done; auto-merges worktree if present (multi-repo: all-or-nothing) |

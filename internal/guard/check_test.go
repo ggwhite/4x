@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -180,7 +181,7 @@ func TestCheckBaseline_Missing(t *testing.T) {
 func TestCheck_BacklogDriftWarning(t *testing.T) {
 	ws := setupGuardWorkspace(t, "feat-1")
 	writeState(t, ws, "feat-1", protocol.State{Phase: protocol.PhaseInit})
-	if err := ws.SaveFeature(protocol.Feature{ID: "feat-1", Name: "Feature One", Status: "done"}); err != nil {
+	if err := ws.SaveFeature(feature.Feature{ID: "feat-1", Name: "Feature One", Status: "done"}); err != nil {
 		t.Fatal(err)
 	}
 	writeFile(t, filepath.Join(ws.Root, protocol.BacklogFile), `{"version":1,"features":[{"id":"feat-1","name":"Feature One","status":"todo"}]}`)
@@ -203,10 +204,10 @@ func TestCheck_BacklogDriftWarning(t *testing.T) {
 func TestCheck_BacklogDriftIgnoresOtherFeatures(t *testing.T) {
 	ws := setupGuardWorkspace(t, "feat-1")
 	writeState(t, ws, "feat-1", protocol.State{Phase: protocol.PhaseInit})
-	if err := ws.SaveFeature(protocol.Feature{ID: "feat-1", Name: "Feature One", Status: "done"}); err != nil {
+	if err := ws.SaveFeature(feature.Feature{ID: "feat-1", Name: "Feature One", Status: "done"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := ws.SaveFeature(protocol.Feature{ID: "feat-2", Name: "Feature Two", Status: "done"}); err != nil {
+	if err := ws.SaveFeature(feature.Feature{ID: "feat-2", Name: "Feature Two", Status: "done"}); err != nil {
 		t.Fatal(err)
 	}
 	writeFile(t, filepath.Join(ws.Root, protocol.BacklogFile), `{"version":1,"features":[{"id":"feat-1","name":"Feature One","status":"done"},{"id":"feat-2","name":"Feature Two","status":"todo"}]}`)
@@ -273,7 +274,7 @@ func TestCheckScope_NoRepos(t *testing.T) {
 	ws := setupGuardWorkspace(t, "feat-1")
 	writeState(t, ws, "feat-1", protocol.State{Phase: protocol.PhaseInit})
 
-	f := protocol.Feature{ID: "feat-1", Name: "Test"}
+	f := feature.Feature{ID: "feat-1", Name: "Test"}
 	if err := ws.SaveFeature(f); err != nil {
 		t.Fatal(err)
 	}
@@ -363,7 +364,7 @@ func TestCheckRequiredFiles_DonePhaseWithoutRoundDir(t *testing.T) {
 func TestCheckDependencies_NoDeps(t *testing.T) {
 	ws := setupGuardWorkspace(t, "feat-1")
 	writeState(t, ws, "feat-1", protocol.State{Phase: protocol.PhaseInit})
-	ws.SaveFeature(protocol.Feature{ID: "feat-1", Name: "No deps"})
+	ws.SaveFeature(feature.Feature{ID: "feat-1", Name: "No deps"})
 
 	result := CheckDependencies(ws, "feat-1")
 	if !result.Pass {
@@ -373,9 +374,9 @@ func TestCheckDependencies_NoDeps(t *testing.T) {
 
 func TestCheckDependencies_AllDone(t *testing.T) {
 	ws := setupGuardWorkspace(t, "feat-a")
-	ws.SaveFeature(protocol.Feature{ID: "feat-a", Name: "A", Depends: []string{"feat-b", "feat-c"}})
-	ws.SaveFeature(protocol.Feature{ID: "feat-b", Name: "B", Status: "done"})
-	ws.SaveFeature(protocol.Feature{ID: "feat-c", Name: "C", Status: "done"})
+	ws.SaveFeature(feature.Feature{ID: "feat-a", Name: "A", Depends: []string{"feat-b", "feat-c"}})
+	ws.SaveFeature(feature.Feature{ID: "feat-b", Name: "B", Status: "done"})
+	ws.SaveFeature(feature.Feature{ID: "feat-c", Name: "C", Status: "done"})
 
 	result := CheckDependencies(ws, "feat-a")
 	if !result.Pass {
@@ -385,9 +386,9 @@ func TestCheckDependencies_AllDone(t *testing.T) {
 
 func TestCheckDependencies_NotDone(t *testing.T) {
 	ws := setupGuardWorkspace(t, "feat-a")
-	ws.SaveFeature(protocol.Feature{ID: "feat-a", Name: "A", Depends: []string{"feat-b", "feat-c"}})
-	ws.SaveFeature(protocol.Feature{ID: "feat-b", Name: "B", Status: "done"})
-	ws.SaveFeature(protocol.Feature{ID: "feat-c", Name: "C", Status: "coding"})
+	ws.SaveFeature(feature.Feature{ID: "feat-a", Name: "A", Depends: []string{"feat-b", "feat-c"}})
+	ws.SaveFeature(feature.Feature{ID: "feat-b", Name: "B", Status: "done"})
+	ws.SaveFeature(feature.Feature{ID: "feat-c", Name: "C", Status: "coding"})
 
 	result := CheckDependencies(ws, "feat-a")
 	if result.Pass {
@@ -406,7 +407,7 @@ func TestCheckDependencies_NotDone(t *testing.T) {
 
 func TestCheckDependencies_MissingDep(t *testing.T) {
 	ws := setupGuardWorkspace(t, "feat-a")
-	ws.SaveFeature(protocol.Feature{ID: "feat-a", Name: "A", Depends: []string{"nonexistent"}})
+	ws.SaveFeature(feature.Feature{ID: "feat-a", Name: "A", Depends: []string{"nonexistent"}})
 
 	result := CheckDependencies(ws, "feat-a")
 	if result.Pass {
@@ -438,8 +439,8 @@ func TestCheckDependencies_NoFeatureYAML(t *testing.T) {
 func TestCheck_IncludesDependencyCheck(t *testing.T) {
 	ws := setupGuardWorkspace(t, "feat-a")
 	writeState(t, ws, "feat-a", protocol.State{Phase: protocol.PhaseInit})
-	ws.SaveFeature(protocol.Feature{ID: "feat-a", Name: "A", Depends: []string{"feat-b"}})
-	ws.SaveFeature(protocol.Feature{ID: "feat-b", Name: "B", Status: "coding"})
+	ws.SaveFeature(feature.Feature{ID: "feat-a", Name: "A", Depends: []string{"feat-b"}})
+	ws.SaveFeature(feature.Feature{ID: "feat-b", Name: "B", Status: "coding"})
 
 	result := Check(ws, "feat-a", nil)
 	if result.Pass {
@@ -455,4 +456,3 @@ func TestCheck_IncludesDependencyCheck(t *testing.T) {
 		t.Errorf("expected dependency error in Check(), got errors: %v", result.Errors)
 	}
 }
-

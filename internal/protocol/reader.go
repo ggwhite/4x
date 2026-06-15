@@ -1,13 +1,15 @@
 package protocol
 
+import "github.com/ggwhite/4x/internal/feature"
+
 // WorkspaceReader 定義 Workspace 的唯讀操作集合，用於抽象出可被 cache 層包裝的讀取介面。
 // long-running server 透過此介面操作，便於以 CachedWorkspace 替換而不影響呼叫端；
 // CLI 短命程序則直接用 *Workspace。寫入方法刻意不納入介面，避免 cache 層被誤用於寫入。
 type WorkspaceReader interface {
 	// ListFeatures 列出所有 feature。
-	ListFeatures() ([]Feature, error)
+	ListFeatures() ([]feature.Feature, error)
 	// LoadFeature 讀取單一 feature YAML。
-	LoadFeature(id string) (Feature, error)
+	LoadFeature(id string) (feature.Feature, error)
 	// ReadState 讀取 feature 的 state.json。
 	ReadState(featureID string) (State, error)
 	// ReadConfig 讀取 .4x/settings.json。

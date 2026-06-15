@@ -264,6 +264,40 @@
         <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);display:block;margin-bottom:6px" data-i18n="field.description">Description</label>
         <textarea id="new-feat-desc" rows="3" placeholder="Optional description..." data-i18n-placeholder="newFeature.descriptionPlaceholder" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none;resize:vertical;box-sizing:border-box"></textarea>
       </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);display:block;margin-bottom:6px" data-i18n="field.priority">Priority</label>
+        <select id="new-feat-priority" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;appearance:auto">
+          <option value="" data-i18n="newFeature.noPriority">No priority</option>
+          <option value="0">P0 — Critical</option>
+          <option value="1">P1 — High</option>
+          <option value="2">P2 — Medium</option>
+          <option value="3">P3 — Low</option>
+        </select>
+      </div>
+      <div>
+        <button type="button" onclick="toggleAdvanced()" id="new-feat-adv-btn" style="background:none;border:none;color:var(--text-3);font-size:12px;cursor:pointer;padding:0;font-family:inherit">
+          <span id="new-feat-adv-arrow">▶</span> <span data-i18n="newFeature.advanced">Advanced</span>
+        </button>
+        <div id="new-feat-advanced" hidden style="margin-top:12px;display:flex;flex-direction:column;gap:12px">
+          <div>
+            <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);display:block;margin-bottom:6px" data-i18n="newFeature.customId">Custom ID</label>
+            <input id="new-feat-custom-id" type="text" placeholder="Leave empty for auto-generated" data-i18n-placeholder="newFeature.customIdPlaceholder" autocomplete="off" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none;box-sizing:border-box">
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);display:block;margin-bottom:6px" data-i18n="newFeature.depends">Depends</label>
+            <input id="new-feat-depends" type="text" placeholder="e.g. F001, F002" data-i18n-placeholder="newFeature.dependsPlaceholder" autocomplete="off" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none;box-sizing:border-box">
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);display:block;margin-bottom:6px" data-i18n="field.rules">Rules</label>
+            <input id="new-feat-rules" type="text" placeholder="e.g. spec: docs/design/spec.md" data-i18n-placeholder="newFeature.rulesPlaceholder" autocomplete="off" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none;box-sizing:border-box">
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);display:block;margin-bottom:6px" data-i18n="newFeature.subtasks">Subtasks</label>
+            <div id="new-feat-subtasks-list"></div>
+            <button type="button" onclick="addSubtaskRow()" style="background:none;border:1px dashed var(--border);border-radius:6px;padding:6px 12px;color:var(--text-3);font-size:12px;cursor:pointer;width:100%;margin-top:4px" data-i18n="newFeature.addSubtask">+ Add Subtask</button>
+          </div>
+        </div>
+      </div>
       <div style="padding:10px 12px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:8px;font-size:11px;color:#fde68a;line-height:1.6">
         <strong style="display:block;margin-bottom:4px" data-i18n="newFeature.specHintTitle">Want a full spec &amp; plan?</strong>
         <span data-i18n="newFeature.specHintBody">Run brainstorming in your AI coding agent first:</span><br>

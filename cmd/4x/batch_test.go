@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ggwhite/4x/internal/batch"
+	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -23,15 +24,15 @@ func TestBatchReport_S1CompletedAllDone(t *testing.T) {
 		{FeatureID: "feat-a"},
 		{FeatureID: "feat-b"},
 	}}
-	statusMap := map[string]protocol.Status{"feat-a": "not-started", "feat-b": "not-started"}
+	statusMap := map[string]feature.Status{"feat-a": "not-started", "feat-b": "not-started"}
 	progress := &batchProgress{
 		startedAt: time.Now(),
 		statusMap: maps.Clone(statusMap),
 		outcome:   protocol.BatchOutcomeCompleted,
 	}
 
-	runFeature := func(next string, f protocol.Feature, s protocol.State) (protocol.Status, error) {
-		return protocol.StatusReadyForReview, nil
+	runFeature := func(next string, f feature.Feature, s protocol.State) (feature.Status, error) {
+		return feature.StatusReadyForReview, nil
 	}
 
 	completed := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, true, nil, progress)
@@ -62,7 +63,7 @@ func TestBatchReport_S1StoppedByStopFile(t *testing.T) {
 	batchTestFeature(t, ws, "feat-a", nil)
 
 	plan := &batch.BatchPlan{Schedule: []batch.ScheduleEntry{{FeatureID: "feat-a"}}}
-	statusMap := map[string]protocol.Status{"feat-a": "not-started"}
+	statusMap := map[string]feature.Status{"feat-a": "not-started"}
 	progress := &batchProgress{
 		startedAt: time.Now(),
 		statusMap: maps.Clone(statusMap),
@@ -75,9 +76,9 @@ func TestBatchReport_S1StoppedByStopFile(t *testing.T) {
 	}
 
 	executed := 0
-	runFeature := func(next string, f protocol.Feature, s protocol.State) (protocol.Status, error) {
+	runFeature := func(next string, f feature.Feature, s protocol.State) (feature.Status, error) {
 		executed++
-		return protocol.StatusReadyForReview, nil
+		return feature.StatusReadyForReview, nil
 	}
 
 	completed := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, true, nil, progress)
@@ -107,7 +108,7 @@ func TestBatchReport_S1ClearsStaleRunningFeature(t *testing.T) {
 	batchTestFeature(t, ws, "feat-a", nil)
 
 	plan := &batch.BatchPlan{Schedule: []batch.ScheduleEntry{{FeatureID: "feat-a"}}}
-	statusMap := map[string]protocol.Status{"feat-a": protocol.StatusBlocked}
+	statusMap := map[string]feature.Status{"feat-a": feature.StatusBlocked}
 	progress := &batchProgress{
 		startedAt: time.Now(),
 		statusMap: maps.Clone(statusMap),
@@ -142,9 +143,9 @@ func TestBatchReport_S2InterruptedSnapshot(t *testing.T) {
 		{FeatureID: "feat-b"},
 	}}
 	// feat-a 已完成、feat-b 正在跑時收到 signal。
-	statusMap := map[string]protocol.Status{
-		"feat-a": protocol.StatusDone,
-		"feat-b": protocol.StatusInProgress,
+	statusMap := map[string]feature.Status{
+		"feat-a": feature.StatusDone,
+		"feat-b": feature.StatusInProgress,
 	}
 	progress := &batchProgress{
 		startedAt: time.Now(),
@@ -182,14 +183,14 @@ func TestBatchReport_S3CrashedWritesPartial(t *testing.T) {
 	batchTestFeature(t, ws, "feat-a", nil)
 
 	plan := &batch.BatchPlan{Schedule: []batch.ScheduleEntry{{FeatureID: "feat-a"}}}
-	statusMap := map[string]protocol.Status{"feat-a": "not-started"}
+	statusMap := map[string]feature.Status{"feat-a": "not-started"}
 	progress := &batchProgress{
 		startedAt: time.Now(),
 		statusMap: maps.Clone(statusMap),
 		outcome:   protocol.BatchOutcomeCompleted,
 	}
 
-	runFeature := func(next string, f protocol.Feature, s protocol.State) (protocol.Status, error) {
+	runFeature := func(next string, f feature.Feature, s protocol.State) (feature.Status, error) {
 		panic("coder subprocess exploded")
 	}
 

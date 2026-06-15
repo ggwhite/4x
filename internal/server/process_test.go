@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -25,7 +26,7 @@ func setupPMWorkspace(t *testing.T) *protocol.Workspace {
 	}
 	ws := &protocol.Workspace{Root: root}
 
-	f := protocol.Feature{ID: "test-feat", Name: "Test", Status: "not-started"}
+	f := feature.Feature{ID: "test-feat", Name: "Test", Status: "not-started"}
 	if err := ws.SaveFeature(f); err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +120,7 @@ func TestProcessManager_PipeOutputToEvents(t *testing.T) {
 func TestProcessManager_MaxParallel(t *testing.T) {
 	ws := setupPMWorkspace(t)
 
-	f2 := protocol.Feature{ID: "test-feat-2", Name: "Test 2", Status: "not-started"}
+	f2 := feature.Feature{ID: "test-feat-2", Name: "Test 2", Status: "not-started"}
 	if err := ws.SaveFeature(f2); err != nil {
 		t.Fatal(err)
 	}

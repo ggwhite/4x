@@ -2,8 +2,9 @@ package protocol
 
 import (
 	"path/filepath"
-	"strings"
 	"time"
+
+	"github.com/ggwhite/4x/internal/feature"
 )
 
 // Phase 表示 4x 狀態機的各階段
@@ -58,120 +59,24 @@ const (
 	SeverityLow      Severity = "low"
 )
 
-// Status 表示 feature 的狀態，對應 Phase 但面向 dashboard 與人類可讀
-type Status string
-
-const (
-	StatusNotStarted     Status = "not-started"
-	StatusInProgress     Status = "in-progress"
-	StatusDone           Status = "done"
-	StatusAbandoned      Status = "abandoned"
-	StatusBlocked        Status = "blocked"
-	StatusNeedsAttention Status = "needs-attention"
-	StatusReadyForReview Status = "ready-for-review"
-)
-
-// BatchCompleted 判斷 feature 的最終狀態是否視為 batch 已完成。
-// done / abandoned / ready-for-review 三者皆算完成（與 cmd/4x batch 排程語義一致），
-// 抽到 protocol 供 batch report 與排程共用，避免兩處判定漂移。
-func BatchCompleted(s Status) bool {
-	return s == StatusDone || s == StatusAbandoned || s == StatusReadyForReview
-}
-
-// PhaseToStatus 將 state machine 的 Phase 映射為面向 dashboard 的 Status
-func PhaseToStatus(phase Phase) Status {
+// PhaseToStatus 將 state machine 的 Phase 映射為面向 dashboard 的 feature.Status
+func PhaseToStatus(phase Phase) feature.Status {
 	switch phase {
 	case PhasePendingReview:
-		return StatusReadyForReview
+		return feature.StatusReadyForReview
 	case PhaseDone:
-		return StatusDone
+		return feature.StatusDone
 	case PhaseAbandoned:
-		return StatusAbandoned
+		return feature.StatusAbandoned
 	case PhaseBlocked:
-		return StatusBlocked
+		return feature.StatusBlocked
 	case PhaseNeedsAttention:
-		return StatusNeedsAttention
+		return feature.StatusNeedsAttention
 	case PhaseInit:
-		return StatusNotStarted
+		return feature.StatusNotStarted
 	default:
-		return StatusInProgress
+		return feature.StatusInProgress
 	}
-}
-
-// HookEntry 描述一個 phase hook 的 shell command 與失敗策略。
-// 失敗策略 on_fail 未設定時預設為 "block"（中止 phase 轉換）；
-// 設為 "warn" 則只記錄警告，不中止流程。
-type HookEntry struct {
-	Run    string `json:"run" yaml:"run"`
-	OnFail string `json:"on_fail,omitempty" yaml:"on_fail,omitempty"`
-}
-
-// EffectiveOnFail 回傳實際的失敗策略，未設定時預設 "block"。
-func (h HookEntry) EffectiveOnFail() string {
-	if h.OnFail == "" {
-		return "block"
-	}
-	return strings.ToLower(h.OnFail)
-}
-
-// Feature 是 features/*.yaml 的結構
-type Feature struct {
-	ID          string                 `yaml:"id" json:"id"`
-	Name        string                 `yaml:"name" json:"name"`
-	Description string                 `yaml:"description" json:"description"`
-	Status      Status                 `yaml:"status" json:"status"`
-	Priority    *int                   `yaml:"priority,omitempty" json:"priority,omitempty"`
-	Repos       []string               `yaml:"repos,omitempty" json:"repos,omitempty"`
-	Subtasks    []Subtask              `yaml:"subtasks,omitempty" json:"subtasks,omitempty"`
-	Rules       []string               `yaml:"rules,omitempty" json:"rules,omitempty"`
-	Depends     []string               `yaml:"depends,omitempty" json:"depends,omitempty"`
-	Spec        string                 `yaml:"spec,omitempty" json:"-"`
-	Plan        string                 `yaml:"plan,omitempty" json:"-"`
-	Hooks       map[string][]HookEntry `yaml:"hooks,omitempty" json:"hooks,omitempty"`
-}
-
-// BacklogMirror 是根目錄 feature_list.json 的 legacy mirror 結構。
-type BacklogMirror struct {
-	Version  int              `json:"version"`
-	Features []BacklogFeature `json:"features"`
-}
-
-// BacklogFeature 表示 feature_list.json 中單一 legacy backlog entry。
-type BacklogFeature struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Status      string `json:"status"`
-	Area        string `json:"area,omitempty"`
-	Description string `json:"description,omitempty"`
-	Priority    *int   `json:"priority,omitempty"`
-}
-
-// BacklogDriftKind 表示 feature_list.json 與 .4x/features/*.yaml 的差異類型。
-type BacklogDriftKind string
-
-const (
-	BacklogDriftMissing  BacklogDriftKind = "missing"
-	BacklogDriftExtra    BacklogDriftKind = "extra"
-	BacklogDriftMismatch BacklogDriftKind = "mismatch"
-)
-
-// BacklogDrift 表示一筆 feature_list.json legacy mirror 漂移結果。
-type BacklogDrift struct {
-	Kind      BacklogDriftKind `json:"kind"`
-	FeatureID string           `json:"featureId"`
-	Field     string           `json:"field,omitempty"`
-	Canonical string           `json:"canonical,omitempty"`
-	Mirror    string           `json:"mirror,omitempty"`
-	Message   string           `json:"message"`
-}
-
-// Subtask 是 feature 內的子任務
-type Subtask struct {
-	ID          string   `yaml:"id" json:"id"`
-	Name        string   `yaml:"name" json:"name"`
-	Status      string   `yaml:"status" json:"status"`
-	Description string   `yaml:"description,omitempty" json:"description,omitempty"`
-	Depends     []string `yaml:"depends,omitempty" json:"depends,omitempty"`
 }
 
 // State 是 .4x/{feature-id}/state.json 的權威狀態
@@ -226,20 +131,13 @@ type BaselineRepo struct {
 	DirtyFiles []string `json:"dirtyFiles"`
 }
 
-// Screenshot 是 tester 在 verify.json 記錄的截圖 metadata。
-type Screenshot struct {
-	Path        string `json:"path"`
-	Step        string `json:"step"`
-	Description string `json:"description"`
-}
-
 // VerifyEvidence 是 rounds/round-N/verify.json 的結構
 type VerifyEvidence struct {
-	Passed      bool            `json:"passed"`
-	Round       int             `json:"round"`
-	Role        Role            `json:"role"`
-	Commands    []VerifyCommand `json:"commands"`
-	Screenshots []Screenshot    `json:"screenshots,omitempty"`
+	Passed      bool                 `json:"passed"`
+	Round       int                  `json:"round"`
+	Role        Role                 `json:"role"`
+	Commands    []VerifyCommand      `json:"commands"`
+	Screenshots []feature.Screenshot `json:"screenshots,omitempty"`
 }
 
 // VerifyCommand 是單一 verify command 的結果
@@ -345,12 +243,12 @@ type BatchReport struct {
 
 // BatchFeatureReport 是 BatchReport 內單一 feature 的最終狀態快照。
 type BatchFeatureReport struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	FinalStatus Status `json:"finalStatus"`
-	DurationMs  int64  `json:"durationMs"`
-	Rounds      int    `json:"rounds"`
-	StopReason  string `json:"stopReason,omitempty"`
+	ID          string         `json:"id"`
+	Name        string         `json:"name"`
+	FinalStatus feature.Status `json:"finalStatus"`
+	DurationMs  int64          `json:"durationMs"`
+	Rounds      int            `json:"rounds"`
+	StopReason  string         `json:"stopReason,omitempty"`
 }
 
 // WorkspaceConfig 描述 multi-repo workspace 的 repo 映射。
@@ -367,18 +265,18 @@ type RepoConfig struct {
 
 // Config 是 .4x/settings.json 的專案設定
 type Config struct {
-	Project           ProjectConfig                `json:"project"`
-	Runners           map[string]RunnerConfig      `json:"runners"`
-	Default           string                       `json:"default_runner"`
-	Roles             map[string]RoleConfig        `json:"roles,omitempty"`
-	Rules             []string                     `json:"rules,omitempty"`
-	HubRepos          []string                     `json:"hub_repos,omitempty"`
-	Isolation         string                       `json:"isolation,omitempty"`
-	MaxConcurrentRuns int                          `json:"max_concurrent_runs,omitempty"`
-	Commit            string                       `json:"commit,omitempty"`
-	ModelTiers        map[string]map[string]string `json:"model_tiers,omitempty"`
-	Workspace         WorkspaceConfig              `json:"workspace,omitempty"`
-	Hooks             map[string][]HookEntry       `json:"hooks,omitempty"`
+	Project           ProjectConfig                  `json:"project"`
+	Runners           map[string]RunnerConfig        `json:"runners"`
+	Default           string                         `json:"default_runner"`
+	Roles             map[string]RoleConfig          `json:"roles,omitempty"`
+	Rules             []string                       `json:"rules,omitempty"`
+	HubRepos          []string                       `json:"hub_repos,omitempty"`
+	Isolation         string                         `json:"isolation,omitempty"`
+	MaxConcurrentRuns int                            `json:"max_concurrent_runs,omitempty"`
+	Commit            string                         `json:"commit,omitempty"`
+	ModelTiers        map[string]map[string]string   `json:"model_tiers,omitempty"`
+	Workspace         WorkspaceConfig                `json:"workspace,omitempty"`
+	Hooks             map[string][]feature.HookEntry `json:"hooks,omitempty"`
 	// Profiles 定義 pipeline profile（名稱 → 啟用的 role 子集），供依 feature priority
 	// 自動選擇或 --profile 手動覆蓋；為空時所有 feature 一律走 full（6 role 全跑）。
 	Profiles map[string]ProfileConfig `json:"profiles,omitempty"`
@@ -450,9 +348,6 @@ type RoleConfig struct {
 	// role 有意義；未設定時由 ResolveAnglesPerReviewer 回 0，改用 ceil(總 angle/N) 平均分配。
 	AnglesPerReviewer int `json:"angles_per_reviewer,omitempty"`
 }
-
-// DefaultScreenshotDir 是 tester 預設截圖目錄，可用 {feature-id}、{round} 變數。
-const DefaultScreenshotDir = ".4x/e2e/{feature-id}/screenshot/"
 
 // UserConfig 是 ~/.4x/settings.json 的使用者層級設定
 type UserConfig struct {
@@ -551,7 +446,7 @@ func ResolveRepoPaths(cfg Config, root string) map[string]string {
 
 // ResolveFeatureRepoPaths 解析 feature 涉及的 repo name → absolute path。
 // feature.Repos 為空時：multi-repo 回傳所有 workspace repos，monorepo 回傳 {".": root}。
-func ResolveFeatureRepoPaths(f Feature, cfg Config, root string) map[string]string {
+func ResolveFeatureRepoPaths(f feature.Feature, cfg Config, root string) map[string]string {
 	all := ResolveRepoPaths(cfg, root)
 	if len(f.Repos) == 0 {
 		return all

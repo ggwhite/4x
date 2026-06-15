@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ggwhite/4x/internal/feature"
 	"gopkg.in/yaml.v3"
 )
 
@@ -28,7 +29,7 @@ func setupCachedTestWorkspace(t *testing.T) (*CachedWorkspace, string) {
 	return NewCachedWorkspace(ws), tmp
 }
 
-func writeFeatureFile(t *testing.T, tmp string, f Feature) string {
+func writeFeatureFile(t *testing.T, tmp string, f feature.Feature) string {
 	t.Helper()
 	data, err := yaml.Marshal(f)
 	if err != nil {
@@ -87,7 +88,7 @@ func TestCachedReadConfig_InvalidateOnChange(t *testing.T) {
 
 func TestCachedListFeatures_CacheHit(t *testing.T) {
 	cws, tmp := setupCachedTestWorkspace(t)
-	writeFeatureFile(t, tmp, Feature{ID: "F001-test", Name: "Test", Status: StatusNotStarted})
+	writeFeatureFile(t, tmp, feature.Feature{ID: "F001-test", Name: "Test", Status: feature.StatusNotStarted})
 
 	list1, err := cws.ListFeatures()
 	if err != nil {
@@ -115,14 +116,14 @@ func TestCachedListFeatures_CacheHit(t *testing.T) {
 
 func TestCachedListFeatures_InvalidateOnNewFile(t *testing.T) {
 	cws, tmp := setupCachedTestWorkspace(t)
-	writeFeatureFile(t, tmp, Feature{ID: "F001-a", Name: "A", Status: StatusNotStarted})
+	writeFeatureFile(t, tmp, feature.Feature{ID: "F001-a", Name: "A", Status: feature.StatusNotStarted})
 
 	list1, _ := cws.ListFeatures()
 	if len(list1) != 1 {
 		t.Fatalf("len = %d, want 1", len(list1))
 	}
 
-	writeFeatureFile(t, tmp, Feature{ID: "F002-b", Name: "B", Status: StatusNotStarted})
+	writeFeatureFile(t, tmp, feature.Feature{ID: "F002-b", Name: "B", Status: feature.StatusNotStarted})
 
 	list2, err := cws.ListFeatures()
 	if err != nil {
@@ -135,8 +136,8 @@ func TestCachedListFeatures_InvalidateOnNewFile(t *testing.T) {
 
 func TestCachedListFeatures_InvalidateOnDelete(t *testing.T) {
 	cws, tmp := setupCachedTestWorkspace(t)
-	writeFeatureFile(t, tmp, Feature{ID: "F001-a", Name: "A", Status: StatusNotStarted})
-	p2 := writeFeatureFile(t, tmp, Feature{ID: "F002-b", Name: "B", Status: StatusNotStarted})
+	writeFeatureFile(t, tmp, feature.Feature{ID: "F001-a", Name: "A", Status: feature.StatusNotStarted})
+	p2 := writeFeatureFile(t, tmp, feature.Feature{ID: "F002-b", Name: "B", Status: feature.StatusNotStarted})
 
 	list1, _ := cws.ListFeatures()
 	if len(list1) != 2 {
@@ -158,7 +159,7 @@ func TestCachedListFeatures_InvalidateOnDelete(t *testing.T) {
 
 func TestCachedListFeatures_InvalidateOnModify(t *testing.T) {
 	cws, tmp := setupCachedTestWorkspace(t)
-	path := writeFeatureFile(t, tmp, Feature{ID: "F001-x", Name: "Original", Status: StatusNotStarted})
+	path := writeFeatureFile(t, tmp, feature.Feature{ID: "F001-x", Name: "Original", Status: feature.StatusNotStarted})
 
 	list1, _ := cws.ListFeatures()
 	if list1[0].Name != "Original" {
@@ -166,7 +167,7 @@ func TestCachedListFeatures_InvalidateOnModify(t *testing.T) {
 	}
 
 	time.Sleep(10 * time.Millisecond)
-	data, _ := yaml.Marshal(Feature{ID: "F001-x", Name: "Modified", Status: StatusNotStarted})
+	data, _ := yaml.Marshal(feature.Feature{ID: "F001-x", Name: "Modified", Status: feature.StatusNotStarted})
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +194,7 @@ func TestCachedListFeatures_EmptyDir(t *testing.T) {
 
 func TestCachedLoadFeature_CacheHit(t *testing.T) {
 	cws, tmp := setupCachedTestWorkspace(t)
-	writeFeatureFile(t, tmp, Feature{ID: "F010-load", Name: "LoadTest", Status: StatusNotStarted})
+	writeFeatureFile(t, tmp, feature.Feature{ID: "F010-load", Name: "LoadTest", Status: feature.StatusNotStarted})
 
 	f1, err := cws.LoadFeature("F010-load")
 	if err != nil {
@@ -214,14 +215,14 @@ func TestCachedLoadFeature_CacheHit(t *testing.T) {
 
 func TestCachedLoadFeature_InvalidateOnModify(t *testing.T) {
 	cws, tmp := setupCachedTestWorkspace(t)
-	path := writeFeatureFile(t, tmp, Feature{ID: "F010-load2", Name: "Before", Status: StatusNotStarted})
+	path := writeFeatureFile(t, tmp, feature.Feature{ID: "F010-load2", Name: "Before", Status: feature.StatusNotStarted})
 
 	if _, err := cws.LoadFeature("F010-load2"); err != nil {
 		t.Fatal(err)
 	}
 
 	time.Sleep(10 * time.Millisecond)
-	data, _ := yaml.Marshal(Feature{ID: "F010-load2", Name: "After", Status: StatusNotStarted})
+	data, _ := yaml.Marshal(feature.Feature{ID: "F010-load2", Name: "After", Status: feature.StatusNotStarted})
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		t.Fatal(err)
 	}

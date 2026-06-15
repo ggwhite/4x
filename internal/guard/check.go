@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	feat "github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -61,7 +62,7 @@ func checkDependencies(ws *protocol.Workspace, featureID string, r *CheckResult)
 			r.Errors = append(r.Errors, fmt.Sprintf("dependency %q: cannot load feature: %v", depID, err))
 			continue
 		}
-		if dep.Status != protocol.StatusDone && dep.Status != protocol.StatusAbandoned {
+		if dep.Status != feat.StatusDone && dep.Status != feat.StatusAbandoned {
 			notDone = append(notDone, fmt.Sprintf("%s (status: %s)", depID, dep.Status))
 		}
 	}

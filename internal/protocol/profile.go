@@ -3,6 +3,8 @@ package protocol
 import (
 	"fmt"
 	"os"
+
+	"github.com/ggwhite/4x/internal/feature"
 )
 
 // DefaultProfiles 回傳內建三組 pipeline profile，作為 auto-select 與 fallback 用。
@@ -25,7 +27,7 @@ func DefaultProfiles() map[string]ProfileConfig {
 //     缺則退 DefaultProfiles，再缺則退 full 並印 warning。
 //
 // 解析出的 profile 若 Roles 不含 "coder" 視為設定錯誤，回 error（coder 為唯一必要 role）。
-func ResolveProfile(cfg Config, feature Feature, override string) (string, ProfileConfig, error) {
+func ResolveProfile(cfg Config, f feature.Feature, override string) (string, ProfileConfig, error) {
 	defaults := DefaultProfiles()
 
 	lookup := func(name string) (ProfileConfig, bool) {
@@ -53,7 +55,7 @@ func ResolveProfile(cfg Config, feature Feature, override string) (string, Profi
 		name, pc = "full", defaults["full"]
 
 	default:
-		name = autoSelectProfile(feature.Priority)
+		name = autoSelectProfile(f.Priority)
 		got, ok := lookup(name)
 		if !ok {
 			fmt.Fprintf(os.Stderr, "warning: profile %q not found, falling back to full\n", name)

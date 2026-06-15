@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/protocol"
 	"gopkg.in/yaml.v3"
@@ -297,7 +298,7 @@ func checkWorktrees(ws *protocol.Workspace, root string) []Check {
 		}}
 	}
 
-	statusByID := map[string]protocol.Status{}
+	statusByID := map[string]feature.Status{}
 	if features, err := ws.ListFeatures(); err == nil {
 		for _, f := range features {
 			statusByID[f.ID] = f.Status
@@ -318,7 +319,7 @@ func checkWorktrees(ws *protocol.Workspace, root string) []Check {
 				Section: sectionWorkspace, Name: "worktree " + id, Severity: SeverityWarn,
 				Detail: fmt.Sprintf("dangling worktree：%s 無對應 feature", path),
 			})
-		case statusByID[id] == protocol.StatusDone || statusByID[id] == protocol.StatusAbandoned:
+		case statusByID[id] == feature.StatusDone || statusByID[id] == feature.StatusAbandoned:
 			checks = append(checks, Check{
 				Section: sectionWorkspace, Name: "worktree " + id, Severity: SeverityWarn,
 				Detail: fmt.Sprintf("orphaned worktree：feature %s 已 %s 但 %s 仍存在", id, statusByID[id], path),
@@ -387,7 +388,7 @@ func checkFeatureYAML(ws *protocol.Workspace) []Check {
 			})
 			continue
 		}
-		var f protocol.Feature
+		var f feature.Feature
 		if err := yaml.Unmarshal(data, &f); err != nil {
 			checks = append(checks, Check{
 				Section: sectionWorkspace, Name: e.Name(), Severity: SeverityFail,

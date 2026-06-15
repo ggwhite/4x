@@ -3,17 +3,17 @@ package batch
 import (
 	"fmt"
 
-	"github.com/ggwhite/4x/internal/protocol"
+	"github.com/ggwhite/4x/internal/feature"
 )
 
 func subtaskCompleted(status string) bool {
-	return status == string(protocol.StatusDone) || status == string(protocol.StatusReadyForReview)
+	return status == string(feature.StatusDone) || status == string(feature.StatusReadyForReview)
 }
 
 // BuildSubtaskGraph 解析 subtask depends 欄位，建立鄰接表（依賴方向：被依賴者 → 依賴者）。
 // subtask A depends B → 邊 B→A（B 完成後 A 才能跑）。
 // 若有重複 subtask ID 或 depends 引用不存在的 ID，回傳 error。
-func BuildSubtaskGraph(subtasks []protocol.Subtask) (map[string][]string, error) {
+func BuildSubtaskGraph(subtasks []feature.Subtask) (map[string][]string, error) {
 	ids := make(map[string]bool, len(subtasks))
 	for _, st := range subtasks {
 		if ids[st.ID] {
@@ -36,7 +36,7 @@ func BuildSubtaskGraph(subtasks []protocol.Subtask) (map[string][]string, error)
 
 // DetectSubtaskCycle 用三色 DFS 偵測 subtask 依賴圖中的環形依賴。
 // 有環回傳環路徑（subtask ID slice，依實際依賴方向排列）；無環回傳 nil。
-func DetectSubtaskCycle(subtasks []protocol.Subtask, adj map[string][]string) []string {
+func DetectSubtaskCycle(subtasks []feature.Subtask, adj map[string][]string) []string {
 	color := make(map[string]int) // 0=white, 1=gray, 2=black
 	parent := make(map[string]string)
 
@@ -79,7 +79,7 @@ func DetectSubtaskCycle(subtasks []protocol.Subtask, adj map[string][]string) []
 
 // SubtaskFrontier 回傳所有前置已完成的未完成 subtask ID。
 // 內部先建圖、偵測環（有環回傳 error），再過濾出 frontier。
-func SubtaskFrontier(subtasks []protocol.Subtask) ([]string, error) {
+func SubtaskFrontier(subtasks []feature.Subtask) ([]string, error) {
 	adj, err := BuildSubtaskGraph(subtasks)
 	if err != nil {
 		return nil, err

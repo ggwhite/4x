@@ -41,6 +41,7 @@ Create a new feature with optional metadata.
 
 Creates `.4x/features/F{NNN}-{slug}.yaml` with status `not-started`.
 Auto-generated slug truncates at word boundary; use `--id` to override.
+Creation runs through the shared `feature.Create` path (see [Concepts](concepts.md#feature-creation)) — the dashboard's `POST /api/new` uses the same logic, so flags here map one-to-one to the dashboard's New Feature form.
 
 Examples:
 ```bash

@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/ggwhite/4x/internal/feature"
 )
 
 // CachedWorkspace 在 *Workspace 上加一層 mtime-based in-memory cache，供 long-running
@@ -35,11 +37,11 @@ type CachedWorkspace struct {
 	configCache *Config
 	configMtime time.Time
 
-	featuresCache  []Feature
+	featuresCache  []feature.Feature
 	featuresMtimes map[string]time.Time // filename → mtime
 
-	featureCache map[string]Feature   // id → Feature
-	featureMtime map[string]time.Time // id → mtime
+	featureCache map[string]feature.Feature // id → Feature
+	featureMtime map[string]time.Time       // id → mtime
 }
 
 var _ WorkspaceReader = (*CachedWorkspace)(nil)
@@ -105,7 +107,7 @@ func (c *CachedWorkspace) LoadMergedConfig() (Config, error) {
 // 不影響 cache），但 Feature 的 reference 欄位（Repos / Subtasks / Rules / Depends /
 // Hooks / Priority）仍與 cache 共用底層；呼叫端切勿就地修改這些欄位內容，否則會污染
 // cache 且不受 c.mu 保護。
-func (c *CachedWorkspace) ListFeatures() ([]Feature, error) {
+func (c *CachedWorkspace) ListFeatures() ([]feature.Feature, error) {
 	dir := filepath.Join(c.DotDir(), FeaturesDir)
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -117,7 +119,7 @@ func (c *CachedWorkspace) ListFeatures() ([]Feature, error) {
 
 	c.mu.RLock()
 	if c.featuresCache != nil && yamlMtimesMatch(entries, c.featuresMtimes) {
-		result := make([]Feature, len(c.featuresCache))
+		result := make([]feature.Feature, len(c.featuresCache))
 		copy(result, c.featuresCache)
 		c.mu.RUnlock()
 		return result, nil
@@ -140,7 +142,7 @@ func (c *CachedWorkspace) ListFeatures() ([]Feature, error) {
 		c.mu.Unlock()
 	}
 
-	result := make([]Feature, len(features))
+	result := make([]feature.Feature, len(features))
 	copy(result, features)
 	return result, nil
 }
@@ -181,11 +183,11 @@ func yamlMtimesMatch(entries []os.DirEntry, mtimes map[string]time.Time) bool {
 }
 
 // LoadFeature 讀取單一 feature；對應 YAML 的 mtime 未變時回傳 cache。
-func (c *CachedWorkspace) LoadFeature(id string) (Feature, error) {
+func (c *CachedWorkspace) LoadFeature(id string) (feature.Feature, error) {
 	path := filepath.Join(c.DotDir(), FeaturesDir, id+".yaml")
 	info, err := os.Stat(path)
 	if err != nil {
-		return Feature{}, fmt.Errorf("read feature %s: %w", id, err)
+		return feature.Feature{}, fmt.Errorf("read feature %s: %w", id, err)
 	}
 	mtime := info.ModTime()
 
@@ -202,14 +204,14 @@ func (c *CachedWorkspace) LoadFeature(id string) (Feature, error) {
 
 	f, err := c.Workspace.LoadFeature(id)
 	if err != nil {
-		return Feature{}, err
+		return feature.Feature{}, err
 	}
 
 	// re-stat：parse 期間檔案若被改動，mtime 會變，此時不寫 cache 以免存入不一致版本。
 	if info2, err2 := os.Stat(path); err2 == nil && info2.ModTime().Equal(mtime) {
 		c.mu.Lock()
 		if c.featureCache == nil {
-			c.featureCache = make(map[string]Feature)
+			c.featureCache = make(map[string]feature.Feature)
 			c.featureMtime = make(map[string]time.Time)
 		}
 		c.featureCache[id] = f

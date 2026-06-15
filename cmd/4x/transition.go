@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	feat "github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/guard"
 	"github.com/ggwhite/4x/internal/hook"
 	"github.com/ggwhite/4x/internal/protocol"
@@ -141,7 +142,7 @@ func newTransitionCmd() *cobra.Command {
 
 // executePhaseHooks 執行指定 timing（"pre"/"post"）的 phase hooks，記錄事件，失敗時統一處理狀態。
 func executePhaseHooks(ctx context.Context, ws *protocol.Workspace, featureID string, s *protocol.State,
-	hooks []protocol.HookEntry, phase protocol.Phase, timing string, logDir string) error {
+	hooks []feat.HookEntry, phase protocol.Phase, timing string, logDir string) error {
 	if len(hooks) == 0 {
 		return nil
 	}
@@ -170,12 +171,12 @@ func executePhaseHooks(ctx context.Context, ws *protocol.Workspace, featureID st
 
 // resolveHooks 根據 config 和 feature 的 hooks 設定，回傳目標 phase 的 pre/post hooks。
 // feature hooks 同名 key 整組取代全域。
-func resolveHooks(cfg protocol.Config, feature protocol.Feature, targetPhase protocol.Phase) map[string][]protocol.HookEntry {
+func resolveHooks(cfg protocol.Config, feature feat.Feature, targetPhase protocol.Phase) map[string][]feat.HookEntry {
 	merged := protocol.MergeHooks(cfg.Hooks, feature.Hooks)
 	if merged == nil {
 		return nil
 	}
-	result := make(map[string][]protocol.HookEntry)
+	result := make(map[string][]feat.HookEntry)
 	preKey := "pre_" + string(targetPhase)
 	postKey := "post_" + string(targetPhase)
 	if h, ok := merged[preKey]; ok {

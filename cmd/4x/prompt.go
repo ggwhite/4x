@@ -8,6 +8,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/state"
 	"github.com/ggwhite/4x/templates"
@@ -93,7 +94,7 @@ func newPromptCmd() *cobra.Command {
 }
 
 type promptData struct {
-	Feature          protocol.Feature
+	Feature          feature.Feature
 	Project          protocol.ProjectConfig
 	Role             protocol.Role
 	Round            int

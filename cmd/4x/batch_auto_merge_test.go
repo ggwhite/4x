@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/ggwhite/4x/internal/batch"
+	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/protocol"
 )
@@ -14,10 +15,10 @@ func TestRunBatchSchedule_AutoMergeSuccessMarksDone(t *testing.T) {
 	batchTestFeature(t, ws, "feat-a", nil)
 
 	plan := &batch.BatchPlan{Schedule: []batch.ScheduleEntry{{FeatureID: "feat-a"}}}
-	statusMap := map[string]protocol.Status{"feat-a": "not-started"}
+	statusMap := map[string]feature.Status{"feat-a": "not-started"}
 
-	runFeature := func(next string, f protocol.Feature, s protocol.State) (protocol.Status, error) {
-		return protocol.StatusReadyForReview, nil
+	runFeature := func(next string, f feature.Feature, s protocol.State) (feature.Status, error) {
+		return feature.StatusReadyForReview, nil
 	}
 
 	var merged []string
@@ -31,7 +32,7 @@ func TestRunBatchSchedule_AutoMergeSuccessMarksDone(t *testing.T) {
 	if len(merged) != 1 || merged[0] != "feat-a" {
 		t.Fatalf("autoMerge called with %v, want [feat-a]", merged)
 	}
-	if statusMap["feat-a"] != protocol.StatusDone {
+	if statusMap["feat-a"] != feature.StatusDone {
 		t.Errorf("statusMap[feat-a] = %s, want done", statusMap["feat-a"])
 	}
 	if completed != 1 {
@@ -45,10 +46,10 @@ func TestRunBatchSchedule_AutoMergeSkippedMarksDone(t *testing.T) {
 	batchTestFeature(t, ws, "feat-a", nil)
 
 	plan := &batch.BatchPlan{Schedule: []batch.ScheduleEntry{{FeatureID: "feat-a"}}}
-	statusMap := map[string]protocol.Status{"feat-a": "not-started"}
+	statusMap := map[string]feature.Status{"feat-a": "not-started"}
 
-	runFeature := func(next string, f protocol.Feature, s protocol.State) (protocol.Status, error) {
-		return protocol.StatusReadyForReview, nil
+	runFeature := func(next string, f feature.Feature, s protocol.State) (feature.Status, error) {
+		return feature.StatusReadyForReview, nil
 	}
 	autoMerge := func(featureID string) gitops.MergeResult {
 		return gitops.MergeResult{Skipped: true}
@@ -56,7 +57,7 @@ func TestRunBatchSchedule_AutoMergeSkippedMarksDone(t *testing.T) {
 
 	completed := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, false, autoMerge, nil)
 
-	if statusMap["feat-a"] != protocol.StatusDone {
+	if statusMap["feat-a"] != feature.StatusDone {
 		t.Errorf("statusMap[feat-a] = %s, want done", statusMap["feat-a"])
 	}
 	if completed != 1 {
@@ -75,12 +76,12 @@ func TestRunBatchSchedule_AutoMergeConflictPauses(t *testing.T) {
 		{FeatureID: "feat-a"},
 		{FeatureID: "feat-b"},
 	}}
-	statusMap := map[string]protocol.Status{"feat-a": "not-started", "feat-b": "not-started"}
+	statusMap := map[string]feature.Status{"feat-a": "not-started", "feat-b": "not-started"}
 
 	var executed []string
-	runFeature := func(next string, f protocol.Feature, s protocol.State) (protocol.Status, error) {
+	runFeature := func(next string, f feature.Feature, s protocol.State) (feature.Status, error) {
 		executed = append(executed, next)
-		return protocol.StatusReadyForReview, nil
+		return feature.StatusReadyForReview, nil
 	}
 	autoMerge := func(featureID string) gitops.MergeResult {
 		return gitops.MergeResult{Conflict: true, Files: []string{"main.go"}}
@@ -91,7 +92,7 @@ func TestRunBatchSchedule_AutoMergeConflictPauses(t *testing.T) {
 	if len(executed) != 1 || executed[0] != "feat-a" {
 		t.Fatalf("executed = %v, want only [feat-a] (paused before feat-b)", executed)
 	}
-	if statusMap["feat-a"] != protocol.StatusReadyForReview {
+	if statusMap["feat-a"] != feature.StatusReadyForReview {
 		t.Errorf("statusMap[feat-a] = %s, want ready-for-review (preserved)", statusMap["feat-a"])
 	}
 	if completed != 0 {
@@ -109,12 +110,12 @@ func TestRunBatchSchedule_AutoMergeErrorContinues(t *testing.T) {
 		{FeatureID: "feat-a"},
 		{FeatureID: "feat-b"},
 	}}
-	statusMap := map[string]protocol.Status{"feat-a": "not-started", "feat-b": "not-started"}
+	statusMap := map[string]feature.Status{"feat-a": "not-started", "feat-b": "not-started"}
 
 	var executed []string
-	runFeature := func(next string, f protocol.Feature, s protocol.State) (protocol.Status, error) {
+	runFeature := func(next string, f feature.Feature, s protocol.State) (feature.Status, error) {
 		executed = append(executed, next)
-		return protocol.StatusReadyForReview, nil
+		return feature.StatusReadyForReview, nil
 	}
 	autoMerge := func(featureID string) gitops.MergeResult {
 		if featureID == "feat-a" {
@@ -128,10 +129,10 @@ func TestRunBatchSchedule_AutoMergeErrorContinues(t *testing.T) {
 	if len(executed) != 2 {
 		t.Fatalf("executed = %v, want both features (error does not pause)", executed)
 	}
-	if statusMap["feat-a"] != protocol.StatusReadyForReview {
+	if statusMap["feat-a"] != feature.StatusReadyForReview {
 		t.Errorf("statusMap[feat-a] = %s, want ready-for-review (merge failed, preserved)", statusMap["feat-a"])
 	}
-	if statusMap["feat-b"] != protocol.StatusDone {
+	if statusMap["feat-b"] != feature.StatusDone {
 		t.Errorf("statusMap[feat-b] = %s, want done", statusMap["feat-b"])
 	}
 	if completed != 2 {
@@ -145,10 +146,10 @@ func TestRunBatchSchedule_NoAutoMergeSkipsMerge(t *testing.T) {
 	batchTestFeature(t, ws, "feat-a", nil)
 
 	plan := &batch.BatchPlan{Schedule: []batch.ScheduleEntry{{FeatureID: "feat-a"}}}
-	statusMap := map[string]protocol.Status{"feat-a": "not-started"}
+	statusMap := map[string]feature.Status{"feat-a": "not-started"}
 
-	runFeature := func(next string, f protocol.Feature, s protocol.State) (protocol.Status, error) {
-		return protocol.StatusReadyForReview, nil
+	runFeature := func(next string, f feature.Feature, s protocol.State) (feature.Status, error) {
+		return feature.StatusReadyForReview, nil
 	}
 	called := false
 	autoMerge := func(featureID string) gitops.MergeResult {
@@ -161,7 +162,7 @@ func TestRunBatchSchedule_NoAutoMergeSkipsMerge(t *testing.T) {
 	if called {
 		t.Error("autoMerge should not be called when noAutoMerge is true")
 	}
-	if statusMap["feat-a"] != protocol.StatusReadyForReview {
+	if statusMap["feat-a"] != feature.StatusReadyForReview {
 		t.Errorf("statusMap[feat-a] = %s, want ready-for-review (no auto-merge)", statusMap["feat-a"])
 	}
 	if completed != 1 {
@@ -180,10 +181,10 @@ func TestRunBatchSchedule_ResumeAfterConflict(t *testing.T) {
 		{FeatureID: "feat-a"},
 		{FeatureID: "feat-b"},
 	}}
-	statusMap := map[string]protocol.Status{"feat-a": "not-started", "feat-b": "not-started"}
+	statusMap := map[string]feature.Status{"feat-a": "not-started", "feat-b": "not-started"}
 
-	runFeature := func(next string, f protocol.Feature, s protocol.State) (protocol.Status, error) {
-		return protocol.StatusReadyForReview, nil
+	runFeature := func(next string, f feature.Feature, s protocol.State) (feature.Status, error) {
+		return feature.StatusReadyForReview, nil
 	}
 
 	// 第一輪：feat-a auto-merge 衝突 → pause，feat-b 未跑。
@@ -199,7 +200,7 @@ func TestRunBatchSchedule_ResumeAfterConflict(t *testing.T) {
 	}
 
 	// 人工解衝突 + 4x merge feat-a → 標記 done（模擬 resume 前置）。
-	statusMap["feat-a"] = protocol.StatusDone
+	statusMap["feat-a"] = feature.StatusDone
 
 	// 第二輪：重跑 batch，feat-a 已 done 跳過，feat-b 正常 auto-merge 成功。
 	var merged []string
@@ -212,7 +213,7 @@ func TestRunBatchSchedule_ResumeAfterConflict(t *testing.T) {
 	if len(merged) != 1 || merged[0] != "feat-b" {
 		t.Fatalf("second run merged %v, want [feat-b] (feat-a already done)", merged)
 	}
-	if statusMap["feat-b"] != protocol.StatusDone {
+	if statusMap["feat-b"] != feature.StatusDone {
 		t.Errorf("statusMap[feat-b] = %s, want done", statusMap["feat-b"])
 	}
 	if completed2 != 1 {
@@ -226,10 +227,10 @@ func TestRunBatchSchedule_ConflictWritesSignal(t *testing.T) {
 	batchTestFeature(t, ws, "feat-a", nil)
 
 	plan := &batch.BatchPlan{Schedule: []batch.ScheduleEntry{{FeatureID: "feat-a"}}}
-	statusMap := map[string]protocol.Status{"feat-a": "not-started"}
+	statusMap := map[string]feature.Status{"feat-a": "not-started"}
 
-	runFeature := func(next string, f protocol.Feature, s protocol.State) (protocol.Status, error) {
-		return protocol.StatusReadyForReview, nil
+	runFeature := func(next string, f feature.Feature, s protocol.State) (feature.Status, error) {
+		return feature.StatusReadyForReview, nil
 	}
 	autoMerge := func(featureID string) gitops.MergeResult {
 		return gitops.MergeResult{Conflict: true, Files: []string{"main.go"}, ConflictRepo: "core"}
@@ -266,10 +267,10 @@ func TestRunBatchSchedule_SuccessClearsStaleSignal(t *testing.T) {
 	}
 
 	plan := &batch.BatchPlan{Schedule: []batch.ScheduleEntry{{FeatureID: "feat-a"}}}
-	statusMap := map[string]protocol.Status{"feat-a": "not-started"}
+	statusMap := map[string]feature.Status{"feat-a": "not-started"}
 
-	runFeature := func(next string, f protocol.Feature, s protocol.State) (protocol.Status, error) {
-		return protocol.StatusReadyForReview, nil
+	runFeature := func(next string, f feature.Feature, s protocol.State) (feature.Status, error) {
+		return feature.StatusReadyForReview, nil
 	}
 	autoMerge := func(featureID string) gitops.MergeResult {
 		return gitops.MergeResult{}

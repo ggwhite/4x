@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/runner"
 )
@@ -151,7 +152,7 @@ func TestRunLoop_AsyncCommitCompletesBeforeReturn(t *testing.T) {
 // 不再自動 wip-commit（commit 移到 guard 通過之後才啟動）。
 func TestRunLoop_GuardFailNoCommit(t *testing.T) {
 	main := setupLoopWorkspace(t, "feat-guard-nocommit")
-	f := protocol.Feature{ID: "feat-guard-nocommit", Name: "Guard NoCommit", Status: "not-started", Repos: []string{"allowed-repo"}}
+	f := feature.Feature{ID: "feat-guard-nocommit", Name: "Guard NoCommit", Status: "not-started", Repos: []string{"allowed-repo"}}
 	main.SaveFeature(f)
 	feature, _ := main.LoadFeature("feat-guard-nocommit")
 	cfg, _ := main.ReadConfig()

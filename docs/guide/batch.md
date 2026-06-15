@@ -59,7 +59,7 @@ Schedule (4 features):
 
 - Uses commit strategy `"never"` (you commit manually after review)
 - Checks for `.4x/batch-stop` file between features
-- Skips features whose dependencies are not done
+- Skips features whose dependencies are not complete (a dependency counts as complete when `done`, `abandoned`, or `ready-for-review` — see `feature.BatchCompleted`)
 - Reports progress after each feature
 
 ## Stopping

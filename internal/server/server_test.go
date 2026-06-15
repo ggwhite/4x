@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -32,7 +33,7 @@ func setupServerWorkspace(t *testing.T) *protocol.Workspace {
 	}
 	ws := &protocol.Workspace{Root: root}
 
-	f := protocol.Feature{ID: "test-feat", Name: "Test Feature", Status: "in-progress"}
+	f := feature.Feature{ID: "test-feat", Name: "Test Feature", Status: "in-progress"}
 	if err := ws.SaveFeature(f); err != nil {
 		t.Fatal(err)
 	}
@@ -412,6 +413,47 @@ func TestPostNew(t *testing.T) {
 	}
 }
 
+func TestPostNew_ExpandedFields(t *testing.T) {
+	ws, pm := setupServerWithPM(t)
+	defer pm.Shutdown()
+
+	body := `{"name":"Batch Mode","description":"add batch","customId":"batch-mode","priority":2,` +
+		`"depends":["F001-dep"],"rules":["spec: docs/x.md"],` +
+		`"subtasks":[{"id":"sub-1","name":"first","status":"pending"}]}`
+	rec := serveRequest(t, NewMux(protocol.NewCachedWorkspace(ws), pm), http.MethodPost, "/api/new", body)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var result struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&result); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if result.ID != "F001-batch-mode" {
+		t.Errorf("ID = %q, want F001-batch-mode (custom slug)", result.ID)
+	}
+
+	f, err := ws.LoadFeature(result.ID)
+	if err != nil {
+		t.Fatalf("LoadFeature: %v", err)
+	}
+	if f.Priority == nil || *f.Priority != 2 {
+		t.Errorf("Priority = %v, want 2", f.Priority)
+	}
+	if len(f.Depends) != 1 || f.Depends[0] != "F001-dep" {
+		t.Errorf("Depends = %v", f.Depends)
+	}
+	if len(f.Rules) != 1 {
+		t.Errorf("Rules = %v", f.Rules)
+	}
+	if len(f.Subtasks) != 1 || f.Subtasks[0].ID != "sub-1" {
+		t.Errorf("Subtasks = %+v", f.Subtasks)
+	}
+}
+
 func TestPostNew_MissingName(t *testing.T) {
 	ws, pm := setupServerWithPM(t)
 	defer pm.Shutdown()
@@ -534,7 +576,7 @@ func seedScreenshots(t *testing.T, ws *protocol.Workspace, featureID string) {
 		Passed: true,
 		Round:  2,
 		Role:   protocol.RoleTester,
-		Screenshots: []protocol.Screenshot{
+		Screenshots: []feature.Screenshot{
 			{Path: "e2e/test-feat/screenshot/02-round-two.png", Step: "02", Description: "round two"},
 		},
 	}
@@ -566,7 +608,7 @@ func seedSameNameScreenshots(t *testing.T, ws *protocol.Workspace, featureID str
 			Passed: true,
 			Round:  round,
 			Role:   protocol.RoleTester,
-			Screenshots: []protocol.Screenshot{
+			Screenshots: []feature.Screenshot{
 				{
 					Path:        fmt.Sprintf("e2e/%s/round-%d/01-login.png", featureID, round),
 					Step:        "01",
@@ -1525,8 +1567,8 @@ func TestHandleLogSSE_LargeDelta(t *testing.T) {
 // TestHandleLogSSE_Boundary 驗證 delta 剛好 32KB 與 32KB+1 位元組的邊界行為。
 func TestHandleLogSSE_Boundary(t *testing.T) {
 	cases := []struct {
-		name    string
-		size    int
+		name     string
+		size     int
 		wantMsgs int
 	}{
 		{"exactly-32KB", 32 * 1024, 1},
@@ -1755,7 +1797,7 @@ func TestHandleLogSSE_TwoTicks(t *testing.T) {
 func TestPostClean(t *testing.T) {
 	ws := setupServerWorkspace(t)
 
-	doneF := protocol.Feature{ID: "clean-done", Name: "Clean Done", Status: protocol.StatusDone}
+	doneF := feature.Feature{ID: "clean-done", Name: "Clean Done", Status: feature.StatusDone}
 	ws.SaveFeature(doneF)
 	ws.InitFeatureDir("clean-done")
 	ws.WriteState("clean-done", protocol.State{

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/spf13/cobra"
 )
@@ -37,7 +38,7 @@ func newInitCmd() *cobra.Command {
 					"designer": {Model: "opus"},
 					"coder":    {Model: "sonnet"},
 					"reviewer": {Model: "sonnet", DeepModel: "opus"},
-					"tester":   {Model: "sonnet", ScreenshotDir: protocol.DefaultScreenshotDir},
+					"tester":   {Model: "sonnet", ScreenshotDir: feature.DefaultScreenshotDir},
 				},
 			}
 

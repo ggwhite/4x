@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/ggwhite/4x/internal/batch"
+	feat "github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/guard"
 	"github.com/ggwhite/4x/internal/protocol"
@@ -59,9 +60,9 @@ func newBatchPlanCmd() *cobra.Command {
 				return err
 			}
 
-			var pending []protocol.Feature
+			var pending []feat.Feature
 			for _, f := range features {
-				if f.Status != protocol.StatusDone {
+				if f.Status != feat.StatusDone {
 					pending = append(pending, f)
 				}
 			}
@@ -157,8 +158,8 @@ func newBatchNextCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			statusMap := make(map[string]protocol.Status)
-			featureMap := make(map[string]protocol.Feature)
+			statusMap := make(map[string]feat.Status)
+			featureMap := make(map[string]feat.Feature)
 			for _, f := range features {
 				statusMap[f.ID] = f.Status
 				featureMap[f.ID] = f
@@ -266,7 +267,7 @@ func newBatchRunCmd() *cobra.Command {
 				return err
 			}
 
-			var pending []protocol.Feature
+			var pending []feat.Feature
 			for _, f := range features {
 				if !batchCompleted(f.Status) {
 					pending = append(pending, f)
@@ -287,7 +288,7 @@ func newBatchRunCmd() *cobra.Command {
 				_ = os.WriteFile(filepath.Join(ws.DotDir(), "batch-plan.json"), planData, 0o644)
 			}
 
-			statusMap := make(map[string]protocol.Status)
+			statusMap := make(map[string]feat.Status)
 			for _, f := range features {
 				statusMap[f.ID] = f.Status
 			}
@@ -333,7 +334,7 @@ func newBatchRunCmd() *cobra.Command {
 
 			// runFeature 執行單一 feature 的完整 runLoop（含 worktree 隔離），回傳跑完後的最新 status。
 			// 抽出成 callback 讓 runBatchSchedule 的排程 / gate / 失敗追蹤邏輯可獨立測試。
-			runFeature := func(next string, feature protocol.Feature, s protocol.State) (protocol.Status, error) {
+			runFeature := func(next string, feature feat.Feature, s protocol.State) (feat.Status, error) {
 				signal.Ignore(syscall.SIGPIPE)
 				batchCtx, batchCancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 				defer batchCancel()
@@ -344,7 +345,7 @@ func newBatchRunCmd() *cobra.Command {
 				if cfg.Isolation == "worktree" {
 					wtPath, wtErr := batchOps.SetupWorktree(next)
 					if wtErr != nil {
-						return protocol.StatusBlocked, fmt.Errorf("worktree setup failed: %w", wtErr)
+						return feat.StatusBlocked, fmt.Errorf("worktree setup failed: %w", wtErr)
 					}
 					batchRunnerWs = &protocol.Workspace{Root: wtPath}
 					commitStrategy = "per-round"
@@ -405,7 +406,7 @@ const maxFeatureFailures = 2
 type batchProgress struct {
 	mu             sync.Mutex
 	startedAt      time.Time
-	statusMap      map[string]protocol.Status
+	statusMap      map[string]feat.Status
 	runningFeature string
 	outcome        string
 }
@@ -422,7 +423,7 @@ func (p *batchProgress) setRunning(id string) {
 
 // update 在一個 feature 收尾後刷新進度：清空 runningFeature、複製最新 statusMap。
 // 完成數不在此追蹤——報告的 Completed 由 BuildBatchReport 從 statusMap 重新統計。
-func (p *batchProgress) update(statusMap map[string]protocol.Status) {
+func (p *batchProgress) update(statusMap map[string]feat.Status) {
 	if p == nil {
 		return
 	}
@@ -443,7 +444,7 @@ func (p *batchProgress) markStopped() {
 }
 
 // snapshot 在鎖保護下回傳目前進度（statusMap 為複本），供 finishBatchReport 建報告。
-func (p *batchProgress) snapshot() (startedAt time.Time, runningFeature, outcome string, statusMap map[string]protocol.Status) {
+func (p *batchProgress) snapshot() (startedAt time.Time, runningFeature, outcome string, statusMap map[string]feat.Status) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.startedAt, p.runningFeature, p.outcome, maps.Clone(p.statusMap)
@@ -478,9 +479,9 @@ func finishBatchReport(ws *protocol.Workspace, plan *batch.BatchPlan, runnerName
 // autoMerge 把 worktree 改動合回 main——衝突則 graceful pause（保留 worktree、回傳目前 completed），
 // 非衝突錯誤則警告後續跑，成功（含 skipped）則標記 done。autoMerge 注入式（mirror runFeature）讓測試可替換。
 // progress（可為 nil，測試傳 nil）讓 batch 行程層的 signal/panic handler 讀取目前進度建報告。
-func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap map[string]protocol.Status,
+func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap map[string]feat.Status,
 	maxRounds int, runnerName string,
-	runFeature func(next string, feature protocol.Feature, s protocol.State) (protocol.Status, error),
+	runFeature func(next string, feature feat.Feature, s protocol.State) (feat.Status, error),
 	noAutoMerge bool, autoMerge func(featureID string) gitops.MergeResult, progress *batchProgress) int {
 
 	stopFile := filepath.Join(ws.DotDir(), protocol.BatchStopFile)
@@ -541,14 +542,14 @@ func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap m
 		feature, err := ws.LoadFeature(next)
 		if err != nil {
 			fmt.Printf("  error loading feature: %v\n", err)
-			statusMap[next] = protocol.StatusBlocked
+			statusMap[next] = feat.StatusBlocked
 			failedFeatures[next]++
 			continue
 		}
 
 		if err := ws.InitFeatureDir(next); err != nil {
 			fmt.Printf("  init feature dir failed: %v\n", err)
-			statusMap[next] = protocol.StatusBlocked
+			statusMap[next] = feat.StatusBlocked
 			failedFeatures[next]++
 			continue
 		}
@@ -557,7 +558,7 @@ func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap m
 		depResult := guard.CheckDependencies(ws, next)
 		if !depResult.Pass {
 			fmt.Printf("  dependency check failed: %s\n", strings.Join(depResult.Errors, "; "))
-			statusMap[next] = protocol.StatusBlocked
+			statusMap[next] = feat.StatusBlocked
 			failedFeatures[next]++
 			continue
 		}
@@ -583,7 +584,7 @@ func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap m
 		// W4：resume 既有 state 時，若已 done 則跳過不重跑。
 		if s.Phase == protocol.PhaseDone {
 			fmt.Printf("  %s already done — skipping\n", next)
-			statusMap[next] = protocol.StatusDone
+			statusMap[next] = feat.StatusDone
 			completed++
 			progress.update(statusMap)
 			continue
@@ -599,7 +600,7 @@ func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap m
 		slog.Info("batch feature", "feature", next, "status", "completed", "result", string(updatedStatus))
 
 		// W12：跑出失敗狀態時累計，達上限後於 selection 跳過避免無限重跑。
-		if updatedStatus == protocol.StatusNeedsAttention || updatedStatus == protocol.StatusBlocked {
+		if updatedStatus == feat.StatusNeedsAttention || updatedStatus == feat.StatusBlocked {
 			failedFeatures[next]++
 		}
 
@@ -609,7 +610,7 @@ func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap m
 
 		// F068：feature 完成（ready-for-review/pending-review）後自動 merge 回 main，
 		// 使下一個 feature 的 worktree 從含本輪改動的最新 main 開出 branch。
-		if !noAutoMerge && updatedStatus == protocol.StatusReadyForReview && autoMerge != nil {
+		if !noAutoMerge && updatedStatus == feat.StatusReadyForReview && autoMerge != nil {
 			result := autoMerge(next)
 			switch {
 			case result.Conflict:
@@ -644,7 +645,7 @@ func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap m
 			default:
 				// M1/M4：成功或 skipped（非 worktree 模式）→ 標記 done。
 				slog.Info("auto-merge succeeded", "feature", next, "skipped", result.Skipped)
-				statusMap[next] = protocol.StatusDone
+				statusMap[next] = feat.StatusDone
 			}
 		}
 
@@ -683,6 +684,6 @@ func newBatchStopCmd() *cobra.Command {
 	}
 }
 
-func batchCompleted(s protocol.Status) bool {
-	return protocol.BatchCompleted(s)
+func batchCompleted(s feat.Status) bool {
+	return feat.BatchCompleted(s)
 }

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -25,7 +26,7 @@ type Result struct {
 // Execute 依序執行 hooks，logDir 用來存放 stdout/stderr output 檔。
 // 遇到 on_fail=block 的 hook 失敗時立即停止並回傳 error；
 // on_fail=warn 的 hook 失敗只記錄 result，不中止後續執行。
-func Execute(ctx context.Context, hooks []protocol.HookEntry, logDir string) ([]Result, error) {
+func Execute(ctx context.Context, hooks []feature.HookEntry, logDir string) ([]Result, error) {
 	if len(hooks) == 0 {
 		return nil, nil
 	}

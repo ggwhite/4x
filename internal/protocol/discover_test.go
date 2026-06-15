@@ -1,6 +1,10 @@
 package protocol
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/ggwhite/4x/internal/feature"
+)
 
 func TestParseDiscoveredFeatures(t *testing.T) {
 	t.Run("multiple blocks", func(t *testing.T) {
@@ -95,7 +99,7 @@ func TestIsSimilarFeature(t *testing.T) {
 }
 
 func TestDedupeDiscovered(t *testing.T) {
-	existing := []Feature{
+	existing := []feature.Feature{
 		{Name: "F010: Rate limiting", Description: "Add rate limiting to the API endpoints"},
 	}
 	candidates := []DiscoveredFeature{

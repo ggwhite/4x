@@ -1,16 +1,18 @@
 package protocol
 
+import "github.com/ggwhite/4x/internal/feature"
+
 // MergeHooks 合併全域和 feature 的 hooks，feature 同名 key 整組替換全域。
-// 兩者皆為 nil 時回傳 nil；否則複製 global 所有 key，再由 feature 的 key 整組覆蓋。
-func MergeHooks(global, feature map[string][]HookEntry) map[string][]HookEntry {
-	if global == nil && feature == nil {
+// 兩者皆為 nil 時回傳 nil；否則複製 global 所有 key，再由 featureHooks 的 key 整組覆蓋。
+func MergeHooks(global, featureHooks map[string][]feature.HookEntry) map[string][]feature.HookEntry {
+	if global == nil && featureHooks == nil {
 		return nil
 	}
-	merged := make(map[string][]HookEntry)
+	merged := make(map[string][]feature.HookEntry)
 	for k, v := range global {
 		merged[k] = v
 	}
-	for k, v := range feature {
+	for k, v := range featureHooks {
 		merged[k] = v
 	}
 	return merged

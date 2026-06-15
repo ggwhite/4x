@@ -1,4 +1,4 @@
-package protocol
+package feature
 
 import (
 	"fmt"
@@ -14,9 +14,9 @@ var (
 	maxFeatureIDSlugLength = 23
 )
 
-// NextFeatureNumber 掃描現有 feature，回傳下一個可用流水號。
-func NextFeatureNumber(ws *Workspace) (int, error) {
-	features, err := ws.ListFeatures()
+// NextNumber 掃描現有 feature，回傳下一個可用流水號。
+func NextNumber(store Store) (int, error) {
+	features, err := store.ListFeatures()
 	if err != nil {
 		return 1, nil
 	}

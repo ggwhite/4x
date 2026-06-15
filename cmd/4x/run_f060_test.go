@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ggwhite/4x/internal/batch"
+	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/runner"
 )
@@ -213,7 +214,7 @@ func batchTestFeature(t *testing.T, ws *protocol.Workspace, id string, depends [
 	if err := ws.InitFeatureDir(id); err != nil {
 		t.Fatal(err)
 	}
-	if err := ws.SaveFeature(protocol.Feature{ID: id, Name: id, Status: "not-started", Depends: depends}); err != nil {
+	if err := ws.SaveFeature(feature.Feature{ID: id, Name: id, Status: "not-started", Depends: depends}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -225,19 +226,19 @@ func TestRunBatchSchedule_DependencyGateBlocks(t *testing.T) {
 	batchTestFeature(t, ws, "feat-b", nil) // B 未 done
 
 	plan := &batch.BatchPlan{Schedule: []batch.ScheduleEntry{{FeatureID: "feat-a"}}}
-	statusMap := map[string]protocol.Status{"feat-a": "not-started", "feat-b": "not-started"}
+	statusMap := map[string]feature.Status{"feat-a": "not-started", "feat-b": "not-started"}
 
 	var executed []string
-	runFeature := func(next string, f protocol.Feature, s protocol.State) (protocol.Status, error) {
+	runFeature := func(next string, f feature.Feature, s protocol.State) (feature.Status, error) {
 		executed = append(executed, next)
-		return protocol.StatusReadyForReview, nil
+		return feature.StatusReadyForReview, nil
 	}
 
 	completed := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, true, nil, nil)
 	if len(executed) != 0 {
 		t.Fatalf("feat-a should not run with unmet dependency, executed: %v", executed)
 	}
-	if statusMap["feat-a"] != protocol.StatusBlocked {
+	if statusMap["feat-a"] != feature.StatusBlocked {
 		t.Errorf("statusMap[feat-a] = %s, want blocked", statusMap["feat-a"])
 	}
 	if completed != 0 {
@@ -257,16 +258,16 @@ func TestRunBatchSchedule_SkipsDoneAndSetsPid(t *testing.T) {
 		{FeatureID: "feat-done"},
 		{FeatureID: "feat-run"},
 	}}
-	statusMap := map[string]protocol.Status{"feat-done": "not-started", "feat-run": "not-started"}
+	statusMap := map[string]feature.Status{"feat-done": "not-started", "feat-run": "not-started"}
 
 	var executed []string
 	var gotPid int
-	runFeature := func(next string, f protocol.Feature, s protocol.State) (protocol.Status, error) {
+	runFeature := func(next string, f feature.Feature, s protocol.State) (feature.Status, error) {
 		executed = append(executed, next)
 		if next == "feat-run" {
 			gotPid = s.Pid
 		}
-		return protocol.StatusReadyForReview, nil
+		return feature.StatusReadyForReview, nil
 	}
 
 	completed := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, true, nil, nil)
@@ -276,7 +277,7 @@ func TestRunBatchSchedule_SkipsDoneAndSetsPid(t *testing.T) {
 			t.Error("already-done feature should not be executed")
 		}
 	}
-	if statusMap["feat-done"] != protocol.StatusDone {
+	if statusMap["feat-done"] != feature.StatusDone {
 		t.Errorf("statusMap[feat-done] = %s, want done", statusMap["feat-done"])
 	}
 	if gotPid != os.Getpid() {
@@ -297,12 +298,12 @@ func TestRunBatchSchedule_FailureCapStopsRetry(t *testing.T) {
 	batchTestFeature(t, ws, "feat-fail", nil)
 
 	plan := &batch.BatchPlan{Schedule: []batch.ScheduleEntry{{FeatureID: "feat-fail"}}}
-	statusMap := map[string]protocol.Status{"feat-fail": "not-started"}
+	statusMap := map[string]feature.Status{"feat-fail": "not-started"}
 
 	count := 0
-	runFeature := func(next string, f protocol.Feature, s protocol.State) (protocol.Status, error) {
+	runFeature := func(next string, f feature.Feature, s protocol.State) (feature.Status, error) {
 		count++
-		return protocol.StatusNeedsAttention, nil
+		return feature.StatusNeedsAttention, nil
 	}
 
 	completed := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, true, nil, nil)

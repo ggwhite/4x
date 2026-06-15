@@ -4,11 +4,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ggwhite/4x/internal/protocol"
+	"github.com/ggwhite/4x/internal/feature"
 )
 
 func TestBuildSubtaskGraph_Basic(t *testing.T) {
-	subtasks := []protocol.Subtask{
+	subtasks := []feature.Subtask{
 		{ID: "a", Status: "not-started"},
 		{ID: "b", Status: "not-started", Depends: []string{"a"}},
 		{ID: "c", Status: "not-started", Depends: []string{"a", "b"}},
@@ -26,7 +26,7 @@ func TestBuildSubtaskGraph_Basic(t *testing.T) {
 }
 
 func TestBuildSubtaskGraph_UnknownDep(t *testing.T) {
-	subtasks := []protocol.Subtask{
+	subtasks := []feature.Subtask{
 		{ID: "a", Status: "not-started", Depends: []string{"unknown"}},
 	}
 	_, err := BuildSubtaskGraph(subtasks)
@@ -36,7 +36,7 @@ func TestBuildSubtaskGraph_UnknownDep(t *testing.T) {
 }
 
 func TestBuildSubtaskGraph_DuplicateID(t *testing.T) {
-	subtasks := []protocol.Subtask{
+	subtasks := []feature.Subtask{
 		{ID: "a", Status: "done"},
 		{ID: "a", Status: "not-started"},
 	}
@@ -50,7 +50,7 @@ func TestBuildSubtaskGraph_DuplicateID(t *testing.T) {
 }
 
 func TestDetectSubtaskCycle_NoCycle(t *testing.T) {
-	subtasks := []protocol.Subtask{
+	subtasks := []feature.Subtask{
 		{ID: "a", Status: "not-started"},
 		{ID: "b", Status: "not-started", Depends: []string{"a"}},
 		{ID: "c", Status: "not-started", Depends: []string{"b"}},
@@ -63,7 +63,7 @@ func TestDetectSubtaskCycle_NoCycle(t *testing.T) {
 }
 
 func TestDetectSubtaskCycle_WithCycle(t *testing.T) {
-	subtasks := []protocol.Subtask{
+	subtasks := []feature.Subtask{
 		{ID: "a", Status: "not-started", Depends: []string{"c"}},
 		{ID: "b", Status: "not-started", Depends: []string{"a"}},
 		{ID: "c", Status: "not-started", Depends: []string{"b"}},
@@ -88,7 +88,7 @@ func TestDetectSubtaskCycle_WithCycle(t *testing.T) {
 }
 
 func TestSubtaskFrontier_NoDeps(t *testing.T) {
-	subtasks := []protocol.Subtask{
+	subtasks := []feature.Subtask{
 		{ID: "a", Status: "not-started"},
 		{ID: "b", Status: "not-started"},
 		{ID: "c", Status: "not-started"},
@@ -103,7 +103,7 @@ func TestSubtaskFrontier_NoDeps(t *testing.T) {
 }
 
 func TestSubtaskFrontier_Linear(t *testing.T) {
-	subtasks := []protocol.Subtask{
+	subtasks := []feature.Subtask{
 		{ID: "a", Status: "done"},
 		{ID: "b", Status: "not-started", Depends: []string{"a"}},
 		{ID: "c", Status: "not-started", Depends: []string{"b"}},
@@ -118,7 +118,7 @@ func TestSubtaskFrontier_Linear(t *testing.T) {
 }
 
 func TestSubtaskFrontier_Diamond(t *testing.T) {
-	subtasks := []protocol.Subtask{
+	subtasks := []feature.Subtask{
 		{ID: "a", Status: "done"},
 		{ID: "b", Status: "not-started", Depends: []string{"a"}},
 		{ID: "c", Status: "not-started", Depends: []string{"a"}},
@@ -141,7 +141,7 @@ func TestSubtaskFrontier_Diamond(t *testing.T) {
 }
 
 func TestSubtaskFrontier_AllDone(t *testing.T) {
-	subtasks := []protocol.Subtask{
+	subtasks := []feature.Subtask{
 		{ID: "a", Status: "done"},
 		{ID: "b", Status: "done", Depends: []string{"a"}},
 	}
@@ -158,7 +158,7 @@ func TestSubtaskFrontier_AllDone(t *testing.T) {
 }
 
 func TestSubtaskFrontier_CycleError(t *testing.T) {
-	subtasks := []protocol.Subtask{
+	subtasks := []feature.Subtask{
 		{ID: "a", Status: "not-started", Depends: []string{"b"}},
 		{ID: "b", Status: "not-started", Depends: []string{"a"}},
 	}
@@ -169,7 +169,7 @@ func TestSubtaskFrontier_CycleError(t *testing.T) {
 }
 
 func TestSubtaskFrontier_UnknownDepError(t *testing.T) {
-	subtasks := []protocol.Subtask{
+	subtasks := []feature.Subtask{
 		{ID: "a", Status: "not-started", Depends: []string{"ghost"}},
 	}
 	_, err := SubtaskFrontier(subtasks)
@@ -179,7 +179,7 @@ func TestSubtaskFrontier_UnknownDepError(t *testing.T) {
 }
 
 func TestSubtaskFrontier_PartialDone(t *testing.T) {
-	subtasks := []protocol.Subtask{
+	subtasks := []feature.Subtask{
 		{ID: "a", Status: "done"},
 		{ID: "b", Status: "not-started", Depends: []string{"a"}},
 	}
@@ -193,7 +193,7 @@ func TestSubtaskFrontier_PartialDone(t *testing.T) {
 }
 
 func TestSubtaskFrontier_ReadyForReview(t *testing.T) {
-	subtasks := []protocol.Subtask{
+	subtasks := []feature.Subtask{
 		{ID: "a", Status: "ready-for-review"},
 		{ID: "b", Status: "not-started", Depends: []string{"a"}},
 	}
@@ -207,7 +207,7 @@ func TestSubtaskFrontier_ReadyForReview(t *testing.T) {
 }
 
 func TestSubtaskFrontier_DuplicateIDError(t *testing.T) {
-	subtasks := []protocol.Subtask{
+	subtasks := []feature.Subtask{
 		{ID: "a", Status: "done"},
 		{ID: "a", Status: "not-started"},
 		{ID: "b", Status: "not-started", Depends: []string{"a"}},

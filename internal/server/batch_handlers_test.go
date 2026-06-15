@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -19,17 +20,17 @@ func setupBatchStatusWorkspace(t *testing.T) *protocol.Workspace {
 	}
 	ws := &protocol.Workspace{Root: root}
 
-	mk := func(id string, status protocol.Status) {
-		if err := ws.SaveFeature(protocol.Feature{ID: id, Name: id, Status: status}); err != nil {
+	mk := func(id string, status feature.Status) {
+		if err := ws.SaveFeature(feature.Feature{ID: id, Name: id, Status: status}); err != nil {
 			t.Fatal(err)
 		}
 		if err := ws.InitFeatureDir(id); err != nil {
 			t.Fatal(err)
 		}
 	}
-	mk("feat-a", protocol.StatusDone)
-	mk("feat-b", protocol.StatusInProgress)
-	mk("feat-c", protocol.StatusNotStarted)
+	mk("feat-a", feature.StatusDone)
+	mk("feat-b", feature.StatusInProgress)
+	mk("feat-c", feature.StatusNotStarted)
 
 	// feat-b 設為 active 且 pid 為當前 process（必活著），模擬 running 狀態。
 	if err := ws.WriteState("feat-b", protocol.State{
@@ -127,7 +128,7 @@ func TestBatchStatus_ReportsLastReport(t *testing.T) {
 		Remaining: 1,
 		Runner:    "claude",
 		Features: []protocol.BatchFeatureReport{
-			{ID: "feat-a", Name: "feat-a", FinalStatus: protocol.StatusDone, Rounds: 2},
+			{ID: "feat-a", Name: "feat-a", FinalStatus: feature.StatusDone, Rounds: 2},
 		},
 	}); err != nil {
 		t.Fatal(err)

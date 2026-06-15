@@ -1,6 +1,10 @@
 package protocol
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/ggwhite/4x/internal/feature"
+)
 
 func intPtr(i int) *int { return &i }
 
@@ -8,7 +12,7 @@ func TestResolveProfile_NoProfilesSection(t *testing.T) {
 	cfg := Config{} // 無 profiles 區段
 	cases := []*int{nil, intPtr(0), intPtr(1), intPtr(2), intPtr(3), intPtr(5)}
 	for _, prio := range cases {
-		name, pc, err := ResolveProfile(cfg, Feature{Priority: prio}, "")
+		name, pc, err := ResolveProfile(cfg, feature.Feature{Priority: prio}, "")
 		if err != nil {
 			t.Fatalf("priority %v: %v", prio, err)
 		}
@@ -36,7 +40,7 @@ func TestResolveProfile_AutoSelectByPriority(t *testing.T) {
 		{intPtr(5), "quick"},
 	}
 	for _, tt := range tests {
-		name, _, err := ResolveProfile(cfg, Feature{Priority: tt.prio}, "")
+		name, _, err := ResolveProfile(cfg, feature.Feature{Priority: tt.prio}, "")
 		if err != nil {
 			t.Fatalf("priority %v: %v", tt.prio, err)
 		}
@@ -48,7 +52,7 @@ func TestResolveProfile_AutoSelectByPriority(t *testing.T) {
 
 func TestResolveProfile_OverrideHit(t *testing.T) {
 	cfg := Config{Profiles: DefaultProfiles()}
-	name, pc, err := ResolveProfile(cfg, Feature{Priority: intPtr(0)}, "quick")
+	name, pc, err := ResolveProfile(cfg, feature.Feature{Priority: intPtr(0)}, "quick")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +66,7 @@ func TestResolveProfile_OverrideHit(t *testing.T) {
 
 func TestResolveProfile_OverrideMiss(t *testing.T) {
 	cfg := Config{Profiles: DefaultProfiles()}
-	_, _, err := ResolveProfile(cfg, Feature{}, "nonexistent")
+	_, _, err := ResolveProfile(cfg, feature.Feature{}, "nonexistent")
 	if err == nil {
 		t.Error("expected error for unknown profile")
 	}
@@ -73,7 +77,7 @@ func TestResolveProfile_OverrideFallsBackToDefaults(t *testing.T) {
 	cfg := Config{Profiles: map[string]ProfileConfig{
 		"custom": {Roles: []string{"coder"}},
 	}}
-	name, pc, err := ResolveProfile(cfg, Feature{}, "normal")
+	name, pc, err := ResolveProfile(cfg, feature.Feature{}, "normal")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +93,7 @@ func TestResolveProfile_MissingCoderIsError(t *testing.T) {
 	cfg := Config{Profiles: map[string]ProfileConfig{
 		"broken": {Roles: []string{"reviewer", "tester"}},
 	}}
-	_, _, err := ResolveProfile(cfg, Feature{}, "broken")
+	_, _, err := ResolveProfile(cfg, feature.Feature{}, "broken")
 	if err == nil {
 		t.Error("expected error when profile is missing coder")
 	}
@@ -100,7 +104,7 @@ func TestResolveProfile_CustomProfileTakesPrecedenceOverDefault(t *testing.T) {
 	cfg := Config{Profiles: map[string]ProfileConfig{
 		"full": {Roles: []string{"coder", "reviewer"}},
 	}}
-	name, pc, err := ResolveProfile(cfg, Feature{Priority: intPtr(0)}, "")
+	name, pc, err := ResolveProfile(cfg, feature.Feature{Priority: intPtr(0)}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
