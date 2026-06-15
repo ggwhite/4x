@@ -349,6 +349,10 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 		})
 	})
 
+	mux.HandleFunc("/api/version", func(w http.ResponseWriter, r *http.Request) {
+		handleVersion(w, r)
+	})
+
 	// catch-all：locales、static 資產與所有 compat（無 prefix）leaf 路由皆由內層統一處理。
 	mux.Handle("/", inner)
 

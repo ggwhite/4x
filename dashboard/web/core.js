@@ -197,3 +197,14 @@ function runnerTags(runners) {
   if (!runners || !runners.length) return '';
   return runners.map(r => `<span class="runner-tag" style="border-color:${runnerColor(r)}40;color:${runnerColor(r)}">${esc(cap(r))}</span>`).join(' ');
 }
+
+let _versionInfo = null;
+async function checkForUpdates() {
+  try {
+    const resp = await fetch('/api/version?check=true');
+    if (!resp.ok) return null;
+    _versionInfo = await resp.json();
+    renderVersionInfo(_versionInfo);
+    return _versionInfo;
+  } catch { return null; }
+}

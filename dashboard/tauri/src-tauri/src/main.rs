@@ -43,12 +43,16 @@ fn main() {
             let shortcuts = MenuItemBuilder::with_id("shortcuts", "Keyboard Shortcuts")
                 .accelerator("CmdOrCtrl+/")
                 .build(app)?;
+            // 檢查更新，觸發前端 UI 的更新流程
+            let check_update = MenuItemBuilder::with_id("check-update", "Check for Updates...")
+                .build(app)?;
             let quit = MenuItemBuilder::with_id("quit", "Quit 4x Live")
                 .accelerator("CmdOrCtrl+Q")
                 .build(app)?;
 
             let file_menu = SubmenuBuilder::new(app, "4x Live")
                 .item(&settings)
+                .item(&check_update)
                 .separator()
                 .item(&quit)
                 .build()?;
@@ -148,6 +152,11 @@ fn main() {
             "shortcuts" => {
                 if let Some(w) = app.get_webview_window("main") {
                     let _ = w.eval("showShortcutsHelp('shortcuts')");
+                }
+            }
+            "check-update" => {
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.eval("typeof checkForUpdates==='function'&&checkForUpdates()");
                 }
             }
             "quit" => {

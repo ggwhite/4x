@@ -22,5 +22,6 @@ async function init() {
   saveTabState(); renderTabs();
   if (activeProjectId) await load(); else renderProjectPicker();
   startRefreshTimer();
+  checkForUpdates();
 }
 init();

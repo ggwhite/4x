@@ -5,6 +5,16 @@ function renderTabs() {
     return `<div class="tab-item ${a?'active':''}" onclick="switchTab('${escAttr(tab.id)}')"><span>${esc(tab.name)}</span><span class="tab-close" onclick="event.stopPropagation();closeTab('${escAttr(tab.id)}')">&times;</span></div>`;
   }).join('');
 }
+function renderVersionInfo(info) {
+  const el = document.getElementById('version-display');
+  if (!el || !info || !info.version) return;
+  let html = `<span class="version-tag">v${esc(info.version)}</span>`;
+  if (info.updateAvailable && info.latest) {
+    const href = info.releaseUrl ? ` href="${escAttr(info.releaseUrl)}" target="_blank" rel="noopener"` : '';
+    html += `<a class="update-badge"${href}>v${esc(info.latest)}</a>`;
+  }
+  el.innerHTML = html;
+}
 function switchTab(pid) { activeProjectId=pid; current=null; lastMsgCount=0; disconnectSSE(); saveTabState(); renderTabs(); goHome(); }
 function closeTab(pid) {
   openTabs = openTabs.filter(tb => tb.id !== pid);

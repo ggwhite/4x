@@ -108,6 +108,9 @@
     color: var(--text-3);
     background: var(--bg-hover);
   }
+  .version-tag { font-size: 10px; color: var(--text-4); padding: 2px 6px; white-space: nowrap; user-select: none; }
+  .update-badge { font-size: 10px; font-weight: 600; color: var(--accent); background: var(--glow); padding: 2px 8px; border-radius: 99px; white-space: nowrap; text-decoration: none; transition: filter .15s; }
+  .update-badge:hover { filter: brightness(1.2); }
   .toast-container { position: fixed; top: 16px; right: 16px; z-index: 100; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
   .toast { pointer-events: auto; padding: 12px 16px; border-radius: 8px; font-size: 13px; max-width: 420px; word-break: break-word; box-shadow: 0 8px 24px rgba(0,0,0,.4); animation: toastIn .2s ease-out; white-space: pre-line; }
   .toast-error { background: #991b1b; color: #fecaca; border: 1px solid rgba(248,113,113,.3); }

@@ -27,6 +27,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
         startStatusTimer()
 
         pollServerAndLoad()
+
+        // 啟動 10 秒後靜默檢查更新
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
+            self?.silentCheckForUpdates()
+        }
     }
 
     // MARK: - App Icon
@@ -62,6 +67,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
         globalSettingsItem.keyEquivalentModifierMask = [.command, .shift]
         globalSettingsItem.image = NSImage(systemSymbolName: "gearshape.2", accessibilityDescription: nil)
         appMenu.addItem(globalSettingsItem)
+        let checkUpdateItem = NSMenuItem(title: "Check for Updates\u{2026}", action: #selector(checkForUpdates), keyEquivalent: "")
+        checkUpdateItem.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: nil)
+        appMenu.addItem(checkUpdateItem)
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Quit 4x Live", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         let appMenuItem = NSMenuItem()
@@ -121,6 +129,96 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
 
     @objc func showShortcuts() {
         webView.evaluateJavaScript("showShortcutsHelp('shortcuts')", completionHandler: nil)
+    }
+
+    // MARK: - Update Check
+
+    /// 使用者手動觸發的更新檢查，無論結果都會顯示對話框
+    @objc func checkForUpdates() {
+        fetchVersionInfo { [weak self] result in
+            guard let self = self else { return }
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let info):
+                    if info.updateAvailable {
+                        self.showUpdateAvailableAlert(version: info.version, latest: info.latest, releaseUrl: info.releaseUrl)
+                    } else {
+                        let alert = NSAlert()
+                        alert.messageText = "You're Up to Date"
+                        alert.informativeText = "4x Live v\(info.version) is the latest version."
+                        alert.addButton(withTitle: "OK")
+                        alert.alertStyle = .informational
+                        alert.runModal()
+                    }
+                case .failure:
+                    let alert = NSAlert()
+                    alert.messageText = "Update Check Failed"
+                    alert.informativeText = "Could not check for updates. Please try again later."
+                    alert.addButton(withTitle: "OK")
+                    alert.alertStyle = .warning
+                    alert.runModal()
+                }
+            }
+        }
+    }
+
+    /// 啟動後靜默檢查，只在有新版本時才顯示提示
+    func silentCheckForUpdates() {
+        fetchVersionInfo { [weak self] result in
+            guard let self = self else { return }
+            if case .success(let info) = result, info.updateAvailable {
+                DispatchQueue.main.async {
+                    self.showUpdateAvailableAlert(version: info.version, latest: info.latest, releaseUrl: info.releaseUrl)
+                }
+            }
+        }
+    }
+
+    /// 顯示「有新版本可用」的對話框，提供下載或稍後選項
+    private func showUpdateAvailableAlert(version: String, latest: String, releaseUrl: String) {
+        let alert = NSAlert()
+        alert.messageText = "Update Available"
+        alert.informativeText = "A new version (v\(latest)) is available. You are running v\(version)."
+        alert.addButton(withTitle: "Download")
+        alert.addButton(withTitle: "Later")
+        alert.alertStyle = .informational
+        if alert.runModal() == .alertFirstButtonReturn {
+            if let url = URL(string: releaseUrl) {
+                NSWorkspace.shared.open(url)
+            }
+        }
+    }
+
+    private struct VersionInfo {
+        let version: String
+        let latest: String
+        let updateAvailable: Bool
+        let releaseUrl: String
+    }
+
+    /// 向 server 查詢版本資訊，透過 callback 回傳結果
+    private func fetchVersionInfo(completion: @escaping (Result<VersionInfo, Error>) -> Void) {
+        let url = URL(string: "http://localhost:\(serverPort)/api/version?check=true")!
+        let req = URLRequest(url: url, timeoutInterval: 10)
+        URLSession.shared.dataTask(with: req) { data, response, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+            guard let data = data,
+                  let httpResp = response as? HTTPURLResponse,
+                  httpResp.statusCode == 200,
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let version = json["version"] as? String,
+                  let latest = json["latest"] as? String,
+                  let updateAvailable = json["updateAvailable"] as? Bool,
+                  let releaseUrl = json["releaseUrl"] as? String
+            else {
+                completion(.failure(NSError(domain: "4xLive", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response"])))
+                return
+            }
+            completion(.success(VersionInfo(version: version, latest: latest, updateAvailable: updateAvailable, releaseUrl: releaseUrl)))
+        }.resume()
     }
 
     // MARK: - Window (Frost style)

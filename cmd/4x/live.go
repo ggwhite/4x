@@ -29,6 +29,7 @@ func newLiveCmd() *cobra.Command {
 Without arguments, loads recent projects and opens the project picker.
 With paths, opens each as a project tab.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			server.Version = version
 			reg := server.NewProjectRegistry()
 
 			recentPath, err := server.DefaultRecentProjectsPath()

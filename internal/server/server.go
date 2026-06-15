@@ -332,6 +332,9 @@ func NewMux(resolver WorkspaceResolver) http.Handler {
 		}
 		handleGetLocales(w)
 	})
+	mux.HandleFunc("/api/version", func(w http.ResponseWriter, r *http.Request) {
+		handleVersion(w, r)
+	})
 	mux.Handle("/", http.FileServer(http.FS(web.Assets)))
 
 	return mux
