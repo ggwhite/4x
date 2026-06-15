@@ -46,6 +46,7 @@
     --card-shadow: 0 1px 8px rgba(0,0,0,.05);
   }
   body { background: var(--bg-gradient); color: var(--text-1); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--font-content); }
+  select, input[type="text"], input[type="number"] { min-height: 36px; }
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
