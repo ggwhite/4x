@@ -611,6 +611,7 @@ async function load() {
   lastBatchStatus = batchStatus;
   renderSidebar();
   if (!current) renderDashboard(lastTasks);
+  else document.getElementById('dashboard').classList.add('hidden');
 }
 
 async function loadDetail(task) {
