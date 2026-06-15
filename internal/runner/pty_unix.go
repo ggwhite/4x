@@ -14,8 +14,8 @@ import (
 )
 
 // startPty 以獨立 session/process group 啟動 cmd 並回傳 pty master 與一個 stop function。
-// 因 pty.StartWithAttrs 繞過 exec.CommandContext，ctx cancel 無法自動殺 child，
-// 故另起一個 watcher goroutine：ctx 被 cancel 時對整個 process group 送訊號回收。
+// PTY 路徑使用 exec.Command（非 CommandContext），ctx 取消由 watchPtyContext 負責：
+// 先對 process group 送 SIGTERM，5 秒後仍存活再送 SIGKILL，實現優雅關機。
 // caller 必須在 cmd.Wait() 之後呼叫回傳的 stop（建議 defer），以顯式關閉 watcher，
 // 避免在正常結束路徑（ctx 未 cancel）下 goroutine 洩漏。stop 可重複呼叫。
 func startPty(ctx context.Context, cmd *exec.Cmd) (*os.File, func(), error) {
