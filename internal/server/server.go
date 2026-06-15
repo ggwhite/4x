@@ -1042,6 +1042,12 @@ func handleServeScreenshot(ws *protocol.Workspace, featureID, filename string, w
 			abs = abs2
 		}
 	}
+	if _, statErr := os.Stat(abs); statErr != nil {
+		wtAbs := filepath.Join(gitops.Dir(rootAbs, featureID), protocol.DirName, filepath.FromSlash(relPath))
+		if a, e := filepath.Abs(wtAbs); e == nil {
+			abs = a
+		}
+	}
 
 	// 安全檢查：路徑必須在 workspace root 內。
 	if abs != rootAbs && !strings.HasPrefix(abs, rootAbs+string(filepath.Separator)) {
