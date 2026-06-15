@@ -60,6 +60,7 @@ func (r *ProjectRegistry) Add(ws *protocol.Workspace) string {
 	}
 	pm := newProcessManagerFromConfig(ws)
 	bm := NewBatchManager(ws, selfBinary())
+	bm.Adopt() // server 重啟後 re-attach 既有 batch run 孤兒
 	r.ids[id] = true
 	r.entries = append(r.entries, &registryEntry{id: id, ws: ws, mux: newMux(ws, pm, bm), pm: pm, bm: bm})
 	slog.Info("project added", "id", id, "path", ws.Root)
@@ -99,8 +100,8 @@ func (r *ProjectRegistry) ShutdownAll() {
 			e.pm.Shutdown()
 		}
 		if e.bm != nil && e.bm.Running() {
-			if err := e.bm.Stop(); err != nil {
-				fmt.Fprintf(os.Stderr, "warn: failed to stop batch for project %s: %v\n", e.id, err)
+			if err := e.bm.Shutdown(); err != nil {
+				fmt.Fprintf(os.Stderr, "warn: failed to shut down batch for project %s: %v\n", e.id, err)
 			}
 		}
 	}
