@@ -207,7 +207,6 @@ async function markDone(fid) {
 function goHome() {
   current=null; lastMsgCount=0; disconnectSSE(); disconnectLogSSE(); stopLogsRefresh();
   if (_logDurTimer) { clearInterval(_logDurTimer); _logDurTimer = null; }
-  closeLightbox();
   document.getElementById('header').classList.add('hidden');
   document.getElementById('overview-panel').classList.add('hidden');
   document.getElementById('messages').classList.add('hidden');
