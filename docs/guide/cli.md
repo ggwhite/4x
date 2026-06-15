@@ -147,6 +147,36 @@ Checks: required files, baseline, scope, dependencies, backlog drift. Exit 0 on 
 
 ---
 
+## `4x doctor`
+
+Run a one-shot, read-only health check on the merged settings (`.4x/settings.json` + `~/.4x/settings.json`) and workspace integrity, before you start a run. It never calls an LLM and does not require any runner to be installed.
+
+```
+4x doctor [--json]
+```
+
+| Flag | Description |
+|---|---|
+| `--json` | Output the full report as JSON (for CI) |
+
+Checks are grouped into sections:
+
+- **settings** — `settings.json` loadable, `project.name` non-empty, at least one runner defined, `default_runner` exists in the runners map.
+- **runners** — each runner's `command` is resolvable on `PATH` (missing → WARN, not FAIL, since a runner may live on a remote machine).
+- **roles** — resolves the actual model each role (designer/coder/reviewer/tester/acceptor) will use via the default runner, plus the reviewer's `deep_model`.
+- **workspace** — orphaned worktrees (feature done/abandoned but `.worktrees/4x/<id>` remains), dangling worktrees (directory with no matching feature), stale state (`active=true` but the process is gone), and malformed feature YAML.
+
+Each line is prefixed with `✅` (PASS), `⚠️` (WARN), or `❌` (FAIL), followed by a summary count.
+
+Exit code: `0` when there is no FAIL (WARN does not affect the exit code), `1` when any check fails. `doctor` is strictly read-only — it never rewrites `state.json`, cleans worktrees, or modifies settings.
+
+```bash
+# CI gate: fail the build on any FAIL check
+4x doctor --json | jq -e '[.checks[] | select(.severity == "FAIL")] | length == 0'
+```
+
+---
+
 ## `4x transition <feature-id>`
 
 Force a state transition.
