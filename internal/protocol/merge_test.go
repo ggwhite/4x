@@ -146,6 +146,30 @@ func TestMergeConfig_Roles_FieldMerge(t *testing.T) {
 	}
 }
 
+func TestMergeConfig_Roles_DeepReviewFieldsMerge(t *testing.T) {
+	user := UserConfig{
+		Roles: map[string]RoleConfig{
+			"deep-reviewer": {MaxFixRounds: 5, ParallelReviewers: 2, AnglesPerReviewer: 6},
+		},
+	}
+	proj := Config{
+		Project: ProjectConfig{Name: "x"},
+		Roles: map[string]RoleConfig{
+			"deep-reviewer": {ParallelReviewers: 4},
+		},
+	}
+	got := MergeConfig(user, proj).Roles["deep-reviewer"]
+	if got.ParallelReviewers != 4 {
+		t.Errorf("ParallelReviewers = %d, want 4 (project overrides)", got.ParallelReviewers)
+	}
+	if got.MaxFixRounds != 5 {
+		t.Errorf("MaxFixRounds = %d, want 5 (inherited from user)", got.MaxFixRounds)
+	}
+	if got.AnglesPerReviewer != 6 {
+		t.Errorf("AnglesPerReviewer = %d, want 6 (inherited from user)", got.AnglesPerReviewer)
+	}
+}
+
 func TestMergeConfig_Roles_InstructionsMerge(t *testing.T) {
 	user := UserConfig{
 		Roles: map[string]RoleConfig{

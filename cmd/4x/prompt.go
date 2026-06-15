@@ -114,6 +114,16 @@ type promptData struct {
 	RepoMap          map[string]string
 	// ProfileInstructions 是 test-strategy.yaml profiles 載入後的測試方法論，供 Tester template 注入。
 	ProfileInstructions []profileContent
+	// 以下欄位僅平行 deep review 模式使用：
+	// ReviewerIndex/ReviewerCount 標示本 sub-reviewer 是第幾個、共幾個；
+	// AssignedAngles 為本 sub-reviewer 負責的 angle 編號清單（為空代表 fallback 單 agent 跑全部）；
+	// PartialReportName 為本 sub-reviewer 要寫入的 partial report 檔名；
+	// PartialReports 為 synthesizer 要合併的所有 partial report 完整內文。
+	ReviewerIndex     int
+	ReviewerCount     int
+	AssignedAngles    []int
+	PartialReportName string
+	PartialReports    []includeContent
 }
 
 type includeContent struct {
@@ -354,6 +364,25 @@ func localeFromEnv() string {
 
 var tmplFuncs = template.FuncMap{
 	"sub": func(a, b int) int { return a - b },
+	// seq 回傳 1..n 的整數切片，供 deep-reviewer 模板在 fallback 單 agent 模式下
+	// 動態組出全部 angle 編號（無須在模板硬寫 1 2 3 ... 11）。
+	"seq": func(n int) []int {
+		out := make([]int, 0, n)
+		for i := 1; i <= n; i++ {
+			out = append(out, i)
+		}
+		return out
+	},
+	// dict 把成對的 key/value 組成 map，供模板在呼叫 sub-template 時一次帶入多個值
+	// （Go template 的 template action 只能傳單一 pipeline）。
+	"dict": func(pairs ...any) map[string]any {
+		m := make(map[string]any, len(pairs)/2)
+		for i := 0; i+1 < len(pairs); i += 2 {
+			key, _ := pairs[i].(string)
+			m[key] = pairs[i+1]
+		}
+		return m
+	},
 }
 
 var roleTemplateFiles = map[protocol.Role]string{
@@ -365,6 +394,7 @@ var roleTemplateFiles = map[protocol.Role]string{
 	protocol.RoleAcceptor:     "acceptor.md.tmpl",
 	protocol.RoleMiniCoder:    "mini-coder.md.tmpl",
 	protocol.RoleReVerifier:   "re-verifier.md.tmpl",
+	protocol.RoleSynthesizer:  "synthesizer.md.tmpl",
 }
 
 func loadRoleTemplate(r protocol.Role) (*template.Template, error) {

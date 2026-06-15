@@ -378,6 +378,12 @@ func TestDeepReverifyLogFileName(t *testing.T) {
 	}
 }
 
+func TestDeepReviewerLogFileName(t *testing.T) {
+	if got := DeepReviewerLogFileName(1, 2); got != "round-1-deep-reviewer-2.log" {
+		t.Errorf("got %q, want round-1-deep-reviewer-2.log", got)
+	}
+}
+
 // TestBuildArgs_UnresolvedModel 驗證 W16：arg 含 {model} 但 ModelOverride 為空時
 // 回傳 error，不把字面 "{model}" 傳給 CLI。
 func TestBuildArgs_UnresolvedModel(t *testing.T) {

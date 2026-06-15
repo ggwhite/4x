@@ -272,7 +272,17 @@ Manage user-level configuration (`~/.4x/settings.json`).
 4x config set <key> <value>  # set a value
 ```
 
-Currently supported key: `locale`.
+Keys are dotted paths. Supported forms:
+
+| Key | Example | Description |
+|---|---|---|
+| `locale` | `4x config set locale zh-TW` | UI / prompt locale |
+| `theme` | `4x config set theme dark` | Dashboard theme |
+| `default_runner` | `4x config set default_runner claude` | Default runner plugin |
+| `runner.<name>.<field>` | `4x config set runner.claude.model opus` | Per-runner `command`/`model`/`tty`/`stdin`/`quiet` |
+| `role.<name>.<field>` | `4x config get role.deep-reviewer.model` | Per-role `model`/`deep_model`/`parallel_reviewers`/`angles_per_reviewer` |
+
+`role.deep-reviewer.parallel_reviewers` controls how many parallel sub-reviewers the deep review fans out to (`1` = single-agent fallback); `role.deep-reviewer.angles_per_reviewer` fixes each group's angle count (leave unset for automatic balancing). See [Concepts → Parallel Deep Review](concepts.md).
 
 ---
 

@@ -624,7 +624,7 @@ async function load() {
 async function loadDetail(task) {
   document.getElementById('dashboard').classList.add('hidden');
   document.getElementById('header').classList.remove('hidden');
-  document.getElementById('messages').innerHTML = ''; lastMsgCount = 0; currentLogFile = null;
+  document.getElementById('messages').innerHTML = ''; lastMsgCount = 0; currentLogFile = null; multiLogActive = false; multiLogBuffers = {};
   document.getElementById('h-id').textContent = task.id;
   document.getElementById('h-name').textContent = task.name;
   document.getElementById('h-badge').innerHTML = badge(task.status, task.phase, task.active);
@@ -724,6 +724,10 @@ const screenshotsCache = {};
 let activeDetailTab = 'overview';
 let logSSE = null;
 let currentLogFile = null;
+// 未 pin 單檔時的多檔即時顯示：multiLogActive 標示處於「並列多個活躍 log」模式，
+// multiLogBuffers 以 file 名為 key 累積各 log 內容，供 renderMultiLog 分區渲染。
+let multiLogActive = false;
+let multiLogBuffers = {};
 let lightboxState = { featureID: '', round: 0, index: 0, items: [] };
 
 function setDetailTabUI(tab) {
@@ -944,24 +948,24 @@ function closeLightbox(e) {
 async function loadLogs(fid) {
   const list = document.getElementById('logs-list');
   const viewer = document.getElementById('log-viewer');
-  if (!currentLogFile) {
+  if (!currentLogFile && !multiLogActive) {
     viewer.textContent = '';
     viewer.classList.add('hidden');
   }
   const logs = await (await fetch(apiBase()+'/api/logs/'+fid)).json() || [];
   if (logs.length === 0) {
     list.innerHTML = `<div class="text-zinc-600 text-sm text-center mt-8">${t('logs.noLogs')}</div>`;
-    if (!currentLogFile) viewer.classList.add('hidden');
+    if (!currentLogFile && !multiLogActive) viewer.classList.add('hidden');
     return;
   }
   list.innerHTML = logs.map(l => {
-    const role = l.name.replace(/^round-\d+-/, '').replace(/\.log$/, '').replace(/^(deep-(?:fix|reverify))-\d+$/, '$1');
+    const role = logBaseRole(l.name);
     const r = ROLES[role] || {name:role,color:'#666',bg:'rgba(100,100,100,.05)'};
     const kb = (l.size/1024).toFixed(1);
     const isLive = l.durationMs == null && l.startedAt;
     const dur = l.durationMs != null ? formatDuration(l.durationMs) : '';
     const durId = isLive ? `log-dur-${esc(l.name)}` : '';
-    const active = currentLogFile === l.name ? 'bg-zinc-800/50' : '';
+    const active = (currentLogFile === l.name || (multiLogActive && multiLogBuffers[l.name] != null)) ? 'bg-zinc-800/50' : '';
     const durSpan = isLive
       ? `<span id="${durId}" class="text-[10px] text-emerald-400 ml-auto tabular-nums" data-started="${l.startedAt}"></span>`
       : dur ? `<span class="text-[10px] text-zinc-500 ml-auto">${dur}</span>` : '';
@@ -984,8 +988,28 @@ function startLogDurationTimers() {
   _logDurTimer = setInterval(tick, 1000);
 }
 
+// logBaseRole 從 log 檔名取出 base role（去掉 round 前綴、副檔名與尾端迭代/索引號），
+// 讓 deep-reviewer-1 / deep-fix-2 等都能對應到 ROLES map 的同一個顏色與名稱。
+function logBaseRole(name) {
+  return name.replace(/^round-\d+-/, '').replace(/\.log$/, '')
+    .replace(/^(deep-(?:fix|reverify|reviewer))-\d+$/, '$1');
+}
+
+// renderMultiLog 把 multiLogBuffers 內所有活躍 log 分區並列渲染到 viewer，
+// 每區一個帶 role 顏色的標題列，內容跟著該 log 即時累積。
+function renderMultiLog() {
+  const viewer = document.getElementById('log-viewer');
+  const files = Object.keys(multiLogBuffers).sort();
+  viewer.innerHTML = files.map(f => {
+    const r = ROLES[logBaseRole(f)] || {name:f,color:'#888',emoji:''};
+    return `<div class="text-[11px] font-semibold mt-3 mb-1 first:mt-0" style="color:${r.color}">▸ ${r.emoji||''} ${esc(r.name)} · ${esc(f)}</div><div>${esc(multiLogBuffers[f])}</div>`;
+  }).join('');
+  viewer.scrollTop = viewer.scrollHeight;
+}
+
 async function viewLog(fid, name) {
   currentLogFile = name;
+  multiLogActive = false;
   const viewer = document.getElementById('log-viewer');
   viewer.classList.remove('hidden');
   const res = await fetch(apiBase()+'/api/logs/'+fid+'/'+name);
@@ -996,29 +1020,38 @@ async function viewLog(fid, name) {
 
 function connectLogSSE(fid, file) {
   if (logSSE) { logSSE.close(); logSSE = null; }
+  const multi = !file;
+  multiLogActive = multi;
+  if (multi) multiLogBuffers = {};
   const url = file ? sseBase()+'/logs/'+fid+'?file='+encodeURIComponent(file) : sseBase()+'/logs/'+fid;
   logSSE = new EventSource(url);
-  let sseLogFile = null;
+  const knownFiles = new Set();
   logSSE.onmessage = (e) => {
     const viewer = document.getElementById('log-viewer');
-    if (viewer.classList.contains('hidden')) return;
     try {
       const d = JSON.parse(e.data);
-      if (d.file && d.file !== sseLogFile) {
-        sseLogFile = d.file;
-        loadLogs(fid);
+      if (!d.file) return;
+      if (multi) {
+        // 並列多檔模式：依 file 路由內容到各自 buffer，新檔出現時刷新左側列表。
+        if (!knownFiles.has(d.file)) { knownFiles.add(d.file); loadLogs(fid); }
+        viewer.classList.remove('hidden');
+        multiLogBuffers[d.file] = (multiLogBuffers[d.file] || '') + d.content;
+        renderMultiLog();
+      } else {
+        if (viewer.classList.contains('hidden')) return;
         if (currentLogFile && d.file !== currentLogFile) return;
-        if (!currentLogFile) return;
-        viewer.textContent = '';
+        viewer.textContent += d.content;
+        viewer.scrollTop = viewer.scrollHeight;
       }
-      if (currentLogFile && d.file !== currentLogFile) return;
-      viewer.textContent += d.content;
-      viewer.scrollTop = viewer.scrollHeight;
     } catch(err) {}
   };
 }
 
-function disconnectLogSSE() { if (logSSE) { logSSE.close(); logSSE = null; } }
+function disconnectLogSSE() {
+  if (logSSE) { logSSE.close(); logSSE = null; }
+  multiLogActive = false;
+  multiLogBuffers = {};
+}
 
 
 function getRunId(featureId) {

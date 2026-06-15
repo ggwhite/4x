@@ -49,6 +49,7 @@ Use `4x sync` to re-deploy plugin files after updating the binary.
 	    ├── Invoke runner subprocess with prompt
 	    │     claude --dangerously-skip-permissions -p "..." --output-format stream-json --verbose
 	    ├── Capture output to .4x/F001/logs/round-N-role.log
+	    │     (parallel deep review: round-N-deep-reviewer-{i}.log + round-N-synthesizer.log)
     ├── Check output artifacts
     └── Transition state, repeat
 ```
@@ -106,10 +107,13 @@ Configure in `.4x/settings.json`:
     "designer": { "model": "opus" },
     "coder": { "model": "sonnet" },
     "reviewer": { "model": "sonnet", "deep_model": "opus" },
-    "tester": { "model": "sonnet" }
+    "tester": { "model": "sonnet" },
+    "deep-reviewer": { "deep_model": "opus", "parallel_reviewers": 3 }
   }
 }
 ```
+
+The Deep Reviewer uses `deep_model`. When `parallel_reviewers > 1`, the deep review fans the 11 angles out across that many parallel sub-reviewers (each running `deep_model`) plus one synthesizer that merges their partial reports; `1` keeps the single-agent flow. See [Concepts → Parallel Deep Review](concepts.md).
 
 You can also mix runners — use Claude for Design, Gemini for Code, etc. — by running each phase manually with different `--runner` flags and `4x transition` between phases.
 

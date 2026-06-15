@@ -52,6 +52,21 @@ Inside the same phase the loop spawns two scoped sub-roles, repeating until the 
 
 The phase stays `deep-reviewing` throughout — the sub-roles are not state-machine phases. When the re-verifier confirms a clean PASS, the loop advances to `accepting`. The loop runs at most `roles.deep-reviewer.max_fix_rounds` iterations (default 2); if the mini-coder edits files outside the feature scope, or the cap is reached while still failing, the feature escalates to `needs-attention` with the FAIL report preserved.
 
+### Parallel Deep Review
+
+The deep review covers 11 distinct angles (correctness, quality, convention, history, feedback, …). When `roles.deep-reviewer.parallel_reviewers` is greater than 1, the loop fans the angles out across several focused sub-reviewers instead of asking one agent to cover all 11. This mirrors how `/code-review` splits a review by dimension, lowering each agent's context pressure and attention drift.
+
+The fan-out is driven entirely by the 4x CLI — it does not rely on the LLM's own subagent or tool abilities. The `deep-reviewing` phase stays a single phase:
+
+| Sub-role | Model | Reads | Writes |
+|---|---|---|---|
+| **sub-reviewer** (×N) | deep model | the diff + its assigned angle subset | `deep-review-partial-{i}.md` |
+| **synthesizer** | deep model | every partial report's full content | `deep-review-report.md` |
+
+Angles are split evenly and without overlap: with the default `parallel_reviewers: 3` the groups are `[1–4]`, `[5–8]`, `[9–11]` (correctness / quality+convention / history+feedback). Set `roles.deep-reviewer.angles_per_reviewer` to fix the group size explicitly; leave it empty for automatic `ceil(11/N)` balancing. The N sub-reviewers run in parallel, then a single synthesizer de-duplicates, arbitrates conflicts, and unifies the confidence scoring into the same `deep-review-report.md` format the self-heal loop and `parseReviewVerdict` already consume — so everything downstream is unchanged.
+
+When `parallel_reviewers` is unset or `≤ 1`, the loop falls back to the original single-agent flow: one deep reviewer renders all 11 angles and writes `deep-review-report.md` directly, with no partial reports or synthesizer.
+
 ### Escalation
 
 The Coder or Tester can escalate back to the Designer when:
@@ -136,13 +151,17 @@ Roles communicate through the `.4x/` directory, not shared context windows.
     ├── final-report.md              # End-of-loop summary
     ├── commit-plan.md               # How to split changes into commits
     ├── logs/
-    │   └── round-{N}-{role}.log     # Per-round per-role execution log
+    │   ├── round-{N}-{role}.log              # Per-round per-role execution log
+    │   ├── round-{N}-deep-reviewer-{i}.log   # Per parallel sub-reviewer (when fanned out)
+    │   └── round-{N}-synthesizer.log         # Synthesizer merging the partial reports
     └── rounds/round-{N}/
-        ├── coder-report.md          # What the Coder did
-        ├── review-report.md         # Reviewer findings + verdict
-        ├── test-report.md           # Tester results
-        ├── verify.json              # {passed, round, role, commands[]}
-        └── escalation.json          # {needed, reason, detail}
+        ├── coder-report.md            # What the Coder did
+        ├── review-report.md           # Reviewer findings + verdict
+        ├── test-report.md             # Tester results
+        ├── deep-review-partial-{i}.md # One parallel sub-reviewer's findings (when fanned out)
+        ├── deep-review-report.md      # Merged deep review (synthesizer output, or single-agent)
+        ├── verify.json                # {passed, round, role, commands[]}
+        └── escalation.json            # {needed, reason, detail}
 ```
 
 ### Batch Signal Files

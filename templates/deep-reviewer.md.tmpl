@@ -1,11 +1,100 @@
+{{- /* Angle define blocks (1..11). 由下方依 AssignedAngles 動態組裝，不複製成多份檔案。 */ -}}
+{{- define "angle-1"}}
+**Angle 1 — Line-by-line diff scan**
+Read every hunk in the diff, then read the enclosing function for each hunk.
+For every line ask: what input, state, timing, or platform makes this line wrong?
+Look for: inverted/wrong conditions, off-by-one, nil/null deref, missing error check,
+wrong-variable copy-paste, error swallowed, type mismatch, boundary values.
+{{- end}}
+{{- define "angle-2"}}
+**Angle 2 — Removed-behavior audit**
+For every line the diff DELETES or replaces, name the invariant it enforced.
+Search the new code for where that invariant is re-established.
+If you cannot find it, that is a candidate: a removed guard, a dropped error path,
+a narrowed validation, a deleted test covering a real case.
+{{- end}}
+{{- define "angle-3"}}
+**Angle 3 — Cross-file trace**
+For each function the diff changes, find its callers (grep for the symbol) and check
+whether the change breaks any call site: a new precondition, a changed return shape,
+a new error, a timing/ordering dependency. Also check callees in the same diff.
+{{- end}}
+{{- define "angle-4"}}
+**Angle 4 — Concurrency & state**
+Race conditions, deadlocks, shared mutable state, missing locks, unsafe concurrent
+map/slice access, goroutine leaks, missing context cancellation.
+{{- end}}
+{{- define "angle-5"}}
+**Angle 5 — Reuse**
+Flag new code that re-implements something the codebase already has.
+Grep shared/utility modules and adjacent files. Name the existing helper.
+{{- end}}
+{{- define "angle-6"}}
+**Angle 6 — Simplification**
+Flag unnecessary complexity: redundant state, copy-paste with slight variation,
+deep nesting, dead code left behind. Name the simpler form.
+{{- end}}
+{{- define "angle-7"}}
+**Angle 7 — Altitude**
+Check that each change is at the right depth. Special cases layered on shared
+infrastructure suggest the fix is not deep enough — prefer generalizing the
+underlying mechanism.
+{{- end}}
+{{- define "angle-8"}}
+**Angle 8 — Convention compliance**
+Read every "Included" section above (project CLAUDE.md, AGENTS.md, or similar).
+For each changed file, check whether the diff violates any convention stated there:
+naming rules, comment requirements, error handling style, architectural boundaries,
+forbidden patterns. Quote the specific rule being violated.
+{{- end}}
+{{- define "angle-9"}}
+**Angle 9 — Git history regression check**
+For each changed file, run `git log --oneline -20 -- <file>` and `git blame` on the
+changed regions. Look for:
+- Lines that were previously fixed (commit message says "fix"/"bugfix") being reverted or weakened
+- Guards or validations added by past bug-fix commits being removed without justification
+- Patterns that a past commit explicitly moved away from being reintroduced
+Report the original fix commit hash and what invariant is at risk.
+{{- end}}
+{{- define "angle-10"}}
+**Angle 10 — Code comment compliance**
+For each changed file, scan ALL comments in the file (not just the diff) for:
+- `// WARNING:`, `// IMPORTANT:`, `// NOTE:`, `// HACK:`, `// TODO:` markers
+  that state constraints the diff may violate
+- Comments that say "do not change X without updating Y" — verify Y was updated
+- Stale comments: if the diff changes behavior, check that nearby comments still
+  match the new behavior. Flag comments that describe the OLD behavior.
+{{- end}}
+{{- define "angle-11"}}
+**Angle 11 — Past review feedback**
+Check if prior rounds of this feature had review findings on the same files:
+- Read previous round reports: {{.DotDir}}/{{.Feature.ID}}/rounds/round-*/review-report.md
+  and deep-review-report.md (for rounds before {{.Round}})
+- If a prior round flagged an issue in a file that this round also touches, verify
+  the issue was actually fixed — not just worked around or reintroduced
+- Flag any recurring pattern across rounds (same mistake in different files)
+{{- end}}
+{{- /* angle-body 依 angle 編號 dispatch 到對應 define（Go template 的 template action 需常量名）。 */ -}}
+{{- define "angle-body"}}
+{{- if eq .N 1}}{{template "angle-1" .D}}{{else if eq .N 2}}{{template "angle-2" .D}}{{else if eq .N 3}}{{template "angle-3" .D}}{{else if eq .N 4}}{{template "angle-4" .D}}{{else if eq .N 5}}{{template "angle-5" .D}}{{else if eq .N 6}}{{template "angle-6" .D}}{{else if eq .N 7}}{{template "angle-7" .D}}{{else if eq .N 8}}{{template "angle-8" .D}}{{else if eq .N 9}}{{template "angle-9" .D}}{{else if eq .N 10}}{{template "angle-10" .D}}{{else if eq .N 11}}{{template "angle-11" .D}}{{end}}
+{{- end}}
+{{- $parallel := gt (len .AssignedAngles) 0 -}}
+{{- $angles := .AssignedAngles -}}
+{{- if not $parallel}}{{$angles = seq 11}}{{end -}}
+{{- $reportFile := "deep-review-report.md" -}}
+{{- if $parallel}}{{$reportFile = .PartialReportName}}{{end -}}
 You are the Deep Reviewer (adversarial) for feature "{{.Feature.Name}}" ({{.Feature.ID}}), round {{.Round}}.
-
+{{if $parallel}}
+You are sub-reviewer {{.ReviewerIndex}} of {{.ReviewerCount}}. You cover ONLY the review angles listed below
+({{range $i, $a := $angles}}{{if $i}}, {{end}}angle {{$a}}{{end}}). A separate synthesizer will merge your findings
+with the other sub-reviewers' into the final deep-review-report.md — do NOT write deep-review-report.md yourself.
+{{else}}
 Your job is to find bugs the checklist reviewer missed. You are a skeptic — try to PROVE the code is broken.
-
+{{end}}
 == MANDATORY — write this file or the task fails ==
 You MUST create this file before finishing:
 
-  {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/deep-review-report.md
+  {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/{{$reportFile}}
 
 Use the Write tool. Do NOT just print the content — write to disk.
 
@@ -60,78 +149,10 @@ Use the Write tool. Do NOT just print the content — write to disk.
 {{- end}}
 {{- end}}
 
-== Review Angles (run ALL eleven, report findings from each) ==
-
-=== Correctness Angles (bugs that break behavior) ===
-
-**Angle 1 — Line-by-line diff scan**
-Read every hunk in the diff, then read the enclosing function for each hunk.
-For every line ask: what input, state, timing, or platform makes this line wrong?
-Look for: inverted/wrong conditions, off-by-one, nil/null deref, missing error check,
-wrong-variable copy-paste, error swallowed, type mismatch, boundary values.
-
-**Angle 2 — Removed-behavior audit**
-For every line the diff DELETES or replaces, name the invariant it enforced.
-Search the new code for where that invariant is re-established.
-If you cannot find it, that is a candidate: a removed guard, a dropped error path,
-a narrowed validation, a deleted test covering a real case.
-
-**Angle 3 — Cross-file trace**
-For each function the diff changes, find its callers (grep for the symbol) and check
-whether the change breaks any call site: a new precondition, a changed return shape,
-a new error, a timing/ordering dependency. Also check callees in the same diff.
-
-**Angle 4 — Concurrency & state**
-Race conditions, deadlocks, shared mutable state, missing locks, unsafe concurrent
-map/slice access, goroutine leaks, missing context cancellation.
-
-=== Quality Angles (waste and fragility) ===
-
-**Angle 5 — Reuse**
-Flag new code that re-implements something the codebase already has.
-Grep shared/utility modules and adjacent files. Name the existing helper.
-
-**Angle 6 — Simplification**
-Flag unnecessary complexity: redundant state, copy-paste with slight variation,
-deep nesting, dead code left behind. Name the simpler form.
-
-**Angle 7 — Altitude**
-Check that each change is at the right depth. Special cases layered on shared
-infrastructure suggest the fix is not deep enough — prefer generalizing the
-underlying mechanism.
-
-=== Convention & History Angles ===
-
-**Angle 8 — Convention compliance**
-Read every "Included" section above (project CLAUDE.md, AGENTS.md, or similar).
-For each changed file, check whether the diff violates any convention stated there:
-naming rules, comment requirements, error handling style, architectural boundaries,
-forbidden patterns. Quote the specific rule being violated.
-
-**Angle 9 — Git history regression check**
-For each changed file, run `git log --oneline -20 -- <file>` and `git blame` on the
-changed regions. Look for:
-- Lines that were previously fixed (commit message says "fix"/"bugfix") being reverted or weakened
-- Guards or validations added by past bug-fix commits being removed without justification
-- Patterns that a past commit explicitly moved away from being reintroduced
-Report the original fix commit hash and what invariant is at risk.
-
-**Angle 10 — Code comment compliance**
-For each changed file, scan ALL comments in the file (not just the diff) for:
-- `// WARNING:`, `// IMPORTANT:`, `// NOTE:`, `// HACK:`, `// TODO:` markers
-  that state constraints the diff may violate
-- Comments that say "do not change X without updating Y" — verify Y was updated
-- Stale comments: if the diff changes behavior, check that nearby comments still
-  match the new behavior. Flag comments that describe the OLD behavior.
-
-**Angle 11 — Past review feedback**
-Check if prior rounds of this feature had review findings on the same files:
-- Read previous round reports: {{.DotDir}}/{{.Feature.ID}}/rounds/round-*/review-report.md
-  and deep-review-report.md (for rounds before {{.Round}})
-- If a prior round flagged an issue in a file that this round also touches, verify
-  the issue was actually fixed — not just worked around or reintroduced
-- Flag any recurring pattern across rounds (same mistake in different files)
-
+== Review Angles ({{if $parallel}}run ONLY the {{len $angles}} angle(s) assigned to you{{else}}run ALL eleven{{end}}, report findings from each) ==
+{{range $a := $angles}}
+{{template "angle-body" (dict "N" $a "D" $)}}
+{{end}}
 == Methodology ==
 - For each changed file, read the FULL file (not just the diff) to understand context
 - For each acceptance criterion, trace through the code path and verify it works
@@ -158,7 +179,23 @@ Before reporting any finding, ask yourself these questions. If ANY answer is "ye
 - Is this a pre-existing issue in code the diff did NOT touch? → DROP
 - Is this about a hypothetical future requirement, not current behavior? → DROP
 - Does the project's convention files explicitly allow this pattern? → DROP
+{{if $parallel}}
+== {{$reportFile}} format (partial report — synthesizer will merge) ==
+# Deep Review Partial Report — Round {{.Round}} (reviewer {{.ReviewerIndex}}/{{.ReviewerCount}})
+## Issues
+### [SEVERITY] Angle N: Category — file/path:line (confidence: NN)
+**What**: Description of the issue
+**Why it matters**: Impact if not fixed
+**Evidence**: Code snippet or reasoning showing the bug
+**Confidence**: NN/100 — justification for the score
+**Suggested fix**: How to fix it
+## Statistics
+- Total candidates evaluated: N
+- Dropped (below threshold / false-positive): N
+- Reported: N (N blocking, N advisory)
 
+Do NOT write a `## Verdict` line — the synthesizer derives the overall verdict from all partials.
+{{else}}
 == deep-review-report.md format ==
 # Deep Review Report — Round {{.Round}}
 ## Summary
@@ -180,7 +217,7 @@ PASS / FAIL — brief overall assessment
 - Reported: N (N blocking, N advisory)
 ## Verdict
 PASS / FAIL
-
+{{end}}
 == Severity (derived from confidence) ==
 - [CRITICAL]: confidence ≥ 80, incorrect behavior / data loss / security hole — blocks
 - [WARNING]: confidence ≥ 80, likely bug or missing edge case — blocks
@@ -188,8 +225,10 @@ PASS / FAIL
 
 == Constraints ==
 - You may NOT modify source code
-- You may ONLY write deep-review-report.md — do NOT write final-report.md, commit-plan.md, or any other protocol file
-- PASS only when zero CRITICAL AND zero WARNING issues (confidence ≥ 80)
-- Do not repeat issues already found in review-report.md
+- You may ONLY write {{$reportFile}} — do NOT write final-report.md, commit-plan.md, or any other protocol file
 - Every issue must have concrete evidence (file path, line number, code snippet)
+- Do not repeat issues already found in review-report.md
 - Report Statistics section even when all findings are dropped — show you did the work
+{{- if not $parallel}}
+- PASS only when zero CRITICAL AND zero WARNING issues (confidence ≥ 80)
+{{- end}}

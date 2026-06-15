@@ -44,7 +44,8 @@ func setupBatchStatusWorkspace(t *testing.T) *protocol.Workspace {
 }
 
 // AC-11：GET /api/batch/status 回 {running, queue[], currentFeature, conflict}，
-// queue 依 schedule 排序，含 position 與 state（done/running/waiting）。
+// queue 依 schedule 排序，含 position 與 state（running/waiting）。
+// done/abandoned feature 不進 PlanBatch（見 commit 8a471e5），故 feat-a 不在 queue。
 func TestBatchStatus_QueueStatesAndOrder(t *testing.T) {
 	ws := setupBatchStatusWorkspace(t)
 	mux := newMux(ws, nil, NewBatchManager(ws, "echo"))

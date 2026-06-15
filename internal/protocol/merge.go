@@ -121,6 +121,15 @@ func mergeRole(user, project RoleConfig) RoleConfig {
 	if project.Includes != nil {
 		result.Includes = project.Includes
 	}
+	if project.MaxFixRounds > 0 {
+		result.MaxFixRounds = project.MaxFixRounds
+	}
+	if project.ParallelReviewers > 0 {
+		result.ParallelReviewers = project.ParallelReviewers
+	}
+	if project.AnglesPerReviewer > 0 {
+		result.AnglesPerReviewer = project.AnglesPerReviewer
+	}
 
 	return result
 }

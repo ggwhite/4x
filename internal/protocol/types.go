@@ -40,7 +40,14 @@ const (
 	// 與 event/log 辨識。
 	RoleMiniCoder  Role = "mini-coder"
 	RoleReVerifier Role = "re-verifier"
+	// RoleSynthesizer 是平行 deep review 模式下合併多份 partial report 的子 role，
+	// 同樣全程維持 deep-reviewing phase，僅用於 prompt template 與 event/log 辨識。
+	RoleSynthesizer Role = "synthesizer"
 )
+
+// DeepReviewAngleCount 是 deep-reviewer 模板定義的 review angle 總數（angle 1..11）。
+// 平行 deep review 依此把 angle 平均分配給各 sub-reviewer。
+const DeepReviewAngleCount = 11
 
 // Severity 表示 review issue 的嚴重等級
 type Severity string
@@ -385,6 +392,12 @@ type RoleConfig struct {
 	// MaxFixRounds 限制 deep-reviewing phase 內自癒循環（mini-coder + re-verifier）
 	// 的最大迭代次數，僅對 deep-reviewer role 有意義；未設定時由 ResolveMaxFixRounds 套預設值。
 	MaxFixRounds int `json:"max_fix_rounds,omitempty"`
+	// ParallelReviewers 設定平行 deep review 要 spawn 幾個 sub-reviewer，僅對 deep-reviewer
+	// role 有意義；未設定或 <=1 時走 fallback 單 agent 模式（不分檔、不跑 synthesizer）。
+	ParallelReviewers int `json:"parallel_reviewers,omitempty"`
+	// AnglesPerReviewer 設定每個 sub-reviewer 負責的 review angle 數量，僅對 deep-reviewer
+	// role 有意義；未設定時由 ResolveAnglesPerReviewer 回 0，改用 ceil(總 angle/N) 平均分配。
+	AnglesPerReviewer int `json:"angles_per_reviewer,omitempty"`
 }
 
 // DefaultScreenshotDir 是 tester 預設截圖目錄，可用 {feature-id}、{round} 變數。

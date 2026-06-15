@@ -1399,6 +1399,71 @@ func TestHandleLogSSE_SmallDelta(t *testing.T) {
 	}
 }
 
+// TestHandleLogSSE_MultiFile 驗證未帶 ?file= 時，SSE 會同時 tail 多個活躍 log
+// （平行 sub-reviewer / reviewer+tester 場景），每筆 message 帶正確 file 欄位，
+// 且能收到兩個不同 file 值的內容（修復 ParallelReviewTest 只看得到一個 log 的問題）。
+func TestHandleLogSSE_MultiFile(t *testing.T) {
+	ws, logsDir := setupLogSSEWorkspace(t)
+
+	// 兩個平行 sub-reviewer log，mtime 皆在 activeLogWindow 內 → findActiveLogs 應一併回傳。
+	files := map[string]string{
+		"round-2-deep-reviewer-1.log": "content from reviewer one",
+		"round-2-deep-reviewer-2.log": "content from reviewer two",
+	}
+	for name, body := range files {
+		if err := os.WriteFile(filepath.Join(logsDir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handleLogSSE(ws, "test-feat", w, r)
+	}))
+	defer srv.Close()
+
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	// 收集每個 file 收到的 content，直到兩個 file 都有內容為止。
+	gotByFile := make(map[string]string)
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		var msg map[string]string
+		if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &msg); err != nil {
+			t.Fatalf("invalid JSON: %s", line)
+		}
+		file, content := msg["file"], msg["content"]
+		if file == "" {
+			t.Errorf("message missing 'file' key: %v", msg)
+		}
+		gotByFile[file] += content
+		if len(gotByFile) >= 2 {
+			cancel()
+			break
+		}
+	}
+
+	if len(gotByFile) < 2 {
+		t.Fatalf("want messages from 2 distinct files, got %d: %v", len(gotByFile), gotByFile)
+	}
+	for name, want := range files {
+		if got := gotByFile[name]; got != want {
+			t.Errorf("file %q content = %q, want %q", name, got, want)
+		}
+	}
+}
+
 // TestHandleLogSSE_LargeDelta 驗證 delta > 32KB（100KB）時收到多個 message，
 // content 拼接後 byte 完全等於寫入內容，無遺漏/重複。
 func TestHandleLogSSE_LargeDelta(t *testing.T) {

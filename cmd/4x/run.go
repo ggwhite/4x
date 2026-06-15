@@ -321,7 +321,37 @@ func newRunCmd() *cobra.Command {
 	return cmd
 }
 
-func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, role protocol.Role, round, iteration int) (string, error) {
+// promptOption 在 promptData 組好、模板 render 前對其做最後調整，
+// 供平行 deep review 注入 ReviewerIndex / AssignedAngles / PartialReports 等額外欄位。
+type promptOption func(*promptData)
+
+// deepReviewPartialName 回傳平行 deep review 中第 index 個 sub-reviewer 的 partial report
+// 檔名（deep-review-partial-<index>.md，index 為 1-based）。
+func deepReviewPartialName(index int) string {
+	return fmt.Sprintf("deep-review-partial-%d.md", index)
+}
+
+// withParallelDeepReviewer 把第 index/count 個 sub-reviewer 的 angle 指派與 partial report
+// 檔名注入 promptData，讓 deep-reviewer 模板只 render 被分配的 angle 並輸出到 partial report。
+func withParallelDeepReviewer(index, count int, angles []int, partialName string) promptOption {
+	return func(d *promptData) {
+		d.ReviewerIndex = index
+		d.ReviewerCount = count
+		d.AssignedAngles = angles
+		d.PartialReportName = partialName
+	}
+}
+
+// withSynthesizerReports 把所有 sub-reviewer 的 partial report 完整內文注入 promptData，
+// 供 synthesizer 模板內嵌合併（不是只給路徑）。
+func withSynthesizerReports(reports []includeContent) promptOption {
+	return func(d *promptData) {
+		d.ReviewerCount = len(reports)
+		d.PartialReports = reports
+	}
+}
+
+func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, role protocol.Role, round, iteration int, opts ...promptOption) (string, error) {
 	tmpl, err := loadRoleTemplate(role)
 	if err != nil {
 		return "", fmt.Errorf("no template for role %s: %w", role, err)
@@ -366,6 +396,9 @@ func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, featur
 		PlanningDoc:         loadPlanningDocs(ws.Root, feature.ID),
 		RepoMap:             repoMap,
 		ProfileInstructions: loadProfiles(ws, feature.ID, cfg),
+	}
+	for _, opt := range opts {
+		opt(&data)
 	}
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
@@ -1128,6 +1161,195 @@ func parallelNeedsAttention(ws *protocol.Workspace, featureID string, s *protoco
 	return false, nil
 }
 
+// runDeepReviewParallel 在 deep-reviewing phase 內平行 spawn len(groups) 個 sub-reviewer，
+// 各自只跑分配到的 review angle 並寫出 deep-review-partial-<i>.md，全部完成後再 spawn 一個
+// synthesizer 把所有 partial report 合併成單一 deep-review-report.md（格式與單 agent 完全相同）。
+// 全程維持 deep-reviewing phase。sub-reviewer 與 synthesizer 皆 read-only，共用同一 worktree。
+//
+// 回傳 (ok, err)：語意同 runDeepSubRole；ok 為 true 時 deep-review-report.md 已產出，
+// caller 接續走 reviewPassed → accepting / self-heal 分支。
+func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature protocol.Feature, cfg protocol.Config, s *protocol.State, ops gitops.Ops, newRunner func(logPath string, model string) runner.Runner, deepModel string, groups [][]int, round int) (bool, error) {
+	featureID := feature.ID
+
+	if runnerWs.Root != ws.Root {
+		syncFeatureToWorktree(ws, runnerWs, featureID, round)
+	}
+	var stopSync func()
+	if runnerWs.Root != ws.Root {
+		stopSync = startLiveSync(runnerWs, ws, featureID, round)
+	}
+	// cleanup 停掉 live sync 並把 worktree 內的 report 同步回主 workspace；可安全重複呼叫。
+	cleanup := func() {
+		if stopSync != nil {
+			stopSync()
+			stopSync = nil
+		}
+		if runnerWs.Root != ws.Root {
+			if serr := syncFeatureFromWorktree(runnerWs, ws, featureID, round); serr != nil {
+				slog.Warn("sync from worktree failed", "feature", featureID, "round", round, "error", serr)
+			}
+		}
+	}
+
+	type runOutcome struct {
+		index  int
+		result *runner.Result
+		err    error
+	}
+
+	fmt.Printf("[round %d] deep-reviewing — running %d parallel sub-reviewers (%s, model: %s)\n", round, len(groups), s.Runner, deepModel)
+
+	outcomes := make([]runOutcome, len(groups))
+	var wg sync.WaitGroup
+	for i, angles := range groups {
+		wg.Add(1)
+		go func(i int, angles []int) {
+			defer wg.Done()
+			idx := i + 1
+			partialName := deepReviewPartialName(idx)
+			ws.AppendEvent(featureID, protocol.Event{
+				Type: "phase-start", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleDeepReviewer, Round: round,
+				Runner: s.Runner, Model: deepModel,
+			})
+			prompt, perr := generatePrompt(ws, runnerWs, feature, cfg, protocol.RoleDeepReviewer, round, 0,
+				withParallelDeepReviewer(idx, len(groups), angles, partialName))
+			if perr != nil {
+				prompt = fmt.Sprintf("You are deep sub-reviewer %d for feature %s, round %d. Read .4x/%s/ for context.", idx, featureID, round, featureID)
+			}
+			logPath := filepath.Join(runner.LogDir(ws, featureID), runner.DeepReviewerLogFileName(round, idx))
+			r := newRunner(logPath, deepModel)
+			res, runErr := r.Run(ctx, prompt)
+			outcomes[i] = runOutcome{index: idx, result: res, err: runErr}
+		}(i, angles)
+	}
+	wg.Wait()
+
+	// runner 執行錯誤分類：context cancel → interrupted；其餘 → runner-error needs-attention。
+	for _, o := range outcomes {
+		if o.err != nil {
+			cleanup()
+			if ctx.Err() == context.Canceled {
+				s.Active = false
+				s.StopReason = "interrupted"
+				_ = ws.WriteState(featureID, *s)
+				return false, ctx.Err()
+			}
+			s.Phase = protocol.PhaseNeedsAttention
+			s.Active = false
+			s.StopReason = "runner-error"
+			_ = ws.WriteState(featureID, *s)
+			ws.AppendEvent(featureID, protocol.Event{
+				Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleDeepReviewer, Round: round,
+				Status: "error", Detail: o.err.Error(), Runner: s.Runner, Model: deepModel,
+			})
+			return false, o.err
+		}
+	}
+	for _, o := range outcomes {
+		ws.AppendEvent(featureID, protocol.Event{
+			Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleDeepReviewer, Round: round,
+			Status: fmt.Sprintf("exit-%d", o.result.ExitCode), Runner: s.Runner, Model: deepModel,
+		})
+	}
+	for _, o := range outcomes {
+		if runner.IsHardError(o.result) {
+			cleanup()
+			s.Active = false
+			s.StopReason = "hard-error"
+			_ = ws.WriteState(featureID, *s)
+			return false, fmt.Errorf("runner returned hard error (exit 2)")
+		}
+	}
+	for _, o := range outcomes {
+		if runner.IsSoftFail(o.result) {
+			cleanup()
+			s.Phase = protocol.PhaseBlocked
+			s.Active = false
+			s.StopReason = "soft-fail"
+			_ = ws.WriteState(featureID, *s)
+			_ = ws.SyncFeatureStatus(featureID, protocol.PhaseBlocked)
+			return false, nil
+		}
+	}
+
+	// 驗證每個 sub-reviewer 都寫出 partial report，並讀入完整內文供 synthesizer 內嵌。
+	var partials []includeContent
+	for i := 1; i <= len(groups); i++ {
+		name := deepReviewPartialName(i)
+		data, rerr := os.ReadFile(filepath.Join(runnerWs.RoundDir(featureID, round), name))
+		if rerr != nil {
+			cleanup()
+			return parallelNeedsAttention(ws, featureID, s, "missing-artifact: "+name)
+		}
+		partials = append(partials, includeContent{Path: name, Content: string(data)})
+	}
+
+	// synthesizer 合併所有 partial report 成單一 deep-review-report.md。
+	s.Role = protocol.RoleSynthesizer
+	if err := ws.WriteState(featureID, *s); err != nil {
+		cleanup()
+		return false, fmt.Errorf("write state (synthesizer): %w", err)
+	}
+	ws.AppendEvent(featureID, protocol.Event{
+		Type: "phase-start", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleSynthesizer, Round: round,
+		Runner: s.Runner, Model: deepModel,
+	})
+	synthPrompt, perr := generatePrompt(ws, runnerWs, feature, cfg, protocol.RoleSynthesizer, round, 0,
+		withSynthesizerReports(partials))
+	if perr != nil {
+		synthPrompt = fmt.Sprintf("You are the deep review synthesizer for feature %s, round %d. Read .4x/%s/ for context.", featureID, round, featureID)
+	}
+	synthLog := filepath.Join(runner.LogDir(ws, featureID), runner.LogFileName(round, string(protocol.RoleSynthesizer)))
+	synthRunner := newRunner(synthLog, deepModel)
+	fmt.Printf("[round %d] deep-reviewing (synthesizer) — invoking %s (model: %s)\n", round, s.Runner, deepModel)
+	synthRes, synthErr := synthRunner.Run(ctx, synthPrompt)
+	if synthErr != nil {
+		cleanup()
+		if ctx.Err() == context.Canceled {
+			s.Active = false
+			s.StopReason = "interrupted"
+			_ = ws.WriteState(featureID, *s)
+			return false, ctx.Err()
+		}
+		s.Phase = protocol.PhaseNeedsAttention
+		s.Active = false
+		s.StopReason = "runner-error"
+		_ = ws.WriteState(featureID, *s)
+		ws.AppendEvent(featureID, protocol.Event{
+			Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleSynthesizer, Round: round,
+			Status: "error", Detail: synthErr.Error(), Runner: s.Runner, Model: deepModel,
+		})
+		return false, synthErr
+	}
+	ws.AppendEvent(featureID, protocol.Event{
+		Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleSynthesizer, Round: round,
+		Status: fmt.Sprintf("exit-%d", synthRes.ExitCode), Runner: s.Runner, Model: deepModel,
+	})
+	if runner.IsHardError(synthRes) {
+		cleanup()
+		s.Active = false
+		s.StopReason = "hard-error"
+		_ = ws.WriteState(featureID, *s)
+		return false, fmt.Errorf("runner returned hard error (exit 2)")
+	}
+	if runner.IsSoftFail(synthRes) {
+		cleanup()
+		s.Phase = protocol.PhaseBlocked
+		s.Active = false
+		s.StopReason = "soft-fail"
+		_ = ws.WriteState(featureID, *s)
+		_ = ws.SyncFeatureStatus(featureID, protocol.PhaseBlocked)
+		return false, nil
+	}
+
+	cleanup()
+	// sub-reviewer 與 synthesizer 皆 read-only：跑一次 guardrail 確認沒越界改檔。
+	if ok, err := deepGuardCheck(ws, featureID, s, ops, protocol.RoleDeepReviewer); !ok || err != nil {
+		return ok, err
+	}
+	return true, nil
+}
+
 // runDeepReviewPhase 在 deep-reviewing phase 內執行自癒循環：先跑 deep reviewer，FAIL 時
 // 不回主迴圈，而是在同一 phase 內反覆 spawn mini-coder（只修被點名的 issue）與 re-verifier
 // （只驗舊 issue + 掃本輪新 diff），通過才推進 accepting；最多跑 max_fix_rounds 輪，超過則
@@ -1175,17 +1397,29 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 		return true, nil
 	}
 
-	// 2. 跑 deep reviewer。
+	// 2. 跑 deep reviewer：依設定走平行 N sub-reviewer + synthesizer，或 fallback 單 agent。
 	s.Role = protocol.RoleDeepReviewer
 	if err := ws.WriteState(featureID, *s); err != nil {
 		return false, fmt.Errorf("write state (deep-reviewer): %w", err)
 	}
-	if ok, err := runDeepSubRole(ctx, ws, runnerWs, feature, cfg, s, newRunner,
-		protocol.RoleDeepReviewer, deepModel, runner.LogFileName(round, string(protocol.RoleDeepReviewer)), round, 0); !ok || err != nil {
-		return ok, err
-	}
-	if ok, err := deepGuardCheck(ws, featureID, s, ops, protocol.RoleDeepReviewer); !ok || err != nil {
-		return ok, err
+	groups := protocol.GroupReviewAngles(
+		protocol.ResolveParallelReviewers(cfg, protocol.RoleDeepReviewer),
+		protocol.ResolveAnglesPerReviewer(cfg, protocol.RoleDeepReviewer),
+		protocol.DeepReviewAngleCount)
+	if len(groups) > 1 {
+		// 平行模式：N sub-reviewer 各寫 partial report，synthesizer 合併成 deep-review-report.md。
+		if ok, err := runDeepReviewParallel(ctx, ws, runnerWs, feature, cfg, s, ops, newRunner, deepModel, groups, round); !ok || err != nil {
+			return ok, err
+		}
+	} else {
+		// fallback 單 agent：deep reviewer 直接輸出 deep-review-report.md（現行行為）。
+		if ok, err := runDeepSubRole(ctx, ws, runnerWs, feature, cfg, s, newRunner,
+			protocol.RoleDeepReviewer, deepModel, runner.LogFileName(round, string(protocol.RoleDeepReviewer)), round, 0); !ok || err != nil {
+			return ok, err
+		}
+		if ok, err := deepGuardCheck(ws, featureID, s, ops, protocol.RoleDeepReviewer); !ok || err != nil {
+			return ok, err
+		}
 	}
 	reportPath := filepath.Join(ws.RoundDir(featureID, round), protocol.DeepReviewReport)
 	if _, statErr := os.Stat(reportPath); statErr != nil {

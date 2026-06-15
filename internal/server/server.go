@@ -782,14 +782,15 @@ func handleLogs(ws *protocol.Workspace, rest string, w http.ResponseWriter) {
 }
 
 var roleOrder = map[string]int{
-	"designer":       0,
-	"coder":          1,
-	"reviewer":       2,
-	"tester":         3,
-	"deep-reviewer":  4,
-	"deep-fix":       5,
-	"deep-reverify":  6,
-	"acceptor":       7,
+	"designer":      0,
+	"coder":         1,
+	"reviewer":      2,
+	"tester":        3,
+	"deep-reviewer": 4,
+	"synthesizer":   5,
+	"deep-fix":      6,
+	"deep-reverify": 7,
+	"acceptor":      8,
 }
 
 // logSortKey 將 "round-N-role.log" 轉成數字 key，確保按執行順序排列。
@@ -1075,8 +1076,9 @@ func handleLogSSE(ws *protocol.Workspace, featureID string, w http.ResponseWrite
 
 	logsDir := filepath.Join(ws.FeatureDir(featureID), "logs")
 	pinnedFile := filepath.Base(r.URL.Query().Get("file"))
-	var lastFile string
-	var lastOffset int64
+	// offsets 記每個正在 tail 的 log 已讀到的位移，跨 tick 持續累進。
+	// 未 pin 檔案時可同時 tail 多個活躍 log（平行 sub-reviewer / reviewer+tester），各自獨立 offset。
+	offsets := make(map[string]int64)
 
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
@@ -1084,68 +1086,117 @@ func handleLogSSE(ws *protocol.Workspace, featureID string, w http.ResponseWrite
 	// 在連線生命週期內共用一個固定 32KB buffer，避免每秒 tick 重新分配造成 GC 壓力。
 	buf := make([]byte, 32*1024)
 
+	// tailFile 讀取 current 自上次 offset 起的新增內容並以 SSE message 送出（帶 file 欄位）。
+	tailFile := func(current string) {
+		path := filepath.Join(logsDir, current)
+		info, err := os.Stat(path)
+		if err != nil || info.Size() <= offsets[current] {
+			return
+		}
+		f, err := os.Open(path)
+		if err != nil {
+			return
+		}
+		defer f.Close()
+		if offsets[current] > 0 {
+			f.Seek(offsets[current], 0)
+		}
+		// carry 保留上一個 32KB chunk 尾端不完整的 UTF-8 位元組。
+		// 固定切分會把橫跨邊界的多位元組字元切兩半，各自 json.Marshal 會被
+		// 替換成不可逆的 U+FFFD；故只 emit 完整 rune，殘段併入下一輪前綴。
+		var carry []byte
+		for {
+			n, readErr := f.Read(buf)
+			if n > 0 {
+				data := buf[:n]
+				if len(carry) > 0 {
+					data = append(append(make([]byte, 0, len(carry)+n), carry...), buf[:n]...)
+				}
+				complete, rest := splitCompleteUTF8(data)
+				if len(complete) > 0 {
+					chunk, _ := json.Marshal(map[string]string{"file": current, "content": string(complete)})
+					fmt.Fprintf(w, "data: %s\n\n", chunk)
+				}
+				carry = append(carry[:0], rest...)
+				offsets[current] += int64(n)
+			}
+			if readErr != nil {
+				// EOF：殘段即使不完整也必須送出，否則檔尾遺失（與舊行為一致）。
+				if len(carry) > 0 {
+					chunk, _ := json.Marshal(map[string]string{"file": current, "content": string(carry)})
+					fmt.Fprintf(w, "data: %s\n\n", chunk)
+				}
+				break
+			}
+		}
+	}
+
 	for {
 		select {
 		case <-r.Context().Done():
 			return
 		case <-ticker.C:
-			var current string
+			var files []string
 			if pinnedFile != "" && pinnedFile != "." {
-				current = pinnedFile
+				files = []string{pinnedFile}
 			} else {
-				current = findLatestLog(logsDir)
+				files = findActiveLogs(logsDir)
 			}
-			if current == "" {
-				continue
+			for _, current := range files {
+				tailFile(current)
 			}
-			if current != lastFile {
-				lastFile = current
-				lastOffset = 0
-			}
-			path := filepath.Join(logsDir, current)
-			info, err := os.Stat(path)
-			if err != nil || info.Size() <= lastOffset {
-				continue
-			}
-			f, err := os.Open(path)
-			if err != nil {
-				continue
-			}
-			if lastOffset > 0 {
-				f.Seek(lastOffset, 0)
-			}
-			// carry 保留上一個 32KB chunk 尾端不完整的 UTF-8 位元組。
-			// 固定切分會把橫跨邊界的多位元組字元切兩半，各自 json.Marshal 會被
-			// 替換成不可逆的 U+FFFD；故只 emit 完整 rune，殘段併入下一輪前綴。
-			var carry []byte
-			for {
-				n, readErr := f.Read(buf)
-				if n > 0 {
-					data := buf[:n]
-					if len(carry) > 0 {
-						data = append(append(make([]byte, 0, len(carry)+n), carry...), buf[:n]...)
-					}
-					complete, rest := splitCompleteUTF8(data)
-					if len(complete) > 0 {
-						chunk, _ := json.Marshal(map[string]string{"file": current, "content": string(complete)})
-						fmt.Fprintf(w, "data: %s\n\n", chunk)
-					}
-					carry = append(carry[:0], rest...)
-					lastOffset += int64(n)
-				}
-				if readErr != nil {
-					// EOF：殘段即使不完整也必須送出，否則檔尾遺失（與舊行為一致）。
-					if len(carry) > 0 {
-						chunk, _ := json.Marshal(map[string]string{"file": current, "content": string(carry)})
-						fmt.Fprintf(w, "data: %s\n\n", chunk)
-					}
-					break
-				}
-			}
-			f.Close()
 			flusher.Flush()
 		}
 	}
+}
+
+// activeLogWindow 是 findActiveLogs 判定 log「最近活躍」的時間窗：mtime 落在最新 log
+// mtime 往前 activeLogWindow 內者視為仍在寫入，須一併 tail。窗夠大才能涵蓋平行 runner
+// 之間的寫入時間差，又不至於把上一個 phase 的舊 log 拉進來。
+const activeLogWindow = 15 * time.Second
+
+// findActiveLogs 回傳目前正在寫入 / 最近活躍的 log 檔名清單（依 logSortKey 排序）。
+// 以最新 log 的 mtime 為基準，回傳所有 mtime 落在 activeLogWindow 內的 .log，
+// 讓平行 sub-reviewer（或 reviewer+tester）等多個同時寫入的 log 都能被 SSE 一起 tail，
+// 而非只追到 mtime 最新的單一檔（修復 ParallelReviewTest 只看得到一個 log 的問題）。
+func findActiveLogs(dir string) []string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	type logEntry struct {
+		name string
+		mod  time.Time
+	}
+	var logs []logEntry
+	var latest time.Time
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".log") {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		logs = append(logs, logEntry{name: e.Name(), mod: info.ModTime()})
+		if info.ModTime().After(latest) {
+			latest = info.ModTime()
+		}
+	}
+	if len(logs) == 0 {
+		return nil
+	}
+	cutoff := latest.Add(-activeLogWindow)
+	var active []string
+	for _, l := range logs {
+		if !l.mod.Before(cutoff) {
+			active = append(active, l.name)
+		}
+	}
+	sort.Slice(active, func(i, j int) bool {
+		return logSortKey(active[i]) < logSortKey(active[j])
+	})
+	return active
 }
 
 // splitCompleteUTF8 將 data 切成「結尾為完整 UTF-8 rune 的前段 complete」與
@@ -1170,29 +1221,6 @@ func splitCompleteUTF8(data []byte) (complete, rest []byte) {
 		return data, nil
 	}
 	return data[:i], data[i:]
-}
-
-func findLatestLog(dir string) string {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return ""
-	}
-	var latest string
-	var latestTime time.Time
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".log") {
-			continue
-		}
-		info, err := e.Info()
-		if err != nil {
-			continue
-		}
-		if info.ModTime().After(latestTime) {
-			latestTime = info.ModTime()
-			latest = e.Name()
-		}
-	}
-	return latest
 }
 
 type doneRequest struct {

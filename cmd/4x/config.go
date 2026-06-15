@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/ggwhite/4x/internal/protocol"
@@ -105,6 +106,10 @@ func newConfigGetCmd() *cobra.Command {
 					printOrDefault(rc.Model, "")
 				case "deep_model":
 					printOrDefault(rc.DeepModel, "")
+				case "parallel_reviewers":
+					printIntOrDefault(rc.ParallelReviewers, 1)
+				case "angles_per_reviewer":
+					printIntOrDefault(rc.AnglesPerReviewer, 0)
 				default:
 					return fmt.Errorf("unknown role field: %s", field)
 				}
@@ -182,6 +187,18 @@ func newConfigSetCmd() *cobra.Command {
 					rc.Model = value
 				case "deep_model":
 					rc.DeepModel = value
+				case "parallel_reviewers":
+					n, err := strconv.Atoi(value)
+					if err != nil {
+						return fmt.Errorf("parallel_reviewers must be an integer: %w", err)
+					}
+					rc.ParallelReviewers = n
+				case "angles_per_reviewer":
+					n, err := strconv.Atoi(value)
+					if err != nil {
+						return fmt.Errorf("angles_per_reviewer must be an integer: %w", err)
+					}
+					rc.AnglesPerReviewer = n
 				default:
 					return fmt.Errorf("unknown role field: %s", field)
 				}
@@ -198,6 +215,15 @@ func newConfigSetCmd() *cobra.Command {
 			fmt.Printf("Set %s = %s in %s\n", key, value, path)
 			return nil
 		},
+	}
+}
+
+// printIntOrDefault 印出整數設定值；val <= 0 視為未設定，顯示預設值。
+func printIntOrDefault(val, def int) {
+	if val <= 0 {
+		fmt.Printf("(not set, default: %d)\n", def)
+	} else {
+		fmt.Println(val)
 	}
 }
 
