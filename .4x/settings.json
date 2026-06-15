@@ -72,7 +72,8 @@
       ]
     },
     "deep-reviewer": {
-      "max_fix_rounds": 2
+      "max_fix_rounds": 2,
+      "parallel_reviewers": 3
     },
     "tester": {
       "model": "sonnet",
