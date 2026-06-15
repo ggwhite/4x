@@ -13,6 +13,7 @@ DIST="$ROOT/dist"
 BUILD="$ROOT/dist/macos-build"
 APP="$BUILD/4x Live.app"
 MACOS_DIR="$APP/Contents/MacOS"
+RESOURCES_DIR="$APP/Contents/Resources"
 
 ARM_BIN="bin/4x-darwin-arm64"
 AMD_BIN="bin/4x-darwin-amd64"
@@ -25,7 +26,7 @@ for f in "$ARM_BIN" "$AMD_BIN"; do
 done
 
 rm -rf "$BUILD"
-mkdir -p "$MACOS_DIR" "$DIST"
+mkdir -p "$MACOS_DIR" "$RESOURCES_DIR" "$DIST"
 
 # 1. lipo 合併兩 arch 為 universal binary
 echo "==> lipo: building universal 4x binary"
@@ -38,6 +39,8 @@ swift build -c release --package-path dashboard/macos
 SWIFT_BIN="$(swift build -c release --package-path dashboard/macos --show-bin-path)/4xLive"
 cp "$SWIFT_BIN" "$MACOS_DIR/4xLive"
 chmod +x "$MACOS_DIR/4xLive"
+
+cp dashboard/macos/Resources/AppIcon.icns "$RESOURCES_DIR/AppIcon.icns"
 
 # 3. 寫 Info.plist
 cat > "$APP/Contents/Info.plist" <<PLIST
@@ -59,6 +62,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <string>4xLive</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
     <key>NSHighResolutionCapable</key>
