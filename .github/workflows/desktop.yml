@@ -111,6 +111,10 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: dashboard/tauri/src-tauri
+
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2"
 
@@ -150,6 +154,10 @@ jobs:
           chmod +x 4x-x86_64-unknown-linux-gnu
 
       - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: dashboard/tauri/src-tauri
 
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2"
