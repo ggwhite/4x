@@ -1176,6 +1176,65 @@ func TestClearBatchConflict(t *testing.T) {
 	}
 }
 
+// F075：WriteBatchPID / ReadBatchPID 往返寫讀同一 PID。
+func TestBatchPIDRoundtrip(t *testing.T) {
+	ws := setupWorkspace(t)
+	if err := ws.WriteBatchPID(12345); err != nil {
+		t.Fatalf("WriteBatchPID: %v", err)
+	}
+	got, err := ws.ReadBatchPID()
+	if err != nil {
+		t.Fatalf("ReadBatchPID: %v", err)
+	}
+	if got != 12345 {
+		t.Errorf("ReadBatchPID = %d, want 12345", got)
+	}
+}
+
+// F075：檔案不存在時 ReadBatchPID 回 (0, nil)。
+func TestReadBatchPID_Missing(t *testing.T) {
+	ws := setupWorkspace(t)
+	got, err := ws.ReadBatchPID()
+	if err != nil {
+		t.Fatalf("ReadBatchPID on missing file: err = %v, want nil", err)
+	}
+	if got != 0 {
+		t.Errorf("ReadBatchPID on missing file: got %d, want 0", got)
+	}
+}
+
+// F075：內容無法解析時 ReadBatchPID 回 (0, error)。
+func TestReadBatchPID_Unparseable(t *testing.T) {
+	ws := setupWorkspace(t)
+	if err := os.WriteFile(filepath.Join(ws.DotDir(), BatchPIDFile), []byte("not-a-pid"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := ws.ReadBatchPID()
+	if err == nil {
+		t.Error("ReadBatchPID on unparseable content: err = nil, want error")
+	}
+	if got != 0 {
+		t.Errorf("ReadBatchPID on unparseable content: got %d, want 0", got)
+	}
+}
+
+// F075：ClearBatchPID 在檔案不存在時不報錯；存在時刪除之。
+func TestClearBatchPID(t *testing.T) {
+	ws := setupWorkspace(t)
+	if err := ws.ClearBatchPID(); err != nil {
+		t.Errorf("ClearBatchPID on missing file: err = %v, want nil", err)
+	}
+	if err := ws.WriteBatchPID(999); err != nil {
+		t.Fatalf("WriteBatchPID: %v", err)
+	}
+	if err := ws.ClearBatchPID(); err != nil {
+		t.Fatalf("ClearBatchPID: %v", err)
+	}
+	if got, _ := ws.ReadBatchPID(); got != 0 {
+		t.Error("pid file should be gone after ClearBatchPID")
+	}
+}
+
 func TestSyncFeatureStatus(t *testing.T) {
 	ws := setupWorkspace(t)
 
@@ -1314,52 +1373,3 @@ func TestLoadMergedConfig_NoProjectConfig_ReturnsError(t *testing.T) {
 	}
 }
 
-// AC-2：WriteBatchReport 寫入後 ReadBatchReport 讀回的欄位與原始報告一致（含 feature 子項）。
-func TestWriteReadBatchReport_Roundtrip(t *testing.T) {
-	ws := setupWorkspace(t)
-
-	want := BatchReport{
-		StartedAt:      time.Unix(1000, 0).UTC(),
-		FinishedAt:     time.Unix(1042, 0).UTC(),
-		DurationMs:     42000,
-		Outcome:        BatchOutcomeStopped,
-		Total:          2,
-		Completed:      1,
-		Failed:         1,
-		Remaining:      0,
-		Runner:         "claude",
-		RunningFeature: "F002",
-		Features: []BatchFeatureReport{
-			{ID: "F001", Name: "feat one", FinalStatus: StatusDone, DurationMs: 1500, Rounds: 2},
-			{ID: "F002", Name: "feat two", FinalStatus: StatusBlocked, DurationMs: 800, Rounds: 5, StopReason: "max-rounds"},
-		},
-	}
-
-	if err := ws.WriteBatchReport(want); err != nil {
-		t.Fatalf("WriteBatchReport: %v", err)
-	}
-
-	got, err := ws.ReadBatchReport()
-	if err != nil {
-		t.Fatalf("ReadBatchReport: %v", err)
-	}
-	if got == nil {
-		t.Fatal("ReadBatchReport returned nil after write")
-	}
-	if !reflect.DeepEqual(*got, want) {
-		t.Errorf("roundtrip mismatch:\n got = %+v\nwant = %+v", *got, want)
-	}
-}
-
-// AC-2：尚未寫過報告的 workspace，ReadBatchReport 回 (nil, nil) 代表「尚無 batch 報告」。
-func TestReadBatchReport_MissingReturnsNil(t *testing.T) {
-	ws := setupWorkspace(t)
-
-	got, err := ws.ReadBatchReport()
-	if err != nil {
-		t.Fatalf("ReadBatchReport on empty dir: %v", err)
-	}
-	if got != nil {
-		t.Errorf("ReadBatchReport = %+v, want nil for missing file", *got)
-	}
-}

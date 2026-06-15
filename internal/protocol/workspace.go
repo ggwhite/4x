@@ -39,6 +39,7 @@ const (
 	BatchStopFile     = "batch-stop"
 	BatchConflictFile = "batch-conflict.json"
 	BatchReportFile   = "batch-report.json"
+	BatchPIDFile      = "batch-pid"
 )
 
 // Workspace 管理 .4x/ 目錄的讀寫
@@ -531,6 +532,38 @@ func (w *Workspace) ReadBatchReport() (*BatchReport, error) {
 		return nil, err
 	}
 	return &r, nil
+}
+
+// WriteBatchPID 將 batch run 子程序的 PID 以十進位字串寫入 .4x/batch-pid，
+// 供 server 重啟後辨識並 adopt 仍存活的孤兒子程序。
+func (w *Workspace) WriteBatchPID(pid int) error {
+	return os.WriteFile(filepath.Join(w.DotDir(), BatchPIDFile), []byte(strconv.Itoa(pid)), 0o644)
+}
+
+// ReadBatchPID 讀取 .4x/batch-pid 並解析為 PID；檔案不存在時回 (0, nil) 代表目前無 batch run 紀錄，
+// 內容無法解析時回 (0, error)。
+func (w *Workspace) ReadBatchPID() (int, error) {
+	data, err := os.ReadFile(filepath.Join(w.DotDir(), BatchPIDFile))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil {
+		return 0, err
+	}
+	return pid, nil
+}
+
+// ClearBatchPID 刪除 .4x/batch-pid；檔案不存在時不視為錯誤。
+func (w *Workspace) ClearBatchPID() error {
+	err := os.Remove(filepath.Join(w.DotDir(), BatchPIDFile))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 // ReadConfig 讀取 .4x/settings.json

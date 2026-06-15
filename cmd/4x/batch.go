@@ -242,6 +242,12 @@ func newBatchRunCmd() *cobra.Command {
 				return err
 			}
 
+			// 留下自己的 PID，讓 server 重啟後可 adopt 仍存活的孤兒；
+			// 正常結束（return nil 或一般 error）皆由 defer 清除。SIGKILL 不觸發 defer，
+			// 殘留的 stale PID 檔由 server 端 adopt 邏輯偵測清理。
+			_ = ws.WriteBatchPID(os.Getpid())
+			defer func() { _ = ws.ClearBatchPID() }()
+
 			cfg, err := ws.LoadMergedConfig()
 			if err != nil {
 				return err
