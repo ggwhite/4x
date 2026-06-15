@@ -55,7 +55,10 @@ func newPromptCmd() *cobra.Command {
 				}
 			}
 
-			cfg, _ := ws.LoadMergedConfig()
+			cfg, err := ws.LoadMergedConfig()
+			if err != nil {
+				return fmt.Errorf("load config: %w", err)
+			}
 			locale, localeName := resolveLocale()
 
 			var roleInc []string

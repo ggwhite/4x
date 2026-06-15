@@ -52,16 +52,6 @@ Examples:
 
 			name := args[0]
 
-			// 先取號組 display name：CLI 是單 process，與 Create 內部 NextNumber 取得同一號碼，
-			// 故此 next 與最終 f.ID 的流水號一致。
-			next, err := feature.NextNumber(ws)
-			if err != nil {
-				if jsonOutput {
-					return jsonError(err.Error())
-				}
-				return err
-			}
-
 			// 既有行為：未指定 --desc 時 description 預設為原始 name（非 display name）。
 			description := name
 			if desc != "" {
@@ -103,9 +93,9 @@ Examples:
 				return err
 			}
 
-			// CLI 既有行為：feature.Name 儲存為 "F{NNN}: <name>" 的 display name。
-			// Create 以原始 name 存檔後，這裡覆寫為 display name 並回存。
-			f.Name = fmt.Sprintf("F%03d: %s", next, name)
+			var num int
+			fmt.Sscanf(f.ID, "F%d-", &num)
+			f.Name = fmt.Sprintf("F%03d: %s", num, name)
 			if err := ws.SaveFeature(f); err != nil {
 				if jsonOutput {
 					return jsonError(err.Error())

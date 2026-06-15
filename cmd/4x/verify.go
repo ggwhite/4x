@@ -97,7 +97,9 @@ func newVerifyCmd() *cobra.Command {
 			}
 
 			if !evidence.Passed {
-				os.Exit(1)
+				cmd.SilenceUsage = true
+				cmd.SilenceErrors = true
+				return fmt.Errorf("verification failed")
 			}
 			return nil
 		},

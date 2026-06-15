@@ -40,6 +40,17 @@ Examples:
 				return fmt.Errorf("feature %s not found: %w", featureID, err)
 			}
 
+			validStatuses := map[string]bool{
+				"not-started":      true,
+				"in-progress":      true,
+				"blocked":          true,
+				"done":             true,
+				"ready-for-review": true,
+			}
+			if !validStatuses[status] {
+				return fmt.Errorf("invalid status %q; valid values: not-started, in-progress, blocked, done, ready-for-review", status)
+			}
+
 			found := false
 			for i, st := range f.Subtasks {
 				if st.ID == subtaskID {
