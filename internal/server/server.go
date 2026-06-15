@@ -1323,18 +1323,18 @@ func handleBatchStatus(ws *protocol.Workspace, bm *BatchManager, w http.Response
 	}
 
 	featByID := make(map[string]protocol.Feature, len(features))
-	var pending []protocol.Feature
+	var eligible []protocol.Feature
 	for _, f := range features {
 		featByID[f.ID] = f
-		if f.Status != protocol.StatusDone && f.Status != protocol.StatusAbandoned {
-			pending = append(pending, f)
+		if f.Status != protocol.StatusAbandoned {
+			eligible = append(eligible, f)
 		}
 	}
 
 	resp := batchStatusResponse{Running: bm.Running(), Queue: []batchQueueItem{}}
 
-	if len(pending) > 0 {
-		if plan, planErr := batch.PlanBatch(pending, protocol.EffectiveHubRepos(cfg), 4); planErr == nil {
+	if len(eligible) > 0 {
+		if plan, planErr := batch.PlanBatch(eligible, protocol.EffectiveHubRepos(cfg), 4); planErr == nil {
 			pos := 0
 			for _, s := range plan.Schedule {
 				f := featByID[s.FeatureID]
