@@ -179,6 +179,28 @@ Exit code: `0` when there is no FAIL (WARN does not affect the exit code), `1` w
 
 ---
 
+## `4x verify <feature-id>`
+
+Run the verify commands from the feature's `test-strategy.yaml` and write the results to `rounds/round-{N}/verify.json`.
+
+Commands can be organised into groups via `verify_groups`: groups run in parallel, while commands within a group run sequentially. If a command in a group fails, the remaining commands in that group are skipped, but other groups keep running. When only `verify_commands` is defined, it falls back to a single sequential `default` group. Declaring both is an error.
+
+Parallel execution is handled entirely by the CLI — no LLM involved. The Tester role calls this command instead of running verify commands itself; humans can also run it standalone for debugging.
+
+```
+4x verify <feature-id> [--round N] [--timeout 5m] [--json]
+```
+
+| Flag | Description |
+|---|---|
+| `--round` | Round number (default: current round from state.json) |
+| `--timeout` | Overall timeout for all groups (default: 5m) |
+| `--json` | Output the full verify.json as JSON |
+
+Exit 0 when every non-skipped command passes, 1 when any command fails.
+
+---
+
 ## `4x transition <feature-id>`
 
 Force a state transition.

@@ -665,3 +665,149 @@ func TestConfigGet_RunnerCommand(t *testing.T) {
 		t.Fatalf("config get runner.claude.command: %v", err)
 	}
 }
+
+func TestVerify_VerifyCommands_AllPass(t *testing.T) {
+	dir := t.TempDir()
+	out, err := run4x(dir, "init")
+	if err != nil {
+		t.Fatalf("init: %v\n%s", err, out)
+	}
+	out, err = run4x(dir, "new", "verify-test")
+	if err != nil {
+		t.Fatalf("new: %v\n%s", err, out)
+	}
+
+	featureID := findFeatureID(t, dir, "verify-test")
+
+	stateDir := filepath.Join(dir, ".4x", featureID)
+	stateJSON := fmt.Sprintf(`{"featureId":"%s","phase":"testing","role":"tester","round":1,"maxRounds":5,"active":false}`, featureID)
+	writeTestFile(t, filepath.Join(stateDir, "state.json"), stateJSON)
+
+	writeTestFile(t, filepath.Join(stateDir, "test-strategy.yaml"), "verify_commands:\n  - \"echo ok\"\n")
+
+	out, err = run4x(dir, "verify", featureID, "--json")
+	if err != nil {
+		t.Fatalf("verify: %v\n%s", err, out)
+	}
+
+	var ev protocol.VerifyEvidence
+	if err := json.Unmarshal([]byte(out), &ev); err != nil {
+		t.Fatalf("parse verify output: %v\n%s", err, out)
+	}
+	if !ev.Passed {
+		t.Error("expected pass")
+	}
+	if ev.Round != 1 {
+		t.Errorf("expected round 1, got %d", ev.Round)
+	}
+	if len(ev.Commands) != 1 {
+		t.Errorf("expected 1 command, got %d", len(ev.Commands))
+	}
+
+	verifyPath := filepath.Join(dir, ".4x", featureID, "rounds", "round-1", "verify.json")
+	if _, err := os.Stat(verifyPath); err != nil {
+		t.Errorf("verify.json not written: %v", err)
+	}
+}
+
+func TestVerify_VerifyGroups_Parallel(t *testing.T) {
+	dir := t.TempDir()
+	run4x(dir, "init")
+	run4x(dir, "new", "parallel-test")
+
+	featureID := findFeatureID(t, dir, "parallel-test")
+	stateDir := filepath.Join(dir, ".4x", featureID)
+	stateJSON := fmt.Sprintf(`{"featureId":"%s","phase":"testing","role":"tester","round":1,"maxRounds":5,"active":false}`, featureID)
+	writeTestFile(t, filepath.Join(stateDir, "state.json"), stateJSON)
+
+	strategy := "verify_groups:\n  group-a:\n    - \"echo a\"\n  group-b:\n    - \"echo b\"\n"
+	writeTestFile(t, filepath.Join(stateDir, "test-strategy.yaml"), strategy)
+
+	out, err := run4x(dir, "verify", featureID, "--json")
+	if err != nil {
+		t.Fatalf("verify: %v\n%s", err, out)
+	}
+
+	var ev protocol.VerifyEvidence
+	if err := json.Unmarshal([]byte(out), &ev); err != nil {
+		t.Fatalf("parse: %v\n%s", err, out)
+	}
+	if !ev.Passed {
+		t.Error("expected pass")
+	}
+	if len(ev.Commands) != 2 {
+		t.Errorf("expected 2 commands, got %d", len(ev.Commands))
+	}
+
+	groups := map[string]bool{}
+	for _, c := range ev.Commands {
+		groups[c.Group] = true
+	}
+	if !groups["group-a"] || !groups["group-b"] {
+		t.Errorf("expected both groups, got %v", groups)
+	}
+}
+
+func TestVerify_BothFormats_Error(t *testing.T) {
+	dir := t.TempDir()
+	run4x(dir, "init")
+	run4x(dir, "new", "both-test")
+
+	featureID := findFeatureID(t, dir, "both-test")
+	stateDir := filepath.Join(dir, ".4x", featureID)
+	stateJSON := fmt.Sprintf(`{"featureId":"%s","phase":"testing","role":"tester","round":1,"maxRounds":5,"active":false}`, featureID)
+	writeTestFile(t, filepath.Join(stateDir, "state.json"), stateJSON)
+
+	strategy := "verify_commands:\n  - \"echo x\"\nverify_groups:\n  a:\n    - \"echo y\"\n"
+	writeTestFile(t, filepath.Join(stateDir, "test-strategy.yaml"), strategy)
+
+	_, err := run4x(dir, "verify", featureID)
+	if err == nil {
+		t.Error("expected error when both verify_commands and verify_groups present")
+	}
+}
+
+func TestVerify_FailedCommand_ExitCode1(t *testing.T) {
+	dir := t.TempDir()
+	run4x(dir, "init")
+	run4x(dir, "new", "fail-test")
+
+	featureID := findFeatureID(t, dir, "fail-test")
+	stateDir := filepath.Join(dir, ".4x", featureID)
+	stateJSON := fmt.Sprintf(`{"featureId":"%s","phase":"testing","role":"tester","round":1,"maxRounds":5,"active":false}`, featureID)
+	writeTestFile(t, filepath.Join(stateDir, "state.json"), stateJSON)
+
+	writeTestFile(t, filepath.Join(stateDir, "test-strategy.yaml"), "verify_commands:\n  - \"false\"\n")
+
+	_, err := run4x(dir, "verify", featureID)
+	if err == nil {
+		t.Error("expected non-zero exit when verify fails")
+	}
+}
+
+func findFeatureID(t *testing.T, dir, prefix string) string {
+	t.Helper()
+	entries, err := os.ReadDir(filepath.Join(dir, ".4x", "features"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		name := e.Name()
+		if strings.Contains(strings.ToLower(name), strings.ToLower(prefix)) && strings.HasSuffix(name, ".yaml") {
+			return name[:len(name)-5]
+		}
+	}
+	t.Fatalf("feature with prefix %q not found", prefix)
+	return ""
+}
+
+func writeTestFile(t *testing.T, path, content string) {
+	t.Helper()
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}

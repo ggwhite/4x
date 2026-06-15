@@ -110,6 +110,16 @@ Choose profiles that match the feature's testing needs:
   - REST API feature → profiles: [unit, api]
   - Multi-service feature → profiles: [unit, e2e]
 
+For multi-repo or parallel verification, use verify_groups instead:
+verify_groups:
+  core:
+    - "make build"
+    - "make test"
+  other-repo:
+    - "cd ../other && make test"
+
+Rules: use verify_groups OR verify_commands, not both. Groups run in parallel; commands within each group run sequentially.
+
 == Constraints ==
 - You may NOT modify any source code
 - Focus on WHAT to build, not HOW to implement
