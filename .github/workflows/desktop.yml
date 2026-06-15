@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-binaries:
@@ -162,3 +162,41 @@ jobs:
         with:
           name: 4x-Live-linux-${{ github.ref_name }}
           path: dashboard/tauri/src-tauri/target/release/bundle/appimage/*.AppImage
+
+  release:
+    name: Attach to GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [macos, windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download macOS .dmg
+        uses: actions/download-artifact@v4
+        with:
+          name: 4x-Live-macos-${{ github.ref_name }}
+          path: release
+
+      - name: Download Windows .msi
+        uses: actions/download-artifact@v4
+        with:
+          name: 4x-Live-windows-${{ github.ref_name }}
+          path: release
+
+      - name: Download Linux .AppImage
+        uses: actions/download-artifact@v4
+        with:
+          name: 4x-Live-linux-${{ github.ref_name }}
+          path: release
+
+      - name: Rename assets with version
+        run: |
+          cd release
+          TAG="${GITHUB_REF_NAME}"
+          for f in *.dmg; do [ -f "$f" ] && mv "$f" "4x-Live-${TAG}-macOS-universal.dmg"; done
+          for f in *.msi; do [ -f "$f" ] && mv "$f" "4x-Live-${TAG}-Windows-x64.msi"; done
+          for f in *.AppImage; do [ -f "$f" ] && mv "$f" "4x-Live-${TAG}-Linux-x64.AppImage"; done
+          ls -la
+
+      - name: Upload to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" release/* --repo "$GITHUB_REPOSITORY" --clobber
