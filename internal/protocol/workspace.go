@@ -14,28 +14,28 @@ import (
 )
 
 const (
-	DirName          = ".4x"
-	UserConfigDir    = ".4x"
-	UserConfigFile   = "settings.json"
-	BacklogFile      = "feature_list.json"
-	ConfigFile       = "settings.json"
-	FeaturesDir      = "features"
-	StateFile        = "state.json"
-	EventsFile       = "events.jsonl"
-	BaselineFile     = "baseline.json"
-	RoundsDir        = "rounds"
-	FinalReport      = "final-report.md"
-	CommitPlan       = "commit-plan.md"
-	TaskBrief        = "task-brief.md"
-	Criteria         = "acceptance-criteria.md"
-	TestStratFile    = "test-strategy.yaml"
-	ReviewReport     = "review-report.md"
-	DeepReviewReport = "deep-review-report.md"
-	CoderReport      = "coder-report.md"
-	TestReport       = "test-report.md"
-	VerifyFile       = "verify.json"
-	EscalationFile   = "escalation.json"
-	BatchStopFile    = "batch-stop"
+	DirName           = ".4x"
+	UserConfigDir     = ".4x"
+	UserConfigFile    = "settings.json"
+	BacklogFile       = "feature_list.json"
+	ConfigFile        = "settings.json"
+	FeaturesDir       = "features"
+	StateFile         = "state.json"
+	EventsFile        = "events.jsonl"
+	BaselineFile      = "baseline.json"
+	RoundsDir         = "rounds"
+	FinalReport       = "final-report.md"
+	CommitPlan        = "commit-plan.md"
+	TaskBrief         = "task-brief.md"
+	Criteria          = "acceptance-criteria.md"
+	TestStratFile     = "test-strategy.yaml"
+	ReviewReport      = "review-report.md"
+	DeepReviewReport  = "deep-review-report.md"
+	CoderReport       = "coder-report.md"
+	TestReport        = "test-report.md"
+	VerifyFile        = "verify.json"
+	EscalationFile    = "escalation.json"
+	BatchStopFile     = "batch-stop"
 	BatchConflictFile = "batch-conflict.json"
 )
 
@@ -347,12 +347,14 @@ func (w *Workspace) CleanableFeatures() ([]CleanCandidate, error) {
 			continue
 		}
 
+		// 依規格：無 state.json（從未跑過）→ 跳過，不納入清理候選。
 		s, err := w.ReadState(f.ID)
-		if err == nil {
-			w.ReconcileActive(f.ID, &s)
-			if s.Active {
-				continue
-			}
+		if err != nil {
+			continue
+		}
+		w.ReconcileActive(f.ID, &s)
+		if s.Active {
+			continue
 		}
 
 		candidates = append(candidates, CleanCandidate{FeatureID: f.ID, Size: dirSize(dir)})
@@ -389,12 +391,14 @@ func (w *Workspace) CleanFeature(featureID string) (int64, error) {
 		return 0, fmt.Errorf("no workspace directory for %s", featureID)
 	}
 
+	// 依規格：無 state.json 時無法確認 active 狀態，拒絕清理。
 	s, err := w.ReadState(featureID)
-	if err == nil {
-		w.ReconcileActive(featureID, &s)
-		if s.Active {
-			return 0, fmt.Errorf("feature %s is still active (pid %d)", featureID, s.Pid)
-		}
+	if err != nil {
+		return 0, fmt.Errorf("cannot read state for %s, refusing to clean: %w", featureID, err)
+	}
+	w.ReconcileActive(featureID, &s)
+	if s.Active {
+		return 0, fmt.Errorf("feature %s is still active (pid %d)", featureID, s.Pid)
 	}
 
 	size := dirSize(dir)

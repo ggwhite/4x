@@ -1317,6 +1317,46 @@ func TestCleanFeature_RejectsNonTerminal(t *testing.T) {
 	}
 }
 
+// TestCleanableFeatures_SkipsNoState 驗證規格要求：done/abandoned 但無 state.json
+// （從未跑過）的 feature 不應被納入清理候選。
+func TestCleanableFeatures_SkipsNoState(t *testing.T) {
+	ws := setupWorkspace(t)
+
+	f := Feature{ID: "F013-no-state", Name: "No State", Status: StatusDone}
+	ws.SaveFeature(f)
+	ws.InitFeatureDir("F013-no-state")
+	// 刻意不寫 state.json，模擬從未跑過的 feature
+
+	candidates, err := ws.CleanableFeatures()
+	if err != nil {
+		t.Fatalf("CleanableFeatures: %v", err)
+	}
+	for _, c := range candidates {
+		if c.FeatureID == "F013-no-state" {
+			t.Error("feature without state.json should be skipped, but was included")
+		}
+	}
+}
+
+// TestCleanFeature_RejectsNoState 驗證規格要求：無 state.json 時無法確認 active
+// 狀態，CleanFeature 應拒絕清理並回 error。
+func TestCleanFeature_RejectsNoState(t *testing.T) {
+	ws := setupWorkspace(t)
+
+	f := Feature{ID: "F014-no-state", Name: "No State", Status: StatusDone}
+	ws.SaveFeature(f)
+	ws.InitFeatureDir("F014-no-state")
+	// 刻意不寫 state.json
+
+	_, err := ws.CleanFeature("F014-no-state")
+	if err == nil {
+		t.Fatal("expected error for feature without state.json")
+	}
+	if _, statErr := os.Stat(ws.FeatureDir("F014-no-state")); os.IsNotExist(statErr) {
+		t.Error("feature dir should not be removed when state.json is missing")
+	}
+}
+
 func TestHumanSize(t *testing.T) {
 	cases := []struct {
 		bytes int64
