@@ -400,6 +400,9 @@ func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, featur
 	for _, opt := range opts {
 		opt(&data)
 	}
+	for _, opt := range opts {
+		opt(&data)
+	}
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
 		return "", err
