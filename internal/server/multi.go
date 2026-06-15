@@ -3,7 +3,6 @@ package server
 import (
 	"encoding/json"
 	"fmt"
-	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -11,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	web "github.com/ggwhite/4x/dashboard/web"
 	"github.com/ggwhite/4x/internal/logging"
 	"github.com/ggwhite/4x/internal/protocol"
 )
@@ -509,9 +509,8 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 		handleGetLocales(w)
 	})
 
-	// Static files (index.html + JS/CSS)
-	sub, _ := fs.Sub(staticFS, "static")
-	mux.Handle("/", http.FileServer(http.FS(sub)))
+	// Static files (index.html + JS/CSS)，共用 dashboard/web 前端資產
+	mux.Handle("/", http.FileServer(http.FS(web.Assets)))
 
 	return logging.Middleware(recoverMiddleware(mux))
 }

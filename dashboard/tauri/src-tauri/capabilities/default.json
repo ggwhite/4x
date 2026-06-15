@@ -1,0 +1,19 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "允許主視窗以 sidecar 方式啟動內嵌的 4x server",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "binaries/4x",
+          "sidecar": true,
+          "args": ["live", "--port=4567"]
+        }
+      ]
+    }
+  ]
+}

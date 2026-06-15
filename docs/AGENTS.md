@@ -42,6 +42,7 @@ docs/
 | [overview](architecture/overview.md) | ~90 | 專案總覽 — core properties、四角色 loop 圖、三層架構（CLI / Plugin / Dashboard） | 第一次接觸 4x、onboarding、新 session 想快速建立全貌 |
 | [protocol](architecture/protocol.md) | ~490 | `.4x/` 目錄協議 — settings.json、features/*.yaml、state.json、events.jsonl、baseline.json、verify.json、所有 report 格式範本 | 讀寫 `.4x/` 檔案、實作 protocol package、開發 plugin |
 | [state-machine](architecture/state-machine.md) | ~50 | 狀態機 — 10 states、16 valid transitions、round counter 規則 | 改狀態轉換邏輯、debug transition 錯誤 |
+| [cross-platform-packaging](architecture/cross-platform-packaging.md) | ~70 | 三平台桌面打包 — `dashboard/web/` 共用前端層、macOS Swift / Windows·Linux Tauri 殼、CI matrix | 改桌面 app 打包、前端資產位置、desktop CI |
 
 ### design/ — 機制設計
 

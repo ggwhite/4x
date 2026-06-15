@@ -151,10 +151,17 @@ The dashboard manages runner subprocesses:
 
 When a runner subprocess exits, the server marks the feature inactive (`Active=false`, `StopReason=process-exit`). This is guarded against a race: a runner may write its own final `state.json` (e.g. `pending-review`) just before exiting. The server records the process exit time and, before overwriting, re-reads the state — if `state.json` was updated **at or after** the exit time (`UpdatedAt >= endTime`), the runner's final state is kept and the inactive write is skipped. This prevents the server from reverting a freshly-written phase or clobbering its `StopReason` with a stale in-memory snapshot.
 
+## Shared Web Frontend
+
+The dashboard UI (HTML/CSS/JS + locale JSON) lives in a single source of truth at `dashboard/web/` and is embedded into the `4x` binary via `dashboard/web/embed.go` (`web.Assets embed.FS`). The Go server (`internal/server/server.go`, `internal/server/multi.go`) serves static assets and locale files directly from `web.Assets`, so the same frontend backs every platform shell — the Go-served web UI, the macOS WKWebView, and the Tauri webview. There is no per-platform UI copy to keep in sync.
+
 ## Platforms
 
-| Platform | Status |
-|---|---|
-| Web UI (embedded) | Available |
-| macOS native (Swift) | Planned |
-| Electron (Windows/Linux) | Planned |
+| Platform | Shell | Packaging |
+|---|---|---|
+| Web UI (embedded) | Go server serves `web.Assets` | `4x live` |
+| macOS native | Swift WKWebView, auto-launches the bundled `4x live` server | universal `.dmg` (`make package-macos`) |
+| Windows | Tauri v2 webview, `4x` sidecar | `.msi` (`dashboard/tauri`) |
+| Linux | Tauri v2 webview, `4x` sidecar | `.AppImage` (`dashboard/tauri`) |
+
+All desktop shells load the same `dashboard/web/` frontend over `http://localhost:<port>` backed by the embedded `4x` server. The CI matrix in `.github/workflows/desktop.yml` cross-compiles the per-platform `4x` binary and produces the `.dmg` / `.msi` / `.AppImage` artifacts.

@@ -1,4 +1,4 @@
-.PHONY: build install test clean check-docs check-docs-sync check-i18n
+.PHONY: build install test clean check-docs check-docs-sync check-i18n package-macos
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
@@ -25,3 +25,6 @@ check-docs-sync:
 
 check-i18n:
 	@bash scripts/check-i18n.sh
+
+package-macos:
+	@bash scripts/package-macos.sh

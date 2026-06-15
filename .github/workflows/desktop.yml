@@ -1,0 +1,164 @@
+name: Desktop
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-binaries:
+    name: Build 4x binary (${{ matrix.goos }}/${{ matrix.goarch }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: darwin
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: windows
+            goarch: amd64
+          - goos: linux
+            goarch: amd64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          VERSION="${GITHUB_REF_NAME:-dev}"
+          EXT=""
+          if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
+          OUT="4x-${GOOS}-${GOARCH}${EXT}"
+          go build -ldflags "-X main.version=${VERSION}" -o "${OUT}" ./cmd/4x
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 4x-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: 4x-${{ matrix.goos }}-${{ matrix.goarch }}*
+
+  macos:
+    name: Package macOS .dmg
+    needs: build-binaries
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download darwin arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: 4x-darwin-arm64
+          path: bin
+
+      - name: Download darwin amd64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: 4x-darwin-amd64
+          path: bin
+
+      - name: Make binaries executable
+        run: chmod +x bin/4x-darwin-arm64 bin/4x-darwin-amd64
+
+      - name: Package .dmg
+        run: make package-macos
+
+      - name: Verify universal binary (lipo)
+        run: |
+          BIN="dist/macos-build/4x Live.app/Contents/MacOS/4x"
+          lipo -info "$BIN"
+          lipo -archs "$BIN" | grep -q "arm64" && lipo -archs "$BIN" | grep -q "x86_64"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 4x-Live-macos-${{ github.ref_name }}
+          path: dist/4x-Live.dmg
+
+  windows:
+    name: Package Windows .msi
+    needs: build-binaries
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download windows binary
+        uses: actions/download-artifact@v4
+        with:
+          name: 4x-windows-amd64
+          path: dashboard/tauri/src-tauri/binaries
+
+      - name: Stage sidecar binary
+        shell: bash
+        run: |
+          cd dashboard/tauri/src-tauri/binaries
+          mv 4x-windows-amd64.exe 4x-x86_64-pc-windows-msvc.exe
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2"
+
+      - name: Tauri build (msi)
+        working-directory: dashboard/tauri
+        run: cargo tauri build --bundles msi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 4x-Live-windows-${{ github.ref_name }}
+          path: dashboard/tauri/src-tauri/target/release/bundle/msi/*.msi
+
+  linux:
+    name: Package Linux .AppImage
+    needs: build-binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Linux build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Download linux binary
+        uses: actions/download-artifact@v4
+        with:
+          name: 4x-linux-amd64
+          path: dashboard/tauri/src-tauri/binaries
+
+      - name: Stage sidecar binary
+        run: |
+          cd dashboard/tauri/src-tauri/binaries
+          mv 4x-linux-amd64 4x-x86_64-unknown-linux-gnu
+          chmod +x 4x-x86_64-unknown-linux-gnu
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2"
+
+      - name: Tauri build (appimage)
+        working-directory: dashboard/tauri
+        run: cargo tauri build --bundles appimage
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 4x-Live-linux-${{ github.ref_name }}
+          path: dashboard/tauri/src-tauri/target/release/bundle/appimage/*.AppImage

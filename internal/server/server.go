@@ -4,13 +4,11 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"embed"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -23,6 +21,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	web "github.com/ggwhite/4x/dashboard/web"
 	"github.com/ggwhite/4x/internal/batch"
 	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/logging"
@@ -32,9 +31,6 @@ import (
 
 var settingsMu sync.Mutex
 var mergeMu sync.Mutex
-
-//go:embed static
-var staticFS embed.FS
 
 var supportedLocales = []string{"en", "zh-TW", "zh-CN", "ja", "ko", "es"}
 
@@ -213,8 +209,7 @@ func newMux(ws *protocol.Workspace, pm *ProcessManager, bm *BatchManager) http.H
 		}
 		handleGetLocales(w)
 	})
-	sub, _ := fs.Sub(staticFS, "static")
-	mux.Handle("/", http.FileServer(http.FS(sub)))
+	mux.Handle("/", http.FileServer(http.FS(web.Assets)))
 
 	return mux
 }
@@ -1616,10 +1611,10 @@ func handleGetLocale(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid locale", http.StatusBadRequest)
 		return
 	}
-	filename := "static/locales/" + lang + ".json"
-	data, err := staticFS.ReadFile(filename)
+	filename := "locales/" + lang + ".json"
+	data, err := web.Assets.ReadFile(filename)
 	if err != nil {
-		data, _ = staticFS.ReadFile("static/locales/en.json")
+		data, _ = web.Assets.ReadFile("locales/en.json")
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-cache")
