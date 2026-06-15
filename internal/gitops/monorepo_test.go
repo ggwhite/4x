@@ -31,6 +31,8 @@ func initGitRepo(t *testing.T, dir string) {
 	t.Helper()
 	os.MkdirAll(dir, 0o755)
 	runGit(t, dir, "init")
+	runGit(t, dir, "config", "user.name", "test")
+	runGit(t, dir, "config", "user.email", "test@test")
 	os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main\n"), 0o644)
 	runGit(t, dir, "add", ".")
 	runGit(t, dir, "commit", "-m", "init")
@@ -43,6 +45,8 @@ func setupMonoWorkspace(t *testing.T) (root string, ws *protocol.Workspace, ops 
 	root = t.TempDir()
 	os.MkdirAll(root, 0o755)
 	runGit(t, root, "init")
+	runGit(t, root, "config", "user.name", "test")
+	runGit(t, root, "config", "user.email", "test@test")
 
 	cfg := protocol.Config{Project: protocol.ProjectConfig{Name: "test"}}
 	if err := protocol.Init(root, cfg); err != nil {
