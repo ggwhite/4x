@@ -1263,3 +1263,53 @@ func TestLoadMergedConfig_NoProjectConfig_ReturnsError(t *testing.T) {
 		t.Fatal("expected error when settings.json missing")
 	}
 }
+
+// AC-2：WriteBatchReport 寫入後 ReadBatchReport 讀回的欄位與原始報告一致（含 feature 子項）。
+func TestWriteReadBatchReport_Roundtrip(t *testing.T) {
+	ws := setupWorkspace(t)
+
+	want := BatchReport{
+		StartedAt:      time.Unix(1000, 0).UTC(),
+		FinishedAt:     time.Unix(1042, 0).UTC(),
+		DurationMs:     42000,
+		Outcome:        BatchOutcomeStopped,
+		Total:          2,
+		Completed:      1,
+		Failed:         1,
+		Remaining:      0,
+		Runner:         "claude",
+		RunningFeature: "F002",
+		Features: []BatchFeatureReport{
+			{ID: "F001", Name: "feat one", FinalStatus: StatusDone, DurationMs: 1500, Rounds: 2},
+			{ID: "F002", Name: "feat two", FinalStatus: StatusBlocked, DurationMs: 800, Rounds: 5, StopReason: "max-rounds"},
+		},
+	}
+
+	if err := ws.WriteBatchReport(want); err != nil {
+		t.Fatalf("WriteBatchReport: %v", err)
+	}
+
+	got, err := ws.ReadBatchReport()
+	if err != nil {
+		t.Fatalf("ReadBatchReport: %v", err)
+	}
+	if got == nil {
+		t.Fatal("ReadBatchReport returned nil after write")
+	}
+	if !reflect.DeepEqual(*got, want) {
+		t.Errorf("roundtrip mismatch:\n got = %+v\nwant = %+v", *got, want)
+	}
+}
+
+// AC-2：尚未寫過報告的 workspace，ReadBatchReport 回 (nil, nil) 代表「尚無 batch 報告」。
+func TestReadBatchReport_MissingReturnsNil(t *testing.T) {
+	ws := setupWorkspace(t)
+
+	got, err := ws.ReadBatchReport()
+	if err != nil {
+		t.Fatalf("ReadBatchReport on empty dir: %v", err)
+	}
+	if got != nil {
+		t.Errorf("ReadBatchReport = %+v, want nil for missing file", *got)
+	}
+}

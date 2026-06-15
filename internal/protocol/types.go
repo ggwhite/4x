@@ -71,6 +71,13 @@ const (
 	StatusReadyForReview Status = "ready-for-review"
 )
 
+// BatchCompleted 判斷 feature 的最終狀態是否視為 batch 已完成。
+// done / abandoned / ready-for-review 三者皆算完成（與 cmd/4x batch 排程語義一致），
+// 抽到 protocol 供 batch report 與排程共用，避免兩處判定漂移。
+func BatchCompleted(s Status) bool {
+	return s == StatusDone || s == StatusAbandoned || s == StatusReadyForReview
+}
+
 // PhaseToStatus 將 state machine 的 Phase 映射為面向 dashboard 的 Status
 func PhaseToStatus(phase Phase) Status {
 	switch phase {
@@ -308,6 +315,42 @@ type BatchConflict struct {
 	ConflictRepo string    `json:"conflictRepo"`
 	Files        []string  `json:"files"`
 	DetectedAt   time.Time `json:"detectedAt"`
+}
+
+// Batch run 的結束結果（BatchReport.Outcome）列舉值，描述「批次如何終止」而非「是否全數成功」。
+// 即使 outcome=completed，仍可能有 feature 失敗被跳過（看 Failed/Remaining 計數判斷實際結果）。
+const (
+	BatchOutcomeCompleted   = "completed"   // 主迴圈自然跑完排程（含失敗達上限被跳過），非被停止/中斷/crash
+	BatchOutcomeStopped     = "stopped"     // 使用者按 Stop / 衝突暫停等 graceful 提前結束
+	BatchOutcomeInterrupted = "interrupted" // 收到 SIGTERM/SIGINT 中斷
+	BatchOutcomeCrashed     = "crashed"     // 行程 panic
+)
+
+// BatchReport 是一次 batch run 結束後（正常 / stop / interrupt / crash）寫入 .4x/batch-report.json
+// 的整體報告。dashboard 在 batch 沒在跑時讀此檔顯示「上次 batch 報告」摘要與每個 feature 的最終狀態。
+type BatchReport struct {
+	StartedAt      time.Time            `json:"startedAt"`
+	FinishedAt     time.Time            `json:"finishedAt"`
+	DurationMs     int64                `json:"durationMs"`
+	Outcome        string               `json:"outcome"`
+	Total          int                  `json:"total"`
+	Completed      int                  `json:"completed"`
+	Failed         int                  `json:"failed"`
+	Remaining      int                  `json:"remaining"`
+	Runner         string               `json:"runner"`
+	Features       []BatchFeatureReport `json:"features"`
+	PanicMessage   string               `json:"panicMessage,omitempty"`   // 僅 crashed
+	RunningFeature string               `json:"runningFeature,omitempty"` // interrupted/crashed 時正在跑的 feature id
+}
+
+// BatchFeatureReport 是 BatchReport 內單一 feature 的最終狀態快照。
+type BatchFeatureReport struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	FinalStatus Status `json:"finalStatus"`
+	DurationMs  int64  `json:"durationMs"`
+	Rounds      int    `json:"rounds"`
+	StopReason  string `json:"stopReason,omitempty"`
 }
 
 // WorkspaceConfig 描述 multi-repo workspace 的 repo 映射。

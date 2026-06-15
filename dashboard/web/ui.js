@@ -353,6 +353,36 @@ function renderBatchPanel(status) {
     </div>`;
   }
 
+  // 上次 batch 報告：batch 沒在跑且有報告時，渲染可展開的摘要卡（outcome 色碼 + 完成/失敗/剩餘 + 總耗時）。
+  let lastReportHtml = '';
+  if (!running && status && status.lastReport) {
+    const rep = status.lastReport;
+    const OC = {
+      completed:   { c: '#34d399', bg: 'rgba(52,211,153,.15)' },
+      stopped:     { c: '#facc15', bg: 'rgba(250,204,21,.15)' },
+      interrupted: { c: '#fb923c', bg: 'rgba(251,146,60,.15)' },
+      crashed:     { c: '#f87171', bg: 'rgba(248,113,113,.15)' },
+    };
+    const oc = OC[rep.outcome] || OC.completed;
+    const dur = formatDuration(rep.durationMs || 0);
+    const rows = (rep.features || []).map(f => {
+      const fdur = f.durationMs ? formatDuration(f.durationMs) : '—';
+      const stop = f.stopReason ? `<span class="batch-report-stop">${esc(f.stopReason)}</span>` : '';
+      return `<div class="batch-report-row"><span class="batch-report-row-id">${esc(f.id)}</span><span class="batch-report-row-name">${esc(f.name || '')}</span><span class="batch-report-row-status">${esc(f.finalStatus || '')}</span><span class="batch-report-row-meta">${t('batch.reportRounds').replace('{n}', f.rounds || 0)} · ${fdur}</span>${stop}</div>`;
+    }).join('');
+    const panic = rep.panicMessage ? `<div class="batch-report-panic">${t('batch.panicMessage')}: ${esc(rep.panicMessage)}</div>` : '';
+    lastReportHtml = `<div class="batch-report">
+      <button type="button" class="batch-report-head" onclick="toggleBatchReport()">
+        <span id="batch-report-chevron" class="batch-report-chevron">${_batchReportOpen ? '▾' : '▸'}</span>
+        <span class="batch-report-label">${t('batch.lastReport')}</span>
+        <span class="batch-report-badge" style="color:${oc.c};background:${oc.bg}">${t('batch.outcome.' + rep.outcome) || rep.outcome}</span>
+        <span class="batch-report-counts">${t('batch.reportCompleted').replace('{n}', rep.completed)} · ${t('batch.reportFailed').replace('{n}', rep.failed)} · ${t('batch.reportRemaining').replace('{n}', rep.remaining)}</span>
+        <span class="batch-report-dur">${t('batch.reportDuration').replace('{d}', dur)}</span>
+      </button>
+      <div id="batch-report-detail" class="batch-report-detail${_batchReportOpen ? '' : ' hidden'}">${rows}${panic}</div>
+    </div>`;
+  }
+
   let queueHtml = '';
   if (status && status.queue && status.queue.length) {
     const PL={0:{l:'P0',c:'#f87171',bg:'rgba(248,113,113,.15)'},1:{l:'P1',c:'#fb923c',bg:'rgba(251,146,60,.12)'},2:{l:'P2',c:'#facc15',bg:'rgba(250,204,21,.10)'},3:{l:'P3',c:'#60a5fa',bg:'rgba(96,165,250,.10)'}};
@@ -374,7 +404,19 @@ function renderBatchPanel(status) {
   return `<div class="dash-card mb-4" id="batch-panel"><div class="flex items-center gap-2 mb-3">
       <span class="text-[10px] font-bold dash-muted uppercase tracking-wider">${t('batch.title')}</span>
       <div class="ml-auto flex items-center gap-2">${controls}</div>
-    </div>${conflictCard}${queueHtml ? `<div class="batch-queue">${queueHtml}</div>` : ''}</div>`;
+    </div>${conflictCard}${lastReportHtml}${queueHtml ? `<div class="batch-queue">${queueHtml}</div>` : ''}</div>`;
+}
+
+// _batchReportOpen 記住「上次 batch 報告」展開狀態，跨輪詢重繪保持不變。
+let _batchReportOpen = false;
+
+// toggleBatchReport 展開/收合上次 batch 報告詳情（class toggle，不重繪整個面板以免閃爍）。
+function toggleBatchReport() {
+  _batchReportOpen = !_batchReportOpen;
+  const d = document.getElementById('batch-report-detail');
+  const c = document.getElementById('batch-report-chevron');
+  if (d) d.classList.toggle('hidden', !_batchReportOpen);
+  if (c) c.textContent = _batchReportOpen ? '▾' : '▸';
 }
 
 // startBatch 先彈確認對話框（避免誤觸），確認後 POST /api/batch/start 啟動 batch run。

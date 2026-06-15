@@ -154,5 +154,17 @@
   "batch.conflictTitle": "Conflicto de merge en {id}",
   "batch.startFailed": "Error al iniciar lote: {error}",
   "batch.stopFailed": "Error al detener lote: {error}",
-  "batch.continueFailed": "Error al continuar lote: {error}"
+  "batch.continueFailed": "Error al continuar lote: {error}",
+  "batch.lastReport": "Último informe de lote",
+  "batch.outcome.completed": "Completado",
+  "batch.outcome.stopped": "Detenido",
+  "batch.outcome.interrupted": "Interrumpido",
+  "batch.outcome.crashed": "Fallido",
+  "batch.reportCompleted": "{n} hechos",
+  "batch.reportFailed": "{n} fallidos",
+  "batch.reportRemaining": "{n} restantes",
+  "batch.reportDuration": "{d} en total",
+  "batch.reportRounds": "{n}R",
+  "batch.reportExpand": "Expandir informe",
+  "batch.panicMessage": "Panic"
 }

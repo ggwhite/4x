@@ -154,5 +154,17 @@
   "batch.conflictTitle": "{id} で merge コンフリクト",
   "batch.startFailed": "バッチ開始に失敗しました：{error}",
   "batch.stopFailed": "バッチ停止に失敗しました：{error}",
-  "batch.continueFailed": "バッチ続行に失敗しました：{error}"
+  "batch.continueFailed": "バッチ続行に失敗しました：{error}",
+  "batch.lastReport": "前回のバッチレポート",
+  "batch.outcome.completed": "完了",
+  "batch.outcome.stopped": "停止",
+  "batch.outcome.interrupted": "中断",
+  "batch.outcome.crashed": "クラッシュ",
+  "batch.reportCompleted": "完了 {n}",
+  "batch.reportFailed": "失敗 {n}",
+  "batch.reportRemaining": "残り {n}",
+  "batch.reportDuration": "合計 {d}",
+  "batch.reportRounds": "{n}R",
+  "batch.reportExpand": "レポートを展開",
+  "batch.panicMessage": "Panic"
 }

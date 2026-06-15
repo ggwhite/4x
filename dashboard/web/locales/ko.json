@@ -154,5 +154,17 @@
   "batch.conflictTitle": "{id}에서 merge 충돌",
   "batch.startFailed": "배치 시작 실패: {error}",
   "batch.stopFailed": "배치 중지 실패: {error}",
-  "batch.continueFailed": "배치 계속 실패: {error}"
+  "batch.continueFailed": "배치 계속 실패: {error}",
+  "batch.lastReport": "지난 배치 보고서",
+  "batch.outcome.completed": "완료",
+  "batch.outcome.stopped": "중지됨",
+  "batch.outcome.interrupted": "중단됨",
+  "batch.outcome.crashed": "충돌",
+  "batch.reportCompleted": "완료 {n}",
+  "batch.reportFailed": "실패 {n}",
+  "batch.reportRemaining": "남음 {n}",
+  "batch.reportDuration": "총 {d}",
+  "batch.reportRounds": "{n}R",
+  "batch.reportExpand": "보고서 펼치기",
+  "batch.panicMessage": "Panic"
 }

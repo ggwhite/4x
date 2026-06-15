@@ -154,5 +154,17 @@
   "batch.conflictTitle": "{id} 发生 merge 冲突",
   "batch.startFailed": "启动批次失败：{error}",
   "batch.stopFailed": "停止批次失败：{error}",
-  "batch.continueFailed": "继续批次失败：{error}"
+  "batch.continueFailed": "继续批次失败：{error}",
+  "batch.lastReport": "上次批次报告",
+  "batch.outcome.completed": "已完成",
+  "batch.outcome.stopped": "已停止",
+  "batch.outcome.interrupted": "已中断",
+  "batch.outcome.crashed": "已崩溃",
+  "batch.reportCompleted": "完成 {n}",
+  "batch.reportFailed": "失败 {n}",
+  "batch.reportRemaining": "剩余 {n}",
+  "batch.reportDuration": "共 {d}",
+  "batch.reportRounds": "{n}R",
+  "batch.reportExpand": "展开报告",
+  "batch.panicMessage": "Panic"
 }

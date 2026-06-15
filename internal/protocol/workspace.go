@@ -15,29 +15,30 @@ import (
 )
 
 const (
-	DirName          = ".4x"
-	UserConfigDir    = ".4x"
-	UserConfigFile   = "settings.json"
-	BacklogFile      = "feature_list.json"
-	ConfigFile       = "settings.json"
-	FeaturesDir      = "features"
-	StateFile        = "state.json"
-	EventsFile       = "events.jsonl"
-	BaselineFile     = "baseline.json"
-	RoundsDir        = "rounds"
-	FinalReport      = "final-report.md"
-	CommitPlan       = "commit-plan.md"
-	TaskBrief        = "task-brief.md"
-	Criteria         = "acceptance-criteria.md"
-	TestStratFile    = "test-strategy.yaml"
-	ReviewReport     = "review-report.md"
-	DeepReviewReport = "deep-review-report.md"
-	CoderReport      = "coder-report.md"
-	TestReport       = "test-report.md"
-	VerifyFile       = "verify.json"
-	EscalationFile   = "escalation.json"
-	BatchStopFile    = "batch-stop"
+	DirName           = ".4x"
+	UserConfigDir     = ".4x"
+	UserConfigFile    = "settings.json"
+	BacklogFile       = "feature_list.json"
+	ConfigFile        = "settings.json"
+	FeaturesDir       = "features"
+	StateFile         = "state.json"
+	EventsFile        = "events.jsonl"
+	BaselineFile      = "baseline.json"
+	RoundsDir         = "rounds"
+	FinalReport       = "final-report.md"
+	CommitPlan        = "commit-plan.md"
+	TaskBrief         = "task-brief.md"
+	Criteria          = "acceptance-criteria.md"
+	TestStratFile     = "test-strategy.yaml"
+	ReviewReport      = "review-report.md"
+	DeepReviewReport  = "deep-review-report.md"
+	CoderReport       = "coder-report.md"
+	TestReport        = "test-report.md"
+	VerifyFile        = "verify.json"
+	EscalationFile    = "escalation.json"
+	BatchStopFile     = "batch-stop"
 	BatchConflictFile = "batch-conflict.json"
+	BatchReportFile   = "batch-report.json"
 )
 
 // Workspace 管理 .4x/ 目錄的讀寫
@@ -481,6 +482,55 @@ func (w *Workspace) ClearBatchConflict() error {
 		return err
 	}
 	return nil
+}
+
+// WriteBatchReport 原子寫入 .4x/batch-report.json（同目錄 temp file + os.Rename，仿 WriteState），
+// 確保 dashboard 在 batch run 收尾／中斷的同時讀到的永遠是完整 JSON，不會撞上半寫狀態。
+func (w *Workspace) WriteBatchReport(r BatchReport) error {
+	data, err := json.MarshalIndent(r, "", "  ")
+	if err != nil {
+		return err
+	}
+	dir := w.DotDir()
+	tmp, err := os.CreateTemp(dir, ".batch-report-*.json")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	if _, err := tmp.Write(append(data, '\n')); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := os.Chmod(tmpPath, 0o644); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := os.Rename(tmpPath, filepath.Join(dir, BatchReportFile)); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	return nil
+}
+
+// ReadBatchReport 讀取 .4x/batch-report.json；檔案不存在時回 (nil, nil) 代表尚無 batch 報告。
+func (w *Workspace) ReadBatchReport() (*BatchReport, error) {
+	data, err := os.ReadFile(filepath.Join(w.DotDir(), BatchReportFile))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var r BatchReport
+	if err := json.Unmarshal(data, &r); err != nil {
+		return nil, err
+	}
+	return &r, nil
 }
 
 // ReadConfig 讀取 .4x/settings.json

@@ -107,6 +107,50 @@ func TestBatchStatus_ReportsConflict(t *testing.T) {
 	}
 }
 
+// AC-7：存在 .4x/batch-report.json 時，GET /api/batch/status 帶 lastReport 物件；無報告時為 null。
+func TestBatchStatus_ReportsLastReport(t *testing.T) {
+	ws := setupBatchStatusWorkspace(t)
+	mux := newMux(protocol.NewCachedWorkspace(ws), nil, NewBatchManager(ws, "echo"))
+
+	rec := serveRequest(t, mux, http.MethodGet, "/api/batch/status", "")
+	var before batchStatusResponse
+	json.Unmarshal(rec.Body.Bytes(), &before)
+	if before.LastReport != nil {
+		t.Errorf("lastReport should be nil before writing report, got %+v", before.LastReport)
+	}
+
+	if err := ws.WriteBatchReport(protocol.BatchReport{
+		Outcome:   protocol.BatchOutcomeStopped,
+		Total:     3,
+		Completed: 1,
+		Failed:    1,
+		Remaining: 1,
+		Runner:    "claude",
+		Features: []protocol.BatchFeatureReport{
+			{ID: "feat-a", Name: "feat-a", FinalStatus: protocol.StatusDone, Rounds: 2},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	rec = serveRequest(t, mux, http.MethodGet, "/api/batch/status", "")
+	var after batchStatusResponse
+	json.Unmarshal(rec.Body.Bytes(), &after)
+	if after.LastReport == nil {
+		t.Fatal("lastReport should be non-nil after writing report")
+	}
+	if after.LastReport.Outcome != protocol.BatchOutcomeStopped {
+		t.Errorf("lastReport.outcome = %q, want stopped", after.LastReport.Outcome)
+	}
+	if after.LastReport.Completed != 1 || after.LastReport.Failed != 1 || after.LastReport.Remaining != 1 {
+		t.Errorf("lastReport counts = %d/%d/%d, want 1/1/1",
+			after.LastReport.Completed, after.LastReport.Failed, after.LastReport.Remaining)
+	}
+	if len(after.LastReport.Features) != 1 || after.LastReport.Features[0].ID != "feat-a" {
+		t.Errorf("lastReport.features = %+v, want 1 entry feat-a", after.LastReport.Features)
+	}
+}
+
 // AC-13：POST /api/batch/start 在存在未解決 conflict 時回 409。
 func TestBatchStart_ConflictReturns409(t *testing.T) {
 	ws := setupBatchStatusWorkspace(t)

@@ -152,6 +152,7 @@ Roles communicate through the `.4x/` directory, not shared context windows.
 ├── batch-plan.json                  # Batch execution plan
 ├── batch-stop                       # Graceful stop signal
 ├── batch-conflict.json              # Batch auto-merge conflict signal (paused)
+├── batch-report.json                # Last batch run report (stats + per-feature outcome)
 ├── features/
 │   └── {id}.yaml                    # Feature definition (canonical source)
 └── {feature-id}/
@@ -195,6 +196,8 @@ Two top-level signal files coordinate a running batch with external observers (t
   ```
 
   `conflictRepo` is empty in monorepo mode. The file is cleared at the start of each batch run and when the user continues a paused batch.
+
+- **`batch-report.json`** — written when a batch run ends (normally, stopped, interrupted, or crashed). Unlike the two signal files above it persists between runs as the "last batch report" the dashboard shows when no batch is active. It records the `outcome`, overall counts (`total` / `completed` / `failed` / `remaining`), the runner, total duration, and a per-feature breakdown (final status, rounds, stop reason); a `crashed` outcome also carries `panicMessage`. Written atomically (temp file + rename) so the dashboard never reads a half-written report.
 
 ### Atomic State Writes
 

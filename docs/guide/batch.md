@@ -74,6 +74,19 @@ Creates a `.4x/batch-stop` signal file. The batch finishes the current feature, 
 
 When auto-merge hits a conflict, the batch pauses and writes `.4x/batch-conflict.json` recording the feature, the conflicting repo (multi-repo mode), and the affected files. The worktree is preserved so you can resolve the conflict. The signal file lets the [dashboard](dashboard.md) surface the conflict and offer a **Continue Batch** action — under the hood it clears the signal file and restarts `4x batch run`. From the CLI, resolve the files, run `4x merge <id>`, then re-run `4x batch run` to continue. The conflict file is cleared automatically at the start of every batch run.
 
+## Run Report
+
+Every batch run writes `.4x/batch-report.json` when it ends — whether it finished normally, was stopped, was interrupted, or crashed. The report records overall stats (total / completed / failed / remaining), the runner, total duration, and each feature's final status, round count, and stop reason.
+
+The `outcome` field captures how the run ended:
+
+- `completed` — every feature finished
+- `stopped` — you pressed Stop (`.4x/batch-stop`) or an auto-merge conflict paused the run
+- `interrupted` — the batch process received `SIGTERM`/`SIGINT`; the report records the feature that was running
+- `crashed` — the batch process panicked; the report is best-effort and includes `panicMessage`
+
+The [dashboard](dashboard.md) reads this file when no batch is running and shows a "last batch report" summary card that expands to per-feature detail. The report is written only after the run stops, never inside the per-feature execution loop, so it adds no overhead to batch throughput.
+
 ## Checking Progress
 
 ```bash

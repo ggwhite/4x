@@ -233,7 +233,7 @@ func TestRunBatchSchedule_DependencyGateBlocks(t *testing.T) {
 		return protocol.StatusReadyForReview, nil
 	}
 
-	completed := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, true, nil)
+	completed := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, true, nil, nil)
 	if len(executed) != 0 {
 		t.Fatalf("feat-a should not run with unmet dependency, executed: %v", executed)
 	}
@@ -269,7 +269,7 @@ func TestRunBatchSchedule_SkipsDoneAndSetsPid(t *testing.T) {
 		return protocol.StatusReadyForReview, nil
 	}
 
-	completed := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, true, nil)
+	completed := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, true, nil, nil)
 
 	for _, e := range executed {
 		if e == "feat-done" {
@@ -305,7 +305,7 @@ func TestRunBatchSchedule_FailureCapStopsRetry(t *testing.T) {
 		return protocol.StatusNeedsAttention, nil
 	}
 
-	completed := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, true, nil)
+	completed := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, true, nil, nil)
 	if count != 2 {
 		t.Fatalf("feat-fail ran %d times, want capped at 2", count)
 	}

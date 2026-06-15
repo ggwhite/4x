@@ -26,7 +26,7 @@ func TestRunBatchSchedule_AutoMergeSuccessMarksDone(t *testing.T) {
 		return gitops.MergeResult{} // 成功（無衝突、無錯誤）
 	}
 
-	completed := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, false, autoMerge)
+	completed := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, false, autoMerge, nil)
 
 	if len(merged) != 1 || merged[0] != "feat-a" {
 		t.Fatalf("autoMerge called with %v, want [feat-a]", merged)
@@ -54,7 +54,7 @@ func TestRunBatchSchedule_AutoMergeSkippedMarksDone(t *testing.T) {
 		return gitops.MergeResult{Skipped: true}
 	}
 
-	completed := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, false, autoMerge)
+	completed := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, false, autoMerge, nil)
 
 	if statusMap["feat-a"] != protocol.StatusDone {
 		t.Errorf("statusMap[feat-a] = %s, want done", statusMap["feat-a"])
@@ -86,7 +86,7 @@ func TestRunBatchSchedule_AutoMergeConflictPauses(t *testing.T) {
 		return gitops.MergeResult{Conflict: true, Files: []string{"main.go"}}
 	}
 
-	completed := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, false, autoMerge)
+	completed := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, false, autoMerge, nil)
 
 	if len(executed) != 1 || executed[0] != "feat-a" {
 		t.Fatalf("executed = %v, want only [feat-a] (paused before feat-b)", executed)
@@ -123,7 +123,7 @@ func TestRunBatchSchedule_AutoMergeErrorContinues(t *testing.T) {
 		return gitops.MergeResult{}
 	}
 
-	completed := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, false, autoMerge)
+	completed := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, false, autoMerge, nil)
 
 	if len(executed) != 2 {
 		t.Fatalf("executed = %v, want both features (error does not pause)", executed)
@@ -156,7 +156,7 @@ func TestRunBatchSchedule_NoAutoMergeSkipsMerge(t *testing.T) {
 		return gitops.MergeResult{}
 	}
 
-	completed := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, true, autoMerge)
+	completed := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, true, autoMerge, nil)
 
 	if called {
 		t.Error("autoMerge should not be called when noAutoMerge is true")
@@ -190,7 +190,7 @@ func TestRunBatchSchedule_ResumeAfterConflict(t *testing.T) {
 	conflictMerge := func(featureID string) gitops.MergeResult {
 		return gitops.MergeResult{Conflict: true, Files: []string{"main.go"}}
 	}
-	completed1 := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, false, conflictMerge)
+	completed1 := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, false, conflictMerge, nil)
 	if completed1 != 0 {
 		t.Fatalf("first run completed = %d, want 0 (paused at conflict)", completed1)
 	}
@@ -207,7 +207,7 @@ func TestRunBatchSchedule_ResumeAfterConflict(t *testing.T) {
 		merged = append(merged, featureID)
 		return gitops.MergeResult{}
 	}
-	completed2 := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, false, successMerge)
+	completed2 := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, false, successMerge, nil)
 
 	if len(merged) != 1 || merged[0] != "feat-b" {
 		t.Fatalf("second run merged %v, want [feat-b] (feat-a already done)", merged)
@@ -235,7 +235,7 @@ func TestRunBatchSchedule_ConflictWritesSignal(t *testing.T) {
 		return gitops.MergeResult{Conflict: true, Files: []string{"main.go"}, ConflictRepo: "core"}
 	}
 
-	runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, false, autoMerge)
+	runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, false, autoMerge, nil)
 
 	conflict, err := ws.ReadBatchConflict()
 	if err != nil {
@@ -275,7 +275,7 @@ func TestRunBatchSchedule_SuccessClearsStaleSignal(t *testing.T) {
 		return gitops.MergeResult{}
 	}
 
-	runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, false, autoMerge)
+	runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, false, autoMerge, nil)
 
 	if conflict, _ := ws.ReadBatchConflict(); conflict != nil {
 		t.Errorf("stale conflict signal should be cleared, got %+v", *conflict)

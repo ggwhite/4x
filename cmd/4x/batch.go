@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -284,6 +286,45 @@ func newBatchRunCmd() *cobra.Command {
 				statusMap[f.ID] = f.Status
 			}
 
+			// progress 是 S1/S2/S3 共用的進度快照：runBatchSchedule 在主迴圈更新，
+			// signal handler 與 panic recover 讀它建報告。預設 outcome 為 completed，
+			// 偵測 stop-file / 衝突暫停時改為 stopped。
+			progress := &batchProgress{
+				startedAt: time.Now(),
+				statusMap: maps.Clone(statusMap),
+				outcome:   protocol.BatchOutcomeCompleted,
+			}
+
+			// S2：行程層 signal handler。收到 SIGTERM/SIGINT → 以 outcome=interrupted +
+			// 當前 runningFeature 寫一份 best-effort 報告後結束行程（130）。doneCh 讓正常結束時
+			// goroutine 安靜退出，不會誤寫 interrupted 報告。與 runFeature 內 per-feature signal
+			// context 並存：行程層負責寫報告與終止 batch，feature 層負責中止子程序。
+			sigCh := make(chan os.Signal, 1)
+			signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+			doneCh := make(chan struct{})
+			defer func() {
+				signal.Stop(sigCh)
+				close(doneCh)
+			}()
+			go func() {
+				select {
+				case <-doneCh:
+					return
+				case <-sigCh:
+					finishBatchReport(ws, plan, runnerName, progress, protocol.BatchOutcomeInterrupted, "")
+					os.Exit(130)
+				}
+			}()
+
+			// S3：行程層 panic recover。寫 outcome=crashed + PanicMessage 的 partial report（best-effort，
+			// 寫失敗只記 log 不掩蓋原 panic），然後 re-panic 保留原本的堆疊與非零退出。
+			defer func() {
+				if r := recover(); r != nil {
+					finishBatchReport(ws, plan, runnerName, progress, protocol.BatchOutcomeCrashed, fmt.Sprint(r))
+					panic(r)
+				}
+			}()
+
 			// runFeature 執行單一 feature 的完整 runLoop（含 worktree 隔離），回傳跑完後的最新 status。
 			// 抽出成 callback 讓 runBatchSchedule 的排程 / gate / 失敗追蹤邏輯可獨立測試。
 			runFeature := func(next string, feature protocol.Feature, s protocol.State) (protocol.Status, error) {
@@ -328,7 +369,11 @@ func newBatchRunCmd() *cobra.Command {
 			}
 
 			slog.Info("batch operation", "action", "run", "features", len(plan.Schedule), "runner", runnerName)
-			completed := runBatchSchedule(ws, plan, statusMap, maxRounds, runnerName, runFeature, noAutoMerge, autoMerge)
+			completed := runBatchSchedule(ws, plan, statusMap, maxRounds, runnerName, runFeature, noAutoMerge, autoMerge, progress)
+
+			// S1：正常停止（自然跑完或 stop-file / 衝突暫停）後寫整體報告。
+			// outcome 由 progress 決定：stop-file / 衝突 → stopped，自然跑完 → completed。
+			finishBatchReport(ws, plan, runnerName, progress, "", "")
 
 			slog.Info("batch operation", "action", "complete", "completed", completed, "total", len(plan.Schedule))
 			fmt.Printf("\n══════════════════════════════════════\n")
@@ -348,6 +393,77 @@ func newBatchRunCmd() *cobra.Command {
 // maxFeatureFailures 是 batch 對單一 feature 連續跑出失敗狀態的容忍上限，達標後跳過避免無限重跑。
 const maxFeatureFailures = 2
 
+// batchProgress 是 batch run 的進度快照，供三種結束觸發點（S1 正常停止、S2 signal 中斷、
+// S3 panic）共用同一份資料建報告。主迴圈在 runBatchSchedule 內更新，signal handler 與
+// panic recover goroutine 透過 snapshot() 在鎖保護下讀取，避免與主迴圈對 statusMap 的 race。
+type batchProgress struct {
+	mu             sync.Mutex
+	startedAt      time.Time
+	statusMap      map[string]protocol.Status
+	runningFeature string
+	outcome        string
+}
+
+// setRunning 記錄目前正在跑的 feature id（被選中即將執行時呼叫）。
+func (p *batchProgress) setRunning(id string) {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.runningFeature = id
+}
+
+// update 在一個 feature 收尾後刷新進度：清空 runningFeature、複製最新 statusMap。
+// 完成數不在此追蹤——報告的 Completed 由 BuildBatchReport 從 statusMap 重新統計。
+func (p *batchProgress) update(statusMap map[string]protocol.Status) {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.runningFeature = ""
+	p.statusMap = maps.Clone(statusMap)
+}
+
+// markStopped 把 outcome 標記為 stopped（stop-file / 衝突暫停等 graceful 提前結束）。
+func (p *batchProgress) markStopped() {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.outcome = protocol.BatchOutcomeStopped
+}
+
+// snapshot 在鎖保護下回傳目前進度（statusMap 為複本），供 finishBatchReport 建報告。
+func (p *batchProgress) snapshot() (startedAt time.Time, runningFeature, outcome string, statusMap map[string]protocol.Status) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.startedAt, p.runningFeature, p.outcome, maps.Clone(p.statusMap)
+}
+
+// finishBatchReport 取進度快照、建報告並原子寫出，是 S1/S2/S3 三個結束觸發點與其測試共用的收尾。
+// outcomeOverride 非空時覆蓋快照的 outcome（S2 interrupted、S3 crashed）；空字串代表沿用快照 outcome
+// （S1：stop-file/衝突 → stopped，自然跑完 → completed）。panicMsg 僅 crashed 帶入。寫檔失敗只記 log
+// （best-effort），不掩蓋呼叫端後續的 os.Exit／re-panic。回傳組好的報告供測試斷言。
+func finishBatchReport(ws *protocol.Workspace, plan *batch.BatchPlan, runnerName string,
+	progress *batchProgress, outcomeOverride, panicMsg string) protocol.BatchReport {
+	startedAt, running, outcome, sm := progress.snapshot()
+	if outcomeOverride != "" {
+		outcome = outcomeOverride
+	} else {
+		// S1（completed/stopped）：依 BuildBatchReport 契約（report.go:15）無正在跑的
+		// feature。snapshot 的 running 可能因末位 feature 走 error-continue 路徑殘留，須清空。
+		running = ""
+	}
+	report := batch.BuildBatchReport(ws, plan, sm, runnerName, startedAt, time.Now(), outcome, running, panicMsg)
+	if err := ws.WriteBatchReport(report); err != nil {
+		slog.Warn("failed to write batch report", "outcome", outcome, "error", err)
+	}
+	return report
+}
+
 // runBatchSchedule 依 plan 順序挑選並執行 feature，套用 4x run 啟動前的三道 gate（W4：
 // dependency 檢查、已 done 跳過、PID 記錄）與失敗重跑上限（W12）。runFeature 注入實際執行
 // （worktree + runLoop）並回傳跑完後的最新 status，測試可替換為模擬。回傳完成的 feature 數。
@@ -355,10 +471,11 @@ const maxFeatureFailures = 2
 // F068：feature 完成（ready-for-review）後若 !noAutoMerge 且 autoMerge != nil，呼叫注入的
 // autoMerge 把 worktree 改動合回 main——衝突則 graceful pause（保留 worktree、回傳目前 completed），
 // 非衝突錯誤則警告後續跑，成功（含 skipped）則標記 done。autoMerge 注入式（mirror runFeature）讓測試可替換。
+// progress（可為 nil，測試傳 nil）讓 batch 行程層的 signal/panic handler 讀取目前進度建報告。
 func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap map[string]protocol.Status,
 	maxRounds int, runnerName string,
 	runFeature func(next string, feature protocol.Feature, s protocol.State) (protocol.Status, error),
-	noAutoMerge bool, autoMerge func(featureID string) gitops.MergeResult) int {
+	noAutoMerge bool, autoMerge func(featureID string) gitops.MergeResult, progress *batchProgress) int {
 
 	stopFile := filepath.Join(ws.DotDir(), protocol.BatchStopFile)
 	// 進入主迴圈前清掉上一輪殘留的衝突信號，避免 dashboard 顯示過時的 conflict。
@@ -375,6 +492,7 @@ func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap m
 		if _, err := os.Stat(stopFile); err == nil {
 			os.Remove(stopFile)
 			fmt.Printf("\n⏸ batch-stop detected — stopping gracefully (%d done)\n", completed)
+			progress.markStopped()
 			break
 		}
 
@@ -406,6 +524,8 @@ func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap m
 		if next == "" {
 			break
 		}
+
+		progress.setRunning(next)
 
 		slog.Info("batch feature", "feature", next, "status", "started", "completed", completed, "total", len(plan.Schedule))
 		fmt.Printf("\n══════════════════════════════════════\n")
@@ -459,6 +579,7 @@ func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap m
 			fmt.Printf("  %s already done — skipping\n", next)
 			statusMap[next] = protocol.StatusDone
 			completed++
+			progress.update(statusMap)
 			continue
 		}
 
@@ -507,6 +628,8 @@ func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap m
 				}
 				fmt.Printf("  worktree: %s\n", gitops.Dir(ws.Root, next))
 				fmt.Printf("  resolve conflicts, then run '4x merge %s' and re-run '4x batch run' to continue.\n", next)
+				progress.markStopped()
+				progress.update(statusMap)
 				return completed
 			case result.Error != "":
 				// M3：非衝突錯誤 → 警告後嘗試下一個 feature；feature 仍算 ready-for-review（batchCompleted）。
@@ -522,6 +645,8 @@ func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap m
 		if batchCompleted(updatedStatus) {
 			completed++
 		}
+
+		progress.update(statusMap)
 	}
 
 	return completed
@@ -553,5 +678,5 @@ func newBatchStopCmd() *cobra.Command {
 }
 
 func batchCompleted(s protocol.Status) bool {
-	return s == protocol.StatusDone || s == protocol.StatusAbandoned || s == protocol.StatusReadyForReview
+	return protocol.BatchCompleted(s)
 }

@@ -99,7 +99,7 @@ The dashboard can drive a batch run end-to-end without dropping back to the term
 - **Start** (`POST /api/batch/start`) — the UI confirms first to avoid accidental launches, then starts the run. If `.4x/batch-conflict.json` still exists, the endpoint returns **HTTP 409** so a stale conflict must be resolved or continued first. The request body may carry `{runner, maxRounds}`; omitted fields fall back to the merged project/user config.
 - **Stop** (`POST /api/batch/stop`) — writes `.4x/batch-stop` for a graceful stop (the batch finishes the current feature, then exits). It does **not** kill the subprocess.
 - **Continue** (`POST /api/batch/continue`) — clears `.4x/batch-conflict.json`, then restarts the batch. Use after resolving the conflict in the worktree.
-- **Status** (`GET /api/batch/status`) — returns the running flag, the scheduled queue, the current feature, and the conflict signal (or `null`):
+- **Status** (`GET /api/batch/status`) — returns the running flag, the scheduled queue, the current feature, the conflict signal (or `null`), and `lastReport` (the parsed `.4x/batch-report.json`, or omitted when no report exists):
 
   ```json
   {
@@ -109,11 +109,14 @@ The dashboard can drive a batch run end-to-end without dropping back to the term
       {"featureId": "F002-api", "name": "API", "status": "coding", "state": "running", "position": 1}
     ],
     "currentFeature": "F002-api",
-    "conflict": null
+    "conflict": null,
+    "lastReport": null
   }
   ```
 
   The queue is built from `batch.PlanBatch` so it honors the same dependency-and-priority ordering as the CLI. Each item's `state` is `done` (feature done / ready-for-review), `running` (an active run that isn't done), or `waiting`; `position` numbers the unfinished items.
+
+  `lastReport` carries the most recent batch run's report (`outcome`, counts, runner, duration, and per-feature breakdown — see [Batch Mode](batch.md#run-report)). When no batch is running, the panel renders it as a "last batch report" summary card that expands to per-feature detail; for a `crashed` outcome it also surfaces the `panicMessage`.
 
 ### Screenshots Tab
 

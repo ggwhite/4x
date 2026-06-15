@@ -238,24 +238,24 @@ func StartMulti(ctx context.Context, reg *ProjectRegistry, port int, recentPath 
 }
 
 type taskInfo struct {
-	ID        string   `json:"id"`
-	Name      string   `json:"name"`
-	Status    string   `json:"status"`
-	Phase     string   `json:"phase"`
-	Role      string   `json:"role"`
-	Round     int      `json:"round"`
-	Active    bool     `json:"active"`
-	Pid       int      `json:"pid,omitempty"`
-	Runner    string   `json:"runner"`
-	Runners   []string `json:"runners,omitempty"`
+	ID         string   `json:"id"`
+	Name       string   `json:"name"`
+	Status     string   `json:"status"`
+	Phase      string   `json:"phase"`
+	Role       string   `json:"role"`
+	Round      int      `json:"round"`
+	Active     bool     `json:"active"`
+	Pid        int      `json:"pid,omitempty"`
+	Runner     string   `json:"runner"`
+	Runners    []string `json:"runners,omitempty"`
 	StopReason string   `json:"stopReason,omitempty"`
 	Priority   *int     `json:"priority,omitempty"`
 	Profile    string   `json:"profile,omitempty"`
-	HasSpec   bool     `json:"hasSpec,omitempty"`
-	HasPlan   bool     `json:"hasPlan,omitempty"`
-	Depends   []string `json:"depends,omitempty"`
-	CreatedAt string   `json:"createdAt,omitempty"`
-	UpdatedAt string   `json:"updatedAt,omitempty"`
+	HasSpec    bool     `json:"hasSpec,omitempty"`
+	HasPlan    bool     `json:"hasPlan,omitempty"`
+	Depends    []string `json:"depends,omitempty"`
+	CreatedAt  string   `json:"createdAt,omitempty"`
+	UpdatedAt  string   `json:"updatedAt,omitempty"`
 }
 
 type overviewInfo struct {
@@ -541,7 +541,7 @@ func handleMessages(ws *protocol.CachedWorkspace, featureID string, w http.Respo
 					File:     filepath.Join(entry.Name(), f.name),
 					Round:    roundNum,
 					Duration: phases[durationKey{f.role, roundNum}].duration,
-				Model:    phases[durationKey{f.role, roundNum}].model,
+					Model:    phases[durationKey{f.role, roundNum}].model,
 				})
 			}
 		}
@@ -1345,6 +1345,7 @@ type batchStatusResponse struct {
 	Queue          []batchQueueItem        `json:"queue"`
 	CurrentFeature string                  `json:"currentFeature"`
 	Conflict       *protocol.BatchConflict `json:"conflict"`
+	LastReport     *protocol.BatchReport   `json:"lastReport,omitempty"`
 }
 
 // loadSavedBatchPlan 讀取已儲存的 .4x/batch-plan.json。
@@ -1442,6 +1443,11 @@ func handleBatchStatus(ws *protocol.CachedWorkspace, bm *BatchManager, w http.Re
 
 	conflict, _ := ws.ReadBatchConflict()
 	resp.Conflict = conflict
+
+	// 附帶上次 batch 報告，前端在 batch 沒在跑時顯示摘要（讀不到就 nil，省一次請求）。
+	if report, _ := ws.ReadBatchReport(); report != nil {
+		resp.LastReport = report
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
