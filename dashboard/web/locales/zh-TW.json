@@ -148,7 +148,7 @@
   "batch.continue": "繼續批次",
   "batch.running": "批次執行中",
   "batch.confirmTitle": "啟動批次執行",
-  "batch.confirmMsg": "依依賴順序執行所有符合條件的 feature？每個 feature 完成後會自動 merge 回 main。",
+  "batch.confirmMsg": "依依賴順序執行所有符合條件的 feature：<ul style='margin:8px 0 0 4px;padding-left:16px;line-height:1.7;list-style:disc'><li>每個 feature 在獨立 worktree 中執行，不影響 main</li><li>開始前自動將 main merge 進 worktree，確保使用最新程式碼</li><li>完成後自動 merge 回 main，供後續 feature 使用</li><li>有依賴關係的 feature 會等前置完成才開始</li><li>發生合併衝突時暫停，保留 worktree 等你解決</li><li>單一 feature 連續失敗 2 次會跳過，繼續執行其他</li><li>可隨時用 batch stop 優雅停止</li></ul>",
   "batch.conflictTitle": "{id} 發生 merge 衝突",
   "batch.startFailed": "啟動批次失敗：{error}",
   "batch.stopFailed": "停止批次失敗：{error}",

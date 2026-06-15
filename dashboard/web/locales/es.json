@@ -148,7 +148,7 @@
   "batch.continue": "Continuar lote",
   "batch.running": "Lote en ejecución",
   "batch.confirmTitle": "Iniciar ejecución por lotes",
-  "batch.confirmMsg": "¿Ejecutar todas las features elegibles en orden de dependencias? Cada feature se fusiona automáticamente en main al completarse.",
+  "batch.confirmMsg": "Ejecutar todas las features elegibles en orden de dependencias:<ul style='margin:8px 0 0 4px;padding-left:16px;line-height:1.7;list-style:disc'><li>Cada feature se ejecuta en un worktree aislado sin afectar main</li><li>Antes de iniciar, main se fusiona automáticamente en el worktree para usar el código más reciente</li><li>Al completarse, se fusiona automáticamente en main para las features siguientes</li><li>Las features con dependencias esperan a que sus prerrequisitos terminen</li><li>Se pausa en caso de conflicto de merge, preservando el worktree para resolución manual</li><li>Omite una feature tras 2 fallos consecutivos y continúa con el resto</li><li>Se puede detener en cualquier momento con batch stop</li></ul>",
   "batch.conflictTitle": "Conflicto de merge en {id}",
   "batch.startFailed": "Error al iniciar lote: {error}",
   "batch.stopFailed": "Error al detener lote: {error}",

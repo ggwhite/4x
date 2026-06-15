@@ -148,7 +148,7 @@
   "batch.continue": "バッチ続行",
   "batch.running": "バッチ実行中",
   "batch.confirmTitle": "バッチ実行を開始",
-  "batch.confirmMsg": "対象となるすべての feature を依存順に実行しますか？各 feature は完了後に自動で main へ merge されます。",
+  "batch.confirmMsg": "対象となるすべての feature を依存順に実行します：<ul style='margin:8px 0 0 4px;padding-left:16px;line-height:1.7;list-style:disc'><li>各 feature は独立した worktree で実行され、main に影響しません</li><li>開始前に main を worktree へ自動 merge し、最新コードを使用します</li><li>完了後に自動で main へ merge され、後続の feature に反映されます</li><li>依存関係のある feature は前提が完了するまで待機します</li><li>merge コンフリクト発生時は一時停止し、worktree を保持します</li><li>1 つの feature が 2 回連続失敗するとスキップし、他を続行します</li><li>batch stop でいつでも安全に停止できます</li></ul>",
   "batch.conflictTitle": "{id} で merge コンフリクト",
   "batch.startFailed": "バッチ開始に失敗しました：{error}",
   "batch.stopFailed": "バッチ停止に失敗しました：{error}",
