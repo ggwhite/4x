@@ -1303,6 +1303,19 @@ type batchStatusResponse struct {
 	Conflict       *protocol.BatchConflict `json:"conflict"`
 }
 
+// loadSavedBatchPlan 讀取已儲存的 .4x/batch-plan.json。
+func loadSavedBatchPlan(ws *protocol.Workspace) (*batch.BatchPlan, error) {
+	data, err := os.ReadFile(filepath.Join(ws.DotDir(), "batch-plan.json"))
+	if err != nil {
+		return nil, err
+	}
+	var plan batch.BatchPlan
+	if err := json.Unmarshal(data, &plan); err != nil {
+		return nil, err
+	}
+	return &plan, nil
+}
+
 // mergedConfig 讀取 project config 並套用 user config，供 batch handler 取得 runner / hub repos。
 func mergedConfig(ws *protocol.Workspace) protocol.Config {
 	cfg, _ := ws.ReadConfig()
@@ -1313,6 +1326,8 @@ func mergedConfig(ws *protocol.Workspace) protocol.Config {
 }
 
 // handleBatchStatus 回傳目前 batch 執行狀態、依 PlanBatch schedule 排序的佇列，以及衝突信號（若有）。
+// batch 在跑時讀已儲存的 batch-plan.json（這次 batch 的計畫）；
+// 未跑時用 pending features 即時 plan（預覽下次會跑什麼）。
 func handleBatchStatus(ws *protocol.Workspace, bm *BatchManager, w http.ResponseWriter) {
 	cfg := mergedConfig(ws)
 
@@ -1323,47 +1338,65 @@ func handleBatchStatus(ws *protocol.Workspace, bm *BatchManager, w http.Response
 	}
 
 	featByID := make(map[string]protocol.Feature, len(features))
-	var eligible []protocol.Feature
 	for _, f := range features {
 		featByID[f.ID] = f
-		if f.Status != protocol.StatusAbandoned {
-			eligible = append(eligible, f)
-		}
 	}
 
 	resp := batchStatusResponse{Running: bm.Running(), Queue: []batchQueueItem{}}
 
-	if len(eligible) > 0 {
-		if plan, planErr := batch.PlanBatch(eligible, protocol.EffectiveHubRepos(cfg), 4); planErr == nil {
-			pos := 0
-			for _, s := range plan.Schedule {
-				f := featByID[s.FeatureID]
-				itemState := "waiting"
-				if f.Status == protocol.StatusDone || f.Status == protocol.StatusReadyForReview {
-					itemState = "done"
-				} else if st, stErr := ws.ReadState(s.FeatureID); stErr == nil {
-					ws.ReconcileActive(s.FeatureID, &st)
-					if st.Active && st.Phase != protocol.PhaseDone {
-						itemState = "running"
-						if resp.CurrentFeature == "" {
-							resp.CurrentFeature = s.FeatureID
-						}
-					}
-				}
-				item := batchQueueItem{
-					FeatureID: s.FeatureID,
-					Name:      f.Name,
-					Status:    string(f.Status),
-					State:     itemState,
-					Priority:  f.Priority,
-				}
-				if itemState != "done" {
-					pos++
-					item.Position = pos
-				}
-				resp.Queue = append(resp.Queue, item)
+	var schedule []batch.ScheduleEntry
+
+	if bm.Running() {
+		if saved, err := loadSavedBatchPlan(ws); err == nil && saved != nil {
+			schedule = saved.Schedule
+		}
+	}
+	if schedule == nil {
+		var pending []protocol.Feature
+		for _, f := range features {
+			if f.Status != protocol.StatusDone && f.Status != protocol.StatusAbandoned {
+				pending = append(pending, f)
 			}
 		}
+		if len(pending) > 0 {
+			if plan, planErr := batch.PlanBatch(pending, protocol.EffectiveHubRepos(cfg), 4); planErr == nil {
+				schedule = plan.Schedule
+			}
+		}
+	}
+
+	pos := 0
+	for _, s := range schedule {
+		f, ok := featByID[s.FeatureID]
+		if !ok {
+			continue
+		}
+		itemState := "waiting"
+		if f.Status == protocol.StatusDone || f.Status == protocol.StatusReadyForReview {
+			itemState = "done"
+		} else if f.Status == protocol.StatusNeedsAttention || f.Status == protocol.StatusBlocked {
+			itemState = "error"
+		} else if st, stErr := ws.ReadState(s.FeatureID); stErr == nil {
+			ws.ReconcileActive(s.FeatureID, &st)
+			if st.Active && st.Phase != protocol.PhaseDone {
+				itemState = "running"
+				if resp.CurrentFeature == "" {
+					resp.CurrentFeature = s.FeatureID
+				}
+			}
+		}
+		item := batchQueueItem{
+			FeatureID: s.FeatureID,
+			Name:      f.Name,
+			Status:    string(f.Status),
+			State:     itemState,
+			Priority:  f.Priority,
+		}
+		if itemState != "done" && itemState != "error" {
+			pos++
+			item.Position = pos
+		}
+		resp.Queue = append(resp.Queue, item)
 	}
 
 	conflict, _ := ws.ReadBatchConflict()
