@@ -600,7 +600,7 @@ func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap m
 		slog.Info("batch feature", "feature", next, "status", "completed", "result", string(updatedStatus))
 
 		// W12：跑出失敗狀態時累計，達上限後於 selection 跳過避免無限重跑。
-		if updatedStatus == feat.StatusNeedsAttention || updatedStatus == feat.StatusBlocked {
+		if updatedStatus == feat.StatusNeedsAttention || updatedStatus == feat.StatusBlocked || updatedStatus == feat.StatusInProgress {
 			failedFeatures[next]++
 		}
 

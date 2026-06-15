@@ -165,6 +165,7 @@ func (m *multiRepo) Merge(featureID, featureName string) MergeResult {
 			return MergeResult{Error: fmt.Sprintf("%s: %s", rh.name, strings.TrimSpace(string(out)))}
 		}
 		if out, err := exec.Command("git", "-C", rh.repoPath, "commit", "-m", msg).CombinedOutput(); err != nil {
+			exec.Command("git", "-C", rh.repoPath, "reset", "--hard", rh.head).Run()
 			for _, done := range merged {
 				exec.Command("git", "-C", done.repoPath, "reset", "--hard", done.head).Run()
 			}
