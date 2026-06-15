@@ -283,6 +283,10 @@ func newBatchRunCmd() *cobra.Command {
 				return err
 			}
 
+			if planData, je := json.MarshalIndent(plan, "", "  "); je == nil {
+				_ = os.WriteFile(filepath.Join(ws.DotDir(), "batch-plan.json"), planData, 0o644)
+			}
+
 			statusMap := make(map[string]protocol.Status)
 			for _, f := range features {
 				statusMap[f.ID] = f.Status
