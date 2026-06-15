@@ -43,10 +43,10 @@ cd my-project
 
 This creates a `.4x/` directory with:
 - `settings.json` — project config, runner definitions, role model mappings
-- `plugins/` — runner instruction files (SKILL.md, AGENTS.md, etc.)
+- `plugins/` — runner instruction files (CLAUDE.md, AGENTS.md, GEMINI.md, etc.)
 - Root-level import files (CLAUDE.md, AGENTS.md, GEMINI.md, etc.)
 
-4x auto-detects your project language (Go, TypeScript, Java, Rust, Python) and pre-fills build/test/lint commands.
+4x auto-detects your project language (Go, TypeScript, JavaScript, Java, Rust, Python) and pre-fills build/test/lint commands.
 
 If `.4x/` already exists, `init` exits with an error — use `4x sync` to refresh plugin files.
 
@@ -54,7 +54,7 @@ If `.4x/` already exists, `init` exits with an error — use `4x sync` to refres
 
 ```bash
 4x new "User authentication with OAuth2"
-# => Created: F001-user-authentication-w
+# => Created feature: F001-user-authentication-w (User authentication with OAuth2)
 
 4x new "Payment processing" --repo payment-service --repo shared-lib
 # => Created: F002-payment-processing
@@ -63,6 +63,13 @@ If `.4x/` already exists, `init` exits with an error — use `4x sync` to refres
 Features are stored in `.4x/features/{id}.yaml`. The ID format is `F{NNN}-{slug}` (slug up to 23 characters).
 
 Use `--repo` to declare which repositories are in scope (for multi-repo projects).
+
+```bash
+4x new "Auth refactor" --id auth-refactor --desc "Refactor auth middleware" --priority 1
+4x new "Batch mode" --subtask "extract:Extract logic" --depends F001
+```
+
+See `4x new --help` or [CLI Reference](cli.md) for all flags (`--id`, `--desc`, `--subtask`, `--rule`, `--depends`, `--priority`).
 
 ## Run the Loop
 
@@ -76,8 +83,11 @@ Use `--repo` to declare which repositories are in scope (for multi-repo projects
 # Limit iterations
 4x run F001 --max-rounds 3
 
-# Set timeout (seconds)
+# Set timeout in seconds (default: 3600)
 4x run F001 --timeout 7200
+
+# Use a specific pipeline profile
+4x run F001 --profile quick
 
 # Preview prompts without calling LLM
 4x run F001 --dry-run
@@ -85,7 +95,7 @@ Use `--repo` to declare which repositories are in scope (for multi-repo projects
 
 Feature IDs support prefix matching — `4x run F001` and `4x run f001` both work.
 
-The loop runs: **Design → Code → Review → Test → Accept → Pending Review**. If Review finds issues, Code gets another pass. If Test fails, the loop iterates (up to `--max-rounds`).
+The loop runs: **Design → Code → Review → Test → Deep Review → Accept → Pending Review**. If Review finds issues, Code gets another pass. If Test fails, the loop iterates (up to `--max-rounds`).
 
 ## Check Status
 
@@ -96,7 +106,7 @@ The loop runs: **Design → Code → Review → Test → Accept → Pending Revi
 # Single feature with details
 4x status F001
 
-# Filter pending review
+# Show only non-done features
 4x status --pending
 ```
 

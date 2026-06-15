@@ -39,7 +39,7 @@ You can also edit this file visually from the **4x Live dashboard** — click th
       "args": ["--dangerously-skip-permissions", "-p", "{prompt}"]
     }
   },
-  "default": "claude",
+  "default_runner": "claude",
   "roles": {
     "designer": { "model": "opus" },
     "coder": { "model": "sonnet" },
@@ -59,8 +59,10 @@ You can also edit this file visually from the **4x Live dashboard** — click th
 | `test` | Test commands |
 | `lint` | Lint commands |
 | `setup` | Setup commands (e.g., `docker-compose up -d`) |
+| `description` | Project description (optional) |
 | `docs` | Documentation file paths for Designer reference |
 | `rules` | Project-specific rules injected into role prompts |
+| `includes` | Files to include in role prompts |
 
 ### Runner Config
 
@@ -69,7 +71,7 @@ You can also edit this file visually from the **4x Live dashboard** — click th
 | `command` | Executable name |
 | `args` | Arguments. `{prompt}` and `{promptFile}` are replaced at runtime. `{model}` is replaced with the role's model. |
 | `model` | Default model for this runner |
-| `model_map` | Map of role model names to runner-specific names (e.g. `{"opus": "claude-opus-4-5-20250514"}`). Lookup order: role model → model_map translation → fallback to original name. |
+| `tiers` | Map of tier names to runner-specific model names (e.g. `{"opus": "claude-opus-4-5-20250514"}`). Lookup order: role model → tiers translation → fallback to original name. |
 | `output_format` | Set to `"stream-json"` for runners whose stdout should be parsed into readable `.log` plus raw `.stream.jsonl` files. |
 | `tty` | Use PTY for capturing output. Ignored when `output_format` is `"stream-json"`. |
 | `stdin` | Send prompt via stdin instead of argument (used by Codex) |
@@ -86,6 +88,9 @@ If `{model}` is not present in `args`, the runner auto-appends `--model <model>`
 | `max_fix_rounds` | Max self-heal iterations in the `deep-reviewing` phase (`deep-reviewer` only; default 2). Each iteration runs a scoped mini-coder + re-verifier; exceeding the cap escalates to `needs-attention`. |
 | `instructions` | Additional instructions injected into the role prompt |
 | `includes` | Files to include in the role prompt |
+| `screenshot_dir` | Directory path for tester screenshots |
+| `parallel_reviewers` | Number of parallel sub-reviewers for deep review (deep-reviewer only; <=1 falls back to single-agent mode) |
+| `angles_per_reviewer` | Review angles per sub-reviewer (deep-reviewer only; 0 means auto-distribute evenly) |
 
 ### Other Config Fields
 
@@ -98,6 +103,10 @@ If `{model}` is not present in `args`, the runner auto-appends `--model <model>`
 | `profiles` | Named pipeline profiles (role subsets); see [Profiles](#profiles) |
 | `parallel_review_test` | Run reviewer and tester concurrently during the reviewing phase (default `false`) |
 | `auto_discover_features` | Auto-create features from `[NEW-FEATURE]` markers in the deep review report (default `false`); see [Auto-Discover Features](#auto-discover-features) |
+| `workspace` | Multi-repo workspace configuration (repo name → path mapping) |
+| `hooks` | Lifecycle hooks (keyed by hook point, e.g. post-run) |
+| `health_check` | Global pre-test environment check commands (can be overridden per-feature in test-strategy.yaml) |
+| `test_profiles` | Custom or overridden test profile definitions (keyed by profile name) |
 | `max_discovered_features` | Max features auto-created per run; unset or `<= 0` applies the default (`3`) |
 
 ### Auto-Discover Features
@@ -170,6 +179,8 @@ Global user preferences and runner defaults. Cross-project settings managed via 
 | `default_runner` | Default runner name (overridden by project) |
 | `runners` | Runner definitions (command, args, tty, etc.) |
 | `roles` | Role model defaults |
+| `logLevel` | Minimum log level (debug/info/warn/error; default "info"; overridden by FOURX_LOG_LEVEL env var) |
+| `logRetainDays` | Days to retain log files in ~/.4x/logs/ (default 7) |
 
 ### CLI
 
@@ -213,6 +224,6 @@ When `4x run` or `4x prompt` executes, user-level and project-level settings are
 - **Priority:** project > user > defaults
 - **Runner merge:** per-field — project's non-zero fields override user's. `args` replaces entirely (not appended). `tiers` merges at key level.
 - **Role merge:** per-field — same as runner.
-- **Project-only fields** (`project`, `isolation`, `commit`, `max_concurrent_runs`, `hub_repos`, `rules`, `model_tiers`): always taken from project config, never overridden by user config.
+- **Project-only fields**: all fields except `default_runner`, `runners`, and `roles` are project-only and never overridden by user config.
 
 The dashboard's project settings editor shows the **raw** project config, not the merged result. Use the **Merged** tab in project settings to see the final effective settings after merge.

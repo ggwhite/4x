@@ -11,32 +11,96 @@
 
 每個角色都是**隔離的** — Coder 在實作時永遠看不到先前的 review 回饋。Tester 根據 Designer（而非 Coder）寫的標準來驗證。
 
+### 額外的迴圈角色
+
+兩個額外角色在迴圈後段運作：
+
+| 角色 | 階段 | 職責 |
+|---|---|---|
+| **Deep Reviewer** | `deep-reviewing` | 對抗式審查——在完整 diff 中找出最糟糕的 bug |
+| **Acceptor** | `accepting` | 匯總所有輪次的發現，產出 `final-report.md` 和 `commit-plan.md` 供人類 review |
+
+Acceptor 使用自己獨立的模型設定（`roles.acceptor.model`）——與 Designer 不同。它會讀取所有輪次的 artifact 後才產出最終摘要。
+
+### Pipeline Profiles
+
+**Pipeline profile** 選擇一個 feature 要啟用哪些角色，讓簡單工作跳過角色，而非每次都跑完整的六角色 pipeline。內建 profile：
+
+| Profile | 角色 |
+|---|---|
+| `full` | designer、coder、reviewer、tester、deep-reviewer、acceptor |
+| `normal` | coder、reviewer、tester、acceptor |
+| `quick` | coder、reviewer |
+
+`coder` 是必須的。設定了 `profiles` 時，profile 會依 feature 的 priority 自動選取（最高優先→`full`，然後 `normal`，然後 `quick`）；`--profile` 可覆蓋選擇。不在啟用 profile 中的角色會被跳過——迴圈沿同樣的合法狀態邊推進但不呼叫該 runner。詳見[設定](configuration.md)中的 `profiles`、`parallel_review_test` 和 `coder_model` 設定。
+
 ### Review：兩階段
 
 1. **清單式審查**（標準模型）— 根據專案硬規則檢查：安全性、並行性、錯誤處理、風格
 2. **對抗式審查**（深度模型）— 「這個 diff 裡藏著最糟糕的 bug 是什麼？」發現按嚴重程度分級。
 
+### Deep Review 自我修復
+
+當 Deep Reviewer 發現阻斷性問題時，`deep-reviewing` 階段會**就地修復**，而非將工作一路送回 `amending → reviewing → testing`。因為 Reviewer 和 Tester 在 deep review 前已通過，重跑整條昂貴的鏈路（尤其是 deep model）是浪費。
+
+在同一階段內，迴圈產生兩個範圍限定的子角色，重複直到報告通過或達到上限：
+
+| 子角色 | 模型 | 讀取 | 寫入 | 範圍 |
+|---|---|---|---|---|
+| **mini-coder** | coder 模型 | `deep-review-report.md` 的 `## Issues` 部分（不讀 `task-brief.md`） | 原始碼、`coder-report.md` | 僅限 deep reviewer 指出的問題 |
+| **re-verifier** | reviewer 模型 | 先前的問題 + mini-coder 本次迭代的 diff | `deep-reverify-{n}.md`，更新 `deep-review-report.md` 的 `## Verdict` | 驗證舊問題已修復且新 diff 未引入 bug |
+
+整個過程中階段維持 `deep-reviewing`——子角色不是狀態機階段。re-verifier 確認 PASS 後，迴圈推進到 `accepting`。最多迭代 `roles.deep-reviewer.max_fix_rounds` 次（預設 2）；若 mini-coder 修改了 feature 範圍外的檔案，或達到上限但仍未通過，feature 會升級到 `needs-attention` 並保留 FAIL 報告。
+
+### 平行 Deep Review
+
+Deep review 涵蓋 11 個不同的審查角度（正確性、品質、慣例、歷史、回饋等）。當 `roles.deep-reviewer.parallel_reviewers` 大於 1 時，迴圈會將角度分配給多個聚焦的子審查者，而非讓一個 agent 涵蓋全部 11 個。這類似 `/code-review` 按維度拆分 review 的方式，降低每個 agent 的上下文壓力和注意力漂移。
+
+fan-out 完全由 4x CLI 驅動——不依賴 LLM 自身的 subagent 或工具能力。`deep-reviewing` 階段維持為單一階段：
+
+| 子角色 | 模型 | 讀取 | 寫入 |
+|---|---|---|---|
+| **sub-reviewer**（×N） | deep 模型 | diff + 分配到的角度子集 | `deep-review-partial-{i}.md` |
+| **synthesizer** | deep 模型 | 每份 partial report 的完整內容 | `deep-review-report.md` |
+
+角度平均分配且不重疊：預設 `parallel_reviewers: 3` 時，群組為 `[1–4]`、`[5–8]`、`[9–11]`（正確性 / 品質+慣例 / 歷史+回饋）。設定 `roles.deep-reviewer.angles_per_reviewer` 可明確固定群組大小；不設則自動 `ceil(11/N)` 均分。N 個 sub-reviewer 平行執行，然後單一 synthesizer 去重、仲裁衝突、統一信心評分，產出與自我修復迴圈和 `parseReviewVerdict` 已消費的相同 `deep-review-report.md` 格式——下游一切不變。
+
+當 `parallel_reviewers` 未設定或 `≤ 1` 時，迴圈退回原始的單一 agent 流程：一個 deep reviewer 處理全部 11 個角度並直接寫入 `deep-review-report.md`，無 partial report 或 synthesizer。
+
+### 自動發現 Feature
+
+Deep reviewer 經常發現問題是真實的但**超出當前 feature 範圍**——潛在 bug、技術債、缺少的功能。沒有歸屬的地方，這些筆記就埋在報告裡。當啟用 `auto_discover_features` 時，執行迴圈會自動捕獲它們。
+
+Deep reviewer 將每個超出範圍的候選寫為 `deep-review-report.md` 的 `## Discovered Issues` 區段中的 `[NEW-FEATURE] <title>` 區塊（附簡短描述）。在**最終 deep review PASS** 後（僅有兩條到達 `accepting` 的回傳路徑——首次 PASS、以及自我修復的 re-verifier 翻轉為 PASS），迴圈解析這些區塊，完全在 CLI 層（無 LLM 呼叫）：
+
+- **去重** — 每個候選與既有 feature 以及已保留的候選進行 Jaccard token-overlap 相似度比較。
+- **設上限** — 數量上限為 `max_discovered_features`（預設 `3`）；其餘記錄為已設上限。
+- **建立** — 將保留的候選建為新的 feature YAML（狀態 `not-started`，沿用 `4x new` 的編號），每次建立附加一個 `feature-discovered` 事件。
+- **摘要** — 將結果（created / skipped-as-duplicate / capped）寫入 `.4x/{feature-id}/discovered-features.md`。
+
+此步驟為 best-effort：任何錯誤都會記錄但不會阻擋轉換到 `accepting`。它只在最終 deep review PASS 時執行——中間輪次和 FAIL/`needs-attention` 路徑永遠不會到達它。詳見[設定 → Auto-Discover Features](configuration.md#auto-discover-features)。
+
 ### Escalation
 
-Coder 或 Tester 可以在以下情況時 escalate 回 Designer：
+Coder 或 Tester 可以在以下情況時 escalate：
 
-| 原因 | 意義 |
-|---|---|
-| `spec-mismatch` | DB/API 與 spec 不符 |
-| `criteria-wrong` | 驗收標準不正確 |
-| `blocker` | 缺少依賴或基礎設施問題 |
-| `scope-change` | 需要修改範圍外的 repo |
+| 原因 | 意義 | 路由到 |
+|---|---|---|
+| `spec-mismatch` | DB/API 與 spec 不符 | Designer |
+| `criteria-wrong` | 驗收標準不正確 | Designer |
+| `blocker` | 缺少依賴或基礎設施問題 | `needs-attention`（人工介入） |
+| `scope-change` | 需要修改範圍外的 repo | Designer |
 
-Escalation 會寫入 `escalation.json`。迴圈會自動路由回 Designer。
+Escalation 會寫入 `escalation.json`。迴圈會自動將 `spec-mismatch`、`criteria-wrong` 和 `scope-change` 路由回 Designer。`blocker` escalation 則進入 `needs-attention` 等待人工介入。
 
 ---
 
 ## 狀態機
 
 ```
-init → designing → coding → reviewing → testing → accepting → pending-review → done
-                     ↑          ↓           ↓
-                     ├── amending ←──────────┘
+init → designing → coding → reviewing → testing → deep-reviewing → accepting → pending-review → done
+                     ↑          ↓           ↓            ↓
+                     ├── amending ←──────────┴────────────┘
                      ↑      ↓
                      └──────┘
 ```
@@ -50,12 +114,13 @@ init → designing → coding → reviewing → testing → accepting → pendin
 | `coding` | `reviewing`、`designing` |
 | `reviewing` | `testing`、`amending` |
 | `amending` | `reviewing`、`designing` |
-| `testing` | `accepting`、`amending`、`designing` |
+| `testing` | `deep-reviewing`、`amending`、`designing` |
+| `deep-reviewing` | `accepting`、`amending` |
 | `accepting` | `pending-review` |
 | `pending-review` | `done` |
 | `blocked` | `designing`、`coding`、`testing` |
 | `needs-attention` | `designing`、`coding`、`testing` |
-| any | `blocked`、`needs-attention` |
+| any | `blocked`、`needs-attention`、`done`、`abandoned` |
 
 ### 輪次計數器
 
@@ -67,10 +132,12 @@ init → designing → coding → reviewing → testing → accepting → pendin
 
 | 階段 | 條件 | 動作 |
 |---|---|---|
-| `designing` | `task-brief.md` 遺失 | → `needs-attention` |
-| `coding` / `amending` | `escalation.json` 含 `spec-mismatch` 或 `criteria-wrong` | → `designing` |
-| `reviewing` | Verdict 行以 FAIL 開頭或含 `[CRITICAL]` | → `amending` |
+| `designing` | `task-brief.md` 或 `acceptance-criteria.md` 遺失 | → `needs-attention` |
+| `coding` / `amending` | `escalation.json` 含 `spec-mismatch`、`criteria-wrong` 或 `scope-change` | → `designing` |
+| `reviewing` | Review 未通過（需要明確的 `PASS` 或 `CONDITIONAL PASS` verdict 且報告中零 `[CRITICAL]`/`[WARNING]` 問題） | → `amending` |
 | `testing` | `verify.json` 未通過或缺少 artifact | → `amending` |
+| `deep-reviewing` | Deep review FAIL | 就地自我修復（mini-coder + re-verifier），最多 `max_fix_rounds` 次；PASS → `accepting`，否則 → `needs-attention` |
+| any（非 designer） | Guard 檢查發現 scope 違規、baseline drift 或缺少必要檔案 | → `needs-attention` |
 
 ---
 
@@ -84,10 +151,13 @@ init → designing → coding → reviewing → testing → accepting → pendin
 ├── plugins/                         # Runner 指令檔
 ├── batch-plan.json                  # 批次執行計畫
 ├── batch-stop                       # 優雅停止信號
+├── batch-pid                        # 執行中批次子程序的 PID（伺服器孤立程序認領用）
+├── batch-conflict.json              # 批次自動 merge conflict 信號（暫停狀態）
+├── batch-report.json                # 最近一次批次執行報告（統計 + 每 feature 結果）
 ├── features/
 │   └── {id}.yaml                    # Feature 定義（正式來源）
 └── {feature-id}/
-    ├── state.json                   # 階段、角色、輪次、是否活躍、runner、runners、停止原因
+    ├── state.json                   # 階段、角色、輪次、是否活躍、runner、runners、停止原因、profile
     ├── events.jsonl                 # 審計軌跡
     ├── baseline.json                # 編碼前快照（HEAD、branch、dirty 檔案）
     ├── task-brief.md                # Designer → Coder：spec + 架構
@@ -96,14 +166,56 @@ init → designing → coding → reviewing → testing → accepting → pendin
     ├── final-report.md              # 迴圈結束摘要
     ├── commit-plan.md               # 如何將變更拆分為 commit
     ├── logs/
-    │   └── round-{N}-{role}.log     # 每輪每角色的執行日誌
+    │   ├── round-{N}-{role}.log              # 每輪每角色的執行日誌
+    │   ├── round-{N}-deep-reviewer-{i}.log   # 每個平行 sub-reviewer 的日誌（fan-out 時）
+    │   └── round-{N}-synthesizer.log         # synthesizer 合併 partial report 的日誌
     └── rounds/round-{N}/
-        ├── coder-report.md          # Coder 做了什麼
-        ├── review-report.md         # Reviewer 的發現 + 裁決
-        ├── test-report.md           # Tester 的結果
-        ├── verify.json              # {passed, round, role, commands[]}
-        └── escalation.json          # {needed, reason, detail}
+        ├── coder-report.md            # Coder 做了什麼
+        ├── review-report.md           # Reviewer 的發現 + 裁決
+        ├── test-report.md             # Tester 的結果
+        ├── deep-review-partial-{i}.md # 單個平行 sub-reviewer 的發現（fan-out 時）
+        ├── deep-review-report.md      # 合併後的 deep review（synthesizer 輸出或單一 agent）
+        ├── verify.json                # {passed, round, role, commands[]}
+        └── escalation.json            # {needed, reason, detail}
 ```
+
+### 批次信號檔
+
+兩個頂層信號檔協調執行中的批次與外部觀察者（CLI 和儀表板）：
+
+- **`batch-stop`** — 空的標記檔。`4x batch run` 在 feature 之間輪詢它，存在時優雅停止（見 [Batch Mode](batch.md)）。
+- **`batch-conflict.json`** — 當批次自動 merge 碰到 merge conflict 並暫停時寫入。攜帶足夠資訊讓儀表板渲染衝突而無需重跑 git：
+
+  ```json
+  {
+    "featureId": "F003-oauth",
+    "featureName": "OAuth login",
+    "conflictRepo": "core",
+    "files": ["internal/auth/token.go"],
+    "detectedAt": "2026-06-15T00:00:00Z"
+  }
+  ```
+
+  monorepo 模式下 `conflictRepo` 為空。此檔案在每次批次執行開始時和使用者繼續暫停的批次時被清除。
+
+- **`batch-report.json`** — 批次執行結束時寫入（正常完成、停止、中斷或 crash）。不同於上述兩個信號檔，它在執行之間持續存在，作為儀表板在無批次活躍時顯示的「最近批次報告」。記錄 `outcome`、總計數（`total` / `completed` / `failed` / `remaining`）、runner、總耗時、以及每 feature 明細（最終狀態、輪次、停止原因）；`crashed` outcome 還攜帶 `panicMessage`。以原子方式寫入（暫存檔 + rename），儀表板不會讀到寫了一半的報告。
+
+### 原子狀態寫入
+
+`state.json` 由多個角色並行讀寫——執行迴圈、儀表板伺服器和背景 reconciler。為避免讀取者看到截斷或寫了一半的檔案，`WriteState` 不會原地寫入。它 marshal 狀態後，寫到同目錄的暫存檔（`.state-*.json`，保證在同一檔案系統使 rename 為原子操作），然後 `os.Rename` 覆蓋 `state.json`。讀取者因此永遠看到完整的舊檔案或完整的新檔案——不會看到部分寫入。寫入失敗時暫存檔會被移除，不會累積 `.state-*.json` 殘留。不使用檔案鎖；正確性來自原子 rename 加 `UpdatedAt` 比較。
+
+### Workspace 讀取快取（儀表板伺服器）
+
+CLI 是短命程序：每個命令讀取它需要的 `.4x/` 檔案一次後退出，因此總是使用普通的 `*protocol.Workspace`。儀表板伺服器（`4x live`）相反——它是長期執行的，每個 API 請求都重新讀取相同檔案。在多專案×多 feature 的 workspace 中（例如 5 個專案×50 個 feature），單一請求可觸發數百次 YAML/JSON 解析。
+
+為避免此問題，伺服器將每個 workspace 包裝在 `*protocol.CachedWorkspace`（`internal/protocol/cached.go`）中，這是一個基於 mtime 的記憶體快取，覆蓋 `WorkspaceReader` 介面（`internal/protocol/reader.go`）宣告的唯讀操作：
+
+- **`ReadConfig`** — 快取 `settings.json`；`os.Stat` 比對檔案 mtime，僅在變更時重新解析。
+- **`ListFeatures`** — 快取完整的 feature 清單；`os.ReadDir` 比對 `.yaml` 檔案集合和每個檔案的 mtime，僅在檔案新增、移除或修改時重新解析。回傳副本供呼叫者自由修改。
+- **`LoadFeature`** — 依 id 快取每個 feature，以 YAML 的 mtime 為 key。
+- **`ReadState`** — 刻意**不快取**（變更頻繁、檔案小、解析快）；直接透過內嵌的 `*Workspace`。
+
+失效是隱式的：寫入方法（`SaveFeature`、`WriteState` 等）不需要通知快取，因為下次讀取會偵測到新的 mtime。快取為 opt-in——僅伺服器建構 `CachedWorkspace`；CLI 繼續使用 `*Workspace`，行為相同。
 
 ### Feature YAML
 
@@ -112,14 +224,51 @@ id: F001-user-authentication-w
 name: User authentication with OAuth2
 description: ...
 status: not-started
-priority: medium
+priority: 1  # 數字：0-1 = full profile、2 = normal、3+ = quick（省略為 nil/unset）
 repos: []
 subtasks: []
 rules: []
 depends: []
+spec: ""     # 選用的設計 spec 明確路徑（覆蓋 docs/design/ 查找）
+plan: ""     # 選用的實作計畫明確路徑
+hooks: {}    # 選用的 phase hooks（格式與 settings.json 相同）
 ```
 
-`status` 反映 `state.json` 的階段以便快速列表。`depends` 列出必須先完成的 feature ID。
+`status` 反映 `state.json` 的階段以便快速列表。合法值：`not-started`、`in-progress`、`ready-for-review`、`needs-attention`、`blocked`、`done`、`abandoned`。`abandoned` 的 feature 視為已完成（不會阻擋依賴），但在儀表板以刪除線顯示。`depends` 列出必須先 done（或 abandoned）的 feature ID。`repos` 列出此 feature 涉及的 repository 名稱（來自 `workspace.repos`）；空表示所有 repo 都在範圍內。
+
+#### 設計文件解析
+
+儀表板 overview 和 `4x prompt` 的規劃文件注入透過一個共用解析器（`protocol.ResolveDesignDoc`）定位 feature 的 spec/plan，因此兩者永遠看到同一份文件。每種文件類型（`spec`/`plan`）的解析順序：
+
+1. feature YAML 的 `spec`/`plan` 欄位，非空時作為路徑讀取（相對路徑以 workspace 根目錄為基準）。
+2. `docs/design/{feature.ID}-{type}.md`。
+3. `docs/design/{slug}-{type}.md`，其中 `slug` 去掉 ID 的 `FNNN-` 前綴（僅在與 ID 不同時嘗試）。
+
+第一個存在的檔案勝出；都沒有則視為文件不存在。
+
+### Feature 建立
+
+`Feature`/`Subtask`/`Status` 型別和建立邏輯位於獨立的 `internal/feature` package（ID 產生、backlog drift、截圖輔助也搬到那裡）。`protocol.Workspace` 和 `protocol.CachedWorkspace` 滿足 `feature.Store` 介面，而 `feature` 不 import `protocol`（單向依賴，透過 `Store` 解耦）。CLI（`4x new`）和儀表板（`POST /api/new`）都透過單一的 `feature.Create(store, opts)` 入口點建立 feature，因此編號、ID 截斷和預設欄位的行為無論從哪個入口都相同。
+
+### Workspace 設定（多 Repo）
+
+預設情況下，4x 以 monorepo 模式運作。若要跨多個 repository 工作，在 `.4x/settings.json` 中宣告：
+
+```json
+{
+  "workspace": {
+    "repos": {
+      "backend": { "path": "backend/", "hub": false },
+      "frontend": { "path": "frontend/", "hub": false },
+      "infra": { "path": "infra/", "hub": true }
+    }
+  }
+}
+```
+
+每個項目將 repo 名稱映射到路徑（相對於 workspace 根目錄）和選用的 `hub` 旗標。Hub repo 是多個 feature 可能觸及的共用基礎設施——它們在 `4x batch plan` 的範圍群組化中被排除。
+
+monorepo 模式下（無 `workspace.repos`），所有範圍檢查和 git 操作使用單一 repo 根目錄。
 
 ---
 
@@ -131,12 +280,201 @@ depends: []
 |---|---|
 | **必要檔案** | 驗證階段對應的 artifact 是否存在（例如 designing 後的 `task-brief.md`） |
 | **基線** | 擷取編碼前的狀態（HEAD、branch、dirty 檔案）；如有 dirty 檔案則警告 |
-| **範圍** | 比對 `git diff --name-only HEAD` 的頂層目錄與 feature 宣告的 repo |
+| **範圍** | monorepo 模式：比對 `git diff --name-only HEAD` 的頂層目錄與 feature 宣告的 repo。多 repo 模式：使用 `gitops.Ops.DetectChangedRepos()` 跨所有 workspace repo 檢查 |
 | **依賴** | 如果被依賴的 feature 未完成，則阻擋 `4x run` |
 | **Backlog drift** | 當 `.4x/features/*.yaml` 與外部映射不同步時警告 |
 | **Testing → Accepting 閘門** | 需要 `verify.json`（passed=true）、`test-report.md`、`final-report.md`、`commit-plan.md` |
 
 可用 `4x check <feature-id>` 手動執行。
+
+---
+
+## Phase Hooks
+
+Phase hooks 讓你在階段轉換前後自動執行 shell 命令——適合啟動 Docker 容器、初始化測試資料庫、或在測試後清理。Hooks 由 CLI 執行，不由任何 AI 角色執行。
+
+### 設定
+
+Hooks 宣告在 `settings.json` 的 `hooks` key 下。Key 格式為 `pre_{phase}` 或 `post_{phase}`：
+
+```json
+{
+  "hooks": {
+    "pre_coding": [
+      { "run": "docker compose up -d", "on_fail": "block" }
+    ],
+    "post_testing": [
+      { "run": "docker compose down", "on_fail": "warn" }
+    ]
+  }
+}
+```
+
+每個項目是一個 `HookEntry`，有兩個欄位：
+
+| 欄位 | 型別 | 說明 |
+|---|---|---|
+| `run` | string | 透過 `sh -c` 執行的 shell 命令 |
+| `on_fail` | string | `"block"`（預設）或 `"warn"`（不分大小寫） |
+
+Feature YAML 也可以宣告同格式的 `hooks` 欄位。當 feature 與全域設定為同一 key 定義了 hooks 時，feature 的定義會**完全取代**全域的（同一 key 內不合併）。
+
+### 執行順序
+
+```
+pre_{target_phase} hooks（依陣列順序）
+  ↓ 任何 on_fail=block 的 hook 失敗 → 轉為 needs-attention，中止
+state.Transition()
+  ↓
+記錄轉換事件
+  ↓
+post_{target_phase} hooks（依陣列順序）
+  ↓ on_fail=block 的 hook 失敗 → 轉為 needs-attention（不回滾）
+```
+
+### 失敗行為
+
+| `on_fail` | Hook 失敗位置 | 效果 |
+|---|---|---|
+| `block`（預設） | pre hook | Feature 移至 `needs-attention`；階段轉換中止 |
+| `block`（預設） | post hook | 階段已變更；feature 移至 `needs-attention` |
+| `warn` | 任一 | 結果記錄；繼續執行 |
+
+### 日誌
+
+每次 hook 執行會在 `events.jsonl` 追加一個 `type: "hook"` 事件：
+
+```json
+{
+  "ts": "2026-06-14T10:00:00+08:00",
+  "type": "hook",
+  "phase": "coding",
+  "action": "pre_coding",
+  "cmd": "docker compose up -d",
+  "status": "pass",
+  "detail": "exit 0, 1.2s"
+}
+```
+
+完整的 stdout/stderr 輸出寫入 `.4x/{feature-id}/hook-logs/{timestamp}-hook-{n}.log`。
+
+### Hook 合併（`MergeHooks`）
+
+全域和 feature 的 hooks 由 `MergeHooks` 合併：所有全域 key 複製過來，然後 feature 的 key 完全覆蓋同名的全域 key。僅存在於全域的 key 保留。兩者皆為 nil 時回傳 nil。
+
+---
+
+## Health Check
+
+Tester 角色啟動前，CLI 可自動驗證環境健康——確認建置通過、服務正常運行、端點有回應。在此處抓到損壞的環境，可省下一整個浪費的測試週期。Health check 由 CLI 執行，不由任何 AI 角色執行，且僅在進入 `testing` 階段時執行，在 `pre_testing` hooks 之後、Tester runner 啟動之前。
+
+### 設定
+
+Health check 有三個欄位（`internal/protocol/types.go` 中的 `HealthCheck`）：
+
+| 欄位 | 型別 | 說明 |
+|---|---|---|
+| `commands` | `[]string` | 依序執行的檢查命令；任何失敗會停止執行 |
+| `recovery` | `[]string` | 選用。檢查失敗時依序執行，用於修復環境 |
+| `timeout` | `int` | 每命令逾時秒數；`<= 0` 時套用預設值 `30` |
+
+可在 `settings.json` 中全域宣告（JSON，無 yaml tag）：
+
+```json
+{
+  "health_check": {
+    "commands": ["make build"],
+    "recovery": ["docker compose up -d"],
+    "timeout": 30
+  }
+}
+```
+
+也可在 `test-strategy.yaml` 中依 feature 宣告（透過 `Workspace.ReadTestStrategy` 讀取）：
+
+```yaml
+health_check:
+  commands: ["make build", "curl -s http://localhost:8080/health"]
+  recovery: ["make dev-up"]
+  timeout: 60
+```
+
+**合併：** `ResolveHealthCheck` 做整組覆蓋，不做欄位級合併。若 `test-strategy.yaml` 定義了 `health_check`，它完全取代全域的；否則使用全域設定。兩者都未設定時，跳過 health check，Tester 直接啟動。
+
+### 執行流程
+
+```
+進入 testing 階段（pre_testing hooks 已執行）
+  ↓
+依序執行 commands（每個有各自的 timeout）
+  ├─ 全部通過 → 啟動 Tester
+  └─ 任一失敗 →
+      ├─ 無 recovery → 升級到 needs-attention
+      └─ 有 recovery → 依序執行 recovery 命令
+          ├─ recovery 失敗 → 升級到 needs-attention
+          └─ recovery 通過 → 重新執行所有 commands 一次
+              ├─ 通過 → 啟動 Tester
+              └─ 仍失敗 → 升級到 needs-attention
+```
+
+Recovery 最多觸發一次——沒有多次重試或退避機制。
+
+### 失敗行為
+
+最終失敗時，執行記錄一個 `type: "health-check-failed"` 事件（角色 `tester`，含失敗命令和錯誤於 `detail`），將 feature 轉為 `needs-attention`，設定 `StopReason` 為 `health-check-failed`，並停止迴圈。每個命令透過 `sh -c` 在各自的逾時下執行；逾時視為失敗，其輸出寫入 stderr 以便除錯。
+
+---
+
+## Test Profiles
+
+**Test profile** 是一組可重用的測試方法論，由 Designer 標記在 feature 上，讓 Tester 的 prompt 自動注入對應的指引——而非在 `settings.json` 的 `roles.tester.instructions` 中手動維護一個所有 feature 共用的巨型清單。
+
+> 不要與 **[pipeline profiles](#pipeline-profiles)**（`Config.Profiles`）搞混，後者選擇*哪些角色執行*。Test profiles（`Config.TestProfiles`）僅向 Tester prompt 注入*測試方法論內容*。
+
+### 宣告 profile
+
+Designer 在 `test-strategy.yaml` 中列出 profiles（`internal/protocol/types.go` 的 `TestStrategy.Profiles`）：
+
+```yaml
+profiles:
+  - unit
+  - web
+verify_commands:
+  - "make test"
+```
+
+`profiles` 為 `omitempty`——沒有它的 `test-strategy.yaml` 行為與以前完全相同（不注入）。
+
+### 內建 profiles
+
+四個 profile 內嵌在 binary 中（`templates/profiles/*.md`，透過 `templates.ProfilesFS` 暴露）：
+
+| Profile | 方法論 |
+|---|---|
+| `unit` | Go `go test`、`t.TempDir()` 隔離、table-driven、錯誤案例、每個 AC 一份 verify.json |
+| `web` | 針對 `4x live` 儀表板的 Playwright 測試；headless、獨立 workspace + 隨機 port、截圖作為證據、不干擾使用者正在執行的伺服器 |
+| `api` | HTTP 端點測試——狀態碼、回應 body、邊界案例、認證 |
+| `e2e` | 端到端多服務流程、DB 狀態和跨服務一致性 |
+
+### 在 settings.json 中覆蓋
+
+專案可透過 `Config.TestProfiles`（`test_profiles`）取代或擴展任何 profile，以 profile 名稱為 key（`TestProfileOverride`）：
+
+```json
+{
+  "test_profiles": {
+    "web": { "content": "用 Cypress 而非 Playwright 測試..." },
+    "lua": { "include": "docs/test-profiles/lua.md" }
+  }
+}
+```
+
+- `content` — 行內替換文字
+- `include` — 路徑（相對於 workspace 根目錄），讀取該檔案的內容
+
+**解析順序**（每個 profile 名稱）：`test_profiles[name].content` → `test_profiles[name].include` → 內建 `profiles/{name}.md`。覆蓋是整體替換，不做欄位級合併。未知名稱（無覆蓋、無內建）會印出 stderr 警告並跳過。
+
+Tester prompt 將每個解析出的 profile 渲染為 `== Test Profile: {name} ==` 區塊。載入由 `loadProfiles` / `resolveProfileContent`（`cmd/4x/prompt.go`）實作。
 
 ---
 

@@ -13,9 +13,9 @@ Initialize a `.4x/` workspace in the current directory.
 ```
 
 - Auto-detects project language and build/test/lint commands
-- Creates `.4x/settings.json` with 4 default runners (claude, codex, gemini, agy)
+- Creates `~/.4x/settings.json` with 6 default runners (claude, codex, gemini, agy, copilot, cursor)
 - Deploys embedded plugin files to `.4x/plugins/`
-- Adds `@import` lines to root-level files (CLAUDE.md, AGENTS.md, GEMINI.md, AGY.md)
+- Adds `@import` lines to root-level files (CLAUDE.md, AGENTS.md, GEMINI.md, AGY.md, .cursorrules)
 - Errors if `.4x/` already exists
 
 ---
@@ -35,7 +35,7 @@ Create a new feature with optional metadata.
 | `--subtask` | Subtask in `"id:name"` or `"id:name:description"` format (repeatable) |
 | `--rule` | Rule reference (repeatable) |
 | `--depends` | Dependency feature ID (repeatable) |
-| `--priority` | Priority level (1=high, 2=medium, 3=low) |
+| `--priority` | Priority level (0=critical, 1=high, 2=medium, 3=low) |
 | `--repo` | Repository in scope (repeatable) |
 | `--json` | Output as JSON |
 
@@ -69,9 +69,9 @@ Run the Design-Code-Review-Test loop for a feature.
 | `--json` | `false` | Start run and return JSON immediately |
 | `--profile` | auto | Pipeline profile (`full`/`normal`/`quick` or custom); overrides priority-based auto-select |
 
-`--profile` selects which roles run. Built-in profiles: `full` (all 6 roles), `normal` (coder/reviewer/tester/acceptor), `quick` (coder/reviewer). Roles not in the profile are passed through (state advances along the legal edge without invoking the runner). When omitted, the profile is auto-selected by the feature's priority if a `profiles` section exists in `settings.json` (otherwise `full`). `--profile` is mutually exclusive with `--only`. See [Configuration → Profiles](configuration.md#profiles) for details.
+`--profile` selects which roles run. Built-in profiles: `full` (all 6 roles), `normal` (coder/reviewer/tester/acceptor), `quick` (coder/reviewer). Roles not in the profile are passed through (state advances along the legal edge without invoking the runner). When omitted, the profile is auto-selected by the feature's priority if a `profiles` section exists in `settings.json` (otherwise `full`). See [Configuration → Profiles](configuration.md#profiles) for details.
 
-The loop drives: init → designing → coding → reviewing → testing → accepting → pending-review. On review failure, code gets another pass. On test failure, the loop re-enters coding.
+The loop drives: init → designing → coding → reviewing → testing → deep-reviewing → accepting → pending-review. On review failure, code gets another pass. On test failure, the loop re-enters coding.
 
 After each non-designer runner completes, guardrail checks are enforced automatically (scope, baseline, required files). A violation transitions the feature to `needs-attention` and stops the loop. Designer is exempt — it does not modify source code.
 
@@ -98,13 +98,13 @@ Show feature status.
 ```
 4x status              # all features, grouped by state
 4x status <feature-id> # single feature details with subtasks
-4x status --pending    # filter pending-review features
+4x status --pending    # hide done/abandoned features
 4x status --json       # output as JSON
 ```
 
 | Flag | Description |
 |---|---|
-| `--pending` | Filter pending-review features |
+| `--pending` | Hide done/abandoned features |
 | `--json` | Output as JSON |
 
 Groups: Running, Review, Pending, Todo, Done (done shows max 5). Includes backlog drift warnings.
@@ -125,7 +125,7 @@ Update the status of a subtask within a feature.
 
 | Flag | Description |
 |---|---|
-| `--status` | New status: `done`, `in-progress`, `blocked`, `not-started` (required) |
+| `--status` | New status: `done`, `in-progress`, `blocked`, `not-started`, `ready-for-review` (required) |
 
 Example:
 ```
@@ -433,11 +433,7 @@ Without paths, loads recent projects from `~/.4x/recent-projects.json` (LRU, max
 Start the Model Context Protocol (MCP) server.
 
 ```
-4x mcp [flags]
+4x mcp
 ```
-
-| Flag | Description |
-|---|---|
-| `--version` | Show MCP server version info |
 
 Starts the 4x MCP stdio server to expose 4x CLI commands as MCP tools to LLM clients (e.g., Claude Code, Cursor).

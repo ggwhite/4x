@@ -82,16 +82,16 @@ The step is best-effort: any error is logged and never blocks the transition to 
 
 ### Escalation
 
-The Coder or Tester can escalate back to the Designer when:
+The Coder or Tester can escalate when:
 
-| Reason | Meaning |
-|---|---|
-| `spec-mismatch` | DB/API doesn't match spec |
-| `criteria-wrong` | Acceptance criteria are incorrect |
-| `blocker` | Missing dependency or infra issue |
-| `scope-change` | Need to modify repos outside scope |
+| Reason | Meaning | Routes to |
+|---|---|---|
+| `spec-mismatch` | DB/API doesn't match spec | Designer |
+| `criteria-wrong` | Acceptance criteria are incorrect | Designer |
+| `blocker` | Missing dependency or infra issue | `needs-attention` (human intervention) |
+| `scope-change` | Need to modify repos outside scope | Designer |
 
-Escalation is written to `escalation.json`. The loop automatically routes back to the Designer.
+Escalation is written to `escalation.json`. The loop automatically routes `spec-mismatch`, `criteria-wrong`, and `scope-change` back to the Designer. A `blocker` escalation goes to `needs-attention` for human intervention.
 
 ---
 
@@ -132,9 +132,9 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
 
 | Phase | Condition | Action |
 |---|---|---|
-| `designing` | `task-brief.md` missing | → `needs-attention` |
+| `designing` | `task-brief.md` or `acceptance-criteria.md` missing | → `needs-attention` |
 | `coding` / `amending` | `escalation.json` with `spec-mismatch`, `criteria-wrong`, or `scope-change` | → `designing` |
-| `reviewing` | Verdict does not start with `PASS` (must be explicit `PASS` or `CONDITIONAL PASS`) | → `amending` |
+| `reviewing` | Review not passed (requires explicit `PASS` or `CONDITIONAL PASS` verdict AND zero `[CRITICAL]`/`[WARNING]` issues in the report) | → `amending` |
 | `testing` | `verify.json` not passed or artifacts missing | → `amending` |
 | `deep-reviewing` | Deep review FAILs | self-heal in place (mini-coder + re-verifier), up to `max_fix_rounds`; PASS → `accepting`, otherwise → `needs-attention` |
 | any (non-designer) | Guard check finds scope violation, baseline drift, or missing required file | → `needs-attention` |
@@ -151,6 +151,7 @@ Roles communicate through the `.4x/` directory, not shared context windows.
 ├── plugins/                         # Runner instruction files
 ├── batch-plan.json                  # Batch execution plan
 ├── batch-stop                       # Graceful stop signal
+├── batch-pid                        # PID of running batch subprocess (server orphan adoption)
 ├── batch-conflict.json              # Batch auto-merge conflict signal (paused)
 ├── batch-report.json                # Last batch run report (stats + per-feature outcome)
 ├── features/
@@ -223,7 +224,7 @@ id: F001-user-authentication-w
 name: User authentication with OAuth2
 description: ...
 status: not-started
-priority: medium
+priority: 1  # numeric: 0-1 = full profile, 2 = normal, 3+ = quick (omit for nil/unset)
 repos: []
 subtasks: []
 rules: []
@@ -349,7 +350,7 @@ Each hook execution appends a `type: "hook"` event to `events.jsonl`:
   "type": "hook",
   "phase": "coding",
   "action": "pre_coding",
-  "command": "docker compose up -d",
+  "cmd": "docker compose up -d",
   "status": "pass",
   "detail": "exit 0, 1.2s"
 }

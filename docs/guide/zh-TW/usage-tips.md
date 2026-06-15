@@ -2,15 +2,16 @@
 
 ## Token 用量提醒
 
-4x 會消耗**顯著多於單一 agent** 的 token。每個 feature 至少經過 4 個角色（Designer → Coder → Reviewer → Tester），每個角色都是獨立的 LLM 呼叫。如果 Review 或 Test 失敗觸發重跑，token 會再翻倍。
+4x 會消耗**顯著多於單一 agent** 的 token。每個 feature 至少經過 6 個角色（Designer → Coder → Reviewer → Tester → Deep-Reviewer → Acceptor），每個角色都是獨立的 LLM 呼叫。如果 Review 或 Test 失敗觸發重跑，token 成本會大幅增加。
 
 粗估每個 feature 的 token 用量：
 
 | 情境 | 約 LLM 呼叫次數 | 說明 |
 |---|---|---|
-| 一次通過（最佳情況） | 5 次 | Designer + Coder + Reviewer(2 pass) + Tester |
-| Review 打回 1 次 | 8 次 | 多一輪 Coder + Reviewer + Tester |
-| 跑滿 5 rounds | ~20 次 | 每 round 都是 Coder + Reviewer + Tester |
+| 一次通過（最佳情況） | 7 次 | Designer + Coder + Reviewer + Tester + Deep-Reviewer + Acceptor |
+| 最佳情況（未設定 deep_model） | 5 次 | Designer + Coder + Reviewer + Tester + Acceptor（跳過 Deep-Review） |
+| Review 打回 1 次 | 12 次 | 多一輪 Coder + Reviewer + Tester + Deep-Reviewer + Acceptor |
+| 跑滿 5 rounds | ~27 次 | 每 round = Coder + Reviewer + Tester + Deep-Reviewer + Acceptor |
 
 **省 token 建議：**
 - 簡單任務降低 `--max-rounds`（`--max-rounds 2`）
@@ -21,9 +22,150 @@
 
 ---
 
-## 完整工作流程
+## 實際工作流程（搭配 AI Agent）
 
-從建立任務到交付的完整流程——4x 負責 AI 開發，你負責最終 review 和合併。
+這是作者日常實際使用 4x 的方式——不是直接下 CLI 命令，而是在同一對話中搭配 AI agent 完成整個流程。
+
+### 1. 建立 Feature
+
+請 AI agent 幫你建立 feature：
+
+```
+> 4x new "Add Redis cache for order query API"
+# => Created: F001-add-redis-cache-for-or
+```
+
+### 2. Brainstorm — Spec 與 Plan
+
+執行迴圈前，請 agent brainstorm 設計：
+
+```
+> brainstorm F001
+```
+
+Agent 使用 brainstorming skill 與你一起探索需求、取捨和邊界情況。達成共識後，產出兩份文件：
+
+- `docs/design/F001-add-redis-cache-for-or-spec.md` — 設計 spec
+- `docs/design/F001-add-redis-cache-for-or-plan.md` — 實作計畫
+
+這些檔案遵循 `CLAUDE.md` 中 **Docs Routing** 宣告的命名慣例：`docs/design/{feature-id}-spec.md` 和 `docs/design/{feature-id}-plan.md`。
+
+Spec 成為 Designer 的參考輸入——brainstorm 做得好，Designer 產出的 task brief 就更好，代表更少的 review 退回和重跑輪次。
+
+### 3. 執行迴圈
+
+```bash
+4x run F001 --runner claude
+```
+
+在另一個 terminal 開 dashboard 觀察進度：
+
+```bash
+4x live -w
+```
+
+### 4. AI Code Review
+
+迴圈完成（`pending-review`）後，請 AI agent review diff：
+
+```
+> help me review the diff on branch 4x/F001-add-redis-cache-for-or
+```
+
+Agent 讀取 `final-report.md`，diff branch 與 main，指出問題。有需要修的——手動改或請 agent 改。
+
+### 5. Merge 與清理
+
+滿意後，請 agent merge 並清理：
+
+```
+> merge it and clean up the worktree
+```
+
+Agent 執行：
+```bash
+4x done F001
+```
+
+`4x done` 自動 merge branch、移除 worktree、刪除 branch。若有 merge conflict，會提示你手動解決後再跑 `4x merge F001`。
+
+### 6. 在 Dashboard 標記完成
+
+開 dashboard（`4x live -w`）並在 feature 卡片上點 **Mark Done**。這刻意是人工操作——AI 迴圈永遠不會自動完成 feature。
+
+### 為什麼這樣有效
+
+- **先 brainstorm 再 coding** — spec 奠定整個迴圈的基礎；模糊性在前期解決，不在實作中途
+- **你留在同一對話中** — 不用在 terminal 和工具間切換上下文
+- **AI agent 已有完整 context** — 從 brainstorming 和執行 feature 累積的，所以 review 是有根據的
+- **Mark Done 是手動的** — 你是最終把關者，不是 AI
+
+### 4x 是什麼（和不是什麼）
+
+4x 是一個**工作流程編排器**——它按順序執行 Designer、Coder、Reviewer 和 Tester 角色，管理它們之間的狀態機。它不取代你的判斷。
+
+實際上，迴圈處理順利路徑很好：有清楚 spec 的直觀 feature 通常 1-2 輪就通過。但現實開發是混亂的：
+
+- **Coder 可能誤解 spec** — Reviewer 抓到了，但下一輪的修正可能還是沒打到點。2-3 輪失敗後，直接介入或請 AI agent 修特定問題更快。
+- **測試失敗可能是環境特定的** — Tester 根據 spec 寫測試，但如果專案有怪癖（自訂測試設定、不穩定的 CI、遺留限制），測試可能因 AI 無法診斷的原因失敗。你需要自己除錯。
+- **邊界情況在迴圈後才浮現** — 4x 涵蓋 spec 描述的範圍。業務邏輯邊界情況、競態條件或整合問題通常在人工 review 或上線後才出現。
+- **複雜重構可能需要人工指引** — 當 feature 涉及多個檔案或需要理解隱式慣例時，Coder 可能產出正確但次優的程式碼。一個快速的人工提示（「用 `pkg/util` 裡已有的 helper」）可省下多輪重試。
+
+**正確的心態**：4x 給你一份扎實的初稿，附帶測試覆蓋和 review 回饋。把它想成一個能力不錯的 junior 開發者——精確遵循指示但有時需要指引。時間節省來自不用自己寫初始實作——而非完全把自己從流程中移除。
+
+### 依專案自訂角色
+
+4x 只處理狀態轉換和角色切換——它不知道你的專案該如何建置、測試或 review。這些知識在你的專案設定裡。
+
+每個角色從專案的 `.4x/settings.json` 讀取要做什麼。給越多 context，產出越好：
+
+```json
+{
+  "project": {
+    "name": "my-api",
+    "language": "go",
+    "build": ["go build ./..."],
+    "test": ["go test ./..."],
+    "lint": ["golangci-lint run"],
+    "rules": ["all exported functions must have GoDoc comments"]
+  },
+  "roles": {
+    "designer": { "model": "opus" },
+    "coder": {
+      "model": "sonnet",
+      "instructions": ["always use dependency injection via constructors"]
+    },
+    "reviewer": {
+      "model": "sonnet",
+      "deep_model": "opus",
+      "instructions": ["check for SQL injection in all query builders"]
+    },
+    "tester": {
+      "model": "sonnet",
+      "instructions": ["use testcontainers for integration tests, not mocks"]
+    }
+  }
+}
+```
+
+關鍵欄位：
+
+| 欄位 | 效果 |
+|---|---|
+| `project.build/test/lint` | Coder 改完後執行這些；Tester 使用 `test` 驗證 |
+| `project.rules` | 注入到每個角色作為硬約束 |
+| `roles.*.instructions` | 角色專屬指引——該關注什麼、該避免什麼 |
+| `roles.*.includes` | 額外讀取的檔案（例如 `["docs/api-conventions.md"]`） |
+
+沒有這些，角色退回通用行為。有了它們，Designer 寫出符合你架構的 spec、Coder 遵循你的慣例、Reviewer 抓你專案特有的陷阱、Tester 寫出能在你環境中實際執行的測試。
+
+詳見[設定](configuration.md)的完整參考。
+
+---
+
+## 端到端工作流程（純 CLI）
+
+同樣的流程，但直接用 CLI 命令——適合不在 AI agent session 中的情況。
 
 ### Step 1: 建立任務
 
@@ -103,31 +245,24 @@ git commit -m "feat: add Redis cache for order query API"
 **Worktree 模式**（改動在獨立 branch）：
 
 ```bash
-# 標記完成
+# 標記完成——自動 merge、移除 worktree 並刪除 branch
 4x done F001
-
-# 合併到主分支
-git merge 4x/F001-add-redis-cache-for-or
-
-# 清理 worktree 和 branch
-git worktree remove .worktrees/4x/F001-add-redis-cache-for-or
-git branch -d 4x/F001-add-redis-cache-for-or
 ```
+
+> 若有 merge conflict，`4x done` 會印出訊息請你手動解決，然後執行 `4x merge F001` 完成 merge 和清理。
 
 ### 流程總覽
 
 ```
 4x new "..."                     # 建立任務
     ↓
-4x run F001 --runner claude      # AI 自動跑 Design→Code→Review→Test
+4x run F001 --runner claude      # AI 自動跑 Design→Code→Review→Test→Deep-Review→Accept
     ↓
 pending-review                   # 等你 review
     ↓
 review final-report / diff       # 你看成果
     ↓
-4x done F001                     # 標記完成
-    ↓
-git merge + cleanup              # 合併、清 worktree/branch
+4x done F001                     # 標記完成 + 自動 merge/清理
 ```
 
 ---
@@ -192,6 +327,7 @@ Feature description 是 Designer 的唯一輸入——寫得越清楚，產出�
 | Reviewer (checklist) | sonnet | 規則式檢查，速度優先 |
 | Reviewer (adversarial) | opus | 需要深度推理找隱藏 bug |
 | Tester | sonnet | 寫測試、跑驗證，不需要最強推理 |
+| Acceptor | sonnet | 最終驗證是否符合 spec，與 reviewer 同等級 |
 
 調整方式：
 
@@ -202,7 +338,8 @@ Feature description 是 Designer 的唯一輸入——寫得越清楚，產出�
     "designer": { "model": "opus" },
     "coder": { "model": "sonnet" },
     "reviewer": { "model": "sonnet", "deep_model": "opus" },
-    "tester": { "model": "sonnet" }
+    "tester": { "model": "sonnet" },
+    "acceptor": { "model": "sonnet" }
   }
 }
 ```
@@ -284,13 +421,12 @@ vim .4x/F001/task-brief.md
 效果：
 - 每個 feature 在 `.worktrees/4x/{feature-id}/` 獨立工作
 - 自動建 branch `4x/{feature-id}`
-- 完成後提示 merge 指令
+- 完成後 CLI 列印 merge 指令
 
 ```bash
-# 完成後合併
-git merge 4x/F001-user-auth
-git worktree remove .worktrees/4x/F001-user-auth
-git branch -d 4x/F001-user-auth
+# 完成後自動 merge 並清理
+4x done F001
+# 若有 merge conflict，手動解決後執行：4x merge F001
 ```
 
 ## Batch 使用時機

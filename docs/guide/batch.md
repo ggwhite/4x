@@ -20,7 +20,7 @@ Run multiple features in dependency-aware order.
 
 ## Planning
 
-`4x batch plan` analyzes all non-done features and generates `.4x/batch-plan.json`:
+`4x batch plan` analyzes all non-done features (including `abandoned` and `ready-for-review`) and generates `.4x/batch-plan.json`:
 
 1. **Dependency DAG** — builds a directed graph from feature `depends` fields
 2. **Cycle detection** — errors if circular dependencies exist
@@ -57,10 +57,22 @@ Schedule (4 features):
 4x batch run --runner claude --max-rounds 3 --timeout 7200
 ```
 
-- Uses commit strategy `"never"` (you commit manually after review)
+- `--runner` is optional; when omitted it falls back to the workspace config's default runner
+- Uses commit strategy `"never"` (no isolation) or `"per-round"` (worktree isolation — commits automatically each round inside the feature worktree)
 - Checks for `.4x/batch-stop` file between features
 - Skips features whose dependencies are not complete (a dependency counts as complete when `done`, `abandoned`, or `ready-for-review` — see `feature.BatchCompleted`)
+- Before running each feature, dependencies are re-checked at runtime; if unmet, the feature is marked `blocked` and skipped
+- A feature that fails (reaches `needs-attention`, `blocked`, or remains `in-progress`) twice is skipped for the rest of the batch run
 - Reports progress after each feature
+
+When a feature reaches `ready-for-review`, it is automatically merged back to main and marked `done`. The next feature's worktree starts from the updated main. Pass `--no-auto-merge` to disable this — features stop at `ready-for-review` instead of being merged. On merge conflict, the batch pauses (see [Merge Conflicts](#merge-conflicts)). On non-conflict errors, the batch logs a warning and continues to the next feature.
+
+```bash
+# Run without auto-merge
+4x batch run --runner claude --no-auto-merge
+```
+
+> **Note:** `batch run` always regenerates the plan from scratch internally (ignoring any existing `batch-plan.json`). It also uses a stricter filter than `batch plan` — features that are `done`, `abandoned`, or `ready-for-review` are excluded from the run. `batch plan` is useful for previewing the schedule or feeding `batch next`, but is not a prerequisite for `batch run`.
 
 ## Stopping
 
@@ -76,7 +88,7 @@ When auto-merge hits a conflict, the batch pauses and writes `.4x/batch-conflict
 
 ## Run Report
 
-Every batch run writes `.4x/batch-report.json` when it ends — whether it finished normally, was stopped, was interrupted, or crashed. The report records overall stats (total / completed / failed / remaining), the runner, total duration, and each feature's final status, round count, and stop reason.
+Every batch run writes `.4x/batch-report.json` when it ends — whether it finished normally, was stopped, was interrupted, or crashed. The report records overall stats (total / completed / failed / remaining), the runner, total duration, and each feature's name, final status, duration, round count, and stop reason.
 
 The `outcome` field captures how the run ended:
 

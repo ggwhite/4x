@@ -13,27 +13,40 @@
 ```
 
 - 自动检测项目语言和构建/测试/lint 命令
-- 创建包含 4 个默认 runner（claude、codex、gemini、agy）的 `.4x/settings.json`
+- 创建包含 6 个默认 runner（claude、codex、gemini、agy、copilot、cursor）的 `~/.4x/settings.json`
 - 将嵌入的插件文件部署到 `.4x/plugins/`
-- 在根目录文件中添加 `@import` 行（CLAUDE.md、AGENTS.md、GEMINI.md、AGY.md）
+- 在根目录文件中添加 `@import` 行（CLAUDE.md、AGENTS.md、GEMINI.md、AGY.md、.cursorrules）
 - 如果 `.4x/` 已存在则报错
 
 ---
 
 ## `4x new <title>`
 
-创建新 feature。
+创建新 feature 并附带可选元数据。
 
 ```
-4x new "Feature title" [--repo <repo>...] [--json]
+4x new "Feature title" [flags]
 ```
 
 | 标志 | 说明 |
 |---|---|
-| `--repo` | 范围内的仓库（可重复使用，用于多仓库 feature） |
+| `--id` | 自定义 feature ID slug（跳过自动截断） |
+| `--desc` | Feature 描述（默认为标题） |
+| `--subtask` | 子任务，格式为 `"id:name"` 或 `"id:name:description"`（可重复） |
+| `--rule` | 规则引用（可重复） |
+| `--depends` | 依赖的 feature ID（可重复） |
+| `--priority` | 优先级（0=紧急、1=高、2=中、3=低） |
+| `--repo` | 范围内的仓库（可重复） |
 | `--json` | 以 JSON 格式输出 |
 
-创建状态为 `not-started` 的 `.4x/features/F{NNN}-{slug}.yaml`。
+创建状态为 `not-started` 的 `.4x/features/F{NNN}-{slug}.yaml`。自动生成的 slug 会在词边界截断；用 `--id` 可覆盖。创建逻辑走统一的 `feature.Create` 路径（参见[核心概念](concepts.md#feature-creation)）—— 仪表盘的 `POST /api/new` 使用相同逻辑，因此这里的标志与仪表盘新建表单一一对应。
+
+示例：
+```bash
+4x new "Dashboard SPA file split"
+4x new "Global settings" --id global-settings --desc "Add ~/.4x/settings.json"
+4x new "Auth refactor" --subtask "extract-mw:Extract middleware" --subtask "add-tests:Add tests"
+```
 
 ---
 
@@ -52,14 +65,27 @@
 | `--timeout` | `3600` | 每阶段超时时间（秒） |
 | `--dry-run` | `false` | 打印角色 prompt 但不调用 LLM |
 | `--json` | `false` | 启动运行并立即以 JSON 格式返回 |
+| `--profile` | auto | 流水线 profile（`full`/`normal`/`quick` 或自定义）；覆盖基于优先级的自动选择 |
 
-循环驱动：init → designing → coding → reviewing → testing → accepting → pending-review。审查失败时，编码者再做一轮。测试失败时，循环重新进入编码阶段。
+`--profile` 选择运行哪些角色。内置 profile：`full`（全部 6 个角色）、`normal`（coder/reviewer/tester/acceptor）、`quick`（coder/reviewer）。不在 profile 中的角色会被跳过（状态沿合法边推进，不调用 runner）。省略时，若 `settings.json` 中存在 `profiles` 配置区块，则按 feature 优先级自动选择（否则为 `full`）。详见[配置 → Profiles](configuration.md#profiles)。
+
+循环驱动：init → designing → coding → reviewing → testing → deep-reviewing → accepting → pending-review。审查失败时，编码者再做一轮。测试失败时，循环重新进入编码阶段。
+
+每个非设计者角色完成后，会自动执行护栏检查（范围、基线、必需文件）。违规时 feature 转为 `needs-attention` 并停止循环。设计者因不修改源代码而豁免。
+
+审查裁定必须以 `PASS` 开头才算通过。`## Verdict` 标题与裁定文本之间的空行会被忽略。歧义输出（`TODO`、`ERROR`、乱码、缺少 `## Verdict` 区块）视为失败。
+
+`settings.json` 或 feature YAML 中声明的阶段钩子会在循环内每次阶段转换前后自动执行。详见[阶段钩子](concepts.md#phase-hooks)。
+
+进入 `testing` 阶段时（`pre_testing` 钩子之后、Tester runner 启动之前），如果配置了 `health_check`，会自动执行环境健康检查。检查命令按顺序运行；失败时恢复命令运行一次，然后重试检查。如果环境仍然异常，feature 转为 `needs-attention` 并停止循环。详见[健康检查](concepts.md#health-check)。
+
+当 `settings.json` 中启用了 `auto_discover_features` 时，深度审查最终 **PASS** 时会解析 `deep-review-report.md` 中的 `[NEW-FEATURE]` 标记，自动为深度审查者标记的范围外问题创建 feature YAML（去重并设上限）。详见[配置 → 自动发现 Feature](configuration.md#auto-discover-features) 和[核心概念 → 自动发现的 Feature](concepts.md#auto-discovered-features)。
 
 如果 feature 处于 `blocked` 或 `needs-attention` 阶段，会根据当前角色自动恢复到适当的恢复阶段。
 
 自动检查依赖关卡 — 如果被依赖的 feature 未完成则阻塞。
 
-如果配置中设置了 `isolation: "worktree"`，则在 `.worktrees/4x/<feature-id>/` 下的 git worktree 中运行。
+如果配置中设置了 `isolation: "worktree"`，则在 `.worktrees/4x/<feature-id>/` 下的 git worktree 中运行。在多仓库模式下（配置了 workspace.repos），每个仓库在 `.worktrees/4x/<feature-id>/<repo-name>/` 下获得自己的 worktree，工作区级文件（go.work、Makefile 等）会被复制到旁边。编码者 prompt 包含 `== Workspace Repos ==` 区块；worktree 模式下每个条目显示仓库名作为相对路径（如 `core → core/`），以便编码者在正确的目录边界内操作。
 
 ---
 
@@ -68,18 +94,41 @@
 显示 feature 状态。
 
 ```
-4x status              # all features, grouped by state
-4x status <feature-id> # single feature details with subtasks
-4x status --pending    # filter pending-review features
-4x status --json       # output as JSON
+4x status              # 所有 feature，按状态分组
+4x status <feature-id> # 单个 feature 详情及子任务
+4x status --pending    # 隐藏 done/abandoned 的 feature
+4x status --json       # 以 JSON 格式输出
 ```
 
 | 标志 | 说明 |
 |---|---|
-| `--pending` | 筛选待审核功能 |
+| `--pending` | 隐藏 done/abandoned 的 feature |
 | `--json` | 以 JSON 格式输出 |
 
 分组：Running、Review、Pending、Todo、Done（done 最多显示 5 个）。包含 backlog 偏差警告。
+
+查看单个 feature 详情（`4x status <feature-id>`）时，如果存在截图，还会打印：
+
+`Screenshots: <total> (round 1: <n>, round 2: <n>, ...)`
+
+---
+
+## `4x subtask <feature-id> <subtask-id>`
+
+更新 feature 内某个子任务的状态。
+
+```
+4x subtask <feature-id> <subtask-id> --status <status>
+```
+
+| 标志 | 说明 |
+|---|---|
+| `--status` | 新状态：`done`、`in-progress`、`blocked`、`not-started`、`ready-for-review`（必填） |
+
+示例：
+```
+4x subtask F043-dashboard-screenshot-gall protocol-screenshot-type --status done
+```
 
 ---
 
@@ -99,6 +148,58 @@
 
 ---
 
+## `4x doctor`
+
+对合并后的配置（`.4x/settings.json` + `~/.4x/settings.json`）和工作区完整性执行一次性只读健康检查，在开始运行之前使用。不调用 LLM，不要求安装任何 runner。
+
+```
+4x doctor [--json]
+```
+
+| 标志 | 说明 |
+|---|---|
+| `--json` | 以 JSON 格式输出完整报告（供 CI 使用） |
+
+检查按区块分组：
+
+- **settings** — `settings.json` 可加载、`project.name` 非空、至少定义了一个 runner、`default_runner` 存在于 runners 映射中。
+- **runners** — 每个 runner 的 `command` 在 `PATH` 上可找到（找不到 → WARN 而非 FAIL，因为 runner 可能在远程机器上）。
+- **roles** — 解析每个角色（designer/coder/reviewer/tester/acceptor）通过默认 runner 实际使用的模型，以及 reviewer 的 `deep_model`。
+- **workspace** — 孤立 worktree（feature 已 done/abandoned 但 `.worktrees/4x/<id>` 还在）、悬挂 worktree（目录存在但没有匹配的 feature）、过期状态（`active=true` 但进程已不在）、格式异常的 feature YAML。
+
+每行前缀为 `✅`（PASS）、`⚠️`（WARN）或 `❌`（FAIL），最后附汇总计数。
+
+退出码：没有 FAIL 时为 `0`（WARN 不影响退出码），有任何检查失败时为 `1`。`doctor` 严格只读——不会改写 `state.json`、清理 worktree 或修改配置。
+
+```bash
+# CI 关卡：有 FAIL 则构建失败
+4x doctor --json | jq -e '[.checks[] | select(.severity == "FAIL")] | length == 0'
+```
+
+---
+
+## `4x verify <feature-id>`
+
+运行 feature 的 `test-strategy.yaml` 中的验证命令，并将结果写入 `rounds/round-{N}/verify.json`。
+
+命令可以通过 `verify_groups` 组织为分组：组间并行运行，组内命令顺序执行。组内某个命令失败时，该组剩余命令被跳过，但其他组继续运行。仅定义 `verify_commands` 时，退化为单个顺序执行的 `default` 组。同时声明两者会报错。
+
+并行执行完全由 CLI 处理——不涉及 LLM。Tester 角色调用此命令而非自己运行验证命令；人类也可以单独运行它来调试。
+
+```
+4x verify <feature-id> [--round N] [--timeout 5m] [--json]
+```
+
+| 标志 | 说明 |
+|---|---|
+| `--round` | 轮次编号（默认：state.json 中的当前轮次） |
+| `--timeout` | 所有分组的总超时时间（默认：5m） |
+| `--json` | 以 JSON 格式输出完整 verify.json |
+
+所有未跳过的命令都通过时退出码为 0，有任何命令失败时为 1。
+
+---
+
 ## `4x transition <feature-id>`
 
 强制状态转换。
@@ -114,6 +215,8 @@
 | `--json` | 以 JSON 格式输出 |
 
 验证转换是否符合状态机的合法规则。如果状态不存在则自动初始化。`testing → accepting` 转换会运行额外的关卡检查（verify.json、test-report.md、final-report.md、commit-plan.md 必须存在且验证必须通过）。
+
+如果 `settings.json` 或 feature YAML 声明了 `hooks`，`pre_{phase}` 钩子在转换前运行，`post_{phase}` 钩子在转换后运行。`block` 类型的 pre-hook 失败会中止转换；`block` 类型的 post-hook 失败会将 feature 移至 `needs-attention`。详见[阶段钩子](concepts.md#phase-hooks)。
 
 ---
 
@@ -148,19 +251,52 @@
 | `--role` | 目标角色（省略时从当前状态推断） |
 | `--round` | 轮次编号 |
 
-支持语言注入（来自用户配置或 `LANG` 环境变量）、规划文档自动包含（`docs/design/{id}-spec.md` 和 `{id}-plan.md`）以及项目/角色 include。
+支持语言注入（来自用户配置或 `LANG` 环境变量）、规划文档自动包含以及项目/角色 include。spec/plan 文档通过共享解析器（`protocol.ResolveDesignDoc`）定位——优先读取 feature YAML 的 `spec`/`plan` 字段，然后是 `docs/design/{id}-{type}.md`，再是去掉 `FNNN-` 前缀的 `docs/design/{slug}-{type}.md` 回退——因此 prompt 看到的文档与仪表盘 overview 一致。详见[设计文档解析](concepts.md#design-doc-resolution)。
+
+对于 `tester` 角色，feature 的 `test-strategy.yaml` 中列出的 `profiles` 会被解析（通过 `loadProfiles`）并注入到 prompt 中，以 `== Test Profile: {name} ==` 区块呈现。每个 profile 的内容来自 `settings.json` 的 `test_profiles[name]`（`content` 或 `include`），否则来自内置的 `templates/profiles/{name}.md`。详见[测试 Profile](concepts.md#test-profiles)。
 
 ---
 
 ## `4x done <feature-id>`
 
-将处于 pending-review 的 feature 标记为完成。
+将处于 pending-review 的 feature 标记为完成。如果 feature 有 worktree（`.worktrees/4x/<id>`），会自动将分支合并回 main 并移除 worktree 和分支。
 
 ```
 4x done <feature-id>
 ```
 
 仅在 feature 处于 `pending-review` 阶段时有效。其他阶段会报错。
+
+如果发生合并冲突或合并错误，feature 保持 `pending-review` 状态，worktree 被保留，并打印指导信息。多仓库模式下，冲突的仓库名会以 `repo: <name>` 形式打印。可使用 `4x merge <id>` 在解决冲突后完成合并。
+
+---
+
+## `4x merge <feature-id>`
+
+在解决 `4x done` 产生的冲突后完成合并。
+
+```
+4x merge <feature-id>
+```
+
+仅在 feature 处于 `pending-review` 或 `done` 阶段且 `.worktrees/4x/<id>` 存在 worktree 时可用。在 worktree 中提交已解决的冲突，合并到 main，然后移除 worktree 和分支。如果 feature 仍在 `pending-review`，合并成功后会标记为 `done`。
+
+多仓库模式下，已解决的冲突按仓库分别提交（`.worktrees/4x/<id>/<repo-name>/` 下的每个仓库独立暂存和提交），然后所有仓库全有或全无地合并。如果冲突再次出现，冲突仓库名会以 `repo: <name>` 形式显示。
+
+---
+
+## `4x clean [feature-id]`
+
+删除已完成 feature 的工作区产物（`logs/`、`rounds/`、报告、`state.json`、`events.jsonl`），释放磁盘空间。Feature 定义文件（`.4x/features/*.yaml`）和 feature 状态始终保留。
+
+```
+4x clean              # 列出可清理的 feature 及大小，确认后清理
+4x clean --dry-run    # 仅列出，不删除
+4x clean --force      # 跳过确认提示
+4x clean <feature-id> # 清理单个 feature（仍须为 done/abandoned 状态）
+```
+
+只有状态为 `done` 或 `abandoned` 且工作区目录存在的 feature 才有资格。活跃（运行中）的 feature 不会被清理，`blocked`/`needs-attention` 的 feature 也会保留以便调试。清理不是状态机转换——不会改变 feature 生命周期。
 
 ---
 
@@ -169,12 +305,22 @@
 管理用户级配置（`~/.4x/settings.json`）。
 
 ```
-4x config list          # show all user config
-4x config get <key>     # get a value
-4x config set <key> <value>  # set a value
+4x config list          # 显示所有用户配置
+4x config get <key>     # 获取某个值
+4x config set <key> <value>  # 设置某个值
 ```
 
-当前支持的键：`locale`。
+键使用点分路径。支持的形式：
+
+| 键 | 示例 | 说明 |
+|---|---|---|
+| `locale` | `4x config set locale zh-TW` | UI / prompt 语言 |
+| `theme` | `4x config set theme dark` | 仪表盘主题 |
+| `default_runner` | `4x config set default_runner claude` | 默认 runner 插件 |
+| `runner.<name>.<field>` | `4x config set runner.claude.model opus` | 每个 runner 的 `command`/`model`/`tty`/`stdin`/`quiet` |
+| `role.<name>.<field>` | `4x config get role.deep-reviewer.model` | 每个角色的 `model`/`deep_model`/`parallel_reviewers`/`angles_per_reviewer` |
+
+`role.deep-reviewer.parallel_reviewers` 控制深度审查扇出的并行子审查者数量（`1` = 单 agent 回退）；`role.deep-reviewer.angles_per_reviewer` 固定每组的审查角度数（不设则自动均分）。详见[核心概念 → 并行深度审查](concepts.md)。
 
 ---
 
@@ -218,15 +364,21 @@
 显示下一个可执行的 feature（基于计划和当前状态）。
 
 ```
-4x batch next
+4x batch next [--json]
 ```
+
+| 标志 | 默认值 | 说明 |
+|---|---|---|
+| `--json` | `false` | 以 JSON 格式输出，包含子任务前沿 |
+
+不带 `--json` 时，以纯文本输出 feature ID（向后兼容）。带 `--json` 时，输出 JSON 对象并包含 `subtaskFrontier`——所有依赖已完成的子任务。无可执行 feature 时在 JSON 模式下返回 `null`。
 
 ### `4x batch run`
 
 按依赖顺序依次运行可执行的 feature。
 
 ```
-4x batch run [--runner <name>] [--max-rounds <n>] [--timeout <seconds>]
+4x batch run [--runner <name>] [--max-rounds <n>] [--timeout <seconds>] [--no-auto-merge]
 ```
 
 | 标志 | 默认值 | 说明 |
@@ -234,8 +386,15 @@
 | `--runner` | 配置默认值 | Runner 插件名称 |
 | `--max-rounds` | `5` | 每个 feature 的最大轮次 |
 | `--timeout` | `3600` | 每阶段超时时间（秒） |
+| `--no-auto-merge` | `false` | 每个完成的 feature 停留在 `pending-review` 而非自动合并回 main |
 
 在 feature 之间检查 `.4x/batch-stop` 文件以实现优雅关闭。
+
+运行结束时——无论是正常完成、被停止、被中断（`SIGTERM`/`SIGINT`）还是崩溃——都会写入 `.4x/batch-report.json`，汇总运行结果（`outcome`、已完成/失败/剩余数量、runner、持续时间，以及每个 feature 的最终状态）。详见 [Batch 模式 → 运行报告](batch.md#run-report)。
+
+默认情况下，feature 完成后（到达 `pending-review`），批量运行会自动将其 worktree 分支合并回 main，以便下一个 feature 从更新后的 main 分支出发——实现无人值守的持续批量运行。合并冲突时批量运行会优雅暂停，feature 保持 `pending-review` 状态、worktree 保留，并写入 `.4x/batch-conflict.json` 信号文件（包含 feature、冲突仓库、文件列表），供[仪表盘](dashboard.md)显示冲突；解决冲突后运行 `4x merge <id>`，然后重新运行 `4x batch run` 继续。冲突信号在每次运行开始时清除。非冲突类合并错误打印警告后继续处理下一个 feature。传入 `--no-auto-merge` 可恢复旧行为（feature 停在 `pending-review` 等待人工审查）。
+
+如果配置中设置了 `isolation: "worktree"`，每个 feature 在自己的隔离 worktree 中运行。多仓库模式下，每个 feature 获得一个复合 worktree（`.worktrees/4x/<feature-id>/`），包含每个仓库的子目录，提交按轮次进行（不延迟到完成时）。Hub 仓库（来自 `hub_repos` 配置或 `workspace.repos[*].hub: true`）被排除在共享仓库集群之外，以允许并行执行。
 
 ### `4x batch stop`
 
@@ -264,3 +423,15 @@
 | `--app` | `-a` | `false` | 打开 macOS 原生应用 |
 
 不提供路径时，从 `~/.4x/recent-projects.json` 加载最近项目（LRU，最多 20 个）。提供路径时，将每个路径作为项目标签页打开。
+
+---
+
+## `4x mcp`
+
+启动 Model Context Protocol (MCP) 服务器。
+
+```
+4x mcp
+```
+
+启动 4x MCP stdio 服务器，将 4x CLI 命令暴露为 MCP 工具，供 LLM 客户端（如 Claude Code、Cursor）使用。

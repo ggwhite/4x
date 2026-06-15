@@ -2,28 +2,170 @@
 
 ## Aviso sobre consumo de tokens
 
-4x consume **significativamente más tokens que un solo agente**. Cada feature pasa por al menos 4 roles (Designer → Coder → Reviewer → Tester), cada uno siendo una llamada independiente al LLM. Si Review o Test fallan y disparan una repetición, los tokens se duplican.
+4x consume **significativamente más tokens que un solo agente**. Cada feature pasa por al menos 6 roles (Designer -> Coder -> Reviewer -> Tester -> Deep-Reviewer -> Acceptor), cada uno siendo una llamada independiente al LLM. Si Review o Test fallan, el costo en tokens aumenta significativamente por cada ronda de reintento.
 
-Estimación aproximada de consumo de tokens por feature:
+Estimación aproximada por feature:
 
-| Escenario | Aprox. llamadas al LLM | Explicación |
+| Escenario | Aprox. llamadas al LLM | Notas |
 |---|---|---|
-| Aprobado al primer intento (mejor caso) | 5 | Designer + Coder + Reviewer(2 pasadas) + Tester |
-| Review rechaza 1 vez | 8 | Una ronda adicional de Coder + Reviewer + Tester |
-| Llega al máximo de 5 rondas | ~20 | Cada ronda es Coder + Reviewer + Tester |
+| Aprobado al primer intento (mejor caso) | 7 | Designer + Coder + Reviewer + Tester + Deep-Reviewer + Acceptor |
+| Mejor caso (sin deep_model configurado) | 5 | Designer + Coder + Reviewer + Tester + Acceptor (Deep-Review omitido) |
+| Review rechaza una vez | 12 | Ronda adicional de Coder + Reviewer + Tester + Deep-Reviewer + Acceptor |
+| Llega al máximo de 5 rondas | ~27 | Cada ronda = Coder + Reviewer + Tester + Deep-Reviewer + Acceptor |
 
 **Consejos para ahorrar tokens:**
 - Para tareas simples, reduce `--max-rounds` (`--max-rounds 2`)
 - Para tareas simples, usa modelos de nivel sonnet para todo (5-10x más barato)
-- Usa `--dry-run` primero para confirmar la calidad de los prompts y evitar desperdicio
-- Escribe descripciones claras de features para reducir escalaciones y repeticiones
-- El ciclo se detiene automáticamente tras 3 rondas consecutivas sin progreso, no se quemará hasta max-rounds
+- Usa `--dry-run` primero para confirmar la calidad de los prompts antes de comprometerte con una ejecución real
+- Escribe descripciones claras de features para reducir escalaciones y reintentos
+- El ciclo se detiene automáticamente tras 3 rondas consecutivas sin progreso — no quemará tokens hasta max-rounds innecesariamente
 
 ---
 
-## Flujo de trabajo completo
+## Flujo de trabajo real (con agente de IA)
 
-El flujo completo desde la creación de la tarea hasta la entrega — 4x se encarga del desarrollo con IA, tú te encargas de la revisión final y el merge.
+Así es como el autor realmente usa 4x en el día a día — no con comandos CLI crudos, sino con un ciclo asistido por IA donde permaneces en la misma conversación durante todo el proceso.
+
+### 1. Crear feature
+
+Pide al agente de IA que cree un feature por ti:
+
+```
+> 4x new "Add Redis cache for order query API"
+# => Created: F001-add-redis-cache-for-or
+```
+
+### 2. Brainstorming — Spec y Plan
+
+Antes de ejecutar el ciclo, pide al agente que haga brainstorming del diseño:
+
+```
+> brainstorm F001
+```
+
+El agente usa la habilidad de brainstorming para explorar requisitos, trade-offs y casos extremos contigo. Una vez alineados, produce dos artefactos:
+
+- `docs/design/F001-add-redis-cache-for-or-spec.md` — design spec
+- `docs/design/F001-add-redis-cache-for-or-plan.md` — plan de implementación
+
+Estos archivos siguen la convención de nomenclatura declarada en `CLAUDE.md` bajo **Docs Routing**: `docs/design/{feature-id}-spec.md` y `docs/design/{feature-id}-plan.md`.
+
+La spec se convierte en la referencia de entrada del Designer — una spec bien pensada en el brainstorming significa que el Designer produce mejores task briefs, lo que significa menos rechazos de review y menos rondas de reintento.
+
+### 3. Ejecutar el ciclo
+
+```bash
+4x run F001 --runner claude
+```
+
+Abre el dashboard en otra terminal para observar el progreso:
+
+```bash
+4x live -w
+```
+
+### 4. Code review con IA
+
+Cuando el ciclo termina (`pending-review`), pide a tu agente de IA que revise el diff:
+
+```
+> help me review the diff on branch 4x/F001-add-redis-cache-for-or
+```
+
+El agente lee `final-report.md`, compara el diff del branch contra main y señala problemas. Corrige lo necesario — ya sea manualmente o pidiéndole al agente.
+
+### 5. Merge y limpieza
+
+Cuando estés satisfecho, pide al agente que fusione y limpie:
+
+```
+> merge it and clean up the worktree
+```
+
+El agente ejecuta:
+```bash
+4x done F001
+```
+
+`4x done` automáticamente fusiona el branch, elimina el worktree y borra el branch. Si hay conflictos de merge, se te pedirá resolverlos manualmente y luego ejecutar `4x merge F001`.
+
+### 6. Marcar como terminado en el dashboard
+
+Abre el dashboard (`4x live -w`) y haz clic en **Mark Done** en la tarjeta del feature. Esto es intencionalmente una acción humana — el ciclo de IA nunca auto-completa un feature.
+
+### Por qué funciona
+
+- **Brainstorming antes de codificar** — la spec fundamenta todo el ciclo; la ambigüedad se resuelve por adelantado, no en medio de la implementación
+- **Permaneces en una sola conversación** — sin cambiar contexto entre terminales y herramientas
+- **El agente de IA ya tiene contexto completo** del brainstorming y la ejecución del feature, por lo que su review es informada
+- **Mark Done es manual** — tú eres el guardián final, no la IA
+
+### Qué es 4x (y qué no es)
+
+4x es un **orquestador de flujo de trabajo** — ejecuta los roles Designer, Coder, Reviewer y Tester en secuencia y gestiona la máquina de estados entre ellos. No reemplaza tu criterio.
+
+En la práctica, el ciclo maneja bien el camino feliz: features sencillos con specs claras generalmente pasan en 1-2 rondas. Pero el desarrollo del mundo real es desordenado:
+
+- **El Coder puede malinterpretar la spec** — el Reviewer lo detecta, pero la corrección en la siguiente ronda puede seguir fallando. Después de 2-3 rondas fallidas, es más rápido intervenir tú mismo o pedirle a tu agente de IA que corrija el problema específico directamente.
+- **Los fallos de pruebas pueden ser específicos del entorno** — el Tester escribe pruebas basadas en la spec, pero si tu proyecto tiene peculiaridades (setup de pruebas personalizado, CI inestable, restricciones legacy), las pruebas pueden fallar por razones que la IA no puede diagnosticar. Necesitarás depurar esto tú mismo.
+- **Los casos extremos aparecen después del ciclo** — 4x cubre lo que la spec describe. Los casos extremos de lógica de negocio, condiciones de carrera o problemas de integración a menudo solo aparecen durante la revisión manual o en producción.
+- **Los refactors complejos pueden necesitar guía humana** — cuando un feature toca muchos archivos o requiere entender convenciones implícitas, el Coder puede producir código correcto pero subóptimo. Un empujón humano rápido ("usa el helper existente en `pkg/util`") ahorra múltiples rondas de reintento.
+
+**El modelo mental correcto**: 4x te da un primer borrador sólido con cobertura de pruebas y retroalimentación de review. Piensa en él como un desarrollador junior capaz que sigue instrucciones con precisión pero a veces necesita dirección. El ahorro de tiempo viene de no escribir la implementación inicial tú mismo — no de eliminarte del proceso por completo.
+
+### Personalizar roles por proyecto
+
+4x solo maneja transiciones de estado y cambio de roles — no sabe cómo tu proyecto debe construirse, probarse o revisarse. Ese conocimiento vive en la configuración de tu proyecto.
+
+Cada rol lee de `.4x/settings.json` del proyecto para entender qué hacer. Cuanto más contexto proporciones, mejor será el resultado:
+
+```json
+{
+  "project": {
+    "name": "my-api",
+    "language": "go",
+    "build": ["go build ./..."],
+    "test": ["go test ./..."],
+    "lint": ["golangci-lint run"],
+    "rules": ["all exported functions must have GoDoc comments"]
+  },
+  "roles": {
+    "designer": { "model": "opus" },
+    "coder": {
+      "model": "sonnet",
+      "instructions": ["always use dependency injection via constructors"]
+    },
+    "reviewer": {
+      "model": "sonnet",
+      "deep_model": "opus",
+      "instructions": ["check for SQL injection in all query builders"]
+    },
+    "tester": {
+      "model": "sonnet",
+      "instructions": ["use testcontainers for integration tests, not mocks"]
+    }
+  }
+}
+```
+
+Campos clave:
+
+| Campo | Efecto |
+|---|---|
+| `project.build/test/lint` | El Coder los ejecuta después de los cambios; el Tester usa `test` para verificación |
+| `project.rules` | Se inyectan en cada rol como restricciones estrictas |
+| `roles.*.instructions` | Guía específica por rol — en qué enfocarse, qué evitar |
+| `roles.*.includes` | Archivos adicionales a leer (ej., `["docs/api-conventions.md"]`) |
+
+Sin estos, los roles recurren a un comportamiento genérico. Con ellos, el Designer escribe specs que coinciden con tu arquitectura, el Coder sigue tus convenciones, el Reviewer detecta los problemas específicos de tu proyecto y el Tester escribe pruebas que realmente funcionan en tu entorno.
+
+Ver [Configuración](configuration.md) para la referencia completa.
+
+---
+
+## Flujo de trabajo completo (solo CLI)
+
+El mismo flujo que arriba, pero usando comandos CLI directamente — útil cuando no estás en una sesión con agente de IA.
 
 ### Paso 1: Crear la tarea
 
@@ -32,25 +174,25 @@ El flujo completo desde la creación de la tarea hasta la entrega — 4x se enca
 # => Created: F001-add-redis-cache-for-or
 ```
 
-Si es necesario, edita `.4x/features/F001-add-redis-cache-for-or.yaml` para complementar los campos description, priority, depends, repos, etc.
+Opcionalmente edita `.4x/features/F001-add-redis-cache-for-or.yaml` para completar los campos description, priority, depends, repos, etc.
 
 ### Paso 2: Ejecutar el ciclo
 
 ```bash
-# Recommended: dry run first to check the prompt
+# Recomendado: dry run primero para verificar los prompts
 4x run F001 --dry-run
 
-# Run for real
+# Ejecutar de verdad
 4x run F001 --runner claude
 ```
 
-Puedes abrir el dashboard para observar en tiempo real:
+Abre el dashboard en otra terminal para monitoreo en tiempo real:
 
 ```bash
-4x live -w   # in another terminal
+4x live -w
 ```
 
-### Paso 3: Ciclo completo → pending-review
+### Paso 3: Ciclo completo -> pending-review
 
 Cuando el ciclo termina, el feature se queda en `pending-review` — esto es intencional. La IA terminó, pero necesita tu revisión.
 
@@ -64,95 +206,88 @@ Cuando el ciclo termina, el feature se queda en `pending-review` — esto es int
 Revisa los resultados producidos por la IA:
 
 ```bash
-# View the final report
+# Leer el reporte final
 cat .4x/F001/final-report.md
 
-# View the commit plan
+# Leer el plan de commits
 cat .4x/F001/commit-plan.md
 
-# View code diff
-git diff                          # non-worktree mode
-git diff main...4x/F001-add-redis  # worktree mode
+# Revisar el diff del código
+git diff                          # modo sin worktree
+git diff main...4x/F001-add-redis  # modo worktree
 ```
 
-Si no estás satisfecho, puedes:
+¿No satisfecho? Puedes reenviarlo:
 
 ```bash
-# Manually modify then re-run review + test
+# Re-ejecutar review + test después de ediciones manuales
 4x transition F001 --to reviewing
 4x run F001
 
-# Or start completely over
+# O comenzar desde el diseño
 4x transition F001 --to designing
 4x run F001
 ```
 
 ### Paso 5: Merge y limpieza
 
-**Modo sin worktree** (los cambios están directamente en el working tree):
+**Modo sin worktree** (los cambios están en el working tree):
 
 ```bash
-# Mark as done when satisfied
+# Marcar como terminado
 4x done F001
 
-# Commit following commit-plan.md
+# Comitear siguiendo el plan de commits
 git add -A
 git commit -m "feat: add Redis cache for order query API"
 ```
 
-**Modo worktree** (los cambios están en un branch independiente):
+**Modo worktree** (los cambios están en un branch aislado):
 
 ```bash
-# Mark as done
+# Marcar como terminado — automáticamente fusiona, elimina worktree y borra branch
 4x done F001
-
-# Merge to main branch
-git merge 4x/F001-add-redis-cache-for-or
-
-# Clean up worktree and branch
-git worktree remove .worktrees/4x/F001-add-redis-cache-for-or
-git branch -d 4x/F001-add-redis-cache-for-or
 ```
+
+> Si hay conflictos de merge, `4x done` imprimirá un mensaje pidiéndote resolverlos manualmente, luego ejecutar `4x merge F001` para completar el merge y la limpieza.
 
 ### Resumen del flujo
 
 ```
-4x new "..."                     # Create task
+4x new "..."                     # crear tarea
     ↓
-4x run F001 --runner claude      # AI runs Design→Code→Review→Test automatically
+4x run F001 --runner claude      # IA ejecuta Design→Code→Review→Test→Deep-Review→Accept
     ↓
-pending-review                   # Waiting for your review
+pending-review                   # esperando tu revisión
     ↓
-review final-report / diff       # You review the results
+review final-report / diff       # inspeccionar los resultados
     ↓
-4x done F001                     # Mark as done
-    ↓
-git merge + cleanup              # Merge, clean worktree/branch
+4x done F001                     # marcar como terminado + auto merge/limpieza
 ```
 
 ---
 
 ## Escribir buenas descripciones de features
 
-La descripción del feature es la única entrada del Designer — cuanto más clara sea, más precisa será la spec resultante.
+La descripción del feature es la única entrada del Designer — cuanto más clara sea, mejor será la spec.
 
 ```bash
-# Bad: too vague, Designer will fill in the blanks with assumptions
+# Malo: demasiado vago, el Designer llenará los vacíos con suposiciones
 4x new "improve performance"
 
-# Good: clear objective, boundaries, acceptance criteria
+# Bueno: objetivo específico, límites, criterios de aceptación
 4x new "optimize order query API — add Redis cache, target p99 < 200ms, cache TTL 5min"
 ```
 
-Se recomienda incluir en la descripción:
-- **Qué hacer** (funcionalidad o modificación concreta)
-- **Por qué hacerlo** (motivación de negocio o descripción del problema)
-- **Límites** (qué no tocar, restricciones conocidas)
+Incluye en tu descripción:
+- **Qué hacer** (feature o cambio específico)
+- **Por qué** (motivación de negocio o descripción del problema)
+- **Límites** (qué NO tocar, restricciones conocidas)
 - **Criterios de aceptación** (definición cuantificable de éxito)
 
 ## Granularidad de features
 
-Un feature corresponde a un cambio que se puede entregar de forma independiente. Si es demasiado grande, el Coder se pierde, el Reviewer no detecta errores y las pruebas son difíciles de validar.
+Un feature = un cambio entregable de forma independiente. Demasiado grande y el Coder se pierde, el Reviewer no detecta problemas y las pruebas se vuelven poco confiables.
 
 | Granularidad | Adecuado | No adecuado |
 |---|---|---|
@@ -160,9 +295,9 @@ Un feature corresponde a un cambio que se puede entregar de forma independiente.
 | Un refactor (renombrar, extraer interfaz) | OK | — |
 | Un bug fix | OK | — |
 | Un módulo completo desde cero | — | Dividir en múltiples features + depends |
-| Una funcionalidad grande que abarca 3 repos | — | Un feature por repo, conectados con depends |
+| Feature grande que abarca 3 repos | — | Un feature por repo, conectados con depends |
 
-Aprovecha `depends` para desglosar tareas grandes:
+Usa `depends` para descomponer tareas grandes:
 
 ```bash
 4x new "Add user model and migrations"           # F001
@@ -170,30 +305,31 @@ Aprovecha `depends` para desglosar tareas grandes:
 4x new "Add OAuth2 login flow"                    # F003, depends: [F002]
 ```
 
-## Dry run antes de la ejecución real
+## Dry run primero
 
-La primera vez que usas un feature nuevo o después de cambiar settings, usa `--dry-run` para ver si el prompt es razonable:
+Después de crear un feature nuevo o modificar la configuración, usa `--dry-run` para verificar que los prompts se vean bien:
 
 ```bash
 4x run F001 --dry-run
 ```
 
-Esto imprime los prompts completos de los cuatro roles sin llamar al LLM, permitiéndote confirmar:
-- Si el Designer tiene suficiente contexto
-- Si tus reglas de proyecto se inyectan correctamente
-- Si el locale es correcto
+Esto imprime el prompt completo para todos los roles sin llamar a ningún LLM. Verifica:
+- ¿Tiene el Designer suficiente contexto?
+- ¿Se inyectan correctamente las reglas de tu proyecto?
+- ¿Es correcto el locale?
 
-## Recomendaciones de selección de modelos
+## Selección de modelos
 
 | Rol | Recomendación | Razón |
 |---|---|---|
-| Designer | opus o equivalente | Necesita comprensión profunda de requisitos, descomposición de arquitectura |
-| Coder | sonnet o equivalente | Alto volumen de salida, pero no requiere el razonamiento más fuerte |
-| Reviewer (checklist) | sonnet | Verificación basada en reglas, prioridad en velocidad |
+| Designer | opus o equivalente | Necesita comprensión profunda para analizar requisitos y diseñar arquitectura |
+| Coder | sonnet o equivalente | Alto volumen de salida, no necesita el razonamiento más fuerte |
+| Reviewer (checklist) | sonnet | Verificación basada en reglas, la velocidad importa |
 | Reviewer (adversarial) | opus | Necesita razonamiento profundo para encontrar bugs ocultos |
-| Tester | sonnet | Escribir pruebas, ejecutar verificaciones, no requiere el razonamiento más fuerte |
+| Tester | sonnet | Escribir y ejecutar pruebas, no necesita el razonamiento más fuerte |
+| Acceptor | sonnet | Verificación final contra la spec, nivel similar al reviewer |
 
-Método de ajuste:
+Configuración:
 
 ```json
 // .4x/settings.json
@@ -202,77 +338,80 @@ Método de ajuste:
     "designer": { "model": "opus" },
     "coder": { "model": "sonnet" },
     "reviewer": { "model": "sonnet", "deep_model": "opus" },
-    "tester": { "model": "sonnet" }
+    "tester": { "model": "sonnet" },
+    "acceptor": { "model": "sonnet" }
   }
 }
 ```
 
-Si el proyecto es simple (bug fix pequeño, refactor menor), usar sonnet para todo también funciona y ahorra costos.
+Para proyectos simples (bug fixes pequeños, refactors menores), usar sonnet para todo está bien y es mucho más económico.
 
-## Ajuste de rondas
+## Ajuste de rondas máximas
 
-El predeterminado de 5 rondas es adecuado para la mayoría de los casos. Ajusta según la complejidad del feature:
+El predeterminado de 5 rondas funciona para la mayoría de los casos. Ajusta según la complejidad del feature:
 
 | Escenario | Rondas recomendadas |
 |---|---|
 | Bug fix simple, cambio menor | 2-3 |
-| Desarrollo de funcionalidad general | 5 (predeterminado) |
-| Funcionalidad compleja que cruza módulos | 7-10 |
+| Desarrollo de funcionalidad típica | 5 (predeterminado) |
+| Feature complejo que cruza módulos | 7-10 |
 
 ```bash
-4x run F001 --max-rounds 3   # simple task
-4x run F001 --max-rounds 8   # complex task
+4x run F001 --max-rounds 3   # tarea simple
+4x run F001 --max-rounds 8   # tarea compleja
 ```
 
 Nota: el ciclo se detiene automáticamente tras 3 rondas consecutivas sin progreso (no necesita llegar al max-rounds).
 
 ## Manejar fallos de review
 
-Un fallo en Review (veredicto FAIL o hallazgos CRITICAL) envía automáticamente al Coder para correcciones, sin necesidad de intervención humana. Pero si falla repetidamente:
+Los fallos de review (veredicto FAIL o hallazgos CRITICAL) automáticamente envían el código de vuelta al Coder — sin intervención manual necesaria. Pero si sigue fallando:
 
-1. **Revisa review-report.md** — en `.4x/{feature-id}/rounds/round-{N}/review-report.md`
-2. **Revisa coder-report.md** — ¿el Coder entendió el problema?
+1. **Lee review-report.md** — en `.4x/{feature-id}/rounds/round-{N}/review-report.md`
+2. **Lee coder-report.md** — ¿entendió el Coder el problema?
 3. **Considera ajustar**:
-   - La descripción del feature es demasiado vaga → reescribe la descripción, vuelve a ejecutar el Designer
-   - El Reviewer es demasiado estricto → relaja reglas específicas en `roles.reviewer.instructions`
-   - Es realmente un problema difícil → intervención manual, luego usa `4x transition` para avanzar
+   - Descripción del feature demasiado vaga -> reescríbela, re-ejecuta desde Designer
+   - Reviewer demasiado estricto -> relaja reglas específicas en `roles.reviewer.instructions`
+   - Problema genuinamente difícil -> intervén manualmente, luego usa `4x transition` para avanzar
 
 ## Manejar escalaciones
 
-Cuando el Coder o Tester descubre que la spec no coincide con la realidad, escala automáticamente al Designer. Escenarios comunes:
+Cuando el Coder o Tester encuentra que la spec no coincide con la realidad, escala automáticamente de vuelta al Designer. Escenarios comunes:
 
-- El esquema de DB no coincide con lo descrito en la spec (`spec-mismatch`)
-- Los criterios de aceptación no son razonables (`criteria-wrong`)
-- Falta una dependencia externa (`blocker`)
+- El esquema de BD no coincide con la spec (`spec-mismatch`)
+- Los criterios de aceptación son incorrectos (`criteria-wrong`)
+- El alcance del feature necesita ajuste (`scope-change`)
 
-Las escalaciones se registran en `.4x/{feature-id}/rounds/round-{N}/escalation.json`. El Designer recibe el contenido de la escalación y produce una nueva spec.
+Estas escalaciones se envían de vuelta al Designer, quien rediseña la spec. Las escalaciones se registran en `.4x/{feature-id}/rounds/round-{N}/escalation.json`.
 
-Si el Designer tampoco puede resolverlo (generalmente por falta de contexto), el ciclo se detiene en `needs-attention`, momento en que se necesita intervención humana:
+Nota: las escalaciones `blocker` (ej., dependencia externa faltante) van directamente a `needs-attention` y requieren intervención manual — no se envían de vuelta al Designer.
+
+Si el Designer tampoco puede resolverlo (generalmente por falta de contexto), el ciclo se detiene en `needs-attention`. Se necesita intervención manual:
 
 ```bash
-# Check status
+# Verificar estado
 4x status F001
 
-# Manually fix spec or codebase
+# Corregir manualmente la spec o el codebase
 vim .4x/F001/task-brief.md
 
-# Push back to coding to continue
+# Empujar de vuelta a coding
 4x transition F001 --to coding
 ```
 
 ## Reanudar un feature interrumpido
 
-4x está basado en archivos — si la sesión se corta o la máquina se reinicia, el estado está en `.4x/`. Simplemente vuelve a ejecutar:
+4x es basado en archivos — si la sesión se corta o la máquina se reinicia, todo el estado está en `.4x/`. Simplemente re-ejecuta:
 
 ```bash
 4x run F001 --runner claude
 ```
 
-Continuará desde la última fase y ronda, sin empezar de cero.
+Retoma desde la última fase y ronda, no desde el principio.
 
 ## Aislamiento con worktree
 
-Si ejecutas múltiples features simultáneamente, o quieres aislar las modificaciones de la IA, habilita worktree:
+Para ejecutar múltiples features simultáneamente o aislar los cambios de la IA de tu working tree, habilita el modo worktree:
 
 ```json
 // .4x/settings.json
@@ -281,64 +420,63 @@ Si ejecutas múltiples features simultáneamente, o quieres aislar las modificac
 }
 ```
 
-Efecto:
-- Cada feature trabaja de forma independiente en `.worktrees/4x/{feature-id}/`
+Qué sucede:
+- Cada feature se ejecuta en `.worktrees/4x/{feature-id}/` con su propio directorio de trabajo
 - Se crea automáticamente un branch `4x/{feature-id}`
-- Al completarse, se muestra el comando de merge
+- Al completarse, el CLI muestra instrucciones de merge
 
 ```bash
-# After completion, merge
-git merge 4x/F001-user-auth
-git worktree remove .worktrees/4x/F001-user-auth
-git branch -d 4x/F001-user-auth
+# Al completarse, fusionar y limpiar automáticamente
+4x done F001
+# En caso de conflicto de merge, resolver manualmente y ejecutar: 4x merge F001
 ```
 
 ## Cuándo usar batch
 
 | Escenario | Usar `4x run` | Usar `4x batch run` |
 |---|---|---|
-| Hacer un feature | OK | — |
-| Hacer múltiples features con dependencias | Hay que ordenar manualmente | Maneja el orden de dependencias automáticamente |
-| Procesar el backlog durante la noche | — | OK, combinado con `batch stop` para detenerse cuando sea necesario |
+| Un solo feature | OK | — |
+| Múltiples features con dependencias | Hay que ordenar manualmente | Maneja el orden de dependencias automáticamente |
+| Procesar el backlog durante la noche | — | OK, usa `batch stop` para detenerse cuando quieras |
 
-La estrategia de commits del batch es fija en `"never"` — todos los cambios quedan en el working tree, y después de completarse, el humano revisa y hace commit.
+El modo batch usa la estrategia de commits `"never"` — todos los cambios quedan en el working tree para revisión humana antes de comitear.
 
 ## Escenarios de uso del dashboard
 
 ```bash
-# Run a feature with the dashboard open, watch logs in real time
+# Ejecutar un feature mientras observas el dashboard
 4x live -w &
 4x run F001 --runner claude
 
-# Start a feature directly from the dashboard (no terminal needed)
-# POST /api/run via web UI
+# Iniciar features directamente desde la UI del dashboard
+# POST /api/run vía la interfaz web
 
-# Multi-project monitoring
+# Monitoreo multi-proyecto
 4x live /path/to/project-a /path/to/project-b -w
 ```
 
 ## Configuración de locale
 
-Haz que la IA responda en tu idioma:
+Establece el idioma para las respuestas de la IA:
 
 ```bash
 4x config set locale zh-TW
 ```
 
-También puedes no configurarlo — se inferirá automáticamente de la variable de entorno `LANG`.
+Si no se configura, se infiere automáticamente de la variable de entorno `LANG`.
 
 ## Solución de problemas
 
 ### Feature estancado en needs-attention
 
-Significa que alguna fase carece de un artefacto necesario (por ejemplo, el Designer no produjo task-brief.md).
+Falta un artefacto requerido para la fase actual (ej., el Designer no produjo task-brief.md).
 
 ```bash
-4x status F001          # see what's missing
-4x check F001           # run full check
+4x status F001          # ver qué falta
+4x check F001           # ejecutar verificación completa
 ```
 
-Complementa el archivo manualmente o vuelve a ejecutar esa fase:
+Corrige manualmente o re-ejecuta la fase:
 
 ```bash
 4x transition F001 --to designing
@@ -347,27 +485,27 @@ Complementa el archivo manualmente o vuelve a ejecutar esa fase:
 
 ### Feature estancado en blocked
 
-Generalmente es porque el runner terminó con código de salida 1 (fallo leve). Revisa el log:
+Generalmente causado por código de salida 1 del runner (fallo leve). Revisa los logs:
 
 ```bash
 ls .4x/F001/logs/
 cat .4x/F001/logs/round-1-coder.log
 ```
 
-Después de resolver, empuja de vuelta:
+Después de corregir, empuja de vuelta:
 
 ```bash
 4x transition F001 --to coding
 4x run F001
 ```
 
-### Compuerta de dependencias bloqueando
+### Bloqueado por compuerta de dependencias
 
 ```
 blocked: F001-user-model is not done (status: coding)
 ```
 
-Primero completa el feature del que se depende, o márcalo manualmente:
+Completa la dependencia primero, o márcala como terminada manualmente:
 
 ```bash
 4x done F001

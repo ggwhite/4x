@@ -15,7 +15,7 @@ Runners are configured in `.4x/settings.json` under the `runners` key. The CLI i
 | `gemini` | Google Gemini CLI | Argument | Available |
 | `agy` | Antigravity CLI | Argument | Available |
 | `copilot` | GitHub Copilot CLI | Argument | Available (manual config) |
-| `cursor` | Cursor IDE | Rules file | Available (manual config) |
+| `cursor` | Cursor IDE | Argument | Available (manual config) |
 
 `4x init` configures claude, codex, gemini, and agy by default. Copilot and cursor require manual addition to `settings.json`.
 
@@ -50,6 +50,7 @@ Use `4x sync` to re-deploy plugin files after updating the binary.
 	    │     claude --dangerously-skip-permissions -p "..." --output-format stream-json --verbose
 	    ├── Capture output to .4x/F001/logs/round-N-role.log
 	    │     (parallel deep review: round-N-deep-reviewer-{i}.log + round-N-synthesizer.log)
+    │     (deep review self-heal: round-N-deep-fix-{i}.log + round-N-deep-reverify-{i}.log)
     ├── Check output artifacts
     └── Transition state, repeat
 ```
@@ -87,9 +88,13 @@ Any temp file created during resolution is always cleaned up, even when a later 
 
 Runners with `output_format: "stream-json"` write two files: a readable `.log` for dashboard tailing and a raw `.stream.jsonl` file for debugging. Claude Code uses this mode by default.
 
+### Non-PTY Process Group Handling
+
+Non-PTY runners (stream-json mode, stdin mode, plain argument mode) use an independent process group (`Setpgid` on Unix). When the run context is cancelled, the process group is sent `SIGKILL` immediately — there is no SIGTERM grace period. On Windows, the default `exec.CommandContext` behavior applies.
+
 ### PTY Mode
 
-Runners with `tty: true` use a pseudo-terminal to capture full output including ANSI escape sequences. A stateful ANSI stripper cleans the log files. This path is skipped when `output_format` is `"stream-json"`.
+Runners with `tty: true` (and not using `output_format: "stream-json"`) use a pseudo-terminal to capture full output including ANSI escape sequences. A stateful ANSI stripper cleans the log files. The PTY path uses `exec.Command` with a dedicated context watcher for graceful shutdown, while non-PTY runners use `exec.CommandContext` with process-group-level cancellation (see above).
 
 The PTY child runs in its own session/process group. When the run context is cancelled (e.g. timeout or Ctrl+C), the whole process group is sent `SIGTERM`, escalating to `SIGKILL` after 5 seconds if it has not exited — so no orphaned child outlives the run.
 
@@ -113,7 +118,9 @@ Configure in `.4x/settings.json`:
 }
 ```
 
-The Deep Reviewer uses `deep_model`. When `parallel_reviewers > 1`, the deep review fans the 11 angles out across that many parallel sub-reviewers (each running `deep_model`) plus one synthesizer that merges their partial reports; `1` keeps the single-agent flow. See [Concepts → Parallel Deep Review](concepts.md).
+The `model` and `deep_model` values are abstract tier names (e.g. `"opus"`, `"sonnet"`), not literal model IDs. Each runner has a `tiers` mapping in its config that translates tier names to runner-specific model IDs (e.g. claude maps `"opus"` to `"opus"`, codex maps `"opus"` to `"gpt-5.5"`). See [Configuration](configuration.md) for the full resolution chain.
+
+The Deep Reviewer uses `deep_model`. When `parallel_reviewers > 1`, the deep review fans the 11 angles out across that many parallel sub-reviewers (each running `deep_model`) plus one synthesizer that merges their partial reports; `1` keeps the single-agent flow. Optional `angles_per_reviewer` sets a fixed number of angles per sub-reviewer; when omitted, angles are distributed evenly (`ceil(11/N)` per reviewer). See [Concepts → Parallel Deep Review](concepts.md).
 
 You can also mix runners — use Claude for Design, Gemini for Code, etc. — by running each phase manually with different `--runner` flags and `4x transition` between phases.
 

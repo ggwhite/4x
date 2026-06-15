@@ -43,10 +43,10 @@ cd my-project
 
 これにより `.4x/` ディレクトリが作成され、以下が含まれます：
 - `settings.json` -- プロジェクト設定、ランナー定義、ロールモデルのマッピング
-- `plugins/` -- ランナーの指示ファイル（SKILL.md、AGENTS.md など）
+- `plugins/` -- ランナーの指示ファイル（CLAUDE.md、AGENTS.md、GEMINI.md など）
 - ルートレベルのインポートファイル（CLAUDE.md、AGENTS.md、GEMINI.md など）
 
-4x はプロジェクトの言語（Go、TypeScript、Java、Rust、Python）を自動検出し、ビルド/テスト/lint コマンドを事前設定します。
+4x はプロジェクトの言語（Go、TypeScript、JavaScript、Java、Rust、Python）を自動検出し、ビルド/テスト/lint コマンドを事前設定します。
 
 `.4x/` が既に存在する場合、`init` はエラーで終了します -- プラグインファイルを更新するには `4x sync` を使用してください。
 
@@ -54,7 +54,7 @@ cd my-project
 
 ```bash
 4x new "User authentication with OAuth2"
-# => Created: F001-user-authentication-w
+# => Created feature: F001-user-authentication-w (User authentication with OAuth2)
 
 4x new "Payment processing" --repo payment-service --repo shared-lib
 # => Created: F002-payment-processing
@@ -63,6 +63,13 @@ cd my-project
 Feature は `.4x/features/{id}.yaml` に保存されます。ID のフォーマットは `F{NNN}-{slug}`（slug は最大23文字）です。
 
 `--repo` を使って、スコープ内のリポジトリを宣言します（マルチリポジトリプロジェクトの場合）。
+
+```bash
+4x new "Auth refactor" --id auth-refactor --desc "Refactor auth middleware" --priority 1
+4x new "Batch mode" --subtask "extract:Extract logic" --depends F001
+```
+
+すべてのフラグ（`--id`、`--desc`、`--subtask`、`--rule`、`--depends`、`--priority`）については `4x new --help` または [CLI リファレンス](cli.md) を参照してください。
 
 ## ループの実行
 
@@ -76,8 +83,11 @@ Feature は `.4x/features/{id}.yaml` に保存されます。ID のフォーマ�
 # イテレーション回数を制限
 4x run F001 --max-rounds 3
 
-# タイムアウトを設定（秒）
+# タイムアウトを設定（秒、デフォルト: 3600）
 4x run F001 --timeout 7200
+
+# 特定のパイプラインプロファイルを使用
+4x run F001 --profile quick
 
 # LLM を呼び出さずにプロンプトをプレビュー
 4x run F001 --dry-run
@@ -85,7 +95,7 @@ Feature は `.4x/features/{id}.yaml` に保存されます。ID のフォーマ�
 
 Feature ID はプレフィックスマッチに対応しています -- `4x run F001` と `4x run f001` のどちらでも動作します。
 
-ループの流れ：**Design → Code → Review → Test → Accept → Pending Review**。Review で問題が見つかれば、Code が再実行されます。Test が失敗すれば、ループが反復されます（`--max-rounds` まで）。
+ループの流れ：**Design → Code → Review → Test → Deep Review → Accept → Pending Review**。Review で問題が見つかれば、Code が再実行されます。Test が失敗すれば、ループが反復されます（`--max-rounds` まで）。
 
 ## ステータスの確認
 
@@ -96,7 +106,7 @@ Feature ID はプレフィックスマッチに対応しています -- `4x run 
 # 単一 Feature の詳細
 4x status F001
 
-# pending-review のみフィルタ
+# 未完了の Feature のみ表示
 4x status --pending
 ```
 

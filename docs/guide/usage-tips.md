@@ -2,15 +2,16 @@
 
 ## Token Usage Warning
 
-4x consumes **significantly more tokens than single-agent approaches**. Each feature goes through at least 4 roles (Designer → Coder → Reviewer → Tester), each as a separate LLM call. If Review or Test fails, the token cost doubles per retry round.
+4x consumes **significantly more tokens than single-agent approaches**. Each feature goes through at least 6 roles (Designer → Coder → Reviewer → Tester → Deep-Reviewer → Acceptor), each as a separate LLM call. If Review or Test fails, the token cost increases significantly per retry round.
 
 Rough estimate per feature:
 
 | Scenario | ~LLM Calls | Notes |
 |---|---|---|
-| Pass on first try (best case) | 5 | Designer + Coder + Reviewer (2 pass) + Tester |
-| Review rejects once | 8 | Extra round of Coder + Reviewer + Tester |
-| Full 5 rounds | ~20 | Each round = Coder + Reviewer + Tester |
+| Pass on first try (best case) | 7 | Designer + Coder + Reviewer + Tester + Deep-Reviewer + Acceptor |
+| Best case (no deep_model configured) | 5 | Designer + Coder + Reviewer + Tester + Acceptor (Deep-Review skipped) |
+| Review rejects once | 12 | Extra round of Coder + Reviewer + Tester + Deep-Reviewer + Acceptor |
+| Full 5 rounds | ~27 | Each round = Coder + Reviewer + Tester + Deep-Reviewer + Acceptor |
 
 **Tips to reduce token cost:**
 - Lower `--max-rounds` for simple tasks (`--max-rounds 2`)
@@ -83,10 +84,10 @@ Once you're satisfied, ask the agent to merge and clean up:
 
 The agent runs:
 ```bash
-git merge 4x/F001-add-redis-cache-for-or
-git worktree remove .worktrees/4x/F001-add-redis-cache-for-or
-git branch -d 4x/F001-add-redis-cache-for-or
+4x done F001
 ```
+
+`4x done` automatically merges the branch, removes the worktree, and deletes the branch. If there are merge conflicts, you'll be prompted to resolve them manually and then run `4x merge F001`.
 
 ### 6. Mark Done in Dashboard
 
@@ -244,31 +245,24 @@ git commit -m "feat: add Redis cache for order query API"
 **Worktree mode** (changes are on an isolated branch):
 
 ```bash
-# Mark as done
+# Mark as done — automatically merges, removes worktree, and deletes branch
 4x done F001
-
-# Merge into main branch
-git merge 4x/F001-add-redis-cache-for-or
-
-# Clean up worktree and branch
-git worktree remove .worktrees/4x/F001-add-redis-cache-for-or
-git branch -d 4x/F001-add-redis-cache-for-or
 ```
+
+> If there are merge conflicts, `4x done` will print a message asking you to resolve them manually, then run `4x merge F001` to complete the merge and cleanup.
 
 ### Workflow Overview
 
 ```
 4x new "..."                     # create task
     ↓
-4x run F001 --runner claude      # AI runs Design→Code→Review→Test
+4x run F001 --runner claude      # AI runs Design→Code→Review→Test→Deep-Review→Accept
     ↓
 pending-review                   # waiting for your review
     ↓
 review final-report / diff       # you inspect the results
     ↓
-4x done F001                     # mark as done
-    ↓
-git merge + cleanup              # merge, clean up worktree/branch
+4x done F001                     # mark as done + auto merge/cleanup
 ```
 
 ---
@@ -319,7 +313,7 @@ After creating a new feature or modifying settings, use `--dry-run` to check tha
 4x run F001 --dry-run
 ```
 
-This prints the full prompt for all four roles without calling any LLM. Verify:
+This prints the full prompt for all roles without calling any LLM. Verify:
 - Does the Designer have enough context?
 - Are your project rules injected correctly?
 - Is the locale correct?
@@ -333,6 +327,7 @@ This prints the full prompt for all four roles without calling any LLM. Verify:
 | Reviewer (checklist) | sonnet | Rule-based checking, speed matters |
 | Reviewer (adversarial) | opus | Needs deep reasoning to find hidden bugs |
 | Tester | sonnet | Writing and running tests, doesn't need strongest reasoning |
+| Acceptor | sonnet | Final verification against spec, similar to reviewer tier |
 
 Configure in settings:
 
@@ -343,7 +338,8 @@ Configure in settings:
     "designer": { "model": "opus" },
     "coder": { "model": "sonnet" },
     "reviewer": { "model": "sonnet", "deep_model": "opus" },
-    "tester": { "model": "sonnet" }
+    "tester": { "model": "sonnet" },
+    "acceptor": { "model": "sonnet" }
   }
 }
 ```
@@ -384,9 +380,11 @@ When the Coder or Tester finds that the spec doesn't match reality, they automat
 
 - DB schema doesn't match the spec (`spec-mismatch`)
 - Acceptance criteria are unreasonable (`criteria-wrong`)
-- Missing external dependency (`blocker`)
+- Feature scope needs adjustment (`scope-change`)
 
-Escalations are recorded in `.4x/{feature-id}/rounds/round-{N}/escalation.json`. The Designer receives the escalation details and re-designs the spec.
+These escalations are sent back to the Designer, who re-designs the spec. Escalations are recorded in `.4x/{feature-id}/rounds/round-{N}/escalation.json`.
+
+Note: `blocker` escalations (e.g., missing external dependency) go directly to `needs-attention` and require manual intervention — they are not sent back to the Designer.
 
 If the Designer can't resolve it either (usually due to missing context), the loop stops at `needs-attention`. Manual intervention is needed:
 
@@ -428,10 +426,9 @@ What happens:
 - After completion, the CLI prints merge instructions
 
 ```bash
-# After completion, merge and clean up
-git merge 4x/F001-user-auth
-git worktree remove .worktrees/4x/F001-user-auth
-git branch -d 4x/F001-user-auth
+# After completion, merge and clean up automatically
+4x done F001
+# On merge conflict, resolve manually then run: 4x merge F001
 ```
 
 ## When to Use Batch Mode

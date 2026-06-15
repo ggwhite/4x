@@ -73,7 +73,7 @@ Read-heavy endpoints (`/api/tasks`, `/api/overview`, `/api/projects`, `/api/sett
 | `/api/logs/{id}/{file}` | GET | Get a specific log file |
 | `/api/projects` | GET | List registered projects |
 | `/api/projects` | POST | Add a project (supports `init: true` for on-the-fly initialization) |
-| `/api/projects` | DELETE | Remove a project |
+| `/api/projects/{id}` | DELETE | Remove a project |
 | `/api/browse` | GET | Folder picker |
 | `/api/settings` | GET | Get project settings (`.4x/settings.json`) |
 | `/api/settings` | PUT | Update project settings (validates, backs up, writes) |
@@ -82,6 +82,7 @@ Read-heavy endpoints (`/api/tasks`, `/api/overview`, `/api/projects`, `/api/sett
 | `/api/merged-config` | GET | Read-only view of project + user merged effective config |
 | `/api/locales` | GET | 回傳支援的 locale 清單 |
 | `/api/locales/{lang}` | GET | 回傳對應語言的翻譯 JSON |
+| `/api/supported-runners` | GET | List supported runner names |
 
 #### `POST /api/done` Response
 
@@ -136,7 +137,7 @@ The dashboard can drive a batch run end-to-end without dropping back to the term
   }
   ```
 
-  The queue is built from `batch.PlanBatch` so it honors the same dependency-and-priority ordering as the CLI. Each item's `state` is `done` (feature done / ready-for-review), `running` (an active run that isn't done), or `waiting`; `position` numbers the unfinished items.
+  The queue is built from `batch.PlanBatch` so it honors the same dependency-and-priority ordering as the CLI. Each item's `state` is `done` (feature done / ready-for-review), `running` (an active run that isn't done), `error` (blocked / needs-attention), or `waiting`; `position` numbers the unfinished items (excludes `done` and `error`).
 
   `lastReport` carries the most recent batch run's report (`outcome`, counts, runner, duration, and per-feature breakdown — see [Batch Mode](batch.md#run-report)). When no batch is running, the panel renders it as a "last batch report" summary card that expands to per-feature detail; for a `crashed` outcome it also surfaces the `panicMessage`.
 
