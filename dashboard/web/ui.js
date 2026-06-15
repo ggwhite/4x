@@ -459,7 +459,7 @@ function renderDashboard(tasks) {
   const recent = g.done.slice(0, 8);
   const activeTab = openTabs.find(tb => tb.id === activeProjectId);
   const pName = activeTab ? activeTab.name : '4x Live';
-  el.innerHTML = `<div class="flex items-center gap-3 mb-6"><span class="text-lg font-bold">${esc(pName)}</span><span class="ml-auto px-3 py-1 text-xs rounded-full" style="border:1px solid var(--border);color:var(--text-2)">${t('dashboard.tasks').replace('{count}', total)}</span><button onclick="activeProjectId?openProjectSettings():openGlobalSettings()" title="${t('settings.titleShortcut')}" class="ml-2 transition-colors" style="color:var(--text-3)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
+  el.innerHTML = `<div class="flex items-center gap-3 mb-6"><span class="text-lg font-bold">${esc(pName)}</span><span class="ml-auto px-3 py-1 text-xs rounded-full" style="border:1px solid var(--border);color:var(--text-2)">${t('dashboard.tasks').replace('{count}', total)}</span></div>
 <div class="grid grid-cols-5 gap-4 mb-8">
 <div class="dash-card text-center"><div class="text-3xl font-bold text-emerald-400">${g.running.length}</div><div class="text-xs dash-muted mt-1 uppercase tracking-wider">${t('sidebar.running')}</div></div>
 <div class="dash-card text-center"><div class="text-3xl font-bold text-amber-400">${g.review.length}</div><div class="text-xs dash-muted mt-1 uppercase tracking-wider">${t('sidebar.review')}</div></div>
@@ -1058,4 +1058,49 @@ async function submitNewFeature(andRun) {
   const data = await res.json();
   await load();
   if (andRun && data.id) openRunModal(data.id);
+}
+
+async function openCleanDialog() {
+  const base = apiBase();
+  const title = t('clean.title');
+  const msg = t('clean.warning');
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-backdrop open';
+  const dialog = document.createElement('div');
+  dialog.className = 'modal-panel fade-in';
+  dialog.style.cssText = 'width:420px';
+  dialog.innerHTML = `
+    <div style="padding:20px 24px 12px">
+      <div style="font-size:15px;font-weight:700;margin-bottom:8px">${esc(title)}</div>
+      <div style="font-size:13px;color:var(--text-2);line-height:1.5">⚠ ${esc(msg)}</div>
+    </div>
+    <div style="padding:12px 24px 20px;display:flex;justify-content:flex-end;gap:8px">
+      <button id="clean-cancel-btn" style="padding:8px 16px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-2);cursor:pointer">${t('common.cancel')}</button>
+      <button id="clean-confirm-btn" style="padding:8px 16px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">${t('common.confirm')}</button>
+    </div>`;
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
+
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  dialog.querySelector('#clean-cancel-btn').onclick = close;
+  dialog.querySelector('#clean-confirm-btn').onclick = async function() {
+    this.disabled = true;
+    this.textContent = '...';
+    try {
+      const resp = await fetch(base + '/api/clean', { method: 'POST' });
+      const data = await resp.json();
+      close();
+      if (data.cleaned > 0) {
+        showToast(t('clean.success').replace('{count}', data.cleaned).replace('{size}', data.freed_human), 'info');
+      } else {
+        showToast(t('clean.nothingToClean'), 'info');
+      }
+      load();
+    } catch (e) {
+      showToast(t('toast.failed').replace('{error}', e.message));
+      close();
+    }
+  };
 }

@@ -25,6 +25,8 @@ Real-time monitoring of your AI development loop.
 
 The dashboard supports multiple projects simultaneously. Without path arguments, it loads from `~/.4x/recent-projects.json` (LRU, max 20 entries).
 
+The project tab bar ends with two actions: **Add Project** (folder-plus icon) and **Global Settings** (gear icon). The sidebar header carries the active project's **Project Settings** gear and, next to it, a **Clean** button (trash icon). Clicking Clean opens a confirmation dialog warning that cleaned features lose their detailed logs, reports, and round history in the dashboard (feature definitions and status are preserved); confirming calls [`POST /api/clean`](#post-apiclean) for the whole project and shows a toast with the result.
+
 ## Feature Cards
 
 Each feature card shows tags for its priority, dependencies, stop reason (if the feature halted abnormally), and — when a non-default [pipeline profile](concepts.md#pipeline-profiles) is active — a **profile tag** (e.g. `quick`, `normal`). High-priority features (P0/P1) get accent borders. Completed dependencies show a green checkmark. The `profile` and `stopReason` fields are carried in the `/api/tasks` JSON.
@@ -52,6 +54,7 @@ Read-heavy endpoints (`/api/tasks`, `/api/overview`, `/api/projects`, `/api/sett
 | `/api/run` | POST | Start a feature run (spawns `4x run` subprocess) |
 | `/api/stop` | POST | Stop a running feature |
 | `/api/done` | POST | Mark feature as done; auto-merges worktree if present (multi-repo: all-or-nothing) |
+| `/api/clean` | POST | Remove workspace artifacts for all cleanable (done/abandoned) features in the project |
 | `/api/runs` | GET | List active runs |
 | `/api/batch/start` | POST | Start a batch run (`4x batch run` subprocess); 409 if a batch conflict is unresolved |
 | `/api/batch/stop` | POST | Gracefully stop the batch (writes `.4x/batch-stop`) |
@@ -91,6 +94,21 @@ Returns HTTP 200 in the normal case. The `status` field is `"done"` only after t
 After a conflict, resolve the files in the worktree and run `4x merge <id>` to complete.
 
 If the feature's phase changes during the merge (a runner or background reconciler updated `state.json` while the merge was running), the endpoint returns **HTTP 409 Conflict** with `{"status":"<currentPhase>","error":"state changed during merge"}` and does not perform the done transition — this guards against overwriting a newer state with a stale pre-merge snapshot.
+
+#### `POST /api/clean`
+
+Removes the `.4x/{feature-id}/` workspace artifacts (logs, `rounds/`, reports, `state.json`, `events.jsonl`) for **every** cleanable feature in the project in one call — the same set `4x clean` would clean: `done`/`abandoned`, not active, with an existing workspace directory. Feature definitions (`.4x/features/*.yaml`) are preserved, so cleaned features still show in listings with their final status. See [Workspace Cleanup](concepts.md#workspace-cleanup) for the underlying protocol functions.
+
+Non-`POST` requests return **HTTP 405**. Each feature is cleaned independently; one that fails (e.g. a race makes it active) is skipped without aborting the rest. The handler always returns HTTP 200 with:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `cleaned` | int | Number of features whose artifacts were removed |
+| `freed` | int64 | Total bytes freed |
+| `freed_human` | string | `freed` formatted human-readably (e.g. `38M`) |
+| `features` | string[] | IDs of the cleaned features (`[]` when nothing was cleaned) |
+
+When there is nothing to clean the response is `{"cleaned":0,"freed":0,"freed_human":"0B","features":[]}`.
 
 #### Batch Control
 
