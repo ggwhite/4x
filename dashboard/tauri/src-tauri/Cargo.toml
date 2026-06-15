@@ -1,5 +1,5 @@
 [package]
-name = "4x-live"
+name = "fourx-live"
 version = "0.1.0"
 edition = "2021"
 description = "4x Live desktop shell (Windows/Linux)"
