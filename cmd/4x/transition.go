@@ -77,7 +77,10 @@ func newTransitionCmd() *cobra.Command {
 			if cfgErr != nil {
 				cfg = protocol.Config{}
 			}
-			feature, _ := ws.LoadFeature(featureID)
+			feature, err := ws.LoadFeature(featureID)
+			if err != nil {
+				slog.Warn("failed to load feature for hooks", "feature", featureID, "error", err)
+			}
 			hooksMap := resolveHooks(cfg, feature, toPhase)
 			hookLogDir := filepath.Join(ws.FeatureDir(featureID), "hook-logs")
 
