@@ -200,6 +200,8 @@ Print the role prompt for a feature.
 
 Supports locale injection (from user config or `LANG` env), planning doc auto-inclusion (`docs/design/{id}-spec.md` and `{id}-plan.md`), and project/role includes.
 
+For the `tester` role, any `profiles` listed in the feature's `test-strategy.yaml` are resolved (via `loadProfiles`) and injected into the prompt as `== Test Profile: {name} ==` blocks. Each profile's content comes from `settings.json` `test_profiles[name]` (`content` or `include`) when present, otherwise the built-in `templates/profiles/{name}.md`. See [Test Profiles](concepts.md#test-profiles).
+
 ---
 
 ## `4x done <feature-id>`

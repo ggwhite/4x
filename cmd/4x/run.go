@@ -351,20 +351,21 @@ func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, featur
 		}
 	}
 	data := promptData{
-		Feature:          feature,
-		Project:          cfg.Project,
-		Role:             role,
-		Round:            round,
-		Iteration:        iteration,
-		Config:           cfg,
-		DotDir:           runnerWs.DotDir(),
-		Locale:           locale,
-		LocaleName:       localeName,
-		RoleInstructions: roleInstructions(cfg, role),
-		ProjectIncludes:  append(loadIncludes(ws.Root, cfg.Project.Includes), discoverConventionFiles(ws.Root, cfg.Project.Includes)...),
-		RoleIncludes:     loadIncludes(ws.Root, roleInc),
-		PlanningDoc:      loadPlanningDocs(ws.Root, feature.ID),
-		RepoMap:          repoMap,
+		Feature:             feature,
+		Project:             cfg.Project,
+		Role:                role,
+		Round:               round,
+		Iteration:           iteration,
+		Config:              cfg,
+		DotDir:              runnerWs.DotDir(),
+		Locale:              locale,
+		LocaleName:          localeName,
+		RoleInstructions:    roleInstructions(cfg, role),
+		ProjectIncludes:     append(loadIncludes(ws.Root, cfg.Project.Includes), discoverConventionFiles(ws.Root, cfg.Project.Includes)...),
+		RoleIncludes:        loadIncludes(ws.Root, roleInc),
+		PlanningDoc:         loadPlanningDocs(ws.Root, feature.ID),
+		RepoMap:             repoMap,
+		ProfileInstructions: loadProfiles(ws, feature.ID, cfg),
 	}
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
@@ -1715,4 +1716,3 @@ func startLiveSync(wt, main *protocol.Workspace, featureID string, round int) fu
 		wg.Wait()
 	}
 }
-

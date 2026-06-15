@@ -256,6 +256,16 @@ type TestStrategy struct {
 	CoderOnly   bool         `yaml:"coder_only" json:"coder_only"`
 	Verify      []string     `yaml:"verify_commands" json:"verify_commands"`
 	HealthCheck *HealthCheck `yaml:"health_check,omitempty" json:"health_check,omitempty"`
+	// Profiles 標記本 feature 適用的測試 profile（如 unit/web/api/e2e），
+	// Tester prompt 會依此自動注入對應的測試方法論；為空時行為與舊版一致。
+	Profiles []string `yaml:"profiles,omitempty" json:"profiles,omitempty"`
+}
+
+// TestProfileOverride 允許專案在 settings.json 覆寫或新增 test profile。
+// Content 直接指定內容；Include 指定相對於 workspace root 的檔案路徑。兩者擇一，整組取代內建。
+type TestProfileOverride struct {
+	Content string `json:"content,omitempty"`
+	Include string `json:"include,omitempty"`
 }
 
 // ReviewIssue 是 reviewer 發現的問題
@@ -324,6 +334,9 @@ type Config struct {
 	// HealthCheck 是全域（settings.json）的 testing phase 前環境檢查設定，
 	// 未設為 nil（跳過）；可被 per-feature test-strategy.yaml 整組覆蓋。
 	HealthCheck *HealthCheck `json:"health_check,omitempty"`
+	// TestProfiles 讓專案覆寫或擴充內建 test profile（key 為 profile 名稱）。
+	// 與 Profiles（pipeline profile）語意不同，不可混用。
+	TestProfiles map[string]TestProfileOverride `json:"test_profiles,omitempty"`
 }
 
 // ProfileConfig 描述一個 pipeline profile：啟用哪些 role、以及 coder 的 model tier 覆蓋。

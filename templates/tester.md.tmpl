@@ -45,6 +45,13 @@ Use the Write tool. Do NOT just print the content — write to disk.
 {{.Content}}
 {{- end}}
 {{- end}}
+{{- if .ProfileInstructions}}
+{{range .ProfileInstructions}}
+
+== Test Profile: {{.Name}} ==
+{{.Content}}
+{{- end}}
+{{- end}}
 
 ## Screenshots in verify.json
 

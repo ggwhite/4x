@@ -97,8 +97,18 @@ Subtasks:
 web: false
 api: false
 coder_only: true
+profiles:
+  - unit
 verify_commands:
   - "command here"
+
+Available profiles: unit, web, api, e2e.
+Profiles inject test methodology into the Tester prompt automatically.
+Choose profiles that match the feature's testing needs:
+  - CLI/library feature → profiles: [unit]
+  - Dashboard UI feature → profiles: [unit, web]
+  - REST API feature → profiles: [unit, api]
+  - Multi-service feature → profiles: [unit, e2e]
 
 == Constraints ==
 - You may NOT modify any source code

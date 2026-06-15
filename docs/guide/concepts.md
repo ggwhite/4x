@@ -360,6 +360,59 @@ On final failure the run records a `type: "health-check-failed"` event (role `te
 
 ---
 
+## Test Profiles
+
+A **test profile** is a reusable block of test methodology that the Designer tags on a feature so the Tester's prompt is auto-injected with the matching guidance — instead of hand-maintaining one giant `roles.tester.instructions` list in `settings.json` that every feature shares regardless of type.
+
+> Not to be confused with **[pipeline profiles](#pipeline-profiles)** (`Config.Profiles`), which select *which roles run*. Test profiles (`Config.TestProfiles`) inject *test methodology content* into the Tester prompt only.
+
+### Declaring profiles
+
+The Designer lists profiles in `test-strategy.yaml` (`TestStrategy.Profiles` in `internal/protocol/types.go`):
+
+```yaml
+profiles:
+  - unit
+  - web
+verify_commands:
+  - "make test"
+```
+
+`profiles` is `omitempty` — a `test-strategy.yaml` without it behaves exactly as before (no injection).
+
+### Built-in profiles
+
+Four profiles ship embedded in the binary (`templates/profiles/*.md`, exposed via `templates.ProfilesFS`):
+
+| Profile | Methodology |
+|---|---|
+| `unit` | Go `go test`, `t.TempDir()` isolation, table-driven, error cases, verify.json per AC |
+| `web` | Playwright against `4x live` dashboard; headless, isolated workspace + random port, screenshots as evidence, no interference with the user's running server |
+| `api` | HTTP endpoint testing — status codes, response body, edge cases, auth |
+| `e2e` | End-to-end multi-service flows, DB state and cross-service consistency |
+
+### Overriding in settings.json
+
+A project can replace or extend any profile via `Config.TestProfiles` (`test_profiles`), keyed by profile name (`TestProfileOverride`):
+
+```json
+{
+  "test_profiles": {
+    "web": { "content": "用 Cypress 而非 Playwright 測試…" },
+    "lua": { "include": "docs/test-profiles/lua.md" }
+  }
+}
+```
+
+- `content` — inline replacement text
+- `include` — path (relative to workspace root) to a file whose contents are used
+
+**Resolution order** (per profile name): `test_profiles[name].content` → `test_profiles[name].include` → built-in `profiles/{name}.md`. Override is a whole replacement, not a field-level merge. An unknown name (no override, no built-in) prints a warning to stderr and is skipped.
+
+The Tester prompt renders each resolved profile as a `== Test Profile: {name} ==` block. Loading is implemented in `loadProfiles` / `resolveProfileContent` (`cmd/4x/prompt.go`).
+
+---
+
 ## Pending Review Gate
 
 The loop does **not** go directly to `done`. After accepting, the feature enters `pending-review` — waiting for a human to review the AI's work.
