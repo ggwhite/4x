@@ -62,7 +62,7 @@ def background(size: int) -> Image.Image:
     return img
 
 
-def draw_app_icon(size: int) -> Image.Image:
+def draw_app_tile(size: int) -> Image.Image:
     scale = 4
     canvas = Image.new("RGBA", (size * scale, size * scale), (0, 0, 0, 0))
     s = canvas.size[0]
@@ -129,6 +129,17 @@ def draw_app_icon(size: int) -> Image.Image:
     canvas.alpha_composite(Image.composite(highlight, Image.new("RGBA", (s, s), (0, 0, 0, 0)), mask))
 
     return canvas.resize((size, size), Image.Resampling.LANCZOS)
+
+
+def draw_app_icon(size: int) -> Image.Image:
+    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    tile_size = round(size * 0.88)
+    if tile_size % 2 != size % 2:
+        tile_size -= 1
+    tile = draw_app_tile(tile_size)
+    offset = ((size - tile_size) // 2, (size - tile_size) // 2)
+    canvas.alpha_composite(tile, offset)
+    return canvas
 
 
 def draw_menu_icon(size: int, state: str = "idle") -> Image.Image:
