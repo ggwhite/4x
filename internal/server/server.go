@@ -34,55 +34,100 @@ var mergeMu sync.Mutex
 
 var supportedLocales = []string{"en", "zh-TW", "zh-CN", "ja", "ko", "es"}
 
-// NewMux 建立 dashboard 的 HTTP handler，並以當前 4x 執行檔建立預設 BatchManager。
-func NewMux(ws *protocol.CachedWorkspace, pm *ProcessManager) http.Handler {
-	return newMux(ws, pm, NewBatchManager(ws.Workspace, selfBinary()))
-}
-
-// newMux 是 NewMux 的內部實作，額外接受注入的 BatchManager 讓多專案 registry 共用同一實例
-// （供 shutdown 停止），測試亦可注入假 binName 的 BatchManager。
-func newMux(ws *protocol.CachedWorkspace, pm *ProcessManager, bm *BatchManager) http.Handler {
+// NewMux 建立 dashboard 的 HTTP handler。每個需要資料的 handler 透過傳入的 resolver
+// 解析該請求對應的 workspace/process manager/batch manager，使路由表只定義一次，
+// 由 singleResolver（單一專案）或 multiResolver（多專案）共用。
+func NewMux(resolver WorkspaceResolver) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/tasks", func(w http.ResponseWriter, r *http.Request) {
+		ws, _, _, err := resolver(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		handleTasks(ws, w)
 	})
-	if pm != nil {
-		mux.HandleFunc("/api/run", func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodPost {
-				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-				return
-			}
-			handlePostRun(ws, pm, w, r)
-		})
-		mux.HandleFunc("/api/runs", func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodGet {
-				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-				return
-			}
-			handleGetRuns(pm, w)
-		})
-		mux.HandleFunc("/api/stop", func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodPost {
-				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-				return
-			}
-			handlePostStop(pm, w, r)
-		})
-		mux.HandleFunc("/api/new", func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodPost {
-				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-				return
-			}
-			handlePostNew(ws, w, r)
-		})
-	}
+	mux.HandleFunc("/api/run", func(w http.ResponseWriter, r *http.Request) {
+		ws, pm, _, err := resolver(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if pm == nil {
+			http.Error(w, "run not available", http.StatusServiceUnavailable)
+			return
+		}
+		handlePostRun(ws, pm, w, r)
+	})
+	mux.HandleFunc("/api/runs", func(w http.ResponseWriter, r *http.Request) {
+		_, pm, _, err := resolver(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if pm == nil {
+			http.Error(w, "runs not available", http.StatusServiceUnavailable)
+			return
+		}
+		handleGetRuns(pm, w)
+	})
+	mux.HandleFunc("/api/stop", func(w http.ResponseWriter, r *http.Request) {
+		_, pm, _, err := resolver(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if pm == nil {
+			http.Error(w, "stop not available", http.StatusServiceUnavailable)
+			return
+		}
+		handlePostStop(pm, w, r)
+	})
+	mux.HandleFunc("/api/new", func(w http.ResponseWriter, r *http.Request) {
+		ws, pm, _, err := resolver(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if pm == nil {
+			http.Error(w, "new not available", http.StatusServiceUnavailable)
+			return
+		}
+		handlePostNew(ws, w, r)
+	})
 	mux.HandleFunc("/api/settings", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
+			ws, _, _, err := resolver(r)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 			handleGetSettings(ws, w)
 			return
 		}
 		if r.Method == http.MethodPut {
+			ws, pm, _, err := resolver(r)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 			handlePutSettings(ws, w, r)
 			reloadProcessManager(ws, pm)
 			return
@@ -101,11 +146,16 @@ func newMux(ws *protocol.CachedWorkspace, pm *ProcessManager, bm *BatchManager) 
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	})
 	mux.HandleFunc("/api/merged-config", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
-			handleGetMergedConfig(ws, w)
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		ws, _, _, err := resolver(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		handleGetMergedConfig(ws, w)
 	})
 	mux.HandleFunc("/api/supported-runners", func(w http.ResponseWriter, r *http.Request) {
 		data, _ := json.Marshal(protocol.SupportedRunners())
@@ -113,6 +163,11 @@ func newMux(ws *protocol.CachedWorkspace, pm *ProcessManager, bm *BatchManager) 
 		w.Write(data)
 	})
 	mux.HandleFunc("/api/done", func(w http.ResponseWriter, r *http.Request) {
+		ws, _, _, err := resolver(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -120,6 +175,11 @@ func newMux(ws *protocol.CachedWorkspace, pm *ProcessManager, bm *BatchManager) 
 		handlePostDone(ws, w, r)
 	})
 	mux.HandleFunc("/api/clean", func(w http.ResponseWriter, r *http.Request) {
+		ws, _, _, err := resolver(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -127,6 +187,11 @@ func newMux(ws *protocol.CachedWorkspace, pm *ProcessManager, bm *BatchManager) 
 		handlePostClean(ws.Workspace, w)
 	})
 	mux.HandleFunc("/api/batch/status", func(w http.ResponseWriter, r *http.Request) {
+		ws, _, bm, err := resolver(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		if r.Method != http.MethodGet {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -134,6 +199,11 @@ func newMux(ws *protocol.CachedWorkspace, pm *ProcessManager, bm *BatchManager) 
 		handleBatchStatus(ws, bm, w)
 	})
 	mux.HandleFunc("/api/batch/start", func(w http.ResponseWriter, r *http.Request) {
+		ws, _, bm, err := resolver(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -141,6 +211,11 @@ func newMux(ws *protocol.CachedWorkspace, pm *ProcessManager, bm *BatchManager) 
 		handlePostBatchStart(ws, bm, w, r)
 	})
 	mux.HandleFunc("/api/batch/stop", func(w http.ResponseWriter, r *http.Request) {
+		_, _, bm, err := resolver(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -148,6 +223,11 @@ func newMux(ws *protocol.CachedWorkspace, pm *ProcessManager, bm *BatchManager) 
 		handlePostBatchStop(bm, w)
 	})
 	mux.HandleFunc("/api/batch/continue", func(w http.ResponseWriter, r *http.Request) {
+		ws, _, bm, err := resolver(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -155,6 +235,11 @@ func newMux(ws *protocol.CachedWorkspace, pm *ProcessManager, bm *BatchManager) 
 		handlePostBatchContinue(ws, bm, w, r)
 	})
 	mux.HandleFunc("/api/messages/", func(w http.ResponseWriter, r *http.Request) {
+		ws, _, _, err := resolver(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		featureID := strings.TrimPrefix(r.URL.Path, "/api/messages/")
 		if !validFeatureID(featureID) {
 			http.Error(w, "invalid feature id", http.StatusBadRequest)
@@ -163,6 +248,11 @@ func newMux(ws *protocol.CachedWorkspace, pm *ProcessManager, bm *BatchManager) 
 		handleMessages(ws, featureID, w)
 	})
 	mux.HandleFunc("/api/overview/", func(w http.ResponseWriter, r *http.Request) {
+		ws, _, _, err := resolver(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		featureID := strings.TrimPrefix(r.URL.Path, "/api/overview/")
 		if !validFeatureID(featureID) {
 			http.Error(w, "invalid feature id", http.StatusBadRequest)
@@ -171,6 +261,11 @@ func newMux(ws *protocol.CachedWorkspace, pm *ProcessManager, bm *BatchManager) 
 		handleOverview(ws, featureID, w)
 	})
 	mux.HandleFunc("/api/events/", func(w http.ResponseWriter, r *http.Request) {
+		ws, _, _, err := resolver(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		featureID := strings.TrimPrefix(r.URL.Path, "/api/events/")
 		if !validFeatureID(featureID) {
 			http.Error(w, "invalid feature id", http.StatusBadRequest)
@@ -179,6 +274,11 @@ func newMux(ws *protocol.CachedWorkspace, pm *ProcessManager, bm *BatchManager) 
 		handleEvents(ws, featureID, w)
 	})
 	mux.HandleFunc("/sse/events/", func(w http.ResponseWriter, r *http.Request) {
+		ws, _, _, err := resolver(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		featureID := strings.TrimPrefix(r.URL.Path, "/sse/events/")
 		if !validFeatureID(featureID) {
 			http.Error(w, "invalid feature id", http.StatusBadRequest)
@@ -187,6 +287,11 @@ func newMux(ws *protocol.CachedWorkspace, pm *ProcessManager, bm *BatchManager) 
 		handleSSE(ws, featureID, w, r)
 	})
 	mux.HandleFunc("/api/logs/", func(w http.ResponseWriter, r *http.Request) {
+		ws, _, _, err := resolver(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		rest := strings.TrimPrefix(r.URL.Path, "/api/logs/")
 		parts := strings.SplitN(rest, "/", 2)
 		if !validFeatureID(parts[0]) {
@@ -196,9 +301,19 @@ func newMux(ws *protocol.CachedWorkspace, pm *ProcessManager, bm *BatchManager) 
 		handleLogs(ws, rest, w)
 	})
 	mux.HandleFunc("/api/features/", func(w http.ResponseWriter, r *http.Request) {
+		ws, _, _, err := resolver(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		handleFeatureScreenshots(ws, w, r)
 	})
 	mux.HandleFunc("/sse/logs/", func(w http.ResponseWriter, r *http.Request) {
+		ws, _, _, err := resolver(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		featureID := strings.TrimPrefix(r.URL.Path, "/sse/logs/")
 		if !validFeatureID(featureID) {
 			http.Error(w, "invalid feature id", http.StatusBadRequest)
@@ -221,9 +336,15 @@ func newMux(ws *protocol.CachedWorkspace, pm *ProcessManager, bm *BatchManager) 
 	return mux
 }
 
+// newMux 是接受固定 ws/pm/bm 的 thin wrapper，讓注入特定 BatchManager 的測試與內部呼叫者
+// 不必自行組 resolver。
+func newMux(ws *protocol.CachedWorkspace, pm *ProcessManager, bm *BatchManager) http.Handler {
+	return NewMux(staticResolver(ws, pm, bm))
+}
+
 // Start 啟動 dashboard web server。
 func Start(ws *protocol.CachedWorkspace, pm *ProcessManager, port int) error {
-	return http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", port), logging.Middleware(NewMux(ws, pm)))
+	return http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", port), logging.Middleware(NewMux(singleResolver(ws, pm))))
 }
 
 // StartMulti 啟動多專案 dashboard server，ctx 取消時 graceful shutdown

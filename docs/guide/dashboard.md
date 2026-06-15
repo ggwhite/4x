@@ -157,6 +157,20 @@ When several roles write logs at the same time — parallel deep-review sub-revi
 
 With multiple projects, endpoints are prefixed with `/api/project/{project-id}/...` and `/sse/project/{project-id}/...`. Single-project mode uses the unprefixed paths for backward compatibility.
 
+#### Workspace Resolution
+
+The leaf routes (`/api/tasks`, `/api/settings`, `/api/run`, `/api/batch/*`, `/sse/events/...`, …) are defined **once** in `NewMux` (`internal/server/server.go`). Rather than binding a fixed workspace, `NewMux` takes a `WorkspaceResolver` — a function that, given the incoming request, returns the target `*protocol.CachedWorkspace`, its `*ProcessManager`, and its `*BatchManager` (or an error). Each data-backed handler calls the resolver first; routes that need none of them (`/api/user-config`, `/api/supported-runners`, `/api/locales`, static assets) skip it. This removes the ~150 lines of duplicated handler registration that single- and multi-project mode previously each carried.
+
+Two resolvers back the two modes:
+
+- **`singleResolver(ws, pm)`** — single-project mode (`server.Start`). Closes over one workspace and always returns the same `ws`/`pm`/`bm` triple.
+- **`multiResolver(reg)`** — multi-project mode (`NewMultiMux`). Resolution is a three-step flow:
+  1. **Prefix dispatch (outer mux).** `NewMultiMux` registers `/api/project/` and `/sse/project/` handlers that strip the `/api/project/{id}` (or `/sse/project/{id}`) prefix, look up the entry via `getEntry(id)` (unknown id → **404**), rewrite `r.URL.Path` to the remaining sub-path, inject the resolved entry into the request `context`, and forward to the shared inner `NewMux` handler. The prefix strip must happen in the outer mux because `http.ServeMux` selects the handler **before** it runs — an un-stripped `/api/project/{id}/api/tasks` would only ever match the static `/` route.
+  2. **Context read.** Inside the inner handler, `multiResolver` first checks the request context for the entry injected in step 1 and returns it directly when present.
+  3. **No-prefix compat.** When no entry was injected (an unprefixed path), it falls back on `reg.Count()`: `0` → **400** `no projects loaded`, `1` → that sole project, `≥2` → **400** `multiple projects loaded — use /api/project/{id}…`.
+
+`NewMultiMux` itself only registers the global endpoints (`/api/projects`, `/api/projects/`, `/api/browse`) plus the two prefix dispatchers and a catch-all that forwards to the single shared `inner := NewMux(multiResolver(reg))`. Adding a project no longer builds a per-entry mux; `registryEntry` carries just `id`/`ws`/`pm`/`bm`.
+
 ## Keyboard Shortcuts
 
 | Shortcut | Action |

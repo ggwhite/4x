@@ -10,7 +10,6 @@ import (
 	"strings"
 	"sync"
 
-	web "github.com/ggwhite/4x/dashboard/web"
 	"github.com/ggwhite/4x/internal/logging"
 	"github.com/ggwhite/4x/internal/protocol"
 )
@@ -24,11 +23,10 @@ type ProjectListItem struct {
 }
 
 type registryEntry struct {
-	id  string
-	ws  *protocol.CachedWorkspace
-	mux http.Handler
-	pm  *ProcessManager
-	bm  *BatchManager
+	id string
+	ws *protocol.CachedWorkspace
+	pm *ProcessManager
+	bm *BatchManager
 }
 
 // ProjectRegistry 管理多個 workspace 的 in-memory 註冊表
@@ -63,7 +61,7 @@ func (r *ProjectRegistry) Add(ws *protocol.Workspace) string {
 	bm := NewBatchManager(cws.Workspace, selfBinary())
 	bm.Adopt()
 	r.ids[id] = true
-	r.entries = append(r.entries, &registryEntry{id: id, ws: cws, mux: newMux(cws, pm, bm), pm: pm, bm: bm})
+	r.entries = append(r.entries, &registryEntry{id: id, ws: cws, pm: pm, bm: bm})
 	slog.Info("project added", "id", id, "path", ws.Root)
 	return id
 }
@@ -246,155 +244,11 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
-	// 向後相容：無 prefix 路由（單一 workspace 時轉給它）
-	compatError := func(w http.ResponseWriter, n int, prefixHint string) {
-		if n == 0 {
-			http.Error(w, "no projects loaded — add a project first", http.StatusBadRequest)
-		} else {
-			http.Error(w, "multiple projects loaded — use "+prefixHint, http.StatusBadRequest)
-		}
-	}
-	compatGetWs := func(w http.ResponseWriter, hint string) *protocol.CachedWorkspace {
-		n := reg.Count()
-		if n != 1 {
-			compatError(w, n, hint)
-			return nil
-		}
-		entries := reg.List()
-		if len(entries) != 1 {
-			compatError(w, len(entries), hint)
-			return nil
-		}
-		ws := reg.Get(entries[0].ID)
-		if ws == nil {
-			http.Error(w, "project unavailable", http.StatusServiceUnavailable)
-		}
-		return ws
-	}
-	mux.HandleFunc("/api/tasks", func(w http.ResponseWriter, r *http.Request) {
-		if ws := compatGetWs(w, "/api/project/{id}/api/tasks"); ws != nil {
-			handleTasks(ws, w)
-		}
-	})
-	mux.HandleFunc("/api/messages/", func(w http.ResponseWriter, r *http.Request) {
-		if ws := compatGetWs(w, "/api/project/{id}/api/messages/{featureId}"); ws != nil {
-			featureID := strings.TrimPrefix(r.URL.Path, "/api/messages/")
-			if !validFeatureID(featureID) {
-				http.Error(w, "invalid feature id", http.StatusBadRequest)
-				return
-			}
-			handleMessages(ws, featureID, w)
-		}
-	})
-	mux.HandleFunc("/api/overview/", func(w http.ResponseWriter, r *http.Request) {
-		if ws := compatGetWs(w, "/api/project/{id}/api/overview/{featureId}"); ws != nil {
-			featureID := strings.TrimPrefix(r.URL.Path, "/api/overview/")
-			if !validFeatureID(featureID) {
-				http.Error(w, "invalid feature id", http.StatusBadRequest)
-				return
-			}
-			handleOverview(ws, featureID, w)
-		}
-	})
-	mux.HandleFunc("/api/events/", func(w http.ResponseWriter, r *http.Request) {
-		if ws := compatGetWs(w, "/api/project/{id}/api/events/{featureId}"); ws != nil {
-			featureID := strings.TrimPrefix(r.URL.Path, "/api/events/")
-			if !validFeatureID(featureID) {
-				http.Error(w, "invalid feature id", http.StatusBadRequest)
-				return
-			}
-			handleEvents(ws, featureID, w)
-		}
-	})
-	mux.HandleFunc("/sse/events/", func(w http.ResponseWriter, r *http.Request) {
-		if ws := compatGetWs(w, "/sse/project/{id}/events/{featureId}"); ws != nil {
-			featureID := strings.TrimPrefix(r.URL.Path, "/sse/events/")
-			if !validFeatureID(featureID) {
-				http.Error(w, "invalid feature id", http.StatusBadRequest)
-				return
-			}
-			handleSSE(ws, featureID, w, r)
-		}
-	})
-	mux.HandleFunc("/api/logs/", func(w http.ResponseWriter, r *http.Request) {
-		if ws := compatGetWs(w, "/api/project/{id}/api/logs/{featureId}"); ws != nil {
-			rest := strings.TrimPrefix(r.URL.Path, "/api/logs/")
-			parts := strings.SplitN(rest, "/", 2)
-			if !validFeatureID(parts[0]) {
-				http.Error(w, "invalid feature id", http.StatusBadRequest)
-				return
-			}
-			handleLogs(ws, rest, w)
-		}
-	})
-	mux.HandleFunc("/api/features/", func(w http.ResponseWriter, r *http.Request) {
-		if ws := compatGetWs(w, "/api/project/{id}/api/features/{featureId}/screenshots"); ws != nil {
-			handleFeatureScreenshots(ws, w, r)
-		}
-	})
-	mux.HandleFunc("/sse/logs/", func(w http.ResponseWriter, r *http.Request) {
-		if ws := compatGetWs(w, "/sse/project/{id}/logs/{featureId}"); ws != nil {
-			featureID := strings.TrimPrefix(r.URL.Path, "/sse/logs/")
-			if !validFeatureID(featureID) {
-				http.Error(w, "invalid feature id", http.StatusBadRequest)
-				return
-			}
-			handleLogSSE(ws, featureID, w, r)
-		}
-	})
-	mux.HandleFunc("/api/settings", func(w http.ResponseWriter, r *http.Request) {
-		entries := reg.List()
-		if len(entries) == 1 {
-			entry := reg.getEntry(entries[0].ID)
-			if entry != nil {
-				entry.mux.ServeHTTP(w, r)
-				return
-			}
-		}
-		compatError(w, len(entries), "/api/project/{id}/api/settings")
-	})
-	mux.HandleFunc("/api/user-config", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
-			handleGetUserConfig(w)
-			return
-		}
-		if r.Method == http.MethodPut {
-			handlePutUserConfig(w, r)
-			return
-		}
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-	})
-	mux.HandleFunc("/api/merged-config", func(w http.ResponseWriter, r *http.Request) {
-		entries := reg.List()
-		if len(entries) == 1 {
-			entry := reg.getEntry(entries[0].ID)
-			if entry != nil {
-				entry.mux.ServeHTTP(w, r)
-				return
-			}
-		}
-		compatError(w, len(entries), "/api/project/{id}/api/merged-config")
-	})
-	mux.HandleFunc("/api/supported-runners", func(w http.ResponseWriter, r *http.Request) {
-		data, _ := json.Marshal(protocol.SupportedRunners())
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(data)
-	})
-	for _, route := range []string{"/api/run", "/api/runs", "/api/stop", "/api/new"} {
-		mux.HandleFunc(route, func(w http.ResponseWriter, r *http.Request) {
-			entries := reg.List()
-			if len(entries) == 1 {
-				entry := reg.getEntry(entries[0].ID)
-				if entry != nil {
-					entry.mux.ServeHTTP(w, r)
-					return
-				}
-			}
-			compatError(w, len(entries), "/api/project/{id}"+r.URL.Path)
-		})
-	}
+	// 內層統一路由：所有 leaf 端點（/api/tasks、/sse/* 等）只在 NewMux 定義一次，
+	// 由 multiResolver 依 context（prefix dispatch 注入）或 compat 邏輯解析專案。
+	inner := NewMux(multiResolver(reg))
 
-	// Prefix routing: /api/project/{id}/...
+	// Prefix routing: /api/project/{id}/... — strip prefix 後注入 entry 到 context 再轉內層。
 	mux.HandleFunc("/api/project/", func(w http.ResponseWriter, r *http.Request) {
 		rest := strings.TrimPrefix(r.URL.Path, "/api/project/")
 		idx := strings.Index(rest, "/")
@@ -408,12 +262,12 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 			http.Error(w, "project not found", http.StatusNotFound)
 			return
 		}
-		subPath := rest[idx:]
-		r.URL.Path = subPath
-		entry.mux.ServeHTTP(w, r)
+		r.URL.Path = rest[idx:]
+		inner.ServeHTTP(w, r.WithContext(withResolvedProject(r.Context(), entry)))
 	})
 
-	// SSE prefix routing: /sse/project/{id}/events/{featureId} and /sse/project/{id}/logs/{featureId}
+	// SSE prefix routing: /sse/project/{id}/events/{featureId} 與 /sse/project/{id}/logs/{featureId}
+	// path 重寫為 /sse/events/{f} 或 /sse/logs/{f} 後轉內層。
 	mux.HandleFunc("/sse/project/", func(w http.ResponseWriter, r *http.Request) {
 		rest := strings.TrimPrefix(r.URL.Path, "/sse/project/")
 		idx := strings.Index(rest, "/")
@@ -422,27 +276,13 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 			return
 		}
 		id := rest[:idx]
-		ws := reg.Get(id)
-		if ws == nil {
+		entry := reg.getEntry(id)
+		if entry == nil {
 			http.Error(w, "project not found", http.StatusNotFound)
 			return
 		}
-		sub := rest[idx:]
-		if strings.HasPrefix(sub, "/logs/") {
-			featureID := strings.TrimPrefix(sub, "/logs/")
-			if !validFeatureID(featureID) {
-				http.Error(w, "invalid feature id", http.StatusBadRequest)
-				return
-			}
-			handleLogSSE(ws, featureID, w, r)
-		} else {
-			featureID := strings.TrimPrefix(sub, "/events/")
-			if !validFeatureID(featureID) {
-				http.Error(w, "invalid feature id", http.StatusBadRequest)
-				return
-			}
-			handleSSE(ws, featureID, w, r)
-		}
+		r.URL.Path = "/sse" + rest[idx:]
+		inner.ServeHTTP(w, r.WithContext(withResolvedProject(r.Context(), entry)))
 	})
 
 	// Browse API：列出指定路徑的子目錄，供前端 folder picker 使用（限制在 home 目錄下）
@@ -500,19 +340,8 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 		})
 	})
 
-	mux.HandleFunc("/api/locales/", func(w http.ResponseWriter, r *http.Request) {
-		handleGetLocale(w, r)
-	})
-	mux.HandleFunc("/api/locales", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/locales" {
-			handleGetLocale(w, r)
-			return
-		}
-		handleGetLocales(w)
-	})
-
-	// Static files (index.html + JS/CSS)，共用 dashboard/web 前端資產
-	mux.Handle("/", http.FileServer(http.FS(web.Assets)))
+	// catch-all：locales、static 資產與所有 compat（無 prefix）leaf 路由皆由內層統一處理。
+	mux.Handle("/", inner)
 
 	return logging.Middleware(recoverMiddleware(mux))
 }
