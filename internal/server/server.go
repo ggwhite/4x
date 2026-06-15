@@ -431,6 +431,9 @@ func handleTasks(ws *protocol.Workspace, w http.ResponseWriter) {
 			t.Pid = s.Pid
 			t.Runner = s.Runner
 			t.Runners = s.Runners
+			if len(t.Runners) == 0 && s.Runner != "" {
+				t.Runners = []string{s.Runner}
+			}
 			t.StopReason = s.StopReason
 			t.Profile = s.Profile
 			if !s.CreatedAt.IsZero() {
