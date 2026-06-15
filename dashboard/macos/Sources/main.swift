@@ -5,9 +5,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
     var window: NSWindow!
     var webView: WKWebView!
     var serverPort: Int = 4567
+    var embeddedServer: Process?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         parseArgs()
+        launchEmbeddedServer()
 
         let config = WKWebViewConfiguration()
         let userContent = config.userContentController
@@ -31,6 +33,29 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
         NSApp.activate(ignoringOtherApps: true)
 
         pollServerAndLoad()
+    }
+
+    // launchEmbeddedServer 啟動與 Swift 執行檔同層的 bundled `4x` binary（Contents/MacOS/4x），
+    // 以 `live --port=<serverPort>` 提供 dashboard server。
+    // 若 bundle 內找不到 `4x`，則不啟動子程序，交由 pollServerAndLoad 連既有外部 server（向後相容）。
+    func launchEmbeddedServer() {
+        let execDir = URL(fileURLWithPath: CommandLine.arguments[0])
+            .deletingLastPathComponent()
+        let binary = execDir.appendingPathComponent("4x")
+        guard FileManager.default.isExecutableFile(atPath: binary.path) else {
+            NSLog("4x binary not found at \(binary.path); falling back to external server")
+            return
+        }
+
+        let proc = Process()
+        proc.executableURL = binary
+        proc.arguments = ["live", "--port=\(serverPort)"]
+        do {
+            try proc.run()
+            embeddedServer = proc
+        } catch {
+            NSLog("failed to launch embedded 4x server: \(error)")
+        }
     }
 
     func parseArgs() {
@@ -102,6 +127,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
+    }
+
+    // applicationWillTerminate 在 app 結束前 terminate 內嵌的 4x server 子程序，避免殘留孤兒程序。
+    func applicationWillTerminate(_ notification: Notification) {
+        if let proc = embeddedServer, proc.isRunning {
+            proc.terminate()
+        }
     }
 }
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-LOCALES_DIR="internal/server/static/locales"
+LOCALES_DIR="dashboard/web/locales"
 BASE="$LOCALES_DIR/en.json"
 
 if [ ! -f "$BASE" ]; then

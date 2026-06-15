@@ -58,24 +58,22 @@ func TestBatchStatus_QueueStatesAndOrder(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if len(resp.Queue) != 3 {
-		t.Fatalf("queue len = %d, want 3: %+v", len(resp.Queue), resp.Queue)
+	// Batch 沒在跑時只顯示 pending features（done 不出現）
+	if len(resp.Queue) != 2 {
+		t.Fatalf("queue len = %d, want 2: %+v", len(resp.Queue), resp.Queue)
 	}
-	// 順序：feat-a, feat-b, feat-c（無依賴、無 priority → 依 ID）。
-	wantOrder := []string{"feat-a", "feat-b", "feat-c"}
+	// 順序：feat-b, feat-c（無依賴、無 priority → 依 ID；feat-a done 不在 queue 裡）。
+	wantOrder := []string{"feat-b", "feat-c"}
 	for i, id := range wantOrder {
 		if resp.Queue[i].FeatureID != id {
 			t.Errorf("queue[%d] = %s, want %s", i, resp.Queue[i].FeatureID, id)
 		}
 	}
-	if resp.Queue[0].State != "done" || resp.Queue[0].Position != 0 {
-		t.Errorf("feat-a: state=%s pos=%d, want done/0", resp.Queue[0].State, resp.Queue[0].Position)
+	if resp.Queue[0].State != "running" || resp.Queue[0].Position != 1 {
+		t.Errorf("feat-b: state=%s pos=%d, want running/1", resp.Queue[0].State, resp.Queue[0].Position)
 	}
-	if resp.Queue[1].State != "running" || resp.Queue[1].Position != 1 {
-		t.Errorf("feat-b: state=%s pos=%d, want running/1", resp.Queue[1].State, resp.Queue[1].Position)
-	}
-	if resp.Queue[2].State != "waiting" || resp.Queue[2].Position != 2 {
-		t.Errorf("feat-c: state=%s pos=%d, want waiting/2", resp.Queue[2].State, resp.Queue[2].Position)
+	if resp.Queue[1].State != "waiting" || resp.Queue[1].Position != 2 {
+		t.Errorf("feat-c: state=%s pos=%d, want waiting/2", resp.Queue[1].State, resp.Queue[1].Position)
 	}
 	if resp.CurrentFeature != "feat-b" {
 		t.Errorf("currentFeature = %s, want feat-b", resp.CurrentFeature)

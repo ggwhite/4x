@@ -364,15 +364,20 @@ function renderBatchPanel(status) {
 
   let queueHtml = '';
   if (status && status.queue && status.queue.length) {
-    const pending = status.queue.filter(q => q.state !== 'done');
     const PL={0:{l:'P0',c:'#f87171',bg:'rgba(248,113,113,.15)'},1:{l:'P1',c:'#fb923c',bg:'rgba(251,146,60,.12)'},2:{l:'P2',c:'#facc15',bg:'rgba(250,204,21,.10)'},3:{l:'P3',c:'#60a5fa',bg:'rgba(96,165,250,.10)'}};
-    queueHtml = pending.map((q, i) => {
+    const completed = status.queue.filter(q => q.state === 'done' || q.state === 'error');
+    const active = status.queue.filter(q => q.state !== 'done' && q.state !== 'error');
+    let waitNum = 0;
+    const renderItem = q => {
       let icon, cls;
-      if (q.state === 'running') { icon = '▶'; cls = 'running'; }
-      else { icon = '#' + (i + 1); cls = 'waiting'; }
+      if (q.state === 'done') { icon = '✓'; cls = 'done'; }
+      else if (q.state === 'error') { icon = '⚠'; cls = 'error'; }
+      else if (q.state === 'running') { icon = '▶'; cls = 'running'; }
+      else { waitNum++; icon = '#' + waitNum; cls = 'waiting'; }
       const pri = q.priority != null && PL[q.priority] ? `<span style="font-size:9px;padding:1px 5px;border-radius:4px;background:${PL[q.priority].bg};color:${PL[q.priority].c};font-weight:600">${PL[q.priority].l}</span>` : '';
       return `<div class="batch-q-item batch-q-${cls}"><span class="batch-q-icon">${icon}</span>${pri}<span class="batch-q-id">${esc(q.featureId)}</span><span class="batch-q-name">${esc(q.name || '')}</span></div>`;
-    }).join('');
+    };
+    queueHtml = active.map(renderItem).join('') + (completed.length ? `<div class="batch-q-divider"></div>` + completed.map(renderItem).join('') : '');
   }
 
   return `<div class="dash-card mb-4" id="batch-panel"><div class="flex items-center gap-2 mb-3">

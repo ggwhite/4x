@@ -215,3 +215,6 @@
 .batch-q-running { background: rgba(59,130,246,.1); }
 .batch-q-running .batch-q-icon { color: #60a5fa; }
 .batch-q-waiting .batch-q-icon { color: var(--text-4); }
+.batch-q-error .batch-q-icon { color: #f59e0b; }
+.batch-q-error { opacity: .75; }
+.batch-q-divider { height: 1px; background: var(--border); margin: 8px 0; opacity: .5; }
