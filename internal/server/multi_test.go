@@ -112,7 +112,13 @@ func TestMultiMux_PostProject(t *testing.T) {
 	reg := NewProjectRegistry()
 	reg.Add(ws)
 
-	newRoot := t.TempDir()
+	home, _ := os.UserHomeDir()
+	newRoot, err := os.MkdirTemp(home, ".4x-test-post-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(newRoot) })
+
 	newCfg := protocol.Config{Project: protocol.ProjectConfig{Name: "new-proj"}}
 	if err := protocol.Init(newRoot, newCfg); err != nil {
 		t.Fatal(err)
@@ -130,6 +136,19 @@ func TestMultiMux_PostProject(t *testing.T) {
 	projects := reg.List()
 	if len(projects) != 2 {
 		t.Fatalf("projects = %d, want 2", len(projects))
+	}
+}
+
+func TestMultiMux_PostProject_OutsideHome(t *testing.T) {
+	reg := NewProjectRegistry()
+	recentPath := t.TempDir() + "/recent.json"
+
+	outsideRoot := t.TempDir()
+	body := `{"path":"` + outsideRoot + `"}`
+	rec := serveRequest(t, NewMultiMux(reg, recentPath), http.MethodPost, "/api/projects", body)
+
+	if rec.Code != 403 {
+		t.Fatalf("status = %d, want 403", rec.Code)
 	}
 }
 
