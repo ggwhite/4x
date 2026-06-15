@@ -26,4 +26,20 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+
+      - name: Push Homebrew formula
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+        run: |
+          FORMULA=dist/homebrew/4x.rb
+          if [ ! -f "$FORMULA" ]; then
+            echo "::warning::Formula not found at $FORMULA"
+            exit 0
+          fi
+          CONTENT=$(base64 -w0 "$FORMULA")
+          SHA=$(gh api repos/ggwhite/homebrew-tap/contents/4x.rb --jq .sha 2>/dev/null || true)
+          ARGS=(--method PUT --field "message=4x ${GITHUB_REF_NAME}" --field "content=$CONTENT")
+          if [ -n "$SHA" ]; then
+            ARGS+=(--field "sha=$SHA")
+          fi
+          gh api repos/ggwhite/homebrew-tap/contents/4x.rb "${ARGS[@]}"
