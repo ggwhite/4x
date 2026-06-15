@@ -29,6 +29,6 @@
     "active": true,
     "targets": ["msi", "appimage"],
     "externalBin": ["binaries/4x"],
-    "icon": ["icons/icon.png"]
+    "icon": ["icons/icon.png", "icons/icon.ico"]
   }
 }
