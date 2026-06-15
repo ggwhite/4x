@@ -831,6 +831,9 @@ func handleSSE(ws *protocol.CachedWorkspace, featureID string, w http.ResponseWr
 				}
 				fmt.Fprintf(w, "data: %s\n\n", line)
 			}
+			if consumed > info.Size() {
+				consumed = info.Size()
+			}
 			lastOffset = consumed
 			f.Close()
 			flusher.Flush()
@@ -1636,7 +1639,10 @@ func handlePostBatchContinue(ws *protocol.CachedWorkspace, bm *BatchManager, w h
 func startBatch(ws *protocol.CachedWorkspace, bm *BatchManager, w http.ResponseWriter, r *http.Request) {
 	var req batchRequest
 	if r.Body != nil {
-		_ = json.NewDecoder(r.Body).Decode(&req)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && r.ContentLength > 0 {
+			http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+			return
+		}
 	}
 	if req.Runner == "" {
 		req.Runner = mergedConfig(ws).Default

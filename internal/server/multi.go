@@ -184,8 +184,13 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 				return
 			}
 			absPath, _ := filepath.Abs(body.Path)
-			if home, _ := os.UserHomeDir(); absPath == home {
+			home, _ := os.UserHomeDir()
+			if absPath == home {
 				http.Error(w, "cannot use home directory as a project", http.StatusBadRequest)
+				return
+			}
+			if !strings.HasPrefix(absPath, home+string(os.PathSeparator)) {
+				http.Error(w, "path must be under home directory", http.StatusForbidden)
 				return
 			}
 			ws, err := protocol.Find(body.Path)
@@ -304,13 +309,17 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 			http.Error(w, "invalid path", http.StatusBadRequest)
 			return
 		}
-		dir = absDir
-		if !strings.HasPrefix(dir, home) {
+		resolved, err := filepath.EvalSymlinks(absDir)
+		if err != nil {
+			http.Error(w, "invalid path", http.StatusBadRequest)
+			return
+		}
+		if !strings.HasPrefix(resolved, home) {
 			http.Error(w, "path must be under home directory", http.StatusForbidden)
 			return
 		}
 
-		entries, err := os.ReadDir(dir)
+		entries, err := os.ReadDir(resolved)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -326,15 +335,15 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 			if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
 				continue
 			}
-			full := filepath.Join(dir, e.Name())
+			full := filepath.Join(resolved, e.Name())
 			dirs = append(dirs, dirEntry{Name: e.Name(), Path: full, Is4x: is4xProject(full)})
 		}
 
-		currentIs4x := is4xProject(dir)
+		currentIs4x := is4xProject(resolved)
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"current": dir,
+			"current": resolved,
 			"is4x":    currentIs4x,
 			"dirs":    dirs,
 		})
