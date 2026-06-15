@@ -1,0 +1,4 @@
+description: ''
+id: F037-model-tier-abstraction
+name: 'F037: Model tier abstraction（解耦 role model 與 vendor model name）'
+status: done

@@ -1,0 +1,4 @@
+description: ''
+id: p0-severity-gate
+name: 'P0: Severity gate — block transition on critical issues'
+status: done

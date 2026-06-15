@@ -1,0 +1,17 @@
+id: F075-batch-process-orphan
+name: 'F075: Batch process orphan recovery'
+description: 4x live 重啟後無法偵測到仍在跑的孤兒 batch 子程序，dashboard 顯示 batch 未執行但實際還在跑。需要：(1) batch 啟動時寫 PID file (.4x/batch-pid)；(2) server 啟動時檢查 PID file，若程序仍存活則 adopt 為 running 狀態；(3) server shutdown 時主動 kill batch 子程序（不只寫 stop file）；(4) batch 正常結束時清除 PID file
+status: done
+priority: 2
+subtasks:
+    - id: pid-file
+      name: Batch 啟動時寫 .4x/batch-pid，結束時清除
+      status: ""
+    - id: adopt-orphan
+      name: Server 啟動時檢查 batch-pid，程序存活則設 bm.running=true
+      status: ""
+    - id: shutdown-kill
+      name: Server shutdown handler 主動 kill batch 子程序
+      status: ""
+rules:
+    - 不改變 batch-stop graceful stop 的行為，只補 PID 追蹤

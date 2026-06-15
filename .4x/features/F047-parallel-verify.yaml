@@ -1,0 +1,4 @@
+description: ''
+id: F047-parallel-verify
+name: 'F047: Parallel verify（多 repo build/test 平行執行）'
+status: done

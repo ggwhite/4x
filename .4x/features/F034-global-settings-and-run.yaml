@@ -1,0 +1,4 @@
+description: ''
+id: F034-global-settings-and-run
+name: 'F034: Global settings（runner binary path 與 per-LLM 預設）'
+status: done
