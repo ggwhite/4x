@@ -17,11 +17,30 @@ import (
 
 	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/guard"
+	"github.com/ggwhite/4x/internal/health"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/runner"
 	"github.com/ggwhite/4x/internal/state"
 	"github.com/spf13/cobra"
 )
+
+// healthCheckExecutor 回傳一個執行單一 health check command 的 executor，
+// 每個 command 以 sh -c 執行並套用 per-command timeout（timeoutSec <= 0 時預設 30 秒），
+// 失敗時把 command 與輸出寫到 stderr 方便排查。
+func healthCheckExecutor(ctx context.Context, timeoutSec int) func(cmd string) error {
+	if timeoutSec <= 0 {
+		timeoutSec = 30
+	}
+	return func(cmd string) error {
+		cmdCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSec)*time.Second)
+		defer cancel()
+		out, err := exec.CommandContext(cmdCtx, "sh", "-c", cmd).CombinedOutput()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "  health check failed: %s\n%s\n", cmd, string(out))
+		}
+		return err
+	}
+}
 
 func newRunCmd() *cobra.Command {
 	var runnerName string
@@ -332,20 +351,21 @@ func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, featur
 		}
 	}
 	data := promptData{
-		Feature:          feature,
-		Project:          cfg.Project,
-		Role:             role,
-		Round:            round,
-		Iteration:        iteration,
-		Config:           cfg,
-		DotDir:           runnerWs.DotDir(),
-		Locale:           locale,
-		LocaleName:       localeName,
-		RoleInstructions: roleInstructions(cfg, role),
-		ProjectIncludes:  append(loadIncludes(ws.Root, cfg.Project.Includes), discoverConventionFiles(ws.Root, cfg.Project.Includes)...),
-		RoleIncludes:     loadIncludes(ws.Root, roleInc),
-		PlanningDoc:      loadPlanningDocs(ws.Root, feature.ID),
-		RepoMap:          repoMap,
+		Feature:             feature,
+		Project:             cfg.Project,
+		Role:                role,
+		Round:               round,
+		Iteration:           iteration,
+		Config:              cfg,
+		DotDir:              runnerWs.DotDir(),
+		Locale:              locale,
+		LocaleName:          localeName,
+		RoleInstructions:    roleInstructions(cfg, role),
+		ProjectIncludes:     append(loadIncludes(ws.Root, cfg.Project.Includes), discoverConventionFiles(ws.Root, cfg.Project.Includes)...),
+		RoleIncludes:        loadIncludes(ws.Root, roleInc),
+		PlanningDoc:         loadPlanningDocs(ws.Root, feature.ID),
+		RepoMap:             repoMap,
+		ProfileInstructions: loadProfiles(ws, feature.ID, cfg),
 	}
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
@@ -524,6 +544,38 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		if phase == protocol.PhaseTesting || phase == protocol.PhaseAmending {
 			os.Remove(filepath.Join(ws.FeatureDir(featureID), protocol.FinalReport))
 			os.Remove(filepath.Join(ws.FeatureDir(featureID), protocol.CommitPlan))
+		}
+
+		// F046：testing phase 啟動 Tester 前，先跑環境 health check（F045 pre-testing
+		// hooks 已於上一輪迴圈底部執行完畢）。失敗且 recovery 無法救回則 escalate。
+		if phase == protocol.PhaseTesting {
+			testStrat, tsErr := ws.ReadTestStrategy(featureID)
+			if tsErr != nil {
+				slog.Warn("read test-strategy failed", "feature", featureID, "error", tsErr)
+			}
+			hc := health.ResolveHealthCheck(cfg.HealthCheck, testStrat.HealthCheck)
+			if hc != nil {
+				fmt.Printf("[round %d] testing — running health check\n", s.Round)
+				if err := health.RunHealthCheck(*hc, healthCheckExecutor(ctx, hc.Timeout)); err != nil {
+					ws.AppendEvent(featureID, protocol.Event{
+						Type: "health-check-failed", Phase: s.Phase, Role: protocol.RoleTester,
+						Round: s.Round, Detail: err.Error(), Runner: s.Runner,
+					})
+					newState, transErr := state.Transition(s, protocol.PhaseNeedsAttention, "")
+					if transErr != nil {
+						return fmt.Errorf("health check transition: %w", transErr)
+					}
+					s = newState
+					s.Active = false
+					s.StopReason = "health-check-failed"
+					_ = ws.WriteState(featureID, s)
+					_ = ws.SyncFeatureStatus(featureID, s.Phase)
+					slog.Info("run stopped", "feature", featureID, "reason", "health-check-failed", "round", s.Round)
+					fmt.Printf("  health check failed, escalated to needs-attention\n")
+					return nil
+				}
+				fmt.Printf("[round %d] testing — health check passed\n", s.Round)
+			}
 		}
 
 		if phase == protocol.PhaseCoding && s.Round == 1 {

@@ -12,6 +12,7 @@ import (
 	"github.com/ggwhite/4x/internal/state"
 	"github.com/ggwhite/4x/templates"
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 )
 
 func newPromptCmd() *cobra.Command {
@@ -67,18 +68,19 @@ func newPromptCmd() *cobra.Command {
 			}
 
 			data := promptData{
-				Feature:          feature,
-				Project:          cfg.Project,
-				Role:             r,
-				Round:            round,
-				Config:           cfg,
-				DotDir:           ws.DotDir(),
-				Locale:           locale,
-				LocaleName:       localeName,
-				RoleInstructions: roleInstructions(cfg, r),
-				ProjectIncludes:  append(loadIncludes(ws.Root, cfg.Project.Includes), discoverConventionFiles(ws.Root, cfg.Project.Includes)...),
-				RoleIncludes:     loadIncludes(ws.Root, roleInc),
-				PlanningDoc:      loadPlanningDocs(ws.Root, feature.ID),
+				Feature:             feature,
+				Project:             cfg.Project,
+				Role:                r,
+				Round:               round,
+				Config:              cfg,
+				DotDir:              ws.DotDir(),
+				Locale:              locale,
+				LocaleName:          localeName,
+				RoleInstructions:    roleInstructions(cfg, r),
+				ProjectIncludes:     append(loadIncludes(ws.Root, cfg.Project.Includes), discoverConventionFiles(ws.Root, cfg.Project.Includes)...),
+				RoleIncludes:        loadIncludes(ws.Root, roleInc),
+				PlanningDoc:         loadPlanningDocs(ws.Root, feature.ID),
+				ProfileInstructions: loadProfiles(ws, featureID, cfg),
 			}
 
 			tmpl, err := loadRoleTemplate(r)
@@ -110,11 +112,80 @@ type promptData struct {
 	RoleIncludes     []includeContent
 	PlanningDoc      string
 	RepoMap          map[string]string
+	// ProfileInstructions 是 test-strategy.yaml profiles 載入後的測試方法論，供 Tester template 注入。
+	ProfileInstructions []profileContent
 }
 
 type includeContent struct {
 	Path    string
 	Content string
+}
+
+// profileContent 是單一 test profile 載入後的名稱與內容，供 Tester template 注入。
+type profileContent struct {
+	Name    string
+	Content string
+}
+
+// loadProfiles 讀取 test-strategy.yaml 的 profiles 欄位，依序載入各 profile 的測試方法論內容。
+// 沒有 profiles（或讀不到 test-strategy.yaml）時回傳 nil，行為與舊版一致。
+// 載入優先序見 resolveProfileContent；找不到內容的 profile 印 warning 並略過。
+func loadProfiles(ws *protocol.Workspace, featureID string, cfg protocol.Config) []profileContent {
+	stratPath := filepath.Join(ws.FeatureDir(featureID), protocol.TestStratFile)
+	data, err := os.ReadFile(stratPath)
+	if err != nil {
+		return nil
+	}
+
+	var ts protocol.TestStrategy
+	if err := yaml.Unmarshal(data, &ts); err != nil {
+		slog.Warn("invalid test-strategy.yaml", "path", stratPath, "error", err)
+		return nil
+	}
+
+	if len(ts.Profiles) == 0 {
+		return nil
+	}
+
+	var result []profileContent
+	for _, name := range ts.Profiles {
+		content := resolveProfileContent(ws.Root, name, cfg)
+		if content == "" {
+			slog.Warn("unknown test profile, skipping", "profile", name)
+			continue
+		}
+		result = append(result, profileContent{Name: name, Content: content})
+	}
+	return result
+}
+
+// resolveProfileContent 解析單一 profile 的內容：
+// settings.json test_profiles[name]（content 優先，其次 include 讀檔）→ 內建 templates/profiles/{name}.md。
+// 都找不到時回傳空字串。
+func resolveProfileContent(root, name string, cfg protocol.Config) string {
+	if override, ok := cfg.TestProfiles[name]; ok {
+		if override.Content != "" {
+			return override.Content
+		}
+		if override.Include != "" {
+			p := override.Include
+			if !filepath.IsAbs(p) {
+				p = filepath.Join(root, p)
+			}
+			data, err := os.ReadFile(p)
+			if err != nil {
+				slog.Warn("test profile include read failed", "include", override.Include, "error", err)
+				return ""
+			}
+			return string(data)
+		}
+	}
+
+	data, err := templates.ProfilesFS.ReadFile("profiles/" + name + ".md")
+	if err != nil {
+		return ""
+	}
+	return string(data)
 }
 
 // roleInstructions 從 Config 取出指定角色的 instructions

@@ -299,6 +299,120 @@ Global and feature hooks are merged by `MergeHooks`: all global keys are copied,
 
 ---
 
+## Health Check
+
+Before the Tester role starts, the CLI can automatically verify the environment is healthy — that the build passes, services are up, endpoints respond. A broken environment caught here saves a whole wasted test cycle. Health checks are executed by the CLI, not by any AI role, and run only when entering the `testing` phase, after `pre_testing` hooks and before the Tester runner is spawned.
+
+### Configuration
+
+A health check has three fields (`HealthCheck` in `internal/protocol/types.go`):
+
+| Field | Type | Description |
+|---|---|---|
+| `commands` | `[]string` | Check commands run in order; any failure stops the run |
+| `recovery` | `[]string` | Optional. Run in order when a check fails, to repair the environment |
+| `timeout` | `int` | Per-command timeout in seconds; `<= 0` applies the default `30` |
+
+It can be declared globally in `settings.json` (JSON, no yaml tag):
+
+```json
+{
+  "health_check": {
+    "commands": ["make build"],
+    "recovery": ["docker compose up -d"],
+    "timeout": 30
+  }
+}
+```
+
+…or per-feature in `test-strategy.yaml` (read via `Workspace.ReadTestStrategy`):
+
+```yaml
+health_check:
+  commands: ["make build", "curl -s http://localhost:8080/health"]
+  recovery: ["make dev-up"]
+  timeout: 60
+```
+
+**Merging:** `ResolveHealthCheck` does whole-group override, not field-level merge. If `test-strategy.yaml` defines `health_check`, it replaces the global one entirely; otherwise the global config is used. When neither is set, the health check is skipped and the Tester starts immediately.
+
+### Execution Flow
+
+```
+testing phase entered (pre_testing hooks already ran)
+  ↓
+run commands in order (each with its own timeout)
+  ├─ all pass → start Tester
+  └─ any fails →
+      ├─ no recovery → escalate to needs-attention
+      └─ has recovery → run recovery commands in order
+          ├─ recovery fails → escalate to needs-attention
+          └─ recovery passes → re-run all commands once
+              ├─ pass → start Tester
+              └─ still fails → escalate to needs-attention
+```
+
+Recovery is triggered at most once — there is no multi-retry or back-off loop.
+
+### Failure Behavior
+
+On final failure the run records a `type: "health-check-failed"` event (role `tester`, with the failing command and error in `detail`), transitions the feature to `needs-attention`, sets `StopReason` to `health-check-failed`, and stops the loop. Each command runs via `sh -c` under a per-command timeout; a timeout counts as a failure and its output is written to stderr for debugging.
+
+---
+
+## Test Profiles
+
+A **test profile** is a reusable block of test methodology that the Designer tags on a feature so the Tester's prompt is auto-injected with the matching guidance — instead of hand-maintaining one giant `roles.tester.instructions` list in `settings.json` that every feature shares regardless of type.
+
+> Not to be confused with **[pipeline profiles](#pipeline-profiles)** (`Config.Profiles`), which select *which roles run*. Test profiles (`Config.TestProfiles`) inject *test methodology content* into the Tester prompt only.
+
+### Declaring profiles
+
+The Designer lists profiles in `test-strategy.yaml` (`TestStrategy.Profiles` in `internal/protocol/types.go`):
+
+```yaml
+profiles:
+  - unit
+  - web
+verify_commands:
+  - "make test"
+```
+
+`profiles` is `omitempty` — a `test-strategy.yaml` without it behaves exactly as before (no injection).
+
+### Built-in profiles
+
+Four profiles ship embedded in the binary (`templates/profiles/*.md`, exposed via `templates.ProfilesFS`):
+
+| Profile | Methodology |
+|---|---|
+| `unit` | Go `go test`, `t.TempDir()` isolation, table-driven, error cases, verify.json per AC |
+| `web` | Playwright against `4x live` dashboard; headless, isolated workspace + random port, screenshots as evidence, no interference with the user's running server |
+| `api` | HTTP endpoint testing — status codes, response body, edge cases, auth |
+| `e2e` | End-to-end multi-service flows, DB state and cross-service consistency |
+
+### Overriding in settings.json
+
+A project can replace or extend any profile via `Config.TestProfiles` (`test_profiles`), keyed by profile name (`TestProfileOverride`):
+
+```json
+{
+  "test_profiles": {
+    "web": { "content": "用 Cypress 而非 Playwright 測試…" },
+    "lua": { "include": "docs/test-profiles/lua.md" }
+  }
+}
+```
+
+- `content` — inline replacement text
+- `include` — path (relative to workspace root) to a file whose contents are used
+
+**Resolution order** (per profile name): `test_profiles[name].content` → `test_profiles[name].include` → built-in `profiles/{name}.md`. Override is a whole replacement, not a field-level merge. An unknown name (no override, no built-in) prints a warning to stderr and is skipped.
+
+The Tester prompt renders each resolved profile as a `== Test Profile: {name} ==` block. Loading is implemented in `loadProfiles` / `resolveProfileContent` (`cmd/4x/prompt.go`).
+
+---
+
 ## Pending Review Gate
 
 The loop does **not** go directly to `done`. After accepting, the feature enters `pending-review` — waiting for a human to review the AI's work.

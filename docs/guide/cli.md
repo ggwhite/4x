@@ -78,6 +78,8 @@ Review verdicts must start with `PASS` to pass. Blank lines between the `## Verd
 
 Phase hooks declared in `settings.json` or the feature YAML are executed automatically before and after each phase transition within the loop. See [Phase Hooks](concepts.md#phase-hooks) for configuration details.
 
+When entering the `testing` phase (after `pre_testing` hooks, before the Tester runner is spawned), a health check verifies the environment if `health_check` is configured. Check commands run in order; on failure the recovery commands run once and the checks are retried once. If the environment still fails, the feature transitions to `needs-attention` and the loop stops. See [Health Check](concepts.md#health-check) for configuration details.
+
 If the feature is in `blocked` or `needs-attention` phase, automatically recovers to the appropriate resume phase based on the current role.
 
 Automatically checks dependency gate — blocks if depended features are not done.
@@ -145,6 +147,36 @@ Checks: required files, baseline, scope, dependencies, backlog drift. Exit 0 on 
 
 ---
 
+## `4x doctor`
+
+Run a one-shot, read-only health check on the merged settings (`.4x/settings.json` + `~/.4x/settings.json`) and workspace integrity, before you start a run. It never calls an LLM and does not require any runner to be installed.
+
+```
+4x doctor [--json]
+```
+
+| Flag | Description |
+|---|---|
+| `--json` | Output the full report as JSON (for CI) |
+
+Checks are grouped into sections:
+
+- **settings** — `settings.json` loadable, `project.name` non-empty, at least one runner defined, `default_runner` exists in the runners map.
+- **runners** — each runner's `command` is resolvable on `PATH` (missing → WARN, not FAIL, since a runner may live on a remote machine).
+- **roles** — resolves the actual model each role (designer/coder/reviewer/tester/acceptor) will use via the default runner, plus the reviewer's `deep_model`.
+- **workspace** — orphaned worktrees (feature done/abandoned but `.worktrees/4x/<id>` remains), dangling worktrees (directory with no matching feature), stale state (`active=true` but the process is gone), and malformed feature YAML.
+
+Each line is prefixed with `✅` (PASS), `⚠️` (WARN), or `❌` (FAIL), followed by a summary count.
+
+Exit code: `0` when there is no FAIL (WARN does not affect the exit code), `1` when any check fails. `doctor` is strictly read-only — it never rewrites `state.json`, cleans worktrees, or modifies settings.
+
+```bash
+# CI gate: fail the build on any FAIL check
+4x doctor --json | jq -e '[.checks[] | select(.severity == "FAIL")] | length == 0'
+```
+
+---
+
 ## `4x transition <feature-id>`
 
 Force a state transition.
@@ -197,6 +229,8 @@ Print the role prompt for a feature.
 | `--round` | Round number |
 
 Supports locale injection (from user config or `LANG` env), planning doc auto-inclusion (`docs/design/{id}-spec.md` and `{id}-plan.md`), and project/role includes.
+
+For the `tester` role, any `profiles` listed in the feature's `test-strategy.yaml` are resolved (via `loadProfiles`) and injected into the prompt as `== Test Profile: {name} ==` blocks. Each profile's content comes from `settings.json` `test_profiles[name]` (`content` or `include`) when present, otherwise the built-in `templates/profiles/{name}.md`. See [Test Profiles](concepts.md#test-profiles).
 
 ---
 

@@ -135,6 +135,24 @@ func (w *Workspace) LoadFeature(id string) (Feature, error) {
 	return f, nil
 }
 
+// ReadTestStrategy 讀取 .4x/{featureId}/test-strategy.yaml 並解析為 TestStrategy。
+// 檔案不存在時回傳零值 TestStrategy 與 nil error，方便呼叫端把「沒設定」與「解析失敗」分開處理。
+func (w *Workspace) ReadTestStrategy(featureID string) (TestStrategy, error) {
+	path := filepath.Join(w.FeatureDir(featureID), TestStratFile)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return TestStrategy{}, nil
+		}
+		return TestStrategy{}, fmt.Errorf("read test-strategy %s: %w", featureID, err)
+	}
+	var ts TestStrategy
+	if err := yaml.Unmarshal(data, &ts); err != nil {
+		return TestStrategy{}, fmt.Errorf("parse test-strategy %s: %w", featureID, err)
+	}
+	return ts, nil
+}
+
 // ListFeatures 列出所有 feature
 func (w *Workspace) ListFeatures() ([]Feature, error) {
 	dir := filepath.Join(w.DotDir(), FeaturesDir)

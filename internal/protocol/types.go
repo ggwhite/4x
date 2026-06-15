@@ -239,13 +239,33 @@ type VerifyCommand struct {
 	FinishedAt       time.Time `json:"finishedAt"`
 }
 
+// HealthCheck 是 testing phase 啟動前的環境檢查設定。
+// Commands 逐一執行任一失敗即停；失敗時若有 Recovery 則逐一執行後重跑一次 Commands。
+// Timeout 為每個 command 的逾時秒數，未設定（0）時由呼叫端套用預設 30 秒。
+type HealthCheck struct {
+	Commands []string `yaml:"commands" json:"commands"`
+	Recovery []string `yaml:"recovery,omitempty" json:"recovery,omitempty"`
+	Timeout  int      `yaml:"timeout,omitempty" json:"timeout,omitempty"`
+}
+
 // TestStrategy 是 test-strategy.yaml 的結構
 type TestStrategy struct {
-	Web       bool     `yaml:"web" json:"web"`
-	API       bool     `yaml:"api" json:"api"`
-	Gate      bool     `yaml:"gate" json:"gate"`
-	CoderOnly bool     `yaml:"coder_only" json:"coder_only"`
-	Verify    []string `yaml:"verify_commands" json:"verify_commands"`
+	Web         bool         `yaml:"web" json:"web"`
+	API         bool         `yaml:"api" json:"api"`
+	Gate        bool         `yaml:"gate" json:"gate"`
+	CoderOnly   bool         `yaml:"coder_only" json:"coder_only"`
+	Verify      []string     `yaml:"verify_commands" json:"verify_commands"`
+	HealthCheck *HealthCheck `yaml:"health_check,omitempty" json:"health_check,omitempty"`
+	// Profiles 標記本 feature 適用的測試 profile（如 unit/web/api/e2e），
+	// Tester prompt 會依此自動注入對應的測試方法論；為空時行為與舊版一致。
+	Profiles []string `yaml:"profiles,omitempty" json:"profiles,omitempty"`
+}
+
+// TestProfileOverride 允許專案在 settings.json 覆寫或新增 test profile。
+// Content 直接指定內容；Include 指定相對於 workspace root 的檔案路徑。兩者擇一，整組取代內建。
+type TestProfileOverride struct {
+	Content string `json:"content,omitempty"`
+	Include string `json:"include,omitempty"`
 }
 
 // ReviewIssue 是 reviewer 發現的問題
@@ -311,6 +331,12 @@ type Config struct {
 	Profiles map[string]ProfileConfig `json:"profiles,omitempty"`
 	// ParallelReviewTest 啟用後，reviewer 與 tester 在 reviewing phase 並行執行（共用 worktree）。
 	ParallelReviewTest bool `json:"parallel_review_test,omitempty"`
+	// HealthCheck 是全域（settings.json）的 testing phase 前環境檢查設定，
+	// 未設為 nil（跳過）；可被 per-feature test-strategy.yaml 整組覆蓋。
+	HealthCheck *HealthCheck `json:"health_check,omitempty"`
+	// TestProfiles 讓專案覆寫或擴充內建 test profile（key 為 profile 名稱）。
+	// 與 Profiles（pipeline profile）語意不同，不可混用。
+	TestProfiles map[string]TestProfileOverride `json:"test_profiles,omitempty"`
 	// AutoDiscoverFeatures 啟用後，run loop 在 final deep review PASS 後會 parse
 	// deep-review-report.md 的 [NEW-FEATURE] 標記並自動建立 feature。預設 false。
 	AutoDiscoverFeatures bool `json:"auto_discover_features,omitempty"`
