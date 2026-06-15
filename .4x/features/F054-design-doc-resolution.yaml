@@ -1,4 +1,5 @@
 id: F054-design-doc-resolution
 name: "F054: Design doc resolution unification"
-description: ''
+description: "統一 server resolveDoc 和 CLI designDocPath 的設計文件解析邏輯，避免 dashboard 和 prompt 看到不同 spec/plan"
 status: not-started
+priority: 2

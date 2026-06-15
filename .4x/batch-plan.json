@@ -1,48 +1,119 @@
 {
-  "generatedAt": "2026-06-11T06:06:29.839738Z",
+  "generatedAt": "2026-06-15T06:36:36.120461Z",
   "clusters": [
     {
       "id": "cluster-0",
       "features": [
-        "p0-severity-gate"
+        "F067-clean-command-remove"
       ],
       "chains": [
         [
-          "p0-severity-gate"
+          "F067-clean-command-remove"
         ]
       ]
     },
     {
       "id": "cluster-1",
       "features": [
-        "p0-run-loop-complete",
-        "p1-baseline-integration"
+        "F074-batch-report"
       ],
       "chains": [
         [
-          "p0-run-loop-complete",
-          "p1-baseline-integration"
+          "F074-batch-report"
+        ]
+      ]
+    },
+    {
+      "id": "cluster-2",
+      "features": [
+        "F075-batch-process-orphan"
+      ],
+      "chains": [
+        [
+          "F075-batch-process-orphan"
+        ]
+      ]
+    },
+    {
+      "id": "cluster-3",
+      "features": [
+        "F053-dashboard-api-response"
+      ],
+      "chains": [
+        [
+          "F053-dashboard-api-response"
+        ]
+      ]
+    },
+    {
+      "id": "cluster-4",
+      "features": [
+        "F051-multi-mux-route"
+      ],
+      "chains": [
+        [
+          "F051-multi-mux-route"
+        ]
+      ]
+    },
+    {
+      "id": "cluster-5",
+      "features": [
+        "F052-feature-creation-logic"
+      ],
+      "chains": [
+        [
+          "F052-feature-creation-logic"
+        ]
+      ]
+    },
+    {
+      "id": "cluster-6",
+      "features": [
+        "F054-design-doc-resolution"
+      ],
+      "chains": [
+        [
+          "F054-design-doc-resolution"
         ]
       ]
     }
   ],
   "schedule": [
     {
-      "featureId": "p0-severity-gate",
+      "featureId": "F067-clean-command-remove",
       "slot": 0,
       "canStartAfter": []
     },
     {
-      "featureId": "p0-run-loop-complete",
+      "featureId": "F074-batch-report",
       "slot": 1,
       "canStartAfter": []
     },
     {
-      "featureId": "p1-baseline-integration",
-      "slot": 1,
-      "canStartAfter": [
-        "p0-run-loop-complete"
-      ]
+      "featureId": "F075-batch-process-orphan",
+      "slot": 2,
+      "canStartAfter": []
+    },
+    {
+      "featureId": "F053-dashboard-api-response",
+      "slot": 3,
+      "canStartAfter": []
+    },
+    {
+      "featureId": "F051-multi-mux-route",
+      "slot": 4,
+      "canStartAfter": []
+    },
+    {
+      "featureId": "F052-feature-creation-logic",
+      "slot": 5,
+      "canStartAfter": []
+    },
+    {
+      "featureId": "F054-design-doc-resolution",
+      "slot": 6,
+      "canStartAfter": []
     }
   ]
 }

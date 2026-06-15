@@ -1,4 +1,5 @@
 id: F051-multi-mux-route
 name: "F051: Multi-Mux Route Deduplication"
-description: ''
+description: "重構 NewMux/NewMultiMux 為統一路由，消除 ~30 條路由的重複維護"
 status: not-started
+priority: 2
