@@ -10,13 +10,19 @@
     "windows": [
       {
         "title": "4x Live",
-        "width": 1200,
-        "height": 800,
+        "width": 1400,
+        "height": 900,
+        "minWidth": 900,
+        "minHeight": 600,
         "resizable": true
       }
     ],
     "security": {
       "csp": null
+    },
+    "trayIcon": {
+      "iconPath": "icons/tray-icon.png",
+      "tooltip": "4x Live"
     }
   },
   "bundle": {
