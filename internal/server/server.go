@@ -124,7 +124,7 @@ func newMux(ws *protocol.CachedWorkspace, pm *ProcessManager, bm *BatchManager) 
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		handlePostClean(ws, w)
+		handlePostClean(ws.Workspace, w)
 	})
 	mux.HandleFunc("/api/batch/status", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {

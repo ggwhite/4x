@@ -1765,7 +1765,7 @@ func TestPostClean(t *testing.T) {
 	os.MkdirAll(logsDir, 0o755)
 	os.WriteFile(filepath.Join(logsDir, "test.log"), make([]byte, 2048), 0o644)
 
-	handler := NewMux(ws, nil)
+	handler := NewMux(protocol.NewCachedWorkspace(ws), nil)
 	rec := serveRequest(t, handler, http.MethodPost, "/api/clean", "")
 
 	if rec.Code != 200 {
@@ -1794,7 +1794,7 @@ func TestPostClean(t *testing.T) {
 func TestPostClean_NothingToClean(t *testing.T) {
 	ws := setupServerWorkspace(t)
 
-	handler := NewMux(ws, nil)
+	handler := NewMux(protocol.NewCachedWorkspace(ws), nil)
 	rec := serveRequest(t, handler, http.MethodPost, "/api/clean", "")
 
 	if rec.Code != 200 {
@@ -1810,7 +1810,7 @@ func TestPostClean_NothingToClean(t *testing.T) {
 
 func TestPostClean_MethodNotAllowed(t *testing.T) {
 	ws := setupServerWorkspace(t)
-	handler := NewMux(ws, nil)
+	handler := NewMux(protocol.NewCachedWorkspace(ws), nil)
 	rec := serveRequest(t, handler, http.MethodGet, "/api/clean", "")
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Errorf("GET /api/clean status = %d, want 405", rec.Code)
