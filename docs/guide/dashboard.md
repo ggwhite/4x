@@ -41,6 +41,8 @@ The overview also hosts a batch control panel backed by the [Batch Control API](
 
 The dashboard exposes REST and SSE endpoints:
 
+Read-heavy endpoints (`/api/tasks`, `/api/overview`, `/api/projects`, `/api/settings`, …) are served through a `*protocol.CachedWorkspace` rather than a plain `*protocol.Workspace`. Because the server is long-running, this mtime-based in-memory cache avoids re-parsing every feature YAML and `settings.json` on each request — see [Workspace Read Cache](concepts.md#workspace-read-cache-dashboard-server). Cache invalidation is automatic: a write (via the dashboard or a runner) changes the file mtime, so the next read re-parses transparently.
+
 ### REST
 
 | Endpoint | Method | Description |

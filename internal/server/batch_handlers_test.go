@@ -48,7 +48,7 @@ func setupBatchStatusWorkspace(t *testing.T) *protocol.Workspace {
 // done/abandoned feature 不進 PlanBatch（見 commit 8a471e5），故 feat-a 不在 queue。
 func TestBatchStatus_QueueStatesAndOrder(t *testing.T) {
 	ws := setupBatchStatusWorkspace(t)
-	mux := newMux(ws, nil, NewBatchManager(ws, "echo"))
+	mux := newMux(protocol.NewCachedWorkspace(ws), nil, NewBatchManager(ws, "echo"))
 
 	rec := serveRequest(t, mux, http.MethodGet, "/api/batch/status", "")
 	if rec.Code != http.StatusOK {
@@ -84,7 +84,7 @@ func TestBatchStatus_QueueStatesAndOrder(t *testing.T) {
 // AC-12：存在 batch-conflict.json 時 conflict 欄回該內容，否則 null。
 func TestBatchStatus_ReportsConflict(t *testing.T) {
 	ws := setupBatchStatusWorkspace(t)
-	mux := newMux(ws, nil, NewBatchManager(ws, "echo"))
+	mux := newMux(protocol.NewCachedWorkspace(ws), nil, NewBatchManager(ws, "echo"))
 
 	rec := serveRequest(t, mux, http.MethodGet, "/api/batch/status", "")
 	var before batchStatusResponse
@@ -110,7 +110,7 @@ func TestBatchStatus_ReportsConflict(t *testing.T) {
 // AC-13：POST /api/batch/start 在存在未解決 conflict 時回 409。
 func TestBatchStart_ConflictReturns409(t *testing.T) {
 	ws := setupBatchStatusWorkspace(t)
-	mux := newMux(ws, nil, NewBatchManager(ws, "echo"))
+	mux := newMux(protocol.NewCachedWorkspace(ws), nil, NewBatchManager(ws, "echo"))
 
 	if err := ws.WriteBatchConflict(protocol.BatchConflict{FeatureID: "feat-b"}); err != nil {
 		t.Fatal(err)
@@ -125,7 +125,7 @@ func TestBatchStart_ConflictReturns409(t *testing.T) {
 func TestBatchStart_StartsWhenNoConflict(t *testing.T) {
 	ws := setupBatchStatusWorkspace(t)
 	bm := NewBatchManager(ws, fakeBatchCommand(t))
-	mux := newMux(ws, nil, bm)
+	mux := newMux(protocol.NewCachedWorkspace(ws), nil, bm)
 
 	rec := serveRequest(t, mux, http.MethodPost, "/api/batch/start", `{"runner":"claude","maxRounds":3}`)
 	if rec.Code != http.StatusOK {
@@ -141,7 +141,7 @@ func TestBatchStart_StartsWhenNoConflict(t *testing.T) {
 // AC-14：POST /api/batch/stop 寫出 batch-stop 信號檔。
 func TestBatchStop_WritesSignal(t *testing.T) {
 	ws := setupBatchStatusWorkspace(t)
-	mux := newMux(ws, nil, NewBatchManager(ws, "echo"))
+	mux := newMux(protocol.NewCachedWorkspace(ws), nil, NewBatchManager(ws, "echo"))
 
 	rec := serveRequest(t, mux, http.MethodPost, "/api/batch/stop", "")
 	if rec.Code != http.StatusOK {
@@ -156,7 +156,7 @@ func TestBatchStop_WritesSignal(t *testing.T) {
 func TestBatchContinue_ClearsConflictThenStarts(t *testing.T) {
 	ws := setupBatchStatusWorkspace(t)
 	bm := NewBatchManager(ws, fakeBatchCommand(t))
-	mux := newMux(ws, nil, bm)
+	mux := newMux(protocol.NewCachedWorkspace(ws), nil, bm)
 
 	if err := ws.WriteBatchConflict(protocol.BatchConflict{FeatureID: "feat-b"}); err != nil {
 		t.Fatal(err)

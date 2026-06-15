@@ -25,7 +25,7 @@ type ProjectListItem struct {
 
 type registryEntry struct {
 	id  string
-	ws  *protocol.Workspace
+	ws  *protocol.CachedWorkspace
 	mux http.Handler
 	pm  *ProcessManager
 	bm  *BatchManager
@@ -58,11 +58,12 @@ func (r *ProjectRegistry) Add(ws *protocol.Workspace) string {
 	for i := 2; r.ids[id]; i++ {
 		id = fmt.Sprintf("%s-%d", base, i)
 	}
-	pm := newProcessManagerFromConfig(ws)
-	bm := NewBatchManager(ws, selfBinary())
-	bm.Adopt() // server 重啟後 re-attach 既有 batch run 孤兒
+	cws := protocol.NewCachedWorkspace(ws)
+	pm := newProcessManagerFromConfig(cws.Workspace)
+	bm := NewBatchManager(cws.Workspace, selfBinary())
+	bm.Adopt()
 	r.ids[id] = true
-	r.entries = append(r.entries, &registryEntry{id: id, ws: ws, mux: newMux(ws, pm, bm), pm: pm, bm: bm})
+	r.entries = append(r.entries, &registryEntry{id: id, ws: cws, mux: newMux(cws, pm, bm), pm: pm, bm: bm})
 	slog.Info("project added", "id", id, "path", ws.Root)
 	return id
 }
@@ -108,7 +109,7 @@ func (r *ProjectRegistry) ShutdownAll() {
 }
 
 // Get 取得指定 ID 的 workspace
-func (r *ProjectRegistry) Get(id string) *protocol.Workspace {
+func (r *ProjectRegistry) Get(id string) *protocol.CachedWorkspace {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -253,7 +254,7 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 			http.Error(w, "multiple projects loaded — use "+prefixHint, http.StatusBadRequest)
 		}
 	}
-	compatGetWs := func(w http.ResponseWriter, hint string) *protocol.Workspace {
+	compatGetWs := func(w http.ResponseWriter, hint string) *protocol.CachedWorkspace {
 		n := reg.Count()
 		if n != 1 {
 			compatError(w, n, hint)
