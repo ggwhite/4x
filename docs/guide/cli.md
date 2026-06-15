@@ -253,7 +253,7 @@ Print the role prompt for a feature.
 | `--role` | Target role (inferred from current state if omitted) |
 | `--round` | Round number |
 
-Supports locale injection (from user config or `LANG` env), planning doc auto-inclusion (`docs/design/{id}-spec.md` and `{id}-plan.md`), and project/role includes.
+Supports locale injection (from user config or `LANG` env), planning doc auto-inclusion, and project/role includes. The spec/plan docs are located via the shared resolver (`protocol.ResolveDesignDoc`) — the feature YAML `spec`/`plan` field first, then `docs/design/{id}-{type}.md`, then the `FNNN-`-stripped `docs/design/{slug}-{type}.md` fallback — so the prompt sees the same documents as the dashboard overview. See [Design Doc Resolution](concepts.md#design-doc-resolution).
 
 For the `tester` role, any `profiles` listed in the feature's `test-strategy.yaml` are resolved (via `loadProfiles`) and injected into the prompt as `== Test Profile: {name} ==` blocks. Each profile's content comes from `settings.json` `test_profiles[name]` (`content` or `include`) when present, otherwise the built-in `templates/profiles/{name}.md`. See [Test Profiles](concepts.md#test-profiles).
 

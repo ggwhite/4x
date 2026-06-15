@@ -541,10 +541,8 @@ func handleTasks(ws *protocol.CachedWorkspace, w http.ResponseWriter) {
 			Status:   string(f.Status),
 			Priority: f.Priority,
 		}
-		_, specSource := resolveDoc(ws.Root, f.Spec, f.ID, "spec")
-		_, planSource := resolveDoc(ws.Root, f.Plan, f.ID, "plan")
-		t.HasSpec = specSource != ""
-		t.HasPlan = planSource != ""
+		t.HasSpec = protocol.ResolveDesignDoc(ws.Root, f, "spec").Source != ""
+		t.HasPlan = protocol.ResolveDesignDoc(ws.Root, f, "plan").Source != ""
 		t.Depends = f.Depends
 		if s, err := ws.ReadState(f.ID); err == nil {
 			ws.ReconcileActive(f.ID, &s)
@@ -581,8 +579,10 @@ func handleOverview(ws *protocol.CachedWorkspace, featureID string, w http.Respo
 		return
 	}
 
-	spec, specSource := resolveDoc(ws.Root, f.Spec, f.ID, "spec")
-	plan, planSource := resolveDoc(ws.Root, f.Plan, f.ID, "plan")
+	specDoc := protocol.ResolveDesignDoc(ws.Root, f, "spec")
+	planDoc := protocol.ResolveDesignDoc(ws.Root, f, "plan")
+	spec, specSource := specDoc.Content, specDoc.Source
+	plan, planSource := planDoc.Content, planDoc.Source
 	info := overviewInfo{
 		ID:          f.ID,
 		Name:        f.Name,
@@ -1913,22 +1913,3 @@ func handleGetMergedConfig(ws *protocol.CachedWorkspace, w http.ResponseWriter) 
 	w.Write(data)
 }
 
-// resolveDoc 依優先序讀取設計文件：YAML 指定路徑 > docs/design/ 慣例路徑
-func resolveDoc(root, yamlPath, featureID, suffix string) (string, string) {
-	if yamlPath != "" {
-		abs := yamlPath
-		if !filepath.IsAbs(abs) {
-			abs = filepath.Join(root, yamlPath)
-		}
-		if _, err := os.Stat(abs); err == nil {
-			return readIfExists(abs), yamlPath
-		}
-	}
-
-	source := filepath.Join("docs", "design", featureID+"-"+suffix+".md")
-	abs := filepath.Join(root, source)
-	if _, err := os.Stat(abs); err == nil {
-		return readIfExists(abs), source
-	}
-	return "", ""
-}

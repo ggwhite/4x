@@ -105,8 +105,8 @@ func showAllFeatures(ws *protocol.Workspace, pendingOnly bool) error {
 			active = s.Active
 			updatedAt = s.UpdatedAt
 		}
-		hasSpec := designDocPath(ws.Root, f.ID, "-spec.md") != ""
-		hasPlan := designDocPath(ws.Root, f.ID, "-plan.md") != ""
+		hasSpec := protocol.ResolveDesignDoc(ws.Root, f, "spec").Source != ""
+		hasPlan := protocol.ResolveDesignDoc(ws.Root, f, "plan").Source != ""
 		rows = append(rows, featureRow{
 			feature:   f,
 			phase:     phase,

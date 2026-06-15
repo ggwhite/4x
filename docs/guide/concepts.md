@@ -228,10 +228,22 @@ repos: []
 subtasks: []
 rules: []
 depends: []
+spec: ""     # optional explicit path to the design spec (overrides docs/design/ lookup)
+plan: ""     # optional explicit path to the implementation plan
 hooks: {}    # optional phase hooks (same format as settings.json)
 ```
 
 `status` mirrors `state.json` phase for quick listing. Valid values: `not-started`, `in-progress`, `ready-for-review`, `needs-attention`, `blocked`, `done`, `abandoned`. `abandoned` features are treated as completed (won't block dependencies) but display with strikethrough in the dashboard. `depends` lists feature IDs that must be done (or abandoned) before this feature can run. `repos` lists the repository names (from `workspace.repos`) that this feature touches; empty means all repos in scope.
+
+#### Design Doc Resolution
+
+The dashboard overview and the `4x prompt` planning-doc injection locate a feature's spec/plan through one shared resolver (`protocol.ResolveDesignDoc`), so both always see the same document. Resolution order per doc type (`spec`/`plan`):
+
+1. The feature YAML `spec`/`plan` field, read as a path (relative paths resolve against the workspace root) when non-empty.
+2. `docs/design/{feature.ID}-{type}.md`.
+3. `docs/design/{slug}-{type}.md`, where `slug` strips the `FNNN-` prefix from the ID (only attempted when it differs from the ID).
+
+The first existing file wins; if none match, the doc is treated as absent.
 
 ### Feature Creation
 
