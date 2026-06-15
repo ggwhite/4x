@@ -89,7 +89,7 @@ jobs:
           path: dist/4x-Live.dmg
 
   windows:
-    name: Package Windows .msi
+    name: Package Windows .exe
     needs: build-binaries
     runs-on: windows-latest
     steps:
@@ -118,14 +118,14 @@ jobs:
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2"
 
-      - name: Tauri build (msi)
+      - name: Tauri build (nsis)
         working-directory: dashboard/tauri
-        run: cargo tauri build --bundles msi
+        run: cargo tauri build --bundles nsis
 
       - uses: actions/upload-artifact@v4
         with:
           name: 4x-Live-windows-${{ github.ref_name }}
-          path: dashboard/tauri/src-tauri/target/release/bundle/msi/*.msi
+          path: dashboard/tauri/src-tauri/target/release/bundle/nsis/*.exe
 
   linux:
     name: Package Linux .AppImage
@@ -183,7 +183,7 @@ jobs:
           name: 4x-Live-macos-${{ github.ref_name }}
           path: release
 
-      - name: Download Windows .msi
+      - name: Download Windows installer
         uses: actions/download-artifact@v4
         with:
           name: 4x-Live-windows-${{ github.ref_name }}
@@ -200,7 +200,7 @@ jobs:
           cd release
           TAG="${GITHUB_REF_NAME}"
           for f in *.dmg; do [ -f "$f" ] && mv "$f" "4x-Live-${TAG}-macOS-universal.dmg"; done
-          for f in *.msi; do [ -f "$f" ] && mv "$f" "4x-Live-${TAG}-Windows-x64.msi"; done
+          for f in *.exe; do [ -f "$f" ] && mv "$f" "4x-Live-${TAG}-Windows-x64-setup.exe"; done
           for f in *.AppImage; do [ -f "$f" ] && mv "$f" "4x-Live-${TAG}-Linux-x64.AppImage"; done
           ls -la
 

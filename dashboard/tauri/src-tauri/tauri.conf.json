@@ -27,7 +27,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["msi", "appimage"],
+    "targets": ["nsis", "appimage"],
     "externalBin": ["binaries/4x"],
     "icon": ["icons/icon.png", "icons/icon.ico"]
   }
