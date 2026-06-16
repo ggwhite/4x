@@ -34,9 +34,16 @@ function showProjectPicker() {
   document.getElementById('path-error').style.display = 'none';
   renderRecentList();
   document.getElementById('path-input').focus();
+  const browseBtn = document.querySelector('[onclick="toggleBrowse()"]');
   if (window._isNativeApp && window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.nativeOpenFolder) {
-    const btn = document.getElementById('picker-open-btn');
-    if (btn) { btn.textContent = t('picker.browseEllipsis'); btn.onclick = function() { window.webkit.messageHandlers.nativeOpenFolder.postMessage('open'); }; }
+    if (browseBtn) { browseBtn.onclick = function() { window.webkit.messageHandlers.nativeOpenFolder.postMessage('open'); }; }
+  } else if (window.__TAURI__) {
+    if (browseBtn) { browseBtn.onclick = async function() {
+      try {
+        const selected = await window.__TAURI__.dialog.open({ directory: true, multiple: false, title: 'Select a 4x project folder' });
+        if (selected) { document.getElementById('path-input').value = selected; addProjectFromInput(); }
+      } catch(e) { console.error('folder picker error', e); }
+    }; }
   }
 }
 function closeProjectPicker() { document.getElementById('picker-modal').classList.remove('open'); }
