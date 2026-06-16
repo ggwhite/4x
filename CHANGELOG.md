@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.4] - 2026-06-16
+
+### Fixes
+
+- **Runner command resolution** — fix runners (claude, codex, etc.) not found when launched from GUI app. `exec.Command` uses the current process PATH, but GUI apps have minimal PATH; now resolves command path against enriched PATH before exec
+- **CI release notes** — desktop workflow now waits for goreleaser to create the release before uploading assets, preventing empty release notes
+
 ## [0.1.3] - 2026-06-16
 
 ### Fixes
