@@ -263,25 +263,54 @@ tailwind.config = {
   <span class="text-accent">"roles"</span>: {
     <span class="text-accent">"designer"</span>: {
       <span class="text-accent">"model"</span>: <span class="text-orange">"opus"</span>,
-      <span class="text-accent">"instructions"</span>: [<span class="text-orange">"focus on API contract design"</span>],
-      <span class="text-accent">"includes"</span>: [<span class="text-orange">"docs/api-guidelines.md"</span>]
+      <span class="text-accent">"instructions"</span>: [
+        <span class="text-orange">"all specs must define gRPC proto changes before implementation"</span>,
+        <span class="text-orange">"acceptance criteria must include load test thresholds"</span>,
+        <span class="text-orange">"always consider backward compatibility with existing clients"</span>
+      ],
+      <span class="text-accent">"includes"</span>: [
+        <span class="text-orange">"docs/architecture/service-map.md"</span>,
+        <span class="text-orange">"docs/api/proto-conventions.md"</span>
+      ]
     },
     <span class="text-accent">"coder"</span>: {
       <span class="text-accent">"model"</span>: <span class="text-orange">"sonnet"</span>,
-      <span class="text-accent">"instructions"</span>: [<span class="text-orange">"follow existing patterns in src/"</span>],
-      <span class="text-accent">"includes"</span>: [<span class="text-orange">"docs/coding-standards.md"</span>]
+      <span class="text-accent">"instructions"</span>: [
+        <span class="text-orange">"use dependency injection via dig container"</span>,
+        <span class="text-orange">"all DB queries must go through repository layer"</span>,
+        <span class="text-orange">"structured logging only — no fmt.Println"</span>,
+        <span class="text-orange">"new endpoints must have OpenAPI annotations"</span>
+      ],
+      <span class="text-accent">"includes"</span>: [
+        <span class="text-orange">"docs/coding-standards.md"</span>,
+        <span class="text-orange">"docs/error-handling.md"</span>
+      ]
     },
     <span class="text-accent">"reviewer"</span>: {
       <span class="text-accent">"model"</span>: <span class="text-orange">"sonnet"</span>,
-      <span class="text-accent">"instructions"</span>: [<span class="text-orange">"check for SQL injection and XSS"</span>]
+      <span class="text-accent">"instructions"</span>: [
+        <span class="text-orange">"check for SQL injection, XSS, and auth bypass"</span>,
+        <span class="text-orange">"verify all money calculations use decimal, not float"</span>,
+        <span class="text-orange">"flag any direct DB access outside repository layer"</span>
+      ]
     },
     <span class="text-accent">"tester"</span>: {
       <span class="text-accent">"model"</span>: <span class="text-orange">"sonnet"</span>,
-      <span class="text-accent">"instructions"</span>: [<span class="text-orange">"use testcontainers for integration tests"</span>]
+      <span class="text-accent">"instructions"</span>: [
+        <span class="text-orange">"integration tests must use testcontainers"</span>,
+        <span class="text-orange">"test concurrent access for all shared state"</span>
+      ],
+      <span class="text-accent">"screenshot_dir"</span>: <span class="text-orange">".4x/e2e/{feature-id}/screenshot/"</span>
     },
     <span class="text-accent">"deep-reviewer"</span>: {
       <span class="text-accent">"model"</span>: <span class="text-orange">"opus"</span>,
-      <span class="text-accent">"includes"</span>: [<span class="text-orange">"docs/architecture/overview.md"</span>]
+      <span class="text-accent">"parallel_reviewers"</span>: <span class="text-purple">3</span>,
+      <span class="text-accent">"max_fix_rounds"</span>: <span class="text-purple">2</span>,
+      <span class="text-accent">"includes"</span>: [
+        <span class="text-orange">"docs/architecture/overview.md"</span>,
+        <span class="text-orange">"docs/architecture/data-flow.md"</span>,
+        <span class="text-orange">"docs/security/threat-model.md"</span>
+      ]
     }
   }
 }</pre>
