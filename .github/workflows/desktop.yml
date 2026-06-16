@@ -204,6 +204,21 @@ jobs:
           for f in *.AppImage; do [ -f "$f" ] && mv "$f" "4x-Live-${TAG}-Linux-x64.AppImage"; done
           ls -la
 
+      - name: Wait for release to exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for i in $(seq 1 30); do
+            if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              echo "Release $GITHUB_REF_NAME found"
+              exit 0
+            fi
+            echo "Waiting for release... ($i/30)"
+            sleep 30
+          done
+          echo "Release not found after 15 minutes, creating minimal release"
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --notes ""
+
       - name: Upload to GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
