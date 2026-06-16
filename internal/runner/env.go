@@ -46,6 +46,7 @@ func enrichedEnv() []string {
 
 	if exe, err := os.Executable(); err == nil {
 		extraPaths = append(extraPaths, filepath.Dir(exe))
+		env = append(env, "FOURX_BIN="+exe)
 	}
 
 	switch runtime.GOOS {

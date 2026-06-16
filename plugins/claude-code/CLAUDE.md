@@ -27,9 +27,9 @@ The prompt tells you which role you are. Follow the role contract exactly:
 
 ### After your work
 
-Run guardrail check:
+Run guardrail check (use `$FOURX_BIN` if `4x` is not in PATH):
 ```bash
-4x check {feature-id}
+${FOURX_BIN:-4x} check {feature-id}
 ```
 
 ### Exit codes

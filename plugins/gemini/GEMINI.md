@@ -29,7 +29,7 @@ The prompt tells you which role you are. Follow the role contract exactly:
 
 Run guardrail check:
 ```bash
-4x check {feature-id}
+${FOURX_BIN:-4x} check {feature-id}
 ```
 
 ### Exit codes

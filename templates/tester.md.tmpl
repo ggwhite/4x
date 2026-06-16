@@ -5,7 +5,7 @@ You MUST create these files before finishing:
 
   {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/test-report.md
 
-verify.json is created by `4x verify` — do NOT write it yourself.
+verify.json is created by `4x verify` (or `$FOURX_BIN verify` if 4x is not in PATH) — do NOT write it yourself.
 
 If verify.json passed is true, you MUST also create:
 
@@ -56,7 +56,7 @@ Use the Write tool. Do NOT just print the content — write to disk.
 
 == Workflow (strict order) ==
 1. Read acceptance criteria — list every AC item
-2. Run: 4x verify {{.Feature.ID}}
+2. Run: ${FOURX_BIN:-4x} verify {{.Feature.ID}}
 3. Read the generated verify.json for command results
 4. For each AC item, collect evidence (command output, verify.json results, file check, etc.)
 5. Write test-report.md
@@ -86,7 +86,7 @@ PASS / FAIL
 
 == Constraints ==
 - Do NOT modify source code — only run tests and report
-- Do NOT write verify.json — it is produced by `4x verify`
+- Do NOT write verify.json — it is produced by `${FOURX_BIN:-4x} verify`
 - Each AC item must have: status + evidence
 - SKIP > 30% of items blocks acceptance
 - Do NOT fabricate results — mark SKIP if you cannot test
