@@ -15,7 +15,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **Auto-commit feature YAML** — feature status changes (done, blocked, in-progress, etc.) are automatically committed when the YAML is git-tracked
 - **Coder commit policy** — coder and mini-coder templates now instruct the AI to commit after each meaningful change instead of batching to end-of-phase, protecting progress on session interruption
 - **Auto-sync plugins** — `4x run` automatically syncs plugin files before each run
-- **Template Rules injection** — tester, acceptor, and re-verifier templates now receive Project.Rules and Feature.Rules
 
 ### Fixes
 
