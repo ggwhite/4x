@@ -803,6 +803,20 @@ async function loadDetail(task) {
     meta.push(`<span class="text-zinc-600">pid ${task.pid}</span>`);
   }
   document.getElementById('h-meta').innerHTML = meta.join('<span class="text-zinc-700">·</span>');
+
+  const existingAlert = document.getElementById('h-stop-alert');
+  if (existingAlert) existingAlert.remove();
+  if (!isRunning && task.stopReason && task.stopReason !== 'pending-review' && task.stopReason !== 'done') {
+    const srColors = {'scope-change':'#f59e0b','runner-error':'#ef4444','hard-error':'#ef4444','soft-fail':'#f59e0b','interrupted':'#a78bfa','escalation':'#f59e0b','model-error':'#ef4444'};
+    const c = srColors[task.stopReason] || '#ef4444';
+    const msg = task.stopMessage || task.stopReason;
+    const alert = document.createElement('div');
+    alert.id = 'h-stop-alert';
+    alert.style.cssText = `margin-top:8px;padding:8px 12px;border-radius:8px;font-size:12px;line-height:1.5;background:${c}12;border:1px solid ${c}30;color:${c}`;
+    alert.innerHTML = `<strong style="font-size:11px;text-transform:uppercase;letter-spacing:.05em">⚠ ${esc(task.stopReason)}</strong>` + (msg !== task.stopReason ? `<div style="margin-top:4px;color:var(--text-2);font-size:12px">${esc(msg)}</div>` : '');
+    document.getElementById('header').appendChild(alert);
+  }
+
   disconnectLogSSE();
   disconnectSSE();
   activeDetailTab = 'overview';
