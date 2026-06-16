@@ -194,9 +194,9 @@ func newRunCmd() *cobra.Command {
 					return fmt.Errorf("feature %s is already done", featureID)
 				}
 				if s.Phase == protocol.PhaseBlocked || s.Phase == protocol.PhaseNeedsAttention {
-					resumePhase := roleToResumePhase(s.Role)
-					fmt.Printf("  recovering %s → %s (max rounds: %d)\n", s.Phase, resumePhase, s.MaxRounds)
-					ns, err := state.Transition(s, resumePhase, s.Role)
+					resumePhase, resumeRole := smartResumePhase(ws, featureID, s.Round)
+					fmt.Printf("  recovering %s → %s (round %d, max rounds: %d)\n", s.Phase, resumePhase, s.Round, s.MaxRounds)
+					ns, err := state.Transition(s, resumePhase, resumeRole)
 					if err != nil {
 						return fmt.Errorf("recovery transition %s → %s: %w", s.Phase, resumePhase, err)
 					}
@@ -1880,28 +1880,40 @@ func cleanStaleArtifact(ws *protocol.Workspace, featureID string, phase protocol
 	}
 }
 
-// roleToResumePhase 根據 role 推斷 blocked/needs-attention 後應恢復到哪個 phase。
-// 除了 designer 之外都回 coding，讓 coder 根據上一輪的 report 修正後重走流程。
-// tester 失敗也回 coding 而非 testing，避免 tester 反覆重跑相同的失敗。
-func roleToResumePhase(role protocol.Role) protocol.Phase {
-	switch role {
-	case protocol.RoleCoder:
-		return protocol.PhaseCoding
-	case protocol.RoleReviewer:
-		return protocol.PhaseCoding
-	case protocol.RoleDeepReviewer:
-		return protocol.PhaseCoding
-	case protocol.RoleMiniCoder:
-		return protocol.PhaseCoding
-	case protocol.RoleReVerifier:
-		return protocol.PhaseCoding
-	case protocol.RoleTester:
-		return protocol.PhaseCoding
-	case protocol.RoleAcceptor:
-		return protocol.PhaseCoding
-	default:
-		return protocol.PhaseDesigning
+// smartResumePhase 檢查當前 round 的 artifacts 決定 resume 起點。
+// 已完成的步驟不重跑；只從第一個缺失或失敗的步驟開始。
+func smartResumePhase(ws *protocol.Workspace, featureID string, round int) (protocol.Phase, protocol.Role) {
+	if round == 0 {
+		return protocol.PhaseDesigning, protocol.RoleDesigner
 	}
+	roundDir := ws.RoundDir(featureID, round)
+
+	if _, err := os.Stat(filepath.Join(roundDir, protocol.CoderReport)); err != nil {
+		return protocol.PhaseCoding, protocol.RoleCoder
+	}
+
+	if _, err := os.Stat(filepath.Join(roundDir, protocol.ReviewReport)); err != nil {
+		return protocol.PhaseReviewing, protocol.RoleReviewer
+	}
+	if !reviewPassed(ws, featureID, round, protocol.ReviewReport) {
+		return protocol.PhaseAmending, protocol.RoleCoder
+	}
+
+	if _, err := os.Stat(filepath.Join(roundDir, protocol.TestReport)); err != nil {
+		return protocol.PhaseTesting, protocol.RoleTester
+	}
+	if !verifyPassed(ws, featureID, round) {
+		return protocol.PhaseAmending, protocol.RoleCoder
+	}
+
+	if _, err := os.Stat(filepath.Join(roundDir, protocol.DeepReviewReport)); err != nil {
+		return protocol.PhaseDeepReviewing, protocol.RoleDeepReviewer
+	}
+	if !reviewPassed(ws, featureID, round, protocol.DeepReviewReport) {
+		return protocol.PhaseCoding, protocol.RoleCoder
+	}
+
+	return protocol.PhaseAccepting, protocol.RoleAcceptor
 }
 
 // isDesignerEscalation 判斷 escalation 是否應回到 Designer 而非停下來等人

@@ -18,8 +18,8 @@ var transitions = map[protocol.Phase][]protocol.Phase{
 	protocol.PhaseDeepReviewing:  {protocol.PhaseAccepting, protocol.PhaseAmending},
 	protocol.PhaseAccepting:      {protocol.PhasePendingReview},
 	protocol.PhasePendingReview:  {protocol.PhaseDone},
-	protocol.PhaseBlocked:        {protocol.PhaseDesigning, protocol.PhaseCoding, protocol.PhaseTesting},
-	protocol.PhaseNeedsAttention: {protocol.PhaseDesigning, protocol.PhaseCoding, protocol.PhaseTesting},
+	protocol.PhaseBlocked:        {protocol.PhaseDesigning, protocol.PhaseCoding, protocol.PhaseReviewing, protocol.PhaseTesting, protocol.PhaseDeepReviewing, protocol.PhaseAmending, protocol.PhaseAccepting},
+	protocol.PhaseNeedsAttention: {protocol.PhaseDesigning, protocol.PhaseCoding, protocol.PhaseReviewing, protocol.PhaseTesting, protocol.PhaseDeepReviewing, protocol.PhaseAmending, protocol.PhaseAccepting},
 }
 
 // CanTransition 檢查從 from 到 to 是否合法
