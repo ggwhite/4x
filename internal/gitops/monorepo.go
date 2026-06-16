@@ -141,6 +141,9 @@ func (m *monoRepo) DetectChangedRepos() []string {
 
 	var repos []string
 	for r := range repoSet {
+		if r == protocol.DirName {
+			continue
+		}
 		repos = append(repos, r)
 	}
 	return repos
