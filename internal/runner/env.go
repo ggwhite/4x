@@ -23,7 +23,6 @@ func enrichedEnv() []string {
 			"/opt/homebrew/sbin",
 			home + "/.local/bin",
 			home + "/.cargo/bin",
-			"/Applications/cmux.app/Contents/Resources/bin",
 		}
 	case "windows":
 		userProfile := os.Getenv("USERPROFILE")
