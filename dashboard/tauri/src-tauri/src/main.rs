@@ -20,7 +20,10 @@ use tauri::{
     tray::TrayIconBuilder,
     Manager, WindowEvent,
 };
+use tauri_plugin_shell::process::CommandChild;
 use tauri_plugin_shell::ShellExt;
+
+struct SidecarChild(std::sync::Mutex<Option<CommandChild>>);
 
 const DEFAULT_PORT: u16 = 4567;
 
@@ -59,9 +62,10 @@ fn main() {
             let port = find_available_port();
 
             let sidecar = app.shell().sidecar("4x")?;
-            sidecar
+            let (_, child) = sidecar
                 .args(["live", &format!("--port={port}")])
                 .spawn()?;
+            app.manage(SidecarChild(std::sync::Mutex::new(Some(child))));
 
             // Menu
             let settings = MenuItemBuilder::with_id("settings", "Settings")
@@ -207,6 +211,17 @@ fn main() {
                 let _ = window.hide();
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error while running 4x Live");
+        .build(tauri::generate_context!())
+        .expect("error while building 4x Live")
+        .run(|app, event| {
+            if let tauri::RunEvent::ExitRequested { .. } = event {
+                if let Some(state) = app.try_state::<SidecarChild>() {
+                    if let Ok(mut guard) = state.0.lock() {
+                        if let Some(child) = guard.take() {
+                            let _ = child.kill();
+                        }
+                    }
+                }
+            }
+        });
 }

@@ -25,6 +25,12 @@
     "active": true,
     "targets": ["nsis", "appimage"],
     "externalBin": ["binaries/4x"],
-    "icon": ["icons/icon.png", "icons/icon.ico"]
+    "icon": ["icons/icon.png", "icons/icon.ico"],
+    "windows": {
+      "nsis": {
+        "installMode": "both",
+        "installerHooks": "nsis-hooks.nsi"
+      }
+    }
   }
 }
