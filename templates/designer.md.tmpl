@@ -120,6 +120,19 @@ verify_groups:
 
 Rules: use verify_groups OR verify_commands, not both. Groups run in parallel; commands within each group run sequentially.
 
+== Incremental Writing & Resume ==
+Write task-brief.md incrementally as you analyze — do not wait until the end.
+After analyzing each major area (goal, tasks, scope), write that section to disk immediately.
+Same for acceptance-criteria.md: write each criterion as you identify it.
+test-strategy.yaml can be written at the end since it's small and fast.
+
+Before starting, check if any of the 3 output files already exist. A previous session may have
+been interrupted mid-work. If a file exists, read it:
+- If a section is empty or missing → fill it in (this is where the previous session stopped)
+- If all sections are complete → the file is done, move to the next one
+- A file with only headers or partial content means resume, not redo
+Do NOT assume existing files are complete — check each section.
+
 == Constraints ==
 - You may NOT modify any source code
 - Focus on WHAT to build, not HOW to implement

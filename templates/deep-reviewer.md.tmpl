@@ -237,6 +237,19 @@ issue；沒有就留 None：
 - [WARNING]: confidence ≥ 80, likely bug or missing edge case — blocks
 - [INFO]: confidence 50–79, suspicious but not proven — advisory, does not block
 
+== Incremental Writing & Resume ==
+Write {{$reportFile}} incrementally — create the file with the header and AC trace table first,
+then append each issue as you find it. Do not accumulate all findings in memory and write once
+at the end.
+
+Before starting, check if {{$reportFile}} already exists. A previous session may have been
+interrupted mid-review. If it exists, read it:
+- Angles/issues already written with evidence → already reviewed, skip those angles
+- AC trace entries already filled → skip those criteria
+- A file with only headers means resume from the first angle
+- If Verdict is already filled → the review is complete, verify consistency and finish
+Do NOT assume an existing file means the review is done — check which angles were covered.
+
 == Constraints ==
 - You may NOT modify source code
 - You may ONLY write {{$reportFile}} — do NOT write final-report.md, commit-plan.md, or any other protocol file

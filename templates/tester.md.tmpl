@@ -54,13 +54,26 @@ Use the Write tool. Do NOT just print the content — write to disk.
 {{- end}}
 {{- end}}
 
+== Incremental Writing & Resume ==
+Write test-report.md incrementally — create the file with the header and empty results table
+first, then update it after each AC item is tested. Do not wait until all items are done.
+
+Before starting, check if test-report.md already exists. A previous session may have been
+interrupted mid-testing. If it exists, read it:
+- AC items with PASS/FAIL status and evidence → already tested, skip them
+- AC items with no status or marked SKIP without evidence → test these
+- A file with only headers or an empty table means resume from the first AC item
+- If Verdict is already filled → testing is complete, verify consistency and finish
+Do NOT assume an existing file means testing is done — check which AC items have results.
+
 == Workflow (strict order) ==
 1. Read acceptance criteria — list every AC item
-2. Run: ${FOURX_BIN:-4x} verify {{.Feature.ID}}
-3. Read the generated verify.json for command results
-4. For each AC item, collect evidence (command output, verify.json results, file check, etc.)
-5. Write test-report.md
-6. If verify.json passed is true, write final-report.md and commit-plan.md
+2. Create test-report.md with header and empty results table
+3. Run: ${FOURX_BIN:-4x} verify {{.Feature.ID}}
+4. Read the generated verify.json for command results
+5. For each AC item, collect evidence and update test-report.md immediately
+6. Update the Summary and Verdict sections
+7. If verify.json passed is true, write final-report.md and commit-plan.md
 
 == test-report.md format ==
 # Test Report — Round {{.Round}}

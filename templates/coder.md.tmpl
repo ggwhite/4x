@@ -85,12 +85,15 @@ exactly what was already done, so nothing needs to be re-discovered or re-implem
 
 == Workflow ==
 1. Read task-brief.md
-{{- if gt .Round 1}}
-2. Run: git log --oneline -20 — see what was already committed for this feature
-{{- end}}
-3. Implement changes — commit after each meaningful step (see Commit Policy above)
+2. Check for prior progress — a previous session may have been interrupted:
+   - Run: git log --oneline -20 — commits are the source of truth for what code is already done
+   - Run: git diff — uncommitted changes may be leftover from the interrupted session
+   - Check if coder-report.md already exists with partial content
+   - If commits exist, review them to understand what's done; implement only what remains
+   - If coder-report.md exists but is incomplete, continue from where it stopped
+3. Implement remaining changes — commit after each meaningful step (see Commit Policy above)
 4. Run verify commands
-5. Write coder-report.md with: changed files, build/test results, summary
+5. Write or update coder-report.md with: changed files, build/test results, summary
 
 == coder-report.md format ==
 # Coder Report — Round {{.Round}}
