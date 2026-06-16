@@ -194,6 +194,25 @@ function renderGlobalSettingsAppearance() {
       `<option value="${l}"${l === cfgLocale ? ' selected' : ''}>${LOCALE_NAMES[l] || l}</option>`
     ).join('');
   }
+  const nCb = document.getElementById('gs-notifications');
+  const nKnob = document.getElementById('gs-notifications-knob');
+  if (nCb) {
+    const on = _globalSettings && _globalSettings.notifications === false ? false : true;
+    nCb.checked = on;
+    if (nKnob) {
+      nKnob.style.left = on ? '22px' : '2px';
+      nKnob.parentElement.previousElementSibling.style.background = on ? 'var(--accent)' : 'var(--bg-input)';
+    }
+  }
+}
+
+function gsSetNotifications(on) {
+  if (_globalSettings) _globalSettings.notifications = on;
+  const knob = document.getElementById('gs-notifications-knob');
+  if (knob) {
+    knob.style.left = on ? '22px' : '2px';
+    knob.parentElement.previousElementSibling.style.background = on ? 'var(--accent)' : 'var(--bg-input)';
+  }
 }
 
 function closeGlobalSettings() {

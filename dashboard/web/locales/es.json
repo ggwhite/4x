@@ -236,9 +236,10 @@
   "popover.noProjects": "Sin proyectos",
   "popover.loading": "Cargando…",
   "popover.offline": "Servidor no disponible",
-"notifications.runDone": "Ejecución completada",
+  "notifications.runDone": "Ejecución completada",
   "notifications.runFailed": "Ejecución fallida",
   "notifications.runInterrupted": "Ejecución interrumpida",
   "notifications.guardFail": "Falló la verificación de guardrail",
-  "notifications.escalation": "Requiere atención"
+  "notifications.escalation": "Requiere atención",
+  "globalSettings.notifications": "Notificaciones"
 }

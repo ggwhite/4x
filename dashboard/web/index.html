@@ -147,6 +147,15 @@
           <div><span style="font-size:13px" data-i18n="settings.refresh">Refresh</span><div style="font-size:11px;color:var(--text-4)" data-i18n="settings.pollingInterval">Polling interval</div></div>
           <div class="stepper" style="width:140px"><button onclick="adjRefresh(-1)">-</button><span id="gs-refresh-val">3s</span><button onclick="adjRefresh(1)">+</button></div>
         </div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:13px" data-i18n="globalSettings.notifications">Notifications</span>
+          <label style="position:relative;width:44px;height:24px;cursor:pointer">
+            <input type="checkbox" id="gs-notifications" onchange="gsSetNotifications(this.checked)"
+              style="opacity:0;width:0;height:0;position:absolute">
+            <span style="position:absolute;inset:0;background:var(--bg-input);border:1px solid var(--border);border-radius:12px;transition:all .2s"></span>
+            <span id="gs-notifications-knob" style="position:absolute;top:2px;left:2px;width:20px;height:20px;background:#fff;border-radius:50%;transition:all .2s"></span>
+          </label>
+        </div>
         <div style="border-top:1px solid var(--border);margin:4px 0"></div>
         <div class="settings-label" data-i18n="globalSettings.runnerConfig">Runner Config</div>
         <div>

@@ -236,9 +236,10 @@
   "popover.noProjects": "尚無專案",
   "popover.loading": "載入中…",
   "popover.offline": "伺服器無法連線",
-"notifications.runDone": "執行完成",
+  "notifications.runDone": "執行完成",
   "notifications.runFailed": "執行失敗",
   "notifications.runInterrupted": "執行中斷",
   "notifications.guardFail": "Guardrail 檢查未通過",
-  "notifications.escalation": "需要人工介入"
+  "notifications.escalation": "需要人工介入",
+  "globalSettings.notifications": "通知"
 }

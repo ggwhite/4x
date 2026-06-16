@@ -236,9 +236,10 @@
   "popover.noProjects": "프로젝트 없음",
   "popover.loading": "로딩 중…",
   "popover.offline": "서버에 연결할 수 없음",
-"notifications.runDone": "실행 완료",
+  "notifications.runDone": "실행 완료",
   "notifications.runFailed": "실행 실패",
   "notifications.runInterrupted": "실행 중단됨",
   "notifications.guardFail": "Guardrail 검사 실패",
-  "notifications.escalation": "조치가 필요함"
+  "notifications.escalation": "조치가 필요함",
+  "globalSettings.notifications": "알림"
 }

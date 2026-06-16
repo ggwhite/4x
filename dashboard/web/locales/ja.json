@@ -236,9 +236,10 @@
   "popover.noProjects": "プロジェクトなし",
   "popover.loading": "読み込み中…",
   "popover.offline": "サーバーに接続できません",
-"notifications.runDone": "実行が完了しました",
+  "notifications.runDone": "実行が完了しました",
   "notifications.runFailed": "実行が失敗しました",
   "notifications.runInterrupted": "実行が中断されました",
   "notifications.guardFail": "ガードレールチェックに失敗しました",
-  "notifications.escalation": "対応が必要です"
+  "notifications.escalation": "対応が必要です",
+  "globalSettings.notifications": "通知"
 }

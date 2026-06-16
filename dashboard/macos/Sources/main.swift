@@ -99,6 +99,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
         shortcutsItem.image = NSImage(systemSymbolName: "keyboard", accessibilityDescription: nil)
         viewMenu.addItem(shortcutsItem)
         viewMenu.addItem(.separator())
+        let devTools = NSMenuItem(title: "Developer Tools", action: #selector(openDevTools), keyEquivalent: "i")
+        devTools.keyEquivalentModifierMask = [.command, .option]
+        devTools.image = NSImage(systemSymbolName: "wrench.and.screwdriver", accessibilityDescription: nil)
+        viewMenu.addItem(devTools)
+        viewMenu.addItem(.separator())
         let fullScreen = NSMenuItem(title: "Enter Full Screen", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
         fullScreen.keyEquivalentModifierMask = [.command, .control]
         fullScreen.image = NSImage(systemSymbolName: "arrow.up.left.and.arrow.down.right", accessibilityDescription: nil)
@@ -106,6 +111,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
         let viewMenuItem = NSMenuItem()
         viewMenuItem.submenu = viewMenu
         mainMenu.addItem(viewMenuItem)
+
+        // Edit menu (Cmd+C/V/X/A for WKWebView)
+        let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "Z")
+        editMenu.addItem(.separator())
+        editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        let editMenuItem = NSMenuItem()
+        editMenuItem.submenu = editMenu
+        mainMenu.addItem(editMenuItem)
 
         // Window menu
         let windowMenu = NSMenu(title: "Window")
@@ -118,7 +136,42 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
         mainMenu.addItem(windowMenuItem)
         NSApp.windowsMenu = windowMenu
 
+        // Help menu
+        let helpMenu = NSMenu(title: "Help")
+        let docsItem = NSMenuItem(title: "Documentation", action: #selector(openDocs), keyEquivalent: "")
+        docsItem.image = NSImage(systemSymbolName: "book", accessibilityDescription: nil)
+        helpMenu.addItem(docsItem)
+        let ghItem = NSMenuItem(title: "GitHub Repository", action: #selector(openGitHub), keyEquivalent: "")
+        ghItem.image = NSImage(systemSymbolName: "link", accessibilityDescription: nil)
+        helpMenu.addItem(ghItem)
+        helpMenu.addItem(.separator())
+        let issueItem = NSMenuItem(title: "Report an Issue", action: #selector(openIssues), keyEquivalent: "")
+        issueItem.image = NSImage(systemSymbolName: "exclamationmark.bubble", accessibilityDescription: nil)
+        helpMenu.addItem(issueItem)
+        let helpMenuItem = NSMenuItem()
+        helpMenuItem.submenu = helpMenu
+        mainMenu.addItem(helpMenuItem)
+
         NSApp.mainMenu = mainMenu
+    }
+
+    @objc func openDevTools() {
+        if #available(macOS 13.3, *) {
+            webView.isInspectable = true
+            popoverWebView.isInspectable = true
+        }
+    }
+
+    @objc func openDocs() {
+        NSWorkspace.shared.open(URL(string: "https://github.com/ggwhite/4x#readme")!)
+    }
+
+    @objc func openGitHub() {
+        NSWorkspace.shared.open(URL(string: "https://github.com/ggwhite/4x")!)
+    }
+
+    @objc func openIssues() {
+        NSWorkspace.shared.open(URL(string: "https://github.com/ggwhite/4x/issues")!)
     }
 
     @objc func reloadPage() {
