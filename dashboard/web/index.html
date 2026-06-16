@@ -145,12 +145,12 @@
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between">
           <div><span style="font-size:13px" data-i18n="settings.refresh">Refresh</span><div style="font-size:11px;color:var(--text-4)" data-i18n="settings.pollingInterval">Polling interval</div></div>
-          <div class="stepper"><button onclick="adjRefresh(-1)">-</button><span id="gs-refresh-val">3s</span><button onclick="adjRefresh(1)">+</button></div>
+          <div class="stepper" style="width:140px"><button onclick="adjRefresh(-1)">-</button><span id="gs-refresh-val">3s</span><button onclick="adjRefresh(1)">+</button></div>
         </div>
         <div style="border-top:1px solid var(--border);margin:4px 0"></div>
-        <div class="settings-label">Runner Config</div>
+        <div class="settings-label" data-i18n="globalSettings.runnerConfig">Runner Config</div>
         <div>
-          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);display:block;margin-bottom:6px">Default Runner</label>
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);display:block;margin-bottom:6px" data-i18n="globalSettings.defaultRunner">Default Runner</label>
           <select id="gs-default-runner" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none;cursor:pointer"></select>
         </div>
         <div id="gs-runners-container" style="display:flex;flex-direction:column;gap:10px"></div>
@@ -176,6 +176,7 @@
 <!-- Project Settings Modal -->
 <div id="project-settings-modal" class="modal-backdrop" onclick="if(event.target===this)closeProjectSettings()">
   <div class="modal-panel fade-in" style="width:720px;max-height:85vh;overflow-y:auto">
+    <div id="ps-sticky-header" style="position:sticky;top:0;z-index:2;background:var(--bg-card);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);transition:box-shadow .2s">
     <div style="padding:20px 24px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)">
       <span style="font-size:16px;font-weight:700" data-i18n="projectSettings.title">Project Settings</span>
       <span id="ps-autosave-ind" style="font-size:11px;color:var(--accent);opacity:0;transition:opacity .3s;margin-left:4px" data-i18n="settings.saved">Saved</span>
@@ -190,6 +191,7 @@
       <input id="ps-search-input" type="text" placeholder="Search settings..." data-i18n-placeholder="projectSettings.searchPlaceholder" autocomplete="off"
         style="flex:1;background:none;border:none;outline:none;color:var(--text-1);font-size:13px;font-family:inherit"
         oninput="filterPSFields(this.value)">
+    </div>
     </div>
     <div id="ps-form" style="padding:20px 24px"></div>
     <div id="ps-json" style="padding:20px 24px;display:none">
@@ -232,7 +234,7 @@
     <div style="padding:20px 24px;display:flex;flex-direction:column;gap:16px">
       <div>
         <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);display:block;margin-bottom:6px" data-i18n="run.runner">Runner</label>
-        <select id="run-runner" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none;appearance:auto"></select>
+        <select id="run-runner" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none"></select>
       </div>
       <div>
         <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);display:block;margin-bottom:6px" data-i18n="run.maxRounds">Max Rounds</label>
@@ -267,7 +269,7 @@
       </div>
       <div>
         <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);display:block;margin-bottom:6px" data-i18n="field.priority">Priority</label>
-        <select id="new-feat-priority" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;appearance:auto">
+        <select id="new-feat-priority" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none;box-sizing:border-box">
           <option value="" data-i18n="newFeature.noPriority">No priority</option>
           <option value="0">P0 — Critical</option>
           <option value="1">P1 — High</option>

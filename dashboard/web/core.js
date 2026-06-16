@@ -101,7 +101,7 @@ const THEMES = [
   { id: 'apple-dark', name: 'Apple Dark', bg: '#0f0f0f', fg: '#e5e5e5', line: '#333' },
   { id: 'midnight',   name: 'Midnight',   bg: '#0a0e1a', fg: '#c8d6e5', line: '#1e3a5f' },
   { id: 'noir',       name: 'Noir',       bg: '#000000', fg: '#a0a0a0', line: '#222' },
-  { id: 'frost',      name: 'Frost',      bg: '#0f172a', fg: '#e2e8f0', line: '#334155' },
+  { id: 'frost',      name: 'Frost',      bg: '#1e1e20', fg: '#c8c8cd', line: '#3a3a40' },
   { id: 'light',      name: 'Light',      bg: '#f5f5f5', fg: '#18181b', line: '#ddd' },
   { id: 'paper',      name: 'Paper',      bg: '#faf8f5', fg: '#1c1917', line: '#d6cfc7' },
 ];

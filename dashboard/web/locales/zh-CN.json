@@ -224,5 +224,7 @@
   "help.terminalStates": "终态",
   "help.doneDesc": "Feature 顺利完成",
   "help.abandonedDesc": "Feature 已放弃",
-  "help.blockedDesc": "Feature 被阻塞，需要关注"
+  "help.blockedDesc": "Feature 被阻塞，需要关注",
+  "globalSettings.runnerConfig": "执行器配置",
+  "globalSettings.defaultRunner": "默认执行器"
 }

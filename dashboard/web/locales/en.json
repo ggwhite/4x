@@ -224,5 +224,7 @@
   "help.terminalStates": "Terminal States",
   "help.doneDesc": "Feature completed successfully",
   "help.abandonedDesc": "Feature was abandoned",
-  "help.blockedDesc": "Feature is blocked, needs attention"
+  "help.blockedDesc": "Feature is blocked, needs attention",
+  "globalSettings.runnerConfig": "Runner Config",
+  "globalSettings.defaultRunner": "Default Runner"
 }

@@ -77,18 +77,32 @@ async function openProjectSettings() {
     const resp = await fetch(apiBase() + '/api/settings');
     if (!resp.ok) { showToast(t('projectSettings.loadFailed').replace('{error}', await resp.text())); return; }
     _projectSettings = await resp.json();
+    if (!_supportedRunners.length) await loadSupportedRunners();
     _psActiveTab = 'form';
     renderProjectSettingsForm();
     const si = document.getElementById('ps-search-input');
     if (si) { si.value = ''; filterPSFields(''); }
     document.getElementById('ps-search-bar').style.display = '';
     document.getElementById('project-settings-modal').classList.add('open');
+    const panel = document.querySelector('#project-settings-modal .modal-panel');
+    const header = document.getElementById('ps-sticky-header');
+    if (panel && header) {
+      panel.onscroll = () => {
+        header.style.boxShadow = panel.scrollTop > 4 ? '0 2px 12px rgba(0,0,0,.5)' : '';
+      };
+    }
   } catch(err) { showToast(t('toast.connectionError').replace('{error}', err.message)); }
 }
 
 function closeProjectSettings() {
   document.getElementById('project-settings-modal').classList.remove('open');
   _projectSettings = null;
+}
+
+function validatePSJson(value) {
+  const errEl = document.getElementById('ps-json-error');
+  try { JSON.parse(value); errEl.style.display = 'none'; }
+  catch(e) { errEl.textContent = 'Invalid JSON: ' + e.message; errEl.style.display = 'block'; }
 }
 
 function switchPSTab(tab) {
@@ -123,12 +137,14 @@ function switchPSTab(tab) {
     renderProjectSettingsForm();
   } else if (tab === 'json') {
     const obj = collectFormData();
-    document.getElementById('ps-json-editor').value = JSON.stringify(obj, null, 2);
+    const editor = document.getElementById('ps-json-editor');
+    editor.value = JSON.stringify(obj, null, 2);
     document.getElementById('ps-json-error').style.display = 'none';
     formEl.style.display = 'none'; jsonEl.style.display = ''; mergedEl.style.display = 'none';
     applyStyle(tabJSON, activeStyle); applyStyle(tabForm, inactiveStyle); applyStyle(tabMerged, inactiveStyle);
     document.getElementById('ps-search-bar').style.display = 'none';
     if (saveBtn) saveBtn.style.display = '';
+    editor.oninput = function() { validatePSJson(this.value); };
   } else if (tab === 'merged') {
     formEl.style.display = 'none'; jsonEl.style.display = 'none'; mergedEl.style.display = '';
     applyStyle(tabMerged, activeStyle); applyStyle(tabForm, inactiveStyle); applyStyle(tabJSON, inactiveStyle);
@@ -191,7 +207,7 @@ function renderGlobalSettingsForm() {
   if (runnerEl) {
     const cur = _globalSettings.default_runner || '';
     runnerEl.innerHTML = _supportedRunners.map(r =>
-      `<option value="${esc(r.name)}"${r.name === cur ? ' selected' : ''}>${esc(r.name)}</option>`
+      `<option value="${esc(r.name)}"${r.name === cur ? ' selected' : ''}>${esc(cap(r.name))}</option>`
     ).join('');
   }
   renderGSRunners();
@@ -238,7 +254,7 @@ function populateAddRunnerSelect() {
   const existing = _globalSettings && _globalSettings.runners ? Object.keys(_globalSettings.runners) : [];
   const available = _supportedRunners.filter(r => !existing.includes(r.name));
   sel.innerHTML = '<option value="" disabled selected>Select runner...</option>' +
-    available.map(r => `<option value="${esc(r.name)}">${esc(r.name)}</option>`).join('');
+    available.map(r => `<option value="${esc(r.name)}">${esc(cap(r.name))}</option>`).join('');
   sel.disabled = available.length === 0;
 }
 
@@ -299,8 +315,14 @@ function switchGSTab(tab) {
   } else {
     formEl.style.display = 'none'; jsonEl.style.display = '';
     applyStyle(tabJSON, activeStyle); applyStyle(tabForm, inactiveStyle);
-    document.getElementById('gs-json-editor').value = JSON.stringify(_globalSettings || {}, null, 2);
+    const gsEditor = document.getElementById('gs-json-editor');
+    gsEditor.value = JSON.stringify(_globalSettings || {}, null, 2);
     document.getElementById('gs-json-error').style.display = 'none';
+    gsEditor.oninput = function() {
+      const errEl = document.getElementById('gs-json-error');
+      try { JSON.parse(this.value); errEl.style.display = 'none'; }
+      catch(e) { errEl.textContent = 'Invalid JSON: ' + e.message; errEl.style.display = 'block'; }
+    };
   }
 }
 
@@ -407,7 +429,7 @@ function psTagField(label, id, items) {
 function psCheckbox(label, id, checked) {
   return `<div class="ps-field-row" data-label="${escAttr(label.toLowerCase())}" data-key="${escAttr(id.toLowerCase())}" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
     <label style="font-size:13px;color:var(--text-2);min-width:160px">${label}</label>
-    <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input id="${id}" type="checkbox"${checked?' checked':''} onchange="autoSave()"></label>
+    <label class="toggle"><input id="${id}" type="checkbox"${checked?' checked':''} onchange="autoSave()"><span class="slider"></span></label>
   </div>`;
 }
 
@@ -440,7 +462,7 @@ function renderProjectSettingsForm() {
     <label style="font-size:13px;color:var(--text-2);min-width:160px">${t('projectSettings.defaultRunner')}</label>
     <select id="ps-default" onchange="autoSave()" style="flex:1;max-width:400px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none">
       <option value="">${t('projectSettings.none')}</option>
-      ${runnerNames.map(n => `<option value="${escAttr(n)}"${s.default_runner===n?' selected':''}>${esc(n)}</option>`).join('')}
+      ${_supportedRunners.map(r => `<option value="${escAttr(r.name)}"${s.default_runner===r.name?' selected':''}>${esc(cap(r.name))}</option>`).join('')}
     </select>
   </div>`;
   html += `<div class="ps-field-row" data-label="isolation" data-key="ps-isolation" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
@@ -483,8 +505,8 @@ function renderProjectSettingsForm() {
       ${psField(t('field.model'), 'ps-runner-model-'+name, rc.model)}
       ${psField(t('field.outputFormat'), 'ps-runner-output-format-'+name, rc.output_format)}
       <div style="display:flex;gap:16px;margin-bottom:6px">
-        <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:6px"><input type="checkbox" id="ps-runner-stdin-${escAttr(name)}"${rc.stdin?' checked':''} onchange="autoSave()"> stdin</label>
-        <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:6px"><input type="checkbox" id="ps-runner-tty-${escAttr(name)}"${rc.tty?' checked':''} onchange="autoSave()"> tty</label>
+        <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:8px"><label class="toggle"><input type="checkbox" id="ps-runner-stdin-${escAttr(name)}"${rc.stdin?' checked':''} onchange="autoSave()"><span class="slider"></span></label> stdin</label>
+        <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:8px"><label class="toggle"><input type="checkbox" id="ps-runner-tty-${escAttr(name)}"${rc.tty?' checked':''} onchange="autoSave()"><span class="slider"></span></label> tty</label>
       </div>
     </div>`;
   });
@@ -559,8 +581,8 @@ function addRunner() {
   ${psField(t('field.model'), 'ps-runner-model-'+name, '')}
   ${psField(t('field.outputFormat'), 'ps-runner-output-format-'+name, '')}
   <div style="display:flex;gap:16px;margin-bottom:6px">
-    <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:6px"><input type="checkbox" id="ps-runner-stdin-${escAttr(name)}" onchange="autoSave()"> stdin</label>
-    <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:6px"><input type="checkbox" id="ps-runner-tty-${escAttr(name)}" onchange="autoSave()"> tty</label>
+    <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:8px"><label class="toggle"><input type="checkbox" id="ps-runner-stdin-${escAttr(name)}" onchange="autoSave()"><span class="slider"></span></label> stdin</label>
+    <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:8px"><label class="toggle"><input type="checkbox" id="ps-runner-tty-${escAttr(name)}" onchange="autoSave()"><span class="slider"></span></label> tty</label>
   </div>`;
   wrap.appendChild(div);
   autoSave();

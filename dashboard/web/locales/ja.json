@@ -224,5 +224,7 @@
   "help.terminalStates": "終了状態",
   "help.doneDesc": "Feature が正常に完了",
   "help.abandonedDesc": "Feature が放棄された",
-  "help.blockedDesc": "Feature がブロックされている、対応が必要"
+  "help.blockedDesc": "Feature がブロックされている、対応が必要",
+  "globalSettings.runnerConfig": "ランナー設定",
+  "globalSettings.defaultRunner": "デフォルトランナー"
 }

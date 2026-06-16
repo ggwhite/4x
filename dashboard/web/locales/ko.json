@@ -224,5 +224,7 @@
   "help.terminalStates": "종료 상태",
   "help.doneDesc": "Feature가 성공적으로 완료됨",
   "help.abandonedDesc": "Feature가 포기됨",
-  "help.blockedDesc": "Feature가 차단됨, 주의 필요"
+  "help.blockedDesc": "Feature가 차단됨, 주의 필요",
+  "globalSettings.runnerConfig": "러너 설정",
+  "globalSettings.defaultRunner": "기본 러너"
 }
