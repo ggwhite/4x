@@ -72,10 +72,52 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-# 4. hdiutil 產 dmg
-echo "==> hdiutil: creating dmg"
+# 4. Ad-hoc codesign（避免 Gatekeeper 報「已損毀」）
+echo "==> codesign (ad-hoc)"
+codesign --force --deep --sign - "$APP"
+
+# 5. 產 dmg（含 Applications 捷徑 + 視窗排版）
+echo "==> creating dmg with Applications shortcut"
 DMG="$DIST/4x-Live.dmg"
-rm -f "$DMG"
-hdiutil create -volname "4x Live" -srcfolder "$APP" -ov -format UDZO "$DMG"
+DMG_TMP="$DIST/4x-Live-tmp.dmg"
+VOLUME_NAME="4x Live"
+rm -f "$DMG" "$DMG_TMP"
+
+STAGING="$BUILD/dmg-staging"
+rm -rf "$STAGING"
+mkdir -p "$STAGING"
+cp -R "$APP" "$STAGING/"
+ln -s /Applications "$STAGING/Applications"
+
+hdiutil create -volname "$VOLUME_NAME" -srcfolder "$STAGING" -ov -format UDRW "$DMG_TMP"
+
+MOUNT_DIR=$(hdiutil attach -readwrite -noverify "$DMG_TMP" | grep "/Volumes/$VOLUME_NAME" | awk '{print $NF}')
+# 等 Finder mount 完成
+sleep 1
+
+osascript <<APPLESCRIPT
+tell application "Finder"
+    tell disk "$VOLUME_NAME"
+        open
+        set current view of container window to icon view
+        set toolbar visible of container window to false
+        set statusbar visible of container window to false
+        set bounds of container window to {100, 100, 640, 440}
+        set viewOptions to the icon view options of container window
+        set arrangement of viewOptions to not arranged
+        set icon size of viewOptions to 80
+        set position of item "4x Live.app" of container window to {120, 160}
+        set position of item "Applications" of container window to {400, 160}
+        close
+        open
+        update without registering applications
+    end tell
+end tell
+APPLESCRIPT
+
+sync
+hdiutil detach "$MOUNT_DIR"
+hdiutil convert "$DMG_TMP" -format UDZO -o "$DMG"
+rm -f "$DMG_TMP"
 
 echo "==> done: $DMG"
