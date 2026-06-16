@@ -805,6 +805,14 @@ class PopoverMessageHandler: NSObject, WKScriptMessageHandler {
 }
 
 let app = NSApplication.shared
+
+let bundleID = Bundle.main.bundleIdentifier ?? "com.ggwhite.4x.live"
+let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+if running.count > 1 {
+    running.first { $0 != NSRunningApplication.current }?.activate()
+    exit(0)
+}
+
 let delegate = AppDelegate()
 app.delegate = delegate
 app.run()
