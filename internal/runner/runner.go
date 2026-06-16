@@ -67,15 +67,18 @@ func (r *SubprocessRunner) Run(ctx context.Context, prompt string) (*Result, err
 	start := time.Now()
 	usePty := protocol.BoolVal(r.Config.Tty) && logFile != nil
 
+	env := enrichedEnv()
+	command := resolveCommand(r.Config.Command, env)
+
 	var cmd *exec.Cmd
 	if usePty {
-		cmd = exec.Command(r.Config.Command, args...)
+		cmd = exec.Command(command, args...)
 	} else {
-		cmd = exec.CommandContext(ctx, r.Config.Command, args...)
+		cmd = exec.CommandContext(ctx, command, args...)
 		setupProcGroup(cmd)
 	}
 	cmd.Dir = r.Workspace.Root
-	cmd.Env = enrichedEnv()
+	cmd.Env = env
 
 	if r.Config.OutputFormat == "stream-json" && logFile != nil {
 		return r.runStreamJSON(ctx, cmd, logFile, start, prompt)
