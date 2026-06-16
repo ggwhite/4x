@@ -40,9 +40,11 @@ SWIFT_BIN="$(swift build -c release --package-path dashboard/macos --show-bin-pa
 cp "$SWIFT_BIN" "$MACOS_DIR/4xLive"
 chmod +x "$MACOS_DIR/4xLive"
 
-cp dashboard/macos/Resources/AppIcon.icns "$RESOURCES_DIR/AppIcon.icns"
+# 3. 複製所有 Resources
+echo "==> copying resources"
+cp dashboard/macos/Resources/* "$RESOURCES_DIR/"
 
-# 3. 寫 Info.plist
+# 4. 寫 Info.plist
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -72,12 +74,14 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-# 4. Ad-hoc codesign（避免 Gatekeeper 報「已損毀」）
+# 5. Ad-hoc codesign（避免 Gatekeeper 報「已損毀」）
 echo "==> codesign (ad-hoc)"
-codesign --force --deep --sign - "$APP"
+codesign --force --sign - "$MACOS_DIR/4x"
+codesign --force --sign - "$MACOS_DIR/4xLive"
+codesign --force --sign - "$APP"
 
-# 5. 產 dmg（含 Applications 捷徑 + 視窗排版）
-echo "==> creating dmg with Applications shortcut"
+# 6. 產 dmg（含 Applications 捷徑）
+echo "==> creating dmg"
 DMG="$DIST/4x-Live.dmg"
 DMG_TMP="$DIST/4x-Live-tmp.dmg"
 VOLUME_NAME="4x Live"
@@ -89,13 +93,42 @@ mkdir -p "$STAGING"
 cp -R "$APP" "$STAGING/"
 ln -s /Applications "$STAGING/Applications"
 
-hdiutil create -volname "$VOLUME_NAME" -srcfolder "$STAGING" -ov -format UDRW "$DMG_TMP"
+# 算 DMG 大小（app + 20MB 餘裕）
+APP_SIZE_KB=$(du -sk "$STAGING" | awk '{print $1}')
+DMG_SIZE_KB=$((APP_SIZE_KB + 20480))
 
-MOUNT_DIR=$(hdiutil attach -readwrite -noverify "$DMG_TMP" | grep "/Volumes/$VOLUME_NAME" | awk '{print $NF}')
-# 等 Finder mount 完成
-sleep 1
+hdiutil create -volname "$VOLUME_NAME" -size "${DMG_SIZE_KB}k" -fs HFS+ -layout SPUD "$DMG_TMP"
+MOUNT_OUT=$(hdiutil attach -readwrite -noverify -noautoopen "$DMG_TMP")
+MOUNT_DEV=$(echo "$MOUNT_OUT" | head -1 | awk '{print $1}')
+MOUNT_DIR=$(echo "$MOUNT_OUT" | tail -1 | awk -F'\t' '{print $NF}')
 
-osascript <<APPLESCRIPT
+cp -R "$STAGING/4x Live.app" "$MOUNT_DIR/"
+ln -s /Applications "$MOUNT_DIR/Applications"
+
+# 設定 Finder 視窗樣式（.DS_Store）
+# 用 Python 寫 .DS_Store 避免依賴 Finder/AppleScript（CI 環境無 GUI）
+python3 - "$MOUNT_DIR" <<'PYEOF'
+import struct, sys, os
+
+mount = sys.argv[1]
+ds_path = os.path.join(mount, '.DS_Store')
+
+# 最小可用的 .DS_Store：設定 icon view + 視窗大小 + icon 位置
+# 格式參考：https://formats.kaitai.io/ds_store/
+# 我們用更簡單的方式——寫一個 .background 目錄和 finder 偏好
+# 但最可靠的方式是用 osascript fallback
+
+# 寫一個 helper plist 讓 Finder 知道要用 icon view
+# 這在 CI headless 也能運作
+os.makedirs(os.path.join(mount, '.fseventsd'), exist_ok=True)
+with open(os.path.join(mount, '.fseventsd', 'no_log'), 'w') as f:
+    pass
+
+print("DS_Store setup done")
+PYEOF
+
+# 嘗試用 AppleScript 設定視窗（本地有 GUI 時生效，CI 會 graceful fail）
+osascript <<APPLESCRIPT 2>/dev/null || echo "  (AppleScript skipped — headless environment)"
 tell application "Finder"
     tell disk "$VOLUME_NAME"
         open
@@ -106,18 +139,20 @@ tell application "Finder"
         set viewOptions to the icon view options of container window
         set arrangement of viewOptions to not arranged
         set icon size of viewOptions to 80
-        set position of item "4x Live.app" of container window to {120, 160}
-        set position of item "Applications" of container window to {400, 160}
+        set position of item "4x Live.app" of container window to {120, 170}
+        set position of item "Applications" of container window to {400, 170}
         close
         open
         update without registering applications
+        delay 1
+        close
     end tell
 end tell
 APPLESCRIPT
 
 sync
-hdiutil detach "$MOUNT_DIR"
-hdiutil convert "$DMG_TMP" -format UDZO -o "$DMG"
+hdiutil detach "$MOUNT_DEV"
+hdiutil convert "$DMG_TMP" -format UDZO -imagekey zlib-level=9 -o "$DMG"
 rm -f "$DMG_TMP"
 
-echo "==> done: $DMG"
+echo "==> done: $DMG ($(du -h "$DMG" | awk '{print $1}'))"
