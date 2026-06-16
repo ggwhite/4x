@@ -1,0 +1,41 @@
+id: F076-system-notifications
+name: 'F076: System notifications on job completion'
+description: |-
+    現狀：4x run 結束（成功/失敗/中斷）時沒有任何通知，使用者必須盯著 dashboard 或 terminal 看結果。長時間跑的 feature 結束後使用者不知道。
+
+    需求：
+    - Server 端：在 run-end、guard-fail、escalation 等事件上標注 notify 欄位（success/error/warning），讓前端統一判斷
+    - Event struct 新增 `Notify string json:"notify,omitempty"` 欄位
+    - Web dashboard：用 Browser Notification API 在背景 tab 也能推送 OS 通知，需 requestPermission 流程
+    - macOS native app：透過 WKScriptMessageHandler bridge 呼叫 UNUserNotificationCenter 顯示原生通知（WKWebView 不支援 Web Notification API）
+    - Tauri app (Windows/Linux)：加 tauri-plugin-notification，透過 Rust command bridge 從 webview 觸發原生通知
+    - CLI：4x run 結束時呼叫 OS 原生通知命令（osascript/notify-send/PowerShell），零新依賴直接 shell out
+    - 使用者設定：三層開關，優先序高→低：CLI --no-notify flag → project settings (.4x/settings.json notifications) → global user config (~/.4x/settings.json notifications)，預設 true；遵循現有 config merge 機制（LoadMergedConfig）
+
+    約束：
+    - 不引入新 Go 依賴，CLI 通知用 os/exec shell out
+    - Event struct 改動向下相容（omitempty）
+    - Web Notification 需優雅降級（瀏覽器不支援或使用者拒絕時靜默略過）
+    - macOS app 需在 applicationDidFinishLaunching 請求通知授權
+    - 通知內容包含 feature ID + 結果摘要，不超過兩行
+status: not-started
+priority: 2
+subtasks:
+    - id: event-notify-field
+      name: Event struct 加 Notify 欄位，server 端在 run-end/guard-fail/escalation 標注
+      status: ""
+    - id: web-notification
+      name: Dashboard JS 實作 Browser Notification API（requestPermission + SSE 攔截）
+      status: ""
+    - id: macos-native-notify
+      name: macOS Swift app 加 UNUserNotificationCenter + WKScriptMessageHandler bridge
+      status: ""
+    - id: tauri-notification
+      name: Tauri app 加 tauri-plugin-notification + Rust command bridge
+      status: ""
+    - id: cli-notify
+      name: 4x run 結束時 shell out OS 通知（osascript/notify-send/PowerShell）
+      status: ""
+    - id: user-config
+      name: global user config + project settings 加 notifications 開關 + CLI --no-notify flag
+      status: ""
