@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.3] - 2026-06-16
+
+### Fixes
+
+- **Version display** — fix `vv0.1.2` double-v prefix and false "update available" prompt when already on latest version
+- **Runner PATH enrichment** — GUI app launches now enrich PATH with common tool locations (homebrew, cargo, local/bin, snap, nvm, fnm) on macOS, Windows, and Linux, so runners like `claude` are found without full-path config
+
+### CI
+
+- **Faster builds** — use `cargo-binstall` for tauri-cli instead of compiling from source (~10s vs ~8min)
+- **Node.js 22** — upgrade all GitHub Actions to Node.js 22 versions, fixing deprecation warnings
+
 ## [0.1.2] - 2026-06-16
 
 ### macOS App
