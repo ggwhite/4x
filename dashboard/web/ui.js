@@ -1168,8 +1168,9 @@ function openNewFeature() {
 function closeNewFeature() { document.getElementById('new-feature-modal').classList.remove('open'); }
 function toggleAdvanced() {
   const el = document.getElementById('new-feat-advanced');
-  el.hidden = !el.hidden;
-  document.getElementById('new-feat-adv-arrow').textContent = el.hidden ? '▶' : '▼';
+  const isHidden = el.style.display === 'none';
+  el.style.display = isHidden ? 'flex' : 'none';
+  document.getElementById('new-feat-adv-arrow').textContent = isHidden ? '▼' : '▶';
 }
 function addSubtaskRow() {
   const list = document.getElementById('new-feat-subtasks-list');

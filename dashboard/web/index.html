@@ -281,7 +281,7 @@
         <button type="button" onclick="toggleAdvanced()" id="new-feat-adv-btn" style="background:none;border:none;color:var(--text-3);font-size:12px;cursor:pointer;padding:0;font-family:inherit">
           <span id="new-feat-adv-arrow">▶</span> <span data-i18n="newFeature.advanced">Advanced</span>
         </button>
-        <div id="new-feat-advanced" hidden style="margin-top:12px;display:flex;flex-direction:column;gap:12px">
+        <div id="new-feat-advanced" style="margin-top:12px;flex-direction:column;gap:12px;display:none">
           <div>
             <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);display:block;margin-bottom:6px" data-i18n="newFeature.customId">Custom ID</label>
             <input id="new-feat-custom-id" type="text" placeholder="Leave empty for auto-generated" data-i18n-placeholder="newFeature.customIdPlaceholder" autocomplete="off" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none;box-sizing:border-box">
@@ -300,12 +300,6 @@
             <button type="button" onclick="addSubtaskRow()" style="background:none;border:1px dashed var(--border);border-radius:6px;padding:6px 12px;color:var(--text-3);font-size:12px;cursor:pointer;width:100%;margin-top:4px" data-i18n="newFeature.addSubtask">+ Add Subtask</button>
           </div>
         </div>
-      </div>
-      <div style="padding:10px 12px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:8px;font-size:11px;color:#fde68a;line-height:1.6">
-        <strong style="display:block;margin-bottom:4px" data-i18n="newFeature.specHintTitle">Want a full spec &amp; plan?</strong>
-        <span data-i18n="newFeature.specHintBody">Run brainstorming in your AI coding agent first:</span><br>
-        <code style="background:rgba(0,0,0,.3);padding:2px 6px;border-radius:4px;font-size:11px">Tell your agent: "brainstorm feature: &lt;name&gt;"</code><br>
-        <span data-i18n="newFeature.specHintResult">This generates docs/design/{id}-spec.md and {id}-plan.md, which the Designer role reads for deeper analysis.</span>
       </div>
     </div>
     <div style="padding:12px 24px 20px;display:flex;justify-content:flex-end;gap:8px">
