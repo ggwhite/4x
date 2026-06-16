@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.6] - 2026-06-16
+
+### Fixes
+
+- **Remove home directory restriction** — browse and project add APIs no longer block paths outside home directory; Windows users can open projects on D:\, E:\ etc. and paths with unicode characters (e.g. Chinese usernames)
+- **Windows drive listing** — browsing root now lists available drive letters (C:\, D:\, etc.)
+- **Windows tray icon** — single click no longer flashes window (filter to mouse-up only)
+- **Single instance guard** — macOS and Windows/Linux apps prevent duplicate launches
+
+### Features
+
+- **Native folder picker** — Browse button opens system folder picker on macOS (NSOpenPanel) and Windows/Linux (Tauri dialog plugin) instead of built-in browser
+- **Tauri dialog plugin** — added for Windows/Linux native file dialogs
+
 ## [0.1.5] - 2026-06-16
 
 ### Fixes
