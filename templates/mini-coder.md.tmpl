@@ -79,9 +79,14 @@ After fixing, you MUST run the project verify commands to confirm you did not br
 {{- end}}
 {{- end}}
 
+== Commit Policy ==
+Commit after each issue fix — one commit per issue, with a message referencing the issue.
+Good: "fix: guard nil dereference in processDeposit (deep-review #3)"
+This protects progress if the session is interrupted mid-fix.
+
 == Workflow ==
 1. Read deep-review-report.md, extract the `## Issues` list.
-2. For each issue, read the referenced source file, make the smallest correct fix.
+2. For each issue, read the referenced source file, make the smallest correct fix, then commit.
 3. Run the verify commands above. If any fail, fix until they pass.
 4. Update coder-report.md describing what you changed and why.
 

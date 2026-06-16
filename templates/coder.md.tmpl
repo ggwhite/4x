@@ -74,11 +74,23 @@ Read the previous test report: {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{(sub .
 {{- end}}
 {{- end}}
 
+== Commit Policy ==
+Commit after every meaningful unit of work — a function implemented, a bug fixed, a test added.
+Each commit message should describe WHAT was done and WHY, not just "wip" or "changes".
+Good: "feat: add input validation for player deposit amount"
+Bad:  "wip", "fix", "changes", "update code"
+
+This protects progress if the session is interrupted. On resume, git log tells the next coder
+exactly what was already done, so nothing needs to be re-discovered or re-implemented.
+
 == Workflow ==
 1. Read task-brief.md
-2. Implement changes
-3. Run verify commands
-4. Write coder-report.md with: changed files, build/test results, summary
+{{- if gt .Round 1}}
+2. Run: git log --oneline -20 — see what was already committed for this feature
+{{- end}}
+3. Implement changes — commit after each meaningful step (see Commit Policy above)
+4. Run verify commands
+5. Write coder-report.md with: changed files, build/test results, summary
 
 == coder-report.md format ==
 # Coder Report — Round {{.Round}}
