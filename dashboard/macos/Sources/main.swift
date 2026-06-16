@@ -310,14 +310,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
                   let httpResp = response as? HTTPURLResponse,
                   httpResp.statusCode == 200,
                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let version = json["version"] as? String,
-                  let latest = json["latest"] as? String,
-                  let updateAvailable = json["updateAvailable"] as? Bool,
-                  let releaseUrl = json["releaseUrl"] as? String
+                  let version = json["version"] as? String
             else {
-                completion(.failure(NSError(domain: "4xLive", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response"])))
+                let detail = (response as? HTTPURLResponse).map { "HTTP \($0.statusCode)" } ?? "no response"
+                completion(.failure(NSError(domain: "4xLive", code: -1, userInfo: [NSLocalizedDescriptionKey: detail])))
                 return
             }
+            let latest = json["latest"] as? String ?? ""
+            let updateAvailable = json["updateAvailable"] as? Bool ?? false
+            let releaseUrl = json["releaseUrl"] as? String ?? ""
             completion(.success(VersionInfo(version: version, latest: latest, updateAvailable: updateAvailable, releaseUrl: releaseUrl)))
         }.resume()
     }

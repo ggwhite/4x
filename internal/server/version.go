@@ -35,9 +35,9 @@ type githubRelease struct {
 // versionResponse 是 /api/version 的 JSON 回應結構。
 type versionResponse struct {
 	Version         string `json:"version"`
-	Latest          string `json:"latest,omitempty"`
-	UpdateAvailable bool   `json:"updateAvailable,omitempty"`
-	ReleaseURL      string `json:"releaseUrl,omitempty"`
+	Latest          string `json:"latest"`
+	UpdateAvailable bool   `json:"updateAvailable"`
+	ReleaseURL      string `json:"releaseUrl"`
 }
 
 // handleVersion 回傳目前版本資訊；帶 ?check=true 時另外查詢 GitHub 最新 release。
