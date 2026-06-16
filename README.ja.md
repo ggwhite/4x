@@ -12,6 +12,10 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/ggwhite/4x/actions/workflows/ci.yml/badge.svg)](https://github.com/ggwhite/4x/actions/workflows/ci.yml)
 
+<p align="center">
+  <img src="docs/assets/demo.gif" alt="4x demo" width="720">
+</p>
+
 **4x は、ソフトウェア開発ループを4つの専門フェーズに分割するマルチロール AI 開発フレームワークです** -- Design（設計）、Code（実装）、Review（レビュー）、Test（テスト） -- それぞれ専用の AI エージェントが担当します。4X ストラテジーゲーム（eXplore, eXpand, eXploit, eXterminate）のように、異なる強みを持つ異なる役割が連携して複雑さを克服するシステムを表しています。
 
 ---

@@ -12,6 +12,10 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/ggwhite/4x/actions/workflows/ci.yml/badge.svg)](https://github.com/ggwhite/4x/actions/workflows/ci.yml)
 
+<p align="center">
+  <img src="docs/assets/demo.gif" alt="4x demo" width="720">
+</p>
+
 **4x es un framework de desarrollo con IA multi-rol que divide el ciclo de ingeniería de software en cuatro fases especializadas** — Design, Code, Review, Test — cada una impulsada por un agente de IA dedicado. Al igual que los juegos de estrategia 4X (eXplore, eXpand, eXploit, eXterminate), el nombre refleja un sistema donde roles distintos con fortalezas distintas convergen para conquistar la complejidad.
 
 ---

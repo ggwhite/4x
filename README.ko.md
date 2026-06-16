@@ -12,6 +12,10 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/ggwhite/4x/actions/workflows/ci.yml/badge.svg)](https://github.com/ggwhite/4x/actions/workflows/ci.yml)
 
+<p align="center">
+  <img src="docs/assets/demo.gif" alt="4x demo" width="720">
+</p>
+
 **4x는 소프트웨어 엔지니어링 루프를 네 가지 전문 단계로 나누는 다중 역할 AI 개발 프레임워크입니다** — Design, Code, Review, Test — 각 단계는 전담 AI 에이전트가 수행합니다. 4X 전략 게임(eXplore, eXpand, eXploit, eXterminate)처럼, 이름은 고유한 강점을 가진 역할들이 복잡성을 정복하기 위해 협력하는 시스템을 나타냅니다.
 
 ---

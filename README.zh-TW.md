@@ -12,6 +12,10 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/ggwhite/4x/actions/workflows/ci.yml/badge.svg)](https://github.com/ggwhite/4x/actions/workflows/ci.yml)
 
+<p align="center">
+  <img src="docs/assets/demo.gif" alt="4x demo" width="720">
+</p>
+
 **4x 是一個多角色 AI 開發框架，將軟體工程迴圈拆分為四個專業階段** — Design（設計）、Code（實作）、Review（審查）、Test（測試） — 每個階段由專屬的 AI agent 驅動。如同 4X 策略遊戲（eXplore、eXpand、eXploit、eXterminate），這個名字反映了一個由不同角色、各具優勢，合力征服複雜度的系統。
 
 ---
