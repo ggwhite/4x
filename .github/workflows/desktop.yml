@@ -116,7 +116,7 @@ jobs:
           workspaces: dashboard/tauri/src-tauri
 
       - name: Install Tauri CLI
-        run: cargo install tauri-cli --version "^2"
+        run: cargo install cargo-binstall --locked && cargo binstall tauri-cli --version "^2" -y
 
       - name: Tauri build (nsis)
         working-directory: dashboard/tauri
@@ -160,7 +160,7 @@ jobs:
           workspaces: dashboard/tauri/src-tauri
 
       - name: Install Tauri CLI
-        run: cargo install tauri-cli --version "^2"
+        run: cargo install cargo-binstall --locked && cargo binstall tauri-cli --version "^2" -y
 
       - name: Tauri build (appimage)
         working-directory: dashboard/tauri
