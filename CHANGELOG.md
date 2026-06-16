@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.5] - 2026-06-16
+
+### Fixes
+
+- **Scope guard false positive** — `.4x/` protocol directory was incorrectly flagged as a scope violation during runs, since it's always modified (state, logs) but is not a source repo
+- **Error visibility** — runner errors and stop reasons now display as a banner in the feature detail header, not just in the sidebar
+- **Advanced options toggle** — new feature modal's advanced section was always visible due to `hidden` attr conflicting with inline `display:flex`; switched to proper display toggle
+- **Spec hint removed** — removed the brainstorming hint from new feature modal
+
 ## [0.1.4] - 2026-06-16
 
 ### Fixes
