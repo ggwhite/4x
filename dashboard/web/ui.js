@@ -89,7 +89,9 @@ async function browseTo(dir) {
     const data = await resp.json();
     pathEl.textContent = data.current;
     document.getElementById('path-input').value = data.current;
-    const parent = data.current.split('/').slice(0, -1).join('/') || '/';
+    const sep = data.current.includes('\\') ? '\\' : '/';
+    const parts = data.current.split(sep).filter(Boolean);
+    const parent = parts.length > 1 ? (sep === '\\' ? parts.slice(0, -1).join(sep) : '/' + parts.slice(0, -1).join(sep)) : (sep === '\\' ? parts[0] + sep : '/');
     let html = '';
     if (data.is4x) {
       html += `<div style="padding:10px 24px;background:rgba(16,185,129,.1);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -290,7 +291,7 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 		inner.ServeHTTP(w, r.WithContext(withResolvedProject(r.Context(), entry)))
 	})
 
-	// Browse API：列出指定路徑的子目錄，供前端 folder picker 使用（限制在 home 目錄下）
+	// Browse API：列出指定路徑的子目錄，供前端 folder picker 使用
 	mux.HandleFunc("/api/browse", func(w http.ResponseWriter, r *http.Request) {
 		dir := r.URL.Query().Get("path")
 		home, _ := os.UserHomeDir()
@@ -311,11 +312,25 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 		}
 		resolved, err := filepath.EvalSymlinks(absDir)
 		if err != nil {
-			http.Error(w, "invalid path", http.StatusBadRequest)
-			return
+			resolved = absDir
 		}
-		if !strings.HasPrefix(resolved, home) {
-			http.Error(w, "path must be under home directory", http.StatusForbidden)
+
+		type dirEntry struct {
+			Name string `json:"name"`
+			Path string `json:"path"`
+			Is4x bool   `json:"is4x"`
+		}
+		var dirs []dirEntry
+
+		if runtime.GOOS == "windows" && (resolved == "/" || resolved == "\\") {
+			for _, letter := range "CDEFGHIJKLMNOPQRSTUVWXYZ" {
+				drive := string(letter) + ":\\"
+				if _, err := os.Stat(drive); err == nil {
+					dirs = append(dirs, dirEntry{Name: drive, Path: drive})
+				}
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{"current": resolved, "is4x": false, "dirs": dirs})
 			return
 		}
 
@@ -325,12 +340,6 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 			return
 		}
 
-		type dirEntry struct {
-			Name string `json:"name"`
-			Path string `json:"path"`
-			Is4x bool   `json:"is4x"`
-		}
-		var dirs []dirEntry
 		for _, e := range entries {
 			if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
 				continue
