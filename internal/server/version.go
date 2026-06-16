@@ -42,14 +42,15 @@ type versionResponse struct {
 
 // handleVersion 回傳目前版本資訊；帶 ?check=true 時另外查詢 GitHub 最新 release。
 func handleVersion(w http.ResponseWriter, r *http.Request) {
-	resp := versionResponse{Version: Version}
+	normalizedVersion := strings.TrimPrefix(Version, "v")
+	resp := versionResponse{Version: normalizedVersion}
 
 	if r.URL.Query().Get("check") == "true" {
 		latest, releaseURL, ok := fetchLatestRelease()
 		if ok {
 			resp.Latest = latest
 			resp.ReleaseURL = releaseURL
-			resp.UpdateAvailable = latest != Version
+			resp.UpdateAvailable = latest != normalizedVersion
 		}
 	}
 
