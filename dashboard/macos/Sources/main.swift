@@ -666,6 +666,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
             return
         }
 
+        serverPort = findAvailablePort(from: serverPort)
+
         let proc = Process()
         proc.executableURL = binary
         proc.arguments = ["live", "--port=\(serverPort)"]
@@ -675,6 +677,29 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
         } catch {
             NSLog("failed to launch embedded 4x server: \(error)")
         }
+    }
+
+    private func findAvailablePort(from preferred: Int) -> Int {
+        for port in preferred..<(preferred + 100) {
+            let sock = socket(AF_INET, SOCK_STREAM, 0)
+            guard sock >= 0 else { continue }
+            defer { close(sock) }
+
+            var addr = sockaddr_in()
+            addr.sin_family = sa_family_t(AF_INET)
+            addr.sin_port = in_port_t(port).bigEndian
+            addr.sin_addr.s_addr = inet_addr("127.0.0.1")
+
+            let result = withUnsafePointer(to: &addr) { ptr in
+                ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in
+                    Darwin.bind(sock, sockPtr, socklen_t(MemoryLayout<sockaddr_in>.size))
+                }
+            }
+            if result == 0 {
+                return port
+            }
+        }
+        return preferred
     }
 
     func parseArgs() {
