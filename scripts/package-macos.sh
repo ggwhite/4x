@@ -74,11 +74,12 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-# 5. Ad-hoc codesign（避免 Gatekeeper 報「已損毀」）
-echo "==> codesign (ad-hoc)"
-codesign --force --sign - "$MACOS_DIR/4x"
-codesign --force --sign - "$MACOS_DIR/4xLive"
-codesign --force --sign - "$APP"
+# 5. Ad-hoc codesign with hardened runtime（抑制 WKWebView 觸發的 Apple Music / 照片 等無關權限對話框）
+echo "==> codesign (ad-hoc + hardened runtime)"
+ENTITLEMENTS="$ROOT/dashboard/macos/4xLive.entitlements"
+codesign --force --sign - --options runtime "$MACOS_DIR/4x"
+codesign --force --sign - --options runtime --entitlements "$ENTITLEMENTS" "$MACOS_DIR/4xLive"
+codesign --force --sign - --options runtime --entitlements "$ENTITLEMENTS" "$APP"
 
 # 6. 產 dmg（含 Applications 捷徑）
 echo "==> creating dmg"
