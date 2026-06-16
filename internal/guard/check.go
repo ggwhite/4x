@@ -170,7 +170,12 @@ func checkTestingToAccepting(ws *protocol.Workspace, featureID string, round int
 	data, err := os.ReadFile(verifyPath)
 	if err != nil {
 		r.Pass = false
-		r.Errors = append(r.Errors, fmt.Sprintf("cannot read %s: %v", protocol.VerifyFile, err))
+		if os.IsNotExist(err) {
+			r.Errors = append(r.Errors, fmt.Sprintf(
+				"%s not found — the tester likely could not run `4x verify` (check that 4x is in PATH)", protocol.VerifyFile))
+		} else {
+			r.Errors = append(r.Errors, fmt.Sprintf("cannot read %s: %v", protocol.VerifyFile, err))
+		}
 		return
 	}
 	var evidence protocol.VerifyEvidence

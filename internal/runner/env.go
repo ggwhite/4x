@@ -44,6 +44,10 @@ func enrichedEnv() []string {
 	pathSep := ":"
 	pathKey := "PATH="
 
+	if exe, err := os.Executable(); err == nil {
+		extraPaths = append(extraPaths, filepath.Dir(exe))
+	}
+
 	switch runtime.GOOS {
 	case "darwin":
 		home := os.Getenv("HOME")
