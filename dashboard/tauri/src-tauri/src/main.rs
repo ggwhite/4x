@@ -141,7 +141,10 @@ fn main() {
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
-                    if let tauri::tray::TrayIconEvent::Click { .. } = event {
+                    if let tauri::tray::TrayIconEvent::Click { button_state, .. } = event {
+                        if button_state != tauri::tray::MouseButtonState::Up {
+                            return;
+                        }
                         if let Some(w) = tray.app_handle().get_webview_window("main") {
                             if w.is_visible().unwrap_or(false) {
                                 let _ = w.hide();
