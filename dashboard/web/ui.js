@@ -15,7 +15,7 @@ function renderVersionInfo(info) {
   }
   el.innerHTML = html;
 }
-function switchTab(pid) { activeProjectId=pid; current=null; lastMsgCount=0; disconnectSSE(); saveTabState(); renderTabs(); goHome(); }
+function switchTab(pid) { activeProjectId=pid; current=null; renderedMsgKeys.clear(); disconnectSSE(); saveTabState(); renderTabs(); goHome(); }
 function closeTab(pid) {
   openTabs = openTabs.filter(tb => tb.id !== pid);
   if (activeProjectId === pid) { activeProjectId = openTabs.length > 0 ? openTabs[0].id : null; current = null; disconnectSSE(); }
@@ -55,7 +55,7 @@ function renderRecentList() {
 }
 function openExistingProject(id) { const p = projects.find(x => x.id === id); if (p) { closeProjectPicker(); addTab(p); } }
 async function addProjectFromInput(forceInit) {
-  const input = document.getElementById('path-input'), errorEl = document.getElementById('path-error'), path = input.value.trim();
+  const input = document.getElementById('path-input'), errorEl = document.getElementById('path-error'), path = input.value.trim().replace(/^["']|["']$/g, '');
   if (!path) return;
   try {
     const body = forceInit ? { path, init: true } : { path };
@@ -98,7 +98,13 @@ async function browseTo(dir) {
     document.getElementById('path-input').value = data.current;
     const sep = data.current.includes('\\') ? '\\' : '/';
     const parts = data.current.split(sep).filter(Boolean);
-    const parent = parts.length > 1 ? (sep === '\\' ? parts.slice(0, -1).join(sep) : '/' + parts.slice(0, -1).join(sep)) : (sep === '\\' ? parts[0] + sep : '/');
+    let parent;
+    if (parts.length > 1) {
+      const up = parts.slice(0, -1).join(sep);
+      parent = sep === '\\' ? (up.endsWith(':') ? up + sep : up) : '/' + up;
+    } else {
+      parent = sep === '\\' ? parts[0] + sep : '/';
+    }
     let html = '';
     if (data.is4x) {
       html += `<div style="padding:10px 24px;background:rgba(16,185,129,.1);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
@@ -325,7 +331,7 @@ async function markDone(fid) {
   });
 }
 function goHome() {
-  current=null; lastMsgCount=0; disconnectSSE(); disconnectLogSSE(); stopLogsRefresh();
+  current=null; renderedMsgKeys.clear(); disconnectSSE(); disconnectLogSSE(); stopLogsRefresh();
   if (_logDurTimer) { clearInterval(_logDurTimer); _logDurTimer = null; }
   document.getElementById('header').classList.add('hidden');
   document.getElementById('overview-panel').classList.add('hidden');
@@ -778,7 +784,7 @@ async function load() {
 async function loadDetail(task) {
   document.getElementById('dashboard').classList.add('hidden');
   document.getElementById('header').classList.remove('hidden');
-  document.getElementById('messages').innerHTML = ''; lastMsgCount = 0; currentLogFile = null; multiLogActive = false; multiLogBuffers = {};
+  document.getElementById('messages').innerHTML = ''; renderedMsgKeys.clear(); currentLogFile = null; multiLogActive = false; multiLogBuffers = {};
   document.getElementById('h-id').textContent = task.id;
   document.getElementById('h-name').textContent = task.name;
   document.getElementById('h-badge').innerHTML = badge(task.status, task.phase, task.active);
@@ -874,14 +880,20 @@ async function loadMessages(id) {
   if (activeDetailTab === 'messages') el.classList.remove('hidden');
   const msgs = await (await fetch(apiBase()+'/api/messages/'+id)).json();
   const list = msgs || [];
-  if (list.length === lastMsgCount) return;
-  if (list.length < lastMsgCount) { el.innerHTML = ''; lastMsgCount = 0; }
+  if (list.length === 0) {
+    el.innerHTML = `<div class="msg-empty text-zinc-600 text-sm mt-8 text-center">${t('app.noArtifacts')}</div>`;
+    return;
+  }
   const empty = el.querySelector('.msg-empty'); if (empty) empty.remove();
-  const newMsgs = list.slice(lastMsgCount);
-  newMsgs.forEach(m => el.appendChild(renderMsgCard(m)));
-  lastMsgCount = list.length;
-  if (list.length === 0) el.innerHTML = `<div class="msg-empty text-zinc-600 text-sm mt-8 text-center">${t('app.noArtifacts')}</div>`;
-  if (newMsgs.length > 0) el.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  let added = false;
+  list.forEach(m => {
+    const key = m.file || m.label;
+    if (renderedMsgKeys.has(key)) return;
+    renderedMsgKeys.add(key);
+    el.appendChild(renderMsgCard(m));
+    added = true;
+  });
+  if (added) el.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'end' });
 }
 
 const overviewCache = {};

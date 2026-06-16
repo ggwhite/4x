@@ -184,6 +184,7 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 				http.Error(w, "invalid JSON", http.StatusBadRequest)
 				return
 			}
+			body.Path = cleanInputPath(body.Path)
 			absPath, _ := filepath.Abs(body.Path)
 			ws, err := protocol.Find(body.Path)
 			if err != nil || ws.Root != absPath {
@@ -284,7 +285,7 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 
 	// Browse API：列出指定路徑的子目錄，供前端 folder picker 使用
 	mux.HandleFunc("/api/browse", func(w http.ResponseWriter, r *http.Request) {
-		dir := r.URL.Query().Get("path")
+		dir := cleanInputPath(r.URL.Query().Get("path"))
 		home, _ := os.UserHomeDir()
 		if dir == "" || dir == "~" {
 			if gh := filepath.Join(home, "github"); dirExists(gh) {
@@ -381,6 +382,16 @@ func is4xProject(dir string) bool {
 func dirExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.IsDir()
+}
+
+// cleanInputPath 去除使用者輸入常見的多餘字元（引號），
+// 並修正 Windows 上單獨碟符（如 "C:"）缺少反斜線的問題。
+func cleanInputPath(p string) string {
+	p = strings.Trim(p, "\"'")
+	if runtime.GOOS == "windows" && len(p) == 2 && p[1] == ':' {
+		p += "\\"
+	}
+	return p
 }
 
 func newProcessManagerFromConfig(ws *protocol.Workspace) *ProcessManager {
