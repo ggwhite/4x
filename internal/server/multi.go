@@ -185,15 +185,6 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 				return
 			}
 			absPath, _ := filepath.Abs(body.Path)
-			home, _ := os.UserHomeDir()
-			if absPath == home {
-				http.Error(w, "cannot use home directory as a project", http.StatusBadRequest)
-				return
-			}
-			if !strings.HasPrefix(absPath, home+string(os.PathSeparator)) {
-				http.Error(w, "path must be under home directory", http.StatusForbidden)
-				return
-			}
 			ws, err := protocol.Find(body.Path)
 			if err != nil || ws.Root != absPath {
 				if !body.Init {

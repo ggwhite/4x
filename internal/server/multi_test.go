@@ -139,16 +139,16 @@ func TestMultiMux_PostProject(t *testing.T) {
 	}
 }
 
-func TestMultiMux_PostProject_OutsideHome(t *testing.T) {
+func TestMultiMux_PostProject_NonFourX(t *testing.T) {
 	reg := NewProjectRegistry()
 	recentPath := t.TempDir() + "/recent.json"
 
-	outsideRoot := t.TempDir()
-	body := `{"path":"` + outsideRoot + `"}`
+	nonProject := t.TempDir()
+	body := `{"path":"` + nonProject + `"}`
 	rec := serveRequest(t, NewMultiMux(reg, recentPath), http.MethodPost, "/api/projects", body)
 
-	if rec.Code != 403 {
-		t.Fatalf("status = %d, want 403", rec.Code)
+	if rec.Code != 409 {
+		t.Fatalf("status = %d, want 409 (not a 4x project)", rec.Code)
 	}
 }
 
