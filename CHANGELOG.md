@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **Windows drive listing** — browsing root now lists available drive letters (C:\, D:\, etc.)
 - **Windows tray icon** — single click no longer flashes window (filter to mouse-up only)
 - **Single instance guard** — macOS and Windows/Linux apps prevent duplicate launches
+- **macOS port conflict** — app now detects if port 4567 is occupied and finds an available port before launching the embedded server, preventing connection to a stale dev instance (showing wrong version/data)
 
 ### Features
 
