@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -60,7 +61,17 @@ With paths, opens each as a project tab.`,
 				}
 			}
 
-			url := fmt.Sprintf("http://localhost:%d", port)
+			ln, err := server.ListenForMulti(port)
+			if err != nil && port != 0 {
+				slog.Warn("port unavailable, picking a free port", "port", port, "error", err)
+				ln, err = server.ListenForMulti(0)
+			}
+			if err != nil {
+				return err
+			}
+			actualPort := ln.Addr().(*net.TCPAddr).Port
+
+			url := fmt.Sprintf("http://localhost:%d", actualPort)
 			projects := reg.List()
 			fmt.Printf("4x Live — %s\n", url)
 			if len(projects) > 0 {
@@ -76,19 +87,20 @@ With paths, opens each as a project tab.`,
 				openBrowser(url)
 			}
 			if appFlag {
-				launchNativeApp(port)
+				launchNativeApp(actualPort)
 			}
 
 			signal.Ignore(syscall.SIGPIPE)
 			ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 			defer stop()
-			slog.Info("server started", "port", port, "pid", os.Getpid())
+			slog.Info("server started", "port", actualPort, "pid", os.Getpid())
 			fmt.Printf("  pid: %d\n", os.Getpid())
-			return server.StartMulti(ctx, reg, port, recentPath)
+			_, srvErr := server.ServeMulti(ctx, reg, ln, recentPath)
+			return srvErr
 		},
 	}
 
-	cmd.Flags().IntVarP(&port, "port", "p", 4567, "dashboard port")
+	cmd.Flags().IntVarP(&port, "port", "p", 4567, "dashboard port (0 = auto)")
 	cmd.Flags().BoolVarP(&webFlag, "web", "w", false, "open browser after start")
 	cmd.Flags().BoolVarP(&appFlag, "app", "a", false, "launch native app after start")
 	return cmd

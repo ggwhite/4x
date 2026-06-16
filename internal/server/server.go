@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -351,10 +352,31 @@ func Start(ws *protocol.CachedWorkspace, pm *ProcessManager, port int) error {
 	return http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", port), logging.Middleware(NewMux(singleResolver(ws, pm))))
 }
 
-// StartMulti 啟動多專案 dashboard server，ctx 取消時 graceful shutdown
+// StartMulti 啟動多專案 dashboard server，ctx 取消時 graceful shutdown。
 func StartMulti(ctx context.Context, reg *ProjectRegistry, port int, recentPath string) error {
+	_, err := StartMultiOnListener(ctx, reg, port, recentPath)
+	return err
+}
+
+// ListenForMulti 在指定 port 建立 TCP listener，port 為 0 時由 OS 自動分配可用 port。
+func ListenForMulti(port int) (net.Listener, error) {
+	return net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+}
+
+// StartMultiOnListener 在已建立的 listener 上啟動 server（由 ListenForMulti 取得）。
+// 回傳實際使用的 port。若傳入 port 而非 listener，使用 StartMulti。
+func StartMultiOnListener(ctx context.Context, reg *ProjectRegistry, port int, recentPath string) (int, error) {
+	ln, err := ListenForMulti(port)
+	if err != nil {
+		return 0, err
+	}
+	return ServeMulti(ctx, reg, ln, recentPath)
+}
+
+// ServeMulti 在已建立的 listener 上啟動 dashboard server。
+func ServeMulti(ctx context.Context, reg *ProjectRegistry, ln net.Listener, recentPath string) (int, error) {
+	actualPort := ln.Addr().(*net.TCPAddr).Port
 	srv := &http.Server{
-		Addr:    fmt.Sprintf("127.0.0.1:%d", port),
 		Handler: NewMultiMux(reg, recentPath),
 	}
 	go func() {
@@ -362,11 +384,11 @@ func StartMulti(ctx context.Context, reg *ProjectRegistry, port int, recentPath 
 		reg.ShutdownAll()
 		srv.Close()
 	}()
-	err := srv.ListenAndServe()
+	err := srv.Serve(ln)
 	if err == http.ErrServerClosed {
-		return nil
+		return actualPort, nil
 	}
-	return err
+	return actualPort, err
 }
 
 type taskInfo struct {
