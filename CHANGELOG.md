@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.2] - 2026-06-16
+
+### macOS App
+
+- **About window** — custom About panel with app icon, version, description, and GitHub link
+- **Menu bar popover redesign** — accurate per-project stats, multi-project layout with highlight tasks, dynamic height, SVG action icons
+- **Icon resolution fix** — walk up directory tree to find Resources in both dev and release builds
+- **DMG drag-to-install** — Applications symlink + Finder window layout for standard macOS install experience
+- **Ad-hoc codesign** — sign binaries individually to prevent Gatekeeper "damaged app" error
+- **Full resource bundling** — copy all menu bar icons into app bundle, not just AppIcon
+
+### Server
+
+- **Port auto-fallback** — when default port 4567 is occupied, automatically pick a free port instead of crashing; support `--port=0` for OS-assigned port
+
+### Packaging
+
+- **CI-compatible DMG** — AppleScript graceful fallback for headless environments, explicit DMG sizing, better compression
+
 ## [0.1.0] - 2026-06-15
 
 First public release.
