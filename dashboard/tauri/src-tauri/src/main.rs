@@ -6,11 +6,14 @@
 //   3. System tray icon（點擊顯示/隱藏視窗）
 //   4. App menu（Settings / Reload / Quit）
 //   5. 關窗隱藏不退出（從 tray 重開）
+//   6. 單例保護：重複開啟時聚焦既有視窗
 #![cfg_attr(
     all(not(debug_assertions), target_os = "windows"),
     windows_subsystem = "windows"
 )]
 
+use std::net::TcpListener;
+use std::time::{Duration, Instant};
 use tauri::{
     image::Image,
     menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder},
@@ -19,15 +22,44 @@ use tauri::{
 };
 use tauri_plugin_shell::ShellExt;
 
-const PORT: u16 = 4567;
+const DEFAULT_PORT: u16 = 4567;
+
+fn find_available_port() -> u16 {
+    if TcpListener::bind(("127.0.0.1", DEFAULT_PORT)).is_ok() {
+        return DEFAULT_PORT;
+    }
+    TcpListener::bind(("127.0.0.1", 0))
+        .map(|l| l.local_addr().unwrap().port())
+        .unwrap_or(DEFAULT_PORT)
+}
+
+fn wait_for_server(port: u16, timeout: Duration) -> bool {
+    let start = Instant::now();
+    while start.elapsed() < timeout {
+        if TcpListener::bind(("127.0.0.1", port)).is_err() {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    false
+}
 
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.show();
+                let _ = w.unminimize();
+                let _ = w.set_focus();
+            }
+        }))
         .setup(|app| {
+            let port = find_available_port();
+
             let sidecar = app.shell().sidecar("4x")?;
             sidecar
-                .args(["live", &format!("--port={PORT}")])
+                .args(["live", &format!("--port={port}")])
                 .spawn()?;
 
             // Menu
@@ -43,7 +75,6 @@ fn main() {
             let shortcuts = MenuItemBuilder::with_id("shortcuts", "Keyboard Shortcuts")
                 .accelerator("CmdOrCtrl+/")
                 .build(app)?;
-            // 檢查更新，觸發前端 UI 的更新流程
             let check_update = MenuItemBuilder::with_id("check-update", "Check for Updates...")
                 .build(app)?;
             let quit = MenuItemBuilder::with_id("quit", "Quit 4x Live")
@@ -123,12 +154,14 @@ fn main() {
                 })
                 .build(app)?;
 
-            // Navigate to server
+            // Navigate after server is ready
             if let Some(window) = app.get_webview_window("main") {
-                let url = format!("http://localhost:{PORT}")
-                    .parse()
-                    .expect("valid localhost url");
-                window.navigate(url)?;
+                let url_str = format!("http://localhost:{port}");
+                std::thread::spawn(move || {
+                    wait_for_server(port, Duration::from_secs(15));
+                    let url = url_str.parse().expect("valid localhost url");
+                    let _ = window.navigate(url);
+                });
             }
 
             Ok(())
