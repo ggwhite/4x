@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -280,16 +281,40 @@ func (w *Workspace) SaveFeature(f feature.Feature) error {
 // SyncFeatureStatus 將 feature YAML 的 Status 欄位同步為對應 phase 的狀態。
 // 內部依序執行 LoadFeature → PhaseToStatus → SaveFeature，供 cmd/4x 與
 // internal/server 共用，避免 status 同步邏輯分散兩處。
+// 若 feature YAML 被 git 追蹤，會自動 commit 狀態變更。
 func (w *Workspace) SyncFeatureStatus(featureID string, phase Phase) error {
 	f, err := w.LoadFeature(featureID)
 	if err != nil {
 		return fmt.Errorf("sync feature status: load: %w", err)
 	}
+	oldStatus := f.Status
 	f.Status = PhaseToStatus(phase)
+	if f.Status == oldStatus {
+		return nil
+	}
 	if err := w.SaveFeature(f); err != nil {
 		return fmt.Errorf("sync feature status: save: %w", err)
 	}
+	w.autoCommitFeatureYAML(featureID, f.Status)
 	return nil
+}
+
+// autoCommitFeatureYAML 在 feature YAML 被 git 追蹤時自動 commit 狀態變更。
+// Best-effort：git 不存在、檔案未追蹤、或 commit 失敗都靜默略過。
+func (w *Workspace) autoCommitFeatureYAML(featureID string, status feature.Status) {
+	yamlPath := filepath.Join(FeaturesDir, featureID+".yaml")
+	absPath := filepath.Join(w.DotDir(), yamlPath)
+
+	out, err := exec.Command("git", "-C", w.Root, "ls-files", absPath).Output()
+	if err != nil || len(strings.TrimSpace(string(out))) == 0 {
+		return
+	}
+
+	if err := exec.Command("git", "-C", w.Root, "add", absPath).Run(); err != nil {
+		return
+	}
+	msg := fmt.Sprintf("chore(%s): %s", featureID, status)
+	_ = exec.Command("git", "-C", w.Root, "commit", "-m", msg, "--", absPath).Run()
 }
 
 // InitFeatureDir 建立 feature 的運行時目錄
