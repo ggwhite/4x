@@ -75,6 +75,7 @@ func (r *SubprocessRunner) Run(ctx context.Context, prompt string) (*Result, err
 		setupProcGroup(cmd)
 	}
 	cmd.Dir = r.Workspace.Root
+	cmd.Env = enrichedEnv()
 
 	if r.Config.OutputFormat == "stream-json" && logFile != nil {
 		return r.runStreamJSON(ctx, cmd, logFile, start, prompt)
