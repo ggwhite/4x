@@ -4,12 +4,15 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  release:
+  goreleaser:
+    name: Build & Publish Release
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -57,3 +60,218 @@ jobs:
             ARGS+=(--field "sha=$SHA")
           fi
           gh api repos/ggwhite/homebrew-tap/contents/4x.rb "${ARGS[@]}"
+
+  build-binaries:
+    name: Build 4x (${{ matrix.goos }}/${{ matrix.goarch }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: darwin
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: windows
+            goarch: amd64
+          - goos: linux
+            goarch: amd64
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          VERSION="${GITHUB_REF_NAME:-dev}"
+          EXT=""
+          if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
+          OUT="4x-${GOOS}-${GOARCH}${EXT}"
+          go build -ldflags "-X main.version=${VERSION}" -o "${OUT}" ./cmd/4x
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: 4x-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: 4x-${{ matrix.goos }}-${{ matrix.goarch }}*
+
+  macos:
+    name: Package macOS .dmg
+    needs: build-binaries
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Download darwin arm64 binary
+        uses: actions/download-artifact@v5
+        with:
+          name: 4x-darwin-arm64
+          path: bin
+
+      - name: Download darwin amd64 binary
+        uses: actions/download-artifact@v5
+        with:
+          name: 4x-darwin-amd64
+          path: bin
+
+      - name: Make binaries executable
+        run: chmod +x bin/4x-darwin-arm64 bin/4x-darwin-amd64
+
+      - name: Package .dmg
+        run: make package-macos
+
+      - name: Verify universal binary (lipo)
+        run: |
+          BIN="dist/macos-build/4x Live.app/Contents/MacOS/4x"
+          lipo -info "$BIN"
+          lipo -archs "$BIN" | grep -q "arm64" && lipo -archs "$BIN" | grep -q "x86_64"
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: 4x-Live-macos-${{ github.ref_name }}
+          path: dist/4x-Live.dmg
+
+  windows:
+    name: Package Windows .exe
+    needs: build-binaries
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Download windows binary
+        uses: actions/download-artifact@v5
+        with:
+          name: 4x-windows-amd64
+          path: dashboard/tauri/src-tauri/binaries
+
+      - name: Stage sidecar binary
+        shell: bash
+        run: |
+          cd dashboard/tauri/src-tauri/binaries
+          mv 4x-windows-amd64.exe 4x-x86_64-pc-windows-msvc.exe
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: dashboard/tauri/src-tauri
+
+      - name: Cache Cargo tools
+        id: cache-cargo-tools
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin
+          key: cargo-tools-windows-tauri-v2
+
+      - name: Install Tauri CLI
+        if: steps.cache-cargo-tools.outputs.cache-hit != 'true'
+        run: cargo install cargo-binstall --locked && cargo binstall tauri-cli --version "^2" -y
+
+      - name: Tauri build (nsis)
+        working-directory: dashboard/tauri
+        run: cargo tauri build --bundles nsis
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: 4x-Live-windows-${{ github.ref_name }}
+          path: dashboard/tauri/src-tauri/target/release/bundle/nsis/*.exe
+
+  linux:
+    name: Package Linux .AppImage
+    needs: build-binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install Linux build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Download linux binary
+        uses: actions/download-artifact@v5
+        with:
+          name: 4x-linux-amd64
+          path: dashboard/tauri/src-tauri/binaries
+
+      - name: Stage sidecar binary
+        run: |
+          cd dashboard/tauri/src-tauri/binaries
+          mv 4x-linux-amd64 4x-x86_64-unknown-linux-gnu
+          chmod +x 4x-x86_64-unknown-linux-gnu
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: dashboard/tauri/src-tauri
+
+      - name: Cache Cargo tools
+        id: cache-cargo-tools
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin
+          key: cargo-tools-linux-tauri-v2
+
+      - name: Install Tauri CLI
+        if: steps.cache-cargo-tools.outputs.cache-hit != 'true'
+        run: cargo install cargo-binstall --locked && cargo binstall tauri-cli --version "^2" -y
+
+      - name: Tauri build (appimage)
+        working-directory: dashboard/tauri
+        run: cargo tauri build --bundles appimage
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: 4x-Live-linux-${{ github.ref_name }}
+          path: dashboard/tauri/src-tauri/target/release/bundle/appimage/*.AppImage
+
+  attach-desktop:
+    name: Attach Desktop to Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [goreleaser, macos, windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download macOS .dmg
+        uses: actions/download-artifact@v5
+        with:
+          name: 4x-Live-macos-${{ github.ref_name }}
+          path: release
+
+      - name: Download Windows installer
+        uses: actions/download-artifact@v5
+        with:
+          name: 4x-Live-windows-${{ github.ref_name }}
+          path: release
+
+      - name: Download Linux .AppImage
+        uses: actions/download-artifact@v5
+        with:
+          name: 4x-Live-linux-${{ github.ref_name }}
+          path: release
+
+      - name: Rename assets with version
+        run: |
+          cd release
+          TAG="${GITHUB_REF_NAME}"
+          for f in *.dmg; do [ -f "$f" ] && mv "$f" "4x-Live-${TAG}-macOS-universal.dmg"; done
+          for f in *.exe; do [ -f "$f" ] && mv "$f" "4x-Live-${TAG}-Windows-x64-setup.exe"; done
+          for f in *.AppImage; do [ -f "$f" ] && mv "$f" "4x-Live-${TAG}-Linux-x64.AppImage"; done
+          ls -la
+
+      - name: Upload to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" release/* --repo "$GITHUB_REPOSITORY" --clobber
