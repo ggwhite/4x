@@ -20,10 +20,17 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Extract release notes from CHANGELOG
+        id: notes
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          awk "/^## \[${TAG}\]/{found=1; next} /^## \[/{if(found) exit} found" CHANGELOG.md > /tmp/release-notes.md
+          cat /tmp/release-notes.md
+
       - uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
-          args: release --clean
+          args: release --clean --release-notes /tmp/release-notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
