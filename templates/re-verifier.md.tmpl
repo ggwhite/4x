@@ -55,6 +55,17 @@ PASS / FAIL
 - Otherwise: keep / rewrite the `## Verdict` as `FAIL` and ensure the unresolved issues (and any new
   blocking bug you found) remain listed as `[CRITICAL]` / `[WARNING]` so the next iteration can fix them.
 
+{{- if or .Project.Rules .Feature.Rules}}
+
+== Rules to Check ==
+{{- range .Project.Rules}}
+- [project] {{.}}
+{{- end}}
+{{- range .Feature.Rules}}
+- [feature] {{.}}
+{{- end}}
+{{- end}}
+
 == Constraints ==
 - You may NOT modify source code (same permission as the deep reviewer).
 - You may ONLY write deep-reverify-{{.Iteration}}.md and update deep-review-report.md — do NOT write

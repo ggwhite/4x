@@ -111,6 +111,17 @@ Break changes into logical commits (if not already committed):
 - [ ] Tests pass: (list verify commands)
 - [ ] Docs updated (if applicable)
 
+{{- if or .Project.Rules .Feature.Rules}}
+
+== Rules to Check ==
+{{- range .Project.Rules}}
+- [project] {{.}}
+{{- end}}
+{{- range .Feature.Rules}}
+- [feature] {{.}}
+{{- end}}
+{{- end}}
+
 == Constraints ==
 - You may NOT modify source code
 - You may ONLY write final-report.md and commit-plan.md

@@ -73,6 +73,17 @@ PASS / FAIL — N/N criteria met
 ## Verdict
 PASS / FAIL
 
+{{- if or .Project.Rules .Feature.Rules}}
+
+== Rules to Check ==
+{{- range .Project.Rules}}
+- [project] {{.}}
+{{- end}}
+{{- range .Feature.Rules}}
+- [feature] {{.}}
+{{- end}}
+{{- end}}
+
 == Constraints ==
 - Do NOT modify source code — only run tests and report
 - Do NOT write verify.json — it is produced by `4x verify`
