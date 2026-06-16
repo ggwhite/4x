@@ -214,25 +214,26 @@ tailwind.config = {
 <!-- Configuration Examples -->
 <section class="max-w-4xl mx-auto px-6 py-16">
   <h2 class="text-2xl font-bold text-center mb-4" data-i18n="config.title">Configuration</h2>
-  <p class="text-muted text-center mb-8" data-i18n="config.desc">Works with monorepo or multi-repo setups. Define your project once in settings.json.</p>
+  <p class="text-muted text-center mb-8" data-i18n="config.desc">Monorepo or multi-repo. Per-role models and instructions. Inject your coding standards, architecture docs, and project rules.</p>
   <div class="flex gap-1 mb-0">
     <button onclick="switchTab('monorepo')" id="tab-monorepo" class="tab-active px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-colors">Monorepo</button>
     <button onclick="switchTab('multirepo')" id="tab-multirepo" class="tab-inactive px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-colors">Multi-repo</button>
+    <button onclick="switchTab('roles')" id="tab-roles" class="tab-inactive px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-colors" data-i18n="config.tab.roles">Roles &amp; Instructions</button>
   </div>
   <div id="panel-monorepo" class="code-block rounded-b-xl rounded-tr-xl p-6 font-mono text-sm overflow-x-auto">
 <pre class="whitespace-pre">{
   <span class="text-accent">"project"</span>: {
     <span class="text-accent">"name"</span>: <span class="text-orange">"my-project"</span>,
     <span class="text-accent">"language"</span>: <span class="text-orange">"go"</span>,
-    <span class="text-accent">"build"</span>: [<span class="text-orange">"go build ./..."</span>],
-    <span class="text-accent">"test"</span>:  [<span class="text-orange">"go test ./..."</span>],
-    <span class="text-accent">"lint"</span>:  [<span class="text-orange">"go vet ./..."</span>]
+    <span class="text-accent">"build"</span>: [<span class="text-orange">"make build"</span>],
+    <span class="text-accent">"test"</span>:  [<span class="text-orange">"make test"</span>],
+    <span class="text-accent">"lint"</span>:  [<span class="text-orange">"make lint"</span>],
+    <span class="text-accent">"docs"</span>:  [<span class="text-orange">"docs/architecture/overview.md"</span>],
+    <span class="text-accent">"rules"</span>: [<span class="text-orange">"always use structured logging"</span>],
+    <span class="text-accent">"includes"</span>: [<span class="text-orange">"docs/coding-standards.md"</span>]
   },
   <span class="text-accent">"runners"</span>: {
-    <span class="text-accent">"claude"</span>: {
-      <span class="text-accent">"command"</span>: <span class="text-orange">"claude"</span>,
-      <span class="text-accent">"model"</span>: <span class="text-orange">"opus"</span>
-    }
+    <span class="text-accent">"claude"</span>: { <span class="text-accent">"command"</span>: <span class="text-orange">"claude"</span>, <span class="text-accent">"model"</span>: <span class="text-orange">"opus"</span> }
   },
   <span class="text-accent">"default_runner"</span>: <span class="text-orange">"claude"</span>
 }</pre>
@@ -254,6 +255,35 @@ tailwind.config = {
   },
   <span class="text-accent">"default_runner"</span>: <span class="text-orange">"claude"</span>,
   <span class="text-accent">"isolation"</span>: <span class="text-orange">"worktree"</span>
+}</pre>
+  </div>
+  <div id="panel-roles" class="code-block rounded-b-xl rounded-tr-xl p-6 font-mono text-sm overflow-x-auto hidden">
+<pre class="whitespace-pre"><span class="text-muted">// <span data-i18n="config.roles.comment">Per-role model, instructions, and context — tailor each AI agent to your project</span></span>
+{
+  <span class="text-accent">"roles"</span>: {
+    <span class="text-accent">"designer"</span>: {
+      <span class="text-accent">"model"</span>: <span class="text-orange">"opus"</span>,
+      <span class="text-accent">"instructions"</span>: [<span class="text-orange">"focus on API contract design"</span>],
+      <span class="text-accent">"includes"</span>: [<span class="text-orange">"docs/api-guidelines.md"</span>]
+    },
+    <span class="text-accent">"coder"</span>: {
+      <span class="text-accent">"model"</span>: <span class="text-orange">"sonnet"</span>,
+      <span class="text-accent">"instructions"</span>: [<span class="text-orange">"follow existing patterns in src/"</span>],
+      <span class="text-accent">"includes"</span>: [<span class="text-orange">"docs/coding-standards.md"</span>]
+    },
+    <span class="text-accent">"reviewer"</span>: {
+      <span class="text-accent">"model"</span>: <span class="text-orange">"sonnet"</span>,
+      <span class="text-accent">"instructions"</span>: [<span class="text-orange">"check for SQL injection and XSS"</span>]
+    },
+    <span class="text-accent">"tester"</span>: {
+      <span class="text-accent">"model"</span>: <span class="text-orange">"sonnet"</span>,
+      <span class="text-accent">"instructions"</span>: [<span class="text-orange">"use testcontainers for integration tests"</span>]
+    },
+    <span class="text-accent">"deep-reviewer"</span>: {
+      <span class="text-accent">"model"</span>: <span class="text-orange">"opus"</span>,
+      <span class="text-accent">"includes"</span>: [<span class="text-orange">"docs/architecture/overview.md"</span>]
+    }
+  }
 }</pre>
   </div>
 </section>
@@ -443,7 +473,9 @@ const i18n = {
     "qs.step5": "Watch it live",
     "qs.also": "Also available via:",
     "config.title": "Configuration",
-    "config.desc": "Works with monorepo or multi-repo setups. Define your project once in settings.json.",
+    "config.desc": "Monorepo or multi-repo. Per-role models and instructions. Inject your coding standards, architecture docs, and project rules.",
+    "config.tab.roles": "Roles & Instructions",
+    "config.roles.comment": "Per-role model, instructions, and context — tailor each AI agent to your project",
     "demo.title": "See It In Action",
     "demo.desc": "Initialize, create a feature, and start the AI development loop — all from the terminal.",
     "dash.title": "4x Live Dashboard",
@@ -489,7 +521,9 @@ const i18n = {
     "qs.step5": "即時監看",
     "qs.also": "也可以透過：",
     "config.title": "設定範例",
-    "config.desc": "支援 monorepo 或 multi-repo。在 settings.json 中定義一次專案設定。",
+    "config.desc": "支援 monorepo 或 multi-repo。可為每個角色設定模型與指令，注入你的程式碼規範、架構文件與專案規則。",
+    "config.tab.roles": "角色與指令",
+    "config.roles.comment": "為每個角色設定模型、指令與上下文 — 根據專案需求量身打造 AI agent",
     "demo.title": "實際操作",
     "demo.desc": "初始化、建立 feature、啟動 AI 開發迴圈 — 全部從終端機完成。",
     "dash.title": "4x Live 儀表板",
@@ -535,7 +569,9 @@ const i18n = {
     "qs.step5": "实时监控",
     "qs.also": "也可以通过：",
     "config.title": "配置示例",
-    "config.desc": "支持 monorepo 或 multi-repo。在 settings.json 中定义一次项目配置。",
+    "config.desc": "支持 monorepo 或 multi-repo。可为每个角色设定模型与指令，注入你的代码规范、架构文档与项目规则。",
+    "config.tab.roles": "角色与指令",
+    "config.roles.comment": "为每个角色设定模型、指令与上下文 — 根据项目需求定制 AI agent",
     "demo.title": "实际操作",
     "demo.desc": "初始化、创建 feature、启动 AI 开发循环 — 全部从终端完成。",
     "dash.title": "4x Live 仪表盘",
@@ -581,7 +617,9 @@ const i18n = {
     "qs.step5": "リアルタイムで監視",
     "qs.also": "他のインストール方法：",
     "config.title": "設定例",
-    "config.desc": "monorepo と multi-repo に対応。settings.json でプロジェクトを一度定義。",
+    "config.desc": "monorepo と multi-repo に対応。ロールごとにモデルと指示を設定、コーディング規約やアーキテクチャドキュメントを注入。",
+    "config.tab.roles": "ロールと指示",
+    "config.roles.comment": "ロールごとにモデル・指示・コンテキストを設定 — プロジェクトに合わせて AI エージェントをカスタマイズ",
     "demo.title": "実際の動作",
     "demo.desc": "初期化、feature 作成、AI 開発ループの実行 — すべてターミナルから。",
     "dash.title": "4x Live ダッシュボード",
@@ -627,7 +665,9 @@ const i18n = {
     "qs.step5": "실시간 모니터링",
     "qs.also": "다른 설치 방법:",
     "config.title": "설정 예시",
-    "config.desc": "monorepo 또는 multi-repo 지원. settings.json에서 프로젝트를 한 번에 정의.",
+    "config.desc": "monorepo 또는 multi-repo 지원. 역할별 모델과 지시 설정, 코딩 표준 및 아키텍처 문서 주입 가능.",
+    "config.tab.roles": "역할 및 지시",
+    "config.roles.comment": "역할별 모델, 지시, 컨텍스트 설정 — 프로젝트에 맞게 AI 에이전트를 맞춤 설정",
     "demo.title": "실제 동작",
     "demo.desc": "초기화, feature 생성, AI 개발 루프 실행 — 모두 터미널에서.",
     "dash.title": "4x Live 대시보드",
@@ -673,7 +713,9 @@ const i18n = {
     "qs.step5": "Ver en vivo",
     "qs.also": "También disponible vía:",
     "config.title": "Configuración",
-    "config.desc": "Funciona con monorepo o multi-repo. Define tu proyecto una vez en settings.json.",
+    "config.desc": "Monorepo o multi-repo. Modelos e instrucciones por rol. Inyecta estándares de código, documentación de arquitectura y reglas del proyecto.",
+    "config.tab.roles": "Roles e Instrucciones",
+    "config.roles.comment": "Modelo, instrucciones y contexto por rol — personaliza cada agente IA para tu proyecto",
     "demo.title": "Véalo en Acción",
     "demo.desc": "Inicializar, crear un feature y ejecutar el ciclo de desarrollo IA — todo desde la terminal.",
     "dash.title": "4x Live Dashboard",
@@ -705,14 +747,13 @@ function switchLang(lang) {
 }
 
 function switchTab(tab) {
-  document.getElementById('panel-monorepo').classList.toggle('hidden', tab !== 'monorepo');
-  document.getElementById('panel-multirepo').classList.toggle('hidden', tab !== 'multirepo');
-  document.getElementById('tab-monorepo').className = tab === 'monorepo'
-    ? 'tab-active px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-colors'
-    : 'tab-inactive px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-colors';
-  document.getElementById('tab-multirepo').className = tab === 'multirepo'
-    ? 'tab-active px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-colors'
-    : 'tab-inactive px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-colors';
+  const tabs = ['monorepo', 'multirepo', 'roles'];
+  const active = 'tab-active px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-colors';
+  const inactive = 'tab-inactive px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-colors';
+  tabs.forEach(t => {
+    document.getElementById('panel-' + t).classList.toggle('hidden', t !== tab);
+    document.getElementById('tab-' + t).className = t === tab ? active : inactive;
+  });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
