@@ -160,6 +160,9 @@ func (w *Workspace) LoadFeature(id string) (feature.Feature, error) {
 	if err := yaml.Unmarshal(data, &f); err != nil {
 		return feature.Feature{}, fmt.Errorf("parse feature %s: %w", id, err)
 	}
+	if err := f.Validate(); err != nil {
+		return feature.Feature{}, fmt.Errorf("feature %s: %w", id, err)
+	}
 	return f, nil
 }
 
@@ -650,6 +653,9 @@ func ReadConfig(dotDir string) (Config, error) {
 	var cfg Config
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return Config{}, err
+	}
+	if err := ValidateConfig(cfg); err != nil {
+		return Config{}, fmt.Errorf("settings.json: %w", err)
 	}
 	return cfg, nil
 }

@@ -419,7 +419,7 @@ func TestPostNew_ExpandedFields(t *testing.T) {
 
 	body := `{"name":"Batch Mode","description":"add batch","customId":"batch-mode","priority":2,` +
 		`"depends":["F001-dep"],"rules":["spec: docs/x.md"],` +
-		`"subtasks":[{"id":"sub-1","name":"first","status":"pending"}]}`
+		`"subtasks":[{"id":"sub-1","name":"first","status":"not-started"}]}`
 	rec := serveRequest(t, NewMux(singleResolver(protocol.NewCachedWorkspace(ws), pm)), http.MethodPost, "/api/new", body)
 
 	if rec.Code != http.StatusOK {

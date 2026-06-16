@@ -440,7 +440,7 @@ func TestCheck_IncludesDependencyCheck(t *testing.T) {
 	ws := setupGuardWorkspace(t, "feat-a")
 	writeState(t, ws, "feat-a", protocol.State{Phase: protocol.PhaseInit})
 	ws.SaveFeature(feature.Feature{ID: "feat-a", Name: "A", Depends: []string{"feat-b"}})
-	ws.SaveFeature(feature.Feature{ID: "feat-b", Name: "B", Status: "coding"})
+	ws.SaveFeature(feature.Feature{ID: "feat-b", Name: "B", Status: feature.StatusInProgress})
 
 	result := Check(ws, "feat-a", nil)
 	if result.Pass {
