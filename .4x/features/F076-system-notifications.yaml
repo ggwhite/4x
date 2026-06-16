@@ -18,7 +18,7 @@ description: |-
     - Web Notification 需優雅降級（瀏覽器不支援或使用者拒絕時靜默略過）
     - macOS app 需在 applicationDidFinishLaunching 請求通知授權
     - 通知內容包含 feature ID + 結果摘要，不超過兩行
-status: not-started
+status: ready-for-review
 priority: 2
 subtasks:
     - id: event-notify-field

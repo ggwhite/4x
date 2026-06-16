@@ -37,6 +37,7 @@
   "parallel_review_test": true,
   "auto_discover_features": true,
   "max_concurrent_runs": 5,
+  "notifications": true,
   "roles": {
     "designer": {
       "model": "opus",

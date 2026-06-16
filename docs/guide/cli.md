@@ -68,6 +68,9 @@ Run the Design-Code-Review-Test loop for a feature.
 | `--dry-run` | `false` | Print role prompts without calling LLM |
 | `--json` | `false` | Start run and return JSON immediately |
 | `--profile` | auto | Pipeline profile (`full`/`normal`/`quick` or custom); overrides priority-based auto-select |
+| `--no-notify` | `false` | Disable the OS notification on run completion (overrides the `notifications` config) |
+
+When the run ends (success, failure, or interruption), 4x sends a native OS notification (`osascript` on macOS, `notify-send` on Linux, PowerShell balloon on Windows). Pass `--no-notify` to suppress it, or set `"notifications": false` in `settings.json`. Missing notification tooling is silently ignored.
 
 `--profile` selects which roles run. Built-in profiles: `full` (all 6 roles), `normal` (coder/reviewer/tester/acceptor), `quick` (coder/reviewer). Roles not in the profile are passed through (state advances along the legal edge without invoking the runner). When omitted, the profile is auto-selected by the feature's priority if a `profiles` section exists in `settings.json` (otherwise `full`). See [Configuration → Profiles](configuration.md#profiles) for details.
 

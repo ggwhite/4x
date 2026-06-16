@@ -50,6 +50,7 @@ func newRunCmd() *cobra.Command {
 	var dryRun bool
 	var jsonOutput bool
 	var profileFlag string
+	var noNotify bool
 
 	cmd := &cobra.Command{
 		Use:   "run <feature-id>",
@@ -278,6 +279,7 @@ func newRunCmd() *cobra.Command {
 						Status: "interrupted",
 						Detail: cur.StopReason,
 						Runner: cur.Runner,
+						Notify: protocol.NotifyWarning,
 					})
 				}
 			}()
@@ -288,8 +290,35 @@ func newRunCmd() *cobra.Command {
 			}
 			loopErr := runLoop(ctx, ws, runnerWs, feature, cfg, s, ops, runnerFactory, commitStrategy)
 
+			finalState, err := ws.ReadState(featureID)
+			if err != nil {
+				// ReadState 失敗時降級為 blocked，避免把實際成功的 run 誤判成成功 run-end，
+				// 也讓後續通知改走「失敗」分支而非推送 body 為空的誤導訊息。
+				slog.Warn("failed to read final state for notification", "feature", featureID, "error", err)
+				finalState = protocol.State{Phase: protocol.PhaseBlocked}
+			}
+
+			// run 正常結束（done / pending-review）時補一筆帶 Notify 的 run-end event，
+			// 讓 dashboard 能在成功完成時推播（中斷 / escalation / guard-fail 已各自 emit notify event）。
+			if finalState.Phase == protocol.PhaseDone || finalState.Phase == protocol.PhasePendingReview {
+				ws.AppendEvent(featureID, protocol.Event{
+					Type:   "run-end",
+					Phase:  finalState.Phase,
+					Role:   finalState.Role,
+					Round:  finalState.Round,
+					Status: string(finalState.Phase),
+					Runner: finalState.Runner,
+					Notify: protocol.NotifySuccess,
+				})
+			}
+
+			// CLI 結束時推送一則 OS 原生通知，受 --no-notify 與 merged config Notifications 閘控。
+			if !noNotify && protocol.NotificationsEnabled(cfg) {
+				level, title, body := runOutcome(featureID, finalState, loopErr)
+				sendSystemNotification(level, title, body)
+			}
+
 			if wtPath != "" && commitStrategy != "never" {
-				finalState, _ := ws.ReadState(featureID)
 				if finalState.Phase == protocol.PhaseDone || finalState.Phase == protocol.PhasePendingReview {
 					if commitStrategy == "on-done" {
 						if err := ops.Commit(wtPath, featureID, fmt.Sprintf("feat(%s): %s", featureID, feature.Name)); err != nil {
@@ -315,6 +344,7 @@ func newRunCmd() *cobra.Command {
 	// --profile 與 --only 互斥；目前 Go run 指令沒有 --only（屬 skill 編排層），
 	// 故此處不註冊互斥規則，未來若新增 --only 再加 MarkFlagsMutuallyExclusive。
 	cmd.Flags().StringVar(&profileFlag, "profile", "", "pipeline profile (full/normal/quick or custom); overrides priority-based auto-select")
+	cmd.Flags().BoolVar(&noNotify, "no-notify", false, "disable OS notification on run completion (overrides config)")
 	return cmd
 }
 
@@ -559,7 +589,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			if err := ws.SyncFeatureStatus(featureID, s.Phase); err != nil {
 				slog.Warn("sync feature status failed", "feature", featureID, "error", err)
 			}
-			ws.AppendEvent(featureID, protocol.Event{Type: "escalation", Phase: s.Phase, Detail: reason, Runner: s.Runner})
+			ws.AppendEvent(featureID, protocol.Event{Type: "escalation", Phase: s.Phase, Detail: reason, Runner: s.Runner, Notify: protocol.NotifyWarning})
 			slog.Info("run stopped", "feature", featureID, "reason", reason, "round", s.Round)
 			fmt.Printf("  stopped: %s\n", reason)
 			return nil
@@ -737,7 +767,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 				_ = ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention)
 				ws.AppendEvent(featureID, protocol.Event{
 					Type: "guard-fail", Phase: phase, Role: role, Round: s.Round,
-					Detail: s.StopReason, Runner: s.Runner,
+					Detail: s.StopReason, Runner: s.Runner, Notify: protocol.NotifyError,
 				})
 				return nil
 			}
@@ -1517,7 +1547,7 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 	_ = ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention)
 	ws.AppendEvent(featureID, protocol.Event{
 		Type: "escalation", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleDeepReviewer,
-		Round: round, Detail: s.StopReason, Runner: s.Runner,
+		Round: round, Detail: s.StopReason, Runner: s.Runner, Notify: protocol.NotifyWarning,
 	})
 	fmt.Printf("[round %d] deep-reviewing — self-heal exhausted (%d iterations), escalating\n", round, maxFix)
 	return false, nil

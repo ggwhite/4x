@@ -20,12 +20,25 @@ use tauri::{
     tray::TrayIconBuilder,
     Manager, WindowEvent,
 };
+use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_shell::process::CommandChild;
 use tauri_plugin_shell::ShellExt;
 
 struct SidecarChild(std::sync::Mutex<Option<CommandChild>>);
 
 const DEFAULT_PORT: u16 = 4567;
+
+/// notify 顯示一則原生系統通知，供前端在 Tauri 環境下推播 run 結束事件。
+/// 失敗時回傳錯誤字串，前端可忽略（優雅降級）。
+#[tauri::command]
+fn notify(app: tauri::AppHandle, title: String, body: String) -> Result<(), String> {
+    app.notification()
+        .builder()
+        .title(title)
+        .body(body)
+        .show()
+        .map_err(|e| e.to_string())
+}
 
 fn find_available_port() -> u16 {
     if TcpListener::bind(("127.0.0.1", DEFAULT_PORT)).is_ok() {
@@ -51,6 +64,8 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
+        .invoke_handler(tauri::generate_handler![notify])
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(w) = app.get_webview_window("main") {
                 let _ = w.show();

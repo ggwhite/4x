@@ -287,3 +287,50 @@ func TestMergeConfig_OutputFormat_ProjectOverrides(t *testing.T) {
 		t.Errorf("OutputFormat = %q, want text (project overrides)", got.Runners["claude"].OutputFormat)
 	}
 }
+
+func boolPtr(b bool) *bool { return &b }
+
+func TestNotificationsEnabled(t *testing.T) {
+	cases := []struct {
+		name string
+		cfg  Config
+		want bool
+	}{
+		{"unset defaults true", Config{}, true},
+		{"explicit true", Config{Notifications: boolPtr(true)}, true},
+		{"explicit false", Config{Notifications: boolPtr(false)}, false},
+	}
+	for _, c := range cases {
+		if got := NotificationsEnabled(c.cfg); got != c.want {
+			t.Errorf("%s: NotificationsEnabled = %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
+func TestMergeConfig_Notifications_ProjectOverridesUser(t *testing.T) {
+	user := UserConfig{Notifications: boolPtr(true)}
+	proj := Config{Notifications: boolPtr(false), Project: ProjectConfig{Name: "x"}}
+	got := MergeConfig(user, proj)
+	if got.Notifications == nil || *got.Notifications != false {
+		t.Errorf("Notifications = %v, want false (project overrides user)", got.Notifications)
+	}
+}
+
+func TestMergeConfig_Notifications_FallbackToUser(t *testing.T) {
+	user := UserConfig{Notifications: boolPtr(false)}
+	proj := Config{Project: ProjectConfig{Name: "x"}}
+	got := MergeConfig(user, proj)
+	if got.Notifications == nil || *got.Notifications != false {
+		t.Errorf("Notifications = %v, want false (fallback to user)", got.Notifications)
+	}
+}
+
+func TestMergeConfig_Notifications_BothUnset(t *testing.T) {
+	got := MergeConfig(UserConfig{}, Config{Project: ProjectConfig{Name: "x"}})
+	if got.Notifications != nil {
+		t.Errorf("Notifications = %v, want nil (both unset)", got.Notifications)
+	}
+	if !NotificationsEnabled(got) {
+		t.Error("NotificationsEnabled should default true when unset")
+	}
+}

@@ -108,6 +108,7 @@ If `{model}` is not present in `args`, the runner auto-appends `--model <model>`
 | `health_check` | Global pre-test environment check commands (can be overridden per-feature in test-strategy.yaml) |
 | `test_profiles` | Custom or overridden test profile definitions (keyed by profile name) |
 | `max_discovered_features` | Max features auto-created per run; unset or `<= 0` applies the default (`3`) |
+| `notifications` | Enable OS notifications on run completion (default `true` when unset). Set to `false` to disable; the project value overrides the user-level setting. `4x run --no-notify` overrides both |
 
 ### Auto-Discover Features
 

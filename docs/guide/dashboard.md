@@ -158,6 +158,10 @@ The log stream (`/sse/logs/{id}`) likewise tracks a byte offset and only sends n
 
 When several roles write logs at the same time — parallel deep-review sub-reviewers, or the concurrent reviewer + tester — the stream tails **all** currently active logs instead of just the most recently modified one. Without a `?file=` query parameter it tracks every log whose mtime falls within a recent window (each with its own offset), and the per-message `file` field lets the client route content into the matching pane. Pass `?file=<name>` to pin the stream to a single log.
 
+### Completion Notifications
+
+On each SSE tick the dashboard reads the latest event from `/api/events/{id}` and, when it carries a `notify` hint (`run-end` success, `guard-fail`, or `escalation`), raises a native OS notification. The dispatcher picks the right channel for the environment: the macOS native app uses a `nativeNotify` WebKit bridge, the Tauri shell invokes a `notify` command backed by `tauri-plugin-notification`, and a plain browser uses the Web Notification API (after requesting permission). Unsupported or unpermitted environments degrade silently. Notification text is localized via the `notifications.*` i18n keys.
+
 ### Multi-Project Routing
 
 With multiple projects, endpoints are prefixed with `/api/project/{project-id}/...` and `/sse/project/{project-id}/...`. Single-project mode uses the unprefixed paths for backward compatibility.

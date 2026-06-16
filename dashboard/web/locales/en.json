@@ -235,5 +235,10 @@
   "popover.tasks": "{count} tasks",
   "popover.noProjects": "No projects",
   "popover.loading": "Loading…",
-  "popover.offline": "Server not available"
+  "popover.offline": "Server not available",
+"notifications.runDone": "Run completed",
+  "notifications.runFailed": "Run failed",
+  "notifications.runInterrupted": "Run interrupted",
+  "notifications.guardFail": "Guardrail check failed",
+  "notifications.escalation": "Needs attention"
 }

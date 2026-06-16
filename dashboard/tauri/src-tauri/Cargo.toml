@@ -12,6 +12,7 @@ tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-shell = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-dialog = "2"
+tauri-plugin-notification = "2"
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]

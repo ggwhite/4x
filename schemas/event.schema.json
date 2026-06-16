@@ -18,6 +18,11 @@
     "status": { "type": "string" },
     "detail": { "type": "string" },
     "runner": { "type": "string" },
-    "model": { "type": "string" }
+    "model": { "type": "string" },
+    "notify": {
+      "type": "string",
+      "description": "Notification level hint for dashboards; empty means no notification",
+      "enum": ["success", "error", "warning"]
+    }
   }
 }

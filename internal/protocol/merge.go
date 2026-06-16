@@ -30,6 +30,11 @@ func MergeConfig(user UserConfig, project Config) Config {
 	result.Runners = mergeRunners(user.Runners, project.Runners)
 	result.Roles = mergeRoles(user.Roles, project.Roles)
 
+	// Notifications：project 非 nil 已在 result 沿用；project 未設定時退回 user 設定。
+	if result.Notifications == nil && user.Notifications != nil {
+		result.Notifications = user.Notifications
+	}
+
 	return result
 }
 

@@ -1,4 +1,5 @@
 import AppKit
+import UserNotifications
 import WebKit
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigationDelegate, WKScriptMessageHandler {
@@ -25,6 +26,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
         setupStatusItem()
         setupPopover()
         startStatusTimer()
+
+        // 請求通知授權，供 nativeNotify bridge 顯示 run 結束的原生通知。
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
 
         pollServerAndLoad()
 
@@ -332,6 +336,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
 
         let config = WKWebViewConfiguration()
         config.userContentController.add(self, name: "nativeOpenFolder")
+        config.userContentController.add(self, name: "nativeNotify")
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
 
         webView = WKWebView(frame: .zero, configuration: config)
@@ -778,6 +783,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
                 let js = "addProjectFromNative('\(path.replacingOccurrences(of: "'", with: "\\'"))')"
                 webView.evaluateJavaScript(js, completionHandler: nil)
             }
+        } else if message.name == "nativeNotify" {
+            // 前端在 WKWebView（不支援 Web Notification）改走此 bridge 顯示原生通知。
+            guard let body = message.body as? [String: Any] else { return }
+            let title = (body["title"] as? String) ?? "4x"
+            let text = (body["body"] as? String) ?? ""
+            let content = UNMutableNotificationContent()
+            content.title = title
+            content.body = text
+            content.sound = .default
+            let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+            UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
         }
     }
 

@@ -114,7 +114,17 @@ type Event struct {
 	Detail    string `json:"detail,omitempty"`
 	Runner    string `json:"runner,omitempty"`
 	Model     string `json:"model,omitempty"`
+	// Notify 為前端統一判斷通知等級的提示，值域 NotifySuccess / NotifyError / NotifyWarning，
+	// 空字串代表不通知。新增欄位向下相容（omitempty），不改既有 event 的 Status 語意。
+	Notify string `json:"notify,omitempty"`
 }
+
+// 通知等級常量，供 server 端標注 Event.Notify 及前端判斷顯示樣式，避免散落字串。
+const (
+	NotifySuccess = "success" // run 正常結束（done / pending-review）
+	NotifyError   = "error"   // 失敗或 guard 攔截
+	NotifyWarning = "warning" // 中斷或 escalation
+)
 
 // Baseline 是 baseline.json 的結構
 type Baseline struct {
@@ -293,6 +303,18 @@ type Config struct {
 	AutoDiscoverFeatures bool `json:"auto_discover_features,omitempty"`
 	// MaxDiscoveredFeatures 限制單次 run 最多自動建立幾張 feature；未設定或 <= 0 時套預設值（3）。
 	MaxDiscoveredFeatures int `json:"max_discovered_features,omitempty"`
+	// Notifications 控制 run 結束時是否推送 OS 原生通知；用 pointer 區分「未設定」與「明確 false」，
+	// nil（未設定）時 NotificationsEnabled 視為啟用。project 端非 nil 會覆蓋 user 端設定。
+	Notifications *bool `json:"notifications,omitempty"`
+}
+
+// NotificationsEnabled 回報合併後設定是否啟用 OS 通知。
+// Notifications 為 nil（使用者未設定）時預設啟用，回傳 true。
+func NotificationsEnabled(cfg Config) bool {
+	if cfg.Notifications == nil {
+		return true
+	}
+	return *cfg.Notifications
 }
 
 // ProfileConfig 描述一個 pipeline profile：啟用哪些 role、以及 coder 的 model tier 覆蓋。
@@ -362,6 +384,9 @@ type UserConfig struct {
 	// LogRetainDays 設定 ~/.4x/logs/ 下 log 檔的保留天數，
 	// 超過此天數的 log 檔會在 Init() 時自動清除；為零時預設 7 天。
 	LogRetainDays int `json:"logRetainDays,omitempty"`
+	// Notifications 為使用者層級的 OS 通知開關；用 pointer 區分「未設定」與「明確 false」，
+	// 會被 project 端非 nil 的設定覆蓋（見 MergeConfig）。
+	Notifications *bool `json:"notifications,omitempty"`
 }
 
 // RunnerPreset 描述一個受支援 runner 的預設設定

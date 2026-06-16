@@ -73,6 +73,7 @@ let current = null;
 let lastTasks = [];
 const renderedMsgKeys = new Set();
 let sseSource = null;
+let _lastNotifyKey = null;
 let searchIdx = 0;
 let searchFiltered = [];
 let refreshTimer = null;

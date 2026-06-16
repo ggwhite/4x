@@ -235,5 +235,10 @@
   "popover.tasks": "{count} 个任务",
   "popover.noProjects": "暂无项目",
   "popover.loading": "加载中…",
-  "popover.offline": "服务器不可用"
+  "popover.offline": "服务器不可用",
+"notifications.runDone": "运行完成",
+  "notifications.runFailed": "运行失败",
+  "notifications.runInterrupted": "运行中断",
+  "notifications.guardFail": "Guardrail 检查未通过",
+  "notifications.escalation": "需要人工介入"
 }

@@ -343,7 +343,73 @@ function goHome() {
   activeDetailTab = 'overview';
   if (activeProjectId) { load(); renderDashboard(lastTasks); } else renderProjectPicker();
 }
-function connectSSE(fid) { disconnectSSE(); sseSource = new EventSource(sseBase()+'/events/'+fid); sseSource.onmessage = () => { loadMessages(fid); }; }
+// requestNotificationPermission 在支援 Web Notification 且尚未決定權限時請求授權；
+// 不支援（WKWebView / 舊瀏覽器）或已決定時靜默 return。native bridge 環境不需此權限。
+function requestNotificationPermission() {
+  if (notifyHasNativeBridge()) return;
+  if (typeof window.Notification === 'undefined') return;
+  if (Notification.permission === 'default') {
+    try { Notification.requestPermission(); } catch (e) {}
+  }
+}
+
+// notifyHasNativeBridge 回報目前是否在 macOS native app 或 Tauri 容器中（具備原生通知 bridge）。
+function notifyHasNativeBridge() {
+  return !!(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.nativeNotify) || !!window.__TAURI__;
+}
+
+// notifyOS 依執行環境分派通知：macOS native app 走 nativeNotify bridge、Tauri 走 invoke('notify')、
+// 一般瀏覽器走 Web Notification API。各路徑在不支援 / 未授權時優雅降級，不丟錯。
+function notifyOS(level, title, body) {
+  try {
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.nativeNotify) {
+      window.webkit.messageHandlers.nativeNotify.postMessage({ title: title, body: body, level: level });
+      return;
+    }
+    if (window.__TAURI__) {
+      // Tauri v2 全域為 __TAURI__.core.invoke；相容 v1 的 __TAURI__.tauri.invoke。
+      const invoke = (window.__TAURI__.core && window.__TAURI__.core.invoke)
+        || (window.__TAURI__.tauri && window.__TAURI__.tauri.invoke)
+        || window.__TAURI__.invoke;
+      if (invoke) { invoke('notify', { title: title, body: body }); return; }
+    }
+    if (typeof window.Notification !== 'undefined' && Notification.permission === 'granted') {
+      new Notification(title, { body: body });
+    }
+  } catch (e) {}
+}
+
+// maybeNotifyFromEvents 取最新一筆 event，若帶有 notify 等級且尚未通知過，依文案推播 OS 通知。
+async function maybeNotifyFromEvents(fid) {
+  if (!notifyHasNativeBridge() && (typeof window.Notification === 'undefined' || Notification.permission !== 'granted')) return;
+  try {
+    const events = await (await fetch('/api/events/' + fid)).json();
+    if (!Array.isArray(events) || events.length === 0) return;
+    const ev = events[events.length - 1];
+    if (!ev || !ev.notify) return;
+    const key = fid + '|' + (ev.ts || '') + '|' + (ev.type || '');
+    if (key === _lastNotifyKey) return;
+    _lastNotifyKey = key;
+    const title = '4x · ' + fid;
+    const body = notifyBody(ev);
+    notifyOS(ev.notify, title, body);
+  } catch (e) {}
+}
+
+// notifyBody 依 event 型別組通知內文，走 i18n 文案並帶入 phase / detail 摘要。
+function notifyBody(ev) {
+  switch (ev.type) {
+    case 'guard-fail': return t('notifications.guardFail');
+    case 'escalation': return t('notifications.escalation');
+    case 'run-end':
+      if (ev.notify === 'success') return t('notifications.runDone');
+      if (ev.status === 'interrupted') return t('notifications.runInterrupted');
+      return t('notifications.runFailed');
+    default: return t('notifications.runDone');
+  }
+}
+
+function connectSSE(fid) { disconnectSSE(); _lastNotifyKey = null; requestNotificationPermission(); sseSource = new EventSource(sseBase()+'/events/'+fid); sseSource.onmessage = () => { loadMessages(fid); maybeNotifyFromEvents(fid); }; }
 function disconnectSSE() { if (sseSource) { sseSource.close(); sseSource = null; } }
 
 function classify(tasks) {

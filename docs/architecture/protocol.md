@@ -194,9 +194,12 @@ Append-only. One JSON object per line. Readers must handle unknown event types g
   "featureId":   "rest-api-for-todo-items",
   "ts":          "2026-06-10T09:10:00Z",
   "runner":      "claude",
-  "round":       2
+  "round":       2,
+  "notify":      "success"         // optional: notification hint (success|error|warning); empty = no notification
 }
 ```
+
+The optional `notify` field is a hint for clients (web/desktop dashboards) to surface an OS notification. It is set on terminal `run-end` (success), `guard-fail` (error), and `escalation` (warning) events; absent on all other events. Adding it is backward-compatible (`omitempty`).
 
 **Event types:**
 
