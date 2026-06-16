@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - **CI-compatible DMG** — AppleScript graceful fallback for headless environments, explicit DMG sizing, better compression
 
+## [0.1.1] - 2026-06-16
+
+### Packaging
+
+- **DMG build fix** — copy all Resources into app bundle, sign binaries individually instead of deprecated `--deep`, CI headless compatibility
+
 ## [0.1.0] - 2026-06-15
 
 First public release.
