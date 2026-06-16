@@ -79,6 +79,8 @@ func newRunCmd() *cobra.Command {
 				return err
 			}
 
+			syncPlugins(ws.Root, cfg)
+
 			if runnerName == "" {
 				runnerName = cfg.Default
 			}

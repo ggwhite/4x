@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -96,6 +97,29 @@ func installPlugins(root string, cfg protocol.Config) {
 				importLine := "@.4x/plugins/" + d.PluginName
 				ensureImport(root, d.RootFile, importLine, name)
 			}
+		}
+	}
+}
+
+// syncPlugins 在 4x run 開始前靜默同步 plugin 檔案，有更新時 log。
+func syncPlugins(root string, cfg protocol.Config) {
+	report := comparePlugins(root, cfg)
+	needSync := false
+	for _, r := range report {
+		if r.status != statusCurrent {
+			needSync = true
+			break
+		}
+	}
+	if !needSync {
+		return
+	}
+	installPlugins(root, cfg)
+	for _, r := range report {
+		if r.status == statusUpdated {
+			slog.Info("plugin updated", "file", r.path)
+		} else if r.status == statusCreated {
+			slog.Info("plugin installed", "file", r.path)
 		}
 	}
 }
