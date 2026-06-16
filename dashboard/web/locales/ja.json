@@ -226,5 +226,14 @@
   "help.abandonedDesc": "Feature が放棄された",
   "help.blockedDesc": "Feature がブロックされている、対応が必要",
   "globalSettings.runnerConfig": "ランナー設定",
-  "globalSettings.defaultRunner": "デフォルトランナー"
+  "globalSettings.defaultRunner": "デフォルトランナー",
+  "popover.active": "実行中",
+  "popover.review": "レビュー",
+  "popover.attention": "要対応",
+  "popover.done": "完了",
+  "popover.projects": "プロジェクト",
+  "popover.tasks": "{count} タスク",
+  "popover.noProjects": "プロジェクトなし",
+  "popover.loading": "読み込み中…",
+  "popover.offline": "サーバーに接続できません"
 }

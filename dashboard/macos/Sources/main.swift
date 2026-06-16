@@ -515,19 +515,48 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
           <div class="header-right">
             <button class="hdr-btn icon-btn" onclick="window.webkit.messageHandlers.fourx.postMessage('settings')" title="Settings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
             <button class="hdr-btn icon-btn" onclick="window.webkit.messageHandlers.fourx.postMessage('open')" title="Open Dashboard"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
+            <button class="hdr-btn icon-btn" onclick="window.webkit.messageHandlers.fourx.postMessage('quit')" title="Quit" style="color:#ff453a;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg></button>
           </div>
         </div>
         <div class="stats" id="stats">
-          <div class="stat"><div class="stat-value c-green" id="s-active">-</div><div class="stat-label">Active</div></div>
-          <div class="stat"><div class="stat-value c-orange" id="s-review">-</div><div class="stat-label">Review</div></div>
-          <div class="stat"><div class="stat-value c-red" id="s-attention">-</div><div class="stat-label">Attention</div></div>
-          <div class="stat"><div class="stat-value c-blue" id="s-done">-</div><div class="stat-label">Done</div></div>
+          <div class="stat"><div class="stat-value c-green" id="s-active">-</div><div class="stat-label" id="l-active">Active</div></div>
+          <div class="stat"><div class="stat-value c-orange" id="s-review">-</div><div class="stat-label" id="l-review">Review</div></div>
+          <div class="stat"><div class="stat-value c-red" id="s-attention">-</div><div class="stat-label" id="l-attention">Attention</div></div>
+          <div class="stat"><div class="stat-value c-blue" id="s-done">-</div><div class="stat-label" id="l-done">Done</div></div>
         </div>
-        <div id="content"><div class="loading">Loading…</div></div>
+        <div id="content"><div class="loading" id="loading-text">Loading…</div></div>
         <script>
         const BASE = '\(baseURL)';
         const STATUS_ORDER = { 'in-progress':0, 'needs-attention':1, 'ready-for-review':2, 'not-started':3 };
-        const STATUS_LABEL = { 'in-progress':'進行中', 'needs-attention':'需關注', 'ready-for-review':'待審查', 'not-started':'未開始' };
+        let T = {};
+        const STATUS_LABEL_FALLBACK = { 'in-progress':'In Progress', 'needs-attention':'Attention', 'ready-for-review':'Review', 'not-started':'Not Started' };
+
+        function t(key, fallback, vars) {
+          let s = T[key] || fallback || key;
+          if (vars) Object.keys(vars).forEach(k => s = s.replace('{'+k+'}', vars[k]));
+          return s;
+        }
+
+        function statusLabel(status) {
+          const map = { 'in-progress':'status.inProgress', 'needs-attention':'status.needsAttention',
+                        'ready-for-review':'status.review', 'not-started':'status.notStarted' };
+          return T[map[status]] || STATUS_LABEL_FALLBACK[status] || status || '';
+        }
+
+        async function loadLocale() {
+          try {
+            const lang = navigator.language.startsWith('zh-TW') ? 'zh-TW'
+              : navigator.language.startsWith('zh') ? 'zh-CN'
+              : navigator.language.split('-')[0];
+            const res = await fetch(BASE + '/api/locales/' + lang);
+            if (res.ok) T = await res.json();
+          } catch(e) {}
+          document.getElementById('l-active').textContent = t('popover.active', 'Active');
+          document.getElementById('l-review').textContent = t('popover.review', 'Review');
+          document.getElementById('l-attention').textContent = t('popover.attention', 'Attention');
+          document.getElementById('l-done').textContent = t('popover.done', 'Done');
+          document.getElementById('loading-text').textContent = t('popover.loading', 'Loading…');
+        }
 
         async function load() {
           try {
@@ -574,25 +603,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
 
             const el = document.getElementById('content');
             if (projectData.length === 0) {
-              el.innerHTML = '<div class="empty">No projects</div>';
+              el.innerHTML = '<div class="empty">' + esc(t('popover.noProjects', 'No projects')) + '</div>';
               return;
             }
             projectData.sort((a,b) => (b.active+b.attention+b.review) - (a.active+a.attention+a.review));
 
-            let html = '<div class="section">Projects</div>';
+            let html = '<div class="section">' + esc(t('popover.projects', 'Projects')) + '</div>';
             projectData.forEach(p => {
               html += '<div class="project">';
               html += '<div class="proj-header"><span class="proj-name">' + esc(p.name) + '</span>';
-              html += '<span class="proj-badge">' + p.total + ' tasks</span></div>';
+              html += '<span class="proj-badge">' + esc(t('popover.tasks', '{count} tasks', {count:p.total})) + '</span></div>';
               if (p.highlights.length > 0) {
                 html += '<div class="proj-tasks">';
-                p.highlights.forEach(t => {
-                  const st = t.active ? 'active' : (t.status || 'not-started');
-                  const label = STATUS_LABEL[t.status] || t.status || '';
+                p.highlights.forEach(tk => {
+                  const st = tk.active ? 'active' : (tk.status || 'not-started');
+                  const label = statusLabel(tk.status);
                   html += '<div class="task-item">';
                   html += '<div class="task-dot ' + st + '"></div>';
-                  html += '<div class="task-name">' + esc(t.name || t.id) + '</div>';
-                  html += '<div class="task-status">' + label + '</div>';
+                  html += '<div class="task-name">' + esc(tk.name || tk.id) + '</div>';
+                  html += '<div class="task-status">' + esc(label) + '</div>';
                   html += '</div>';
                 });
                 html += '</div>';
@@ -602,12 +631,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
             el.innerHTML = html;
           } catch(e) {
             document.getElementById('statusDot').classList.add('offline');
-            document.getElementById('content').innerHTML = '<div class="empty">Server not available</div>';
+            document.getElementById('content').innerHTML = '<div class="empty">' + esc(t('popover.offline', 'Server not available')) + '</div>';
           }
         }
 
         function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
-        load().then(() => {
+        loadLocale().then(() => load()).then(() => {
           const h = Math.min(520, document.body.scrollHeight + 20);
           window.webkit.messageHandlers.fourx.postMessage('resize:' + h);
         });
@@ -818,6 +847,11 @@ class PopoverMessageHandler: NSObject, WKScriptMessageHandler {
         guard let body = msg.body as? String, let d = delegate else { return }
         if body.hasPrefix("resize:"), let h = Double(body.replacingOccurrences(of: "resize:", with: "")) {
             d.popover.contentSize = NSSize(width: 360, height: min(520, max(200, h)))
+            return
+        }
+        if body == "quit" {
+            d.popover.close()
+            NSApp.terminate(nil)
             return
         }
         d.popover.close()

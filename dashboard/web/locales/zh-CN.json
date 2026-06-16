@@ -226,5 +226,14 @@
   "help.abandonedDesc": "Feature 已放弃",
   "help.blockedDesc": "Feature 被阻塞，需要关注",
   "globalSettings.runnerConfig": "执行器配置",
-  "globalSettings.defaultRunner": "默认执行器"
+  "globalSettings.defaultRunner": "默认执行器",
+  "popover.active": "进行中",
+  "popover.review": "审查中",
+  "popover.attention": "需关注",
+  "popover.done": "完成",
+  "popover.projects": "项目",
+  "popover.tasks": "{count} 个任务",
+  "popover.noProjects": "暂无项目",
+  "popover.loading": "加载中…",
+  "popover.offline": "服务器不可用"
 }

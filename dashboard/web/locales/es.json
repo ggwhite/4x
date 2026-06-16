@@ -226,5 +226,14 @@
   "help.abandonedDesc": "Feature fue abandonada",
   "help.blockedDesc": "Feature está bloqueada, necesita atención",
   "globalSettings.runnerConfig": "Config. de Runner",
-  "globalSettings.defaultRunner": "Runner predeterminado"
+  "globalSettings.defaultRunner": "Runner predeterminado",
+  "popover.active": "Activo",
+  "popover.review": "Revisión",
+  "popover.attention": "Atención",
+  "popover.done": "Hecho",
+  "popover.projects": "Proyectos",
+  "popover.tasks": "{count} tareas",
+  "popover.noProjects": "Sin proyectos",
+  "popover.loading": "Cargando…",
+  "popover.offline": "Servidor no disponible"
 }

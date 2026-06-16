@@ -226,5 +226,14 @@
   "help.abandonedDesc": "Feature가 포기됨",
   "help.blockedDesc": "Feature가 차단됨, 주의 필요",
   "globalSettings.runnerConfig": "러너 설정",
-  "globalSettings.defaultRunner": "기본 러너"
+  "globalSettings.defaultRunner": "기본 러너",
+  "popover.active": "진행 중",
+  "popover.review": "리뷰",
+  "popover.attention": "주의 필요",
+  "popover.done": "완료",
+  "popover.projects": "프로젝트",
+  "popover.tasks": "{count}개 작업",
+  "popover.noProjects": "프로젝트 없음",
+  "popover.loading": "로딩 중…",
+  "popover.offline": "서버에 연결할 수 없음"
 }
