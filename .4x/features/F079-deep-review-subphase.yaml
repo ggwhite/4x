@@ -13,8 +13,15 @@ subtasks:
     - id: resume-from-subphase
       name: crash recovery 用 subPhase 判斷 deep-reviewing 內的 resume 起點
       status: ""
+    - id: partial-resume
+      name: 只補跑掛掉的 sub-reviewer，不重跑全部
+      status: ""
+      description: |
+          resume 時檢查哪些 deep-review-partial-N.md 已存在且完整，
+          只 spawn 缺少的 sub-reviewer。synthesizer 掛掉時也直接重跑
+          synthesizer（partials 都在），不重跑 sub-reviewer。
     - id: add-tests
-      name: 測試 subPhase 寫入與 resume 邏輯
+      name: 測試 subPhase 寫入、partial resume、resume 邏輯
       status: ""
 depends:
     - F078
