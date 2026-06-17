@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.11] - 2026-06-17
+
+### Features
+
+- **StopMessage** — runner 結束時提供詳細停止原因（完成/錯誤/中斷/逾時），dashboard detail 面板即時刷新顯示
+- **Struct validation** — Feature 和 Config 新增結構驗證，載入時自動檢查必填欄位與格式
+- **Template resume** — 所有 role template 支援增量寫入與中斷續寫
+- **macOS menus** — 新增 Edit/Help 選單、DevTools 切換、通知偏好設定
+
+### Fixes
+
+- **No-op merge** — merge --squash 無淨變更時不再誤報 merge 失敗
+- **Logs tab scrollbar** — 修正 logs 頁籤出現多餘外層捲軸
+
+### Docs
+
+- **Landing page** — 新增 GitHub Pages 多語系首頁，含 dashboard 截圖、Roles & Instructions 分頁、terminal demo GIF
+- **Runner icons** — 改用官方 Claude 與 Antigravity SVG
+
 ## [0.1.10] - 2026-06-16
 
 ### Features
