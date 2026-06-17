@@ -1,7 +1,7 @@
 id: F079-deep-review-subphase
 name: 'F079: Deep-review subPhase tracking'
 description: deep-reviewing phase 內含多個子步驟（reviewing、synthesizing、fixing、reverifying），但 state.json 只記錄 phase=deep-reviewing，dashboard 無法顯示細部進度，crash recovery 也無法判斷中斷點。在 state.json 加 subPhase 欄位追蹤子步驟，dashboard 顯示 deep-reviewing (fixing) 等，resume 時據此判斷起點。
-status: in-progress
+status: ready-for-review
 priority: 2
 subtasks:
     - id: add-subphase-field
