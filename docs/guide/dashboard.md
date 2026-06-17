@@ -29,7 +29,7 @@ The project tab bar ends with two actions: **Add Project** (folder-plus icon) an
 
 ## Feature Cards
 
-Each feature card shows tags for its priority, dependencies, stop reason (if the feature halted abnormally), and — when a non-default [pipeline profile](concepts.md#pipeline-profiles) is active — a **profile tag** (e.g. `quick`, `normal`). High-priority features (P0/P1) get accent borders. Completed dependencies show a green checkmark. The `profile` and `stopReason` fields are carried in the `/api/tasks` JSON.
+Each feature card shows tags for its priority, dependencies, stop reason (if the feature halted abnormally), and — when a non-default [pipeline profile](concepts.md#pipeline-profiles) is active — a **profile tag** (e.g. `quick`, `normal`). High-priority features (P0/P1) get accent borders. Completed dependencies show a green checkmark. The `profile`, `stopReason`, and `stopMessage` fields are carried in the `/api/tasks` JSON. `stopReason` is a short category code (e.g. `runner-error`, `guard-fail`, `no-progress`) used for color-coding; `stopMessage` is the human-readable detail shown below the category label.
 
 ## New Feature Form
 

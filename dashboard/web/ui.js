@@ -409,7 +409,7 @@ function notifyBody(ev) {
   }
 }
 
-function connectSSE(fid) { disconnectSSE(); _lastNotifyKey = null; requestNotificationPermission(); sseSource = new EventSource(sseBase()+'/events/'+fid); sseSource.onmessage = () => { loadMessages(fid); maybeNotifyFromEvents(fid); }; }
+function connectSSE(fid) { disconnectSSE(); _lastNotifyKey = null; requestNotificationPermission(); sseSource = new EventSource(sseBase()+'/events/'+fid); sseSource.onmessage = () => { loadMessages(fid); maybeNotifyFromEvents(fid); refreshCurrentDetail(); }; }
 function disconnectSSE() { if (sseSource) { sseSource.close(); sseSource = null; } }
 
 function classify(tasks) {
@@ -726,7 +726,7 @@ function renderTaskItem(task) {
     pi = `<div class="flex items-center gap-1.5 mt-1.5"><span class="text-[11px] text-zinc-600">${parts}</span></div>`;
   }
   if (!isActive && task.stopReason && task.stopReason !== 'pending-review' && task.stopReason !== 'done') {
-    const srColors = {'scope-change':'#f59e0b','runner-error':'#ef4444','hard-error':'#ef4444','soft-fail':'#f59e0b','interrupted':'#a78bfa','escalation':'#f59e0b','model-error':'#ef4444'};
+    const srColors = {'scope-change':'#f59e0b','runner-error':'#ef4444','hard-error':'#ef4444','soft-fail':'#f59e0b','interrupted':'#a78bfa','escalation':'#f59e0b','model-error':'#ef4444','guard-fail':'#ef4444','no-progress':'#f59e0b','missing-artifact':'#ef4444','health-check-failed':'#ef4444','scope-exceed':'#f59e0b','self-heal-exhausted':'#f59e0b'};
     const srColor = srColors[task.stopReason] || '#a1a1aa';
     pi += `<div class="flex items-center gap-1 mt-1"><span style="font-size:9px;padding:1px 5px;border-radius:4px;background:${srColor}18;color:${srColor};font-weight:600">⚠ ${task.stopReason}</span></div>`;
   }
@@ -847,6 +847,68 @@ async function load() {
   else document.getElementById('dashboard').classList.add('hidden');
 }
 
+let _refreshPending = false;
+async function refreshCurrentDetail() {
+  if (!current || _refreshPending) return;
+  _refreshPending = true;
+  try {
+    const [tasks, runs] = await Promise.all([
+      fetch(apiBase()+'/api/tasks').then(r => r.json()).catch(() => []),
+      fetch(apiBase()+'/api/runs').then(r => r.ok ? r.json() : []).catch(() => []),
+    ]);
+    lastTasks = tasks || [];
+    activeRuns = runs || [];
+    renderSidebar();
+    const task = lastTasks.find(t => t.id === current);
+    if (task) updateDetailHeader(task);
+  } finally { _refreshPending = false; }
+}
+
+function updateDetailHeader(task) {
+  const el = (id) => document.getElementById(id);
+  el('h-badge').innerHTML = badge(task.status, task.phase, task.active);
+  const isRunning = task.active && task.phase && task.phase !== 'done';
+  const hRunId = getRunId(task.id);
+  let hAction = '';
+  if (isRunning && hRunId) {
+    hAction = `<button class="w-7 h-7 flex items-center justify-center rounded text-red-400 hover:bg-red-500/20 transition-colors" onclick="stopRun('${hRunId}')" title="${t('run.stop')}">■</button>`;
+  } else if (task.status !== 'done') {
+    hAction = `<button class="w-7 h-7 flex items-center justify-center rounded hover:bg-emerald-500/20 transition-colors" style="color:var(--accent)" onclick="openRunModal('${task.id}')" title="${t('run.run')}">▶</button>`;
+  }
+  el('h-play-stop').innerHTML = hAction;
+  const meta = [];
+  if (task.phase) {
+    const pi = PHASE_ICON[task.phase]||'○';
+    const phaseLabel = isRunning && task.phase === 'reviewing' ? `${pi} 🔍 reviewing 🧪 testing` : `${pi} ${task.phase}`;
+    meta.push(`<span>${phaseLabel}</span>`);
+  }
+  if (task.round) meta.push(`<span>⟳ ${t('common.round').replace('{round}', task.round)}</span>`);
+  if (isRunning && task.createdAt) {
+    meta.push(`<span>⏱ ${formatElapsed(task.createdAt)}</span>`);
+  } else if (!isRunning && task.createdAt && task.updatedAt) {
+    meta.push(`<span>⏱ ${formatDuration(task.createdAt, task.updatedAt)}</span>`);
+  }
+  if (task.runners && task.runners.length) {
+    meta.push(`<span>⬡ ${task.runners.map(r => `<span style="color:${runnerColor(r)}">${esc(cap(r))}</span>`).join(' · ')}</span>`);
+  } else if (task.runner) {
+    meta.push(`<span>⬡ ${cap(task.runner)}</span>`);
+  }
+  if (task.pid) meta.push(`<span class="text-zinc-600">pid ${task.pid}</span>`);
+  el('h-meta').innerHTML = meta.join('<span class="text-zinc-700">·</span>');
+  const existingAlert = document.getElementById('h-stop-alert');
+  if (existingAlert) existingAlert.remove();
+  if (!isRunning && task.stopReason && task.stopReason !== 'pending-review' && task.stopReason !== 'done') {
+    const srColors = {'scope-change':'#f59e0b','runner-error':'#ef4444','hard-error':'#ef4444','soft-fail':'#f59e0b','interrupted':'#a78bfa','escalation':'#f59e0b','model-error':'#ef4444','guard-fail':'#ef4444','no-progress':'#f59e0b','missing-artifact':'#ef4444','health-check-failed':'#ef4444','scope-exceed':'#f59e0b','self-heal-exhausted':'#f59e0b'};
+    const c = srColors[task.stopReason] || '#ef4444';
+    const msg = task.stopMessage || task.stopReason;
+    const alert = document.createElement('div');
+    alert.id = 'h-stop-alert';
+    alert.style.cssText = `margin-top:8px;padding:8px 12px;border-radius:8px;font-size:12px;line-height:1.5;background:${c}12;border:1px solid ${c}30;color:${c}`;
+    alert.innerHTML = `<strong style="font-size:11px;text-transform:uppercase;letter-spacing:.05em">⚠ ${esc(task.stopReason)}</strong>` + (msg !== task.stopReason ? `<div style="margin-top:4px;color:var(--text-2);font-size:12px">${esc(msg)}</div>` : '');
+    document.getElementById('header').appendChild(alert);
+  }
+}
+
 async function loadDetail(task) {
   document.getElementById('dashboard').classList.add('hidden');
   document.getElementById('header').classList.remove('hidden');
@@ -888,7 +950,7 @@ async function loadDetail(task) {
   const existingAlert = document.getElementById('h-stop-alert');
   if (existingAlert) existingAlert.remove();
   if (!isRunning && task.stopReason && task.stopReason !== 'pending-review' && task.stopReason !== 'done') {
-    const srColors = {'scope-change':'#f59e0b','runner-error':'#ef4444','hard-error':'#ef4444','soft-fail':'#f59e0b','interrupted':'#a78bfa','escalation':'#f59e0b','model-error':'#ef4444'};
+    const srColors = {'scope-change':'#f59e0b','runner-error':'#ef4444','hard-error':'#ef4444','soft-fail':'#f59e0b','interrupted':'#a78bfa','escalation':'#f59e0b','model-error':'#ef4444','guard-fail':'#ef4444','no-progress':'#f59e0b','missing-artifact':'#ef4444','health-check-failed':'#ef4444','scope-exceed':'#f59e0b','self-heal-exhausted':'#f59e0b'};
     const c = srColors[task.stopReason] || '#ef4444';
     const msg = task.stopMessage || task.stopReason;
     const alert = document.createElement('div');

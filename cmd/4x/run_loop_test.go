@@ -220,8 +220,11 @@ func TestRunLoop_TestPassMissingArtifactsStopsBeforeAccepting(t *testing.T) {
 	if final.Active {
 		t.Error("feature should stop when tester artifacts are incomplete")
 	}
-	if !strings.Contains(final.StopReason, protocol.CommitPlan) {
-		t.Errorf("stopReason = %q, want missing commit-plan detail", final.StopReason)
+	if final.StopReason == "" {
+		t.Errorf("stopReason should not be empty")
+	}
+	if !strings.Contains(final.StopMessage, protocol.CommitPlan) {
+		t.Errorf("stopMessage = %q, want missing commit-plan detail", final.StopMessage)
 	}
 	if len(mock.phases) != 4 {
 		t.Fatalf("ran %d phases, want 4 before accepting: %v", len(mock.phases), mock.phases)
@@ -345,8 +348,11 @@ func TestRunLoop_EscalationFromCoder(t *testing.T) {
 	if final.Active {
 		t.Error("should be inactive after escalation")
 	}
-	if final.StopReason != "blocker" {
-		t.Errorf("stopReason = %q, want blocker", final.StopReason)
+	if final.StopReason != "escalation" {
+		t.Errorf("stopReason = %q, want escalation", final.StopReason)
+	}
+	if final.StopMessage != "blocker" {
+		t.Errorf("stopMessage = %q, want blocker", final.StopMessage)
 	}
 }
 
@@ -376,8 +382,11 @@ func TestRunLoop_EscalationFromTester(t *testing.T) {
 	if final.Active {
 		t.Error("should be inactive after escalation")
 	}
-	if final.StopReason != "blocker" {
-		t.Errorf("stopReason = %q, want blocker", final.StopReason)
+	if final.StopReason != "escalation" {
+		t.Errorf("stopReason = %q, want escalation", final.StopReason)
+	}
+	if final.StopMessage != "blocker" {
+		t.Errorf("stopMessage = %q, want blocker", final.StopMessage)
 	}
 }
 
@@ -1423,8 +1432,11 @@ func TestRunLoop_GuardFailStopsLoop(t *testing.T) {
 	if final.Active {
 		t.Error("feature should be inactive after guard failure")
 	}
-	if !strings.Contains(final.StopReason, "scope violation") {
-		t.Errorf("stopReason = %q, want scope violation detail", final.StopReason)
+	if final.StopReason != "guard-fail" {
+		t.Errorf("stopReason = %q, want guard-fail", final.StopReason)
+	}
+	if !strings.Contains(final.StopMessage, "scope violation") {
+		t.Errorf("stopMessage = %q, want scope violation detail", final.StopMessage)
 	}
 	// 確認 designer 和 coder 都有執行（guard 跳過 designer、在 coder 後失敗）
 	if len(mock.phases) < 2 {

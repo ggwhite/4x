@@ -46,8 +46,11 @@ func TestRunLoop_NoProgressStopsBeforeMaxRounds(t *testing.T) {
 	if final.Active {
 		t.Error("should be inactive after no-progress stop")
 	}
-	if !strings.Contains(final.StopReason, "no progress") {
-		t.Errorf("stopReason = %q, want 'no progress'", final.StopReason)
+	if final.StopReason != "no-progress" {
+		t.Errorf("stopReason = %q, want 'no-progress'", final.StopReason)
+	}
+	if !strings.Contains(final.StopMessage, "no progress") {
+		t.Errorf("stopMessage = %q, want 'no progress'", final.StopMessage)
 	}
 	if final.ConsecutiveNoProgress != 3 {
 		t.Errorf("ConsecutiveNoProgress = %d, want 3", final.ConsecutiveNoProgress)

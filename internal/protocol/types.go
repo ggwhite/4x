@@ -96,6 +96,7 @@ type State struct {
 	ConsecutiveNoProgress int       `json:"consecutiveNoProgress"`
 	LastFailCount         int       `json:"lastFailCount"`
 	StopReason            string    `json:"stopReason,omitempty"`
+	StopMessage           string    `json:"stopMessage,omitempty"`
 	Runners               []string  `json:"runners,omitempty"`
 	// Profile 記錄本次 run 使用的 pipeline profile 名稱，供 dashboard 顯示與 resume 沿用。
 	Profile string `json:"profile,omitempty"`
