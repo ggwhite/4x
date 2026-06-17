@@ -51,8 +51,11 @@ func sendSystemNotification(level, title, body string) {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
-		script := "display notification " + quoteAppleScript(body) + " with title " + quoteAppleScript(title)
-		cmd = exec.CommandContext(ctx, "osascript", "-e", script)
+		notif := "display notification " + quoteAppleScript(body) + " with title " + quoteAppleScript(title)
+		if nativeAppRunning() {
+			notif = `tell application "4x Live" to ` + notif
+		}
+		cmd = exec.CommandContext(ctx, "osascript", "-e", notif)
 	case "linux":
 		cmd = exec.CommandContext(ctx, "notify-send", title, body)
 	case "windows":
@@ -90,6 +93,11 @@ func quotePowerShell(s string) string {
 	}
 	out = append(out, '\'')
 	return string(out)
+}
+
+// nativeAppRunning 回報 4x Live macOS app 是否正在執行，用於決定通知歸屬對象。
+func nativeAppRunning() bool {
+	return exec.Command("pgrep", "-x", "4xLive").Run() == nil
 }
 
 // escapeQuotes escape 反斜線與雙引號，供雙引號字面量使用。
