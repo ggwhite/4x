@@ -150,6 +150,10 @@ func (m *multiRepo) Merge(featureID, featureName string) MergeResult {
 
 	var merged []repoHead
 	for _, rh := range preHeads {
+		if exec.Command("git", "-C", rh.repoPath, "rev-parse", "--verify", branch).Run() != nil {
+			continue
+		}
+
 		out, err := exec.Command("git", "-C", rh.repoPath, "merge", "--squash", branch).CombinedOutput()
 		if err != nil {
 			files := conflictFiles(rh.repoPath)

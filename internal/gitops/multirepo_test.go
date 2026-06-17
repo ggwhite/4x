@@ -325,6 +325,53 @@ func TestMultiRepo_CaptureBaseline(t *testing.T) {
 	}
 }
 
+// TestMultiRepo_MergeBranchMissingInSomeRepos 驗證部分 repo 不存在 feature branch 時，
+// merge 應跳過該 repo 而非回報錯誤。
+func TestMultiRepo_MergeBranchMissingInSomeRepos(t *testing.T) {
+	root, ws, _ := setupMultiWorkspace(t)
+	_ = ws
+
+	cfg := protocol.Config{
+		Project: protocol.ProjectConfig{Name: "multi-test"},
+		Workspace: protocol.WorkspaceConfig{
+			Repos: map[string]protocol.RepoConfig{
+				"core": {Path: "core"},
+				"gate": {Path: "gate"},
+			},
+		},
+	}
+	ops := New(root, &protocol.Workspace{Root: root}, cfg)
+
+	// 只在 core 建立 feature branch 並加 commit
+	branch := Branch("feat-partial-branch")
+	coreRepo := filepath.Join(root, "core")
+	defaultBranch := gitOutput(coreRepo, "rev-parse", "--abbrev-ref", "HEAD")
+	runGit(t, coreRepo, "checkout", "-b", branch)
+	os.WriteFile(filepath.Join(coreRepo, "partial.go"), []byte("package core\n"), 0o644)
+	runGit(t, coreRepo, "add", ".")
+	runGit(t, coreRepo, "commit", "-m", "add partial.go")
+	runGit(t, coreRepo, "checkout", defaultBranch)
+
+	// gate 不建立 branch — 模擬 feature 只改了部分 repo 的場景
+
+	// 手動建立 worktree 目錄讓 Merge 不視為 skipped
+	wtDir := Dir(root, "feat-partial-branch")
+	os.MkdirAll(wtDir, 0o755)
+
+	result := ops.Merge("feat-partial-branch", "Partial Branch Feature")
+	if result.Error != "" {
+		t.Fatalf("merge should succeed when branch missing in some repos, got error: %s", result.Error)
+	}
+	if result.Conflict {
+		t.Fatal("unexpected conflict")
+	}
+
+	// core 應有合併後的檔案
+	if _, err := os.Stat(filepath.Join(root, "core", "partial.go")); err != nil {
+		t.Error("partial.go should exist in core after merge")
+	}
+}
+
 func TestMultiRepo_CaptureBaseline_AllReposWhenEmpty(t *testing.T) {
 	_, ws, ops := setupMultiWorkspace(t)
 	if err := ws.InitFeatureDir("feat-base3"); err != nil {
