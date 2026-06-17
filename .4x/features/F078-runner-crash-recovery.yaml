@@ -1,0 +1,17 @@
+id: F078-runner-crash-recovery
+name: 'F078: Runner crash recovery'
+description: Runner 中途斷線（crash / 網路斷）重啟後，4x run/resume 沒有根據 round 目錄已存在的 artifacts 判斷應從哪個 phase 繼續，而是重置回 coding，導致先前產出被覆蓋。需在 resume 時偵測已完成的 artifacts 並從正確 phase 繼續。
+status: not-started
+subtasks:
+    - id: detect-artifacts
+      name: 根據 round 目錄的 report 檔推斷最後完成的 phase
+      status: ""
+    - id: resume-from-correct-phase
+      name: resume 時以 artifacts 為準，不信任可能過時的 state.json
+      status: ""
+    - id: protect-existing-reports
+      name: coding 階段不覆蓋已存在的 coder-report.md
+      status: ""
+    - id: add-tests
+      name: 測試 crash 後 resume 的 phase 推斷邏輯
+      status: ""
