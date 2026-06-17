@@ -99,6 +99,57 @@ func TestResolveDesignDoc_PlanField(t *testing.T) {
 	}
 }
 
+func TestResolveDesignDoc_ExtraDirs(t *testing.T) {
+	root := t.TempDir()
+	customDir := filepath.Join(root, "docs", "feature")
+	os.MkdirAll(customDir, 0o755)
+	os.WriteFile(filepath.Join(customDir, "ws-074-spec.md"), []byte("custom spec"), 0o644)
+
+	f := feature.Feature{ID: "ws-074"}
+	doc := ResolveDesignDoc(root, f, "spec", "docs/feature")
+
+	if doc.Content != "custom spec" {
+		t.Errorf("Content = %q, want custom spec", doc.Content)
+	}
+	want := filepath.Join("docs", "feature", "ws-074-spec.md")
+	if doc.Source != want {
+		t.Errorf("Source = %q, want %q", doc.Source, want)
+	}
+}
+
+func TestResolveDesignDoc_ExtraDirsPriorityOverDefault(t *testing.T) {
+	root := t.TempDir()
+
+	customDir := filepath.Join(root, "docs", "feature")
+	os.MkdirAll(customDir, 0o755)
+	os.WriteFile(filepath.Join(customDir, "F054-test-spec.md"), []byte("custom"), 0o644)
+
+	defaultDir := filepath.Join(root, "docs", "design")
+	os.MkdirAll(defaultDir, 0o755)
+	os.WriteFile(filepath.Join(defaultDir, "F054-test-spec.md"), []byte("default"), 0o644)
+
+	f := feature.Feature{ID: "F054-test"}
+	doc := ResolveDesignDoc(root, f, "spec", "docs/feature")
+
+	if doc.Content != "custom" {
+		t.Errorf("Content = %q, want custom (extraDirs should take priority)", doc.Content)
+	}
+}
+
+func TestResolveDesignDoc_ExtraDirsStripPrefix(t *testing.T) {
+	root := t.TempDir()
+	customDir := filepath.Join(root, "docs", "feature")
+	os.MkdirAll(customDir, 0o755)
+	os.WriteFile(filepath.Join(customDir, "test-feature-plan.md"), []byte("stripped custom"), 0o644)
+
+	f := feature.Feature{ID: "F054-test-feature"}
+	doc := ResolveDesignDoc(root, f, "plan", "docs/feature")
+
+	if doc.Content != "stripped custom" {
+		t.Errorf("Content = %q, want stripped custom", doc.Content)
+	}
+}
+
 func TestStripFeaturePrefix(t *testing.T) {
 	cases := map[string]string{
 		"F054-test":  "test",

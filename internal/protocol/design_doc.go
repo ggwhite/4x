@@ -20,13 +20,15 @@ type DesignDoc struct {
 // ResolveDesignDoc 依優先序解析 feature 的設計文件，docType 為 "spec" 或 "plan"。
 // 此函式統一 server 與 prompt 兩處原本各自不一致的解析邏輯，新增來源時只需改這裡。
 //
+// extraDirs 為額外搜尋目錄（相對於 root），優先於預設 docs/design/。
+//
 // 解析優先序：
-//  1. Feature YAML 的 Spec/Plan 欄位（依 docType 選取）：非空時當 path 讀取，
-//     相對路徑接在 root 下、絕對路徑直接用；命中時 Source 回傳原始 YAML 路徑字串。
-//  2. docs/design/{feature.ID}-{docType}.md。
-//  3. docs/design/{slug}-{docType}.md，slug 為 strip FNNN- prefix 後的結果（僅當 slug != feature.ID 才試）。
-//  4. 都找不到 → 回傳零值 DesignDoc{}。
-func ResolveDesignDoc(root string, feature feature.Feature, docType string) DesignDoc {
+//  1. Feature YAML 的 Spec/Plan 欄位（依 docType 選取）。
+//  2. extraDirs 中各目錄下的 {feature.ID}-{docType}.md 與 {slug}-{docType}.md。
+//  3. docs/design/{feature.ID}-{docType}.md。
+//  4. docs/design/{slug}-{docType}.md。
+//  5. 都找不到 → 回傳零值 DesignDoc{}。
+func ResolveDesignDoc(root string, feature feature.Feature, docType string, extraDirs ...string) DesignDoc {
 	yamlPath := ""
 	switch docType {
 	case "spec":
@@ -54,16 +56,20 @@ func ResolveDesignDoc(root string, feature feature.Feature, docType string) Desi
 		}
 	}
 
-	rel := filepath.Join("docs", "design", feature.ID+"-"+docType+".md")
-	if content, err := os.ReadFile(filepath.Join(root, rel)); err == nil {
-		return DesignDoc{Content: string(content), Source: rel}
-	}
-
 	slug := stripFeaturePrefix(feature.ID)
-	if slug != feature.ID {
-		rel = filepath.Join("docs", "design", slug+"-"+docType+".md")
+	dirs := make([]string, len(extraDirs)+1)
+	copy(dirs, extraDirs)
+	dirs[len(extraDirs)] = filepath.Join("docs", "design")
+	for _, dir := range dirs {
+		rel := filepath.Join(dir, feature.ID+"-"+docType+".md")
 		if content, err := os.ReadFile(filepath.Join(root, rel)); err == nil {
 			return DesignDoc{Content: string(content), Source: rel}
+		}
+		if slug != feature.ID {
+			rel = filepath.Join(dir, slug+"-"+docType+".md")
+			if content, err := os.ReadFile(filepath.Join(root, rel)); err == nil {
+				return DesignDoc{Content: string(content), Source: rel}
+			}
 		}
 	}
 

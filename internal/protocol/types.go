@@ -304,6 +304,9 @@ type Config struct {
 	AutoDiscoverFeatures bool `json:"auto_discover_features,omitempty"`
 	// MaxDiscoveredFeatures 限制單次 run 最多自動建立幾張 feature；未設定或 <= 0 時套預設值（3）。
 	MaxDiscoveredFeatures int `json:"max_discovered_features,omitempty"`
+	// DesignDocDirs 指定設計文件（spec/plan）的額外搜尋目錄，優先於預設 docs/design/。
+	// 例如 ["docs/feature"] 會讓 ResolveDesignDoc 先找 docs/feature/{id}-spec.md。
+	DesignDocDirs []string `json:"design_doc_dirs,omitempty"`
 	// Notifications 控制 run 結束時是否推送 OS 原生通知；用 pointer 區分「未設定」與「明確 false」，
 	// nil（未設定）時 NotificationsEnabled 視為啟用。project 端非 nil 會覆蓋 user 端設定。
 	Notifications *bool `json:"notifications,omitempty"`

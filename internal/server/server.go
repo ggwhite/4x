@@ -560,6 +560,11 @@ func handleTasks(ws *protocol.CachedWorkspace, w http.ResponseWriter) {
 		return
 	}
 
+	var designDocDirs []string
+	if cfg, err := ws.ReadConfig(); err == nil {
+		designDocDirs = cfg.DesignDocDirs
+	}
+
 	var tasks []taskInfo
 	for _, f := range features {
 		t := taskInfo{
@@ -568,8 +573,8 @@ func handleTasks(ws *protocol.CachedWorkspace, w http.ResponseWriter) {
 			Status:   string(f.Status),
 			Priority: f.Priority,
 		}
-		t.HasSpec = protocol.ResolveDesignDoc(ws.Root, f, "spec").Source != ""
-		t.HasPlan = protocol.ResolveDesignDoc(ws.Root, f, "plan").Source != ""
+		t.HasSpec = protocol.ResolveDesignDoc(ws.Root, f, "spec", designDocDirs...).Source != ""
+		t.HasPlan = protocol.ResolveDesignDoc(ws.Root, f, "plan", designDocDirs...).Source != ""
 		t.Depends = f.Depends
 		t.Warnings = f.Warnings
 		if s, err := ws.ReadState(f.ID); err == nil {
@@ -610,8 +615,13 @@ func handleOverview(ws *protocol.CachedWorkspace, featureID string, w http.Respo
 		return
 	}
 
-	specDoc := protocol.ResolveDesignDoc(ws.Root, f, "spec")
-	planDoc := protocol.ResolveDesignDoc(ws.Root, f, "plan")
+	var designDocDirs []string
+	if cfg, err := ws.ReadConfig(); err == nil {
+		designDocDirs = cfg.DesignDocDirs
+	}
+
+	specDoc := protocol.ResolveDesignDoc(ws.Root, f, "spec", designDocDirs...)
+	planDoc := protocol.ResolveDesignDoc(ws.Root, f, "plan", designDocDirs...)
 	spec, specSource := specDoc.Content, specDoc.Source
 	plan, planSource := planDoc.Content, planDoc.Source
 	info := overviewInfo{

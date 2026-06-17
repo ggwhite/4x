@@ -92,6 +92,11 @@ func showAllFeatures(ws *protocol.Workspace, pendingOnly bool) error {
 		return nil
 	}
 
+	var designDocDirs []string
+	if cfg, err := ws.LoadMergedConfig(); err == nil {
+		designDocDirs = cfg.DesignDocDirs
+	}
+
 	var rows []featureRow
 	for _, f := range features {
 		phase := "-"
@@ -105,8 +110,8 @@ func showAllFeatures(ws *protocol.Workspace, pendingOnly bool) error {
 			active = s.Active
 			updatedAt = s.UpdatedAt
 		}
-		hasSpec := protocol.ResolveDesignDoc(ws.Root, f, "spec").Source != ""
-		hasPlan := protocol.ResolveDesignDoc(ws.Root, f, "plan").Source != ""
+		hasSpec := protocol.ResolveDesignDoc(ws.Root, f, "spec", designDocDirs...).Source != ""
+		hasPlan := protocol.ResolveDesignDoc(ws.Root, f, "plan", designDocDirs...).Source != ""
 		rows = append(rows, featureRow{
 			feature:   f,
 			phase:     phase,

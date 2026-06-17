@@ -78,7 +78,7 @@ func newPromptCmd() *cobra.Command {
 				RoleInstructions:    roleInstructions(cfg, r),
 				ProjectIncludes:     append(loadIncludes(ws.Root, cfg.Project.Includes), discoverConventionFiles(ws.Root, cfg.Project.Includes)...),
 				RoleIncludes:        loadIncludes(ws.Root, roleInc),
-				PlanningDoc:         loadPlanningDocs(ws.Root, feature),
+				PlanningDoc:         loadPlanningDocs(ws.Root, feature, cfg.DesignDocDirs),
 				ProfileInstructions: loadProfiles(ws, featureID, cfg),
 			}
 
@@ -207,10 +207,10 @@ func roleInstructions(cfg protocol.Config, r protocol.Role) []string {
 
 // loadPlanningDocs 解析 feature 的 spec 與 plan 設計文件並串接，供 prompt 注入。
 // 解析優先序統一走 protocol.ResolveDesignDoc；找不到的文件跳過，不報錯。
-func loadPlanningDocs(root string, feature feature.Feature) string {
+func loadPlanningDocs(root string, feature feature.Feature, designDocDirs []string) string {
 	var parts []string
 	for _, docType := range []string{"spec", "plan"} {
-		doc := protocol.ResolveDesignDoc(root, feature, docType)
+		doc := protocol.ResolveDesignDoc(root, feature, docType, designDocDirs...)
 		if doc.Content != "" {
 			parts = append(parts, doc.Content)
 		}
