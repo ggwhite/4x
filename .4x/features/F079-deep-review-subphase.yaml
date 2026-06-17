@@ -1,7 +1,7 @@
 id: F079-deep-review-subphase
 name: 'F079: Deep-review subPhase tracking'
 description: deep-reviewing phase 內含多個子步驟（reviewing、synthesizing、fixing、reverifying），但 state.json 只記錄 phase=deep-reviewing，dashboard 無法顯示細部進度，crash recovery 也無法判斷中斷點。在 state.json 加 subPhase 欄位追蹤子步驟，dashboard 顯示 deep-reviewing (fixing) 等，resume 時據此判斷起點。
-status: not-started
+status: in-progress
 priority: 2
 subtasks:
     - id: add-subphase-field
@@ -17,9 +17,9 @@ subtasks:
       name: 只補跑掛掉的 sub-reviewer，不重跑全部
       status: ""
       description: |
-          resume 時檢查哪些 deep-review-partial-N.md 已存在且完整，
-          只 spawn 缺少的 sub-reviewer。synthesizer 掛掉時也直接重跑
-          synthesizer（partials 都在），不重跑 sub-reviewer。
+        resume 時檢查哪些 deep-review-partial-N.md 已存在且完整，
+        只 spawn 缺少的 sub-reviewer。synthesizer 掛掉時也直接重跑
+        synthesizer（partials 都在），不重跑 sub-reviewer。
     - id: add-tests
       name: 測試 subPhase 寫入、partial resume、resume 邏輯
       status: ""
