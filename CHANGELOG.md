@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.13] - 2026-06-17
+
+### Features
+
+- **Worktree-aware scope check** — `4x check` 在 git worktree 內執行時自動偵測 worktree 根目錄，scope 檢查只掃 worktree 的 uncommitted changes，不再誤報 main workspace 的改動
+- **Design doc search dirs** — 支援設定自訂設計文件搜尋目錄，不再限於預設的 `docs/design/`
+
+### Fixes
+
+- **App icon notification** — 4x Live 執行中時系統通知改用 app icon 而非預設圖示
+- **Dependency badge colors** — Dashboard Overview detail 面板的依賴狀態徽章加上顏色標示
+- **Multi-repo worktree cleanup** — 清理 worktree 時偵測並處理孤立 worktree，避免殘留
+
+### Docs
+
+- **SVG logo** — README banner 從 ASCII art 換成 SVG logo
+
+### Internal
+
+- **Copilot & Cursor plugins** — 新增 copilot AGENTS.md 和 cursor .cursorrules 的 plugin import
+
 ## [0.1.12] - 2026-06-17
 
 ### Features
