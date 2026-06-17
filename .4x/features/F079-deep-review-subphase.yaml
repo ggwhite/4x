@@ -13,21 +13,6 @@ subtasks:
     - id: resume-from-subphase
       name: crash recovery 用 subPhase 判斷 deep-reviewing 內的 resume 起點
       status: ""
-    - id: drop-commit-plan
-      name: 砍掉 commit-plan.md，acceptor 不再產出
-      status: ""
-      description: |
-          commit-plan.md 完全沒被程式消費，per-round auto-commit 已處理。
-          修改：acceptor.md.tmpl 移除 commit-plan 相關段落，
-          cleanStaleArtifact / CopyFileIfNewer 移除 CommitPlan 引用，
-          protocol 常量可保留但不再要求產出。
-    - id: slim-final-report
-      name: 精簡 final-report.md 格式
-      status: ""
-      description: |
-          現在 acceptor 要讀全部 round 再寫大彙整，耗 token 但只當 gate 用。
-          改為只寫 status（PASS/FAIL）+ 未解決 issues 摘要，
-          prompt 從 130 行砍到 ~40 行，大幅省 token。
     - id: add-tests
       name: 測試 subPhase 寫入與 resume 邏輯
       status: ""

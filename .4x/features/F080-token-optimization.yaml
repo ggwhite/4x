@@ -1,0 +1,21 @@
+id: F080-token-optimization
+name: 'F080: Token optimization for run pipeline'
+description: 減少 4x run pipeline 各階段的冗餘 token 消耗，不降低 review 與測試品質。
+status: not-started
+priority: 2
+subtasks:
+    - id: trim-deep-reviewer-context
+      name: Deep-reviewer 不塞 PlanningDoc，已有 task-brief + coder-report + diff 足夠
+      status: ""
+    - id: synthesizer-cheap-model
+      name: Synthesizer 獨立 model 設定，預設用 Sonnet（只做文本合併不讀原始碼）
+      status: ""
+    - id: slim-amending-prompt
+      name: Amending coder prompt 精簡，只帶 review feedback + 相關原始碼，砍掉 spec/plan 重複
+      status: ""
+    - id: drop-commit-plan
+      name: Acceptor 不再產出 commit-plan.md（無人消費）
+      status: ""
+    - id: slim-final-report
+      name: Acceptor final-report 精簡為 status + open issues 摘要
+      status: ""
