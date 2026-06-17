@@ -32,6 +32,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
             UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
         }
 
+        observeCLINotifications()
+
         pollServerAndLoad()
 
         // 啟動 10 秒後靜默檢查更新
@@ -874,6 +876,28 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
                     self.window.title = name == "4x Live" ? name : "\(name) — 4x Live"
                 }
             }
+        }
+    }
+
+    // MARK: - CLI Distributed Notification
+
+    // observeCLINotifications 監聽 CLI 透過 NSDistributedNotificationCenter 送來的通知請求，
+    // 改由 app 自身的 UNUserNotificationCenter 發出，使通知顯示 app icon 而非 Script Editor icon。
+    func observeCLINotifications() {
+        DistributedNotificationCenter.default().addObserver(
+            forName: NSNotification.Name("com.ggwhite.4x.notify"),
+            object: nil, queue: .main
+        ) { notification in
+            guard Bundle.main.bundleIdentifier != nil else { return }
+            guard let info = notification.userInfo,
+                  let title = info["title"] as? String,
+                  let body = info["body"] as? String else { return }
+            let content = UNMutableNotificationContent()
+            content.title = title
+            content.body = body
+            content.sound = .default
+            let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+            UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
         }
     }
 

@@ -51,11 +51,13 @@ func sendSystemNotification(level, title, body string) {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
-		notif := "display notification " + quoteAppleScript(body) + " with title " + quoteAppleScript(title)
 		if nativeAppRunning() {
-			notif = `tell application "4x Live" to ` + notif
+			cmd = exec.CommandContext(ctx, "osascript", "-l", "JavaScript", "-e",
+				darwinDistributedNotify(title, body))
+		} else {
+			script := "display notification " + quoteAppleScript(body) + " with title " + quoteAppleScript(title)
+			cmd = exec.CommandContext(ctx, "osascript", "-e", script)
 		}
-		cmd = exec.CommandContext(ctx, "osascript", "-e", notif)
 	case "linux":
 		cmd = exec.CommandContext(ctx, "notify-send", title, body)
 	case "windows":
@@ -90,6 +92,39 @@ func quotePowerShell(s string) string {
 			continue
 		}
 		out = append(out, r)
+	}
+	out = append(out, '\'')
+	return string(out)
+}
+
+// darwinDistributedNotify 產生一段 JXA（JavaScript for Automation）腳本，透過
+// NSDistributedNotificationCenter 將通知請求發給 4x Live app，由 app 的
+// UNUserNotificationCenter 發出，使通知顯示 app icon。
+func darwinDistributedNotify(title, body string) string {
+	return "ObjC.import('Foundation');" +
+		"$.NSDistributedNotificationCenter.defaultCenter." +
+		"postNotificationNameObjectUserInfoDeliverImmediately(" +
+		"'com.ggwhite.4x.notify',$()," +
+		"$.NSDictionary.dictionaryWithObjectsForKeys(" +
+		"[" + quoteJS(title) + "," + quoteJS(body) + "]," +
+		"['title','body']),true);"
+}
+
+// quoteJS 將字串包成 JavaScript 單引號字面量，escape 反斜線、單引號與換行。
+func quoteJS(s string) string {
+	out := make([]rune, 0, len(s)+2)
+	out = append(out, '\'')
+	for _, r := range s {
+		switch r {
+		case '\\', '\'':
+			out = append(out, '\\', r)
+		case '\n':
+			out = append(out, '\\', 'n')
+		case '\r':
+			out = append(out, '\\', 'r')
+		default:
+			out = append(out, r)
+		}
 	}
 	out = append(out, '\'')
 	return string(out)
