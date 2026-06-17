@@ -98,7 +98,9 @@ func (m *monoRepo) Merge(featureID, featureName string) MergeResult {
 
 	msg := fmt.Sprintf("feat(%s): %s", featureID, featureName)
 	if out, err := exec.Command("git", "-C", m.root, "commit", "-m", msg).CombinedOutput(); err != nil {
-		return MergeResult{Error: strings.TrimSpace(string(out))}
+		if !strings.Contains(string(out), "nothing to commit") {
+			return MergeResult{Error: strings.TrimSpace(string(out))}
+		}
 	}
 
 	m.Cleanup(featureID)
