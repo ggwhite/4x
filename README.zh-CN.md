@@ -1,11 +1,8 @@
 [English](README.md) | [繁體中文](README.zh-TW.md) | **简体中文** | [日本語](README.ja.md) | [한국어](README.ko.md) | [Español](README.es.md)
 
-```
-    ___  __  __
-   / _ | \ \/ /
-  / __ |  \  /     Design. Code. Review. Test.
- /_/ |_|  /_/      The AI development loop.
-```
+<p align="center">
+  <img src="docs/assets/4x-banner.svg" alt="4X — Design. Code. Review. Test." width="480">
+</p>
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/ggwhite/4x.svg)](https://pkg.go.dev/github.com/ggwhite/4x)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ggwhite/4x)](https://goreportcard.com/report/github.com/ggwhite/4x)

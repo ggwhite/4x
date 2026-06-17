@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
+  <title id="title">4x banner logo</title>
+  <desc id="desc">4x logo with the tagline Design. Code. Review. Test.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d1117"/>
+      <stop offset="0.58" stop-color="#111827"/>
+      <stop offset="1" stop-color="#15112a"/>
+    </linearGradient>
+    <linearGradient id="brand" x1="350" y1="76" x2="836" y2="232" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#58a6ff"/>
+      <stop offset="0.55" stop-color="#7c8cff"/>
+      <stop offset="1" stop-color="#bc8cff"/>
+    </linearGradient>
+    <linearGradient id="line" x1="252" y1="274" x2="948" y2="274" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#58a6ff" stop-opacity="0"/>
+      <stop offset="0.22" stop-color="#58a6ff"/>
+      <stop offset="0.78" stop-color="#bc8cff"/>
+      <stop offset="1" stop-color="#bc8cff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="360" rx="32" fill="url(#bg)"/>
+  <path d="M82 76H1118M82 284H1118" stroke="#30363d" stroke-width="1"/>
+  <path d="M168 180h-48m960 0h-48M600 28v44M600 288v44" stroke="#30363d" stroke-width="1.5" stroke-linecap="round"/>
+
+  <path d="M376 90H494V214H526V258H494V304H438V258H294V217L376 90ZM438 214V137L390 214H438Z" fill="url(#brand)"/>
+  <path d="M648 90L719 180L792 90H862L755 219L826 304H756L718 254L678 304H608L682 216L578 90H648Z" fill="url(#brand)"/>
+
+  <path d="M376 90H494V214H526V258H494V304H438V258H294V217L376 90ZM438 214V137L390 214H438Z" fill="none" stroke="#e6edf3" stroke-opacity="0.18" stroke-width="2"/>
+  <path d="M648 90L719 180L792 90H862L755 219L826 304H756L718 254L678 304H608L682 216L578 90H648Z" fill="none" stroke="#e6edf3" stroke-opacity="0.18" stroke-width="2"/>
+
+  <text x="600" y="64" text-anchor="middle" fill="#8b949e" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="700" letter-spacing="4">MULTI-ROLE AI DEVELOPMENT LOOP</text>
+  <text x="600" y="331" text-anchor="middle" fill="#e6edf3" font-family="Helvetica, Arial, sans-serif" font-size="30" font-weight="800">Design. Code. Review. Test.</text>
+  <rect x="252" y="273" width="696" height="2" fill="url(#line)"/>
+</svg>
