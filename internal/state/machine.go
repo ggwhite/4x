@@ -59,6 +59,43 @@ func Transition(s protocol.State, to protocol.Phase, role protocol.Role) (protoc
 	return s, nil
 }
 
+// isRecoverablePhase 回傳 p 是否為 crash recovery 可校正到的工作 phase。
+// 對齊 blocked / needs-attention 作為 universal source 能轉往的目標集合（見 transitions 表），
+// 排除 init / pending-review / done / abandoned 等不該被 artifacts 推斷覆蓋的 phase。
+func isRecoverablePhase(p protocol.Phase) bool {
+	switch p {
+	case protocol.PhaseDesigning, protocol.PhaseCoding, protocol.PhaseReviewing,
+		protocol.PhaseTesting, protocol.PhaseDeepReviewing, protocol.PhaseAmending,
+		protocol.PhaseAccepting:
+		return true
+	default:
+		return false
+	}
+}
+
+// RecoverTo 在 crash recovery 場景下，把 state 校正到依實際 artifacts 推斷出的 phase。
+// 與 Transition 不同，它不受一般 transitions 轉換表限制——crash 後 state.json 的 phase
+// 與磁碟 artifacts 可能不一致（例：state.json 停在 coding，artifacts 卻已跑到 deep-review FAIL），
+// 一般轉換表（如 coding → amending 非法）會擋下這種校正。RecoverTo 改以「目標 phase 是否為
+// 可恢復的工作 phase」為合法性判準，並套用與 Transition 完全相同的 round 副作用
+// （首次 coding → Round=1、amending → Round++），確保 recovery 後的語意與正常流程一致。
+//
+// 用法：僅供 run resume 校正 crash 後 phase 用，不可取代正常流程的 Transition。
+func RecoverTo(s protocol.State, to protocol.Phase, role protocol.Role) (protocol.State, error) {
+	if !isRecoverablePhase(to) {
+		return s, fmt.Errorf("invalid recovery target: %s", to)
+	}
+	s.Phase = to
+	s.Role = role
+	switch {
+	case to == protocol.PhaseCoding && s.Round == 0:
+		s.Round = 1
+	case to == protocol.PhaseAmending:
+		s.Round++
+	}
+	return s, nil
+}
+
 // PhaseToRole 回傳某 phase 預設對應的 role
 func PhaseToRole(p protocol.Phase) protocol.Role {
 	switch p {

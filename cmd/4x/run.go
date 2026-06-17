@@ -197,14 +197,22 @@ func newRunCmd() *cobra.Command {
 				if s.Phase == protocol.PhaseDone {
 					return fmt.Errorf("feature %s is already done", featureID)
 				}
-				if s.Phase == protocol.PhaseBlocked || s.Phase == protocol.PhaseNeedsAttention {
+				// crash recovery：先前 active 但 process 已死，state.json 的 phase 可能與磁碟
+				// artifacts 不一致。對需要校正的 phase，以 smartResumePhase 依實際 artifacts
+				// 推斷的 phase 為準，而非盲信 state.json。
+				// - blocked / needs-attention：維持既有行為（任何 round 都校正）。
+				// - 其他工作 phase（coding…accepting）：僅在已進入 coding（round > 0）時校正；
+				//   init / designing / pending-review 不適用，維持原本 resume 行為。
+				if needsResumeRecovery(s) {
 					resumePhase, resumeRole := smartResumePhase(ws, featureID, s.Round)
-					fmt.Printf("  recovering %s → %s (round %d, max rounds: %d)\n", s.Phase, resumePhase, s.Round, s.MaxRounds)
-					ns, err := state.Transition(s, resumePhase, resumeRole)
-					if err != nil {
-						return fmt.Errorf("recovery transition %s → %s: %w", s.Phase, resumePhase, err)
+					if resumePhase != s.Phase {
+						fmt.Printf("  recovering %s → %s (round %d, max rounds: %d)\n", s.Phase, resumePhase, s.Round, s.MaxRounds)
+						ns, err := state.RecoverTo(s, resumePhase, resumeRole)
+						if err != nil {
+							return fmt.Errorf("recovery transition %s → %s: %w", s.Phase, resumePhase, err)
+						}
+						s = ns
 					}
-					s = ns
 				}
 			}
 
@@ -1946,58 +1954,163 @@ func verifyPassed(ws *protocol.Workspace, featureID string, round int) bool {
 	return ve.Passed
 }
 
-// cleanStaleArtifact 清除當前 phase 的 output artifact。
-// resume 場景下（SIGKILL、runner-error），runner 可能寫了半成品 report，
-// 若不清除，nextPhaseAfter 會誤認為 phase 完成而跳到下一步。
+// cleanStaleArtifact 只清除當前 phase 的「半成品」output artifact。
+// resume 場景下（SIGKILL、runner-error、crash），runner 可能寫了不完整的 report，
+// 若不清除，nextPhaseAfter 會誤認 phase 完成而跳過該步驟。
+// 反之，已完成的 report 一律保留——crash 重啟不得讓前一輪已驗收的產出消失。
+// 完整性判準依 artifact 種類，由各 *Complete helper 判斷。
 func cleanStaleArtifact(ws *protocol.Workspace, featureID string, phase protocol.Phase, round int) {
 	roundDir := ws.RoundDir(featureID, round)
 	switch phase {
 	case protocol.PhaseCoding, protocol.PhaseAmending:
-		os.Remove(filepath.Join(roundDir, protocol.CoderReport))
+		removeIfIncomplete(filepath.Join(roundDir, protocol.CoderReport), coderReportComplete)
 	case protocol.PhaseReviewing:
-		os.Remove(filepath.Join(roundDir, protocol.ReviewReport))
+		removeIfIncomplete(filepath.Join(roundDir, protocol.ReviewReport), reviewReportComplete)
 	case protocol.PhaseTesting:
+		// test-report 與 verify.json 成對；verify.json 可解析即視為該 phase 完整。
+		verifyPath := filepath.Join(roundDir, protocol.VerifyFile)
+		if verifyEvidenceComplete(verifyPath) {
+			return
+		}
 		os.Remove(filepath.Join(roundDir, protocol.TestReport))
-		os.Remove(filepath.Join(roundDir, protocol.VerifyFile))
+		os.Remove(verifyPath)
 	case protocol.PhaseDeepReviewing:
-		os.Remove(filepath.Join(roundDir, protocol.DeepReviewReport))
+		removeIfIncomplete(filepath.Join(roundDir, protocol.DeepReviewReport), reviewReportComplete)
 	case protocol.PhaseAccepting:
-		os.Remove(filepath.Join(ws.FeatureDir(featureID), protocol.FinalReport))
-		os.Remove(filepath.Join(ws.FeatureDir(featureID), protocol.CommitPlan))
+		removeIfIncomplete(filepath.Join(ws.FeatureDir(featureID), protocol.FinalReport), nonEmptyFile)
+		removeIfIncomplete(filepath.Join(ws.FeatureDir(featureID), protocol.CommitPlan), nonEmptyFile)
+	}
+}
+
+// removeIfIncomplete 在 path 指向的 artifact 不完整時移除它（讓該步驟重跑）；完整則原樣保留。
+// complete 回傳該檔是否為完整產出。檔案不存在則無事可做。
+func removeIfIncomplete(path string, complete func(string) bool) {
+	if _, err := os.Stat(path); err != nil {
+		return
+	}
+	if complete(path) {
+		return
+	}
+	os.Remove(path)
+}
+
+// coderReportComplete 判斷 coder-report.md 是否完整：非空且含 template 終止區段標記 `## Verification`。
+func coderReportComplete(path string) bool {
+	data, err := os.ReadFile(path)
+	if err != nil || len(bytes.TrimSpace(data)) == 0 {
+		return false
+	}
+	return strings.Contains(string(data), "## Verification")
+}
+
+// reviewReportComplete 判斷 review / deep-review report 是否完整：非空且含可解析的 `## Verdict` 區段。
+func reviewReportComplete(path string) bool {
+	data, err := os.ReadFile(path)
+	if err != nil || len(bytes.TrimSpace(data)) == 0 {
+		return false
+	}
+	return reportHasVerdict(string(data))
+}
+
+// verifyEvidenceComplete 判斷 verify.json 是否完整：可成功 unmarshal 成 protocol.VerifyEvidence
+// （與 verifyPassed 相同的解析路徑，但不要求 passed=true——FAIL 的 evidence 同樣是完整產出）。
+func verifyEvidenceComplete(path string) bool {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	var ve protocol.VerifyEvidence
+	return json.Unmarshal(data, &ve) == nil
+}
+
+// nonEmptyFile 判斷 path 指向的檔案是否存在且去除空白後非空。
+func nonEmptyFile(path string) bool {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	return len(bytes.TrimSpace(data)) > 0
+}
+
+// reportHasVerdict 判斷 review-report 內容是否含可解析的 `## Verdict` 區段。
+// 與 parseReviewVerdict 的掃描方式一致：在 `## Verdict` header 後找到首個非空行即算辨識成功。
+func reportHasVerdict(content string) bool {
+	lines := strings.Split(content, "\n")
+	inVerdict := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "## Verdict") {
+			inVerdict = true
+			continue
+		}
+		if inVerdict && trimmed != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// needsResumeRecovery 判斷 resume 一個 crash（先前 active、process 已死）的 feature 時，
+// 是否需要用 smartResumePhase 依實際 artifacts 校正 state.json 的 phase。
+//   - blocked / needs-attention：任何 round 都校正（維持既有 recovery 行為）。
+//   - 已進入 coding 後的工作 phase（coding/reviewing/testing/deep-reviewing/amending/accepting）
+//     且 round > 0：校正，使 state.json 與磁碟 artifacts 一致。
+//   - init / designing / pending-review / done 等：不校正，維持原 resume 行為。
+func needsResumeRecovery(s protocol.State) bool {
+	if s.Phase == protocol.PhaseBlocked || s.Phase == protocol.PhaseNeedsAttention {
+		return true
+	}
+	if s.Round <= 0 {
+		return false
+	}
+	switch s.Phase {
+	case protocol.PhaseCoding, protocol.PhaseReviewing, protocol.PhaseTesting,
+		protocol.PhaseDeepReviewing, protocol.PhaseAmending, protocol.PhaseAccepting:
+		return true
+	default:
+		return false
 	}
 }
 
 // smartResumePhase 檢查當前 round 的 artifacts 決定 resume 起點。
 // 已完成的步驟不重跑；只從第一個缺失或失敗的步驟開始。
+// 「已完成」採與 cleanStaleArtifact 相同的完整性判準（*Complete helper），而非裸存在性檢查：
+// crash 發生於當前 phase、report 寫到一半時，半成品檔雖存在但不完整，必須回該 phase 重跑，
+// 不可因檔案存在就把 phase 往前推進。
 func smartResumePhase(ws *protocol.Workspace, featureID string, round int) (protocol.Phase, protocol.Role) {
 	if round == 0 {
 		return protocol.PhaseDesigning, protocol.RoleDesigner
 	}
 	roundDir := ws.RoundDir(featureID, round)
 
-	if _, err := os.Stat(filepath.Join(roundDir, protocol.CoderReport)); err != nil {
+	if !coderReportComplete(filepath.Join(roundDir, protocol.CoderReport)) {
 		return protocol.PhaseCoding, protocol.RoleCoder
 	}
 
-	if _, err := os.Stat(filepath.Join(roundDir, protocol.ReviewReport)); err != nil {
+	if !reviewReportComplete(filepath.Join(roundDir, protocol.ReviewReport)) {
 		return protocol.PhaseReviewing, protocol.RoleReviewer
 	}
 	if !reviewPassed(ws, featureID, round, protocol.ReviewReport) {
 		return protocol.PhaseAmending, protocol.RoleCoder
 	}
 
-	if _, err := os.Stat(filepath.Join(roundDir, protocol.TestReport)); err != nil {
+	// testing 的完整性以 verify.json 可解析為準（與 cleanStaleArtifact 一致）；
+	// test-report 與 verify.json 成對產出，verify.json 不完整即代表該 phase 未跑完。
+	if !verifyEvidenceComplete(filepath.Join(roundDir, protocol.VerifyFile)) {
 		return protocol.PhaseTesting, protocol.RoleTester
 	}
 	if !verifyPassed(ws, featureID, round) {
 		return protocol.PhaseAmending, protocol.RoleCoder
 	}
 
-	if _, err := os.Stat(filepath.Join(roundDir, protocol.DeepReviewReport)); err != nil {
+	if !reviewReportComplete(filepath.Join(roundDir, protocol.DeepReviewReport)) {
 		return protocol.PhaseDeepReviewing, protocol.RoleDeepReviewer
 	}
 	if !reviewPassed(ws, featureID, round, protocol.DeepReviewReport) {
-		return protocol.PhaseCoding, protocol.RoleCoder
+		// deep-review FAIL → amending（同輪修正、Round++），與正常流程的
+		// parallelTransition(..., PhaseAmending, ...) 及上方 review / verify FAIL 路徑一致；
+		// 不再回傳 PhaseCoding（會被誤判為開新 coding 輪而覆蓋前輪報告）。
+		return protocol.PhaseAmending, protocol.RoleCoder
 	}
 
 	return protocol.PhaseAccepting, protocol.RoleAcceptor
