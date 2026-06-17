@@ -53,7 +53,7 @@
 
 | 端点 | 方法 | 说明 |
 |---|---|---|
-| `/api/tasks` | GET | 列出所有 feature |
+| `/api/tasks` | GET | 列出所有 feature（feature YAML 有格式问题时包含 `warnings` 数组） |
 | `/api/new` | POST | 创建新 feature（接受 `name`、`description`，以及可选的 `customId`、`priority`、`depends`、`rules`、`subtasks`） |
 | `/api/run` | POST | 启动 feature 运行（生成 `4x run` 子进程） |
 | `/api/stop` | POST | 停止正在运行的 feature |

@@ -53,7 +53,7 @@ AI 開発ループのリアルタイム監視。
 
 | エンドポイント | メソッド | 説明 |
 |---|---|---|
-| `/api/tasks` | GET | 全 Feature をリスト |
+| `/api/tasks` | GET | 全 Feature をリスト（Feature YAML にフォーマット問題がある場合 `warnings` 配列を含む） |
 | `/api/new` | POST | 新しい Feature を作成（`name`、`description`、オプションの `customId`、`priority`、`depends`、`rules`、`subtasks` を受け付け） |
 | `/api/run` | POST | Feature の実行を開始（`4x run` サブプロセスを起動） |
 | `/api/stop` | POST | 実行中の Feature を停止 |

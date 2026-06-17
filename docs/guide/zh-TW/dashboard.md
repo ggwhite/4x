@@ -53,7 +53,7 @@ Overview 還包含一個批次控制面板，背後使用[批次控制 API](#bat
 
 | 端點 | 方法 | 說明 |
 |---|---|---|
-| `/api/tasks` | GET | 列出所有 feature |
+| `/api/tasks` | GET | 列出所有 feature（feature YAML 有格式問題時包含 `warnings` 陣列） |
 | `/api/new` | POST | 建立新 feature（接受 `name`、`description`，以及選填的 `customId`、`priority`、`depends`、`rules`、`subtasks`） |
 | `/api/run` | POST | 啟動 feature 執行（產生 `4x run` 子程序） |
 | `/api/stop` | POST | 停止正在執行的 feature |
