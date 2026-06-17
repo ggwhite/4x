@@ -153,7 +153,13 @@ func (w *Workspace) LoadFeature(id string) (feature.Feature, error) {
 	path := filepath.Join(w.DotDir(), FeaturesDir, id+".yaml")
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return feature.Feature{}, fmt.Errorf("read feature %s: %w", id, err)
+		if resolved := resolveFeatureFile(filepath.Join(w.DotDir(), FeaturesDir), id); resolved != "" {
+			path = resolved
+			data, err = os.ReadFile(path)
+		}
+		if err != nil {
+			return feature.Feature{}, fmt.Errorf("read feature %s: %w", id, err)
+		}
 	}
 	var f feature.Feature
 	if err := yaml.Unmarshal(data, &f); err != nil {
@@ -163,6 +169,27 @@ func (w *Workspace) LoadFeature(id string) (feature.Feature, error) {
 		return feature.Feature{}, fmt.Errorf("feature %s: %w", id, err)
 	}
 	return f, nil
+}
+
+// resolveFeatureFile 用短 ID（如 "F078"）在 features 目錄中找對應的 YAML 檔。
+// 找 prefix 為 id+"-" 的檔案，有唯一匹配就回傳完整路徑，否則回空字串。
+func resolveFeatureFile(dir, id string) string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	prefix := id + "-"
+	var match string
+	for _, e := range entries {
+		name := e.Name()
+		if strings.HasPrefix(name, prefix) && strings.HasSuffix(name, ".yaml") {
+			if match != "" {
+				return ""
+			}
+			match = filepath.Join(dir, name)
+		}
+	}
+	return match
 }
 
 // ReadTestStrategy 讀取 .4x/{featureId}/test-strategy.yaml 並解析為 TestStrategy。
