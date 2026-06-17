@@ -1,0 +1,17 @@
+id: F077-worktree-scope-check
+name: 'F077: Worktree-aware scope check'
+description: 4x check 在 worktree 內執行時，scope 檢查誤掃 main workspace 的 uncommitted changes，導致誤報 scope violation。需偵測 worktree 環境並將 git 操作限定在 worktree 根目錄。
+status: in-progress
+subtasks:
+    - id: detect-worktree
+      name: 偵測 cwd 是否在 worktree 內，解析 worktree root
+      status: ""
+    - id: scope-git-ops
+      name: 將 detectChangedRepos 的 git 操作導向 worktree root
+      status: ""
+    - id: multi-repo-fix
+      name: multiRepo.DetectChangedRepos 也要用 worktree root 解析 repo 路徑
+      status: ""
+    - id: add-tests
+      name: 加測試驗證 worktree 場景不誤報
+      status: ""
