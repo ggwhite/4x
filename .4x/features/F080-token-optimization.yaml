@@ -1,7 +1,7 @@
 id: F080-token-optimization
 name: 'F080: Token optimization for run pipeline'
 description: 減少 4x run pipeline 各階段的冗餘 token 消耗，不降低 review 與測試品質。
-status: ready-for-review
+status: done
 priority: 2
 subtasks:
     - id: trim-deep-reviewer-context
