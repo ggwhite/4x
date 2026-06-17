@@ -29,7 +29,7 @@ La barra de pestañas de proyectos termina con dos acciones: **Agregar proyecto*
 
 ## Tarjetas de features
 
-Cada tarjeta de feature muestra etiquetas para su prioridad, dependencias, razón de detención (si el feature se detuvo de forma anormal) y — cuando un [perfil de pipeline](concepts.md#perfiles-de-pipeline) no predeterminado está activo — una **etiqueta de perfil** (ej. `quick`, `normal`). Los features de alta prioridad (P0/P1) obtienen bordes con acento. Las dependencias completadas muestran una marca de verificación verde. Los campos `profile` y `stopReason` se llevan en el JSON de `/api/tasks`.
+Cada tarjeta de feature muestra etiquetas para su prioridad, dependencias, razón de detención (si el feature se detuvo de forma anormal) y — cuando un [perfil de pipeline](concepts.md#perfiles-de-pipeline) no predeterminado está activo — una **etiqueta de perfil** (ej. `quick`, `normal`). Los features de alta prioridad (P0/P1) obtienen bordes con acento. Las dependencias completadas muestran una marca de verificación verde. Los campos `profile`, `stopReason` y `stopMessage` se llevan en el JSON de `/api/tasks`. `stopReason` es un código de categoría corto (ej. `runner-error`, `guard-fail`, `no-progress`) usado para codificación por color; `stopMessage` es el detalle legible que se muestra debajo de la etiqueta de categoría.
 
 ## Formulario de nuevo feature
 

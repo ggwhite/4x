@@ -29,7 +29,7 @@
 
 ## Feature 卡片
 
-每張 feature 卡片顯示 priority、依賴、停止原因（若 feature 異常中止）的標籤，以及——當非預設的 [pipeline profile](concepts.md#pipeline-profiles) 啟用時——一個 **profile 標籤**（例如 `quick`、`normal`）。高優先 feature（P0/P1）有強調邊框。已完成的依賴顯示綠色勾號。`profile` 和 `stopReason` 欄位包含在 `/api/tasks` JSON 中。
+每張 feature 卡片顯示 priority、依賴、停止原因（若 feature 異常中止）的標籤，以及——當非預設的 [pipeline profile](concepts.md#pipeline-profiles) 啟用時——一個 **profile 標籤**（例如 `quick`、`normal`）。高優先 feature（P0/P1）有強調邊框。已完成的依賴顯示綠色勾號。`profile`、`stopReason` 和 `stopMessage` 欄位包含在 `/api/tasks` JSON 中。`stopReason` 是短分類碼（如 `runner-error`、`guard-fail`、`no-progress`），用於顏色標記；`stopMessage` 是顯示在分類標籤下方的人可讀詳細說明。
 
 ## 新 Feature 表單
 

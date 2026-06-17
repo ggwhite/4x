@@ -29,7 +29,7 @@ AI 開発ループのリアルタイム監視。
 
 ## Feature カード
 
-各 Feature カードには、優先度、依存関係、停止理由（Feature が異常停止した場合）のタグが表示されます。デフォルト以外の[パイプラインプロファイル](concepts.md#pipeline-profiles)がアクティブな場合は、**プロファイルタグ**（例：`quick`、`normal`）も表示されます。高優先度の Feature（P0/P1）にはアクセントボーダーが付きます。完了した依存関係には緑のチェックマークが表示されます。`profile` と `stopReason` フィールドは `/api/tasks` JSON に含まれます。
+各 Feature カードには、優先度、依存関係、停止理由（Feature が異常停止した場合）のタグが表示されます。デフォルト以外の[パイプラインプロファイル](concepts.md#pipeline-profiles)がアクティブな場合は、**プロファイルタグ**（例：`quick`、`normal`）も表示されます。高優先度の Feature（P0/P1）にはアクセントボーダーが付きます。完了した依存関係には緑のチェックマークが表示されます。`profile`、`stopReason`、`stopMessage` フィールドは `/api/tasks` JSON に含まれます。`stopReason` は短いカテゴリコード（例：`runner-error`、`guard-fail`、`no-progress`）で色分けに使用され、`stopMessage` はカテゴリラベルの下に表示される人間が読める詳細説明です。
 
 ## 新規 Feature フォーム
 
