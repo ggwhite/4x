@@ -28,7 +28,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
         startStatusTimer()
 
         // 請求通知授權，供 nativeNotify bridge 顯示 run 結束的原生通知。
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        if Bundle.main.bundleIdentifier != nil {
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        }
 
         pollServerAndLoad()
 
@@ -838,6 +840,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
             }
         } else if message.name == "nativeNotify" {
             // 前端在 WKWebView（不支援 Web Notification）改走此 bridge 顯示原生通知。
+            guard Bundle.main.bundleIdentifier != nil else { return }
             guard let body = message.body as? [String: Any] else { return }
             let title = (body["title"] as? String) ?? "4x"
             let text = (body["body"] as? String) ?? ""
