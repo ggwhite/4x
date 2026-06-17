@@ -126,6 +126,14 @@ func CopyFileIfNewer(src, dst string) (copied bool, err error) {
 	return true, nil
 }
 
+// isNothingToCommit 判斷 git commit 的輸出是否表示「無東西可 commit」。
+// git 在不同情境有不同訊息：clean tree 是 "nothing to commit"，
+// 有 untracked files 時是 "nothing added to commit"。
+func isNothingToCommit(out string) bool {
+	return strings.Contains(out, "nothing to commit") ||
+		strings.Contains(out, "nothing added to commit")
+}
+
 // syncDotDirContents 將 mainRoot 的 .4x/settings.json 和 plugins/ 複製到 dotDir。
 func syncDotDirContents(mainRoot, dotDir string) {
 	os.MkdirAll(dotDir, 0o755)
