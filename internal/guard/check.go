@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	feat "github.com/ggwhite/4x/internal/feature"
+	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -20,8 +21,9 @@ type CheckResult struct {
 }
 
 // ScopeDetector 偵測哪些 repo 有 uncommitted changes，由 gitops.Ops 實作。
+// featureID 用來定位該 feature 的 worktree，使偵測限定在 worktree 內的變更。
 type ScopeDetector interface {
-	DetectChangedRepos() []string
+	DetectChangedRepos(featureID string) []string
 }
 
 // Check 執行所有 guardrail 檢查。detector 為 nil 時 fallback 到本地 git diff。
@@ -257,9 +259,9 @@ func checkScope(ws *protocol.Workspace, featureID string, detector ScopeDetector
 
 	var changedRepos []string
 	if detector != nil {
-		changedRepos = detector.DetectChangedRepos()
+		changedRepos = detector.DetectChangedRepos(featureID)
 	} else {
-		changedRepos = detectChangedRepos(ws.Root)
+		changedRepos = detectChangedRepos(gitops.ScopeRoot(ws.Root, featureID))
 	}
 	for _, repo := range changedRepos {
 		if !allowedRepos[repo] {

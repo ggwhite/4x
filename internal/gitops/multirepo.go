@@ -258,16 +258,30 @@ func resolveWorktreeParent(wtDir string) string {
 	return filepath.Dir(dotGit)
 }
 
-func (m *multiRepo) DetectChangedRepos() []string {
+// DetectChangedRepos 找出 feature 範圍內哪些 repo 有 tracked 變更。
+// worktree 隔離模式下每個 repo 的工作目錄是 <worktreeRoot>/<name>（與 SetupWorktree
+// 的佈局一致），而非 main workspace 下的 rc.Path；故先確認該 worktree 子目錄確為 linked
+// worktree 再在其中執行 git diff，否則回退到 main 的 rc.Path 維持非 worktree 情境的既有行為。
+func (m *multiRepo) DetectChangedRepos(featureID string) []string {
+	wtDir := Dir(m.root, featureID)
 	var changed []string
 	for name, rc := range m.cfg.Workspace.Repos {
 		repoPath := filepath.Join(m.root, rc.Path)
+		if wtRepoDir := filepath.Join(wtDir, name); isLinkedWorktree(wtRepoDir) {
+			repoPath = wtRepoDir
+		}
 		out := gitOutput(repoPath, "diff", "--name-only", "HEAD")
 		if out != "" {
 			changed = append(changed, name)
 		}
 	}
 	return changed
+}
+
+// isLinkedWorktree 回報 dir 是否為一個存在的 linked git worktree。
+func isLinkedWorktree(dir string) bool {
+	info, ok := DetectWorktree(dir)
+	return ok && info.IsLinked
 }
 
 func (m *multiRepo) CaptureBaseline(featureID string, featureRepos []string) error {

@@ -16,7 +16,7 @@ type Ops interface {
 	Commit(wtRoot, featureID, msg string) error
 	Merge(featureID, featureName string) MergeResult
 	Cleanup(featureID string) error
-	DetectChangedRepos() []string
+	DetectChangedRepos(featureID string) []string
 	CaptureBaseline(featureID string, featureRepos []string) error
 	IsMultiRepo() bool
 }

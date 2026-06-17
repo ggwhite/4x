@@ -122,9 +122,12 @@ func (m *monoRepo) Cleanup(featureID string) error {
 	return nil
 }
 
-func (m *monoRepo) DetectChangedRepos() []string {
+// DetectChangedRepos 找出 feature 的 worktree（若存在）內哪些子目錄有 tracked 變更。
+// worktree 隔離模式下 feature 變更在 <root>/.worktrees/4x/<featureID>，而非 m.root；
+// 故先以 featureID 解析出 worktree 根，再執行 git diff，避免誤掃 main workspace 的變更。
+func (m *monoRepo) DetectChangedRepos(featureID string) []string {
 	cmd := exec.Command("git", "diff", "--name-only", "HEAD")
-	cmd.Dir = m.root
+	cmd.Dir = ScopeRoot(m.root, featureID)
 	out, err := cmd.Output()
 	if err != nil {
 		return nil

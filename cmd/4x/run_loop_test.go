@@ -1320,7 +1320,7 @@ type roleAwareOps struct {
 	failForRole protocol.Role
 }
 
-func (m *roleAwareOps) DetectChangedRepos() []string {
+func (m *roleAwareOps) DetectChangedRepos(_ string) []string {
 	s, _ := m.ws.ReadState(m.featureID)
 	if s.Role == m.failForRole {
 		return []string{"out-of-scope-repo"}
@@ -1394,7 +1394,7 @@ func (m *mockOps) SetupWorktree(_ string) (string, error)     { return "", nil }
 func (m *mockOps) Commit(_, _, _ string) error                { return nil }
 func (m *mockOps) Merge(_, _ string) gitops.MergeResult       { return gitops.MergeResult{} }
 func (m *mockOps) Cleanup(_ string) error                     { return nil }
-func (m *mockOps) DetectChangedRepos() []string               { return m.changedRepos }
+func (m *mockOps) DetectChangedRepos(_ string) []string       { return m.changedRepos }
 func (m *mockOps) CaptureBaseline(_ string, _ []string) error { return nil }
 func (m *mockOps) IsMultiRepo() bool                          { return false }
 

@@ -197,7 +197,7 @@ func TestMonoRepo_CaptureBaseline(t *testing.T) {
 
 func TestMonoRepo_DetectChangedRepos(t *testing.T) {
 	_, _, ops := setupMonoWorkspace(t)
-	changed := ops.DetectChangedRepos()
+	changed := ops.DetectChangedRepos("feat-detect")
 	if len(changed) != 0 {
 		t.Errorf("expected no changes on fresh repo, got %v", changed)
 	}

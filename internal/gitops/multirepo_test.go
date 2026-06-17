@@ -338,7 +338,7 @@ func TestMultiRepo_Cleanup_OrphanedWorktree(t *testing.T) {
 
 func TestMultiRepo_DetectChangedRepos(t *testing.T) {
 	_, _, ops := setupMultiWorkspace(t)
-	changed := ops.DetectChangedRepos()
+	changed := ops.DetectChangedRepos("feat-detect")
 	if len(changed) != 0 {
 		t.Errorf("expected no changes on fresh repos, got %v", changed)
 	}
