@@ -463,34 +463,73 @@ function renderDag(tasks) {
   const byId = {};
   involved.forEach(id => { if (allById[id]) byId[id] = allById[id]; });
 
-  const nodes = [...involved].map(id => byId[id]);
-  const depth = {};
-  function calcDepth(id, seen) {
-    if (depth[id] != null) return depth[id];
-    if (seen.has(id)) return 0;
-    seen.add(id);
-    let d = 0;
-    (byId[id].depends || []).forEach(dep => { if (byId[dep]) d = Math.max(d, calcDepth(dep, seen) + 1); });
-    seen.delete(id);
-    depth[id] = d;
-    return d;
-  }
-  nodes.forEach(n => calcDepth(n.id, new Set()));
+  const adj = {};
+  involved.forEach(id => { adj[id] = []; });
+  edges.forEach(([a, b]) => { adj[a].push(b); adj[b].push(a); });
 
-  const layers = {};
-  nodes.forEach(n => { (layers[depth[n.id]] = layers[depth[n.id]] || []).push(n); });
-  const layerKeys = Object.keys(layers).map(Number).sort((a, b) => a - b);
-  layerKeys.forEach(k => layers[k].sort((a, b) => a.id.localeCompare(b.id)));
-
-  const NW = 200, NH = 42, GX = 32, GY = 78;
-  const pos = {};
-  let maxCols = 0;
-  layerKeys.forEach(k => { maxCols = Math.max(maxCols, layers[k].length); });
-  layerKeys.forEach((k, li) => {
-    layers[k].forEach((n, ci) => { pos[n.id] = { x: ci * (NW + GX) + GX, y: li * GY + 16 }; });
+  const visited = new Set();
+  const components = [];
+  involved.forEach(id => {
+    if (visited.has(id)) return;
+    const comp = [];
+    const queue = [id];
+    visited.add(id);
+    while (queue.length) {
+      const cur = queue.shift();
+      comp.push(cur);
+      adj[cur].forEach(nb => { if (!visited.has(nb)) { visited.add(nb); queue.push(nb); } });
+    }
+    components.push(comp);
   });
-  const width = Math.max(maxCols * (NW + GX) + GX, NW + GX * 2);
-  const height = layerKeys.length * GY + 16;
+  components.sort((a, b) => a[0].localeCompare(b[0]));
+
+  const NW = 200, NH = 42, GX = 32, GY = 78, COMP_GAP = 48, MAX_WIDTH = 5 * (NW + GX);
+  const pos = {};
+
+  const compMeta = components.map(comp => {
+    const depth = {};
+    function calcDepth(id, seen) {
+      if (depth[id] != null) return depth[id];
+      if (seen.has(id)) return 0;
+      seen.add(id);
+      let d = 0;
+      (byId[id].depends || []).forEach(dep => { if (byId[dep] && comp.includes(dep)) d = Math.max(d, calcDepth(dep, seen) + 1); });
+      seen.delete(id);
+      depth[id] = d;
+      return d;
+    }
+    comp.forEach(id => calcDepth(id, new Set()));
+
+    const layers = {};
+    comp.forEach(id => { const d = depth[id]; (layers[d] = layers[d] || []).push(byId[id]); });
+    const layerKeys = Object.keys(layers).map(Number).sort((a, b) => a - b);
+    layerKeys.forEach(k => layers[k].sort((a, b) => a.id.localeCompare(b.id)));
+
+    let maxCols = 0;
+    layerKeys.forEach(k => { maxCols = Math.max(maxCols, layers[k].length); });
+
+    return { comp, layers, layerKeys, maxCols, w: maxCols * (NW + GX), h: layerKeys.length * GY + 16 };
+  });
+
+  let curX = GX, curY = 0, rowH = 0, totalW = 0;
+  compMeta.forEach(cm => {
+    if (curX > GX && curX + cm.w > MAX_WIDTH) {
+      curY += rowH + COMP_GAP;
+      curX = GX;
+      rowH = 0;
+    }
+    cm.layerKeys.forEach((k, li) => {
+      cm.layers[k].forEach((n, ci) => {
+        pos[n.id] = { x: curX + ci * (NW + GX), y: curY + li * GY + 16 };
+      });
+    });
+    totalW = Math.max(totalW, curX + cm.w);
+    rowH = Math.max(rowH, cm.h);
+    curX += cm.w + COMP_GAP;
+  });
+
+  const width = Math.max(totalW + GX, NW + GX * 2);
+  const height = curY + rowH;
 
   let svgEdges = '';
   edges.forEach(([from, to]) => {
@@ -502,8 +541,8 @@ function renderDag(tasks) {
   });
 
   let svgNodes = '';
-  nodes.forEach(n => {
-    const p = pos[n.id], col = dagNodeColor(n);
+  involved.forEach(id => {
+    const n = byId[id], p = pos[id], col = dagNodeColor(n);
     const name = esc((n.name || '').slice(0, 20));
     const clipId = 'dag-clip-' + n.id.replace(/[^a-zA-Z0-9]/g, '_');
     svgNodes += `<g class="dag-node" onclick="openFeatureDetail('${escAttr(n.id)}')" transform="translate(${p.x},${p.y})">
