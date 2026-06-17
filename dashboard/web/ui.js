@@ -15,10 +15,10 @@ function renderVersionInfo(info) {
   }
   el.innerHTML = html;
 }
-function switchTab(pid) { activeProjectId=pid; current=null; renderedMsgKeys.clear(); disconnectSSE(); saveTabState(); renderTabs(); goHome(); }
+function switchTab(pid) { activeProjectId=pid; current=null; sessionStorage.setItem('4x-current', ''); renderedMsgKeys.clear(); disconnectSSE(); saveTabState(); renderTabs(); goHome(); }
 function closeTab(pid) {
   openTabs = openTabs.filter(tb => tb.id !== pid);
-  if (activeProjectId === pid) { activeProjectId = openTabs.length > 0 ? openTabs[0].id : null; current = null; disconnectSSE(); }
+  if (activeProjectId === pid) { activeProjectId = openTabs.length > 0 ? openTabs[0].id : null; current = null; sessionStorage.setItem('4x-current', ''); disconnectSSE(); }
   saveTabState(); renderTabs();
   if (activeProjectId) load(); else renderProjectPicker();
 }
@@ -170,7 +170,7 @@ function highlightSearch(idx) { const items = document.getElementById('search-re
 function selectSearch(idx) {
   const item = searchFiltered[idx]; if (!item) return; closeSearch();
   if (item._projectId && item._projectId !== activeProjectId) switchTab(item._projectId);
-  current = item.id; load(); loadDetail(item);
+  current = item.id; sessionStorage.setItem('4x-current', item.id); load(); loadDetail(item);
 }
 function onSearchKey(e) {
   if (e.key==='ArrowDown') { e.preventDefault(); searchIdx=Math.min(searchIdx+1,searchFiltered.length-1); renderSearchResults(document.getElementById('search-input').value); }
@@ -331,7 +331,7 @@ async function markDone(fid) {
   });
 }
 function goHome() {
-  current=null; renderedMsgKeys.clear(); disconnectSSE(); disconnectLogSSE(); stopLogsRefresh();
+  current=null; sessionStorage.setItem('4x-current', ''); renderedMsgKeys.clear(); disconnectSSE(); disconnectLogSSE(); stopLogsRefresh();
   if (_logDurTimer) { clearInterval(_logDurTimer); _logDurTimer = null; }
   document.getElementById('header').classList.add('hidden');
   document.getElementById('overview-panel').classList.add('hidden');
@@ -427,6 +427,7 @@ function openFeatureDetail(fid) {
   const task = lastTasks.find(t => t.id === fid);
   if (!task) return;
   current = fid;
+  sessionStorage.setItem('4x-current', fid);
   load();
   loadDetail(task);
 }
@@ -885,7 +886,7 @@ async function load() {
   lastBatchStatus = batchStatus;
   renderSidebar();
   if (!current) renderDashboard(lastTasks);
-  else document.getElementById('dashboard').classList.add('hidden');
+  else { const task = lastTasks.find(t => t.id === current); if (task) loadDetail(task); else { current = null; sessionStorage.setItem('4x-current', ''); renderDashboard(lastTasks); } }
 }
 
 let _refreshPending = false;
