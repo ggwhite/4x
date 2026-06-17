@@ -1140,7 +1140,13 @@ function renderOverview(d, el) {
     details.push(`<div class="flex gap-2 items-start"><span class="text-[11px] w-16 flex-shrink-0" style="color:var(--text-3)">Repos</span><div class="flex flex-wrap gap-1">${repos}</div></div>`);
   }
   if (d.depends && d.depends.length) {
-    const depends = d.depends.map(dep => `<span class="inline-block px-2 py-0.5 rounded text-[11px]" style="background:var(--bg-hover);border:1px solid var(--border-light)">${esc(dep)}</span>`).join(' ');
+    const depends = d.depends.map(dep => {
+      const dt = lastTasks.find(t => t.id === dep);
+      const done = dt && dt.status === 'done';
+      return done
+        ? `<span class="inline-block px-2 py-0.5 rounded text-[11px]" style="background:rgba(16,185,129,.12);color:#34d399;border:1px solid rgba(16,185,129,.18)">✓ ${esc(dep)}</span>`
+        : `<span class="inline-block px-2 py-0.5 rounded text-[11px]" style="background:rgba(251,146,60,.10);color:#fb923c;border:1px solid rgba(251,146,60,.15)">${esc(dep)}</span>`;
+    }).join(' ');
     details.push(`<div class="flex gap-2 items-start"><span class="text-[11px] w-16 flex-shrink-0" style="color:var(--text-3)">Depends</span><div class="flex flex-wrap gap-1">${depends}</div></div>`);
   }
   if (d.rules && d.rules.length) {
