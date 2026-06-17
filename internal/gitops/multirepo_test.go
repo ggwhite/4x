@@ -286,6 +286,56 @@ func TestMultiRepo_Cleanup(t *testing.T) {
 	}
 }
 
+// TestMultiRepo_Cleanup_OrphanedWorktree 驗證 Cleanup 能清理不在當前 config 裡的殘留 worktree。
+func TestMultiRepo_Cleanup_OrphanedWorktree(t *testing.T) {
+	root, ws, _ := setupMultiWorkspace(t)
+
+	// 用完整 3-repo config 建立 worktree
+	orphanRepo := filepath.Join(root, "orphan")
+	initGitRepo(t, orphanRepo)
+
+	fullCfg := protocol.Config{
+		Project: protocol.ProjectConfig{Name: "multi-test"},
+		Workspace: protocol.WorkspaceConfig{
+			Repos: map[string]protocol.RepoConfig{
+				"core":   {Path: "core"},
+				"gate":   {Path: "gate"},
+				"orphan": {Path: "orphan"},
+			},
+		},
+	}
+	fullOps := New(root, ws, fullCfg)
+	wtPath, err := fullOps.SetupWorktree("feat-orphan")
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+
+	// 用只有 core+gate 的 config 做 Cleanup（orphan 不在 config 裡）
+	partialCfg := protocol.Config{
+		Project: protocol.ProjectConfig{Name: "multi-test"},
+		Workspace: protocol.WorkspaceConfig{
+			Repos: map[string]protocol.RepoConfig{
+				"core": {Path: "core"},
+				"gate": {Path: "gate"},
+			},
+		},
+	}
+	partialOps := New(root, ws, partialCfg)
+	if err := partialOps.Cleanup("feat-orphan"); err != nil {
+		t.Fatalf("Cleanup: %v", err)
+	}
+
+	if _, err := os.Stat(wtPath); !os.IsNotExist(err) {
+		t.Error("worktree dir should be fully removed including orphaned repos")
+	}
+
+	// orphan repo 的 branch 也應被清理
+	out, _ := exec.Command("git", "-C", orphanRepo, "branch", "--list", "4x/feat-orphan").Output()
+	if len(out) > 0 {
+		t.Error("orphaned repo's feature branch should be deleted")
+	}
+}
+
 func TestMultiRepo_DetectChangedRepos(t *testing.T) {
 	_, _, ops := setupMultiWorkspace(t)
 	changed := ops.DetectChangedRepos()

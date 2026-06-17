@@ -188,22 +188,74 @@ func (m *multiRepo) Cleanup(featureID string) error {
 	wtDir := Dir(m.root, featureID)
 	branch := Branch(featureID)
 
+	cleaned := make(map[string]bool)
 	for name, rc := range m.cfg.Workspace.Repos {
 		repoPath := filepath.Join(m.root, rc.Path)
 		wtRepoDir := filepath.Join(wtDir, name)
+		cleaned[name] = true
 
-		if out, err := exec.Command("git", "-C", repoPath, "worktree", "remove", wtRepoDir).CombinedOutput(); err != nil {
-			exec.Command("git", "-C", repoPath, "worktree", "remove", "--force", wtRepoDir).Run()
-			if _, statErr := os.Stat(wtRepoDir); statErr == nil {
-				return fmt.Errorf("worktree remove %s failed: %s", name, string(out))
-			}
-		}
-
+		removeWorktreeDir(repoPath, wtRepoDir)
 		exec.Command("git", "-C", repoPath, "branch", "-D", branch).Run()
 	}
 
+	cleanOrphanedWorktrees(wtDir, branch, cleaned)
 	os.RemoveAll(wtDir)
 	return nil
+}
+
+// removeWorktreeDir 嘗試移除單一 worktree 目錄，先正常移除再 force，最後 os.RemoveAll 兜底。
+func removeWorktreeDir(repoPath, wtRepoDir string) {
+	if exec.Command("git", "-C", repoPath, "worktree", "remove", wtRepoDir).Run() == nil {
+		return
+	}
+	if exec.Command("git", "-C", repoPath, "worktree", "remove", "--force", wtRepoDir).Run() == nil {
+		return
+	}
+	os.RemoveAll(wtRepoDir)
+}
+
+// cleanOrphanedWorktrees 掃描 wtDir 下尚未被清理的子目錄，
+// 透過讀取 .git 檔還原 parent repo 並執行 worktree remove + branch 刪除。
+func cleanOrphanedWorktrees(wtDir, branch string, cleaned map[string]bool) {
+	entries, err := os.ReadDir(wtDir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if !e.IsDir() || cleaned[e.Name()] {
+			continue
+		}
+		subDir := filepath.Join(wtDir, e.Name())
+		parentRepo := resolveWorktreeParent(subDir)
+		if parentRepo != "" {
+			removeWorktreeDir(parentRepo, subDir)
+			exec.Command("git", "-C", parentRepo, "branch", "-D", branch).Run()
+		} else {
+			os.RemoveAll(subDir)
+		}
+	}
+}
+
+// resolveWorktreeParent 從 worktree 的 .git 檔解析出 parent repo 路徑。
+func resolveWorktreeParent(wtDir string) string {
+	data, err := os.ReadFile(filepath.Join(wtDir, ".git"))
+	if err != nil {
+		return ""
+	}
+	line := strings.TrimSpace(string(data))
+	if !strings.HasPrefix(line, "gitdir: ") {
+		return ""
+	}
+	gitdir := strings.TrimPrefix(line, "gitdir: ")
+	if !filepath.IsAbs(gitdir) {
+		gitdir = filepath.Join(wtDir, gitdir)
+	}
+	// gitdir = <parent>/.git/worktrees/<name>  →  往上兩層得到 <parent>/.git
+	dotGit := filepath.Dir(filepath.Dir(gitdir))
+	if filepath.Base(dotGit) != ".git" {
+		return ""
+	}
+	return filepath.Dir(dotGit)
 }
 
 func (m *multiRepo) DetectChangedRepos() []string {
