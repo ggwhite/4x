@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.12] - 2026-06-17
+
+### Features
+
+- **Loose feature validation** — `ListFeatures` 改用寬鬆驗證，feature YAML 有格式問題（如 subtask status 不合法）時仍會列出並附帶 `warnings`，不再靜默跳過
+
+### Fixes
+
+- **Multi-repo merge** — 合併時跳過沒有 feature branch 的 repo，避免誤報錯誤
+- **Dependency graph** — 依賴圖按連通分量分離佈局，避免無關 feature 擠成一團
+- **macOS notification guard** — 缺少 bundle ID 時安全跳過 UNUserNotificationCenter 初始化
+- **Folder picker** — 原生資料夾選取器在非 4x 專案時不再靜默失敗
+- **Notification toggle** — 通知開關的強調色修正套用到正確的元素上
+
+### CI
+
+- **Node.js 24** — CI actions 升級至 Node.js 24，加速桌面打包
+
 ## [0.1.11] - 2026-06-17
 
 ### Features
