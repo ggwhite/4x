@@ -339,6 +339,8 @@ function goHome() {
   document.getElementById('messages').innerHTML = '';
   const lp = document.getElementById('logs-panel');
   lp.classList.add('hidden'); lp.style.display = 'none';
+  const main = document.getElementById('main');
+  main.style.overflowY = 'auto'; main.style.display = ''; main.style.flexDirection = '';
   document.getElementById('dashboard').classList.remove('hidden');
   activeDetailTab = 'overview';
   if (activeProjectId) { load(); renderDashboard(lastTasks); } else renderProjectPicker();
@@ -1044,8 +1046,14 @@ function setDetailTabUI(tab) {
   document.getElementById('overview-panel').classList.toggle('hidden', tab !== 'overview');
   document.getElementById('messages').classList.toggle('hidden', tab !== 'messages');
   const logsPanel = document.getElementById('logs-panel');
-  if (tab === 'logs') { logsPanel.classList.remove('hidden'); logsPanel.style.display = 'flex'; }
-  else { logsPanel.classList.add('hidden'); logsPanel.style.display = 'none'; }
+  const main = document.getElementById('main');
+  if (tab === 'logs') {
+    logsPanel.classList.remove('hidden'); logsPanel.style.display = 'flex';
+    main.style.overflowY = 'hidden'; main.style.display = 'flex'; main.style.flexDirection = 'column';
+  } else {
+    logsPanel.classList.add('hidden'); logsPanel.style.display = 'none';
+    main.style.overflowY = 'auto'; main.style.display = ''; main.style.flexDirection = '';
+  }
 }
 
 async function loadOverview(fid) {
