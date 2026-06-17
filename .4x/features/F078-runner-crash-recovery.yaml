@@ -33,32 +33,32 @@ description: |
     4. smartResumePhase 判定 deep-review FAIL → 回 PhaseCoding（Bug 1）
     5. cleanStaleArtifact 刪掉 round-1 的 coder-report.md（Bug 3）
     6. 整輪從 coding 重跑，先前所有 review/test/deep-review 報告浪費
-status: not-started
+status: in-progress
 priority: 1
 subtasks:
     - id: fix-smart-resume-deep-review
       name: smartResumePhase deep-review FAIL 回 PhaseAmending
       status: not-started
       description: |
-          cmd/4x/run.go smartResumePhase() line ~2000:
-          reviewPassed(deep-review-report)==false 時回傳 PhaseAmending 而非 PhaseCoding
+        cmd/4x/run.go smartResumePhase() line ~2000:
+        reviewPassed(deep-review-report)==false 時回傳 PhaseAmending 而非 PhaseCoding
     - id: widen-smart-resume-trigger
       name: 擴大 smartResumePhase 觸發條件
       status: not-started
       description: |
-          cmd/4x/run.go line ~200: 非 terminal phase 都跑 smartResumePhase
-          驗證 state.json 與 artifacts 一致，不只限 blocked/needs-attention
+        cmd/4x/run.go line ~200: 非 terminal phase 都跑 smartResumePhase
+        驗證 state.json 與 artifacts 一致，不只限 blocked/needs-attention
     - id: safe-clean-artifact
       name: cleanStaleArtifact 改為安全清除
       status: not-started
       description: |
-          刪除前確認 artifact 確實是半成品（如檔案大小為 0、缺少結尾標記），
-          或改為 rename .bak 備份而非直接刪除
+        刪除前確認 artifact 確實是半成品（如檔案大小為 0、缺少結尾標記），
+        或改為 rename .bak 備份而非直接刪除
     - id: add-tests
       name: 測試 crash recovery 各場景
       status: not-started
       description: |
-          測試案例：
-          - deep-review FAIL 後 resume → 應到 amending 不是 coding
-          - amending 中斷 resume → 不應刪除已完成的 coder-report
-          - blocked 狀態 resume → smartResumePhase 正確推斷
+        測試案例：
+        - deep-review FAIL 後 resume → 應到 amending 不是 coding
+        - amending 中斷 resume → 不應刪除已完成的 coder-report
+        - blocked 狀態 resume → smartResumePhase 正確推斷
