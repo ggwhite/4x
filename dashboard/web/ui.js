@@ -77,8 +77,8 @@ function showInitConfirm(path) {
 function cancelInitConfirm() { document.getElementById('init-modal').classList.remove('open'); }
 function confirmInit() { cancelInitConfirm(); addProjectFromInput(true); }
 async function addProjectFromNative(path) {
-  const resp = await fetch('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) });
-  if (resp.ok) { const data = await resp.json(); await loadProjects(); const p = projects.find(x => x.id === data.id); if (p) { closeProjectPicker(); addTab(p); } }
+  document.getElementById('path-input').value = path;
+  addProjectFromInput();
 }
 async function toggleBrowse() {
   const panel = document.getElementById('browse-panel');
