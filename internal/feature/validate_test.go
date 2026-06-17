@@ -129,3 +129,69 @@ func TestFeatureValidate_MultipleErrors(t *testing.T) {
 		t.Fatalf("should aggregate errors: %v", err)
 	}
 }
+
+func TestValidateLoose_OK(t *testing.T) {
+	f := Feature{
+		ID: "f001-ok", Name: "OK", Status: StatusInProgress,
+		Subtasks: []Subtask{{ID: "s1", Name: "Sub", Status: "done"}},
+	}
+	warnings, err := f.ValidateLoose()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("expected no warnings, got: %v", warnings)
+	}
+}
+
+func TestValidateLoose_MissingID_Fatal(t *testing.T) {
+	f := Feature{Name: "No ID"}
+	_, err := f.ValidateLoose()
+	if err == nil {
+		t.Fatal("missing id should be fatal")
+	}
+}
+
+func TestValidateLoose_InvalidSubtaskStatus_Warning(t *testing.T) {
+	f := Feature{
+		ID: "f001-ok", Name: "OK",
+		Subtasks: []Subtask{
+			{ID: "s1", Name: "Sub", Status: "pending"},
+			{ID: "s2", Name: "Sub2", Status: "deferred-to-other"},
+		},
+	}
+	warnings, err := f.ValidateLoose()
+	if err != nil {
+		t.Fatalf("invalid subtask status should not be fatal: %v", err)
+	}
+	if len(warnings) != 2 {
+		t.Fatalf("expected 2 warnings, got %d: %v", len(warnings), warnings)
+	}
+	for _, w := range warnings {
+		if !strings.Contains(w, "not recognized") {
+			t.Errorf("warning should mention 'not recognized': %s", w)
+		}
+	}
+}
+
+func TestValidateLoose_InvalidFeatureStatus_Warning(t *testing.T) {
+	f := Feature{ID: "f001-ok", Name: "OK", Status: "wip"}
+	warnings, err := f.ValidateLoose()
+	if err != nil {
+		t.Fatalf("invalid feature status should not be fatal: %v", err)
+	}
+	if len(warnings) != 1 || !strings.Contains(warnings[0], "wip") {
+		t.Fatalf("expected warning about 'wip', got: %v", warnings)
+	}
+}
+
+func TestValidateLoose_MissingName_Warning(t *testing.T) {
+	f := Feature{ID: "f001-ok"}
+	warnings, err := f.ValidateLoose()
+	if err != nil {
+		t.Fatalf("missing name should not be fatal: %v", err)
+	}
+	if len(warnings) != 1 || !strings.Contains(warnings[0], "name") {
+		t.Fatalf("expected warning about missing name, got: %v", warnings)
+	}
+}

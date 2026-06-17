@@ -184,7 +184,8 @@ func (w *Workspace) ReadTestStrategy(featureID string) (TestStrategy, error) {
 	return ts, nil
 }
 
-// ListFeatures 列出所有 feature
+// ListFeatures 列出所有 feature。
+// 使用寬鬆驗證：格式有問題的 YAML 仍會載入並附帶 Warnings，只有完全無法解析的才跳過。
 func (w *Workspace) ListFeatures() ([]feature.Feature, error) {
 	dir := filepath.Join(w.DotDir(), FeaturesDir)
 	entries, err := os.ReadDir(dir)
@@ -200,7 +201,7 @@ func (w *Workspace) ListFeatures() ([]feature.Feature, error) {
 			continue
 		}
 		id := e.Name()[:len(e.Name())-5]
-		f, err := w.LoadFeature(id)
+		f, err := w.loadFeatureLoose(id)
 		if err != nil {
 			slog.Warn("skipped malformed feature YAML", "id", id, "error", err)
 			continue
@@ -211,6 +212,29 @@ func (w *Workspace) ListFeatures() ([]feature.Feature, error) {
 		return features[i].ID < features[j].ID
 	})
 	return features, nil
+}
+
+// loadFeatureLoose 讀取 feature YAML 並以寬鬆模式驗證。
+// 格式問題記錄在 Feature.Warnings，只有無法解析或缺 id 才回傳 error。
+func (w *Workspace) loadFeatureLoose(id string) (feature.Feature, error) {
+	path := filepath.Join(w.DotDir(), FeaturesDir, id+".yaml")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return feature.Feature{}, fmt.Errorf("read feature %s: %w", id, err)
+	}
+	var f feature.Feature
+	if err := yaml.Unmarshal(data, &f); err != nil {
+		return feature.Feature{}, fmt.Errorf("parse feature %s: %w", id, err)
+	}
+	warnings, fatalErr := f.ValidateLoose()
+	if fatalErr != nil {
+		return feature.Feature{}, fmt.Errorf("feature %s: %w", id, fatalErr)
+	}
+	if len(warnings) > 0 {
+		f.Warnings = warnings
+		slog.Warn("feature YAML has format issues", "id", id, "warnings", len(warnings))
+	}
+	return f, nil
 }
 
 // ReadBacklogMirror 讀取根目錄 feature_list.json；不存在時回傳 present=false。

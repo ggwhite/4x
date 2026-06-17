@@ -52,6 +52,7 @@ type Feature struct {
 	Spec        string                 `yaml:"spec,omitempty" json:"-"`
 	Plan        string                 `yaml:"plan,omitempty" json:"-"`
 	Hooks       map[string][]HookEntry `yaml:"hooks,omitempty" json:"hooks,omitempty"`
+	Warnings    []string               `yaml:"-" json:"warnings,omitempty"`
 }
 
 // Subtask 是 feature 內的子任務

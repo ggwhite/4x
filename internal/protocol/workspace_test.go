@@ -1219,6 +1219,46 @@ func TestSyncFeatureStatus_NotFound(t *testing.T) {
 	}
 }
 
+func TestListFeatures_IncludesWarnings(t *testing.T) {
+	ws := setupWorkspace(t)
+
+	good := feature.Feature{ID: "f01-good", Name: "Good", Status: feature.StatusNotStarted}
+	if err := ws.SaveFeature(good); err != nil {
+		t.Fatal(err)
+	}
+
+	bad := feature.Feature{
+		ID: "f02-bad", Name: "Bad", Status: feature.StatusNotStarted,
+		Subtasks: []feature.Subtask{
+			{ID: "s1", Name: "Sub", Status: "pending"},
+		},
+	}
+	if err := ws.SaveFeature(bad); err != nil {
+		t.Fatal(err)
+	}
+
+	features, err := ws.ListFeatures()
+	if err != nil {
+		t.Fatalf("ListFeatures: %v", err)
+	}
+	if len(features) != 2 {
+		t.Fatalf("expected 2 features, got %d", len(features))
+	}
+
+	var found bool
+	for _, f := range features {
+		if f.ID == "f02-bad" {
+			found = true
+			if len(f.Warnings) == 0 {
+				t.Error("expected warnings for feature with invalid subtask status")
+			}
+		}
+	}
+	if !found {
+		t.Error("feature with invalid subtask status should be included in listing")
+	}
+}
+
 // AC-2：WriteBatchReport 寫入後 ReadBatchReport 讀回的欄位與原始報告一致（含 feature 子項）。
 func TestWriteReadBatchReport_Roundtrip(t *testing.T) {
 	ws := setupWorkspace(t)

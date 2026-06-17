@@ -411,6 +411,7 @@ type taskInfo struct {
 	Depends    []string `json:"depends,omitempty"`
 	CreatedAt  string   `json:"createdAt,omitempty"`
 	UpdatedAt  string   `json:"updatedAt,omitempty"`
+	Warnings   []string `json:"warnings,omitempty"`
 }
 
 type overviewInfo struct {
@@ -570,6 +571,7 @@ func handleTasks(ws *protocol.CachedWorkspace, w http.ResponseWriter) {
 		t.HasSpec = protocol.ResolveDesignDoc(ws.Root, f, "spec").Source != ""
 		t.HasPlan = protocol.ResolveDesignDoc(ws.Root, f, "plan").Source != ""
 		t.Depends = f.Depends
+		t.Warnings = f.Warnings
 		if s, err := ws.ReadState(f.ID); err == nil {
 			if err := ws.ReconcileActive(f.ID, &s); err != nil {
 				slog.Warn("failed to reconcile active state", "feature", f.ID, "error", err)

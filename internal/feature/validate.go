@@ -75,6 +75,44 @@ func (s Subtask) validate(index int) error {
 	return fmt.Errorf("%s", strings.Join(errs, "; "))
 }
 
+// ValidateLoose 執行寬鬆驗證：只有無法辨識身分的 feature（缺 id）才回傳 error，
+// 其餘格式問題（無效 status、subtask 欄位缺漏等）收集為 warnings 回傳，讓呼叫端決定是否顯示。
+func (f Feature) ValidateLoose() (warnings []string, fatalErr error) {
+	if f.ID == "" {
+		return nil, fmt.Errorf("invalid feature: id is required")
+	}
+
+	if !featureIDRe.MatchString(f.ID) {
+		warnings = append(warnings, fmt.Sprintf("id %q does not match expected format [A-Za-z0-9-]", f.ID))
+	}
+	if f.Name == "" {
+		warnings = append(warnings, "name is empty")
+	}
+	if f.Status != "" && !validStatuses[f.Status] {
+		warnings = append(warnings, fmt.Sprintf("status %q is not recognized (valid: %s)", f.Status, statusList()))
+	}
+	for i, st := range f.Subtasks {
+		warnings = append(warnings, st.validateLoose(i)...)
+	}
+	return warnings, nil
+}
+
+func (s Subtask) validateLoose(index int) []string {
+	var warnings []string
+	prefix := fmt.Sprintf("subtasks[%d]", index)
+
+	if s.ID == "" {
+		warnings = append(warnings, prefix+".id is empty")
+	}
+	if s.Name == "" {
+		warnings = append(warnings, prefix+".name is empty")
+	}
+	if s.Status != "" && !validSubtaskStatuses[s.Status] {
+		warnings = append(warnings, fmt.Sprintf("%s.status %q is not recognized (valid: not-started, in-progress, done, blocked)", prefix, s.Status))
+	}
+	return warnings
+}
+
 func statusList() string {
 	all := []Status{
 		StatusNotStarted, StatusInProgress, StatusDone, StatusAbandoned,
