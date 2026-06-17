@@ -211,8 +211,8 @@ The CLI is a short-lived process: each command reads the `.4x/` files it needs o
 To avoid that, the server wraps each workspace in a `*protocol.CachedWorkspace` (`internal/protocol/cached.go`), an mtime-based in-memory cache over the read-only operations declared by the `WorkspaceReader` interface (`internal/protocol/reader.go`):
 
 - **`ReadConfig`** — caches `settings.json`; `os.Stat` compares the file mtime, re-parsing only when it changes.
-- **`ListFeatures`** — caches the full feature list; `os.ReadDir` compares the `.yaml` file set and each file's mtime, re-parsing only when a file is added, removed, or modified. Returns a copy so callers can mutate freely.
-- **`LoadFeature`** — caches each feature by id, keyed on the YAML's mtime.
+- **`ListFeatures`** — caches the full feature list; `os.ReadDir` compares the `.yaml` file set and each file's mtime, re-parsing only when a file is added, removed, or modified. Returns a copy so callers can mutate freely. Uses loose validation: features with format issues (e.g. unrecognized subtask status) are still included with `Warnings` populated, rather than being silently skipped.
+- **`LoadFeature`** — caches each feature by id, keyed on the YAML's mtime. Uses strict validation — returns an error for any format issue.
 - **`ReadState`** — intentionally **not** cached (changes frequently, small file, fast parse); it falls through to the embedded `*Workspace`.
 
 Invalidation is implicit: write methods (`SaveFeature`, `WriteState`, …) need not notify the cache because the next read detects the new mtime. The cache is opt-in — only the server constructs a `CachedWorkspace`; the CLI keeps using `*Workspace` with identical behaviour. Because Go embedding has no virtual dispatch, internal `*Workspace` method calls (e.g. `CompareBacklogMirror` calling `w.ListFeatures()`) still run the uncached original; this is acceptable since those paths are not server hot-paths.

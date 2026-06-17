@@ -211,8 +211,8 @@ CLI 是短命程序：每個命令讀取它需要的 `.4x/` 檔案一次後退�
 為避免此問題，伺服器將每個 workspace 包裝在 `*protocol.CachedWorkspace`（`internal/protocol/cached.go`）中，這是一個基於 mtime 的記憶體快取，覆蓋 `WorkspaceReader` 介面（`internal/protocol/reader.go`）宣告的唯讀操作：
 
 - **`ReadConfig`** — 快取 `settings.json`；`os.Stat` 比對檔案 mtime，僅在變更時重新解析。
-- **`ListFeatures`** — 快取完整的 feature 清單；`os.ReadDir` 比對 `.yaml` 檔案集合和每個檔案的 mtime，僅在檔案新增、移除或修改時重新解析。回傳副本供呼叫者自由修改。
-- **`LoadFeature`** — 依 id 快取每個 feature，以 YAML 的 mtime 為 key。
+- **`ListFeatures`** — 快取完整的 feature 清單；`os.ReadDir` 比對 `.yaml` 檔案集合和每個檔案的 mtime，僅在檔案新增、移除或修改時重新解析。回傳副本供呼叫者自由修改。使用寬鬆驗證：格式有問題的 feature（如 subtask status 不合法）仍會列出並附帶 `Warnings`，而非靜默跳過。
+- **`LoadFeature`** — 依 id 快取每個 feature，以 YAML 的 mtime 為 key。使用嚴格驗證——任何格式問題都會回傳 error。
 - **`ReadState`** — 刻意**不快取**（變更頻繁、檔案小、解析快）；直接透過內嵌的 `*Workspace`。
 
 失效是隱式的：寫入方法（`SaveFeature`、`WriteState` 等）不需要通知快取，因為下次讀取會偵測到新的 mtime。快取為 opt-in——僅伺服器建構 `CachedWorkspace`；CLI 繼續使用 `*Workspace`，行為相同。

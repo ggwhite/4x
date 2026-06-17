@@ -211,8 +211,8 @@ CLI는 단명 프로세스입니다: 각 명령어가 필요한 `.4x/` 파일을
 이를 방지하기 위해 서버는 각 워크스페이스를 `*protocol.CachedWorkspace`(`internal/protocol/cached.go`)로 감쌉니다. 이는 `WorkspaceReader` 인터페이스(`internal/protocol/reader.go`)가 선언한 읽기 전용 연산에 대한 mtime 기반 인메모리 캐시입니다:
 
 - **`ReadConfig`** — `settings.json`을 캐시하며, `os.Stat`으로 파일 mtime을 비교하여 변경 시에만 다시 파싱합니다.
-- **`ListFeatures`** — 전체 기능 목록을 캐시하며, `os.ReadDir`로 `.yaml` 파일 세트와 각 파일의 mtime을 비교하여 파일이 추가, 삭제 또는 수정된 경우에만 다시 파싱합니다. 호출자가 자유롭게 변경할 수 있도록 복사본을 반환합니다.
-- **`LoadFeature`** — YAML의 mtime을 키로 각 기능을 ID별로 캐시합니다.
+- **`ListFeatures`** — 전체 기능 목록을 캐시하며, `os.ReadDir`로 `.yaml` 파일 세트와 각 파일의 mtime을 비교하여 파일이 추가, 삭제 또는 수정된 경우에만 다시 파싱합니다. 호출자가 자유롭게 변경할 수 있도록 복사본을 반환합니다. 느슨한 검증을 사용합니다: 형식에 문제가 있는 기능(예: 잘못된 subtask status)도 건너뛰지 않고 `Warnings`를 포함하여 목록에 표시합니다.
+- **`LoadFeature`** — YAML의 mtime을 키로 각 기능을 ID별로 캐시합니다. 엄격한 검증을 사용합니다 — 형식 문제가 있으면 error를 반환합니다.
 - **`ReadState`** — 의도적으로 **캐시하지 않습니다** (자주 변경, 작은 파일, 빠른 파싱); 내장된 `*Workspace`로 직접 전달합니다.
 
 무효화는 암시적입니다: 쓰기 메서드(`SaveFeature`, `WriteState` 등)가 캐시에 알릴 필요 없이 다음 읽기에서 새 mtime을 감지합니다. 캐시는 선택적입니다 — 서버만 `CachedWorkspace`를 구성하며, CLI는 동일한 동작으로 `*Workspace`를 계속 사용합니다. Go 임베딩에는 가상 디스패치가 없으므로, 내부 `*Workspace` 메서드 호출(예: `CompareBacklogMirror`가 `w.ListFeatures()`를 호출)은 여전히 캐시되지 않은 원본을 실행합니다; 이 경로는 서버 핫패스가 아니므로 허용됩니다.

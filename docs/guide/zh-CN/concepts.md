@@ -211,8 +211,8 @@ CLI 是短命进程：每个命令读取所需的 `.4x/` 文件一次就退出�
 为避免这种开销，服务器将每个工作区包装在 `*protocol.CachedWorkspace`（`internal/protocol/cached.go`）中——一个基于 mtime 的内存缓存，覆盖 `WorkspaceReader` 接口（`internal/protocol/reader.go`）声明的只读操作：
 
 - **`ReadConfig`** — 缓存 `settings.json`；`os.Stat` 比较文件 mtime，仅在变更时重新解析。
-- **`ListFeatures`** — 缓存完整 feature 列表；`os.ReadDir` 比较 `.yaml` 文件集和每个文件的 mtime，仅在文件增删或修改时重新解析。返回副本以便调用者自由修改。
-- **`LoadFeature`** — 按 id 缓存每个 feature，键为 YAML 的 mtime。
+- **`ListFeatures`** — 缓存完整 feature 列表；`os.ReadDir` 比较 `.yaml` 文件集和每个文件的 mtime，仅在文件增删或修改时重新解析。返回副本以便调用者自由修改。使用宽松验证：格式有问题的 feature（如 subtask status 不合法）仍会列出并附带 `Warnings`，而非静默跳过。
+- **`LoadFeature`** — 按 id 缓存每个 feature，键为 YAML 的 mtime。使用严格验证——任何格式问题都会返回 error。
 - **`ReadState`** — 故意**不缓存**（变更频繁、文件小、解析快）；直接穿透到嵌入的 `*Workspace`。
 
 失效是隐式的：写方法（`SaveFeature`、`WriteState` 等）无需通知缓存，因为下次读取会检测到新的 mtime。缓存是可选的——仅服务器构造 `CachedWorkspace`；CLI 继续使用 `*Workspace`，行为完全相同。因为 Go 嵌入没有虚分派，内部 `*Workspace` 方法调用（如 `CompareBacklogMirror` 调用 `w.ListFeatures()`）仍运行未缓存的原始方法；这可以接受，因为这些路径不是服务器的热路径。

@@ -211,8 +211,8 @@ El CLI es un proceso de corta duración: cada comando lee los archivos de `.4x/`
 Para evitar esto, el servidor envuelve cada workspace en un `*protocol.CachedWorkspace` (`internal/protocol/cached.go`), un cache en memoria basado en mtime sobre las operaciones de solo lectura declaradas por la interfaz `WorkspaceReader` (`internal/protocol/reader.go`):
 
 - **`ReadConfig`** — cachea `settings.json`; `os.Stat` compara el mtime del archivo, re-parseando solo cuando cambia.
-- **`ListFeatures`** — cachea la lista completa de features; `os.ReadDir` compara el conjunto de archivos `.yaml` y el mtime de cada uno, re-parseando solo cuando un archivo se agrega, elimina o modifica. Retorna una copia para que los llamadores puedan mutar libremente.
-- **`LoadFeature`** — cachea cada feature por id, indexado por el mtime del YAML.
+- **`ListFeatures`** — cachea la lista completa de features; `os.ReadDir` compara el conjunto de archivos `.yaml` y el mtime de cada uno, re-parseando solo cuando un archivo se agrega, elimina o modifica. Retorna una copia para que los llamadores puedan mutar libremente. Usa validación flexible: features con problemas de formato (ej. subtask status no reconocido) se incluyen con `Warnings` en lugar de omitirse silenciosamente.
+- **`LoadFeature`** — cachea cada feature por id, indexado por el mtime del YAML. Usa validación estricta — cualquier problema de formato retorna un error.
 - **`ReadState`** — intencionalmente **no** se cachea (cambia frecuentemente, archivo pequeño, parseo rápido); pasa directamente al `*Workspace` embebido.
 
 La invalidación es implícita: los métodos de escritura (`SaveFeature`, `WriteState`, ...) no necesitan notificar al cache porque la próxima lectura detecta el nuevo mtime. El cache es opt-in — solo el servidor construye un `CachedWorkspace`; el CLI sigue usando `*Workspace` con comportamiento idéntico. Dado que el embedding de Go no tiene dispatch virtual, las llamadas internas de métodos de `*Workspace` (ej. `CompareBacklogMirror` llamando `w.ListFeatures()`) siguen ejecutando el original sin cache; esto es aceptable ya que esas rutas no son hot-paths del servidor.

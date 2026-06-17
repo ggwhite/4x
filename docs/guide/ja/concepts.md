@@ -211,8 +211,8 @@ CLI は短命なプロセスです：各コマンドは必要な `.4x/` ファ�
 これを回避するため、サーバーは各ワークスペースを `*protocol.CachedWorkspace`（`internal/protocol/cached.go`）でラップします。これは `WorkspaceReader` インターフェース（`internal/protocol/reader.go`）で宣言された読み取り専用操作に対する、mtime ベースのインメモリキャッシュです：
 
 - **`ReadConfig`** -- `settings.json` をキャッシュ。`os.Stat` でファイルの mtime を比較し、変更時のみ再パースします。
-- **`ListFeatures`** -- Feature リスト全体をキャッシュ。`os.ReadDir` で `.yaml` ファイルセットと各ファイルの mtime を比較し、追加・削除・変更時のみ再パースします。コピーを返すためコーラーは自由にミューテーション可能です。
-- **`LoadFeature`** -- 各 Feature を ID でキャッシュ。YAML の mtime をキーとします。
+- **`ListFeatures`** -- Feature リスト全体をキャッシュ。`os.ReadDir` で `.yaml` ファイルセットと各ファイルの mtime を比較し、追加・削除・変更時のみ再パースします。コピーを返すためコーラーは自由にミューテーション可能です。緩やかなバリデーションを使用：フォーマットに問題のある Feature（例：subtask status が不正）もスキップせず `Warnings` 付きでリストに含めます。
+- **`LoadFeature`** -- 各 Feature を ID でキャッシュ。YAML の mtime をキーとします。厳格なバリデーションを使用——フォーマットに問題がある場合は error を返します。
 - **`ReadState`** -- 意図的に**キャッシュしません**（頻繁に変更、小さなファイル、高速パース）。埋め込みの `*Workspace` にフォールスルーします。
 
 無効化は暗黙的です：書き込みメソッド（`SaveFeature`、`WriteState` 等）がキャッシュに通知する必要はありません。次の読み取りが新しい mtime を検出するためです。キャッシュはオプトインです -- サーバーのみが `CachedWorkspace` を構築し、CLI は同一の動作で `*Workspace` を使い続けます。
