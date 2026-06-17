@@ -1,3 +1,5 @@
+@.4x/plugins/copilot-AGENTS.md
+
 @.4x/plugins/codex-AGENTS.md
 
 # 4x — Codex Agent Instructions
