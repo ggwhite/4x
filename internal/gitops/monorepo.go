@@ -19,7 +19,7 @@ type monoRepo struct {
 
 func (m *monoRepo) IsMultiRepo() bool { return false }
 
-func (m *monoRepo) SetupWorktree(featureID string) (string, error) {
+func (m *monoRepo) SetupWorktree(featureID string, _ []string) (string, error) {
 	wtDir := Dir(m.root, featureID)
 	branch := Branch(featureID)
 

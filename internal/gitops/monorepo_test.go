@@ -71,7 +71,7 @@ func TestMonoRepo_IsMultiRepo(t *testing.T) {
 
 func TestMonoRepo_SetupWorktree(t *testing.T) {
 	root, _, ops := setupMonoWorkspace(t)
-	wtPath, err := ops.SetupWorktree("feat-1")
+	wtPath, err := ops.SetupWorktree("feat-1", nil)
 	if err != nil {
 		t.Fatalf("SetupWorktree: %v", err)
 	}
@@ -90,11 +90,11 @@ func TestMonoRepo_SetupWorktree(t *testing.T) {
 
 func TestMonoRepo_SetupWorktree_Idempotent(t *testing.T) {
 	_, _, ops := setupMonoWorkspace(t)
-	wtPath1, err := ops.SetupWorktree("feat-idem")
+	wtPath1, err := ops.SetupWorktree("feat-idem", nil)
 	if err != nil {
 		t.Fatalf("first SetupWorktree: %v", err)
 	}
-	wtPath2, err := ops.SetupWorktree("feat-idem")
+	wtPath2, err := ops.SetupWorktree("feat-idem", nil)
 	if err != nil {
 		t.Fatalf("second SetupWorktree (idempotent): %v", err)
 	}
@@ -105,7 +105,7 @@ func TestMonoRepo_SetupWorktree_Idempotent(t *testing.T) {
 
 func TestMonoRepo_Commit_NoChanges(t *testing.T) {
 	_, _, ops := setupMonoWorkspace(t)
-	wtPath, err := ops.SetupWorktree("feat-nochange")
+	wtPath, err := ops.SetupWorktree("feat-nochange", nil)
 	if err != nil {
 		t.Fatalf("SetupWorktree: %v", err)
 	}
@@ -116,7 +116,7 @@ func TestMonoRepo_Commit_NoChanges(t *testing.T) {
 
 func TestMonoRepo_CommitAndMerge(t *testing.T) {
 	_, _, ops := setupMonoWorkspace(t)
-	wtPath, err := ops.SetupWorktree("feat-merge")
+	wtPath, err := ops.SetupWorktree("feat-merge", nil)
 	if err != nil {
 		t.Fatalf("SetupWorktree: %v", err)
 	}
@@ -150,7 +150,7 @@ func TestMonoRepo_Merge_Skipped(t *testing.T) {
 
 func TestMonoRepo_Cleanup(t *testing.T) {
 	root, _, ops := setupMonoWorkspace(t)
-	wtPath, err := ops.SetupWorktree("feat-cleanup")
+	wtPath, err := ops.SetupWorktree("feat-cleanup", nil)
 	if err != nil {
 		t.Fatalf("SetupWorktree: %v", err)
 	}
@@ -205,7 +205,7 @@ func TestMonoRepo_DetectChangedRepos(t *testing.T) {
 
 func TestMonoRepo_MergeConflict(t *testing.T) {
 	root, _, ops := setupMonoWorkspace(t)
-	_, err := ops.SetupWorktree("feat-conflict")
+	_, err := ops.SetupWorktree("feat-conflict", nil)
 	if err != nil {
 		t.Fatalf("SetupWorktree: %v", err)
 	}
@@ -234,7 +234,7 @@ func TestMonoRepo_MergeConflict(t *testing.T) {
 
 func TestMonoRepo_MergeDirtyWorkingTree(t *testing.T) {
 	root, _, ops := setupMonoWorkspace(t)
-	_, err := ops.SetupWorktree("feat-dirty")
+	_, err := ops.SetupWorktree("feat-dirty", nil)
 	if err != nil {
 		t.Fatalf("SetupWorktree: %v", err)
 	}

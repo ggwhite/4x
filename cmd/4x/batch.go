@@ -343,7 +343,7 @@ func newBatchRunCmd() *cobra.Command {
 				batchRunnerWs := ws
 				commitStrategy := "never"
 				if cfg.Isolation == "worktree" {
-					wtPath, wtErr := batchOps.SetupWorktree(next)
+					wtPath, wtErr := batchOps.SetupWorktree(next, feature.Repos)
 					if wtErr != nil {
 						return feat.StatusBlocked, fmt.Errorf("worktree setup failed: %w", wtErr)
 					}

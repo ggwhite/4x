@@ -21,7 +21,7 @@ type multiRepo struct {
 
 func (m *multiRepo) IsMultiRepo() bool { return true }
 
-func (m *multiRepo) SetupWorktree(featureID string) (string, error) {
+func (m *multiRepo) SetupWorktree(featureID string, featureRepos []string) (string, error) {
 	wtDir := Dir(m.root, featureID)
 	branch := Branch(featureID)
 
@@ -36,7 +36,8 @@ func (m *multiRepo) SetupWorktree(featureID string) (string, error) {
 		return "", err
 	}
 
-	for name, rc := range m.cfg.Workspace.Repos {
+	repos := m.targetRepos(featureRepos)
+	for name, rc := range repos {
 		repoPath := filepath.Join(m.root, rc.Path)
 		wtRepoDir := filepath.Join(wtDir, name)
 
@@ -53,6 +54,24 @@ func (m *multiRepo) SetupWorktree(featureID string) (string, error) {
 	m.copyWorkspaceFiles(wtDir)
 	m.ensureDotDir(wtDir)
 	return wtDir, nil
+}
+
+// targetRepos 回傳 feature 宣告的 repo 子集；featureRepos 為空時回傳全部 workspace repos。
+func (m *multiRepo) targetRepos(featureRepos []string) map[string]protocol.RepoConfig {
+	if len(featureRepos) == 0 {
+		return m.cfg.Workspace.Repos
+	}
+	allowed := make(map[string]bool, len(featureRepos))
+	for _, r := range featureRepos {
+		allowed[r] = true
+	}
+	result := make(map[string]protocol.RepoConfig, len(featureRepos))
+	for name, rc := range m.cfg.Workspace.Repos {
+		if allowed[name] {
+			result[name] = rc
+		}
+	}
+	return result
 }
 
 func (m *multiRepo) cleanupPartial(wtDir, featureID string) {

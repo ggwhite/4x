@@ -158,7 +158,7 @@ func newRunCmd() *cobra.Command {
 			var wtPath string
 			if cfg.Isolation == "worktree" {
 				var err error
-				wtPath, err = ops.SetupWorktree(featureID)
+				wtPath, err = ops.SetupWorktree(featureID, feature.Repos)
 				if err != nil {
 					return fmt.Errorf("worktree setup: %w", err)
 				}

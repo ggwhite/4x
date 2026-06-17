@@ -47,7 +47,7 @@ func TestDetectWorktree_MainAndLinked(t *testing.T) {
 		t.Errorf("info.Root = %q, want %q", info.Root, root)
 	}
 
-	wtPath, err := ops.SetupWorktree("feat-wt")
+	wtPath, err := ops.SetupWorktree("feat-wt", nil)
 	if err != nil {
 		t.Fatalf("SetupWorktree: %v", err)
 	}
@@ -83,7 +83,7 @@ func TestMonoRepo_DetectChangedRepos_WorktreeScoped(t *testing.T) {
 	runGit(t, root, "add", ".")
 	runGit(t, root, "commit", "-m", "add core and lib")
 
-	wtPath, err := ops.SetupWorktree("feat-scope")
+	wtPath, err := ops.SetupWorktree("feat-scope", nil)
 	if err != nil {
 		t.Fatalf("SetupWorktree: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestMonoRepo_DetectChangedRepos_WorktreeScoped(t *testing.T) {
 func TestMultiRepo_DetectChangedRepos_WorktreeScoped(t *testing.T) {
 	root, _, ops := setupMultiWorkspace(t)
 
-	wtPath, err := ops.SetupWorktree("feat-multi-scope")
+	wtPath, err := ops.SetupWorktree("feat-multi-scope", nil)
 	if err != nil {
 		t.Fatalf("SetupWorktree: %v", err)
 	}

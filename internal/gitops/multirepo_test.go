@@ -49,7 +49,7 @@ func TestMultiRepo_IsMultiRepo(t *testing.T) {
 
 func TestMultiRepo_SetupWorktree(t *testing.T) {
 	root, _, ops := setupMultiWorkspace(t)
-	wtPath, err := ops.SetupWorktree("feat-1")
+	wtPath, err := ops.SetupWorktree("feat-1", nil)
 	if err != nil {
 		t.Fatalf("SetupWorktree: %v", err)
 	}
@@ -75,13 +75,28 @@ func TestMultiRepo_SetupWorktree(t *testing.T) {
 	}
 }
 
+func TestMultiRepo_SetupWorktree_OnlyFeatureRepos(t *testing.T) {
+	_, _, ops := setupMultiWorkspace(t)
+	wtPath, err := ops.SetupWorktree("feat-scoped", []string{"core"})
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(wtPath, "core")); err != nil {
+		t.Error("core should exist in worktree when listed in featureRepos")
+	}
+	if _, err := os.Stat(filepath.Join(wtPath, "gate")); !os.IsNotExist(err) {
+		t.Error("gate should NOT exist in worktree when not in featureRepos")
+	}
+}
+
 func TestMultiRepo_SetupWorktree_Idempotent(t *testing.T) {
 	_, _, ops := setupMultiWorkspace(t)
-	wtPath1, err := ops.SetupWorktree("feat-idem2")
+	wtPath1, err := ops.SetupWorktree("feat-idem2", nil)
 	if err != nil {
 		t.Fatalf("first SetupWorktree: %v", err)
 	}
-	wtPath2, err := ops.SetupWorktree("feat-idem2")
+	wtPath2, err := ops.SetupWorktree("feat-idem2", nil)
 	if err != nil {
 		t.Fatalf("second SetupWorktree (idempotent): %v", err)
 	}
@@ -110,7 +125,7 @@ func TestMultiRepo_SetupWorktree_CleanupPartialOnFailure(t *testing.T) {
 	}
 	ops2 := New(root, &protocol.Workspace{Root: root}, cfg)
 
-	_, err := ops2.SetupWorktree("feat-partial")
+	_, err := ops2.SetupWorktree("feat-partial", nil)
 	if err == nil {
 		t.Fatal("SetupWorktree should fail when one repo is invalid")
 	}
@@ -133,7 +148,7 @@ func TestMultiRepo_SetupWorktree_CleanupPartialOnFailure(t *testing.T) {
 
 func TestMultiRepo_Commit(t *testing.T) {
 	_, _, ops := setupMultiWorkspace(t)
-	wtPath, err := ops.SetupWorktree("feat-commit")
+	wtPath, err := ops.SetupWorktree("feat-commit", nil)
 	if err != nil {
 		t.Fatalf("SetupWorktree: %v", err)
 	}
@@ -158,7 +173,7 @@ func TestMultiRepo_Commit(t *testing.T) {
 
 func TestMultiRepo_Commit_NoChanges(t *testing.T) {
 	_, _, ops := setupMultiWorkspace(t)
-	wtPath, err := ops.SetupWorktree("feat-nochange2")
+	wtPath, err := ops.SetupWorktree("feat-nochange2", nil)
 	if err != nil {
 		t.Fatalf("SetupWorktree: %v", err)
 	}
@@ -169,7 +184,7 @@ func TestMultiRepo_Commit_NoChanges(t *testing.T) {
 
 func TestMultiRepo_MergeHappyPath(t *testing.T) {
 	root, _, ops := setupMultiWorkspace(t)
-	wtPath, err := ops.SetupWorktree("feat-happy")
+	wtPath, err := ops.SetupWorktree("feat-happy", nil)
 	if err != nil {
 		t.Fatalf("SetupWorktree: %v", err)
 	}
@@ -219,7 +234,7 @@ func TestMultiRepo_MergeAllOrNothingRollback(t *testing.T) {
 		runGit(t, repoPath, "commit", "-m", "add conflict.go to main")
 	}
 
-	wtPath, err := ops.SetupWorktree("feat-conflict")
+	wtPath, err := ops.SetupWorktree("feat-conflict", nil)
 	if err != nil {
 		t.Fatalf("SetupWorktree: %v", err)
 	}
@@ -267,7 +282,7 @@ func TestMultiRepo_MergeAllOrNothingRollback(t *testing.T) {
 
 func TestMultiRepo_Cleanup(t *testing.T) {
 	root, _, ops := setupMultiWorkspace(t)
-	wtPath, err := ops.SetupWorktree("feat-clean2")
+	wtPath, err := ops.SetupWorktree("feat-clean2", nil)
 	if err != nil {
 		t.Fatalf("SetupWorktree: %v", err)
 	}
@@ -305,7 +320,7 @@ func TestMultiRepo_Cleanup_OrphanedWorktree(t *testing.T) {
 		},
 	}
 	fullOps := New(root, ws, fullCfg)
-	wtPath, err := fullOps.SetupWorktree("feat-orphan")
+	wtPath, err := fullOps.SetupWorktree("feat-orphan", nil)
 	if err != nil {
 		t.Fatalf("SetupWorktree: %v", err)
 	}

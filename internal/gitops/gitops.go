@@ -12,7 +12,7 @@ import (
 
 // Ops 封裝所有 git 操作，根據 workspace config 決定 monorepo 或 multi-repo 模式。
 type Ops interface {
-	SetupWorktree(featureID string) (wtRoot string, err error)
+	SetupWorktree(featureID string, featureRepos []string) (wtRoot string, err error)
 	Commit(wtRoot, featureID, msg string) error
 	Merge(featureID, featureName string) MergeResult
 	Cleanup(featureID string) error

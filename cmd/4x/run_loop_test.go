@@ -1390,7 +1390,7 @@ type mockOps struct {
 	changedRepos []string
 }
 
-func (m *mockOps) SetupWorktree(_ string) (string, error)     { return "", nil }
+func (m *mockOps) SetupWorktree(_ string, _ []string) (string, error) { return "", nil }
 func (m *mockOps) Commit(_, _, _ string) error                { return nil }
 func (m *mockOps) Merge(_, _ string) gitops.MergeResult       { return gitops.MergeResult{} }
 func (m *mockOps) Cleanup(_ string) error                     { return nil }

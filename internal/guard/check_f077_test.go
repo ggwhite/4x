@@ -67,7 +67,7 @@ func setupScopeWorkspace(t *testing.T, featureID string, repos []string) (*proto
 func TestCheckScope_WorktreeIgnoresMainChanges(t *testing.T) {
 	ws, ops := setupScopeWorkspace(t, "feat-scope", []string{"core"})
 
-	wtPath, err := ops.SetupWorktree("feat-scope")
+	wtPath, err := ops.SetupWorktree("feat-scope", nil)
 	if err != nil {
 		t.Fatalf("SetupWorktree: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestCheckScope_WorktreeIgnoresMainChanges(t *testing.T) {
 func TestCheckScope_WorktreeOutOfScopeStillCaught(t *testing.T) {
 	ws, ops := setupScopeWorkspace(t, "feat-scope", []string{"core"})
 
-	wtPath, err := ops.SetupWorktree("feat-scope")
+	wtPath, err := ops.SetupWorktree("feat-scope", nil)
 	if err != nil {
 		t.Fatalf("SetupWorktree: %v", err)
 	}
