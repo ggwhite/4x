@@ -201,7 +201,7 @@ function renderGlobalSettingsAppearance() {
     nCb.checked = on;
     if (nKnob) {
       nKnob.style.left = on ? '22px' : '2px';
-      nKnob.parentElement.previousElementSibling.style.background = on ? 'var(--accent)' : 'var(--bg-input)';
+      nKnob.previousElementSibling.style.background = on ? 'var(--accent)' : 'var(--bg-input)';
     }
   }
 }
@@ -211,7 +211,7 @@ function gsSetNotifications(on) {
   const knob = document.getElementById('gs-notifications-knob');
   if (knob) {
     knob.style.left = on ? '22px' : '2px';
-    knob.parentElement.previousElementSibling.style.background = on ? 'var(--accent)' : 'var(--bg-input)';
+    knob.previousElementSibling.style.background = on ? 'var(--accent)' : 'var(--bg-input)';
   }
 }
 
