@@ -33,7 +33,7 @@ description: |
     4. smartResumePhase 判定 deep-review FAIL → 回 PhaseCoding（Bug 1）
     5. cleanStaleArtifact 刪掉 round-1 的 coder-report.md（Bug 3）
     6. 整輪從 coding 重跑，先前所有 review/test/deep-review 報告浪費
-status: in-progress
+status: ready-for-review
 priority: 1
 subtasks:
     - id: fix-smart-resume-deep-review
