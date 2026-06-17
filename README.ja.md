@@ -1,13 +1,13 @@
 [English](README.md) | [繁體中文](README.zh-TW.md) | [简体中文](README.zh-CN.md) | **日本語** | [한국어](README.ko.md) | [Español](README.es.md)
 
-<p align="center">
-  <img src="docs/assets/4x-banner.svg" alt="4X — Design. Code. Review. Test." width="480">
-</p>
-
 [![Go Reference](https://pkg.go.dev/badge/github.com/ggwhite/4x.svg)](https://pkg.go.dev/github.com/ggwhite/4x)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ggwhite/4x)](https://goreportcard.com/report/github.com/ggwhite/4x)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/ggwhite/4x/actions/workflows/ci.yml/badge.svg)](https://github.com/ggwhite/4x/actions/workflows/ci.yml)
+
+<p align="center">
+  <img src="docs/assets/4x-banner.svg" alt="4X — Design. Code. Review. Test." width="480">
+</p>
 
 <p align="center">
   <img src="docs/assets/demo.gif" alt="4x demo" width="720">
