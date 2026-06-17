@@ -178,7 +178,7 @@ Designer → Coder → Reviewer → Tester → Accept → Pending Review → Don
 | **基线快照** | 编码前捕获状态，用于安全回滚 |
 | **状态机** | 阶段必须按合法顺序推进 |
 | **证据要求** | 测试者必须提供带有命令输出的 verify.json |
-| **测试关卡** | 必须有 verify.json + test-report + final-report + commit-plan |
+| **测试关卡** | 必须有 verify.json + test-report + final-report |
 | **依赖关卡** | 未满足依赖的功能不能启动 |
 
 ## 批量模式

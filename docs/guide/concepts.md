@@ -7,7 +7,7 @@
 | **Designer** | Analyze requirements, produce spec, define acceptance criteria and test strategy | Feature description, codebase | `task-brief.md`, `acceptance-criteria.md`, `test-strategy.yaml` | Modify source code |
 | **Coder** | Implement what the spec says | `task-brief.md`, prior test/review reports | Source code, `coder-report.md` | Modify acceptance criteria or test scripts |
 | **Reviewer** | Catch bugs, security issues, spec violations | Diff, spec, coder report, project rules | `review-report.md` | Modify source code |
-| **Tester** | Validate against acceptance criteria with evidence | Acceptance criteria, coder report, test strategy | Test scripts, `test-report.md`, `verify.json`, `final-report.md`, `commit-plan.md` | Modify source code |
+| **Tester** | Validate against acceptance criteria with evidence | Acceptance criteria, coder report, test strategy | Test scripts, `test-report.md`, `verify.json`, `final-report.md` | Modify source code |
 
 Each role is **isolated** — the Coder never sees prior review feedback during implementation. The Tester validates against criteria written by the Designer, not the Coder.
 
@@ -18,9 +18,9 @@ Two additional roles operate later in the loop:
 | Role | Phase | Responsibility |
 |---|---|---|
 | **Deep Reviewer** | `deep-reviewing` | Adversarial review — finds the worst-case bugs across the full diff |
-| **Acceptor** | `accepting` | Aggregates all round findings into `final-report.md` and `commit-plan.md` for human review |
+| **Acceptor** | `accepting` | Aggregates remaining open issues into `final-report.md` for human review |
 
-The Acceptor uses its own dedicated model configuration (`roles.acceptor.model`) — distinct from the Designer. It reads ALL round artifacts before producing the final summary.
+The Acceptor uses its own dedicated model configuration (`roles.acceptor.model`) — distinct from the Designer. It reads the final round's review/test/deep-review reports plus any escalations to surface still-open issues, rather than re-reading every round's reports in full.
 
 ### Pipeline Profiles
 
@@ -164,7 +164,6 @@ Roles communicate through the `.4x/` directory, not shared context windows.
     ├── acceptance-criteria.md       # Designer → Tester: testable criteria
     ├── test-strategy.yaml           # Designer → Tester: test approach
     ├── final-report.md              # End-of-loop summary
-    ├── commit-plan.md               # How to split changes into commits
     ├── logs/
     │   ├── round-{N}-{role}.log              # Per-round per-role execution log
     │   ├── round-{N}-deep-reviewer-{i}.log   # Per parallel sub-reviewer (when fanned out)
@@ -283,7 +282,7 @@ Deterministic checks enforced by the CLI — not dependent on AI judgment.
 | **Scope** | In monorepo mode: compares `git diff --name-only HEAD` top-level directories against feature's declared repos. In multi-repo mode: uses `gitops.Ops.DetectChangedRepos()` across all workspace repos |
 | **Dependencies** | Blocks `4x run` if depended features are not done |
 | **Backlog drift** | Warns when `.4x/features/*.yaml` and external mirrors are out of sync |
-| **Testing → Accepting gate** | Requires `verify.json` (passed=true), `test-report.md`, `final-report.md`, `commit-plan.md` |
+| **Testing → Accepting gate** | Requires `verify.json` (passed=true), `test-report.md`, `final-report.md` |
 
 Run manually with `4x check <feature-id>`.
 

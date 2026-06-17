@@ -178,7 +178,7 @@ CLI에서 시행되며, AI 판단이 아닙니다:
 | **베이스라인 스냅샷** | 코딩 전 상태를 캡처하여 안전한 롤백 가능 |
 | **상태 머신** | 단계가 합법적 순서로 진행되어야 합니다 |
 | **증거 요구사항** | Tester가 커맨드 출력이 포함된 verify.json을 제공해야 합니다 |
-| **테스트 게이트** | verify.json + test-report + final-report + commit-plan 필요 |
+| **테스트 게이트** | verify.json + test-report + final-report 필요 |
 | **의존성 게이트** | 미충족 의존성이 있는 기능은 시작 불가 |
 
 ## 배치 모드

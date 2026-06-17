@@ -11,8 +11,9 @@ Use the Write tool to create the file. Do NOT just print the content — write t
 Read your task brief: {{.DotDir}}/{{.Feature.ID}}/task-brief.md
 {{- if gt .Round 1}}
 Read the previous test report: {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{(sub .Round 1)}}/test-report.md
+Read the previous review report (amending feedback to address): {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{(sub .Round 1)}}/review-report.md
 {{- end}}
-{{- if .PlanningDoc}}
+{{- if and (eq .Round 1) .PlanningDoc}}
 
 == Planning Document (design context) ==
 {{.PlanningDoc}}

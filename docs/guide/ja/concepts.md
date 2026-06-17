@@ -7,7 +7,7 @@
 | **Designer** | 要件を分析し、仕様を作成し、受け入れ基準とテスト戦略を定義 | Feature の説明、コードベース | `task-brief.md`, `acceptance-criteria.md`, `test-strategy.yaml` | ソースコードの変更 |
 | **Coder** | 仕様の通りに実装 | `task-brief.md`、以前のテスト/レビューレポート | ソースコード, `coder-report.md` | 受け入れ基準やテストスクリプトの変更 |
 | **Reviewer** | バグ、セキュリティ問題、仕様違反を検出 | Diff、仕様、Coder レポート、プロジェクトルール | `review-report.md` | ソースコードの変更 |
-| **Tester** | エビデンスに基づいて受け入れ基準を検証 | 受け入れ基準、Coder レポート、テスト戦略 | テストスクリプト, `test-report.md`, `verify.json`, `final-report.md`, `commit-plan.md` | ソースコードの変更 |
+| **Tester** | エビデンスに基づいて受け入れ基準を検証 | 受け入れ基準、Coder レポート、テスト戦略 | テストスクリプト, `test-report.md`, `verify.json`, `final-report.md` | ソースコードの変更 |
 
 各ロールは**分離**されています -- Coder は実装中に以前のレビューフィードバックを見ることはありません。Tester は Coder ではなく Designer が書いた基準に対して検証します。
 
@@ -18,9 +18,9 @@
 | ロール | フェーズ | 責務 |
 |---|---|---|
 | **Deep Reviewer** | `deep-reviewing` | 敵対的レビュー -- diff 全体から最悪のバグを見つける |
-| **Acceptor** | `accepting` | 全ラウンドの成果物を集約し、人間のレビュー用に `final-report.md` と `commit-plan.md` を作成 |
+| **Acceptor** | `accepting` | 未解決の課題を集約し、人間のレビュー用に `final-report.md` を作成 |
 
-Acceptor は独自のモデル設定（`roles.acceptor.model`）を使用します（Designer とは別）。最終サマリーを作成する前に、すべてのラウンドのアーティファクトを読み取ります。
+Acceptor は独自のモデル設定（`roles.acceptor.model`）を使用します（Designer とは別）。すべてのラウンドのレポートを丸ごと読み直すのではなく、最終ラウンドの review/test/deep-review レポートとエスカレーションを読み、未解決の課題を抽出します。
 
 ### パイプラインプロファイル
 
@@ -164,7 +164,6 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
     ├── acceptance-criteria.md       # Designer → Tester: テスト可能な基準
     ├── test-strategy.yaml           # Designer → Tester: テストアプローチ
     ├── final-report.md              # ループ終了時のサマリー
-    ├── commit-plan.md               # 変更をコミットに分割する方法
     ├── logs/
     │   ├── round-{N}-{role}.log              # ラウンドごと・ロールごとの実行ログ
     │   ├── round-{N}-deep-reviewer-{i}.log   # 並列サブレビュアーごと（ファンアウト時）
@@ -283,7 +282,7 @@ CLI によって強制される決定的なチェック -- AI の判断には依
 | **スコープ** | モノリポモード：`git diff --name-only HEAD` のトップレベルディレクトリを Feature の宣言済みリポジトリと比較。マルチリポモード：すべてのワークスペースリポジトリに対して `gitops.Ops.DetectChangedRepos()` を使用 |
 | **依存関係** | 依存先の Feature が完了していない場合、`4x run` をブロック |
 | **バックログドリフト** | `.4x/features/*.yaml` と外部ミラーが同期していない場合に警告 |
-| **Testing → Accepting ゲート** | `verify.json`（passed=true）、`test-report.md`、`final-report.md`、`commit-plan.md` が必要 |
+| **Testing → Accepting ゲート** | `verify.json`（passed=true）、`test-report.md`、`final-report.md` が必要 |
 
 `4x check <feature-id>` で手動実行できます。
 

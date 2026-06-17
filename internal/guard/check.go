@@ -159,7 +159,6 @@ func checkTestingToAccepting(ws *protocol.Workspace, featureID string, round int
 		{filepath.Join(roundDir, protocol.VerifyFile), filepath.Join(protocol.RoundsDir, fmt.Sprintf("round-%d", round), protocol.VerifyFile)},
 		{filepath.Join(roundDir, protocol.TestReport), filepath.Join(protocol.RoundsDir, fmt.Sprintf("round-%d", round), protocol.TestReport)},
 		{filepath.Join(featureDir, protocol.FinalReport), protocol.FinalReport},
-		{filepath.Join(featureDir, protocol.CommitPlan), protocol.CommitPlan},
 	}
 	for _, f := range required {
 		if missingOrEmpty(f.path) {

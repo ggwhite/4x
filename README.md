@@ -178,7 +178,7 @@ Enforced by the CLI, not AI judgment:
 | **Baseline snapshot** | Pre-coding state captured for safe rollback |
 | **State machine** | Phases must proceed in legal order |
 | **Evidence requirement** | Tester must provide verify.json with command output |
-| **Testing gate** | verify.json + test-report + final-report + commit-plan required |
+| **Testing gate** | verify.json + test-report + final-report required |
 | **Dependency gate** | Features with unmet dependencies cannot start |
 
 ## Batch Mode

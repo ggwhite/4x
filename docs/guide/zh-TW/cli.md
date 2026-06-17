@@ -164,7 +164,7 @@ Review 判定必須以 `PASS` 開頭才算通過。`## Verdict` 標題與判定�
 | `--role` | 執行轉換的角色 |
 | `--json` | 以 JSON 格式輸出 |
 
-驗證轉換是否合乎狀態機規則。如果狀態不存在則自動初始化。`testing → accepting` 轉換會執行額外的閘門（verify.json、test-report.md、final-report.md、commit-plan.md 必須存在且驗證必須通過）。
+驗證轉換是否合乎狀態機規則。如果狀態不存在則自動初始化。`testing → accepting` 轉換會執行額外的閘門（verify.json、test-report.md、final-report.md 必須存在且驗證必須通過）。
 
 若 `settings.json` 或 feature YAML 宣告了 `hooks`，`pre_{phase}` hook 會在轉換前執行，`post_{phase}` hook 在轉換後執行。`block` 模式的 pre-hook 失敗會中止轉換；`block` 模式的 post-hook 失敗會將 feature 移至 `needs-attention`。詳見 [Phase Hooks](concepts.md#phase-hooks)。
 

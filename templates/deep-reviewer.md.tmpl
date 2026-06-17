@@ -105,11 +105,6 @@ Use the Write tool. Do NOT just print the content — write to disk.
 4. Read: {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/review-report.md — see what the checklist reviewer already caught
 5. Run: git diff HEAD — see the actual diff
 6. Read the FULL SOURCE FILES that were changed (not just the diff) — context matters
-{{- if .PlanningDoc}}
-
-== Planning Document (design context) ==
-{{.PlanningDoc}}
-{{- end}}
 {{- if .ProjectIncludes}}
 {{range .ProjectIncludes}}
 
@@ -252,7 +247,7 @@ Do NOT assume an existing file means the review is done — check which angles w
 
 == Constraints ==
 - You may NOT modify source code
-- You may ONLY write {{$reportFile}} — do NOT write final-report.md, commit-plan.md, or any other protocol file
+- You may ONLY write {{$reportFile}} — do NOT write final-report.md or any other protocol file
 - Every issue must have concrete evidence (file path, line number, code snippet)
 - Do not repeat issues already found in review-report.md
 - Report Statistics section even when all findings are dropped — show you did the work

@@ -23,7 +23,7 @@ The prompt tells you which role you are. Follow the role contract exactly:
 | Designer | feature YAML, codebase | task-brief.md, acceptance-criteria.md, test-strategy.yaml | modify source code |
 | Coder | task-brief, review/test reports | source code, coder-report.md | modify acceptance criteria or tests |
 | Reviewer | diff, task-brief, coder-report | review-report.md (with PASS/FAIL verdict) | modify source code |
-| Tester | acceptance-criteria, test-strategy | verify.json, test-report.md, final-report.md, commit-plan.md | modify source code or test assertions |
+| Tester | acceptance-criteria, test-strategy | verify.json, test-report.md, final-report.md | modify source code or test assertions |
 
 ### After your work
 

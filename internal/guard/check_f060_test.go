@@ -28,7 +28,6 @@ func TestCheckTestingToAccepting_CommandExitNonZero(t *testing.T) {
 	writeFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))
 	writeFile(t, filepath.Join(roundDir, protocol.TestReport), "# Test")
 	writeFile(t, filepath.Join(featureDir, protocol.FinalReport), "# Final")
-	writeFile(t, filepath.Join(featureDir, protocol.CommitPlan), "# Commit Plan")
 
 	result := CheckTestingToAccepting(ws, "feat-1", 1)
 	if result.Pass {
@@ -55,7 +54,6 @@ func TestCheckTestingToAccepting_EmptyCommandsPasses(t *testing.T) {
 	writeFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))
 	writeFile(t, filepath.Join(roundDir, protocol.TestReport), "# Test")
 	writeFile(t, filepath.Join(featureDir, protocol.FinalReport), "# Final")
-	writeFile(t, filepath.Join(featureDir, protocol.CommitPlan), "# Commit Plan")
 
 	result := CheckTestingToAccepting(ws, "feat-1", 1)
 	if !result.Pass {
@@ -82,7 +80,6 @@ func TestCheckTestingToAccepting_ExpectedNonZeroExitPasses(t *testing.T) {
 	writeFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))
 	writeFile(t, filepath.Join(roundDir, protocol.TestReport), "# Test")
 	writeFile(t, filepath.Join(featureDir, protocol.FinalReport), "# Final")
-	writeFile(t, filepath.Join(featureDir, protocol.CommitPlan), "# Commit Plan")
 
 	result := CheckTestingToAccepting(ws, "feat-1", 1)
 	if !result.Pass {
@@ -108,7 +105,6 @@ func TestCheckTestingToAccepting_ExpectedNonZeroMismatchFails(t *testing.T) {
 	writeFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))
 	writeFile(t, filepath.Join(roundDir, protocol.TestReport), "# Test")
 	writeFile(t, filepath.Join(featureDir, protocol.FinalReport), "# Final")
-	writeFile(t, filepath.Join(featureDir, protocol.CommitPlan), "# Commit Plan")
 
 	result := CheckTestingToAccepting(ws, "feat-1", 1)
 	if result.Pass {
@@ -134,7 +130,6 @@ func TestCheckTestingToAccepting_AllCommandsZeroPasses(t *testing.T) {
 	writeFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))
 	writeFile(t, filepath.Join(roundDir, protocol.TestReport), "# Test")
 	writeFile(t, filepath.Join(featureDir, protocol.FinalReport), "# Final")
-	writeFile(t, filepath.Join(featureDir, protocol.CommitPlan), "# Commit Plan")
 
 	result := CheckTestingToAccepting(ws, "feat-1", 1)
 	if !result.Pass {

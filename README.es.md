@@ -178,7 +178,7 @@ Aplicados por el CLI, no por el juicio de la IA:
 | **Snapshot de baseline** | Estado pre-codificación capturado para rollback seguro |
 | **Máquina de estados** | Las fases deben proceder en orden legal |
 | **Requisito de evidencia** | El Tester debe proporcionar verify.json con salida de comandos |
-| **Compuerta de testing** | verify.json + test-report + final-report + commit-plan requeridos |
+| **Compuerta de testing** | verify.json + test-report + final-report requeridos |
 | **Compuerta de dependencias** | Features con dependencias no cumplidas no pueden iniciar |
 
 ## Modo batch

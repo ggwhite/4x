@@ -178,7 +178,7 @@ Designer → Coder → Reviewer → Tester → Accept → Pending Review → Don
 | **基線快照** | 編碼前的狀態被擷取，可安全回滾 |
 | **狀態機** | 階段必須按合法順序進行 |
 | **證據要求** | Tester 必須提供包含命令輸出的 verify.json |
-| **測試閘門** | 需要 verify.json + test-report + final-report + commit-plan |
+| **測試閘門** | 需要 verify.json + test-report + final-report |
 | **依賴閘門** | 未滿足依賴的 feature 無法啟動 |
 
 ## 批次模式

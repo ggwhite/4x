@@ -7,7 +7,7 @@
 | **Designer** | 요구사항 분석, 스펙 작성, 인수 기준 및 테스트 전략 정의 | 기능 설명, 코드베이스 | `task-brief.md`, `acceptance-criteria.md`, `test-strategy.yaml` | 소스 코드 수정 불가 |
 | **Coder** | 스펙에 명시된 대로 구현 | `task-brief.md`, 이전 테스트/리뷰 보고서 | 소스 코드, `coder-report.md` | 인수 기준 또는 테스트 스크립트 수정 불가 |
 | **Reviewer** | 버그, 보안 문제, 스펙 위반 포착 | 디프, 스펙, 코더 보고서, 프로젝트 규칙 | `review-report.md` | 소스 코드 수정 불가 |
-| **Tester** | 증거를 기반으로 인수 기준 검증 | 인수 기준, 코더 보고서, 테스트 전략 | 테스트 스크립트, `test-report.md`, `verify.json`, `final-report.md`, `commit-plan.md` | 소스 코드 수정 불가 |
+| **Tester** | 증거를 기반으로 인수 기준 검증 | 인수 기준, 코더 보고서, 테스트 전략 | 테스트 스크립트, `test-report.md`, `verify.json`, `final-report.md` | 소스 코드 수정 불가 |
 
 각 역할은 **격리**되어 있습니다 — Coder는 구현 중에 이전 리뷰 피드백을 보지 못합니다. Tester는 Coder가 아닌 Designer가 작성한 기준으로 검증합니다.
 
@@ -18,9 +18,9 @@
 | 역할 | 단계 | 책임 |
 |---|---|---|
 | **Deep Reviewer** | `deep-reviewing` | 적대적 리뷰 — 전체 디프에서 최악의 버그를 찾아냅니다 |
-| **Acceptor** | `accepting` | 모든 라운드 산출물을 종합하여 `final-report.md`와 `commit-plan.md`를 작성하고 사람의 리뷰를 대기합니다 |
+| **Acceptor** | `accepting` | 미해결 이슈를 종합하여 `final-report.md`를 작성하고 사람의 리뷰를 대기합니다 |
 
-Acceptor는 자체 전용 모델 설정(`roles.acceptor.model`)을 사용하며 — Designer와 구분됩니다. 최종 요약을 작성하기 전에 모든 라운드 산출물을 읽습니다.
+Acceptor는 자체 전용 모델 설정(`roles.acceptor.model`)을 사용하며 — Designer와 구분됩니다. 모든 라운드의 보고서를 전부 다시 읽는 대신, 마지막 라운드의 review/test/deep-review 보고서와 escalation을 읽어 미해결 이슈를 추려냅니다.
 
 ### 파이프라인 프로파일
 
@@ -164,7 +164,6 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
     ├── acceptance-criteria.md       # Designer → Tester: 테스트 가능한 기준
     ├── test-strategy.yaml           # Designer → Tester: 테스트 접근법
     ├── final-report.md              # 루프 종료 요약
-    ├── commit-plan.md               # 변경사항을 커밋으로 분할하는 방법
     ├── logs/
     │   ├── round-{N}-{role}.log              # 라운드별/역할별 실행 로그
     │   ├── round-{N}-deep-reviewer-{i}.log   # 병렬 sub-reviewer별 (팬아웃 시)
@@ -283,7 +282,7 @@ CLI에서 시행되는 확정적 검사 — AI 판단에 의존하지 않습니�
 | **범위** | 모노레포 모드: `git diff --name-only HEAD` 최상위 디렉토리를 기능이 선언한 repos와 비교. 멀티 리포 모드: 모든 워크스페이스 리포지토리에서 `gitops.Ops.DetectChangedRepos()` 사용 |
 | **의존성** | 의존 기능이 완료되지 않으면 `4x run` 차단 |
 | **백로그 드리프트** | `.4x/features/*.yaml`과 외부 미러가 동기화되지 않으면 경고 |
-| **Testing → Accepting 게이트** | `verify.json`(passed=true), `test-report.md`, `final-report.md`, `commit-plan.md` 필요 |
+| **Testing → Accepting 게이트** | `verify.json`(passed=true), `test-report.md`, `final-report.md` 필요 |
 
 `4x check <feature-id>`로 수동 실행 가능합니다.
 

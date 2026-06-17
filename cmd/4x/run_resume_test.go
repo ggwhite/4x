@@ -390,13 +390,12 @@ func TestCleanStaleArtifact_PreservesAllTypes(t *testing.T) {
 		}
 	})
 
-	t.Run("accepting keeps non-empty final-report and commit-plan", func(t *testing.T) {
+	t.Run("accepting keeps non-empty final-report", func(t *testing.T) {
 		ws := &protocol.Workspace{Root: t.TempDir()}
 		const fid = "F-acc"
 		writeFeatureFile(t, ws, fid, protocol.FinalReport, "# Final\ndone\n")
-		writeFeatureFile(t, ws, fid, protocol.CommitPlan, "feat: x\n")
 		cleanStaleArtifact(ws, fid, protocol.PhaseAccepting, 1)
-		for _, name := range []string{protocol.FinalReport, protocol.CommitPlan} {
+		for _, name := range []string{protocol.FinalReport} {
 			if _, err := os.Stat(filepath.Join(ws.FeatureDir(fid), name)); err != nil {
 				t.Errorf("complete %s removed: %v", name, err)
 			}

@@ -103,7 +103,6 @@ func TestCheckTestingToAccepting_AllArtifactsPresent(t *testing.T) {
 	writeFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))
 	writeFile(t, filepath.Join(roundDir, protocol.TestReport), "# Test")
 	writeFile(t, filepath.Join(featureDir, protocol.FinalReport), "# Final")
-	writeFile(t, filepath.Join(featureDir, protocol.CommitPlan), "# Commit Plan")
 
 	result := CheckTestingToAccepting(ws, "feat-1", 1)
 	if !result.Pass {
@@ -111,28 +110,26 @@ func TestCheckTestingToAccepting_AllArtifactsPresent(t *testing.T) {
 	}
 }
 
-func TestCheckTestingToAccepting_MissingCommitPlan(t *testing.T) {
+func TestCheckTestingToAccepting_MissingFinalReport(t *testing.T) {
 	ws := setupGuardWorkspace(t, "feat-1")
 	roundDir := ws.RoundDir("feat-1", 1)
-	featureDir := ws.FeatureDir("feat-1")
 
 	data, _ := json.Marshal(protocol.VerifyEvidence{Passed: true, Round: 1})
 	writeFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))
 	writeFile(t, filepath.Join(roundDir, protocol.TestReport), "# Test")
-	writeFile(t, filepath.Join(featureDir, protocol.FinalReport), "# Final")
 
 	result := CheckTestingToAccepting(ws, "feat-1", 1)
 	if result.Pass {
-		t.Fatal("missing commit-plan.md should fail")
+		t.Fatal("missing final-report.md should fail")
 	}
 	found := false
 	for _, err := range result.Errors {
-		if err == "required file missing: "+protocol.CommitPlan {
+		if err == "required file missing: "+protocol.FinalReport {
 			found = true
 		}
 	}
 	if !found {
-		t.Fatalf("expected missing commit-plan error, got %v", result.Errors)
+		t.Fatalf("expected missing final-report error, got %v", result.Errors)
 	}
 }
 
@@ -145,7 +142,6 @@ func TestCheckTestingToAccepting_VerifyFailed(t *testing.T) {
 	writeFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))
 	writeFile(t, filepath.Join(roundDir, protocol.TestReport), "# Test")
 	writeFile(t, filepath.Join(featureDir, protocol.FinalReport), "# Final")
-	writeFile(t, filepath.Join(featureDir, protocol.CommitPlan), "# Commit Plan")
 
 	result := CheckTestingToAccepting(ws, "feat-1", 1)
 	if result.Pass {
@@ -323,7 +319,6 @@ func TestCheckTestingToAccepting_UnreadableVerifyJSON(t *testing.T) {
 	writeFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))
 	writeFile(t, filepath.Join(roundDir, protocol.TestReport), "# Test")
 	writeFile(t, filepath.Join(featureDir, protocol.FinalReport), "# Final")
-	writeFile(t, filepath.Join(featureDir, protocol.CommitPlan), "# Commit Plan")
 
 	if err := os.Chmod(filepath.Join(roundDir, protocol.VerifyFile), 0o000); err != nil {
 		t.Fatal(err)

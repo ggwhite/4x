@@ -214,7 +214,7 @@
 | `--role` | 执行转换的角色 |
 | `--json` | 以 JSON 格式输出 |
 
-验证转换是否符合状态机的合法规则。如果状态不存在则自动初始化。`testing → accepting` 转换会运行额外的关卡检查（verify.json、test-report.md、final-report.md、commit-plan.md 必须存在且验证必须通过）。
+验证转换是否符合状态机的合法规则。如果状态不存在则自动初始化。`testing → accepting` 转换会运行额外的关卡检查（verify.json、test-report.md、final-report.md 必须存在且验证必须通过）。
 
 如果 `settings.json` 或 feature YAML 声明了 `hooks`，`pre_{phase}` 钩子在转换前运行，`post_{phase}` 钩子在转换后运行。`block` 类型的 pre-hook 失败会中止转换；`block` 类型的 post-hook 失败会将 feature 移至 `needs-attention`。详见[阶段钩子](concepts.md#phase-hooks)。
 

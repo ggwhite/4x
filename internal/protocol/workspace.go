@@ -35,7 +35,6 @@ const (
 	BaselineFile      = "baseline.json"
 	RoundsDir         = "rounds"
 	FinalReport       = "final-report.md"
-	CommitPlan        = "commit-plan.md"
 	TaskBrief         = "task-brief.md"
 	Criteria          = "acceptance-criteria.md"
 	TestStratFile     = "test-strategy.yaml"

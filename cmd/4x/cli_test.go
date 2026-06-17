@@ -398,14 +398,13 @@ func TestTransition_TestingToAcceptingRequiresTesterArtifacts(t *testing.T) {
 	os.WriteFile(filepath.Join(featureDir, protocol.StateFile), []byte(state), 0o644)
 	os.WriteFile(filepath.Join(roundDir, protocol.VerifyFile), []byte(`{"passed":true,"round":1}`), 0o644)
 	os.WriteFile(filepath.Join(roundDir, protocol.TestReport), []byte("# Test"), 0o644)
-	os.WriteFile(filepath.Join(featureDir, protocol.FinalReport), []byte("# Final"), 0o644)
 
 	out, err := run4x(dir, "transition", featureID, "--to", string(protocol.PhaseAccepting))
 	if err == nil {
-		t.Fatal("transition should fail when commit-plan.md is missing")
+		t.Fatal("transition should fail when final-report.md is missing")
 	}
-	if !strings.Contains(out, protocol.CommitPlan) {
-		t.Fatalf("output = %q, want missing commit-plan detail", out)
+	if !strings.Contains(out, protocol.FinalReport) {
+		t.Fatalf("output = %q, want missing final-report detail", out)
 	}
 }
 

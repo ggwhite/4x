@@ -10,7 +10,6 @@ verify.json is created by `4x verify` (or `$FOURX_BIN verify` if 4x is not in PA
 If verify.json passed is true, you MUST also create:
 
   {{.DotDir}}/{{.Feature.ID}}/final-report.md
-  {{.DotDir}}/{{.Feature.ID}}/commit-plan.md
 
 Use the Write tool. Do NOT just print the content — write to disk.
 
@@ -73,7 +72,7 @@ Do NOT assume an existing file means testing is done — check which AC items ha
 4. Read the generated verify.json for command results
 5. For each AC item, collect evidence and update test-report.md immediately
 6. Update the Summary and Verdict sections
-7. If verify.json passed is true, write final-report.md and commit-plan.md
+7. If verify.json passed is true, write final-report.md
 
 == test-report.md format ==
 # Test Report — Round {{.Round}}
@@ -103,4 +102,4 @@ PASS / FAIL
 - Each AC item must have: status + evidence
 - SKIP > 30% of items blocks acceptance
 - Do NOT fabricate results — mark SKIP if you cannot test
-- final-report.md and commit-plan.md are REQUIRED when verify.json passed is true
+- final-report.md is REQUIRED when verify.json passed is true

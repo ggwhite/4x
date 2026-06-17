@@ -7,7 +7,7 @@
 | **Designer** | 分析需求，產出 spec，定義驗收標準和測試策略 | Feature 描述、程式碼庫 | `task-brief.md`、`acceptance-criteria.md`、`test-strategy.yaml` | 修改原始碼 |
 | **Coder** | 實作 spec 所述的內容 | `task-brief.md`、先前的 test/review 報告 | 原始碼、`coder-report.md` | 修改驗收標準或測試腳本 |
 | **Reviewer** | 抓 bug、安全問題、spec 違規 | Diff、spec、coder 報告、專案規則 | `review-report.md` | 修改原始碼 |
-| **Tester** | 根據驗收標準用證據驗證 | 驗收標準、coder 報告、測試策略 | 測試腳本、`test-report.md`、`verify.json`、`final-report.md`、`commit-plan.md` | 修改原始碼 |
+| **Tester** | 根據驗收標準用證據驗證 | 驗收標準、coder 報告、測試策略 | 測試腳本、`test-report.md`、`verify.json`、`final-report.md` | 修改原始碼 |
 
 每個角色都是**隔離的** — Coder 在實作時永遠看不到先前的 review 回饋。Tester 根據 Designer（而非 Coder）寫的標準來驗證。
 
@@ -18,9 +18,9 @@
 | 角色 | 階段 | 職責 |
 |---|---|---|
 | **Deep Reviewer** | `deep-reviewing` | 對抗式審查——在完整 diff 中找出最糟糕的 bug |
-| **Acceptor** | `accepting` | 匯總所有輪次的發現，產出 `final-report.md` 和 `commit-plan.md` 供人類 review |
+| **Acceptor** | `accepting` | 匯總仍未解決的 issue，產出 `final-report.md` 供人類 review |
 
-Acceptor 使用自己獨立的模型設定（`roles.acceptor.model`）——與 Designer 不同。它會讀取所有輪次的 artifact 後才產出最終摘要。
+Acceptor 使用自己獨立的模型設定（`roles.acceptor.model`）——與 Designer 不同。它讀取最終輪的 review/test/deep-review 報告與各輪 escalation，找出仍未解決的 issue，而不再逐份重讀每一輪的完整報告。
 
 ### Pipeline Profiles
 
@@ -164,7 +164,6 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
     ├── acceptance-criteria.md       # Designer → Tester：可測試的標準
     ├── test-strategy.yaml           # Designer → Tester：測試方法
     ├── final-report.md              # 迴圈結束摘要
-    ├── commit-plan.md               # 如何將變更拆分為 commit
     ├── logs/
     │   ├── round-{N}-{role}.log              # 每輪每角色的執行日誌
     │   ├── round-{N}-deep-reviewer-{i}.log   # 每個平行 sub-reviewer 的日誌（fan-out 時）
@@ -283,7 +282,7 @@ monorepo 模式下（無 `workspace.repos`），所有範圍檢查和 git 操作
 | **範圍** | monorepo 模式：比對 `git diff --name-only HEAD` 的頂層目錄與 feature 宣告的 repo。多 repo 模式：使用 `gitops.Ops.DetectChangedRepos()` 跨所有 workspace repo 檢查 |
 | **依賴** | 如果被依賴的 feature 未完成，則阻擋 `4x run` |
 | **Backlog drift** | 當 `.4x/features/*.yaml` 與外部映射不同步時警告 |
-| **Testing → Accepting 閘門** | 需要 `verify.json`（passed=true）、`test-report.md`、`final-report.md`、`commit-plan.md` |
+| **Testing → Accepting 閘門** | 需要 `verify.json`（passed=true）、`test-report.md`、`final-report.md` |
 
 可用 `4x check <feature-id>` 手動執行。
 

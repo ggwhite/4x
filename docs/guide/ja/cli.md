@@ -216,7 +216,7 @@ Feature の `test-strategy.yaml` に記載された verify コマンドを実行
 | `--role` | 遷移を実行するロール |
 | `--json` | JSON 形式で出力 |
 
-ステートマシンに従って遷移が合法かを検証します。状態が存在しない場合は自動初期化します。`testing → accepting` の遷移では追加ゲートが実行されます（verify.json、test-report.md、final-report.md、commit-plan.md が存在し、verify が合格している必要があります）。
+ステートマシンに従って遷移が合法かを検証します。状態が存在しない場合は自動初期化します。`testing → accepting` の遷移では追加ゲートが実行されます（verify.json、test-report.md、final-report.md が存在し、verify が合格している必要があります）。
 
 `settings.json` または Feature YAML が `hooks` を宣言している場合、遷移前に `pre_{phase}` フックが、遷移後に `post_{phase}` フックが実行されます。`block` の pre フックが失敗すると遷移が中断されます。`block` の post フックが失敗すると Feature が `needs-attention` に移行します。設定形式の詳細は [フェーズフック](concepts.md#phase-hooks) を参照してください。
 

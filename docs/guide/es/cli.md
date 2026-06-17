@@ -216,7 +216,7 @@ Forzar una transición de estado.
 | `--role` | Rol que realiza la transición |
 | `--json` | Salida en formato JSON |
 
-Valida que la transición sea legal según la máquina de estados. Auto-inicializa el estado si no existe. La transición `testing -> accepting` ejecuta compuertas adicionales (verify.json, test-report.md, final-report.md, commit-plan.md deben existir y la verificación debe aprobar).
+Valida que la transición sea legal según la máquina de estados. Auto-inicializa el estado si no existe. La transición `testing -> accepting` ejecuta compuertas adicionales (verify.json, test-report.md, final-report.md deben existir y la verificación debe aprobar).
 
 Si `settings.json` o el YAML del feature declara `hooks`, los hooks `pre_{phase}` se ejecutan antes de la transición y los hooks `post_{phase}` se ejecutan después. Un fallo en un hook `block` de tipo pre aborta la transición; un fallo en un hook `block` de tipo post mueve el feature a `needs-attention`. Ver [Hooks de fase](concepts.md#hooks-de-fase) para el formato de configuración completo.
 

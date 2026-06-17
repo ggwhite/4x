@@ -615,7 +615,6 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		// 清除上一輪遺留的 feature-level 產出物，避免舊文件通過新一輪的 guard 檢查
 		if phase == protocol.PhaseTesting || phase == protocol.PhaseAmending {
 			os.Remove(filepath.Join(ws.FeatureDir(featureID), protocol.FinalReport))
-			os.Remove(filepath.Join(ws.FeatureDir(featureID), protocol.CommitPlan))
 		}
 
 		// F046：testing phase 啟動 Tester 前，先跑環境 health check（F045 pre-testing
@@ -1189,7 +1188,7 @@ func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 		return parallelTransition(ws, featureID, s, protocol.PhaseAmending, protocol.RoleCoder)
 	}
 
-	// 兩者皆 PASS：tester 必須備齊 final-report / commit-plan 等抵達 accepting 的 artifact。
+	// 兩者皆 PASS：tester 必須備齊 final-report 等抵達 accepting 的 artifact。
 	if testGuard := guard.CheckTestingToAccepting(ws, featureID, round); !testGuard.Pass {
 		return parallelNeedsAttention(ws, featureID, s, strings.Join(testGuard.Errors, "; "))
 	}
@@ -1366,9 +1365,15 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 		cleanup()
 		return false, fmt.Errorf("write state (synthesizer): %w", err)
 	}
+	// synthesizer 只做文本合併、不讀原始碼，用獨立的便宜 model（預設 sonnet tier，
+	// 可由 roles.synthesizer.model 覆寫）。解析失敗時 fallback 回 deepModel，不中斷 run。
+	synthModel := deepModel
+	if m, mErr := protocol.ResolveModel(cfg, s.Runner, protocol.RoleSynthesizer); mErr == nil {
+		synthModel = m
+	}
 	ws.AppendEvent(featureID, protocol.Event{
 		Type: "phase-start", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleSynthesizer, Round: round,
-		Runner: s.Runner, Model: deepModel,
+		Runner: s.Runner, Model: synthModel,
 	})
 	synthPrompt, perr := generatePrompt(ws, runnerWs, feature, cfg, protocol.RoleSynthesizer, round, 0,
 		withSynthesizerReports(partials))
@@ -1376,8 +1381,8 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 		synthPrompt = fmt.Sprintf("You are the deep review synthesizer for feature %s, round %d. Read .4x/%s/ for context.", featureID, round, featureID)
 	}
 	synthLog := filepath.Join(runner.LogDir(ws, featureID), runner.LogFileName(round, string(protocol.RoleSynthesizer)))
-	synthRunner := newRunner(synthLog, deepModel)
-	fmt.Printf("[round %d] deep-reviewing (synthesizer) — invoking %s (model: %s)\n", round, s.Runner, deepModel)
+	synthRunner := newRunner(synthLog, synthModel)
+	fmt.Printf("[round %d] deep-reviewing (synthesizer) — invoking %s (model: %s)\n", round, s.Runner, synthModel)
 	synthRes, synthErr := synthRunner.Run(ctx, synthPrompt)
 	if synthErr != nil {
 		cleanup()
@@ -1395,13 +1400,13 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 		_ = ws.WriteState(featureID, *s)
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleSynthesizer, Round: round,
-			Status: "error", Detail: synthErr.Error(), Runner: s.Runner, Model: deepModel,
+			Status: "error", Detail: synthErr.Error(), Runner: s.Runner, Model: synthModel,
 		})
 		return false, synthErr
 	}
 	ws.AppendEvent(featureID, protocol.Event{
 		Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleSynthesizer, Round: round,
-		Status: fmt.Sprintf("exit-%d", synthRes.ExitCode), Runner: s.Runner, Model: deepModel,
+		Status: fmt.Sprintf("exit-%d", synthRes.ExitCode), Runner: s.Runner, Model: synthModel,
 	})
 	if runner.IsHardError(synthRes) {
 		cleanup()
@@ -1978,7 +1983,6 @@ func cleanStaleArtifact(ws *protocol.Workspace, featureID string, phase protocol
 		removeIfIncomplete(filepath.Join(roundDir, protocol.DeepReviewReport), reviewReportComplete)
 	case protocol.PhaseAccepting:
 		removeIfIncomplete(filepath.Join(ws.FeatureDir(featureID), protocol.FinalReport), nonEmptyFile)
-		removeIfIncomplete(filepath.Join(ws.FeatureDir(featureID), protocol.CommitPlan), nonEmptyFile)
 	}
 }
 
@@ -2221,7 +2225,7 @@ func syncFeatureFromWorktree(wt, main *protocol.Workspace, featureID string, rou
 	// feature-level 檔案
 	for _, name := range []string{
 		protocol.TaskBrief, protocol.Criteria, protocol.TestStratFile,
-		protocol.FinalReport, protocol.CommitPlan,
+		protocol.FinalReport,
 	} {
 		if _, err := gitops.CopyFileIfNewer(filepath.Join(srcDir, name), filepath.Join(dstDir, name)); err != nil {
 			errs = append(errs, fmt.Sprintf("%s: %v", name, err))

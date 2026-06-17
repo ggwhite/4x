@@ -7,7 +7,7 @@
 | **设计者 (Designer)** | 分析需求，产出规格，定义验收标准和测试策略 | Feature 描述、代码库 | `task-brief.md`、`acceptance-criteria.md`、`test-strategy.yaml` | 修改源代码 |
 | **编码者 (Coder)** | 按照规格实现 | `task-brief.md`、先前的测试/审查报告 | 源代码、`coder-report.md` | 修改验收标准或测试脚本 |
 | **审查者 (Reviewer)** | 发现 bug、安全问题、规格违规 | Diff、规格、编码报告、项目规则 | `review-report.md` | 修改源代码 |
-| **测试者 (Tester)** | 基于验收标准用证据验证 | 验收标准、编码报告、测试策略 | 测试脚本、`test-report.md`、`verify.json`、`final-report.md`、`commit-plan.md` | 修改源代码 |
+| **测试者 (Tester)** | 基于验收标准用证据验证 | 验收标准、编码报告、测试策略 | 测试脚本、`test-report.md`、`verify.json`、`final-report.md` | 修改源代码 |
 
 每个角色都是**隔离的** — 编码者在实现过程中看不到先前的审查反馈。测试者按照设计者（而非编码者）编写的标准进行验证。
 
@@ -18,9 +18,9 @@
 | 角色 | 阶段 | 职责 |
 |---|---|---|
 | **深度审查者 (Deep Reviewer)** | `deep-reviewing` | 对抗性审查——在完整 diff 中寻找最坏情况的 bug |
-| **接受者 (Acceptor)** | `accepting` | 汇总所有轮次的发现，生成 `final-report.md` 和 `commit-plan.md` 供人工审查 |
+| **接受者 (Acceptor)** | `accepting` | 汇总仍未解决的问题，生成 `final-report.md` 供人工审查 |
 
-接受者使用独立的模型配置（`roles.acceptor.model`）——与设计者不同。它在生成最终摘要前读取所有轮次的产物。
+接受者使用独立的模型配置（`roles.acceptor.model`）——与设计者不同。它读取最终轮的 review/test/deep-review 报告以及各轮 escalation，找出仍未解决的问题，而不再逐份重读每一轮的完整报告。
 
 ### 流水线 Profile
 
@@ -164,7 +164,6 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
     ├── acceptance-criteria.md       # Designer → Tester：可测试的标准
     ├── test-strategy.yaml           # Designer → Tester：测试方案
     ├── final-report.md              # 循环结束摘要
-    ├── commit-plan.md               # 如何拆分变更为提交
     ├── logs/
     │   ├── round-{N}-{role}.log              # 每轮每角色执行日志
     │   ├── round-{N}-deep-reviewer-{i}.log   # 每个并行子审查者（扇出时）
@@ -283,7 +282,7 @@ hooks: {}    # 可选的阶段钩子（与 settings.json 格式相同）
 | **范围** | 单仓库模式：将 `git diff --name-only HEAD` 的顶层目录与 feature 声明的仓库进行比对。多仓库模式：使用 `gitops.Ops.DetectChangedRepos()` 跨所有工作区仓库检测 |
 | **依赖** | 如果被依赖的 feature 未完成，阻止 `4x run` |
 | **Backlog 偏差** | 当 `.4x/features/*.yaml` 与外部镜像不同步时发出警告 |
-| **测试 → 接受关卡** | 要求 `verify.json`（passed=true）、`test-report.md`、`final-report.md`、`commit-plan.md` |
+| **测试 → 接受关卡** | 要求 `verify.json`（passed=true）、`test-report.md`、`final-report.md` |
 
 可通过 `4x check <feature-id>` 手动运行。
 

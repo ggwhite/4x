@@ -216,7 +216,7 @@
 | `--role` | 전환을 수행하는 역할 |
 | `--json` | JSON 형식으로 출력 |
 
-상태 머신에 따라 전환이 합법적인지 검증합니다. 상태가 없으면 자동 초기화합니다. `testing → accepting` 전환은 추가 게이트를 실행합니다 (verify.json, test-report.md, final-report.md, commit-plan.md가 존재해야 하며 검증을 통과해야 함).
+상태 머신에 따라 전환이 합법적인지 검증합니다. 상태가 없으면 자동 초기화합니다. `testing → accepting` 전환은 추가 게이트를 실행합니다 (verify.json, test-report.md, final-report.md가 존재해야 하며 검증을 통과해야 함).
 
 `settings.json` 또는 기능 YAML에 `hooks`가 선언되어 있으면, `pre_{phase}` 훅은 전환 전에, `post_{phase}` 훅은 전환 후에 실행됩니다. `block` pre 훅이 실패하면 전환이 중단됩니다; `block` post 훅이 실패하면 기능이 `needs-attention`으로 이동합니다. 전체 설정 형식은 [단계 훅](concepts.md#단계-훅)을 참조하세요.
 

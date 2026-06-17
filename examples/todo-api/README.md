@@ -22,8 +22,7 @@ examples/todo-api/
 │       ├── coder-report.md
 │       ├── review-report.md
 │       ├── test-report.md
-│       ├── final-report.md
-│       └── commit-plan.md
+│       └── final-report.md
 ├── backend/                      # the Go project 4x will work on
 │   ├── go.mod
 │   ├── main.go
@@ -81,7 +80,7 @@ The runner works through the loop automatically:
 2. **Coder** reads the Designer outputs, implements the API, writes `coder-report.md`.
 3. **Reviewer** reads the code and Designer outputs, writes `review-report.md` with a verdict.
    - If the verdict is FAIL, the Coder amends and the Reviewer re-checks (up to `max_rounds`).
-4. **Tester** runs the `verify_commands` from `test-strategy.yaml`, writes `verify.json`, `test-report.md`, `final-report.md`, and `commit-plan.md`.
+4. **Tester** runs the `verify_commands` from `test-strategy.yaml`, writes `verify.json`, `test-report.md`, and `final-report.md`.
 
 ## Watch
 
@@ -116,17 +115,14 @@ After the run completes:
 # Overall summary
 cat .4x/rest-api-for-todo-items/final-report.md
 
-# Ordered commit plan
-cat .4x/rest-api-for-todo-items/commit-plan.md
-
 # Full test evidence
 cat .4x/rest-api-for-todo-items/verify.json
 ```
 
-Follow the `commit-plan.md` to commit changes in the recommended order:
+Commit the changes in logical units once the run completes:
 
 ```sh
-# Example — adapt to the actual files listed in commit-plan.md
+# Example — adapt to the actual files changed during the run
 git add backend/db/migrations/
 git commit -m "feat(db): add todos table migration"
 

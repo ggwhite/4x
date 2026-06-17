@@ -22,7 +22,7 @@ type mockOutcome struct {
 	testPassed       bool
 	escalation       bool
 	escalationReason string
-	omitCommitPlan   bool
+	omitFinalReport  bool
 }
 
 type mockRunner struct {
@@ -109,11 +109,8 @@ func (m *mockRunner) Run(_ context.Context, prompt string) (*runner.Result, erro
 		data, _ := json.Marshal(ve)
 		os.WriteFile(filepath.Join(roundDir, protocol.VerifyFile), data, 0o644)
 		os.WriteFile(filepath.Join(roundDir, protocol.TestReport), []byte("# Test"), 0o644)
-		if outcome.testPassed {
+		if outcome.testPassed && !outcome.omitFinalReport {
 			os.WriteFile(filepath.Join(featureDir, protocol.FinalReport), []byte("# Final"), 0o644)
-			if !outcome.omitCommitPlan {
-				os.WriteFile(filepath.Join(featureDir, protocol.CommitPlan), []byte("# Commit Plan"), 0o644)
-			}
 		}
 		if outcome.escalation {
 			reason := outcome.escalationReason
@@ -206,7 +203,7 @@ func TestRunLoop_TestPassMissingArtifactsStopsBeforeAccepting(t *testing.T) {
 	ws.WriteState("feat-missing-test-artifacts", s)
 
 	mock := &mockRunner{ws: ws, featureID: "feat-missing-test-artifacts", outcomes: []mockOutcome{
-		{}, {}, {reviewVerdict: "PASS"}, {testPassed: true, omitCommitPlan: true},
+		{}, {}, {reviewVerdict: "PASS"}, {testPassed: true, omitFinalReport: true},
 	}}
 
 	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
@@ -223,8 +220,8 @@ func TestRunLoop_TestPassMissingArtifactsStopsBeforeAccepting(t *testing.T) {
 	if final.StopReason == "" {
 		t.Errorf("stopReason should not be empty")
 	}
-	if !strings.Contains(final.StopMessage, protocol.CommitPlan) {
-		t.Errorf("stopMessage = %q, want missing commit-plan detail", final.StopMessage)
+	if !strings.Contains(final.StopMessage, protocol.FinalReport) {
+		t.Errorf("stopMessage = %q, want missing final-report detail", final.StopMessage)
 	}
 	if len(mock.phases) != 4 {
 		t.Fatalf("ran %d phases, want 4 before accepting: %v", len(mock.phases), mock.phases)
@@ -704,7 +701,6 @@ func TestRunLoop_StaleArtifactsCleanedOnTestingEntry(t *testing.T) {
 	// 從 reviewing phase 開始，review 已 pass，下一步是 testing。
 	// 預先放入 stale feature-level artifact，模擬上一輪 tester 遺留。
 	os.WriteFile(filepath.Join(featureDir, protocol.FinalReport), []byte("# Stale"), 0o644)
-	os.WriteFile(filepath.Join(featureDir, protocol.CommitPlan), []byte("# Stale"), 0o644)
 	os.WriteFile(filepath.Join(featureDir, protocol.TaskBrief), []byte("# Brief"), 0o644)
 	os.WriteFile(filepath.Join(featureDir, protocol.Criteria), []byte("# Criteria"), 0o644)
 
@@ -1680,7 +1676,6 @@ func (m *roleMockRunner) Run(_ context.Context, _ string) (*runner.Result, error
 		os.WriteFile(filepath.Join(roundDir, protocol.VerifyFile), data, 0o644)
 		os.WriteFile(filepath.Join(roundDir, protocol.TestReport), []byte("# Test"), 0o644)
 		os.WriteFile(filepath.Join(featureDir, protocol.FinalReport), []byte("# Final"), 0o644)
-		os.WriteFile(filepath.Join(featureDir, protocol.CommitPlan), []byte("# Commit Plan"), 0o644)
 	}
 	return &runner.Result{ExitCode: 0}, nil
 }

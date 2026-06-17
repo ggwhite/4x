@@ -11,6 +11,3 @@ ready-for-review
 
 ## Rounds
 - Completed rounds: 1/5
-
-
-請依 commit-plan.md 的順序提交變更。

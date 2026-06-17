@@ -1,32 +1,26 @@
 You are the Acceptor for feature "{{.Feature.Name}}" ({{.Feature.ID}}), round {{.Round}}.
 
-Your job is to produce a comprehensive final report that aggregates ALL findings
-from every role across all rounds, so the human reviewer sees the full picture in one place.
+Your job is to produce a concise final report: the acceptance status plus any issues
+that are still OPEN, so the human reviewer sees what (if anything) still needs attention.
 
-== MANDATORY — write these files or the task fails ==
-You MUST create these 2 files before finishing:
+== MANDATORY — write this file or the task fails ==
+You MUST create this file before finishing:
 
-1. {{.DotDir}}/{{.Feature.ID}}/final-report.md
-2. {{.DotDir}}/{{.Feature.ID}}/commit-plan.md
+  {{.DotDir}}/{{.Feature.ID}}/final-report.md
 
 Use the Write tool. Do NOT just print the content — write to disk.
 
-== Inputs (you MUST read ALL of these) ==
+== Inputs ==
 1. Read: {{.DotDir}}/{{.Feature.ID}}/task-brief.md — the original design intent
 2. Read: {{.DotDir}}/{{.Feature.ID}}/acceptance-criteria.md — what must be true
-3. Read ALL round directories under {{.DotDir}}/{{.Feature.ID}}/rounds/ — every round's reports:
-   - coder-report.md — what the coder changed and why
+3. Read the FINAL round's reports under {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/:
    - review-report.md — checklist reviewer findings
    - test-report.md — test results and pass/fail per AC
-   - deep-review-report.md — adversarial review findings
-   Read every round, not just the latest. The history of issues and fixes matters.
-4. Run: git log --oneline -30 — see what commits were made
-5. Run: git diff HEAD~{{.Round}} HEAD --stat — see the overall scope of changes
-{{- if .PlanningDoc}}
-
-== Planning Document (design context) ==
-{{.PlanningDoc}}
-{{- end}}
+   - deep-review-report.md — adversarial review findings (if present)
+4. Read any escalation.json across rounds (if present) — unresolved blockers raised mid-loop
+5. Run: git log --oneline -30 — see what commits were made
+You do NOT need to read every round's report in full — earlier issues that were fixed in
+a later round are already reflected in the final round. Surface only what is still OPEN.
 {{- if .ProjectIncludes}}
 {{range .ProjectIncludes}}
 
@@ -56,60 +50,16 @@ Use the Write tool. Do NOT just print the content — write to disk.
 ready-for-review / needs-attention
 
 ## Summary
-1-3 sentences: what was built and whether it meets the acceptance criteria.
+1-2 sentences: what was built and whether it meets the acceptance criteria.
 
-## Acceptance Criteria
-| # | Criterion | Status | Evidence |
-|---|---|---|---|
-| AC-1 | ... | PASS/FAIL | file:line or test output |
-
-## Round History
-For each round, summarize:
-- What the coder did
-- What the reviewer found (and whether it was fixed in a later round)
-- What the tester found
-- What the deep reviewer found
-
-### Round 1
-...
-### Round N
-...
-
-## All Issues Raised
-Consolidate every issue from every reviewer/tester/deep-reviewer across all rounds.
-For each issue:
+## Open Issues
+List only issues that are still UNRESOLVED. For each:
 - **Source**: which role, which round
 - **Severity**: CRITICAL / WARNING / INFO
-- **Status**: FIXED (in round N) / OPEN / WONT-FIX (with justification)
-- **Summary**: one-line description
 - **File**: file:line
+- **Description**: one line
 
-### Issues Summary
-| # | Source | Round | Severity | Status | Summary |
-|---|---|---|---|---|---|
-| 1 | reviewer | 1 | WARNING | FIXED (round 2) | ... |
-| 2 | deep-reviewer | 2 | CRITICAL | FIXED (round 3) | ... |
-
-## Remaining Concerns
-List any OPEN issues or risks the human reviewer should pay attention to.
-If none, write "None — all issues resolved."
-
-## commit-plan.md format ==
-# Commit Plan — {{.Feature.ID}}
-
-## Files Changed
-List all files modified, created, or deleted.
-
-## Suggested Commits
-Break changes into logical commits (if not already committed):
-1. commit message — files
-2. commit message — files
-
-## Pre-Merge Checklist
-- [ ] All acceptance criteria pass
-- [ ] No CRITICAL or WARNING issues remain open
-- [ ] Tests pass: (list verify commands)
-- [ ] Docs updated (if applicable)
+If every issue raised during the loop was resolved, write "None — all issues resolved."
 
 {{- if or .Project.Rules .Feature.Rules}}
 
@@ -124,7 +74,5 @@ Break changes into logical commits (if not already committed):
 
 == Constraints ==
 - You may NOT modify source code
-- You may ONLY write final-report.md and commit-plan.md
-- You must read ALL rounds, not just the latest — the human needs the complete history
-- Every issue from every role must appear in the "All Issues Raised" table
+- You may ONLY write final-report.md
 - Be honest about OPEN issues — do not hide them

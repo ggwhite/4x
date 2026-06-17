@@ -59,8 +59,8 @@ None
 - `.4x/features/*.yaml` 為 canonical source of truth，`feature_list.json` 為 legacy mirror
 - `CompareBacklogMirror()` drift detection（missing/extra/mismatch）
 - `4x status` 和 `4x check` 顯示 drift warnings
-- `testing→accepting` transition gate：要求 verify.json / test-report.md / final-report.md / commit-plan.md
-- Tester prompt 更新：要求產出 verify.json 及 final/commit 文件
+- `testing→accepting` transition gate：要求 verify.json / test-report.md / final-report.md
+- Tester prompt 更新：要求產出 verify.json 及 final-report 文件
 
 ## Next Steps
 

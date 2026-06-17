@@ -120,7 +120,7 @@ Configure in `.4x/settings.json`:
 
 The `model` and `deep_model` values are abstract tier names (e.g. `"opus"`, `"sonnet"`), not literal model IDs. Each runner has a `tiers` mapping in its config that translates tier names to runner-specific model IDs (e.g. claude maps `"opus"` to `"opus"`, codex maps `"opus"` to `"gpt-5.5"`). See [Configuration](configuration.md) for the full resolution chain.
 
-The Deep Reviewer uses `deep_model`. When `parallel_reviewers > 1`, the deep review fans the 11 angles out across that many parallel sub-reviewers (each running `deep_model`) plus one synthesizer that merges their partial reports; `1` keeps the single-agent flow. Optional `angles_per_reviewer` sets a fixed number of angles per sub-reviewer; when omitted, angles are distributed evenly (`ceil(11/N)` per reviewer). See [Concepts → Parallel Deep Review](concepts.md).
+The Deep Reviewer uses `deep_model`. When `parallel_reviewers > 1`, the deep review fans the 11 angles out across that many parallel sub-reviewers (each running `deep_model`) plus one synthesizer that merges their partial reports; `1` keeps the single-agent flow. The synthesizer only merges text — it does not re-read source — so it resolves its own model via `roles.synthesizer.model` (defaulting to the `sonnet` tier) instead of the more expensive `deep_model`. Optional `angles_per_reviewer` sets a fixed number of angles per sub-reviewer; when omitted, angles are distributed evenly (`ceil(11/N)` per reviewer). See [Concepts → Parallel Deep Review](concepts.md).
 
 You can also mix runners — use Claude for Design, Gemini for Code, etc. — by running each phase manually with different `--runner` flags and `4x transition` between phases.
 
