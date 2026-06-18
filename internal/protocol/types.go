@@ -46,6 +46,17 @@ const (
 	RoleSynthesizer Role = "synthesizer"
 )
 
+// SubPhase 表示 deep-reviewing phase 內的子步驟，僅在 phase==deep-reviewing 時有意義；
+// 其餘 phase 一律為空字串。用於 dashboard 顯示細部進度與 crash recovery 推斷重跑起點。
+type SubPhase string
+
+const (
+	SubPhaseReviewing    SubPhase = "reviewing"    // sub-reviewer 平行審查中
+	SubPhaseSynthesizing SubPhase = "synthesizing" // synthesizer 合併 partial 中
+	SubPhaseFixing       SubPhase = "fixing"       // mini-coder 修正 issue 中
+	SubPhaseReverifying  SubPhase = "reverifying"  // re-verifier 複驗中
+)
+
 // DeepReviewAngleCount 是 deep-reviewer 模板定義的 review angle 總數（angle 1..11）。
 // 平行 deep review 依此把 angle 平均分配給各 sub-reviewer。
 const DeepReviewAngleCount = 11
@@ -84,6 +95,7 @@ type State struct {
 	FeatureID             string    `json:"featureId"`
 	Phase                 Phase     `json:"phase"`
 	Role                  Role      `json:"role"`
+	SubPhase              SubPhase  `json:"subPhase,omitempty"`
 	Round                 int       `json:"round"`
 	MaxRounds             int       `json:"maxRounds"`
 	Active                bool      `json:"active"`

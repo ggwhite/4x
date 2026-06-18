@@ -524,6 +524,11 @@ func (w *Workspace) ReconcileActive(featureID string, s *State) error {
 // 改用同目錄 temp file 寫完再 atomic rename 覆蓋，讓讀者永遠看到完整的舊檔或完整的新檔。
 func (w *Workspace) WriteState(featureID string, s State) error {
 	s.UpdatedAt = time.Now()
+	// SubPhase 僅在 deep-reviewing phase 內有意義；離開該 phase 時一律清空，
+	// 作為各退出路徑的單一收斂點，避免殘留的 subPhase 誤導 dashboard 或 resume 推斷。
+	if s.Phase != PhaseDeepReviewing {
+		s.SubPhase = ""
+	}
 	data, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
 		return err

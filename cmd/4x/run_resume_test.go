@@ -60,7 +60,7 @@ func resolveResume(t *testing.T, ws *protocol.Workspace, featureID string, s pro
 	if !needsResumeRecovery(s) {
 		return s
 	}
-	rp, rr := smartResumePhase(ws, featureID, s.Round)
+	rp, rr, _ := smartResumePhase(ws, featureID, s.Round, protocol.Config{})
 	if rp == s.Phase {
 		return s
 	}
@@ -77,7 +77,7 @@ func TestSmartResume_DeepReviewFail(t *testing.T) {
 	const fid = "F-deep"
 	seedFullRoundDeepFail(t, ws, fid, 1)
 
-	phase, role := smartResumePhase(ws, fid, 1)
+	phase, role, _ := smartResumePhase(ws, fid, 1, protocol.Config{})
 	if phase != protocol.PhaseAmending {
 		t.Errorf("phase = %s, want %s", phase, protocol.PhaseAmending)
 	}
@@ -213,7 +213,7 @@ func TestSmartResume_Paths(t *testing.T) {
 			ws := &protocol.Workspace{Root: t.TempDir()}
 			const fid = "F-paths"
 			tt.seed(t, ws, fid)
-			phase, role := smartResumePhase(ws, fid, tt.round)
+			phase, role, _ := smartResumePhase(ws, fid, tt.round, protocol.Config{})
 			if phase != tt.wantPhase {
 				t.Errorf("phase = %s, want %s", phase, tt.wantPhase)
 			}

@@ -396,6 +396,7 @@ type taskInfo struct {
 	Name       string   `json:"name"`
 	Status     string   `json:"status"`
 	Phase      string   `json:"phase"`
+	SubPhase   string   `json:"subPhase,omitempty"`
 	Role       string   `json:"role"`
 	Round      int      `json:"round"`
 	Active     bool     `json:"active"`
@@ -582,6 +583,7 @@ func handleTasks(ws *protocol.CachedWorkspace, w http.ResponseWriter) {
 				slog.Warn("failed to reconcile active state", "feature", f.ID, "error", err)
 			}
 			t.Phase = string(s.Phase)
+			t.SubPhase = string(s.SubPhase)
 			t.Role = string(s.Role)
 			t.Round = s.Round
 			t.Active = s.Active

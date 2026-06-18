@@ -204,7 +204,7 @@ func newRunCmd() *cobra.Command {
 				// - 其他工作 phase（coding…accepting）：僅在已進入 coding（round > 0）時校正；
 				//   init / designing / pending-review 不適用，維持原本 resume 行為。
 				if needsResumeRecovery(s) {
-					resumePhase, resumeRole := smartResumePhase(ws, featureID, s.Round)
+					resumePhase, resumeRole, resumeSub := smartResumePhase(ws, featureID, s.Round, cfg)
 					if resumePhase != s.Phase {
 						fmt.Printf("  recovering %s → %s (round %d, max rounds: %d)\n", s.Phase, resumePhase, s.Round, s.MaxRounds)
 						ns, err := state.RecoverTo(s, resumePhase, resumeRole)
@@ -213,6 +213,9 @@ func newRunCmd() *cobra.Command {
 						}
 						s = ns
 					}
+					// 即使 phase 未變（crash 仍在 deep-reviewing），也要還原 subPhase，
+					// 讓 dashboard 顯示與後續 partial-resume 推斷有正確起點。
+					s.SubPhase = resumeSub
 				}
 			}
 
@@ -366,6 +369,29 @@ type promptOption func(*promptData)
 // 檔名（deep-review-partial-<index>.md，index 為 1-based）。
 func deepReviewPartialName(index int) string {
 	return fmt.Sprintf("deep-review-partial-%d.md", index)
+}
+
+// deepPartialComplete 判斷單一 deep-review-partial 檔是否已完整寫出。
+// 完整判準：檔案存在、去空白後非空，且含 partial 模板的結尾段落標記 `## Statistics`
+//（sub-reviewer 半截輸出時通常缺此段，避免半成品被誤判為完整而漏跑）。
+func deepPartialComplete(path string) bool {
+	data, err := os.ReadFile(path)
+	if err != nil || len(bytes.TrimSpace(data)) == 0 {
+		return false
+	}
+	return strings.Contains(string(data), "## Statistics")
+}
+
+// missingDeepPartials 回傳 1..want 中尚未完整的 partial index 清單（升冪）。
+// resume 時用來判斷哪些 sub-reviewer 需補跑；首次執行時所有 index 皆缺，回傳完整清單。
+func missingDeepPartials(roundDir string, want int) []int {
+	var missing []int
+	for i := 1; i <= want; i++ {
+		if !deepPartialComplete(filepath.Join(roundDir, deepReviewPartialName(i))) {
+			missing = append(missing, i)
+		}
+	}
+	return missing
 }
 
 // withParallelDeepReviewer 把第 index/count 個 sub-reviewer 的 angle 指派與 partial report
@@ -1268,32 +1294,42 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 		err    error
 	}
 
-	fmt.Printf("[round %d] deep-reviewing — running %d parallel sub-reviewers (%s, model: %s)\n", round, len(groups), s.Runner, deepModel)
+	// resume：跳過已完整寫出 partial 的 sub-reviewer，只補跑缺少的 index。
+	// missing 為空時整個 sub-reviewer 階段跳過，直接進 synthesizer
+	//（涵蓋「synthesizer 掛掉、partial 都在 → 只重跑 synthesizer」）。
+	// partial index 與 angle group 的對應固定（idx=i+1 → groups[idx-1]），補跑時沿用原分配。
+	missing := missingDeepPartials(runnerWs.RoundDir(featureID, round), len(groups))
 
-	outcomes := make([]runOutcome, len(groups))
-	var wg sync.WaitGroup
-	for i, angles := range groups {
-		wg.Add(1)
-		go func(i int, angles []int) {
-			defer wg.Done()
-			idx := i + 1
-			partialName := deepReviewPartialName(idx)
-			ws.AppendEvent(featureID, protocol.Event{
-				Type: "phase-start", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleDeepReviewer, Round: round,
-				Runner: s.Runner, Model: deepModel,
-			})
-			prompt, perr := generatePrompt(ws, runnerWs, feature, cfg, protocol.RoleDeepReviewer, round, 0,
-				withParallelDeepReviewer(idx, len(groups), angles, partialName))
-			if perr != nil {
-				prompt = fmt.Sprintf("You are deep sub-reviewer %d for feature %s, round %d. Read .4x/%s/ for context.", idx, featureID, round, featureID)
-			}
-			logPath := filepath.Join(runner.LogDir(ws, featureID), runner.DeepReviewerLogFileName(round, idx))
-			r := newRunner(logPath, deepModel)
-			res, runErr := r.Run(ctx, prompt)
-			outcomes[i] = runOutcome{index: idx, result: res, err: runErr}
-		}(i, angles)
+	outcomes := make([]runOutcome, len(missing))
+	if len(missing) > 0 {
+		fmt.Printf("[round %d] deep-reviewing — running %d parallel sub-reviewers (%s, model: %s)\n", round, len(missing), s.Runner, deepModel)
+
+		var wg sync.WaitGroup
+		for slot, idx := range missing {
+			wg.Add(1)
+			go func(slot, idx int) {
+				defer wg.Done()
+				angles := groups[idx-1]
+				partialName := deepReviewPartialName(idx)
+				ws.AppendEvent(featureID, protocol.Event{
+					Type: "phase-start", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleDeepReviewer, Round: round,
+					Runner: s.Runner, Model: deepModel,
+				})
+				prompt, perr := generatePrompt(ws, runnerWs, feature, cfg, protocol.RoleDeepReviewer, round, 0,
+					withParallelDeepReviewer(idx, len(groups), angles, partialName))
+				if perr != nil {
+					prompt = fmt.Sprintf("You are deep sub-reviewer %d for feature %s, round %d. Read .4x/%s/ for context.", idx, featureID, round, featureID)
+				}
+				logPath := filepath.Join(runner.LogDir(ws, featureID), runner.DeepReviewerLogFileName(round, idx))
+				r := newRunner(logPath, deepModel)
+				res, runErr := r.Run(ctx, prompt)
+				outcomes[slot] = runOutcome{index: idx, result: res, err: runErr}
+			}(slot, idx)
+		}
+		wg.Wait()
+	} else {
+		fmt.Printf("[round %d] deep-reviewing — all %d partials present, resuming at synthesizer (%s)\n", round, len(groups), s.Runner)
 	}
-	wg.Wait()
 
 	// runner 執行錯誤分類：context cancel → interrupted；其餘 → runner-error needs-attention。
 	for _, o := range outcomes {
@@ -1361,6 +1397,7 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 
 	// synthesizer 合併所有 partial report 成單一 deep-review-report.md。
 	s.Role = protocol.RoleSynthesizer
+	s.SubPhase = protocol.SubPhaseSynthesizing
 	if err := ws.WriteState(featureID, *s); err != nil {
 		cleanup()
 		return false, fmt.Errorf("write state (synthesizer): %w", err)
@@ -1485,7 +1522,9 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 	}
 
 	// 2. 跑 deep reviewer：依設定走平行 N sub-reviewer + synthesizer，或 fallback 單 agent。
+	// SubPhaseReviewing 在分支前設定，平行與單 agent fallback 兩條路徑共用。
 	s.Role = protocol.RoleDeepReviewer
+	s.SubPhase = protocol.SubPhaseReviewing
 	if err := ws.WriteState(featureID, *s); err != nil {
 		return false, fmt.Errorf("write state (deep-reviewer): %w", err)
 	}
@@ -1543,6 +1582,7 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 
 		// 4a. mini-coder（model = coder model，不用昂貴 deep_model），phase 維持 deep-reviewing。
 		s.Role = protocol.RoleMiniCoder
+		s.SubPhase = protocol.SubPhaseFixing
 		if err := ws.WriteState(featureID, *s); err != nil {
 			return false, fmt.Errorf("write state (mini-coder): %w", err)
 		}
@@ -1580,6 +1620,7 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 
 		// 4c. re-verifier（model = reviewer model，scoped 驗證，不用昂貴 opus），read-only。
 		s.Role = protocol.RoleReVerifier
+		s.SubPhase = protocol.SubPhaseReverifying
 		if err := ws.WriteState(featureID, *s); err != nil {
 			return false, fmt.Errorf("write state (re-verifier): %w", err)
 		}
@@ -1734,6 +1775,8 @@ func deepTransitionAccepting(ws *protocol.Workspace, featureID string, s *protoc
 		return false, fmt.Errorf("deep-review→accepting transition: %w", err)
 	}
 	*s = newState
+	// 離開 deep-reviewing：清空 subPhase，使續跑的主迴圈持有的 *s 與磁碟一致。
+	s.SubPhase = ""
 	if err := ws.WriteState(featureID, *s); err != nil {
 		return false, fmt.Errorf("write state (accepting): %w", err)
 	}
@@ -2081,43 +2124,71 @@ func needsResumeRecovery(s protocol.State) bool {
 // 「已完成」採與 cleanStaleArtifact 相同的完整性判準（*Complete helper），而非裸存在性檢查：
 // crash 發生於當前 phase、report 寫到一半時，半成品檔雖存在但不完整，必須回該 phase 重跑，
 // 不可因檔案存在就把 phase 往前推進。
-func smartResumePhase(ws *protocol.Workspace, featureID string, round int) (protocol.Phase, protocol.Role) {
+func smartResumePhase(ws *protocol.Workspace, featureID string, round int, cfg protocol.Config) (protocol.Phase, protocol.Role, protocol.SubPhase) {
 	if round == 0 {
-		return protocol.PhaseDesigning, protocol.RoleDesigner
+		return protocol.PhaseDesigning, protocol.RoleDesigner, ""
 	}
 	roundDir := ws.RoundDir(featureID, round)
 
 	if !coderReportComplete(filepath.Join(roundDir, protocol.CoderReport)) {
-		return protocol.PhaseCoding, protocol.RoleCoder
+		return protocol.PhaseCoding, protocol.RoleCoder, ""
 	}
 
 	if !reviewReportComplete(filepath.Join(roundDir, protocol.ReviewReport)) {
-		return protocol.PhaseReviewing, protocol.RoleReviewer
+		return protocol.PhaseReviewing, protocol.RoleReviewer, ""
 	}
 	if !reviewPassed(ws, featureID, round, protocol.ReviewReport) {
-		return protocol.PhaseAmending, protocol.RoleCoder
+		return protocol.PhaseAmending, protocol.RoleCoder, ""
 	}
 
 	// testing 的完整性以 verify.json 可解析為準（與 cleanStaleArtifact 一致）；
 	// test-report 與 verify.json 成對產出，verify.json 不完整即代表該 phase 未跑完。
 	if !verifyEvidenceComplete(filepath.Join(roundDir, protocol.VerifyFile)) {
-		return protocol.PhaseTesting, protocol.RoleTester
+		return protocol.PhaseTesting, protocol.RoleTester, ""
 	}
 	if !verifyPassed(ws, featureID, round) {
-		return protocol.PhaseAmending, protocol.RoleCoder
+		return protocol.PhaseAmending, protocol.RoleCoder, ""
 	}
 
 	if !reviewReportComplete(filepath.Join(roundDir, protocol.DeepReviewReport)) {
-		return protocol.PhaseDeepReviewing, protocol.RoleDeepReviewer
+		// deep-review report 不完整：依磁碟上的 partial 狀態推斷中斷在哪個子步驟，
+		// 讓 resume 只補跑缺少的部分（partial 全到齊 → synthesizer；否則 → sub-reviewer）。
+		sub := deepResumeSubPhase(ws, featureID, round, cfg)
+		role := protocol.RoleDeepReviewer
+		if sub == protocol.SubPhaseSynthesizing {
+			role = protocol.RoleSynthesizer
+		}
+		return protocol.PhaseDeepReviewing, role, sub
 	}
 	if !reviewPassed(ws, featureID, round, protocol.DeepReviewReport) {
 		// deep-review FAIL → amending（同輪修正、Round++），與正常流程的
 		// parallelTransition(..., PhaseAmending, ...) 及上方 review / verify FAIL 路徑一致；
 		// 不再回傳 PhaseCoding（會被誤判為開新 coding 輪而覆蓋前輪報告）。
-		return protocol.PhaseAmending, protocol.RoleCoder
+		return protocol.PhaseAmending, protocol.RoleCoder, ""
 	}
 
-	return protocol.PhaseAccepting, protocol.RoleAcceptor
+	return protocol.PhaseAccepting, protocol.RoleAcceptor, ""
+}
+
+// deepResumeSubPhase 在 deep-review report 不完整時，依磁碟上的 partial 檔推斷 crash 中斷的子步驟：
+//   - want<=1（單 agent 模式，無 partial）→ SubPhaseReviewing（重跑單一 deep-reviewer）。
+//   - 有任何 partial 缺失/不完整 → SubPhaseReviewing（補跑缺少的 sub-reviewer）。
+//   - partial 全到齊但 report 不完整 → SubPhaseSynthesizing（只重跑 synthesizer）。
+//
+// want 用與 runDeepReviewPhase 完全相同的純函式重算（GroupReviewAngles 輸入相同 → 輸出相同），
+// 確保 resume 推斷的並行度與當初執行時一致。
+func deepResumeSubPhase(ws *protocol.Workspace, featureID string, round int, cfg protocol.Config) protocol.SubPhase {
+	want := len(protocol.GroupReviewAngles(
+		protocol.ResolveParallelReviewers(cfg, protocol.RoleDeepReviewer),
+		protocol.ResolveAnglesPerReviewer(cfg, protocol.RoleDeepReviewer),
+		protocol.DeepReviewAngleCount))
+	if want <= 1 {
+		return protocol.SubPhaseReviewing
+	}
+	if len(missingDeepPartials(ws.RoundDir(featureID, round), want)) > 0 {
+		return protocol.SubPhaseReviewing
+	}
+	return protocol.SubPhaseSynthesizing
 }
 
 // isDesignerEscalation 判斷 escalation 是否應回到 Designer 而非停下來等人

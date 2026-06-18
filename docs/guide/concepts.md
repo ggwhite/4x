@@ -67,6 +67,27 @@ Angles are split evenly and without overlap: with the default `parallel_reviewer
 
 When `parallel_reviewers` is unset or `≤ 1`, the loop falls back to the original single-agent flow: one deep reviewer renders all 11 angles and writes `deep-review-report.md` directly, with no partial reports or synthesizer.
 
+### Deep Review SubPhase & Crash Recovery
+
+The `deep-reviewing` phase runs several internal steps (sub-reviewer → synthesizer → mini-coder → re-verifier), but they are **not** state-machine phases. To make the live progress and crash recovery aware of *which* step is running, `State` carries a `subPhase` field (`internal/protocol/types.go`) that is only meaningful while `phase == deep-reviewing`:
+
+| `subPhase` | Step | Set when |
+|---|---|---|
+| `reviewing` | sub-reviewers (or single-agent fallback) are scanning the diff | entering deep review |
+| `synthesizing` | the synthesizer is merging the partial reports | synthesizer spawned |
+| `fixing` | the mini-coder is repairing blocking issues | self-heal mini-coder spawned |
+| `reverifying` | the re-verifier is confirming the fix | self-heal re-verifier spawned |
+
+`WriteState` enforces a single invariant: any write whose `phase` is not `deep-reviewing` clears `subPhase` to the empty string (`omitempty` keeps it out of `state.json` entirely). So leaving deep review — to `accepting`, `amending`, or `needs-attention` — never leaves a stale sub-phase behind, regardless of which exit path is taken.
+
+On crash recovery, `smartResumePhase` no longer restarts deep review from scratch when `deep-review-report.md` is incomplete. It inspects the on-disk artifacts and resumes from the right step:
+
+- **Any `deep-review-partial-{i}.md` missing or incomplete** → resume at `reviewing`; the parallel loop only re-spawns the sub-reviewers whose partials are missing (`missingDeepPartials`), reusing each index's original angle group so nothing is re-assigned.
+- **All partials present but the report incomplete** → resume at `synthesizing`; the sub-reviewers are skipped and only the synthesizer re-runs.
+- **Report complete but FAILed** → unchanged behavior: route to `amending` with `subPhase` cleared.
+
+A partial is judged complete by `deepPartialComplete` — the file exists, is non-empty, and contains the `## Statistics` sentinel section the deep-reviewer template always emits, so a half-written partial is never mistaken for a finished one. This minimal-rerun recovery avoids re-spending the (expensive) deep model on steps that already completed before the crash.
+
 ### Auto-Discovered Features
 
 A deep reviewer often spots issues that are real but **outside the current feature's scope** — a latent bug, tech debt, a missing capability. Without a place to land, those notes get buried in the report. When `auto_discover_features` is enabled, the run loop captures them automatically.

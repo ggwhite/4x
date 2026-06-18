@@ -761,7 +761,8 @@ function renderTaskItem(task) {
   let pi = '';
   if (isActive) {
     const dotStyle = pc ? `background:${pc.color};box-shadow:0 0 4px ${pc.border}` : 'background:#34d399';
-    const phaseText = parallelTester ? `${emoji}reviewing ${parallelTester.emoji} testing` : `${emoji}${task.phase}`;
+    const subPhaseSuffix = task.subPhase && task.phase === 'deep-reviewing' ? ` (${task.subPhase})` : '';
+    const phaseText = parallelTester ? `${emoji}reviewing ${parallelTester.emoji} testing` : `${emoji}${task.phase}${subPhaseSuffix}`;
     pi = `<div class="flex items-center gap-1.5 mt-1.5 flex-wrap"><span class="w-1.5 h-1.5 rounded-full pulse-dot" style="${dotStyle}"></span><span class="text-[11px]" style="color:${pc?pc.color:'#34d399'}">${phaseText}</span><span class="text-[11px] text-zinc-600">${timePart}</span></div>`;
   } else if (hasState && (roundPart || timePart)) {
     const parts = [roundPart, timePart.replace(/^ · /, '')].filter(Boolean).join(' · ');
