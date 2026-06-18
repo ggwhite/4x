@@ -147,46 +147,20 @@ def draw_menu_icon(size: int, state: str = "idle") -> Image.Image:
     s = size * scale
     img = Image.new("RGBA", (s, s), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    stroke = max(2, round(s * 0.105))
-    center = (s / 2, s / 2)
+    f = font(round(s * 0.50))
+    text = "4x"
+    bbox = draw.textbbox((0, 0), text, font=f)
+    text_h = bbox[3] - bbox[1]
+    draw.text((s * 0.03, s * 0.50 - text_h / 2 - s * 0.05), text, font=f, fill=(0, 0, 0, 255))
     if state == "running":
-        box = (s * 0.14, s * 0.14, s * 0.86, s * 0.86)
-        arc_width = max(2, round(s * 0.085))
-        draw.arc(box, start=28, end=322, fill=(0, 0, 0, 255), width=arc_width)
         draw.polygon(
             [
-                (s * 0.82, s * 0.18),
-                (s * 0.88, s * 0.39),
-                (s * 0.66, s * 0.32),
+                (s * 0.73, s * 0.30),
+                (s * 0.73, s * 0.73),
+                (s * 0.96, s * 0.515),
             ],
             fill=(0, 0, 0, 255),
         )
-        x_stroke = max(2, round(s * 0.08))
-        draw.line((s * 0.38, s * 0.38, s * 0.62, s * 0.62), fill=(0, 0, 0, 255), width=x_stroke)
-        draw.line((s * 0.62, s * 0.38, s * 0.38, s * 0.62), fill=(0, 0, 0, 255), width=x_stroke)
-    elif state == "stopped":
-        octagon = [
-            (s * 0.36, s * 0.12),
-            (s * 0.64, s * 0.12),
-            (s * 0.88, s * 0.36),
-            (s * 0.88, s * 0.64),
-            (s * 0.64, s * 0.88),
-            (s * 0.36, s * 0.88),
-            (s * 0.12, s * 0.64),
-            (s * 0.12, s * 0.36),
-        ]
-        draw.line(octagon + [octagon[0]], fill=(0, 0, 0, 255), width=max(2, round(s * 0.085)), joint="curve")
-        x_stroke = max(2, round(s * 0.105))
-        draw.line((s * 0.35, s * 0.35, s * 0.65, s * 0.65), fill=(0, 0, 0, 255), width=x_stroke)
-        draw.line((s * 0.65, s * 0.35, s * 0.35, s * 0.65), fill=(0, 0, 0, 255), width=x_stroke)
-    else:
-        pad = s * 0.18
-        pts = [(pad, pad), (s - pad, pad), (pad, s - pad), (s - pad, s - pad)]
-        for x, y in pts:
-            draw.line((x, y, center[0], center[1]), fill=(0, 0, 0, 255), width=stroke)
-        r = s * 0.115
-        for x, y in pts:
-            draw.ellipse((x - r, y - r, x + r, y + r), fill=(0, 0, 0, 255))
     return img.resize((size, size), Image.Resampling.LANCZOS)
 
 

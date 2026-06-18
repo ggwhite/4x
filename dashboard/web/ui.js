@@ -887,7 +887,12 @@ async function load() {
   lastBatchStatus = batchStatus;
   renderSidebar();
   if (!current) renderDashboard(lastTasks);
-  else { const task = lastTasks.find(t => t.id === current); if (task) loadDetail(task); else { current = null; sessionStorage.setItem('4x-current', ''); renderDashboard(lastTasks); } }
+  else {
+    const task = lastTasks.find(t => t.id === current);
+    if (!task) { current = null; sessionStorage.setItem('4x-current', ''); renderDashboard(lastTasks); }
+    else if (document.getElementById('header').classList.contains('hidden')) loadDetail(task);
+    else updateDetailHeader(task);
+  }
 }
 
 let _refreshPending = false;
