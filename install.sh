@@ -50,8 +50,22 @@ main() {
   TMPDIR=$(mktemp -d)
   trap 'rm -rf "$TMPDIR"' EXIT
 
+  CHECKSUM_URL="https://github.com/${REPO}/releases/download/v${VERSION}/checksums.txt"
+
   echo "Downloading ${URL}..."
   curl -sSfL -o "${TMPDIR}/${FILENAME}" "$URL"
+  curl -sSfL -o "${TMPDIR}/checksums.txt" "$CHECKSUM_URL"
+
+  echo "Verifying checksum..."
+  cd "$TMPDIR"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum --check --ignore-missing checksums.txt
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 --check checksums.txt 2>/dev/null | grep "${FILENAME}" | grep -q "OK"
+  else
+    echo "Warning: no sha256sum or shasum found, skipping checksum verification" >&2
+  fi
+  cd - >/dev/null
 
   if [ "$EXT" = "zip" ]; then
     unzip -q "${TMPDIR}/${FILENAME}" -d "$TMPDIR"

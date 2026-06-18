@@ -1216,19 +1216,25 @@ func handleServeScreenshot(ws *protocol.CachedWorkspace, featureID, filename str
 		}
 	}
 
-	// 安全檢查：路徑必須在 workspace root 內。
-	if abs != rootAbs && !strings.HasPrefix(abs, rootAbs+string(filepath.Separator)) {
-		http.Error(w, "forbidden", http.StatusForbidden)
+	// 安全檢查：解析 symlink 後確認路徑仍在 workspace root 內。
+	resolvedAbs, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		http.NotFound(w, r)
 		return
 	}
-	if _, err := os.Stat(abs); err != nil {
-		http.NotFound(w, r)
+	resolvedRoot, err := filepath.EvalSymlinks(rootAbs)
+	if err != nil {
+		http.Error(w, "invalid workspace path", http.StatusInternalServerError)
+		return
+	}
+	if resolvedAbs != resolvedRoot && !strings.HasPrefix(resolvedAbs, resolvedRoot+string(filepath.Separator)) {
+		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
 
 	w.Header().Set("Content-Type", screenshotContentType(filepath.Base(relPath)))
 	w.Header().Set("Cache-Control", "public, max-age=86400, immutable")
-	http.ServeFile(w, r, abs)
+	http.ServeFile(w, r, resolvedAbs)
 }
 
 func encodeScreenshotToken(path string) string {
@@ -1270,6 +1276,10 @@ func handleLogSSE(ws *protocol.CachedWorkspace, featureID string, w http.Respons
 
 	logsDir := filepath.Join(ws.FeatureDir(featureID), "logs")
 	pinnedFile := filepath.Base(r.URL.Query().Get("file"))
+	if pinnedFile != "" && pinnedFile != "." && !strings.HasSuffix(pinnedFile, ".log") {
+		http.Error(w, "invalid log file", http.StatusBadRequest)
+		return
+	}
 	// offsets 記每個正在 tail 的 log 已讀到的位移，跨 tick 持續累進。
 	// 未 pin 檔案時可同時 tail 多個活躍 log（平行 sub-reviewer / reviewer+tester），各自獨立 offset。
 	offsets := make(map[string]int64)
