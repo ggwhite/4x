@@ -1,6 +1,17 @@
 id: F092-dashboard-settings-ui
 name: 'F092: Dashboard settings UI'
-description: Dashboard web UI 加 settings 頁面，讓 user 在瀏覽器中管理 profile 和 roles config。包含：(1) Server write API——PUT/DELETE profiles、PUT roles、PATCH settings，寫回 .4x/settings.json；(2) Profile CRUD 頁面——新增/編輯/刪除自訂 profile，拖拉排 phase，per-phase 選 runner/model；(3) Roles config 頁面——每個 role 的預設 model 編輯；(4) Default 設定——default_profile、default_runner。現有 dashboard 是 read-only，此 feature 首次引入 write 能力。
+description: |-
+    Dashboard web UI 加 settings 頁面，讓 user 在瀏覽器中管理 profile 和 roles config。
+
+    現狀：Dashboard 是 read-only（SSE + REST 只讀），所有設定必須手改 .4x/settings.json。
+
+    目標：
+    (1) Server write API — PUT/DELETE profiles、PUT roles、PATCH settings，寫回 .4x/settings.json
+    (2) Profile CRUD 頁面 — 新增/編輯/刪除自訂 profile，拖拉排 phase，per-phase 選 runner/model
+    (3) Roles config 頁面 — 每個 role 的預設 model 編輯
+    (4) Default 設定 — default_profile、default_runner
+
+    此 feature 首次在 dashboard 引入 write 能力。
 status: not-started
 priority: 2
 subtasks:

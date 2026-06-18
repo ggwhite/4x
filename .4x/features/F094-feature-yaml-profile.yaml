@@ -1,0 +1,34 @@
+id: F094-feature-yaml-profile
+name: 'F094: Feature YAML profile field for batch'
+description: |-
+    Feature YAML 加 profile 欄位，讓每個 feature 宣告自己要用哪個 profile 跑。
+
+    現狀：Batch 跑多個 feature 時全部共用同一個 profile（依 priority auto-select 或 --profile flag），無法 per-feature 指定。
+
+    目標：
+    (1) Feature YAML 加 profile 欄位，batch 自動讀取各自的 profile
+    (2) 解析優先序：--profile flag > feature YAML profile > priority auto-select > default_profile
+    (3) 4x new 加 --profile flag，建 feature 時就能指定
+status: not-started
+priority: 1
+subtasks:
+    - id: feature-type
+      name: Feature struct 加 Profile string 欄位
+      status: ""
+    - id: resolve-profile
+      name: ResolveProfile 加入 feature YAML profile 作為第二優先
+      status: ""
+    - id: new-flag
+      name: 4x new 加 --profile flag 寫入 feature YAML
+      status: ""
+    - id: batch-integration
+      name: batch run 讀取每個 feature 的 profile 欄位 per-feature 套用
+      status: ""
+    - id: test-coverage
+      name: 補充 feature YAML profile 解析和 batch per-feature profile 測試
+      status: ""
+rules:
+    - profile 欄位為 optional，不填就走現有 auto-select 邏輯
+    - feature YAML 填的 profile name 必須存在於 settings profiles 或 DefaultProfiles 否則報錯
+depends:
+    - F090

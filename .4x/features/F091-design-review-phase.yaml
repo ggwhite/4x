@@ -1,6 +1,13 @@
 id: F091-design-review-phase
 name: 'F091: Design review phase'
-description: 在 state machine 新增 design-reviewing phase，位於 designing 和 coding 之間。Designer 產出 task-brief 後，design-reviewer 評估設計方案是否合理（架構風險、過度設計、遺漏需求），給出 PASS/FAIL verdict。FAIL 時回 designing 修正。此 phase 為 optional——只有 profile 包含時才跑。依賴 F090 custom profile system，因為需要新 profile 結構才能讓 user 選擇是否啟用此 phase。
+description: |-
+    在 state machine 新增 design-reviewing phase，位於 designing 和 coding 之間。
+
+    現狀：Designer 產出 task-brief 後直接進 coding，中間缺少「設計方案是否合理」的品質關卡。
+
+    目標：design-reviewer 評估設計方案的架構風險、過度設計、遺漏需求，給出 PASS/FAIL verdict。FAIL 時回 designing 修正，PASS 才進 coding。
+
+    此 phase 為 optional——只有 profile 包含時才跑。依賴 F090 custom profile system，因為需要新 profile 結構才能讓 user 選擇是否啟用此 phase。
 status: not-started
 priority: 2
 subtasks:

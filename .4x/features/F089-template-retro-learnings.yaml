@@ -1,30 +1,47 @@
 id: F089-template-retro-learnings
 name: 'F089: Project-level template override + retro learnings loop'
-description: 兩個相關能力合為一個 feature：(1) 專案級 template 覆寫——允許 .4x/templates/ 覆寫 go:embed 的內建 role prompt template，讓每個專案可根據自身經驗迭代 prompt 品質；(2) Retro learnings 迴路——feature 完成（done）後產生 .4x/{feature-id}/retro.md 回顧報告，精華自動 append 到專案級 .4x/learnings.json，後續 feature 的 designer/coder prompt 自動注入相關 learnings，形成「跑 feature → retro → learnings 累積 → 下個 feature prompt 更好」的正向迴路。
+description: |-
+    兩個相關能力合為一個 feature：
+
+    (1) 專案級 template 覆寫——允許 .4x/templates/ 覆寫 go:embed 的內建 role prompt template，讓每個專案可根據自身經驗迭代 prompt 品質。
+
+    (2) Retro learnings 迴路——Acceptor 在產 final-report 時同時產出 retro learnings，CLI 寫入 .4x/learnings.json。下次 feature 開始時 Designer 從 learnings.json 選出相關條目寫入 selected-learnings.json，後續 role 自動注入。
+
+    迭代迴路：跑 feature → Acceptor 產 retro learnings → 累積到 learnings.json → 下個 feature Designer 選相關 learnings → 注入到各 role prompt → prompt 品質提升。
+
+    反覆出現的 learning 由人手動升級到 template 或 instructions，再從 learnings.json 清除。
 status: not-started
 priority: 2
 subtasks:
     - id: template-override
-      name: 支援 .4x/templates/ 覆寫內建 template——prompt 產生時先查專案目錄再 fallback go
+      name: 支援 .4x/templates/ 覆寫內建 template——prompt 產生時先查專案目錄再 fallback go:embed
       status: ""
-      description: embed
     - id: template-init
-      name: 4x init 時可選擇 dump 內建 template 到 .4x/templates/ 供編輯
+      name: 4x init --dump-templates 把內建 template 倒出到 .4x/templates/ 供編輯
       status: ""
-    - id: retro-phase
-      name: done 後自動觸發 retro——產生 .4x/{feature-id}/retro.md（學到什麼、哪個 role 表現差、哪些 instruction 該改）
+    - id: acceptor-retro
+      name: 擴充 Acceptor role——產 final-report 時同時產出結構化 retro learnings（學到什麼、哪個 role 表現差、哪些 instruction 該改）
       status: ""
     - id: learnings-store
-      name: 建立 .4x/learnings.json 累積專案級 learnings，retro 精華自動 append
+      name: CLI 負責寫入 .4x/learnings.json——去重、格式驗證、數量控管。Schema 含 source_feature、category、content、created_at、last_used、used_count、status
+      status: ""
+    - id: learnings-select
+      name: Designer 從 learnings.json 選出與當前 feature 相關的 learnings，寫入 .4x/{feature-id}/selected-learnings.json
       status: ""
     - id: learnings-inject
-      name: prompt 產生時自動注入 .4x/learnings.json 中與當前 feature 相關的 learnings
+      name: 後續 role prompt 自動注入 selected-learnings.json 中對應 category 的條目
+      status: ""
+    - id: learnings-lifecycle
+      name: Learnings 生命週期管理——每次注入時更新 last_used 和 used_count，超過 90 天未使用自動標記 stale
       status: ""
     - id: test-coverage
-      name: 補充 template override 和 learnings inject 的單元測試
+      name: 補充 template override、learnings store、learnings inject 的單元測試
       status: ""
 rules:
     - template 覆寫只影響 prompt 產生，不影響 state machine 或 guardrail
-    - learnings.json 格式需有 schema，含 source_feature、category、content、created_at
-    - retro 是 optional phase，可在 profile 中關閉
-    - learnings inject 有 token 上限，避免 prompt 過長——預設最多注入 10 條最相關的
+    - learnings.json 由 CLI 全權管理，runner 不直接讀寫——跟 state machine 同設計哲學
+    - Retro 不是獨立 phase，是 Acceptor role 的額外職責——不多一次 LLM 呼叫
+    - Learnings 過濾由 Designer 做——Designer 是第一個 role，最了解 feature scope，選出相關 learnings 寫入 selected-learnings.json 供後續 role 用
+    - learnings inject 有 token 上限——預設最多注入 10 條
+    - learnings.json 條目有生命週期——used_count 追蹤使用頻率，超過 90 天未使用標記 stale
+    - 反覆出現的 learning 應由人手動升級為 template 規則或 instructions，再從 learnings.json 清除

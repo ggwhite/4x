@@ -1,6 +1,16 @@
 id: F093-dashboard-run-profile
 name: 'F093: Dashboard run with profile selection'
-description: Dashboard run 頁面加入 profile 選擇功能。user 在 dashboard 啟動 run 時可選 profile，並可臨時覆寫個別 phase 的 runner/model。顯示 profile 的 phase pipeline 預覽，讓 user 一目了然每個 phase 用哪個 runner/model。依賴 F090（profile 結構）和 F092（settings write API）。
+description: |-
+    Dashboard run 頁面加入 profile 選擇功能。
+
+    現狀：run dialog 只有一個全域 RUNNER 選擇器，無法選 profile 或 per-phase 覆寫 runner/model。
+
+    目標：
+    (1) RUNNER 欄位改為 PROFILE 選擇器
+    (2) 顯示 pipeline 預覽——每個 phase 用哪個 runner/model 一目了然（合併所有覆寫層級後的最終結果）
+    (3) 允許臨時覆寫個別 phase 的 runner/model，只影響本次 run
+
+    依賴 F090（profile 結構）和 F092（settings write API）。
 status: not-started
 priority: 2
 subtasks:
