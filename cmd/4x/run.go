@@ -881,7 +881,9 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			logStateWriteErr(ws.WriteState(featureID, s), featureID, s.Phase)
 			return fmt.Errorf("runner resolution failed: %w", err)
 		}
-		model, err := protocol.ResolvePhaseModel(cfg, feature, pc, phase, role, phaseRunner, manualRunner)
+		// ResolvePhaseModel 的最後一個參數是手動指定的 model tier（對應未來的 --model flag），
+		// 不是 runner 名稱；目前 CLI 尚無 --model flag，故一律傳空字串。
+		model, err := protocol.ResolvePhaseModel(cfg, feature, pc, phase, role, phaseRunner, "")
 		if err != nil {
 			s.Active = false
 			s.StopReason = "model-error"
@@ -1262,7 +1264,7 @@ func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 	if err != nil {
 		return resolveErr("reviewer runner", err)
 	}
-	reviewModel, err := protocol.ResolvePhaseModel(cfg, feature, pc, protocol.PhaseReviewing, protocol.RoleReviewer, reviewRunner, manualRunner)
+	reviewModel, err := protocol.ResolvePhaseModel(cfg, feature, pc, protocol.PhaseReviewing, protocol.RoleReviewer, reviewRunner, "")
 	if err != nil {
 		return resolveErr("reviewer model", err)
 	}
@@ -1270,7 +1272,7 @@ func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 	if err != nil {
 		return resolveErr("tester runner", err)
 	}
-	testModel, err := protocol.ResolvePhaseModel(cfg, feature, pc, protocol.PhaseTesting, protocol.RoleTester, testRunner, manualRunner)
+	testModel, err := protocol.ResolvePhaseModel(cfg, feature, pc, protocol.PhaseTesting, protocol.RoleTester, testRunner, "")
 	if err != nil {
 		return resolveErr("tester model", err)
 	}
@@ -1805,7 +1807,7 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 
 	// 4. FAIL → 內部自癒循環。
 	maxFix := protocol.ResolveMaxFixRounds(cfg, protocol.RoleDeepReviewer)
-	coderModel, err := protocol.ResolvePhaseModel(cfg, feature, pc, protocol.PhaseCoding, protocol.RoleCoder, deepRunner, manualRunner)
+	coderModel, err := protocol.ResolvePhaseModel(cfg, feature, pc, protocol.PhaseCoding, protocol.RoleCoder, deepRunner, "")
 	if err != nil {
 		s.Active = false
 		s.StopReason = "model-error"

@@ -146,3 +146,70 @@ func TestRunLoop_PerPhaseRunner(t *testing.T) {
 		t.Error("expected coding phase to run")
 	}
 }
+
+// TestRunLoop_ManualRunnerModelResolves 驗證 --runner 手動指定 runner 時，
+// model 仍能正確解析。回歸測試：先前 run loop 誤把 manualRunner（runner 名稱）
+// 當作 ResolvePhaseModel 的 manual model tier，導致以 --runner 啟動時 model 解析必然失敗。
+func TestRunLoop_ManualRunnerModelResolves(t *testing.T) {
+	root := t.TempDir()
+	cfg := protocol.Config{
+		Project: protocol.ProjectConfig{Name: "manualrunner"},
+		Default: "claude",
+		Runners: map[string]protocol.RunnerConfig{
+			"claude": {Command: "echo"},
+			"codex":  {Command: "echo"},
+		},
+		// 僅定義 sonnet/opus tier；若 manualRunner（"codex"）被誤當 tier 查詢必報錯。
+		ModelTiers: map[string]map[string]string{
+			"sonnet": {"claude": "claude-sonnet", "codex": "gpt"},
+			"opus":   {"claude": "claude-opus", "codex": "gpt"},
+		},
+		Profiles: map[string]protocol.ProfileConfig{
+			"custom": {Phases: []protocol.PhaseSpec{
+				{Phase: string(protocol.PhaseCoding)},
+				{Phase: string(protocol.PhaseReviewing)},
+				{Phase: string(protocol.PhaseTesting)},
+				{Phase: string(protocol.PhaseAccepting)},
+			}},
+		},
+	}
+	if err := protocol.Init(root, cfg); err != nil {
+		t.Fatal(err)
+	}
+	ws := &protocol.Workspace{Root: root}
+	if err := ws.InitFeatureDir("feat-mr"); err != nil {
+		t.Fatal(err)
+	}
+	f := feature.Feature{ID: "feat-mr", Name: "Manual runner", Status: "not-started"}
+	ws.SaveFeature(f)
+
+	s := protocol.State{
+		FeatureID: "feat-mr", Phase: protocol.PhaseInit,
+		MaxRounds: 5, Active: true, Runner: "codex", Profile: "custom",
+	}
+	ws.WriteState("feat-mr", s)
+
+	mock := &mockRunner{ws: ws, featureID: "feat-mr", outcomes: []mockOutcome{
+		{}, {reviewVerdict: "PASS"}, {testPassed: true}, {},
+	}}
+
+	var mu sync.Mutex
+	var gotRunners []string
+	factory := func(rn, _, _ string) runner.Runner {
+		mu.Lock()
+		gotRunners = append(gotRunners, rn)
+		mu.Unlock()
+		return mock
+	}
+
+	// manualRunner="codex"（模擬 --runner codex）：每個 phase 都應用 codex 且 model 解析成功。
+	if err := runLoop(context.Background(), ws, ws, f, cfg, s, nil, factory, "never", "codex"); err != nil {
+		t.Fatalf("runLoop error: %v", err)
+	}
+
+	for i, ph := range mock.phases {
+		if gotRunners[i] != "codex" {
+			t.Errorf("phase %s used runner %q, want codex", ph, gotRunners[i])
+		}
+	}
+}
