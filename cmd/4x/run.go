@@ -503,13 +503,30 @@ func selectProfileInteractive(in io.Reader, out io.Writer, cfg protocol.Config, 
 		}
 	}
 
+	defaults := protocol.DefaultProfiles()
+	lookupProfile := func(name string) protocol.ProfileConfig {
+		if pc, ok := cfg.Profiles[name]; ok {
+			return pc
+		}
+		if pc, ok := defaults[name]; ok {
+			return pc
+		}
+		return protocol.ProfileConfig{}
+	}
+
 	fmt.Fprintf(out, "Select pipeline profile for %s:\n", feature.ID)
 	for i, name := range options {
 		marker := " "
 		if i == defIdx {
 			marker = "*"
 		}
-		fmt.Fprintf(out, "  %s %d) %s\n", marker, i+1, name)
+		pc := lookupProfile(name)
+		phases := make([]string, 0, len(pc.Phases))
+		for _, ps := range pc.Phases {
+			phases = append(phases, ps.Phase)
+		}
+		detail := strings.Join(phases, " → ")
+		fmt.Fprintf(out, "  %s %d) %s  [%s]\n", marker, i+1, name, detail)
 	}
 	fmt.Fprintf(out, "Enter number [%d]: ", defIdx+1)
 
