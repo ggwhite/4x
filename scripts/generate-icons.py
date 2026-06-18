@@ -148,19 +148,31 @@ def draw_menu_icon(width: int, height: int, state: str = "idle") -> Image.Image:
     h = height * scale
     img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    f = font(round(h * 0.70))
-    text = "4x"
-    bbox = draw.textbbox((0, 0), text, font=f)
-    text_w = bbox[2] - bbox[0]
-    text_h = bbox[3] - bbox[1]
-    text_x = w * 0.08 if state == "running" else (w - text_w) / 2
-    draw.text((text_x, h * 0.50 - text_h / 2 - h * 0.08), text, font=f, fill=(0, 0, 0, 255))
+    stroke = max(2, round(h * 0.08))
+    node_r = h * 0.058
+
+    def line(x1: float, y1: float, x2: float, y2: float) -> None:
+        draw.line((w * x1, h * y1, w * x2, h * y2), fill=(0, 0, 0, 255), width=stroke)
+
+    def node(x: float, y: float) -> None:
+        cx = w * x
+        cy = h * y
+        draw.ellipse((cx - node_r, cy - node_r, cx + node_r, cy + node_r), fill=(0, 0, 0, 255))
+
+    line(0.27, 0.24, 0.27, 0.58)
+    line(0.27, 0.58, 0.48, 0.58)
+    line(0.48, 0.24, 0.48, 0.78)
+    line(0.75, 0.24, 0.56, 0.43)
+    line(0.75, 0.76, 0.56, 0.57)
+    for point in ((0.27, 0.24), (0.75, 0.24), (0.75, 0.76), (0.27, 0.76)):
+        node(*point)
+
     if state == "running":
         draw.polygon(
             [
-                (w * 0.75, h * 0.22),
-                (w * 0.75, h * 0.80),
-                (w * 0.94, h * 0.51),
+                (w * 0.84, h * 0.42),
+                (w * 0.84, h * 0.64),
+                (w * 0.97, h * 0.53),
             ],
             fill=(0, 0, 0, 255),
         )
@@ -243,8 +255,8 @@ def main() -> None:
         "stopped": ("4x-menubar-stopped-template.png", "MenuBarIconStoppedTemplate"),
     }
     for state, (asset_name, resource_name) in menu_states.items():
-        menu_1x = draw_menu_icon(32, 18, state)
-        menu_2x = draw_menu_icon(64, 36, state)
+        menu_1x = draw_menu_icon(18, 18, state)
+        menu_2x = draw_menu_icon(36, 36, state)
         menu_1x.save(ICON_DIR / asset_name)
         menu_1x.save(MACOS_RESOURCE_DIR / f"{resource_name}.png")
         menu_2x.save(MACOS_RESOURCE_DIR / f"{resource_name}@2x.png")

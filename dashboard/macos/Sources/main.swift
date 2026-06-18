@@ -451,10 +451,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
     func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         guard let button = statusItem.button else { return }
-        button.image = loadMenuBarIcon(state: "idle")
+        configureStatusButton(button, state: "idle")
         button.toolTip = "4x Live"
         button.action = #selector(statusItemClicked)
         button.target = self
+    }
+
+    func configureStatusButton(_ button: NSStatusBarButton, state: String) {
+        button.title = ""
+        button.image = loadMenuBarIcon(state: state)
     }
 
     func loadMenuBarIcon(state: String) -> NSImage? {
@@ -745,7 +750,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
                 state = "stopped"
             }
             DispatchQueue.main.async {
-                button.image = self.loadMenuBarIcon(state: state)
+                self.configureStatusButton(button, state: state)
             }
         }.resume()
     }
