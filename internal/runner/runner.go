@@ -263,6 +263,7 @@ func NewRunner(ws *protocol.Workspace, name string, cfg protocol.RunnerConfig, t
 type ansiStripper struct {
 	w     io.Writer
 	state stripState
+	err   error // inner writer 第一次回報的 error，之後 Write 一律短路
 }
 
 type stripState int
@@ -273,6 +274,7 @@ const (
 	stCSI
 	stOSC
 	stOscEsc // OSC 裡遇到 ESC，等 backslash 組成 ST
+	stCharset // charset designation（ESC ( / ESC )），等吃掉 final byte
 )
 
 func newAnsiStripper(w io.Writer) *ansiStripper {
@@ -280,14 +282,29 @@ func newAnsiStripper(w io.Writer) *ansiStripper {
 }
 
 func (a *ansiStripper) Write(p []byte) (int, error) {
+	if a.err != nil {
+		return 0, a.err
+	}
+	// emit 把已過濾的片段寫入 inner writer；失敗時記下 error 供後續短路。
+	emit := func(b []byte) bool {
+		if len(b) == 0 {
+			return true
+		}
+		if _, err := a.w.Write(b); err != nil {
+			a.err = err
+			return false
+		}
+		return true
+	}
+
 	start := 0
 	for i := 0; i < len(p); i++ {
 		b := p[i]
 		switch a.state {
 		case stGround:
 			if b == 0x1b {
-				if i > start {
-					a.w.Write(p[start:i])
+				if i > start && !emit(p[start:i]) {
+					return len(p), a.err
 				}
 				a.state = stEscape
 				start = i
@@ -299,17 +316,19 @@ func (a *ansiStripper) Write(p []byte) (int, error) {
 			case b == ']':
 				a.state = stOSC
 			case b == '(' || b == ')':
-				// charset designation: skip one more byte
-				if i+1 < len(p) {
-					i++
-				}
-				a.state = stGround
+				// charset designation（ESC ( / ESC )）：intro byte 已在此，
+				// final byte 交由 stCharset 消費，天然跨 Write buffer 邊界。
+				a.state = stCharset
 				start = i + 1
 			default:
 				// single-char ESC sequence (e.g. \x1b7, \x1bM)
 				a.state = stGround
 				start = i + 1
 			}
+		case stCharset:
+			// 消費恰好一個 byte（charset final byte，如 B/0/A）後回 ground
+			a.state = stGround
+			start = i + 1
 		case stCSI:
 			// CSI 參數與中間位元組：0x20-0x3F（含 ?;digits space 等）
 			// 結束位元組：0x40-0x7E
@@ -332,7 +351,9 @@ func (a *ansiStripper) Write(p []byte) (int, error) {
 	}
 
 	if a.state == stGround && start < len(p) {
-		a.w.Write(p[start:])
+		if !emit(p[start:]) {
+			return len(p), a.err
+		}
 	}
 	// state != stGround 時，未完成的 escape 序列暫存到下次 Write
 	return len(p), nil
@@ -343,7 +364,8 @@ func (a *ansiStripper) Write(p []byte) (int, error) {
 type promptStripper struct {
 	dst   io.Writer
 	buf   []byte
-	state int // 0=header, 1=skipping, 2=passthrough
+	state int   // 0=header, 1=skipping, 2=passthrough
+	err   error // inner writer 第一次回報的 error，之後 Write 一律短路
 }
 
 func newPromptStripper(dst io.Writer) *promptStripper {
@@ -351,8 +373,15 @@ func newPromptStripper(dst io.Writer) *promptStripper {
 }
 
 func (s *promptStripper) Write(p []byte) (int, error) {
+	if s.err != nil {
+		return 0, s.err
+	}
+
 	if s.state == 2 {
-		s.dst.Write(p)
+		if _, err := s.dst.Write(p); err != nil {
+			s.err = err
+			return len(p), err
+		}
 		return len(p), nil
 	}
 
@@ -372,14 +401,23 @@ func (s *promptStripper) Write(p []byte) (int, error) {
 			if trimmed == "user" {
 				s.state = 1
 			} else {
-				s.dst.Write([]byte(line + "\n"))
+				if _, err := s.dst.Write([]byte(line + "\n")); err != nil {
+					s.err = err
+					return len(p), err
+				}
 			}
 		case 1:
 			if trimmed == "codex" {
 				s.state = 2
-				s.dst.Write([]byte(line + "\n"))
+				if _, err := s.dst.Write([]byte(line + "\n")); err != nil {
+					s.err = err
+					return len(p), err
+				}
 				if len(s.buf) > 0 {
-					s.dst.Write(s.buf)
+					if _, err := s.dst.Write(s.buf); err != nil {
+						s.err = err
+						return len(p), err
+					}
 					s.buf = nil
 				}
 				return len(p), nil

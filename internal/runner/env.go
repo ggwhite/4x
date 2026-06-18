@@ -52,35 +52,35 @@ func enrichedEnv() []string {
 	switch runtime.GOOS {
 	case "darwin":
 		home := os.Getenv("HOME")
-		extraPaths = []string{
+		extraPaths = append(extraPaths,
 			"/usr/local/bin",
 			"/opt/homebrew/bin",
 			"/opt/homebrew/sbin",
-			home + "/.local/bin",
-			home + "/.cargo/bin",
-		}
+			home+"/.local/bin",
+			home+"/.cargo/bin",
+		)
 	case "windows":
 		userProfile := os.Getenv("USERPROFILE")
 		appData := os.Getenv("LOCALAPPDATA")
 		programFiles := os.Getenv("ProgramFiles")
 		pathSep = ";"
-		extraPaths = []string{
-			appData + "\\Programs\\claude-code\\resources\\bin",
-			userProfile + "\\.cargo\\bin",
-			userProfile + "\\.local\\bin",
-			programFiles + "\\nodejs",
-			appData + "\\fnm\\aliases\\default",
-		}
+		extraPaths = append(extraPaths,
+			appData+"\\Programs\\claude-code\\resources\\bin",
+			userProfile+"\\.cargo\\bin",
+			userProfile+"\\.local\\bin",
+			programFiles+"\\nodejs",
+			appData+"\\fnm\\aliases\\default",
+		)
 	case "linux":
 		home := os.Getenv("HOME")
-		extraPaths = []string{
+		extraPaths = append(extraPaths,
 			"/usr/local/bin",
-			home + "/.local/bin",
-			home + "/.cargo/bin",
+			home+"/.local/bin",
+			home+"/.cargo/bin",
 			"/snap/bin",
-			home + "/.nvm/current/bin",
-			home + "/.fnm/aliases/default/bin",
-		}
+			home+"/.nvm/current/bin",
+			home+"/.fnm/aliases/default/bin",
+		)
 	default:
 		return env
 	}

@@ -2,8 +2,24 @@ package runner
 
 import (
 	"bytes"
+	"errors"
 	"testing"
 )
+
+// errWriter 模擬 inner writer 寫入失敗（如磁碟滿、檔案被關）。
+type errWriter struct {
+	err   error
+	wrote int // 成功前累計寫入次數（用於只在第 N 次失敗的情境）
+	failAt int
+}
+
+func (e *errWriter) Write(p []byte) (int, error) {
+	e.wrote++
+	if e.failAt == 0 || e.wrote >= e.failAt {
+		return 0, e.err
+	}
+	return len(p), nil
+}
 
 func TestAnsiStripper_BasicCSI(t *testing.T) {
 	var buf bytes.Buffer
@@ -86,6 +102,31 @@ func TestAnsiStripper_Charset(t *testing.T) {
 	w.Write([]byte("\x1b(Btext\x1b)0"))
 	if got := buf.String(); got != "text" {
 		t.Errorf("got %q, want %q", got, "text")
+	}
+}
+
+// TestAnsiStripper_ChunkBoundary_Charset 驗證 charset designation 的 final byte
+// 被切到下一個 Write buffer 時，狀態機正確跨 buffer 消費，不會洩漏 final byte。
+func TestAnsiStripper_ChunkBoundary_Charset(t *testing.T) {
+	var buf bytes.Buffer
+	w := newAnsiStripper(&buf)
+	w.Write([]byte("a\x1b("))
+	w.Write([]byte("Bb"))
+	if got := buf.String(); got != "ab" {
+		t.Errorf("got %q, want %q", got, "ab")
+	}
+}
+
+// TestAnsiStripper_WriteError 驗證 inner writer 失敗時 error 會被傳播，
+// 且後續 Write 短路回報同一 error。
+func TestAnsiStripper_WriteError(t *testing.T) {
+	ew := &errWriter{err: errors.New("disk full")}
+	w := newAnsiStripper(ew)
+	if _, err := w.Write([]byte("hello")); err == nil {
+		t.Fatal("expected error from inner writer, got nil")
+	}
+	if _, err := w.Write([]byte("world")); err == nil {
+		t.Fatal("expected short-circuit error on subsequent write, got nil")
 	}
 }
 
