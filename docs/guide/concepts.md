@@ -24,15 +24,21 @@ The Acceptor uses its own dedicated model configuration (`roles.acceptor.model`)
 
 ### Pipeline Profiles
 
-A **pipeline profile** selects which roles run for a given feature, so simple work skips roles instead of always running the full six-role pipeline. Built-in profiles:
+A **pipeline profile** is a list of **phases**, and per phase it can override the **runner** and **model** to use. Simple work skips phases instead of always running the full six-phase pipeline, and different phases can run on different runners/models. Built-in profiles:
 
-| Profile | Roles |
+| Profile | Phases |
 |---|---|
-| `full` | designer, coder, reviewer, tester, deep-reviewer, acceptor |
-| `normal` | coder, reviewer, tester, acceptor |
-| `quick` | coder, reviewer |
+| `full` | designing, coding, reviewing, deep-reviewing, testing, accepting |
+| `normal` | coding, reviewing, testing, accepting |
+| `quick` | coding, reviewing |
 
-`coder` is always required. When `profiles` are configured, the profile is auto-selected by feature priority (highest priority → `full`, then `normal`, then `quick`); `--profile` overrides the choice. A role not in the active profile is skipped — the loop transitions along the same valid state edges without invoking that runner. See [Configuration](configuration.md) for the `profiles`, `parallel_review_test`, and `coder_model` settings.
+Profile phases may only be chosen from the selectable whitelist (`designing`, `coding`, `reviewing`, `deep-reviewing`, `testing`, `accepting`); `coding` is always required. A phase not in the active profile is skipped — the loop transitions along the same valid state edges without invoking that runner.
+
+**Selection**: `--profile` wins; otherwise, on an interactive terminal 4x prompts with a numbered menu (default `default_profile`); non-interactively it uses `default_profile`, then priority-based auto-select when a `profiles` section exists (highest priority → `full`, then `normal`, then `quick`), else `full`.
+
+**Per-phase runner/model precedence** (high→low): manual `--runner` > the feature YAML's `phase_overrides.<phase>.{runner,model}` > the profile's per-phase `runner`/`model` > `default_runner` / the role's configured model (`roles.<role>.model` → runner model → default tier).
+
+The legacy `roles: []` / `coder_model` profile format is still parsed and normalized into phases on load (backward compatible). See [Configuration](configuration.md) for the `profiles`, `default_profile`, `parallel_review_test`, and phase-override settings.
 
 ### Review: Two Phases
 
