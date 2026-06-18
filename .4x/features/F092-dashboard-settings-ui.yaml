@@ -1,0 +1,33 @@
+id: F092-dashboard-settings-ui
+name: 'F092: Dashboard settings UI'
+description: Dashboard web UI 加 settings 頁面，讓 user 在瀏覽器中管理 profile 和 roles config。包含：(1) Server write API——PUT/DELETE profiles、PUT roles、PATCH settings，寫回 .4x/settings.json；(2) Profile CRUD 頁面——新增/編輯/刪除自訂 profile，拖拉排 phase，per-phase 選 runner/model；(3) Roles config 頁面——每個 role 的預設 model 編輯；(4) Default 設定——default_profile、default_runner。現有 dashboard 是 read-only，此 feature 首次引入 write 能力。
+status: not-started
+priority: 2
+subtasks:
+    - id: server-write-api
+      name: Server 加 write API——PUT /api/settings/profiles/{name}、DELETE /api/settings/profiles/{name}、PUT /api/settings/roles/{role}、PATCH /api/settings
+      status: ""
+    - id: settings-json-writer
+      name: 安全寫入 .4x/settings.json——讀取-合併-寫回，處理並發寫入
+      status: ""
+    - id: profile-crud-ui
+      name: Dashboard profile 管理頁面——列表、新增、編輯、刪除、拖拉排 phase
+      status: ""
+    - id: phase-runner-picker
+      name: Profile 編輯中 per-phase runner/model 選擇器——下拉選單列出可用 runner 和 model
+      status: ""
+    - id: roles-config-ui
+      name: Dashboard roles config 編輯頁面——每個 role 的預設 model
+      status: ""
+    - id: defaults-ui
+      name: default_profile 和 default_runner 的設定 UI
+      status: ""
+    - id: test-coverage
+      name: Server write API 測試 + settings.json 並發寫入測試
+      status: ""
+rules:
+    - write API 只能寫 .4x/settings.json，不能寫其他檔案
+    - settings.json 寫入需處理並發——file lock 或 read-merge-write with retry
+    - UI 操作後即時反映，不需重啟 server
+depends:
+    - F090

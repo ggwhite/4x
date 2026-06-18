@@ -1,0 +1,33 @@
+id: F091-design-review-phase
+name: 'F091: Design review phase'
+description: 在 state machine 新增 design-reviewing phase，位於 designing 和 coding 之間。Designer 產出 task-brief 後，design-reviewer 評估設計方案是否合理（架構風險、過度設計、遺漏需求），給出 PASS/FAIL verdict。FAIL 時回 designing 修正。此 phase 為 optional——只有 profile 包含時才跑。依賴 F090 custom profile system，因為需要新 profile 結構才能讓 user 選擇是否啟用此 phase。
+status: not-started
+priority: 2
+subtasks:
+    - id: phase-constant
+      name: types.go 加 PhaseDesignReviewing 常量
+      status: ""
+    - id: transitions
+      name: machine.go 轉換表加 designing→design-reviewing→coding 和 design-reviewing→designing（FAIL 回退）
+      status: ""
+    - id: role-mapping
+      name: PhaseToRole 加 design-reviewer mapping，validate.go 白名單加入
+      status: ""
+    - id: run-loop
+      name: successorPhase / nextPhaseAfter 支援新 phase
+      status: ""
+    - id: template
+      name: 新增 design-reviewer.md.tmpl prompt template
+      status: ""
+    - id: profile-update
+      name: full profile 預設加入 design-reviewing phase
+      status: ""
+    - id: test-coverage
+      name: state machine 轉換測試 + design-reviewer role 測試
+      status: ""
+rules:
+    - design-reviewer 不能修改 source code，只能寫 design-review-report.md
+    - FAIL 時回 designing，不是直接回 coding
+    - optional phase——profile 沒包含就自動跳過
+depends:
+    - F090

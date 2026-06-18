@@ -1,0 +1,27 @@
+id: F093-dashboard-run-profile
+name: 'F093: Dashboard run with profile selection'
+description: Dashboard run 頁面加入 profile 選擇功能。user 在 dashboard 啟動 run 時可選 profile，並可臨時覆寫個別 phase 的 runner/model。顯示 profile 的 phase pipeline 預覽，讓 user 一目了然每個 phase 用哪個 runner/model。依賴 F090（profile 結構）和 F092（settings write API）。
+status: not-started
+priority: 2
+subtasks:
+    - id: profile-picker
+      name: run 啟動頁面加 profile 選擇器，列出所有可用 profile 及其 phase 組成
+      status: ""
+    - id: pipeline-preview
+      name: 選擇 profile 後顯示 phase pipeline 預覽——每個 phase 的 runner/model 一目了然
+      status: ""
+    - id: phase-override-ui
+      name: 允許臨時覆寫個別 phase 的 runner/model，不影響 profile 定義
+      status: ""
+    - id: run-api-update
+      name: Server run API 接受 profile name 和 phase overrides 參數
+      status: ""
+    - id: test-coverage
+      name: run API profile 參數測試 + UI 互動測試
+      status: ""
+rules:
+    - 臨時覆寫不寫回 settings.json，只影響本次 run
+    - pipeline preview 要顯示最終解析結果（合併所有覆寫層級後的 runner/model）
+depends:
+    - F090
+    - F092

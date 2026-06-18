@@ -1,0 +1,30 @@
+id: F089-template-retro-learnings
+name: 'F089: Project-level template override + retro learnings loop'
+description: 兩個相關能力合為一個 feature：(1) 專案級 template 覆寫——允許 .4x/templates/ 覆寫 go:embed 的內建 role prompt template，讓每個專案可根據自身經驗迭代 prompt 品質；(2) Retro learnings 迴路——feature 完成（done）後產生 .4x/{feature-id}/retro.md 回顧報告，精華自動 append 到專案級 .4x/learnings.json，後續 feature 的 designer/coder prompt 自動注入相關 learnings，形成「跑 feature → retro → learnings 累積 → 下個 feature prompt 更好」的正向迴路。
+status: not-started
+priority: 2
+subtasks:
+    - id: template-override
+      name: 支援 .4x/templates/ 覆寫內建 template——prompt 產生時先查專案目錄再 fallback go
+      status: ""
+      description: embed
+    - id: template-init
+      name: 4x init 時可選擇 dump 內建 template 到 .4x/templates/ 供編輯
+      status: ""
+    - id: retro-phase
+      name: done 後自動觸發 retro——產生 .4x/{feature-id}/retro.md（學到什麼、哪個 role 表現差、哪些 instruction 該改）
+      status: ""
+    - id: learnings-store
+      name: 建立 .4x/learnings.json 累積專案級 learnings，retro 精華自動 append
+      status: ""
+    - id: learnings-inject
+      name: prompt 產生時自動注入 .4x/learnings.json 中與當前 feature 相關的 learnings
+      status: ""
+    - id: test-coverage
+      name: 補充 template override 和 learnings inject 的單元測試
+      status: ""
+rules:
+    - template 覆寫只影響 prompt 產生，不影響 state machine 或 guardrail
+    - learnings.json 格式需有 schema，含 source_feature、category、content、created_at
+    - retro 是 optional phase，可在 profile 中關閉
+    - learnings inject 有 token 上限，避免 prompt 過長——預設最多注入 10 條最相關的

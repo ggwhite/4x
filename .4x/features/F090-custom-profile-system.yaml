@@ -1,0 +1,48 @@
+id: F090-custom-profile-system
+name: 'F090: Custom profile system with per-phase runner and model'
+description: |-
+  重構 profile 系統，從固定 role list 改為 phase list + per-phase runner/model 覆寫。
+
+  現狀：ProfileConfig 只有 Roles[]string 和 CoderModel，runner 是 per-run 全域一個，model 覆寫只支援 coder。
+
+  目標：
+  (1) profile 改為 phases 列表，每個 phase 可選 runner 和 model
+  (2) roles config 作為預設 model + instructions 的底層
+  (3) 覆寫優先序：4x run 手動選 > feature YAML phase_overrides > profile per-phase > roles config > default_runner
+  (4) 4x run terminal 畫面讓 user 選 profile
+  (5) settings 加 default_profile 欄位（預設 full）
+  (6) 廢棄 CoderModel，改用統一的覆寫機制
+
+  約束：profile 的 phases 只能從 state machine 白名單選；coder 仍為必要 role。
+status: not-started
+priority: 1
+subtasks:
+    - id: profile-struct
+      name: 重構 ProfileConfig——Roles[]string 改為 Phases，支援 per-phase runner/model 覆寫
+      status: ""
+    - id: roles-config
+      name: settings.json 的 roles 區段作為每個 role 的預設 model（底層），profile 可覆寫
+      status: ""
+    - id: override-hierarchy
+      name: 實作覆寫優先序——run 手動選 > feature YAML phase_overrides > profile > roles > default_runner
+      status: ""
+    - id: run-loop-refactor
+      name: run loop 每個 phase 依 profile 解析 runner/model，取代全域固定 runner
+      status: ""
+    - id: profile-select-ui
+      name: 4x run terminal 畫面讓 user 互動選 profile，預設用 default_profile
+      status: ""
+    - id: deprecate-coder-model
+      name: 移除 CoderModel 欄位，改用統一覆寫機制，保持向後相容
+      status: ""
+    - id: doctor-update
+      name: doctor 檢查適配新 profile 結構（驗證 phases 白名單、runner 存在等）
+      status: ""
+    - id: test-coverage
+      name: 補充 profile 重構、override 解析、run loop per-phase runner 的測試
+      status: ""
+rules:
+    - profile 的 phases 只能從 state machine validPhases 白名單選
+    - coder 仍為必要 role——profile 必須包含 coding phase
+    - 向後相容：舊格式 Roles[]string 仍可解析，自動轉為新格式
+    - default_profile 預設 full，settings.json 未設定時 fallback 現有行為
