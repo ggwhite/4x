@@ -1,7 +1,7 @@
 id: F083-runner-robustness
 name: 'F083: Runner robustness'
 description: 修復 runner 子系統的多個問題：(1) 非 PTY 模式 context cancellation 直接 SIGKILL 無 graceful shutdown (2) enrichedEnv 覆寫 extraPaths 丟失 4x 執行檔目錄 (3) ANSI stripper charset designation 跨 Write buffer 邊界時洩漏字元 (4) ansiStripper 和 promptStripper 靜默吞掉 inner writer 錯誤
-status: in-progress
+status: ready-for-review
 priority: 1
 subtasks:
     - id: sigterm-first
