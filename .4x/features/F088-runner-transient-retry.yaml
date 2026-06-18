@@ -1,0 +1,22 @@
+id: F088-runner-transient-retry
+name: 'F088: Runner transient retry'
+description: Runner 子程序因暫態 API 錯誤（socket closed、connection reset、rate limit、5xx）以非零退出時，目前被直接判定為 soft-fail/hard-error 而停止。應在 runner 層偵測 stderr 中的暫態錯誤 pattern，自動 backoff 重試同一個 cmd.Run()，避免因網路抖動中斷整個 batch run。
+status: not-started
+priority: 1
+subtasks:
+    - id: transient-detect
+      name: 從 stderr 識別暫態錯誤 pattern（socket closed、connection reset、rate limit、5xx 等）
+      status: ""
+    - id: runner-retry
+      name: 在 runner.Run() 加入 backoff 重試迴圈，上限可設定（預設 3 次）
+      status: ""
+    - id: batch-resume
+      name: 確保 batch 在 transient retry 成功後正常繼續排程
+      status: ""
+    - id: test-coverage
+      name: 補充 transient retry 的單元測試
+      status: ""
+rules:
+    - 重試上限預設 3 次，不可無限重試
+    - 只在 exit code 非零且 stderr 匹配暫態 pattern 時才重試，避免誤判
+    - 不改變現有 exit code 語義（0/1/2）
