@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.15] - 2026-06-18
+
+### Features
+
+- **Menu bar icons** — 精簡狀態列圖示，閒置/停止時顯示「4x」，執行中加上播放箭頭
+
+### Fixes
+
+- **Detail tab preservation** — 在訊息或日誌 tab 時，polling 刷新和 Cmd+R 不再跳回總覽
+
 ## [0.1.14] - 2026-06-18
 
 ### Features
