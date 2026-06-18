@@ -1,4 +1,5 @@
 import AppKit
+import CoreServices
 import UserNotifications
 import WebKit
 
@@ -45,6 +46,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
     // MARK: - App Icon
 
     func setupAppIcon() {
+        LSRegisterURL(Bundle.main.bundleURL as CFURL, true)
         if let icon = resolveResource("AppIcon", ext: "icns") ?? resolveResource("AppIcon", ext: "png") {
             NSApp.applicationIconImage = icon
         }
