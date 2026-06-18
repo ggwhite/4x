@@ -142,26 +142,29 @@ def draw_app_icon(size: int) -> Image.Image:
     return canvas
 
 
-def draw_menu_icon(size: int, state: str = "idle") -> Image.Image:
+def draw_menu_icon(width: int, height: int, state: str = "idle") -> Image.Image:
     scale = 4
-    s = size * scale
-    img = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+    w = width * scale
+    h = height * scale
+    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    f = font(round(s * 0.50))
+    f = font(round(h * 0.70))
     text = "4x"
     bbox = draw.textbbox((0, 0), text, font=f)
+    text_w = bbox[2] - bbox[0]
     text_h = bbox[3] - bbox[1]
-    draw.text((s * 0.03, s * 0.50 - text_h / 2 - s * 0.05), text, font=f, fill=(0, 0, 0, 255))
+    text_x = w * 0.08 if state == "running" else (w - text_w) / 2
+    draw.text((text_x, h * 0.50 - text_h / 2 - h * 0.08), text, font=f, fill=(0, 0, 0, 255))
     if state == "running":
         draw.polygon(
             [
-                (s * 0.73, s * 0.30),
-                (s * 0.73, s * 0.73),
-                (s * 0.96, s * 0.515),
+                (w * 0.75, h * 0.22),
+                (w * 0.75, h * 0.80),
+                (w * 0.94, h * 0.51),
             ],
             fill=(0, 0, 0, 255),
         )
-    return img.resize((size, size), Image.Resampling.LANCZOS)
+    return img.resize((width, height), Image.Resampling.LANCZOS)
 
 
 def write_svg_source() -> None:
@@ -240,11 +243,11 @@ def main() -> None:
         "stopped": ("4x-menubar-stopped-template.png", "MenuBarIconStoppedTemplate"),
     }
     for state, (asset_name, resource_name) in menu_states.items():
-        menu_18 = draw_menu_icon(18, state)
-        menu_36 = draw_menu_icon(36, state)
-        menu_18.save(ICON_DIR / asset_name)
-        menu_18.save(MACOS_RESOURCE_DIR / f"{resource_name}.png")
-        menu_36.save(MACOS_RESOURCE_DIR / f"{resource_name}@2x.png")
+        menu_1x = draw_menu_icon(32, 18, state)
+        menu_2x = draw_menu_icon(64, 36, state)
+        menu_1x.save(ICON_DIR / asset_name)
+        menu_1x.save(MACOS_RESOURCE_DIR / f"{resource_name}.png")
+        menu_2x.save(MACOS_RESOURCE_DIR / f"{resource_name}@2x.png")
 
     write_svg_source()
     make_icns(ICON_DIR / "4x-app-icon.png", MACOS_RESOURCE_DIR / "AppIcon.icns")
