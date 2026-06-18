@@ -1013,13 +1013,18 @@ func discoverRoundsFromTemplate(workspaceRoot, template string) []int {
 
 // WorktreePath 從 events.jsonl 解析 feature 的 worktree 路徑。
 // 若 feature 未使用 worktree 或 events.jsonl 不存在，回傳空字串。
+//
+// 掃描整個 events.jsonl 並回傳「最後一個」符合 `type==run-output` 且 detail
+// 以 "worktree: " 開頭的路徑（最近一次 run 的 worktree）。re-run 多次後舊事件
+// 會被新事件推到後段，只看前幾行會掃不到或回到已被移除的舊 worktree，故須掃全部行。
 func (w *Workspace) WorktreePath(featureID string) string {
 	eventsPath := filepath.Join(w.FeatureDir(featureID), EventsFile)
 	data, err := os.ReadFile(eventsPath)
 	if err != nil {
 		return ""
 	}
-	for _, line := range strings.SplitN(string(data), "\n", 5) {
+	latest := ""
+	for _, line := range strings.Split(string(data), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
@@ -1032,10 +1037,10 @@ func (w *Workspace) WorktreePath(featureID string) string {
 			continue
 		}
 		if ev.Type == "run-output" && strings.HasPrefix(ev.Detail, "worktree: ") {
-			return strings.TrimPrefix(ev.Detail, "worktree: ")
+			latest = strings.TrimPrefix(ev.Detail, "worktree: ")
 		}
 	}
-	return ""
+	return latest
 }
 
 func (w *Workspace) discoverFromWorktree(

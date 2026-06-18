@@ -224,6 +224,12 @@ Two top-level signal files coordinate a running batch with external observers (t
 
 `state.json` is read and written by multiple actors concurrently — the run loop, the dashboard server, and background reconcilers. To avoid a reader ever seeing a truncated or half-written file, `WriteState` never writes in place. It marshals the state, writes it to a temp file (`.state-*.json`) **in the same directory** (guaranteeing the same filesystem so the rename is atomic), then `os.Rename`s it over `state.json`. A reader therefore always sees either the complete old file or the complete new file — never a partial one. On any failure the temp file is removed so no `.state-*.json` debris accumulates. No file lock is used; correctness comes from the atomic rename plus `UpdatedAt` comparison.
 
+### Worktree Path Recovery
+
+When a feature runs in worktree isolation, the loop prints `worktree: <path>` on startup, which is recorded in `events.jsonl` as a `run-output` event. `Workspace.WorktreePath` recovers that path later (e.g. for screenshot discovery) by scanning the audit trail rather than re-running git.
+
+The scan reads the **entire** `events.jsonl` and returns the path from the **last** matching `run-output` event. This matters for re-runs: each `4x run` appends a fresh `worktree: …` event, so the file accumulates entries over the feature's lifetime. Reading only the first few lines would either miss the path once enough events pile up, or return a stale worktree that has since been removed. Taking the last match always yields the most recent run's worktree.
+
 ### Workspace Read Cache (Dashboard Server)
 
 The CLI is a short-lived process: each command reads the `.4x/` files it needs once and exits, so it always uses a plain `*protocol.Workspace`. The dashboard server (`4x live`) is the opposite — it is long-running and every API request re-reads the same files. In a multi-project × multi-feature workspace (e.g. 5 projects × 50 features) a single request can trigger hundreds of YAML/JSON parses.

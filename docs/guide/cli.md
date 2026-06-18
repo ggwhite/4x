@@ -72,6 +72,8 @@ Run the Design-Code-Review-Test loop for a feature.
 
 When the run ends (success, failure, or interruption), 4x sends a native OS notification (`osascript` on macOS, `notify-send` on Linux, PowerShell balloon on Windows). Pass `--no-notify` to suppress it, or set `"notifications": false` in `settings.json`. Missing notification tooling is silently ignored.
 
+With `--json`, the loop runs in a detached background process and the command returns immediately with `{featureId, runner, maxRounds, pid, logPath}`. The background process's stdout/stderr are redirected to `logPath` (`.4x/<feature-id>/run.log`), so early errors (config load, worktree setup, runner not found) are recorded there instead of being lost.
+
 `--profile` selects which roles run. Built-in profiles: `full` (all 6 roles), `normal` (coder/reviewer/tester/acceptor), `quick` (coder/reviewer). Roles not in the profile are passed through (state advances along the legal edge without invoking the runner). When omitted, the profile is auto-selected by the feature's priority if a `profiles` section exists in `settings.json` (otherwise `full`). See [Configuration → Profiles](configuration.md#profiles) for details.
 
 The loop drives: init → designing → coding → reviewing → testing → deep-reviewing → accepting → pending-review. On review failure, code gets another pass. On test failure, the loop re-enters coding.
@@ -93,6 +95,8 @@ If a run crashes mid `deep-reviewing`, recovery is incremental rather than resta
 Automatically checks dependency gate — blocks if depended features are not done.
 
 If `isolation: "worktree"` is set in config, runs in a git worktree under `.worktrees/4x/<feature-id>/`. In multi-repo mode (workspace.repos configured), each repo gets its own worktree under `.worktrees/4x/<feature-id>/<repo-name>/`, and workspace-level files (go.work, Makefile, etc.) are copied alongside. Coder prompts include a `== Workspace Repos ==` section; in worktree mode, each entry shows the repo name as a relative path (e.g. `core → core/`) so the coder operates within the correct directory boundaries.
+
+When a worktree run ends in `done`/`pending-review`, the output prints the branch and merge command. When it ends in any other state (`needs-attention`, `blocked`, interruption, or error), the worktree is preserved and the output prints its path plus a cleanup command (`git worktree remove … && git branch -d …`) so the orphan worktree stays visible. 4x never auto-deletes the worktree in these cases, to avoid discarding unsaved work.
 
 ---
 

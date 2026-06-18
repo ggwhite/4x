@@ -89,7 +89,9 @@ func (m *monoRepo) Merge(featureID, featureName string) MergeResult {
 	out, err := exec.Command("git", "-C", m.root, "merge", "--squash", branch).CombinedOutput()
 	if err != nil {
 		files := conflictFiles(m.root)
+		// --squash 不建立 MERGE_HEAD，merge --abort 會靜默失敗；用 reset --hard 確保還原
 		exec.Command("git", "-C", m.root, "merge", "--abort").Run()
+		exec.Command("git", "-C", m.root, "reset", "--hard", "HEAD").Run()
 		if len(files) > 0 {
 			return MergeResult{Conflict: true, Files: files}
 		}
@@ -99,6 +101,10 @@ func (m *monoRepo) Merge(featureID, featureName string) MergeResult {
 	msg := fmt.Sprintf("feat(%s): %s", featureID, featureName)
 	if out, err := exec.Command("git", "-C", m.root, "commit", "-m", msg).CombinedOutput(); err != nil {
 		if !isNothingToCommit(string(out)) {
+			// commit 失敗（如 pre-commit hook 拒絕）時，merge --squash 已把變更 stage 進
+			// main 的 index/working tree。比照衝突路徑的 merge --abort，這裡以 reset --hard
+			// 還原到 merge 前狀態，避免 staged 變更殘留污染 main（multirepo.go 已有對等處理）。
+			exec.Command("git", "-C", m.root, "reset", "--hard", "HEAD").Run()
 			return MergeResult{Error: strings.TrimSpace(string(out))}
 		}
 	}

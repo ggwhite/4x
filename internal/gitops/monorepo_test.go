@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ggwhite/4x/internal/protocol"
@@ -229,6 +230,69 @@ func TestMonoRepo_MergeConflict(t *testing.T) {
 	// worktree should be preserved on conflict
 	if _, err := os.Stat(wtDir); err != nil {
 		t.Error("worktree should be preserved on conflict")
+	}
+	// main index 不應有 staged 或 unmerged 檔案（--squash 不建立 MERGE_HEAD，merge --abort 可能靜默失敗）
+	out, _ := exec.Command("git", "-C", root, "diff", "--cached", "--name-only").Output()
+	if strings.TrimSpace(string(out)) != "" {
+		t.Errorf("main index should have no staged changes after conflict abort, got:\n%s", out)
+	}
+	unmerged := conflictFiles(root)
+	if len(unmerged) > 0 {
+		t.Errorf("main should have no unmerged files after conflict abort, got: %v", unmerged)
+	}
+}
+
+// TestMonoRepo_MergeCommitFailCleansStaged 驗證 commit 失敗（非 nothing-to-commit）時，
+// Merge 會清理 squash 留下的 staged changes，使 main 回到 merge 前的乾淨狀態（F086 task 7）。
+// 用 pre-commit hook 強制 commit 失敗來重現。
+func TestMonoRepo_MergeCommitFailCleansStaged(t *testing.T) {
+	root, _, ops := setupMonoWorkspace(t)
+	wtPath, err := ops.SetupWorktree("feat-commitfail", nil)
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(wtPath, "added.go"), []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := ops.Commit(wtPath, "feat-commitfail", "wip(feat-commitfail): round 1"); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+
+	// 安裝會拒絕 commit 的 pre-commit hook，迫使 main 上的 squash commit 失敗。
+	hookDir := filepath.Join(root, ".git", "hooks")
+	if err := os.MkdirAll(hookDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(hookDir, "pre-commit"), []byte("#!/bin/sh\necho rejected-by-hook >&2\nexit 1\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	result := ops.Merge("feat-commitfail", "Commit Fail Feature")
+	if result.Conflict {
+		t.Errorf("commit-fail should not be reported as conflict: %v", result.Files)
+	}
+	if result.Error == "" {
+		t.Error("commit failure should produce an error")
+	}
+
+	// main 應回到乾淨狀態，無 squash 留下的 staged/working tree 殘留（reset --hard 不刪 untracked，
+	// 故僅斷言無已追蹤的 staged/modified 殘留）。
+	out, err := exec.Command("git", "-C", root, "status", "--porcelain", "--untracked-files=no").Output()
+	if err != nil {
+		t.Fatalf("git status: %v", err)
+	}
+	if len(out) != 0 {
+		t.Errorf("main working tree should be clean after commit-fail, got:\n%s", out)
+	}
+
+	// 確認 squash 變更沒有真的被 commit 進 main（否則 reset 沒生效卻看似乾淨）。
+	tracked, err := exec.Command("git", "-C", root, "ls-files", "added.go").Output()
+	if err != nil {
+		t.Fatalf("git ls-files: %v", err)
+	}
+	if len(tracked) != 0 {
+		t.Errorf("added.go should not be committed to main after commit-fail, but it is tracked")
 	}
 }
 

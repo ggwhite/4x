@@ -1,7 +1,7 @@
 id: F086-run-loop-resilience
 name: 'F086: Run loop resilience'
 description: 修復 run loop 的多個問題：(1) StopMessage 寫 exit 3 但 ExitSoftFail 實際是 1 (2) 多處 WriteState/SyncFeatureStatus 錯誤被靜默丟棄 (3) worktree 在 run 失敗時未清理也未印提示 (4) JSON background process 無 stderr 無法回報早期錯誤 (5) WorktreePath 只掃 events.jsonl 前 4 行在 re-run 時找不到 worktree (6) runReviewTestParallel 繞過 W1 no-progress tracking (7) Merge 在 commit 失敗後未清理 staged changes (8) done config 載入失敗靜默降級
-status: ready-for-review
+status: done
 priority: 2
 subtasks:
     - id: exit-code-message

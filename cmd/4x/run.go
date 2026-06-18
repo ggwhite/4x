@@ -43,6 +43,70 @@ func healthCheckExecutor(ctx context.Context, timeoutSec int) func(cmd string) e
 	}
 }
 
+// logStateWriteErr 在終止／失敗／收尾路徑記錄 WriteState 失敗，取代靜默的 `_ =` 丟棄。
+// 這些路徑不改變回傳或控制流（state 已盡力寫出），但失敗必須留下可排查的記錄，
+// 避免磁碟 state.json 與記憶體狀態不一致時毫無線索。err 為 nil 時不做任何事。
+func logStateWriteErr(err error, featureID string, phase protocol.Phase) {
+	if err != nil {
+		slog.Error("write state failed", "feature", featureID, "phase", phase, "error", err)
+	}
+}
+
+// logSyncErr 在終止／失敗／收尾路徑記錄 SyncFeatureStatus 失敗，語意同 logStateWriteErr。
+// feature_list.json 狀態同步失敗只影響 dashboard 顯示、不阻斷流程，故僅記錄不回傳。
+func logSyncErr(err error, featureID string, phase protocol.Phase) {
+	if err != nil {
+		slog.Error("sync feature status failed", "feature", featureID, "phase", phase, "error", err)
+	}
+}
+
+// startBackgroundRun 以 background 方式啟動 run 子程序，將其 stdout/stderr 導向 logPath，
+// 讓早期錯誤（config 載入、worktree setup、runner not found 等）可事後檢視而非進 /dev/null。
+// Start 後子程序已持有 fd 副本，父程序立即關閉自身副本並背景 Wait 回收 zombie。
+// 回傳啟動後的 *os.Process（供取 PID）。
+func startBackgroundRun(binPath string, args []string, dir, logPath string) (*os.Process, error) {
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open run log: %w", err)
+	}
+	bgCmd := exec.Command(binPath, args...)
+	bgCmd.Dir = dir
+	bgCmd.Stdin = nil
+	bgCmd.Stdout = logFile
+	bgCmd.Stderr = logFile
+	if err := bgCmd.Start(); err != nil {
+		logFile.Close()
+		return nil, fmt.Errorf("failed to start run: %w", err)
+	}
+	logFile.Close()
+	go bgCmd.Wait()
+	return bgCmd.Process, nil
+}
+
+// worktreeExitHints 依 run 結束時的最終 phase 與 commit 策略，回傳要印給使用者的
+// worktree 相關提示行（不含前綴換行）。done/pending-review 回傳 branch 與 merge 指令；
+// 其餘結束狀態（needs-attention/blocked/中斷/loopErr）回傳 worktree 路徑與清理提示，
+// 讓孤兒 worktree 可見。wtPath 為空（非 worktree 模式）時回 nil。
+// 提示由呼叫端走 stdout 印出，確保 background/JSON 模式下會寫進 run.log 不遺失。
+func worktreeExitHints(wtPath, featureID string, finalPhase protocol.Phase, commitStrategy string) []string {
+	if wtPath == "" {
+		return nil
+	}
+	if finalPhase == protocol.PhaseDone || finalPhase == protocol.PhasePendingReview {
+		if commitStrategy == "never" {
+			return nil
+		}
+		return []string{
+			fmt.Sprintf("  branch: 4x/%s", featureID),
+			fmt.Sprintf("  to merge: git merge 4x/%s && git worktree remove %s && git branch -d 4x/%s", featureID, wtPath, featureID),
+		}
+	}
+	return []string{
+		fmt.Sprintf("  worktree preserved at: %s (state: %s)", wtPath, finalPhase),
+		fmt.Sprintf("  inspect changes there; when done clean up with: git worktree remove %s && git branch -d 4x/%s", wtPath, featureID),
+	}
+}
+
 func newRunCmd() *cobra.Command {
 	var runnerName string
 	var maxRounds int
@@ -117,27 +181,30 @@ func newRunCmd() *cobra.Command {
 					bgArgs = append(bgArgs, "--dry-run")
 				}
 
-				bgCmd := exec.Command(os.Args[0], bgArgs...)
-				bgCmd.Dir = cwd
-				bgCmd.Stdin = nil
-				bgCmd.Stdout = nil
-				bgCmd.Stderr = nil
-
-				if err := bgCmd.Start(); err != nil {
-					return fmt.Errorf("failed to start run: %w", err)
+				// background 子程序的 stdout/stderr 導向 feature 目錄下的 run.log，
+				// 讓 config 載入、worktree setup、runner not found、ResolveProfile 等
+				// 早期錯誤可事後檢視，而非進 /dev/null。不 inherit 父程序 stderr（背景化會失去 tty）。
+				if err := ws.InitFeatureDir(featureID); err != nil {
+					return err
 				}
-				go bgCmd.Wait()
+				logPath := filepath.Join(ws.FeatureDir(featureID), "run.log")
+				proc, err := startBackgroundRun(os.Args[0], bgArgs, cwd, logPath)
+				if err != nil {
+					return err
+				}
 
 				result := struct {
 					FeatureID string `json:"featureId"`
 					Runner    string `json:"runner"`
 					MaxRounds int    `json:"maxRounds"`
 					PID       int    `json:"pid"`
+					LogPath   string `json:"logPath"`
 				}{
 					FeatureID: featureID,
 					Runner:    runnerName,
 					MaxRounds: maxRounds,
-					PID:       bgCmd.Process.Pid,
+					PID:       proc.Pid,
+					LogPath:   logPath,
 				}
 				data, _ := json.MarshalIndent(result, "", "  ")
 				fmt.Println(string(data))
@@ -282,8 +349,8 @@ func newRunCmd() *cobra.Command {
 						cur.StopReason = "process-exit"
 						cur.StopMessage = fmt.Sprintf("process exited unexpectedly during %s (round %d)", cur.Phase, cur.Round)
 					}
-					_ = ws.WriteState(featureID, cur)
-					_ = ws.SyncFeatureStatus(featureID, cur.Phase)
+					logStateWriteErr(ws.WriteState(featureID, cur), featureID, cur.Phase)
+					logSyncErr(ws.SyncFeatureStatus(featureID, cur.Phase), featureID, cur.Phase)
 					ws.AppendEvent(featureID, protocol.Event{
 						Type:   "run-end",
 						Phase:  cur.Phase,
@@ -331,17 +398,18 @@ func newRunCmd() *cobra.Command {
 				sendSystemNotification(level, title, body)
 			}
 
-			if wtPath != "" && commitStrategy != "never" {
-				if finalState.Phase == protocol.PhaseDone || finalState.Phase == protocol.PhasePendingReview {
-					if commitStrategy == "on-done" {
-						if err := ops.Commit(wtPath, featureID, fmt.Sprintf("feat(%s): %s", featureID, feature.Name)); err != nil {
-							slog.Error("auto-commit failed", "feature", featureID, "error", err)
-						} else {
-							slog.Info("auto-commit", "feature", featureID, "strategy", commitStrategy)
-						}
+			if wtPath != "" {
+				doneOrPending := finalState.Phase == protocol.PhaseDone || finalState.Phase == protocol.PhasePendingReview
+				// on-done 策略：成功收尾時才補一次 commit（side effect 留在此處，hint 純文字另算）。
+				if doneOrPending && commitStrategy == "on-done" {
+					if err := ops.Commit(wtPath, featureID, fmt.Sprintf("feat(%s): %s", featureID, feature.Name)); err != nil {
+						slog.Error("auto-commit failed", "feature", featureID, "error", err)
+					} else {
+						slog.Info("auto-commit", "feature", featureID, "strategy", commitStrategy)
 					}
-					fmt.Printf("  branch: 4x/%s\n", featureID)
-					fmt.Printf("  to merge: git merge 4x/%s && git worktree remove %s && git branch -d 4x/%s\n", featureID, wtPath, featureID)
+				}
+				for _, line := range worktreeExitHints(wtPath, featureID, finalState.Phase, commitStrategy) {
+					fmt.Println(line)
 				}
 			}
 
@@ -373,7 +441,7 @@ func deepReviewPartialName(index int) string {
 
 // deepPartialComplete 判斷單一 deep-review-partial 檔是否已完整寫出。
 // 完整判準：檔案存在、去空白後非空，且含 partial 模板的結尾段落標記 `## Statistics`
-//（sub-reviewer 半截輸出時通常缺此段，避免半成品被誤判為完整而漏跑）。
+// （sub-reviewer 半截輸出時通常缺此段，避免半成品被誤判為完整而漏跑）。
 func deepPartialComplete(path string) bool {
 	data, err := os.ReadFile(path)
 	if err != nil || len(bytes.TrimSpace(data)) == 0 {
@@ -601,7 +669,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			if err := ws.WriteState(featureID, s); err != nil {
 				return fmt.Errorf("write state (skip %s): %w", phase, err)
 			}
-			_ = ws.SyncFeatureStatus(featureID, s.Phase)
+			logSyncErr(ws.SyncFeatureStatus(featureID, s.Phase), featureID, s.Phase)
 			ws.AppendEvent(featureID, protocol.Event{
 				Type: "phase-skipped", Phase: phase, Role: role, Round: s.Round,
 				Runner: s.Runner, Detail: "role not in profile " + profileName,
@@ -686,8 +754,8 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 					s.Active = false
 					s.StopReason = "health-check-failed"
 					s.StopMessage = err.Error()
-					_ = ws.WriteState(featureID, s)
-					_ = ws.SyncFeatureStatus(featureID, s.Phase)
+					logStateWriteErr(ws.WriteState(featureID, s), featureID, s.Phase)
+					logSyncErr(ws.SyncFeatureStatus(featureID, s.Phase), featureID, s.Phase)
 					slog.Info("run stopped", "feature", featureID, "reason", "health-check-failed", "round", s.Round)
 					fmt.Printf("  health check failed, escalated to needs-attention\n")
 					return nil
@@ -709,7 +777,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			s.Active = false
 			s.StopReason = "model-error"
 			s.StopMessage = fmt.Sprintf("model resolution for %s failed: %v", role, err)
-			_ = ws.WriteState(featureID, s)
+			logStateWriteErr(ws.WriteState(featureID, s), featureID, s.Phase)
 			return fmt.Errorf("model resolution failed: %w", err)
 		}
 
@@ -780,14 +848,14 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 				s.Active = false
 				s.StopReason = "interrupted"
 				s.StopMessage = fmt.Sprintf("%s (%s) interrupted by signal (round %d)", role, phase, s.Round)
-				_ = ws.WriteState(featureID, s)
+				logStateWriteErr(ws.WriteState(featureID, s), featureID, s.Phase)
 				return ctx.Err()
 			}
 			s.Phase = protocol.PhaseNeedsAttention
 			s.Active = false
 			s.StopReason = "runner-error"
 			s.StopMessage = fmt.Sprintf("%s runner failed during %s (round %d): %v", role, phase, s.Round, err)
-			_ = ws.WriteState(featureID, s)
+			logStateWriteErr(ws.WriteState(featureID, s), featureID, s.Phase)
 			ws.AppendEvent(featureID, protocol.Event{
 				Type: "run-end", Phase: phase, Role: role, Round: s.Round,
 				Status: "error", Detail: err.Error(),
@@ -806,7 +874,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			s.Active = false
 			s.StopReason = "hard-error"
 			s.StopMessage = fmt.Sprintf("%s runner returned hard error (exit 2) during %s (round %d)", role, phase, s.Round)
-			_ = ws.WriteState(featureID, s)
+			logStateWriteErr(ws.WriteState(featureID, s), featureID, s.Phase)
 			return fmt.Errorf("runner returned hard error (exit 2)")
 		}
 
@@ -814,9 +882,9 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			s.Phase = protocol.PhaseBlocked
 			s.Active = false
 			s.StopReason = "soft-fail"
-			s.StopMessage = fmt.Sprintf("%s runner returned soft-fail (exit 3) during %s (round %d)", role, phase, s.Round)
-			_ = ws.WriteState(featureID, s)
-			_ = ws.SyncFeatureStatus(featureID, protocol.PhaseBlocked)
+			s.StopMessage = fmt.Sprintf("%s runner returned soft-fail (exit %d) during %s (round %d)", role, runner.ExitSoftFail, phase, s.Round)
+			logStateWriteErr(ws.WriteState(featureID, s), featureID, s.Phase)
+			logSyncErr(ws.SyncFeatureStatus(featureID, protocol.PhaseBlocked), featureID, protocol.PhaseBlocked)
 			return nil
 		}
 
@@ -828,8 +896,8 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 				guardMsg := strings.Join(guardResult.Errors, "; ")
 				s.StopReason = "guard-fail"
 				s.StopMessage = guardMsg
-				_ = ws.WriteState(featureID, s)
-				_ = ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention)
+				logStateWriteErr(ws.WriteState(featureID, s), featureID, s.Phase)
+				logSyncErr(ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention), featureID, protocol.PhaseNeedsAttention)
 				ws.AppendEvent(featureID, protocol.Event{
 					Type: "guard-fail", Phase: phase, Role: role, Round: s.Round,
 					Detail: guardMsg, Runner: s.Runner, Notify: protocol.NotifyError,
@@ -883,21 +951,9 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		}
 
 		// W1：reviewer FAIL（→ amending）時追蹤連續無進展輪次。
-		// 用轉換前的 s.Round 讀本輪 review-report.md 的失敗計數，與上輪基準比較：
-		// 持平或更差 → ConsecutiveNoProgress++；改善 → reset。首輪（尚無基準）只建立 LastFailCount。
+		// 用轉換前的 s.Round 讀本輪 review-report.md 的失敗計數（與平行路徑共用 applyAmendingProgress）。
 		if next == protocol.PhaseAmending {
-			cur := reviewFailCount(ws, featureID, s.Round)
-			// 首輪 amending 僅建立基準、不 increment。額外要求 cur > 0：
-			// 否則 review-report 缺失/格式異常使 cur 恆為 0 時，LastFailCount 會一直停在 0，
-			// 「首輪」條件每輪都成立，ConsecutiveNoProgress 永遠無法遞增而漏掉 no-progress 停止。
-			if newState.LastFailCount == 0 && newState.ConsecutiveNoProgress == 0 && cur > 0 {
-				// 首輪 amending：僅建立基準，不 increment
-			} else if cur >= newState.LastFailCount {
-				newState.ConsecutiveNoProgress++
-			} else {
-				newState.ConsecutiveNoProgress = 0
-			}
-			newState.LastFailCount = cur
+			applyAmendingProgress(ws, featureID, &newState, s.Round)
 		}
 
 		s = newState
@@ -915,7 +971,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		if err := ws.WriteState(featureID, s); err != nil {
 			return fmt.Errorf("write state (%s): %w", s.Phase, err)
 		}
-		_ = ws.SyncFeatureStatus(featureID, s.Phase)
+		logSyncErr(ws.SyncFeatureStatus(featureID, s.Phase), featureID, s.Phase)
 
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "transition", Phase: s.Phase, Role: s.Role, Round: s.Round,
@@ -947,14 +1003,14 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 	case protocol.PhasePendingReview:
 		s.Active = false
 		s.StopReason = "pending-review"
-		_ = ws.WriteState(featureID, s)
-		_ = ws.SyncFeatureStatus(featureID, protocol.PhasePendingReview)
+		logStateWriteErr(ws.WriteState(featureID, s), featureID, s.Phase)
+		logSyncErr(ws.SyncFeatureStatus(featureID, protocol.PhasePendingReview), featureID, protocol.PhasePendingReview)
 		fmt.Printf("\nFeature %s ready for review (%d rounds). Run '4x done %s' to complete.\n", featureID, s.Round, featureID)
 	case protocol.PhaseDone:
 		s.Active = false
 		s.StopReason = "done"
-		_ = ws.WriteState(featureID, s)
-		_ = ws.SyncFeatureStatus(featureID, protocol.PhaseDone)
+		logStateWriteErr(ws.WriteState(featureID, s), featureID, s.Phase)
+		logSyncErr(ws.SyncFeatureStatus(featureID, protocol.PhaseDone), featureID, protocol.PhaseDone)
 		fmt.Printf("\nFeature %s complete (%d rounds)\n", featureID, s.Round)
 	case protocol.PhaseNeedsAttention, protocol.PhaseBlocked:
 		if s.Active {
@@ -965,7 +1021,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			if s.StopMessage == "" {
 				s.StopMessage = fmt.Sprintf("%s stopped with %s (round %d)", featureID, s.Phase, s.Round)
 			}
-			_ = ws.WriteState(featureID, s)
+			logStateWriteErr(ws.WriteState(featureID, s), featureID, s.Phase)
 		}
 	}
 	return nil
@@ -1088,7 +1144,7 @@ func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 		s.Active = false
 		s.StopReason = "model-error"
 		s.StopMessage = fmt.Sprintf("reviewer model resolution failed: %v", err)
-		_ = ws.WriteState(featureID, *s)
+		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
 		return false, fmt.Errorf("model resolution failed: %w", err)
 	}
 	testModel, err := protocol.ResolveModel(cfg, s.Runner, protocol.RoleTester)
@@ -1096,7 +1152,7 @@ func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 		s.Active = false
 		s.StopReason = "model-error"
 		s.StopMessage = fmt.Sprintf("tester model resolution failed: %v", err)
-		_ = ws.WriteState(featureID, *s)
+		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
 		return false, fmt.Errorf("model resolution failed: %w", err)
 	}
 
@@ -1156,14 +1212,14 @@ func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 				s.Active = false
 				s.StopReason = "interrupted"
 				s.StopMessage = fmt.Sprintf("%s interrupted by signal (round %d)", o.role, round)
-				_ = ws.WriteState(featureID, *s)
+				logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
 				return false, ctx.Err()
 			}
 			s.Phase = protocol.PhaseNeedsAttention
 			s.Active = false
 			s.StopReason = "runner-error"
 			s.StopMessage = fmt.Sprintf("%s runner failed (round %d): %v", o.role, round, o.err)
-			_ = ws.WriteState(featureID, *s)
+			logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
 			ws.AppendEvent(featureID, protocol.Event{
 				Type: "run-end", Phase: protocol.PhaseReviewing, Role: o.role, Round: round,
 				Status: "error", Detail: o.err.Error(), Runner: s.Runner, Model: o.model,
@@ -1184,7 +1240,7 @@ func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 			s.Active = false
 			s.StopReason = "hard-error"
 			s.StopMessage = fmt.Sprintf("%s runner returned hard error (exit 2) during parallel review (round %d)", o.role, round)
-			_ = ws.WriteState(featureID, *s)
+			logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
 			return false, fmt.Errorf("runner returned hard error (exit 2)")
 		}
 	}
@@ -1193,9 +1249,9 @@ func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 			s.Phase = protocol.PhaseBlocked
 			s.Active = false
 			s.StopReason = "soft-fail"
-			s.StopMessage = fmt.Sprintf("%s runner returned soft-fail (exit 3) during parallel review (round %d)", o.role, round)
-			_ = ws.WriteState(featureID, *s)
-			_ = ws.SyncFeatureStatus(featureID, protocol.PhaseBlocked)
+			s.StopMessage = fmt.Sprintf("%s runner returned soft-fail (exit %d) during parallel review (round %d)", o.role, runner.ExitSoftFail, round)
+			logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+			logSyncErr(ws.SyncFeatureStatus(featureID, protocol.PhaseBlocked), featureID, protocol.PhaseBlocked)
 			return false, nil
 		}
 	}
@@ -1207,8 +1263,8 @@ func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 		guardMsg := strings.Join(guardResult.Errors, "; ")
 		s.StopReason = "guard-fail"
 		s.StopMessage = guardMsg
-		_ = ws.WriteState(featureID, *s)
-		_ = ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention)
+		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+		logSyncErr(ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention), featureID, protocol.PhaseNeedsAttention)
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "guard-fail", Phase: protocol.PhaseReviewing, Round: round,
 			Detail: guardMsg, Runner: s.Runner,
@@ -1259,17 +1315,42 @@ func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 	return parallelTransition(ws, featureID, s, protocol.PhaseDeepReviewing, protocol.RoleDeepReviewer)
 }
 
+// applyAmendingProgress 在轉入 amending 時更新 W1 無進展追蹤欄位（就地修改 st）。
+// 以 reviewRound（轉換前的 review 輪次）讀 review-report.md 的失敗計數，與上輪基準比較：
+// 持平或更差 → ConsecutiveNoProgress++；改善 → 歸零。首輪（尚無基準且 cur > 0）僅建立
+// LastFailCount，不 increment。序列路徑與平行 review/test 路徑共用此 helper，確保
+// ShouldStop（ConsecutiveNoProgress >= 3）在兩種模式下行為一致，不因路徑漂移而失效。
+func applyAmendingProgress(ws *protocol.Workspace, featureID string, st *protocol.State, reviewRound int) {
+	cur := reviewFailCount(ws, featureID, reviewRound)
+	// 首輪 amending（基準為 0 且本輪有失敗）僅建立基準；額外要求 cur > 0 避免
+	// review-report 缺失/格式異常使 cur 恆為 0 時「首輪」條件每輪成立、永遠無法遞增。
+	if st.LastFailCount == 0 && st.ConsecutiveNoProgress == 0 && cur > 0 {
+		// 僅建立基準，不 increment
+	} else if cur >= st.LastFailCount {
+		st.ConsecutiveNoProgress++
+	} else {
+		st.ConsecutiveNoProgress = 0
+	}
+	st.LastFailCount = cur
+}
+
 // parallelTransition 執行一次合法 state 轉換並寫回，供平行 review/test 合併後推進 phase。
+// 轉入 amending 時套用與序列路徑相同的 W1 無進展追蹤（applyAmendingProgress），
+// 用轉換前的 round 讀 review 失敗計數，確保 ShouldStop 在平行模式下同樣生效。
 func parallelTransition(ws *protocol.Workspace, featureID string, s *protocol.State, to protocol.Phase, role protocol.Role) (bool, error) {
+	reviewRound := s.Round
 	newState, err := state.Transition(*s, to, role)
 	if err != nil {
 		return false, fmt.Errorf("parallel transition %s→%s: %w", s.Phase, to, err)
+	}
+	if to == protocol.PhaseAmending {
+		applyAmendingProgress(ws, featureID, &newState, reviewRound)
 	}
 	*s = newState
 	if err := ws.WriteState(featureID, *s); err != nil {
 		return false, fmt.Errorf("write state (%s): %w", s.Phase, err)
 	}
-	_ = ws.SyncFeatureStatus(featureID, s.Phase)
+	logSyncErr(ws.SyncFeatureStatus(featureID, s.Phase), featureID, s.Phase)
 	ws.AppendEvent(featureID, protocol.Event{
 		Type: "transition", Phase: s.Phase, Role: s.Role, Round: s.Round, Runner: s.Runner,
 	})
@@ -1286,8 +1367,8 @@ func parallelNeedsAttention(ws *protocol.Workspace, featureID string, s *protoco
 	} else {
 		s.StopReason = "escalation"
 	}
-	_ = ws.WriteState(featureID, *s)
-	_ = ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention)
+	logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+	logSyncErr(ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention), featureID, protocol.PhaseNeedsAttention)
 	return false, nil
 }
 
@@ -1372,14 +1453,14 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 				s.Active = false
 				s.StopReason = "interrupted"
 				s.StopMessage = fmt.Sprintf("deep-reviewer interrupted by signal (round %d)", round)
-				_ = ws.WriteState(featureID, *s)
+				logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
 				return false, ctx.Err()
 			}
 			s.Phase = protocol.PhaseNeedsAttention
 			s.Active = false
 			s.StopReason = "runner-error"
 			s.StopMessage = fmt.Sprintf("deep-reviewer runner failed (round %d): %v", round, o.err)
-			_ = ws.WriteState(featureID, *s)
+			logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
 			ws.AppendEvent(featureID, protocol.Event{
 				Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleDeepReviewer, Round: round,
 				Status: "error", Detail: o.err.Error(), Runner: s.Runner, Model: deepModel,
@@ -1399,7 +1480,7 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 			s.Active = false
 			s.StopReason = "hard-error"
 			s.StopMessage = fmt.Sprintf("deep-reviewer runner returned hard error (exit 2) (round %d)", round)
-			_ = ws.WriteState(featureID, *s)
+			logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
 			return false, fmt.Errorf("runner returned hard error (exit 2)")
 		}
 	}
@@ -1409,9 +1490,9 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 			s.Phase = protocol.PhaseNeedsAttention
 			s.Active = false
 			s.StopReason = "deep-reviewer-soft-fail"
-			s.StopMessage = fmt.Sprintf("deep-reviewer runner returned soft-fail (exit 3) (round %d)", round)
-			_ = ws.WriteState(featureID, *s)
-			_ = ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention)
+			s.StopMessage = fmt.Sprintf("deep-reviewer runner returned soft-fail (exit %d) (round %d)", runner.ExitSoftFail, round)
+			logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+			logSyncErr(ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention), featureID, protocol.PhaseNeedsAttention)
 			return false, nil
 		}
 	}
@@ -1460,14 +1541,14 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 			s.Active = false
 			s.StopReason = "interrupted"
 			s.StopMessage = fmt.Sprintf("deep-review synthesizer interrupted by signal (round %d)", round)
-			_ = ws.WriteState(featureID, *s)
+			logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
 			return false, ctx.Err()
 		}
 		s.Phase = protocol.PhaseNeedsAttention
 		s.Active = false
 		s.StopReason = "runner-error"
 		s.StopMessage = fmt.Sprintf("deep-review synthesizer runner failed (round %d): %v", round, synthErr)
-		_ = ws.WriteState(featureID, *s)
+		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleSynthesizer, Round: round,
 			Status: "error", Detail: synthErr.Error(), Runner: s.Runner, Model: synthModel,
@@ -1483,7 +1564,7 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 		s.Active = false
 		s.StopReason = "hard-error"
 		s.StopMessage = fmt.Sprintf("deep-review synthesizer returned hard error (exit 2) (round %d)", round)
-		_ = ws.WriteState(featureID, *s)
+		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
 		return false, fmt.Errorf("runner returned hard error (exit 2)")
 	}
 	if runner.IsSoftFail(synthRes) {
@@ -1491,9 +1572,9 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 		s.Phase = protocol.PhaseNeedsAttention
 		s.Active = false
 		s.StopReason = "synthesizer-soft-fail"
-		s.StopMessage = fmt.Sprintf("deep-review synthesizer returned soft-fail (exit 3) (round %d)", round)
-		_ = ws.WriteState(featureID, *s)
-		_ = ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention)
+		s.StopMessage = fmt.Sprintf("deep-review synthesizer returned soft-fail (exit %d) (round %d)", runner.ExitSoftFail, round)
+		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+		logSyncErr(ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention), featureID, protocol.PhaseNeedsAttention)
 		return false, nil
 	}
 
@@ -1523,7 +1604,7 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 		s.Active = false
 		s.StopReason = "profile-error"
 		s.StopMessage = fmt.Sprintf("deep-reviewer profile resolution failed: %v", err)
-		_ = ws.WriteState(featureID, *s)
+		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
 		return false, fmt.Errorf("resolve profile: %w", err)
 	}
 
@@ -1533,7 +1614,7 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 		s.Active = false
 		s.StopReason = "model-error"
 		s.StopMessage = fmt.Sprintf("deep-reviewer model resolution failed: %v", err)
-		_ = ws.WriteState(featureID, *s)
+		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
 		return false, fmt.Errorf("deep model resolution failed: %w", err)
 	}
 	if deepModel == "" {
@@ -1545,7 +1626,7 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 		if err := ws.WriteState(featureID, *s); err != nil {
 			return false, fmt.Errorf("write state (skip deep-review): %w", err)
 		}
-		_ = ws.SyncFeatureStatus(featureID, s.Phase)
+		logSyncErr(ws.SyncFeatureStatus(featureID, s.Phase), featureID, s.Phase)
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "transition", Phase: s.Phase, Role: s.Role, Round: round,
 			Runner: s.Runner, Detail: "deep_model not configured, skipping deep review",
@@ -1598,7 +1679,7 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 		s.Active = false
 		s.StopReason = "model-error"
 		s.StopMessage = fmt.Sprintf("coder model resolution failed: %v", err)
-		_ = ws.WriteState(featureID, *s)
+		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
 		return false, fmt.Errorf("coder model resolution failed: %w", err)
 	}
 	reviewModel, err := protocol.ResolveModel(cfg, s.Runner, protocol.RoleReviewer)
@@ -1606,7 +1687,7 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 		s.Active = false
 		s.StopReason = "model-error"
 		s.StopMessage = fmt.Sprintf("reviewer model resolution failed: %v", err)
-		_ = ws.WriteState(featureID, *s)
+		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
 		return false, fmt.Errorf("reviewer model resolution failed: %w", err)
 	}
 
@@ -1642,8 +1723,8 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 			s.Active = false
 			s.StopReason = "scope-exceed"
 			s.StopMessage = "deep-fix scope exceeded: " + reason
-			_ = ws.WriteState(featureID, *s)
-			_ = ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention)
+			logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+			logSyncErr(ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention), featureID, protocol.PhaseNeedsAttention)
 			ws.AppendEvent(featureID, protocol.Event{
 				Type: "guard-fail", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleMiniCoder,
 				Round: round, Detail: s.StopMessage, Runner: s.Runner,
@@ -1679,8 +1760,8 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 	s.Active = false
 	s.StopReason = "self-heal-exhausted"
 	s.StopMessage = fmt.Sprintf("deep-review self-heal exhausted after %d iterations", maxFix)
-	_ = ws.WriteState(featureID, *s)
-	_ = ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention)
+	logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+	logSyncErr(ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention), featureID, protocol.PhaseNeedsAttention)
 	ws.AppendEvent(featureID, protocol.Event{
 		Type: "escalation", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleDeepReviewer,
 		Round: round, Detail: s.StopMessage, Runner: s.Runner, Notify: protocol.NotifyWarning,
@@ -1740,14 +1821,14 @@ func runDeepSubRole(ctx context.Context, ws *protocol.Workspace, runnerWs *proto
 			s.Active = false
 			s.StopReason = "interrupted"
 			s.StopMessage = fmt.Sprintf("deep-reviewing (%s) interrupted by signal (round %d)", role, round)
-			_ = ws.WriteState(featureID, *s)
+			logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
 			return false, ctx.Err()
 		}
 		s.Phase = protocol.PhaseNeedsAttention
 		s.Active = false
 		s.StopReason = "runner-error"
 		s.StopMessage = fmt.Sprintf("deep-reviewing (%s) runner failed (round %d): %v", role, round, runErr)
-		_ = ws.WriteState(featureID, *s)
+		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: role, Round: round,
 			Status: "error", Detail: runErr.Error(), Runner: s.Runner, Model: model,
@@ -1764,16 +1845,16 @@ func runDeepSubRole(ctx context.Context, ws *protocol.Workspace, runnerWs *proto
 		s.Active = false
 		s.StopReason = "hard-error"
 		s.StopMessage = fmt.Sprintf("deep-reviewing (%s) runner returned hard error (exit 2) (round %d)", role, round)
-		_ = ws.WriteState(featureID, *s)
+		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
 		return false, fmt.Errorf("runner returned hard error (exit 2)")
 	}
 	if runner.IsSoftFail(result) {
 		s.Phase = protocol.PhaseBlocked
 		s.Active = false
 		s.StopReason = "soft-fail"
-		s.StopMessage = fmt.Sprintf("deep-reviewing (%s) runner returned soft-fail (exit 3) (round %d)", role, round)
-		_ = ws.WriteState(featureID, *s)
-		_ = ws.SyncFeatureStatus(featureID, protocol.PhaseBlocked)
+		s.StopMessage = fmt.Sprintf("deep-reviewing (%s) runner returned soft-fail (exit %d) (round %d)", role, runner.ExitSoftFail, round)
+		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+		logSyncErr(ws.SyncFeatureStatus(featureID, protocol.PhaseBlocked), featureID, protocol.PhaseBlocked)
 		return false, nil
 	}
 	return true, nil
@@ -1791,8 +1872,8 @@ func deepGuardCheck(ws *protocol.Workspace, featureID string, s *protocol.State,
 	guardMsg := strings.Join(guardResult.Errors, "; ")
 	s.StopReason = "guard-fail"
 	s.StopMessage = guardMsg
-	_ = ws.WriteState(featureID, *s)
-	_ = ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention)
+	logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+	logSyncErr(ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention), featureID, protocol.PhaseNeedsAttention)
 	ws.AppendEvent(featureID, protocol.Event{
 		Type: "guard-fail", Phase: protocol.PhaseDeepReviewing, Role: role,
 		Round: s.Round, Detail: guardMsg, Runner: s.Runner,
@@ -1813,7 +1894,7 @@ func deepTransitionAccepting(ws *protocol.Workspace, featureID string, s *protoc
 	if err := ws.WriteState(featureID, *s); err != nil {
 		return false, fmt.Errorf("write state (accepting): %w", err)
 	}
-	_ = ws.SyncFeatureStatus(featureID, s.Phase)
+	logSyncErr(ws.SyncFeatureStatus(featureID, s.Phase), featureID, s.Phase)
 	ws.AppendEvent(featureID, protocol.Event{
 		Type: "transition", Phase: s.Phase, Role: s.Role, Round: s.Round, Runner: s.Runner,
 	})

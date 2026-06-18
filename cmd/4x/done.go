@@ -47,9 +47,11 @@ func markDone(ws *protocol.Workspace, featureID string) error {
 		return fmt.Errorf("feature %s is in phase %q, not pending-review", featureID, s.Phase)
 	}
 
+	// config 載入失敗不可降級為零值 Config{} 續跑 merge：零值會選錯 mono/multi
+	// 策略而把分支 merge 到錯誤的目標，與 run 路徑一致直接中斷（見 run.go LoadMergedConfig）。
 	cfg, err := ws.LoadMergedConfig()
 	if err != nil {
-		slog.Warn("cannot read config, using defaults", "error", err)
+		return fmt.Errorf("cannot load config for %s: %w", featureID, err)
 	}
 
 	f, _ := ws.LoadFeature(featureID)
@@ -114,7 +116,7 @@ func finalizeDone(ws *protocol.Workspace, featureID string, s protocol.State) er
 		return err
 	}
 
-	ws.SyncFeatureStatus(featureID, protocol.PhaseDone)
+	logSyncErr(ws.SyncFeatureStatus(featureID, protocol.PhaseDone), featureID, protocol.PhaseDone)
 
 	return ws.AppendEvent(featureID, protocol.Event{
 		Type:  "transition",

@@ -177,6 +177,7 @@ func (m *multiRepo) Merge(featureID, featureName string) MergeResult {
 		if err != nil {
 			files := conflictFiles(rh.repoPath)
 			exec.Command("git", "-C", rh.repoPath, "merge", "--abort").Run()
+			exec.Command("git", "-C", rh.repoPath, "reset", "--hard", "HEAD").Run()
 
 			for _, done := range merged {
 				exec.Command("git", "-C", done.repoPath, "reset", "--hard", done.head).Run()
