@@ -1,20 +1,20 @@
 id: F090-custom-profile-system
 name: 'F090: Custom profile system with per-phase runner and model'
 description: |-
-  重構 profile 系統，從固定 role list 改為 phase list + per-phase runner/model 覆寫。
+    重構 profile 系統，從固定 role list 改為 phase list + per-phase runner/model 覆寫。
 
-  現狀：ProfileConfig 只有 Roles[]string 和 CoderModel，runner 是 per-run 全域一個，model 覆寫只支援 coder。
+    現狀：ProfileConfig 只有 Roles[]string 和 CoderModel，runner 是 per-run 全域一個，model 覆寫只支援 coder。
 
-  目標：
-  (1) profile 改為 phases 列表，每個 phase 可選 runner 和 model
-  (2) roles config 作為預設 model + instructions 的底層
-  (3) 覆寫優先序：4x run 手動選 > feature YAML phase_overrides > profile per-phase > roles config > default_runner
-  (4) 4x run terminal 畫面讓 user 選 profile
-  (5) settings 加 default_profile 欄位（預設 full）
-  (6) 廢棄 CoderModel，改用統一的覆寫機制
+    目標：
+    (1) profile 改為 phases 列表，每個 phase 可選 runner 和 model
+    (2) roles config 作為預設 model + instructions 的底層
+    (3) 覆寫優先序：4x run 手動選 > feature YAML phase_overrides > profile per-phase > roles config > default_runner
+    (4) 4x run terminal 畫面讓 user 選 profile
+    (5) settings 加 default_profile 欄位（預設 full）
+    (6) 廢棄 CoderModel，改用統一的覆寫機制
 
-  約束：profile 的 phases 只能從 state machine 白名單選；coder 仍為必要 role。
-status: not-started
+    約束：profile 的 phases 只能從 state machine 白名單選；coder 仍為必要 role。
+status: in-progress
 priority: 1
 subtasks:
     - id: profile-struct
