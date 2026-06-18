@@ -44,6 +44,7 @@ const (
 	TestReport        = "test-report.md"
 	VerifyFile        = "verify.json"
 	EscalationFile    = "escalation.json"
+	StopFile          = "stop"
 	BatchStopFile     = "batch-stop"
 	BatchConflictFile = "batch-conflict.json"
 	BatchReportFile   = "batch-report.json"
@@ -533,10 +534,19 @@ func (w *Workspace) WriteState(featureID string, s State) error {
 	if err != nil {
 		return err
 	}
+	return atomicWriteFile(w.FeatureDir(featureID), StateFile, ".state-*.json", data, 0o644)
+}
 
-	dir := w.FeatureDir(featureID)
-	// temp file 必須與 state.json 同目錄，確保位於同一 filesystem，os.Rename 才保證 atomic。
-	tmp, err := os.CreateTemp(dir, ".state-*.json")
+// atomicWriteFile 以「同目錄 temp file + os.Rename」原子寫入 finalName。
+//
+// 直接 os.WriteFile 會先 truncate 再寫，這段空窗期內 concurrent 的讀者可能讀到
+// 截斷或半寫的內容而解析失敗。改用同目錄 temp file（tmpPattern 為 os.CreateTemp
+// 的 pattern）寫完再 atomic rename 覆蓋，讓讀者永遠看到完整的舊檔或完整的新檔。
+//
+// temp file 必須與目標同目錄以確保位於同一 filesystem，os.Rename 才保證 atomic。
+// payload 的結尾換行等差異由呼叫端在 data 內自行決定。
+func atomicWriteFile(dir, finalName, tmpPattern string, data []byte, perm os.FileMode) error {
+	tmp, err := os.CreateTemp(dir, tmpPattern)
 	if err != nil {
 		return err
 	}
@@ -551,11 +561,11 @@ func (w *Workspace) WriteState(featureID string, s State) error {
 		os.Remove(tmpPath)
 		return err
 	}
-	if err := os.Chmod(tmpPath, 0o644); err != nil {
+	if err := os.Chmod(tmpPath, perm); err != nil {
 		os.Remove(tmpPath)
 		return err
 	}
-	if err := os.Rename(tmpPath, filepath.Join(dir, StateFile)); err != nil {
+	if err := os.Rename(tmpPath, filepath.Join(dir, finalName)); err != nil {
 		os.Remove(tmpPath)
 		return err
 	}
@@ -583,6 +593,33 @@ func (w *Workspace) AppendEvent(featureID string, evt Event) error {
 	return err
 }
 
+// RequestStop 在 feature dir 下原子寫入 stop signal 檔，請求 run loop 停止該 feature。
+//
+// 採 signal file（對齊既有 BatchStopFile 機制）而非直接改寫 state.json：state.json
+// 的唯一 writer 收斂為 run loop，外部（如 MCP stop）只下「請求停止」信號，避免兩個
+// writer 競寫整份 state.json 而用過時快照覆蓋掉 loop 剛寫入的 phase／round 進度。
+//
+// 語意上 stop 為「請求」：若目標 feature 已無存活 loop，signal 不會被消費，
+// 留待既有 ReconcileActive 在下次 ReadState 校正 Active。
+func (w *Workspace) RequestStop(featureID string) error {
+	return atomicWriteFile(w.FeatureDir(featureID), StopFile, ".stop-*", []byte("mcp-stop\n"), 0o644)
+}
+
+// StopRequested 回傳 feature dir 下是否存在 stop signal 檔。
+func (w *Workspace) StopRequested(featureID string) bool {
+	_, err := os.Stat(filepath.Join(w.FeatureDir(featureID), StopFile))
+	return err == nil
+}
+
+// ClearStopSignal 刪除 feature 的 stop signal 檔；檔案不存在時不視為錯誤（比照 ClearBatchConflict）。
+func (w *Workspace) ClearStopSignal(featureID string) error {
+	err := os.Remove(filepath.Join(w.FeatureDir(featureID), StopFile))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
 // WriteBatchConflict 將 batch auto-merge 衝突信號寫入 .4x/batch-conflict.json，
 // 供 dashboard 顯示衝突細節並提供 Continue Batch 操作。
 func (w *Workspace) WriteBatchConflict(c BatchConflict) error {
@@ -590,7 +627,9 @@ func (w *Workspace) WriteBatchConflict(c BatchConflict) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(w.DotDir(), BatchConflictFile), append(data, '\n'), 0o644)
+	// 原子寫入：dashboard 可能在寫入過程中 ReadBatchConflict，非原子的 os.WriteFile
+	// 會讓讀者撞上截斷／半寫的 JSON 而 Unmarshal 失敗。
+	return atomicWriteFile(w.DotDir(), BatchConflictFile, ".batch-conflict-*.json", append(data, '\n'), 0o644)
 }
 
 // ReadBatchConflict 讀取 .4x/batch-conflict.json；檔案不存在時回 (nil, nil) 代表目前無衝突。
@@ -625,30 +664,7 @@ func (w *Workspace) WriteBatchReport(r BatchReport) error {
 	if err != nil {
 		return err
 	}
-	dir := w.DotDir()
-	tmp, err := os.CreateTemp(dir, ".batch-report-*.json")
-	if err != nil {
-		return err
-	}
-	tmpPath := tmp.Name()
-	if _, err := tmp.Write(append(data, '\n')); err != nil {
-		tmp.Close()
-		os.Remove(tmpPath)
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		os.Remove(tmpPath)
-		return err
-	}
-	if err := os.Chmod(tmpPath, 0o644); err != nil {
-		os.Remove(tmpPath)
-		return err
-	}
-	if err := os.Rename(tmpPath, filepath.Join(dir, BatchReportFile)); err != nil {
-		os.Remove(tmpPath)
-		return err
-	}
-	return nil
+	return atomicWriteFile(w.DotDir(), BatchReportFile, ".batch-report-*.json", append(data, '\n'), 0o644)
 }
 
 // ReadBatchReport 讀取 .4x/batch-report.json；檔案不存在時回 (nil, nil) 代表尚無 batch 報告。

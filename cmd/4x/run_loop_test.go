@@ -34,6 +34,9 @@ type mockRunner struct {
 	roles            []protocol.Role
 	prompts          []string
 	baselineAtCoding []bool
+	// stopAfterPhase 非空時，runner 在跑完該 phase 後寫入 stop signal，
+	// 模擬 MCP stop 在 run loop 執行中送出停止請求（F082）。零值不觸發。
+	stopAfterPhase protocol.Phase
 }
 
 func (m *mockRunner) Run(_ context.Context, prompt string) (*runner.Result, error) {
@@ -122,6 +125,10 @@ func (m *mockRunner) Run(_ context.Context, prompt string) (*runner.Result, erro
 		}
 	}
 
+	if m.stopAfterPhase != "" && s.Phase == m.stopAfterPhase {
+		m.ws.RequestStop(m.featureID)
+	}
+
 	return &runner.Result{ExitCode: 0}, nil
 }
 
@@ -188,6 +195,76 @@ func TestRunLoop_HappyPath(t *testing.T) {
 		if mock.phases[i] != p {
 			t.Errorf("phase[%d] = %s, want %s", i, mock.phases[i], p)
 		}
+	}
+}
+
+// F082：run loop 偵測到 MCP stop signal 時應收斂 Active=false、StopReason=mcp-stop，
+// 並清除 signal 檔；後續 phase 不再執行。
+func TestRunLoop_StopSignalStopsLoop(t *testing.T) {
+	ws := setupLoopWorkspace(t, "feat-stop")
+	feature, _ := ws.LoadFeature("feat-stop")
+	cfg, _ := ws.ReadConfig()
+
+	s := protocol.State{
+		FeatureID: "feat-stop", Phase: protocol.PhaseInit,
+		MaxRounds: 5, Active: true, Runner: "mock",
+	}
+	ws.WriteState("feat-stop", s)
+
+	// designing 跑完即送出 stop signal；下一輪 loop 開頭應偵測並停止。
+	mock := &mockRunner{ws: ws, featureID: "feat-stop", stopAfterPhase: protocol.PhaseDesigning}
+
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+		t.Fatalf("runLoop error: %v", err)
+	}
+
+	final, _ := ws.ReadState("feat-stop")
+	if final.Active {
+		t.Error("state should be inactive after stop signal")
+	}
+	if final.StopReason != "mcp-stop" {
+		t.Errorf("stopReason = %q, want mcp-stop", final.StopReason)
+	}
+	// 只跑了 designing，未進入 reviewing/testing 等後續 phase。
+	for _, p := range mock.phases {
+		if p == protocol.PhaseReviewing || p == protocol.PhaseTesting || p == protocol.PhaseAccepting {
+			t.Errorf("phase %s ran after stop signal, want loop to stop early; phases=%v", p, mock.phases)
+		}
+	}
+	// signal 檔應已被 loop 消費清除。
+	if ws.StopRequested("feat-stop") {
+		t.Error("stop signal should be cleared after loop consumes it")
+	}
+}
+
+// F082：loop 啟動時應清除殘留的 stop signal，避免上一輪遺留的請求誤觸本輪一啟動即停。
+func TestRunLoop_ClearsResidualStopSignalAtStartup(t *testing.T) {
+	ws := setupLoopWorkspace(t, "feat-residual")
+	feature, _ := ws.LoadFeature("feat-residual")
+	cfg, _ := ws.ReadConfig()
+
+	s := protocol.State{
+		FeatureID: "feat-residual", Phase: protocol.PhaseInit,
+		MaxRounds: 5, Active: true, Runner: "mock",
+	}
+	ws.WriteState("feat-residual", s)
+
+	// 啟動前放下殘留 signal；loop 應在進入主迴圈前清掉，正常跑完整條流程。
+	if err := ws.RequestStop("feat-residual"); err != nil {
+		t.Fatal(err)
+	}
+
+	mock := &mockRunner{ws: ws, featureID: "feat-residual", outcomes: []mockOutcome{
+		{}, {}, {reviewVerdict: "PASS"}, {testPassed: true}, {},
+	}}
+
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string) runner.Runner { return mock }, "never"); err != nil {
+		t.Fatalf("runLoop error: %v", err)
+	}
+
+	final, _ := ws.ReadState("feat-residual")
+	if final.Phase != protocol.PhasePendingReview {
+		t.Errorf("phase = %s, want pending-review (residual signal should not stop the run)", final.Phase)
 	}
 }
 

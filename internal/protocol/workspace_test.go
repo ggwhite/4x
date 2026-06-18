@@ -1054,6 +1054,96 @@ func TestWriteState_Atomic_NoPartialRead(t *testing.T) {
 	}
 }
 
+// F082：stop signal 三個 helper 的生命週期 — 請求、偵測、清除。
+func TestStopSignalLifecycle(t *testing.T) {
+	ws := setupWorkspace(t)
+	const fid = "F082-stop"
+	if err := ws.InitFeatureDir(fid); err != nil {
+		t.Fatal(err)
+	}
+
+	if ws.StopRequested(fid) {
+		t.Fatal("StopRequested = true before any request, want false")
+	}
+	if err := ws.RequestStop(fid); err != nil {
+		t.Fatalf("RequestStop: %v", err)
+	}
+	if !ws.StopRequested(fid) {
+		t.Error("StopRequested = false after RequestStop, want true")
+	}
+	if err := ws.ClearStopSignal(fid); err != nil {
+		t.Fatalf("ClearStopSignal: %v", err)
+	}
+	if ws.StopRequested(fid) {
+		t.Error("StopRequested = true after ClearStopSignal, want false")
+	}
+	// 重複清除（檔案不存在）不應視為錯誤。
+	if err := ws.ClearStopSignal(fid); err != nil {
+		t.Errorf("ClearStopSignal on missing file: %v", err)
+	}
+}
+
+// F082：WriteBatchConflict 原子寫入 — 並行讀者不應讀到截斷／半寫的 JSON。
+func TestWriteBatchConflict_Atomic_NoPartialRead(t *testing.T) {
+	ws := setupWorkspace(t)
+
+	var wg sync.WaitGroup
+	stop := make(chan struct{})
+
+	// writer：持續以不同 Files 長度覆寫，放大半寫窗口。
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for round := 0; ; round++ {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			c := BatchConflict{
+				FeatureID:    "F099",
+				FeatureName:  strings.Repeat("x", round%128),
+				ConflictRepo: "core",
+				Files:        []string{"a.go", "b.go", "c.go"},
+				DetectedAt:   time.Now().UTC(),
+			}
+			if err := ws.WriteBatchConflict(c); err != nil {
+				t.Errorf("WriteBatchConflict: %v", err)
+				return
+			}
+		}
+	}()
+
+	// readers：任何一次讀到 partial JSON 都會讓 ReadBatchConflict 回 error。
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 500; j++ {
+				if _, err := ws.ReadBatchConflict(); err != nil {
+					t.Errorf("ReadBatchConflict saw partial/truncated content: %v", err)
+					return
+				}
+			}
+		}()
+	}
+
+	time.Sleep(50 * time.Millisecond)
+	close(stop)
+	wg.Wait()
+
+	// 不該有殘留的 .batch-conflict-*.json temp 檔。
+	entries, err := os.ReadDir(ws.DotDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), ".batch-conflict-") {
+			t.Errorf("leftover temp file: %s", e.Name())
+		}
+	}
+}
+
 // AC-2：WriteBatchConflict → ReadBatchConflict 取回相同內容。
 func TestBatchConflictRoundtrip(t *testing.T) {
 	ws := setupWorkspace(t)

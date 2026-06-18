@@ -243,6 +243,52 @@ func TestPhaseToRole(t *testing.T) {
 	}
 }
 
+// TestCanTransition_TerminalCannotTransitionOut 驗證 done／abandoned 為不可逆終態，
+// 任何轉出（含 universal target）都不合法。
+func TestCanTransition_TerminalCannotTransitionOut(t *testing.T) {
+	tests := []struct {
+		from protocol.Phase
+		to   protocol.Phase
+	}{
+		{protocol.PhaseDone, protocol.PhaseBlocked},
+		{protocol.PhaseDone, protocol.PhaseNeedsAttention},
+		{protocol.PhaseDone, protocol.PhaseDone},
+		{protocol.PhaseDone, protocol.PhaseAbandoned},
+		{protocol.PhaseAbandoned, protocol.PhaseBlocked},
+		{protocol.PhaseAbandoned, protocol.PhaseNeedsAttention},
+		{protocol.PhaseAbandoned, protocol.PhaseDone},
+		{protocol.PhaseAbandoned, protocol.PhaseAbandoned},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.from)+"→"+string(tt.to), func(t *testing.T) {
+			if CanTransition(tt.from, tt.to) {
+				t.Errorf("CanTransition(%s, %s) = true, want false (terminal is irreversible)", tt.from, tt.to)
+			}
+		})
+	}
+}
+
+// TestShouldStop_MaxRoundsZeroSkipsCheck 驗證 MaxRounds<=0 代表不設上限，
+// run 一開始（Round=0）不應立即觸發 max rounds 停止。
+func TestShouldStop_MaxRoundsZeroSkipsCheck(t *testing.T) {
+	for _, max := range []int{0, -1} {
+		s := protocol.State{Round: 0, MaxRounds: max}
+		if stop, reason := ShouldStop(s); stop {
+			t.Errorf("ShouldStop(MaxRounds=%d) = true (%q), want false", max, reason)
+		}
+		// 即使 round 已推進，無上限時仍不因 max rounds 停止。
+		s = protocol.State{Round: 99, MaxRounds: max}
+		if stop, _ := ShouldStop(s); stop {
+			t.Errorf("ShouldStop(Round=99, MaxRounds=%d) = true, want false", max)
+		}
+	}
+	// 無上限時 ConsecutiveNoProgress 條件仍應生效。
+	s := protocol.State{Round: 5, MaxRounds: 0, ConsecutiveNoProgress: 3}
+	if stop, _ := ShouldStop(s); !stop {
+		t.Error("ShouldStop(MaxRounds=0, NoProgress=3) = false, want true")
+	}
+}
+
 func TestShouldStop_MaxRounds(t *testing.T) {
 	s := protocol.State{Round: 5, MaxRounds: 5}
 	stop, reason := ShouldStop(s)

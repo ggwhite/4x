@@ -22,8 +22,16 @@ var transitions = map[protocol.Phase][]protocol.Phase{
 	protocol.PhaseNeedsAttention: {protocol.PhaseDesigning, protocol.PhaseCoding, protocol.PhaseReviewing, protocol.PhaseTesting, protocol.PhaseDeepReviewing, protocol.PhaseAmending, protocol.PhaseAccepting},
 }
 
-// CanTransition 檢查從 from 到 to 是否合法
+// CanTransition 檢查從 from 到 to 是否合法。
+//
+// done 與 abandoned 是不可逆終態：一旦 feature 進入終態，任何轉出（含轉到
+// blocked／needs-attention 等 universal target）都不合法，一律回 false，
+// 避免已結束的 feature 被重新喚醒。其餘 phase 才適用 universal-target 放行與
+// transitions 轉換表。
 func CanTransition(from, to protocol.Phase) bool {
+	if from == protocol.PhaseDone || from == protocol.PhaseAbandoned {
+		return false
+	}
 	if to == protocol.PhaseBlocked || to == protocol.PhaseNeedsAttention || to == protocol.PhaseDone || to == protocol.PhaseAbandoned {
 		return true
 	}
@@ -116,9 +124,13 @@ func PhaseToRole(p protocol.Phase) protocol.Role {
 	}
 }
 
-// ShouldStop 檢查是否觸發停止條件
+// ShouldStop 檢查是否觸發停止條件。
+//
+// MaxRounds<=0 代表「不設 max rounds 上限」（未指定上限的語意）：此時跳過
+// max rounds 檢查，避免 Round(0) >= MaxRounds(0) 在 run 一開始就誤判停止，
+// 僅保留 ConsecutiveNoProgress>=3 的停止條件。
 func ShouldStop(s protocol.State) (bool, string) {
-	if s.Round >= s.MaxRounds {
+	if s.MaxRounds > 0 && s.Round >= s.MaxRounds {
 		return true, fmt.Sprintf("reached max rounds (%d)", s.MaxRounds)
 	}
 	if s.ConsecutiveNoProgress >= 3 {

@@ -75,21 +75,21 @@ func (h *Handlers) Run(ctx context.Context, input RunInput) (json.RawMessage, er
 	return h.Exec(ctx, args...)
 }
 
-// Stop 透過將 state.json 的 Active 設為 false 來停止正在執行的 feature 迴圈。
+// Stop 請求停止正在執行的 feature 迴圈。
+//
+// 採 signal file 而非直接改寫 state.json：避免與正在跑的 run loop 並行寫入時，
+// 用過時快照覆蓋掉 loop 剛寫入的 phase／round 進度。本 handler 只寫「請求停止」
+// 信號，由 run loop 作為 state.json 的唯一 writer 在下一輪開頭消費信號並收斂
+// Active=false。語意為「請求」：若目標 feature 已無存活 loop，信號留待既有
+// ReconcileActive 校正。
 func (h *Handlers) Stop(ctx context.Context, input StopInput) (json.RawMessage, error) {
 	ws := &protocol.Workspace{Root: h.WorkspaceRoot}
 	featureID, err := ws.ResolveFeatureID(input.FeatureID)
 	if err != nil {
 		return nil, fmt.Errorf("resolve feature ID %s: %w", input.FeatureID, err)
 	}
-	s, err := ws.ReadState(featureID)
-	if err != nil {
-		return nil, fmt.Errorf("read state for %s: %w", featureID, err)
-	}
-	s.Active = false
-	s.StopReason = "mcp-stop"
-	if err := ws.WriteState(featureID, s); err != nil {
-		return nil, fmt.Errorf("write state for %s: %w", featureID, err)
+	if err := ws.RequestStop(featureID); err != nil {
+		return nil, fmt.Errorf("request stop for %s: %w", featureID, err)
 	}
 	result, _ := json.Marshal(struct {
 		FeatureID string `json:"featureId"`

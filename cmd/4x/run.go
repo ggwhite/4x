@@ -540,6 +540,12 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 	// 讀到不完整的 report 誤以為 phase 完成
 	cleanStaleArtifact(ws, featureID, s.Phase, s.Round)
 
+	// F082：清掉殘留的 stop signal，避免上一輪遺留的請求誤觸本輪一啟動即停
+	//（比照 batch 對 BatchStopFile 的處理）。
+	if err := ws.ClearStopSignal(featureID); err != nil {
+		slog.Warn("clear stop signal failed", "feature", featureID, "error", err)
+	}
+
 	designerEscalations := 0
 	const maxDesignerEscalations = 2
 
@@ -560,6 +566,20 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 				slog.Warn("write state failed", "feature", featureID, "error", err)
 			}
 			return ctx.Err()
+		}
+
+		// F082：消費 MCP stop 請求。run loop 為 state.json 的唯一 writer，
+		// 在此收斂 Active=false 並清除 signal，避免外部直接改寫 state.json 競寫。
+		if ws.StopRequested(featureID) {
+			s.Active = false
+			s.StopReason = "mcp-stop"
+			if err := ws.ClearStopSignal(featureID); err != nil {
+				slog.Warn("clear stop signal failed", "feature", featureID, "error", err)
+			}
+			if err := ws.WriteState(featureID, s); err != nil {
+				slog.Warn("write state failed", "feature", featureID, "error", err)
+			}
+			break
 		}
 
 		phase := s.Phase

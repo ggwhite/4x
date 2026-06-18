@@ -100,6 +100,42 @@ func TestBatchReport_S1StoppedByStopFile(t *testing.T) {
 	}
 }
 
+// F082：batch 啟動前的 alive guard — 若 feature 已被存活 process 執行中
+//（Active=true 且 PID 存活），跳過不啟動，避免並行跑同一 feature；batch graceful
+// skip，不終止整個排程。
+func TestRunBatchSchedule_SkipsAliveFeature(t *testing.T) {
+	ws := setupLoopWorkspace(t, "feat-alive")
+	batchTestFeature(t, ws, "feat-alive", nil)
+	// 以 parent process PID 模擬「另一個存活 process 正在跑該 feature」
+	//（須與 batch 自身 PID 不同，否則會被 self-PID 排除）。
+	ws.WriteState("feat-alive", protocol.State{
+		FeatureID: "feat-alive",
+		Phase:     protocol.PhaseCoding,
+		Active:    true,
+		Pid:       os.Getppid(),
+	})
+
+	plan := &batch.BatchPlan{Schedule: []batch.ScheduleEntry{{FeatureID: "feat-alive"}}}
+	statusMap := map[string]feature.Status{"feat-alive": "in-progress"}
+
+	executed := 0
+	runFeature := func(next string, f feature.Feature, s protocol.State) (feature.Status, error) {
+		executed++
+		return feature.StatusReadyForReview, nil
+	}
+
+	completed := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, true, nil, nil)
+	if executed != 0 {
+		t.Fatalf("runFeature executed %d times, want 0 (feature already running)", executed)
+	}
+	if completed != 0 {
+		t.Errorf("completed = %d, want 0", completed)
+	}
+	if statusMap["feat-alive"] != feature.StatusInProgress {
+		t.Errorf("statusMap[feat-alive] = %s, want in-progress", statusMap["feat-alive"])
+	}
+}
+
 // AC-4 / S1 回歸測試：snapshot 殘留 runningFeature（末位 feature 走 error-continue 路徑後
 // 未清空）時，S1（completed/stopped，outcomeOverride==""）的報告必須清空 RunningFeature——
 // completed/stopped 報告語義上不該有「正在跑的 feature」。鎖住 round 3 deep-review 找到的回歸。

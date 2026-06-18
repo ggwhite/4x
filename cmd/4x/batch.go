@@ -577,6 +577,19 @@ func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap m
 			CreatedAt: time.Now(),
 		}
 		if existing, err := ws.ReadState(next); err == nil {
+			// F082：啟動前的 alive guard（對齊 4x run 的樣板）。若該 feature 已被
+			// 另一個存活 process 執行中，跳過不啟動，避免兩個 process 並行跑同一
+			// feature、互相覆蓋 state.json。batch 情境下以 graceful skip 處理，
+			// 不終止整個 batch，讓排程繼續排其他 feature。
+			// 排除本 process 自己的 PID：batch 在跑 feature 前會把自身 PID 寫入
+			// state，重選同一 feature 時不能把自己誤判為「外部並行的 process」。
+			if existing.Active && existing.Pid != os.Getpid() && protocol.ProcessAlive(existing.Pid) {
+				fmt.Printf("  skipping %s: already running (pid %d)\n", next, existing.Pid)
+				statusMap[next] = feat.StatusInProgress
+				failedFeatures[next]++
+				progress.update(statusMap)
+				continue
+			}
 			s = existing
 			s.Active = true
 		}

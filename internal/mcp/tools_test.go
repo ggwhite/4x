@@ -112,15 +112,22 @@ func TestStopTool(t *testing.T) {
 	if !parsed.Stopped {
 		t.Error("stopped should be true")
 	}
+	if parsed.FeatureID != "F001-test" {
+		t.Errorf("featureId = %q, want F001-test", parsed.FeatureID)
+	}
 
-	// 確認 state.json 被改了
+	// F082：Stop 改為寫 stop signal 檔，不直接改寫 state.json，避免與 run loop 競寫。
+	// 確認 state.json 維持原樣（仍 active），由 run loop 後續消費 signal 才收斂。
 	data, _ := os.ReadFile(filepath.Join(featureDir, "state.json"))
 	var s protocol.State
 	json.Unmarshal(data, &s)
-	if s.Active {
-		t.Error("state should be inactive")
+	if !s.Active {
+		t.Error("state.json should be left untouched by Stop (run loop is the sole writer)")
 	}
-	if s.StopReason != "mcp-stop" {
-		t.Errorf("stopReason = %q, want mcp-stop", s.StopReason)
+
+	// 確認 stop signal 檔被建立。
+	ws := &protocol.Workspace{Root: dir}
+	if !ws.StopRequested("F001-test") {
+		t.Error("stop signal file should exist after Stop")
 	}
 }
