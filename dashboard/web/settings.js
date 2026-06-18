@@ -32,6 +32,7 @@ function startRefreshTimer() {
     if (!current) return;
     if (activeDetailTab === 'messages') loadMessages(current);
     if (activeDetailTab === 'logs') loadLogs(current);
+    if (activeDetailTab === 'screenshots') loadScreenshots(current);
   }, settings.refresh*1000);
 }
 

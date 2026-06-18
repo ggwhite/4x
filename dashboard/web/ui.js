@@ -337,6 +337,8 @@ function goHome() {
   document.getElementById('overview-panel').classList.add('hidden');
   document.getElementById('messages').classList.add('hidden');
   document.getElementById('messages').innerHTML = '';
+  document.getElementById('screenshots-panel').classList.add('hidden');
+  document.getElementById('screenshots-panel').innerHTML = '';
   const lp = document.getElementById('logs-panel');
   lp.classList.add('hidden'); lp.style.display = 'none';
   const main = document.getElementById('main');
@@ -963,6 +965,7 @@ async function loadDetail(task) {
   document.getElementById('dashboard').classList.add('hidden');
   document.getElementById('header').classList.remove('hidden');
   document.getElementById('messages').innerHTML = ''; renderedMsgKeys.clear(); currentLogFile = null; multiLogActive = false; multiLogBuffers = {};
+  document.getElementById('screenshots-panel').innerHTML = '';
   document.getElementById('h-id').textContent = task.id;
   document.getElementById('h-name').textContent = task.name;
   document.getElementById('h-badge').innerHTML = badge(task.status, task.phase, task.active);
@@ -1092,6 +1095,7 @@ function setDetailTabUI(tab) {
   });
   document.getElementById('overview-panel').classList.toggle('hidden', tab !== 'overview');
   document.getElementById('messages').classList.toggle('hidden', tab !== 'messages');
+  document.getElementById('screenshots-panel').classList.toggle('hidden', tab !== 'screenshots');
   const logsPanel = document.getElementById('logs-panel');
   const main = document.getElementById('main');
   if (tab === 'logs') {
@@ -1214,7 +1218,63 @@ function switchDetailTab(tab) {
   if (tab === 'overview' && current) loadOverview(current);
   if (tab === 'messages' && current) { connectSSE(current); loadMessages(current); }
   if (tab === 'logs' && current) { loadLogs(current); startLogsRefresh(current); }
+  if (tab === 'screenshots' && current) loadScreenshots(current);
 }
+
+async function loadScreenshots(fid) {
+  const el = document.getElementById('screenshots-panel');
+  el.innerHTML = `<div class="text-zinc-600 text-sm mt-8 text-center">${t('common.loading')}</div>`;
+  try {
+    const resp = await fetch(apiBase()+'/api/features/'+fid+'/screenshots');
+    if (!resp.ok) { el.innerHTML = `<div class="text-zinc-600 text-sm mt-8 text-center">${t('screenshots.none')}</div>`; return; }
+    const data = await resp.json();
+    if (!data.groups || data.groups.length === 0) { el.innerHTML = `<div class="text-zinc-600 text-sm mt-8 text-center">${t('screenshots.none')}</div>`; return; }
+    renderScreenshots(data.groups, el);
+  } catch {
+    el.innerHTML = `<div class="text-red-400 text-sm mt-8 text-center">${t('picker.connectionError')}</div>`;
+  }
+}
+
+function renderScreenshots(groups, el) {
+  let html = '';
+  groups.sort((a, b) => b.round - a.round);
+  groups.forEach(g => {
+    const title = t('screenshots.round').replace('{round}', g.round);
+    html += `<div class="mb-6"><div class="text-[10px] font-bold uppercase tracking-wider mb-3" style="color:var(--text-3)">${esc(title)}</div>`;
+    html += '<div class="grid gap-3" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr))">';
+    g.screenshots.forEach(s => {
+      const desc = s.description || s.filename;
+      const imgUrl = apiBase() + s.url;
+      html += `<div class="rounded-lg overflow-hidden cursor-pointer transition-transform hover:scale-[1.02]" style="background:var(--bg-2);border:1px solid var(--border)" onclick="openLightbox('${escAttr(imgUrl)}','${escAttr(desc)}')">`;
+      html += `<img src="${escAttr(imgUrl)}" alt="${escAttr(desc)}" loading="lazy" style="width:100%;display:block;max-height:200px;object-fit:cover">`;
+      html += `<div class="px-3 py-2"><div class="text-[11px] truncate" style="color:var(--text-2)">${esc(desc)}</div>`;
+      if (s.step) html += `<div class="text-[10px]" style="color:var(--text-4)">Step ${esc(s.step)}</div>`;
+      html += '</div></div>';
+    });
+    html += '</div></div>';
+  });
+  el.innerHTML = html;
+}
+
+function openLightbox(url, title) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:zoom-out;backdrop-filter:blur(4px)';
+  overlay.onclick = () => overlay.remove();
+  const img = document.createElement('img');
+  img.src = url;
+  img.alt = title;
+  img.style.cssText = 'max-width:90vw;max-height:90vh;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.5)';
+  overlay.appendChild(img);
+  if (title) {
+    const cap = document.createElement('div');
+    cap.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);color:#fff;font-size:13px;background:rgba(0,0,0,.6);padding:6px 16px;border-radius:8px';
+    cap.textContent = title;
+    overlay.appendChild(cap);
+  }
+  document.body.appendChild(overlay);
+  document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', esc); } });
+}
+
 function startLogsRefresh(fid) {
   stopLogsRefresh();
   _logsRefreshTimer = setInterval(() => { if (activeDetailTab === 'logs') loadLogs(fid); }, 10000);
