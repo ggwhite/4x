@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.14] - 2026-06-18
+
+### Features
+
+- **Deep-review subPhase tracking** — deep-review 階段支援 sub-reviewer 進度追蹤，Dashboard 可即時顯示各 sub-reviewer 的狀態
+- **Token optimization for run pipeline** — run pipeline 加入 token 用量最佳化，減少不必要的 context 傳遞
+- **Runner crash recovery** — runner 異常中斷後可自動偵測並恢復，不再需要手動清理殘留狀態
+
+### Fixes
+
+- **Short ID prefix matching** — `LoadFeature` 支援用 feature ID 前綴匹配，不必輸入完整 ID
+- **Dashboard page refresh** — 切換 feature 後重新整理頁面時保留當前檢視，不再跳回總覽
+- **Dashboard dependency prefix match** — 依賴狀態的前綴比對修正，卡片點擊事件不再誤觸
+- **Merge empty commit** — 合併時正確處理「nothing added to commit」情境，不再報錯
+- **Multi-repo worktree scope** — worktree scope 檢查限縮至 feature 宣告的 repos，不再掃到無關 repo
+- **Notification icon** — 通知改走 native app 路徑，確保顯示正確 icon
+
 ## [0.1.13] - 2026-06-17
 
 ### Features
