@@ -1,0 +1,18 @@
+id: F081-scope-guard-fixes
+name: 'F081: Scope guard bypass fixes'
+description: 修復 scope guard 被繞過的多個漏洞：(1) mono/multiRepo.DetectChangedRepos 未偵測 untracked files 導致 scope bypass (2) checkScope 在 feature YAML 載入失敗時靜默跳過驗證 (3) detectChangedRepos 將根目錄檔案誤判為 repo scope violation (4) needsDesignOutputs 遺漏 PhaseDeepReviewing
+status: done
+priority: 0
+subtasks:
+    - id: untracked-detection
+      name: mono/multiRepo.DetectChangedRepos 加入 git ls-files --others --exclude-standard 偵測 untracked files
+      status: ""
+    - id: yaml-load-fail
+      name: checkScope 在 YAML 載入失敗時設 Pass=false 而非只 warn
+      status: ""
+    - id: root-level-files
+      name: detectChangedRepos 過濾根目錄檔案（無 / 分隔符的路徑）
+      status: ""
+    - id: deep-review-guard
+      name: needsDesignOutputs map 加入 PhaseDeepReviewing
+      status: ""

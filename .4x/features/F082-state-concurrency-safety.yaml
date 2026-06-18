@@ -1,0 +1,21 @@
+id: F082-state-concurrency-safety
+name: 'F082: State & concurrency safety'
+description: 修復狀態機與並行存取的多個問題：(1) CanTransition 允許從 done/abandoned 轉到 blocked/needs-attention (2) ShouldStop 在 MaxRounds=0 時立即停止 (3) batch run 未檢查 ProcessAlive 導致並行執行同一 feature (4) MCP Stop 的 read-modify-write race 覆蓋 state.json (5) WriteBatchConflict 非原子寫入導致 dashboard 讀到損壞資料
+status: done
+priority: 0
+subtasks:
+    - id: terminal-transition
+      name: CanTransition 對 done/abandoned 來源禁止轉到 blocked/needs-attention
+      status: ""
+    - id: shouldstop-zero
+      name: ShouldStop 在 MaxRounds<=0 時跳過 max rounds 檢查
+      status: ""
+    - id: batch-alive-check
+      name: batch run 加入 ProcessAlive guard 防止並行執行同一 feature
+      status: ""
+    - id: mcp-stop-race
+      name: MCP Stop 改用 signal file 或 compare-and-swap，不直接改寫 state.json
+      status: ""
+    - id: atomic-batch-conflict
+      name: WriteBatchConflict 改用 temp+rename 原子寫入
+      status: ""

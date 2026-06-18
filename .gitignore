@@ -44,3 +44,6 @@ coverage.out
 .gocache/
 *-coder-report.md
 *-review-report.md
+.threat-model-state/
+VULN-FINDINGS.json
+VULN-FINDINGS.md

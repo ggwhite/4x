@@ -1,0 +1,18 @@
+id: F084-feature-id-cache
+name: 'F084: Feature ID & cache correctness'
+description: 修復 feature ID 生成與快取的多個問題：(1) NextNumber 吞掉 ListFeatures 錯誤回傳 1 導致 ID 碰撞覆蓋 YAML (2) stripFeaturePrefix 未驗證數字且硬編碼 dash 位置在 index 4，F1000+ 會壞 (3) CachedWorkspace.LoadFeature 不支援 short-ID resolution (4) LoadFeature 回傳快取 Feature 未 deep copy，caller 可汙染快取
+status: done
+priority: 1
+subtasks:
+    - id: nextnumber-error
+      name: NextNumber 傳播 ListFeatures 錯誤而非回傳 1
+      status: ""
+    - id: strip-prefix-regex
+      name: stripFeaturePrefix 改用 regex 驗證數字並支援 3+ 位數
+      status: ""
+    - id: cached-short-id
+      name: CachedWorkspace.LoadFeature 在 Stat 失敗時 fallback 到 Workspace.LoadFeature
+      status: ""
+    - id: cache-deep-copy
+      name: LoadFeature 回傳前 deep copy slice/map 欄位
+      status: ""

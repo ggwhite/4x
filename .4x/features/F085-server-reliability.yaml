@@ -1,0 +1,18 @@
+id: F085-server-reliability
+name: 'F085: Server & dashboard reliability'
+description: 修復 server/dashboard 的多個問題：(1) handlePostDone 錯誤路徑 Content-Type 不一致 (2) messages/overview endpoint 未驗證 HTTP method (3) SSE offset clamping 導致事件重複發送 (4) screenshot path traversal 未 EvalSymlinks (5) transitionDone role 與 CLI 不一致 (6) settingsMu/mergeMu 全域鎖影響多專案並行 (7) SSE scanner 未檢查 Err() (8) log SSE UTF-8 carry buffer 每 tick 重置
+status: done
+priority: 1
+subtasks:
+    - id: json-error-response
+      name: handlePostDone 錯誤路徑改用 writeJSONError
+      status: ""
+    - id: method-validation
+      name: messages/overview endpoint 加 HTTP method 檢查
+      status: ""
+    - id: sse-offset-fix
+      name: 移除 SSE consumed > info.Size() 的 clamping
+      status: ""
+    - id: screenshot-symlink
+      name: handleServeScreenshot 用 EvalSymlinks 後再檢查前綴
+      status: ""

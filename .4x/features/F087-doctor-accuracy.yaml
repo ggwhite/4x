@@ -1,0 +1,15 @@
+id: F087-doctor-accuracy
+name: 'F087: Doctor accuracy improvements'
+description: 修復 doctor 診斷的準確度問題：(1) checkFeatureYAML 只驗證 YAML 語法未驗證語意（缺 id、invalid status 等）(2) checkWorktrees 的 featureFileSet 與 statusByID 用不同 ID 來源可能 diverge (3) checkTestingToAccepting 對缺失 verify.json 報告兩次重複錯誤
+status: done
+priority: 2
+subtasks:
+    - id: yaml-semantic-validation
+      name: checkFeatureYAML 在 Unmarshal 後呼叫 ValidateLoose 報告語意問題
+      status: ""
+    - id: worktree-id-source
+      name: checkWorktrees 統一 ID 來源避免 filename vs YAML id diverge
+      status: ""
+    - id: dedup-verify-error
+      name: checkTestingToAccepting 避免對 verify.json 缺失重複報錯
+      status: ""
