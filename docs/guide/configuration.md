@@ -76,8 +76,15 @@ You can also edit this file visually from the **4x Live dashboard** — click th
 | `tty` | Use PTY for capturing output. Ignored when `output_format` is `"stream-json"`. |
 | `stdin` | Send prompt via stdin instead of argument (used by Codex) |
 | `quiet` | Suppress runner stdout in terminal; output is still captured in log files |
+| `transient_retries` | Max automatic retries when the runner exits non-zero with a transient error in stderr (socket closed, connection reset, rate limit, 5xx, etc.). Omit for the default (3); set `0` to disable; set a positive number for a custom limit. |
 
 If `{model}` is not present in `args`, the runner auto-appends `--model <model>`.
+
+#### Transient retry
+
+When a runner subprocess exits non-zero **and** its captured stderr matches a known transient error pattern (`socket closed`, `connection reset`, `connection refused`, `rate limit` / `429`, `5xx` server errors, `i/o timeout`, etc.), 4x automatically re-runs the same command with exponential backoff (default base 1s, capped at 30s), up to `transient_retries` times. A retry that eventually succeeds returns exit 0 transparently, so a batch run is not interrupted by a network hiccup.
+
+Non-transient failures (compilation errors, assertion failures, panics), exit 0, context cancel/timeout, and command-launch failures are never retried, and the final attempt's exit code semantics (0/1/2) are unchanged.
 
 ### Role Config
 

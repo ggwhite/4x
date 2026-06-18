@@ -3,8 +3,10 @@ package runner
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -364,6 +366,179 @@ func TestSubprocessRunner_ContextCanceled(t *testing.T) {
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("expected context.Canceled, got %v", err)
 	}
+}
+
+// setupCountingRunner 建立一個會記錄執行次數的測試 runner：
+// 子程序每次執行把計數寫入 counterPath；前 failTimes 次以 stderrMsg 輸出到 stderr 並 exit 1，
+// 第 failTimes+1 次起 exit 0。回傳 runner、讀取執行次數的 func、與環境還原 func。
+// backoffBase 注入極小值讓重試迴圈快速完成。
+func setupCountingRunner(t *testing.T, failTimes int, stderrMsg string) (*SubprocessRunner, func() int, func()) {
+	t.Helper()
+	binDir := t.TempDir()
+	counterPath := filepath.Join(t.TempDir(), "count")
+
+	script := fmt.Sprintf(`#!/bin/sh
+count=$(cat %q 2>/dev/null || echo 0)
+count=$((count + 1))
+echo "$count" > %q
+if [ "$count" -le %d ]; then
+  echo %q >&2
+  exit 1
+fi
+exit 0
+`, counterPath, counterPath, failTimes, stderrMsg)
+	writeScript(t, binDir, "test-runner", script)
+
+	root := t.TempDir()
+	protocol.Init(root, protocol.Config{Project: protocol.ProjectConfig{Name: "t"}})
+	ws := &protocol.Workspace{Root: root}
+
+	origPath := os.Getenv("PATH")
+	os.Setenv("PATH", binDir+":"+origPath)
+
+	r := &SubprocessRunner{
+		Workspace: ws,
+		Name:      "test",
+		Config: protocol.RunnerConfig{
+			Command: filepath.Join(binDir, "test-runner"),
+			Args:    []string{"-p", "{prompt}"},
+		},
+		backoffBase: 1 * time.Millisecond,
+	}
+
+	readCount := func() int {
+		data, err := os.ReadFile(counterPath)
+		if err != nil {
+			return 0
+		}
+		n, _ := strconv.Atoi(strings.TrimSpace(string(data)))
+		return n
+	}
+
+	return r, readCount, func() { os.Setenv("PATH", origPath) }
+}
+
+// TestRunTransientRetry 覆蓋暫態重試迴圈的各種情境（AC-5 / AC-6 / AC-7 / AC-8）。
+func TestRunTransientRetry(t *testing.T) {
+	// (a) 暫態失敗後重試成功 → 最終 ExitCode == 0，執行次數 == K+1
+	t.Run("retry then success", func(t *testing.T) {
+		r, count, cleanup := setupCountingRunner(t, 2, "Error: socket closed")
+		defer cleanup()
+		r.MaxTransientRetries = 3
+
+		res, err := r.Run(context.Background(), "p")
+		if err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+		if res.ExitCode != 0 {
+			t.Errorf("ExitCode = %d, want 0", res.ExitCode)
+		}
+		if got := count(); got != 3 {
+			t.Errorf("execution count = %d, want 3 (1 original + 2 retries)", got)
+		}
+	})
+
+	// (b) 持續暫態失敗 → 在 MaxTransientRetries+1 次後停止並回傳非零
+	t.Run("persistent transient failure stops at limit", func(t *testing.T) {
+		r, count, cleanup := setupCountingRunner(t, 100, "connection reset by peer")
+		defer cleanup()
+		r.MaxTransientRetries = 3
+
+		res, err := r.Run(context.Background(), "p")
+		if err != nil {
+			t.Fatalf("Run should not error for exit 1: %v", err)
+		}
+		if res.ExitCode == 0 {
+			t.Errorf("ExitCode = %d, want non-zero", res.ExitCode)
+		}
+		if got := count(); got != 4 {
+			t.Errorf("execution count = %d, want 4 (1 original + 3 retries)", got)
+		}
+	})
+
+	// (c) 非暫態失敗（exit 1 但 stderr 不含 pattern）→ 不重試、執行 1 次
+	t.Run("non-transient failure does not retry", func(t *testing.T) {
+		r, count, cleanup := setupCountingRunner(t, 100, "compilation error: undefined foo")
+		defer cleanup()
+		r.MaxTransientRetries = 3
+
+		res, err := r.Run(context.Background(), "p")
+		if err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+		if !IsSoftFail(res) {
+			t.Errorf("ExitCode = %d, want 1 (soft fail)", res.ExitCode)
+		}
+		if got := count(); got != 1 {
+			t.Errorf("execution count = %d, want 1 (no retry)", got)
+		}
+	})
+
+	// (d) 透過 NewRunner 以 config TransientRetries=0 停用重試 → 執行 1 次（AC-8）
+	t.Run("config disables retry", func(t *testing.T) {
+		binDir := t.TempDir()
+		counterPath := filepath.Join(t.TempDir(), "count")
+		script := fmt.Sprintf(`#!/bin/sh
+count=$(cat %q 2>/dev/null || echo 0)
+count=$((count + 1))
+echo "$count" > %q
+echo "socket closed" >&2
+exit 1
+`, counterPath, counterPath)
+		writeScript(t, binDir, "test-runner", script)
+
+		root := t.TempDir()
+		protocol.Init(root, protocol.Config{Project: protocol.ProjectConfig{Name: "t"}})
+		ws := &protocol.Workspace{Root: root}
+
+		disabled := 0
+		cfg := protocol.RunnerConfig{
+			Command:          filepath.Join(binDir, "test-runner"),
+			Args:             []string{"-p", "{prompt}"},
+			TransientRetries: &disabled,
+		}
+		rn := NewRunner(ws, "test", cfg, 0, "", "")
+		sr := rn.(*SubprocessRunner)
+		sr.backoffBase = 1 * time.Millisecond
+
+		res, err := sr.Run(context.Background(), "p")
+		if err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+		if res.ExitCode == 0 {
+			t.Errorf("ExitCode = %d, want non-zero", res.ExitCode)
+		}
+		data, _ := os.ReadFile(counterPath)
+		if n, _ := strconv.Atoi(strings.TrimSpace(string(data))); n != 1 {
+			t.Errorf("execution count = %d, want 1 (retry disabled)", n)
+		}
+	})
+
+	// (e) ctx 取消 / 逾時期間不重試：即使首次失敗命中暫態 pattern，ctx 結束後也不再重試。
+	// 用大 backoffBase 確保進入 backoff 等待，並在首次執行後 cancel ctx，讓重試迴圈在
+	// select 收到 ctx.Done 而非 timer.C，最終只執行 1 次。
+	t.Run("ctx cancel does not retry", func(t *testing.T) {
+		r, count, cleanup := setupCountingRunner(t, 100, "Error: socket closed")
+		defer cleanup()
+		r.MaxTransientRetries = 3
+		r.backoffBase = 10 * time.Second // 夠大，確保不會在 cancel 前就重試
+
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			time.Sleep(300 * time.Millisecond)
+			cancel()
+		}()
+
+		// 首次執行 exit 1 命中暫態，進入 backoff 等待；ctx 在等待期間被 cancel，
+		// 迴圈回傳「當下」結果（exit 1 + nil err），不再重試。重點是只執行 1 次。
+		res, _ := r.Run(ctx, "p")
+		if res == nil || res.ExitCode == 0 {
+			t.Fatalf("expected non-zero result, got %+v", res)
+		}
+		if got := count(); got != 1 {
+			t.Errorf("execution count = %d, want 1 (no retry after ctx cancel)", got)
+		}
+	})
 }
 
 func TestDeepFixLogFileName(t *testing.T) {

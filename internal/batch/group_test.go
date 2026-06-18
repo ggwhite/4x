@@ -1,10 +1,78 @@
 package batch
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ggwhite/4x/internal/feature"
+	"github.com/ggwhite/4x/internal/runner"
 )
+
+// fakeTransientRunner 模擬 SubprocessRunner 的對外契約：內部已對暫態錯誤重試，
+// 前 failUntil 次嘗試暫態失敗、最後一次成功，對呼叫端只回傳最終成功（ExitCode 0）。
+// attempts 記錄它模擬經歷的嘗試次數，供測試斷言確實「先失敗再成功」。
+type fakeTransientRunner struct {
+	failUntil int
+	attempts  int
+}
+
+func (f *fakeTransientRunner) Run(_ context.Context, _ string) (*runner.Result, error) {
+	for {
+		f.attempts++
+		if f.attempts > f.failUntil {
+			return &runner.Result{ExitCode: 0}, nil
+		}
+	}
+}
+
+// TestGroupResumeAfterTransientRetry 驗證 AC-10：transient retry 成功後 batch 正常繼續排程。
+//
+// batch 的排程（PlanBatch）只依賴 feature 的依賴圖與 runner 回傳的最終 ExitCode，
+// 不需要為 transient retry 加任何特殊分支：runner 內部把暫態失敗重試成 ExitCode 0 後，
+// 該節點即被視為成功，其相依節點照常出現在排程中（resume）。
+func TestGroupResumeAfterTransientRetry(t *testing.T) {
+	// runner 模擬「先 transient 失敗 2 次、第 3 次成功」，對外回傳 ExitCode 0。
+	r := &fakeTransientRunner{failUntil: 2}
+	res, err := r.Run(context.Background(), "prompt")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if res.ExitCode != 0 {
+		t.Fatalf("node ExitCode = %d, want 0 (transient retry should succeed)", res.ExitCode)
+	}
+	if r.attempts != 3 {
+		t.Fatalf("attempts = %d, want 3 (1 original + 2 transient retries)", r.attempts)
+	}
+
+	// 該節點成功後，後續相依節點仍應正常被排程：base 先、dep 依賴 base。
+	features := []feature.Feature{
+		{ID: "base"},
+		{ID: "dep", Depends: []string{"base"}},
+	}
+	plan, err := PlanBatch(features, nil, 4)
+	if err != nil {
+		t.Fatalf("PlanBatch: %v", err)
+	}
+
+	var depEntry *ScheduleEntry
+	for i := range plan.Schedule {
+		if plan.Schedule[i].FeatureID == "dep" {
+			depEntry = &plan.Schedule[i]
+		}
+	}
+	if depEntry == nil {
+		t.Fatal("dependent node 'dep' missing from schedule (not resumed)")
+	}
+	found := false
+	for _, d := range depEntry.CanStartAfter {
+		if d == "base" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("dep should be scheduled after base, got CanStartAfter=%v", depEntry.CanStartAfter)
+	}
+}
 
 func TestPlanBatch_SingleFeature(t *testing.T) {
 	features := []feature.Feature{

@@ -367,6 +367,9 @@ type RunnerConfig struct {
 	Tty          *bool             `json:"tty,omitempty"`
 	Quiet        *bool             `json:"quiet,omitempty"`
 	OutputFormat string            `json:"output_format,omitempty"`
+	// TransientRetries 設定暫態錯誤（socket closed、connection reset、rate limit、5xx 等）的
+	// 自動重試上限：nil 表示用預設 3 次、0 表示停用重試、>0 為自訂上限。
+	TransientRetries *int `json:"transient_retries,omitempty"`
 }
 
 // RoleConfig 是各角色的模型與行為設定

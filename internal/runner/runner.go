@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -36,9 +37,55 @@ type SubprocessRunner struct {
 	Timeout       time.Duration
 	LogPath       string
 	ModelOverride string
+	// MaxTransientRetries 是暫態錯誤的重試上限：0（零值）表示「用 DefaultTransientRetries」、
+	// 負值表示停用重試、正值為自訂上限。實際值由 resolveMaxRetries() 解析。
+	MaxTransientRetries int
+	// backoffBase 是指數退避的基準間隔；<=0 時套用 defaultBackoffBase。
+	// 測試可注入極小值（如 1ms）加速重試迴圈。
+	backoffBase time.Duration
 }
 
-// Run 用 config 的 command/args 執行，替換 {prompt} 和 {promptFile}
+// resolveMaxRetries 解析有效的暫態重試上限：
+// 零值 → DefaultTransientRetries、負值 → 0（停用）、正值 → 原值。
+func (r *SubprocessRunner) resolveMaxRetries() int {
+	if r.MaxTransientRetries == 0 {
+		return DefaultTransientRetries
+	}
+	if r.MaxTransientRetries < 0 {
+		return 0
+	}
+	return r.MaxTransientRetries
+}
+
+// shouldRetry 判斷第 attempt 次嘗試（1 起算）失敗後是否還能重試。
+// 僅檢查「次數、context、結果形狀、exit code」四項硬條件；是否為暫態錯誤
+// 由呼叫端再以 isTransientError(stderrTail) 做最終判定。
+//
+//   - attempt 已達 resolveMaxRetries()+1（= 1 次原始 + N 次重試）→ false
+//   - ctx 已取消 / 逾時（ctx.Err() != nil）→ false
+//   - res == nil（命令啟動失敗）→ false
+//   - res.ExitCode == 0（成功）→ false
+//   - 其餘（exit code 非零）→ true
+func (r *SubprocessRunner) shouldRetry(ctx context.Context, res *Result, attempt int) bool {
+	if attempt >= r.resolveMaxRetries()+1 {
+		return false
+	}
+	if ctx.Err() != nil {
+		return false
+	}
+	if res == nil {
+		return false
+	}
+	return res.ExitCode != 0
+}
+
+// Run 用 config 的 command/args 執行，替換 {prompt} 和 {promptFile}。
+//
+// 子程序因暫態 API 錯誤（socket closed、connection reset、rate limit、5xx 等）非零退出時，
+// 會以指數退避自動重試同一命令（上限見 MaxTransientRetries / RunnerConfig.TransientRetries），
+// 重試成功後透明回傳 exit 0 的 Result，讓 batch 排程不因網路抖動中斷。非暫態失敗、exit 0、
+// context 取消 / 逾時、命令啟動失敗一律不重試，且最終一次嘗試的 Result 形狀與 exit code 語義
+// 與不重試時完全一致。
 func (r *SubprocessRunner) Run(ctx context.Context, prompt string) (*Result, error) {
 	if r.Timeout > 0 {
 		var cancel context.CancelFunc
@@ -46,12 +93,41 @@ func (r *SubprocessRunner) Run(ctx context.Context, prompt string) (*Result, err
 		defer cancel()
 	}
 
+	for attempt := 1; ; attempt++ {
+		res, stderrTail, err := r.runOnce(ctx, prompt)
+		if !r.shouldRetry(ctx, res, attempt) || !isTransientError(stderrTail) {
+			return res, err
+		}
+
+		wait := backoffDuration(attempt, r.backoffBase)
+		slog.Warn("runner transient error, retrying",
+			"runner", r.Name,
+			"attempt", attempt,
+			"backoff", wait.String(),
+			"exitCode", res.ExitCode,
+			"stderrTail", transientLogSnippet(stderrTail))
+
+		timer := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return res, err
+		case <-timer.C:
+		}
+	}
+}
+
+// runOnce 執行單次嘗試：建 args → 建 cmd → 依輸出模式執行 → buildResult。
+// 第二個回傳值是本次捕捉到的 stderr 尾段（pty / quiet 模式為合併輸出），供重試判定使用。
+func (r *SubprocessRunner) runOnce(ctx context.Context, prompt string) (*Result, string, error) {
+	tail := newTailWriter(maxStderrCapture)
+
 	args, cleanup, err := r.buildArgs(prompt)
 	if cleanup != nil {
 		defer cleanup()
 	}
 	if err != nil {
-		return nil, fmt.Errorf("runner %s failed to build args: %w", r.Name, err)
+		return nil, "", fmt.Errorf("runner %s failed to build args: %w", r.Name, err)
 	}
 
 	var logFile *os.File
@@ -81,7 +157,8 @@ func (r *SubprocessRunner) Run(ctx context.Context, prompt string) (*Result, err
 	cmd.Env = env
 
 	if r.Config.OutputFormat == "stream-json" && logFile != nil {
-		return r.runStreamJSON(ctx, cmd, logFile, start, prompt)
+		res, err := r.runStreamJSON(ctx, cmd, logFile, start, prompt, tail)
+		return res, tail.String(), err
 	}
 
 	var ptmx *os.File
@@ -91,13 +168,13 @@ func (r *SubprocessRunner) Run(ctx context.Context, prompt string) (*Result, err
 		var stopWatch func()
 		ptmx, stopWatch, err = startPty(ctx, cmd)
 		if err != nil {
-			return nil, fmt.Errorf("runner %s failed to start (pty): %w", r.Name, err)
+			return nil, "", fmt.Errorf("runner %s failed to start (pty): %w", r.Name, err)
 		}
 
 		stripW := newAnsiStripper(logFile)
 		copyDone := make(chan struct{})
 		go func() {
-			io.Copy(io.MultiWriter(os.Stdout, stripW), ptmx)
+			io.Copy(io.MultiWriter(os.Stdout, stripW, tail), ptmx)
 			close(copyDone)
 		}()
 
@@ -107,26 +184,28 @@ func (r *SubprocessRunner) Run(ctx context.Context, prompt string) (*Result, err
 		<-copyDone
 
 		duration := time.Since(start).Seconds()
-		return r.buildResult(ctx, err, duration)
+		res, err := r.buildResult(ctx, err, duration)
+		return res, tail.String(), err
 	}
 
 	if logFile != nil {
 		if protocol.BoolVal(r.Config.Quiet) {
-			stripped := newPromptStripper(logFile)
-			cmd.Stdout = stripped
-			cmd.Stderr = stripped
+			// quiet 模式下 stdout/stderr 合併進同一個 stripper；用同一個 MultiWriter 值同時
+			// 指派給兩者，os/exec 才會共用單一 fd，避免對 stripper 的並行寫入。tail 一併 tee。
+			merged := io.MultiWriter(newPromptStripper(logFile), tail)
+			cmd.Stdout = merged
+			cmd.Stderr = merged
 		} else {
 			cmd.Stdout = io.MultiWriter(os.Stdout, logFile)
-			cmd.Stderr = io.MultiWriter(os.Stderr, logFile)
+			cmd.Stderr = io.MultiWriter(os.Stderr, logFile, tail)
 		}
 	} else {
 		if protocol.BoolVal(r.Config.Quiet) {
 			cmd.Stdout = io.Discard
-			cmd.Stderr = io.Discard
 		} else {
 			cmd.Stdout = os.Stdout
 		}
-		cmd.Stderr = os.Stderr
+		cmd.Stderr = io.MultiWriter(os.Stderr, tail)
 	}
 	if protocol.BoolVal(r.Config.Stdin) {
 		cmd.Stdin = strings.NewReader(prompt)
@@ -134,11 +213,14 @@ func (r *SubprocessRunner) Run(ctx context.Context, prompt string) (*Result, err
 
 	err = cmd.Run()
 	duration := time.Since(start).Seconds()
-	return r.buildResult(ctx, err, duration)
+	res, err := r.buildResult(ctx, err, duration)
+	return res, tail.String(), err
 }
 
 // runStreamJSON 用 stream-json processor 執行命令，即時解析輸出到 .log 與 .stream.jsonl。
-func (r *SubprocessRunner) runStreamJSON(ctx context.Context, cmd *exec.Cmd, logFile *os.File, start time.Time, prompt string) (*Result, error) {
+// tail 用來捕捉合併輸出尾段供重試判定；用同一個 MultiWriter 值同時指派給 stdout/stderr，
+// 讓 os/exec 共用單一 fd，避免對非執行緒安全的 processor 並行寫入。
+func (r *SubprocessRunner) runStreamJSON(ctx context.Context, cmd *exec.Cmd, logFile *os.File, start time.Time, prompt string, tail io.Writer) (*Result, error) {
 	rawPath := strings.TrimSuffix(r.LogPath, ".log") + ".stream.jsonl"
 	rawFile, err := os.Create(rawPath)
 	if err != nil {
@@ -148,8 +230,9 @@ func (r *SubprocessRunner) runStreamJSON(ctx context.Context, cmd *exec.Cmd, log
 
 	processor := newStreamJSONProcessor(logFile, rawFile)
 
-	cmd.Stdout = processor
-	cmd.Stderr = processor
+	merged := io.MultiWriter(processor, tail)
+	cmd.Stdout = merged
+	cmd.Stderr = merged
 	if protocol.BoolVal(r.Config.Stdin) {
 		cmd.Stdin = strings.NewReader(prompt)
 	}
@@ -246,9 +329,13 @@ func IsHardError(r *Result) bool {
 	return r != nil && r.ExitCode == ExitHardError
 }
 
-// NewRunner 建立 SubprocessRunner，logPath 為空字串時不產生 log file，model 為空字串時不帶 --model flag
+// NewRunner 建立 SubprocessRunner，logPath 為空字串時不產生 log file，model 為空字串時不帶 --model flag。
+//
+// 暫態重試上限由 cfg.TransientRetries 決定：nil → 預設（DefaultTransientRetries）、
+// 0 → 停用重試、>0 → 自訂。config 的 0（停用）會映射成 SubprocessRunner.MaxTransientRetries 的
+// 負值，以區別於零值（零值代表「用預設」）。
 func NewRunner(ws *protocol.Workspace, name string, cfg protocol.RunnerConfig, timeout time.Duration, logPath string, model string) Runner {
-	return &SubprocessRunner{
+	r := &SubprocessRunner{
 		Workspace:     ws,
 		Config:        cfg,
 		Name:          name,
@@ -256,6 +343,14 @@ func NewRunner(ws *protocol.Workspace, name string, cfg protocol.RunnerConfig, t
 		LogPath:       logPath,
 		ModelOverride: model,
 	}
+	if cfg.TransientRetries != nil {
+		if v := *cfg.TransientRetries; v == 0 {
+			r.MaxTransientRetries = -1 // config 0 = 停用 → 用負值表達，避免被當成零值（預設）
+		} else {
+			r.MaxTransientRetries = v
+		}
+	}
+	return r
 }
 
 // ansiStripper 以狀態機跨 Write 呼叫正確剝除 ANSI escape sequence，
