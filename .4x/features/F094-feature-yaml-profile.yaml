@@ -9,7 +9,7 @@ description: |-
     (1) Feature YAML 加 profile 欄位，batch 自動讀取各自的 profile
     (2) 解析優先序：--profile flag > feature YAML profile > priority auto-select > default_profile
     (3) 4x new 加 --profile flag，建 feature 時就能指定
-status: in-progress
+status: ready-for-review
 priority: 1
 subtasks:
     - id: feature-type
