@@ -448,3 +448,76 @@ func snapshotDir(t *testing.T, dir string) map[string]string {
 	}
 	return out
 }
+
+// okLookPath 模擬所有 command 都在 PATH。
+func okLookPath(string) (string, error) { return "/usr/bin/x", nil }
+
+func TestCheckProfiles_NoCustomProfiles(t *testing.T) {
+	cfg := protocol.Config{}
+	checks := checkProfiles(cfg, okLookPath)
+	if c := findCheck(checks, sectionProfiles, "profiles"); c == nil || c.Severity != SeverityPass {
+		t.Fatalf("expected PASS for no custom profiles, got %+v", c)
+	}
+}
+
+func TestCheckProfiles_NonSelectablePhase(t *testing.T) {
+	cfg := protocol.Config{
+		Profiles: map[string]protocol.ProfileConfig{
+			"bad": {Phases: []protocol.PhaseSpec{
+				{Phase: string(protocol.PhaseCoding)},
+				{Phase: string(protocol.PhaseAmending)},
+			}},
+		},
+	}
+	checks := checkProfiles(cfg, okLookPath)
+	if !hasSeverity(checks, sectionProfiles, SeverityFail) {
+		t.Fatal("expected FAIL for non-selectable phase")
+	}
+}
+
+func TestCheckProfiles_MissingCoding(t *testing.T) {
+	cfg := protocol.Config{
+		Profiles: map[string]protocol.ProfileConfig{
+			"bad": {Phases: []protocol.PhaseSpec{
+				{Phase: string(protocol.PhaseReviewing)},
+			}},
+		},
+	}
+	checks := checkProfiles(cfg, okLookPath)
+	if !hasSeverity(checks, sectionProfiles, SeverityFail) {
+		t.Fatal("expected FAIL for profile missing coding phase")
+	}
+}
+
+func TestCheckProfiles_UnknownRunner(t *testing.T) {
+	cfg := protocol.Config{
+		Runners: map[string]protocol.RunnerConfig{"claude": {Command: "claude"}},
+		Profiles: map[string]protocol.ProfileConfig{
+			"bad": {Phases: []protocol.PhaseSpec{
+				{Phase: string(protocol.PhaseCoding), Runner: "ghost"},
+			}},
+		},
+	}
+	checks := checkProfiles(cfg, okLookPath)
+	if !hasSeverity(checks, sectionProfiles, SeverityFail) {
+		t.Fatal("expected FAIL for unknown runner in profile phase")
+	}
+}
+
+func TestCheckProfiles_Valid(t *testing.T) {
+	cfg := protocol.Config{
+		Runners: map[string]protocol.RunnerConfig{
+			"claude": {Command: "claude", Tiers: map[string]string{"opus": "opus"}},
+		},
+		Profiles: map[string]protocol.ProfileConfig{
+			"custom": {Phases: []protocol.PhaseSpec{
+				{Phase: string(protocol.PhaseCoding), Runner: "claude", Model: "opus"},
+				{Phase: string(protocol.PhaseReviewing)},
+			}},
+		},
+	}
+	checks := checkProfiles(cfg, okLookPath)
+	if c := findCheck(checks, sectionProfiles, "custom"); c == nil || c.Severity != SeverityPass {
+		t.Fatalf("expected PASS for valid profile, got %+v", c)
+	}
+}

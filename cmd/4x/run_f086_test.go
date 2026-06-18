@@ -29,11 +29,11 @@ func TestRunLoop_SoftFailMessageExitCode(t *testing.T) {
 	ws.WriteState("feat-sf", s)
 
 	// designer 正常寫產出物後，coding phase runner 回傳 soft-fail（exit 1）。
-	factory := func(logPath, _ string) runner.Runner {
+	factory := func(_, logPath, _ string) runner.Runner {
 		return &softFailRunner{ws: ws, featureID: "feat-sf", failPhase: protocol.PhaseCoding}
 	}
 
-	if err := runLoop(context.Background(), ws, ws, feat0, cfg, s, nil, factory, "never"); err != nil {
+	if err := runLoop(context.Background(), ws, ws, feat0, cfg, s, nil, factory, "never", ""); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -88,11 +88,11 @@ func TestRunLoop_ParallelNoProgressStops(t *testing.T) {
 	ws.WriteState("feat-np", s)
 
 	var mu sync.Mutex
-	factory := func(logPath, _ string) runner.Runner {
+	factory := func(_, logPath, _ string) runner.Runner {
 		return &failingParallelRunner{ws: ws, featureID: "feat-np", role: roleFromLogPath(logPath), mu: &mu}
 	}
 
-	if err := runLoop(context.Background(), ws, ws, feat0, cfg, s, nil, factory, "never"); err != nil {
+	if err := runLoop(context.Background(), ws, ws, feat0, cfg, s, nil, factory, "never", ""); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 

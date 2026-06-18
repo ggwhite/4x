@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"time"
 
@@ -300,9 +301,12 @@ type Config struct {
 	ModelTiers        map[string]map[string]string   `json:"model_tiers,omitempty"`
 	Workspace         WorkspaceConfig                `json:"workspace,omitempty"`
 	Hooks             map[string][]feature.HookEntry `json:"hooks,omitempty"`
-	// Profiles 定義 pipeline profile（名稱 → 啟用的 role 子集），供依 feature priority
-	// 自動選擇或 --profile 手動覆蓋；為空時所有 feature 一律走 full（6 role 全跑）。
+	// Profiles 定義 pipeline profile（名稱 → 啟用的 phase 子集 + 每 phase 的 runner/model 覆寫），
+	// 供依 feature priority 自動選擇或 --profile 手動覆蓋；為空時所有 feature 一律走 full（6 phase 全跑）。
 	Profiles map[string]ProfileConfig `json:"profiles,omitempty"`
+	// DefaultProfile 指定無 --profile flag 且未 resume 時要採用的 profile 名稱（如 full/normal/quick）。
+	// 為空時 fallback 既有行為（無 profiles 區段→full；有→依 priority auto-select）。
+	DefaultProfile string `json:"default_profile,omitempty"`
 	// ParallelReviewTest 啟用後，reviewer 與 tester 在 reviewing phase 並行執行（共用 worktree）。
 	ParallelReviewTest bool `json:"parallel_review_test,omitempty"`
 	// HealthCheck 是全域（settings.json）的 testing phase 前環境檢查設定，
@@ -333,14 +337,45 @@ func NotificationsEnabled(cfg Config) bool {
 	return *cfg.Notifications
 }
 
-// ProfileConfig 描述一個 pipeline profile：啟用哪些 role、以及 coder 的 model tier 覆蓋。
-// 被停用的 role 在 run loop 中以 pass-through 方式沿合法 state 邊跳過、不呼叫 runner。
+// PhaseSpec 描述一個 profile 內某個 phase 的設定：是否啟用該 phase，以及覆寫該 phase 的
+// runner 與 model tier。Runner / Model 為空時代表繼承下層（feature override → default_runner、
+// roles model → runner model → defaultTier）。
+type PhaseSpec struct {
+	// Phase 必須屬於 profileSelectablePhases 白名單（designing/coding/reviewing/
+	// deep-reviewing/testing/accepting）。
+	Phase string `json:"phase"`
+	// Runner 覆寫此 phase 使用的 runner，空字串代表繼承下層（default_runner）。
+	Runner string `json:"runner,omitempty"`
+	// Model 覆寫此 phase 的 model tier，空字串代表繼承下層（roles model）。
+	Model string `json:"model,omitempty"`
+}
+
+// ProfileConfig 描述一個 pipeline profile：啟用哪些 phase、以及每個 phase 的 runner/model 覆寫。
+// 未列入 Phases 的 phase（對應的 role）在 run loop 中以 pass-through 方式沿合法 state 邊跳過、
+// 不呼叫 runner。coding phase 為唯一必要 phase。
+//
+// Roles / CoderModel 為已廢棄欄位，僅供向後相容解析：載入舊格式 settings.json 時由 normalize
+// 自動轉成 Phases（見 profile.go），不再被任何解析路徑直接讀取。
 type ProfileConfig struct {
-	// Roles 是啟用的 role 名稱列表；順序不影響行為（執行順序由 canonical pipeline 決定）。
-	// 必須包含 "coder"（唯一必要 role）。
-	Roles []string `json:"roles"`
-	// CoderModel 覆蓋 roles.coder.model 的 tier；為空時沿用既有 coder model 設定。
+	// Phases 是啟用的 phase 規格列表；順序不影響行為（執行順序由 canonical pipeline 決定）。
+	Phases []PhaseSpec `json:"phases,omitempty"`
+	// Roles Deprecated：舊格式啟用的 role 名稱列表，僅供向後相容解析（normalize 轉成 Phases）。
+	Roles []string `json:"roles,omitempty"`
+	// CoderModel Deprecated：舊格式 coder 的 model tier 覆寫，僅供向後相容解析（轉成 coding phase 的 Model）。
 	CoderModel string `json:"coder_model,omitempty"`
+}
+
+// UnmarshalJSON 解析 ProfileConfig 並在載入後自動 normalize，
+// 把舊格式 Roles[]string / CoderModel 轉成新的 Phases 結構，達成向後相容。
+func (pc *ProfileConfig) UnmarshalJSON(data []byte) error {
+	type alias ProfileConfig
+	var a alias
+	if err := json.Unmarshal(data, &a); err != nil {
+		return err
+	}
+	*pc = ProfileConfig(a)
+	pc.normalize()
+	return nil
 }
 
 // ProjectConfig 是專案基本設定，包含既有工具鏈的描述

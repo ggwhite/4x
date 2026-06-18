@@ -67,14 +67,16 @@ Run the Design-Code-Review-Test loop for a feature.
 | `--timeout` | `3600` | Per-phase timeout in seconds |
 | `--dry-run` | `false` | Print role prompts without calling LLM |
 | `--json` | `false` | Start run and return JSON immediately |
-| `--profile` | auto | Pipeline profile (`full`/`normal`/`quick` or custom); overrides priority-based auto-select |
+| `--profile` | auto | Pipeline profile (`full`/`normal`/`quick` or custom); overrides `default_profile`/priority auto-select |
 | `--no-notify` | `false` | Disable the OS notification on run completion (overrides the `notifications` config) |
 
 When the run ends (success, failure, or interruption), 4x sends a native OS notification (`osascript` on macOS, `notify-send` on Linux, PowerShell balloon on Windows). Pass `--no-notify` to suppress it, or set `"notifications": false` in `settings.json`. Missing notification tooling is silently ignored.
 
 With `--json`, the loop runs in a detached background process and the command returns immediately with `{featureId, runner, maxRounds, pid, logPath}`. The background process's stdout/stderr are redirected to `logPath` (`.4x/<feature-id>/run.log`), so early errors (config load, worktree setup, runner not found) are recorded there instead of being lost.
 
-`--profile` selects which roles run. Built-in profiles: `full` (all 6 roles), `normal` (coder/reviewer/tester/acceptor), `quick` (coder/reviewer). Roles not in the profile are passed through (state advances along the legal edge without invoking the runner). When omitted, the profile is auto-selected by the feature's priority if a `profiles` section exists in `settings.json` (otherwise `full`). See [Configuration → Profiles](configuration.md#profiles) for details.
+`--profile` selects which phases run and, per phase, which runner and model. Built-in profiles: `full` (all 6 phases), `normal` (coding/reviewing/testing/accepting), `quick` (coding/reviewing). Phases not in the profile are passed through (state advances along the legal edge without invoking the runner); `coding` is always required. When `--profile` is omitted: if stdin/stdout are interactive terminals (not `--json`/dry-run/resume) 4x shows a numbered profile menu defaulting to `default_profile`; otherwise it uses `default_profile`, then priority-based auto-select when a `profiles` section exists (else `full`).
+
+The per-phase runner/model is resolved by this precedence (high→low): `--runner`/manual selection > the feature YAML's `phase_overrides.<phase>` > the profile's per-phase `runner`/`model` > `default_runner` / the role's configured model. See [Configuration → Profiles](configuration.md#profiles) for details.
 
 The loop drives: init → designing → coding → reviewing → testing → deep-reviewing → accepting → pending-review. On review failure, code gets another pass. On test failure, the loop re-enters coding.
 

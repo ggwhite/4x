@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/ggwhite/4x/internal/feature"
@@ -126,57 +127,98 @@ func TestProfileConfig_EnablesRole_DeepReviewer(t *testing.T) {
 	}
 }
 
-func TestResolveProfileModel_CoderOverride(t *testing.T) {
-	cfg := Config{
-		ModelTiers: map[string]map[string]string{
-			"opus":   {"claude": "opus"},
-			"sonnet": {"claude": "sonnet"},
-		},
-		Runners: map[string]RunnerConfig{"claude": {Command: "claude"}},
-		Roles:   map[string]RoleConfig{"coder": {Model: "sonnet"}},
+func TestProfileConfig_Normalize_RolesToPhases(t *testing.T) {
+	// 舊格式 Roles[]string + CoderModel 應 normalize 成等價的 Phases。
+	pc := ProfileConfig{Roles: []string{"designer", "coder", "reviewer"}, CoderModel: "opus"}
+	pc.normalize()
+
+	want := map[Phase]string{
+		PhaseDesigning: "",
+		PhaseCoding:    "opus",
+		PhaseReviewing: "",
 	}
-	pc := ProfileConfig{Roles: []string{"coder"}, CoderModel: "opus"}
-	got, err := ResolveProfileModel(cfg, "claude", RoleCoder, pc)
-	if err != nil {
-		t.Fatal(err)
+	if len(pc.Phases) != len(want) {
+		t.Fatalf("got %d phases, want %d: %+v", len(pc.Phases), len(want), pc.Phases)
 	}
-	if got != "opus" {
-		t.Errorf("got %q, want opus (coder_model override)", got)
+	for _, ps := range pc.Phases {
+		wantModel, ok := want[Phase(ps.Phase)]
+		if !ok {
+			t.Errorf("unexpected phase %q", ps.Phase)
+			continue
+		}
+		if ps.Model != wantModel {
+			t.Errorf("phase %q model = %q, want %q", ps.Phase, ps.Model, wantModel)
+		}
 	}
 }
 
-func TestResolveProfileModel_CoderNoOverride(t *testing.T) {
-	cfg := Config{
-		ModelTiers: map[string]map[string]string{"sonnet": {"claude": "sonnet"}},
-		Runners:    map[string]RunnerConfig{"claude": {Command: "claude"}},
-		Roles:      map[string]RoleConfig{"coder": {Model: "sonnet"}},
+func TestProfileConfig_Normalize_Idempotent(t *testing.T) {
+	// 已是新格式（Phases 非空）時不應再被 Roles 改寫。
+	pc := ProfileConfig{
+		Phases: []PhaseSpec{{Phase: string(PhaseCoding), Runner: "codex"}},
+		Roles:  []string{"designer", "coder", "reviewer", "tester", "deep-reviewer", "acceptor"},
 	}
-	pc := ProfileConfig{Roles: []string{"coder"}}
-	got, err := ResolveProfileModel(cfg, "claude", RoleCoder, pc)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != "sonnet" {
-		t.Errorf("got %q, want sonnet", got)
+	pc.normalize()
+	if len(pc.Phases) != 1 || pc.Phases[0].Runner != "codex" {
+		t.Errorf("normalize mutated explicit Phases: %+v", pc.Phases)
 	}
 }
 
-func TestResolveProfileModel_NonCoderUnaffected(t *testing.T) {
-	cfg := Config{
-		ModelTiers: map[string]map[string]string{
-			"opus":   {"claude": "opus"},
-			"sonnet": {"claude": "sonnet"},
-		},
-		Runners: map[string]RunnerConfig{"claude": {Command: "claude"}},
-		Roles:   map[string]RoleConfig{"reviewer": {Model: "sonnet"}},
+func TestProfileConfig_UnmarshalJSON_BackwardCompat(t *testing.T) {
+	// 舊格式 JSON 載入後應自動轉成 Phases，coder_model 落到 coding phase。
+	var pc ProfileConfig
+	if err := json.Unmarshal([]byte(`{"roles":["coder","reviewer"],"coder_model":"opus"}`), &pc); err != nil {
+		t.Fatal(err)
 	}
-	// CoderModel 覆蓋只影響 coder，reviewer 不受影響。
-	pc := ProfileConfig{Roles: []string{"coder", "reviewer"}, CoderModel: "opus"}
-	got, err := ResolveProfileModel(cfg, "claude", RoleReviewer, pc)
+	if !pc.EnablesPhase(PhaseCoding) || !pc.EnablesPhase(PhaseReviewing) {
+		t.Errorf("expected coding+reviewing enabled, got %+v", pc.Phases)
+	}
+	spec, ok := pc.phaseSpec(PhaseCoding)
+	if !ok || spec.Model != "opus" {
+		t.Errorf("coding phase model = %q (ok=%v), want opus", spec.Model, ok)
+	}
+}
+
+func TestProfileConfig_EnablesPhase(t *testing.T) {
+	pc := DefaultProfiles()["quick"]
+	if !pc.EnablesPhase(PhaseCoding) || !pc.EnablesPhase(PhaseReviewing) {
+		t.Error("quick should enable coding + reviewing phases")
+	}
+	if pc.EnablesPhase(PhaseTesting) || pc.EnablesPhase(PhaseAccepting) {
+		t.Error("quick should not enable testing/accepting phases")
+	}
+}
+
+func TestResolveProfile_DefaultProfile(t *testing.T) {
+	cfg := Config{Profiles: DefaultProfiles(), DefaultProfile: "quick"}
+	// 即便 priority=0（平常會 auto-select full），default_profile 應優先。
+	name, pc, err := ResolveProfile(cfg, feature.Feature{Priority: intPtr(0)}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != "sonnet" {
-		t.Errorf("got %q, want sonnet (reviewer should ignore coder_model)", got)
+	if name != "quick" {
+		t.Errorf("name = %q, want quick (default_profile)", name)
+	}
+	if pc.EnablesPhase(PhaseTesting) {
+		t.Error("quick should not enable testing")
+	}
+	// 明確 --profile 仍應覆寫 default_profile。
+	name, _, err = ResolveProfile(cfg, feature.Feature{Priority: intPtr(0)}, "normal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name != "normal" {
+		t.Errorf("override should win over default_profile, got %q", name)
+	}
+}
+
+func TestResolveProfile_DefaultProfileUnknownFallsBackToFull(t *testing.T) {
+	cfg := Config{Profiles: DefaultProfiles(), DefaultProfile: "nonexistent"}
+	name, _, err := ResolveProfile(cfg, feature.Feature{}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name != "full" {
+		t.Errorf("name = %q, want full (unknown default_profile fallback)", name)
 	}
 }
