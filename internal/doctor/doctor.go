@@ -298,13 +298,17 @@ func checkWorktrees(ws *protocol.Workspace, root string) []Check {
 		}}
 	}
 
+	// statusByID 以 ListFeatures 的 f.ID（YAML 內容的權威 id）為唯一來源，
+	// exists 判斷直接看此 map 是否含 key，使「是否存在」與「status 查詢」不可能 diverge。
 	statusByID := map[string]feature.Status{}
 	if features, err := ws.ListFeatures(); err == nil {
 		for _, f := range features {
 			statusByID[f.ID] = f.Status
 		}
 	}
-	existsByID := featureFileSet(ws)
+	// ListFeatures 會 silently skip 壞檔（無法解析或缺 id），其 worktree 不應因此被誤判為 dangling。
+	// fileSet 以 filename 作為 fallback：只要對應到一個實際存在的 .yaml 檔就不算 dangling。
+	fileSet := featureFileSet(ws)
 
 	var checks []Check
 	for _, e := range entries {
@@ -313,16 +317,17 @@ func checkWorktrees(ws *protocol.Workspace, root string) []Check {
 		}
 		id := e.Name()
 		path := gitops.Dir(root, id)
+		status, known := statusByID[id]
 		switch {
-		case !existsByID[id]:
+		case !known && !fileSet[id]:
 			checks = append(checks, Check{
 				Section: sectionWorkspace, Name: "worktree " + id, Severity: SeverityWarn,
 				Detail: fmt.Sprintf("dangling worktree：%s 無對應 feature", path),
 			})
-		case statusByID[id] == feature.StatusDone || statusByID[id] == feature.StatusAbandoned:
+		case status == feature.StatusDone || status == feature.StatusAbandoned:
 			checks = append(checks, Check{
 				Section: sectionWorkspace, Name: "worktree " + id, Severity: SeverityWarn,
-				Detail: fmt.Sprintf("orphaned worktree：feature %s 已 %s 但 %s 仍存在", id, statusByID[id], path),
+				Detail: fmt.Sprintf("orphaned worktree：feature %s 已 %s 但 %s 仍存在", id, status, path),
 			})
 		}
 	}
@@ -393,6 +398,22 @@ func checkFeatureYAML(ws *protocol.Workspace) []Check {
 			checks = append(checks, Check{
 				Section: sectionWorkspace, Name: e.Name(), Severity: SeverityFail,
 				Detail: fmt.Sprintf("YAML 解析失敗 %s：%v", e.Name(), err),
+			})
+			continue // Unmarshal 失敗時 f 不可信，不再做語意驗證
+		}
+		// 語法合法後再做語意驗證：缺 id 為 fatal（FAIL），其餘格式問題為 warning（WARN）。
+		warnings, fatalErr := f.ValidateLoose()
+		if fatalErr != nil {
+			checks = append(checks, Check{
+				Section: sectionWorkspace, Name: e.Name(), Severity: SeverityFail,
+				Detail: fmt.Sprintf("feature YAML 語意錯誤 %s：%v", e.Name(), fatalErr),
+			})
+			continue
+		}
+		if len(warnings) > 0 {
+			checks = append(checks, Check{
+				Section: sectionWorkspace, Name: e.Name(), Severity: SeverityWarn,
+				Detail: fmt.Sprintf("feature YAML 語意警告 %s：%s", e.Name(), strings.Join(warnings, "; ")),
 			})
 		}
 	}

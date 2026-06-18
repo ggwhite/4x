@@ -138,6 +138,59 @@ func TestCheckTestingToAccepting_MissingFinalReport(t *testing.T) {
 	}
 }
 
+func TestCheckTestingToAccepting_MissingVerifyJSONReportedOnce(t *testing.T) {
+	ws := setupGuardWorkspace(t, "feat-1")
+	roundDir := ws.RoundDir("feat-1", 1)
+	featureDir := ws.FeatureDir("feat-1")
+
+	// 只缺 verify.json，其餘 required 檔齊全。
+	writeFile(t, filepath.Join(roundDir, protocol.TestReport), "# Test")
+	writeFile(t, filepath.Join(featureDir, protocol.FinalReport), "# Final")
+
+	result := CheckTestingToAccepting(ws, "feat-1", 1)
+	if result.Pass {
+		t.Fatal("missing verify.json should fail")
+	}
+	verifyErrs := 0
+	for _, err := range result.Errors {
+		if strings.Contains(err, protocol.VerifyFile) {
+			verifyErrs++
+		}
+	}
+	if verifyErrs != 1 {
+		t.Fatalf("missing verify.json should produce exactly 1 error, got %d: %v", verifyErrs, result.Errors)
+	}
+	// 保留資訊量較高的那條（讀檔區訊息），而非 required 迴圈的 "required file missing"。
+	if !strings.Contains(result.Errors[0], "the tester likely could not run") {
+		t.Fatalf("should keep the informative not-found message, got %v", result.Errors)
+	}
+}
+
+func TestCheckTestingToAccepting_MissingTestReportStillReported(t *testing.T) {
+	ws := setupGuardWorkspace(t, "feat-1")
+	roundDir := ws.RoundDir("feat-1", 1)
+	featureDir := ws.FeatureDir("feat-1")
+
+	// verify.json 齊全且通過，但缺 test-report.md → required 迴圈仍須報它。
+	data, _ := json.Marshal(protocol.VerifyEvidence{Passed: true, Round: 1})
+	writeFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))
+	writeFile(t, filepath.Join(featureDir, protocol.FinalReport), "# Final")
+
+	result := CheckTestingToAccepting(ws, "feat-1", 1)
+	if result.Pass {
+		t.Fatal("missing test-report.md should fail")
+	}
+	found := false
+	for _, err := range result.Errors {
+		if strings.Contains(err, protocol.TestReport) {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected missing test-report error, got %v", result.Errors)
+	}
+}
+
 func TestCheckTestingToAccepting_VerifyFailed(t *testing.T) {
 	ws := setupGuardWorkspace(t, "feat-1")
 	roundDir := ws.RoundDir("feat-1", 1)

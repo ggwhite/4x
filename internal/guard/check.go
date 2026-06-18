@@ -156,8 +156,9 @@ func checkTestingToAccepting(ws *protocol.Workspace, featureID string, round int
 		path  string
 		label string
 	}
+	// verify.json 的缺失/空/壞格式/未通過全部由下方讀檔區涵蓋，故不放進 required 迴圈，
+	// 避免同一個缺失檔案被 required 迴圈與讀檔區各報一條 error。
 	required := []pathLabel{
-		{filepath.Join(roundDir, protocol.VerifyFile), filepath.Join(protocol.RoundsDir, fmt.Sprintf("round-%d", round), protocol.VerifyFile)},
 		{filepath.Join(roundDir, protocol.TestReport), filepath.Join(protocol.RoundsDir, fmt.Sprintf("round-%d", round), protocol.TestReport)},
 		{filepath.Join(featureDir, protocol.FinalReport), protocol.FinalReport},
 	}

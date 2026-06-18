@@ -288,6 +288,85 @@ func TestCheckWorkspace_MalformedYAML(t *testing.T) {
 	}
 }
 
+// writeRawFeature 以指定 filename 與原始內容寫一個 feature YAML，
+// 供測試 filename 與內部 id 不一致、或語意錯誤等情境。
+func writeRawFeature(t *testing.T, root, filename, body string) {
+	t.Helper()
+	path := filepath.Join(root, ".4x", "features", filename)
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCheckFeatureYAML_MissingIDFails(t *testing.T) {
+	root := setupWorkspace(t)
+	writeRawFeature(t, root, "F020.yaml", "name: 沒有 id\nstatus: in-progress\n")
+	ws := &protocol.Workspace{Root: root}
+	checks := checkFeatureYAML(ws)
+	c := findCheck(checks, sectionWorkspace, "F020.yaml")
+	if c == nil || c.Severity != SeverityFail || !strings.Contains(c.Detail, "F020.yaml") {
+		t.Fatalf("缺 id 的 feature 應 FAIL 且 detail 含檔名，得 %+v", c)
+	}
+}
+
+func TestCheckFeatureYAML_SemanticWarn(t *testing.T) {
+	root := setupWorkspace(t)
+	// 語法合法但 status 無效、且 subtask 缺 name → 應彙整為單一 WARN。
+	body := "id: F021\nname: 語意問題\nstatus: bogus-status\nsubtasks:\n  - id: s1\n"
+	writeRawFeature(t, root, "F021.yaml", body)
+	ws := &protocol.Workspace{Root: root}
+	checks := checkFeatureYAML(ws)
+	c := findCheck(checks, sectionWorkspace, "F021.yaml")
+	if c == nil || c.Severity != SeverityWarn {
+		t.Fatalf("語意問題應 WARN，得 %+v", c)
+	}
+	if !strings.Contains(c.Detail, "bogus-status") || !strings.Contains(c.Detail, "subtasks[0]") {
+		t.Fatalf("WARN detail 應彙整各條 warning，得 %q", c.Detail)
+	}
+}
+
+func TestCheckFeatureYAML_AllCleanSummaryPass(t *testing.T) {
+	root := setupWorkspace(t)
+	writeFeature(t, root, "F022", feature.StatusInProgress)
+	ws := &protocol.Workspace{Root: root}
+	checks := checkFeatureYAML(ws)
+	if findCheck(checks, sectionWorkspace, "F022.yaml") != nil {
+		t.Fatalf("乾淨的 feature 不應有單檔 check")
+	}
+	c := findCheck(checks, sectionWorkspace, "feature yaml")
+	if c == nil || c.Severity != SeverityPass {
+		t.Fatalf("全乾淨應回傳單一 summary PASS，得 %+v", c)
+	}
+}
+
+func TestCheckWorktrees_IDSourceFilenameMismatch(t *testing.T) {
+	root := setupWorkspace(t)
+	// filename 與內部 id 不一致：worktree 走內部 id（F100），不應因 filename 不同被誤判 dangling。
+	writeRawFeature(t, root, "feature-100.yaml", "id: F100\nname: 不一致\nstatus: in-progress\n")
+	if err := os.MkdirAll(filepath.Join(root, ".worktrees", "4x", "F100"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ws := &protocol.Workspace{Root: root}
+	checks := checkWorktrees(ws, root)
+	if findCheck(checks, sectionWorkspace, "worktree F100") != nil {
+		t.Fatalf("有對應 feature 的 worktree 不應被報 dangling")
+	}
+}
+
+func TestCheckWorktrees_BadFileFallbackNotDangling(t *testing.T) {
+	root := setupWorkspace(t)
+	// 壞檔（ListFeatures 會 skip），但 filename 對應 worktree → 靠 filename fallback 不算 dangling。
+	writeRawFeature(t, root, "F101.yaml", "id: F101\nname: [unterminated\n")
+	if err := os.MkdirAll(filepath.Join(root, ".worktrees", "4x", "F101"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ws := &protocol.Workspace{Root: root}
+	checks := checkWorktrees(ws, root)
+	if findCheck(checks, sectionWorkspace, "worktree F101") != nil {
+		t.Fatalf("filename 對應實際 .yaml 檔的 worktree 不應被報 dangling")
+	}
+}
+
 // --- Diagnose 整合 ---
 
 func TestDiagnose_BadSettingsDoesNotAbort(t *testing.T) {
