@@ -116,6 +116,7 @@ func checkRequiredFiles(ws *protocol.Workspace, featureID string, r *CheckResult
 		protocol.PhaseCoding:        true,
 		protocol.PhaseReviewing:     true,
 		protocol.PhaseTesting:       true,
+		protocol.PhaseDeepReviewing: true,
 		protocol.PhaseAmending:      true,
 		protocol.PhaseAccepting:     true,
 		protocol.PhasePendingReview: true,
@@ -243,7 +244,10 @@ func checkBaseline(ws *protocol.Workspace, featureID string, r *CheckResult) {
 func checkScope(ws *protocol.Workspace, featureID string, detector ScopeDetector, r *CheckResult) {
 	feature, err := ws.LoadFeature(featureID)
 	if err != nil {
-		r.Warns = append(r.Warns, fmt.Sprintf("cannot load feature YAML: %v", err))
+		// fail-closed：無法載入 feature 範圍時不可靜默放行，否則任何範圍外
+		// 變更都會被略過（YAML 壞掉即等於關閉 scope guard）。
+		r.Pass = false
+		r.Errors = append(r.Errors, fmt.Sprintf("cannot load feature YAML for scope check: %v", err))
 		return
 	}
 
@@ -283,9 +287,12 @@ func detectChangedRepos(root string) []string {
 				continue
 			}
 			parts := strings.SplitN(line, "/", 2)
-			if len(parts) > 0 {
-				repoSet[parts[0]] = true
+			// 根目錄檔案（go.mod、Makefile 等，路徑無 "/"）不是 repo，
+			// 不可當成 repo 名稱比對，否則會誤判 scope violation。
+			if len(parts) < 2 {
+				continue
 			}
+			repoSet[parts[0]] = true
 		}
 	}
 

@@ -22,6 +22,11 @@ func setupGuardWorkspace(t *testing.T, featureID string) *protocol.Workspace {
 	if err := ws.InitFeatureDir(featureID); err != nil {
 		t.Fatal(err)
 	}
+	// 存一份無 repos 的 feature YAML：F081 後 checkScope 對 YAML 載入失敗 fail-closed，
+	// 故每個 workspace 都需有可載入的 feature；無 repos 讓 scope check 早退、不干擾其他斷言。
+	if err := ws.SaveFeature(feature.Feature{ID: featureID, Name: featureID}); err != nil {
+		t.Fatal(err)
+	}
 	return ws
 }
 
@@ -421,6 +426,11 @@ func TestCheckDependencies_MissingDep(t *testing.T) {
 
 func TestCheckDependencies_NoFeatureYAML(t *testing.T) {
 	ws := setupGuardWorkspace(t, "feat-a")
+	// setupGuardWorkspace 預設會存一份 feature YAML；本測試刻意驗證「YAML 缺失」情境，
+	// 故移除它，讓 checkDependencies 走 load 失敗的 warn 分支。
+	if err := os.Remove(filepath.Join(ws.DotDir(), protocol.FeaturesDir, "feat-a.yaml")); err != nil {
+		t.Fatal(err)
+	}
 
 	result := CheckDependencies(ws, "feat-a")
 	if !result.Pass {

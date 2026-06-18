@@ -277,10 +277,12 @@ func resolveWorktreeParent(wtDir string) string {
 	return filepath.Dir(dotGit)
 }
 
-// DetectChangedRepos 找出 feature 範圍內哪些 repo 有 tracked 變更。
+// DetectChangedRepos 找出 feature 範圍內哪些 repo 有 uncommitted 變更。
 // worktree 隔離模式下每個 repo 的工作目錄是 <worktreeRoot>/<name>（與 SetupWorktree
 // 的佈局一致），而非 main workspace 下的 rc.Path；故先確認該 worktree 子目錄確為 linked
-// worktree 再在其中執行 git diff，否則回退到 main 的 rc.Path 維持非 worktree 情境的既有行為。
+// worktree 再在其中執行 git 指令，否則回退到 main 的 rc.Path 維持非 worktree 情境的既有行為。
+// tracked 變更（git diff HEAD）與 untracked 新檔（git ls-files --others）任一非空即視為變更，
+// 後者是 git diff HEAD 涵蓋不到、會被靜默繞過的缺口。
 func (m *multiRepo) DetectChangedRepos(featureID string) []string {
 	wtDir := Dir(m.root, featureID)
 	var changed []string
@@ -289,8 +291,9 @@ func (m *multiRepo) DetectChangedRepos(featureID string) []string {
 		if wtRepoDir := filepath.Join(wtDir, name); isLinkedWorktree(wtRepoDir) {
 			repoPath = wtRepoDir
 		}
-		out := gitOutput(repoPath, "diff", "--name-only", "HEAD")
-		if out != "" {
+		diff := gitOutput(repoPath, "diff", "--name-only", "HEAD")
+		untracked := gitOutput(repoPath, "ls-files", "--others", "--exclude-standard")
+		if diff != "" || untracked != "" {
 			changed = append(changed, name)
 		}
 	}

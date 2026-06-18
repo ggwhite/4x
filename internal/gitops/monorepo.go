@@ -122,26 +122,39 @@ func (m *monoRepo) Cleanup(featureID string) error {
 	return nil
 }
 
-// DetectChangedRepos 找出 feature 的 worktree（若存在）內哪些子目錄有 tracked 變更。
+// DetectChangedRepos 找出 feature 的 worktree（若存在）內哪些子目錄有 uncommitted 變更。
 // worktree 隔離模式下 feature 變更在 <root>/.worktrees/4x/<featureID>，而非 m.root；
-// 故先以 featureID 解析出 worktree 根，再執行 git diff，避免誤掃 main workspace 的變更。
+// 故先以 featureID 解析出 worktree 根，再執行 git 指令，避免誤掃 main workspace 的變更。
+// 合併 tracked 變更（git diff HEAD）與 untracked 新檔（git ls-files --others），後者是
+// git diff HEAD 涵蓋不到的缺口；兩條指令各自獨立容錯，單一失敗不影響另一條的結果。
 func (m *monoRepo) DetectChangedRepos(featureID string) []string {
-	cmd := exec.Command("git", "diff", "--name-only", "HEAD")
-	cmd.Dir = ScopeRoot(m.root, featureID)
-	out, err := cmd.Output()
-	if err != nil {
-		return nil
-	}
-
+	root := ScopeRoot(m.root, featureID)
 	repoSet := make(map[string]bool)
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		if line == "" {
-			continue
-		}
-		parts := strings.SplitN(line, "/", 2)
-		if len(parts) > 0 {
+
+	collect := func(out []byte) {
+		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			if line == "" {
+				continue
+			}
+			parts := strings.SplitN(line, "/", 2)
+			// 根目錄檔案（go.mod、Makefile 等，路徑無 "/"）不是 repo，跳過避免誤判。
+			if len(parts) < 2 {
+				continue
+			}
 			repoSet[parts[0]] = true
 		}
+	}
+
+	diffCmd := exec.Command("git", "diff", "--name-only", "HEAD")
+	diffCmd.Dir = root
+	if out, err := diffCmd.Output(); err == nil {
+		collect(out)
+	}
+
+	untrackedCmd := exec.Command("git", "ls-files", "--others", "--exclude-standard")
+	untrackedCmd.Dir = root
+	if out, err := untrackedCmd.Output(); err == nil {
+		collect(out)
 	}
 
 	var repos []string
