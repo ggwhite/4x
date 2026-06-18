@@ -18,7 +18,7 @@ var (
 func NextNumber(store Store) (int, error) {
 	features, err := store.ListFeatures()
 	if err != nil {
-		return 1, nil
+		return 0, fmt.Errorf("list features for next number: %w", err)
 	}
 	max := 0
 	for _, f := range features {

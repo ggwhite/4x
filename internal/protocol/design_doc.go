@@ -3,10 +3,15 @@ package protocol
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/ggwhite/4x/internal/feature"
 )
+
+// featurePrefixStripRe 比對 feature ID 的 F{NNN}- 前綴（至少 3 位數字，支援 F1000+ 等
+// 4 位以上）。要求 index 1 起為純數字並以 dash 收尾，避免 Fabc-x 之類非數字 ID 被誤截。
+var featurePrefixStripRe = regexp.MustCompile(`^F\d{3,}-`)
 
 // DesignDoc 是設計文件（spec/plan）的解析結果。
 // 找不到對應文件時，Content 與 Source 皆為空字串。
@@ -79,8 +84,8 @@ func ResolveDesignDoc(root string, feature feature.Feature, docType string, extr
 // stripFeaturePrefix 移除 FNNN- prefix（如 F022-multi-project → multi-project），
 // 不符合 FNNN- 格式時原樣回傳。
 func stripFeaturePrefix(id string) string {
-	if len(id) > 5 && id[0] == 'F' && id[4] == '-' {
-		return id[5:]
+	if loc := featurePrefixStripRe.FindStringIndex(id); loc != nil {
+		return id[loc[1]:]
 	}
 	return id
 }

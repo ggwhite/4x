@@ -152,11 +152,16 @@ func TestResolveDesignDoc_ExtraDirsStripPrefix(t *testing.T) {
 
 func TestStripFeaturePrefix(t *testing.T) {
 	cases := map[string]string{
-		"F054-test":  "test",
-		"F022-multi": "multi",
-		"test":       "test",
-		"F0-x":       "F0-x",
-		"abcd-x":     "abcd-x",
+		"F054-test":          "test",
+		"F022-multi":         "multi",
+		"F022-multi-project": "multi-project",
+		"F1000-four-digit":   "four-digit", // 4 位數 prefix 正確移除
+		"test":               "test",
+		"F0-x":               "F0-x",
+		"F03-x":              "F03-x",  // 位數不足，原樣回傳
+		"Fabc-x":             "Fabc-x", // 非數字，不誤截
+		"F123":               "F123",   // 無 dash，原樣回傳
+		"abcd-x":             "abcd-x",
 	}
 	for in, want := range cases {
 		if got := stripFeaturePrefix(in); got != want {

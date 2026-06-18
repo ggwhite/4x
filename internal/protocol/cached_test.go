@@ -242,3 +242,73 @@ func TestCachedLoadFeature_NotFound(t *testing.T) {
 		t.Error("expected error for nonexistent feature")
 	}
 }
+
+// TestCachedLoadFeature_ShortID 驗證短 ID（檔名含 slug 後綴）能 fallback 解析成功，
+// 而非因 id+".yaml" 路徑 Stat 失敗直接回傳錯誤。
+func TestCachedLoadFeature_ShortID(t *testing.T) {
+	cws, tmp := setupCachedTestWorkspace(t)
+	writeFeatureFile(t, tmp, feature.Feature{ID: "F078-short-id", Name: "Short", Status: feature.StatusNotStarted})
+
+	f, err := cws.LoadFeature("F078")
+	if err != nil {
+		t.Fatalf("short ID should resolve, got err: %v", err)
+	}
+	if f.ID != "F078-short-id" {
+		t.Errorf("ID = %q, want F078-short-id", f.ID)
+	}
+}
+
+// TestCachedLoadFeature_DeepCopy 驗證回傳值被就地修改後，再次 cache hit 取得的值不受污染。
+func TestCachedLoadFeature_DeepCopy(t *testing.T) {
+	cws, tmp := setupCachedTestWorkspace(t)
+	prio := 5
+	writeFeatureFile(t, tmp, feature.Feature{
+		ID:       "F011-copy",
+		Name:     "CopyTest",
+		Status:   feature.StatusNotStarted,
+		Priority: &prio,
+		Repos:    []string{"repo-a"},
+		Rules:    []string{"rule-a"},
+		Subtasks: []feature.Subtask{{ID: "s1", Name: "sub", Depends: []string{"d1"}}},
+		Hooks:    map[string][]feature.HookEntry{"coding": {{Run: "echo a"}}},
+	})
+
+	f1, err := cws.LoadFeature("F011-copy")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 就地污染回傳值的所有 reference 欄位
+	*f1.Priority = 99
+	f1.Repos[0] = "polluted"
+	f1.Repos = append(f1.Repos, "extra")
+	f1.Rules[0] = "polluted"
+	f1.Subtasks[0].Name = "polluted"
+	f1.Subtasks[0].Depends[0] = "polluted"
+	f1.Hooks["coding"][0].Run = "polluted"
+	f1.Hooks["evil"] = []feature.HookEntry{{Run: "x"}}
+
+	// 第二次 Load（cache hit）必須回原始值
+	f2, err := cws.LoadFeature("F011-copy")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f2.Priority == nil || *f2.Priority != 5 {
+		t.Errorf("Priority polluted: %v", f2.Priority)
+	}
+	if f2.Repos[0] != "repo-a" || len(f2.Repos) != 1 {
+		t.Errorf("Repos polluted: %v", f2.Repos)
+	}
+	if f2.Rules[0] != "rule-a" {
+		t.Errorf("Rules polluted: %v", f2.Rules)
+	}
+	if f2.Subtasks[0].Name != "sub" || f2.Subtasks[0].Depends[0] != "d1" {
+		t.Errorf("Subtasks polluted: %+v", f2.Subtasks)
+	}
+	if f2.Hooks["coding"][0].Run != "echo a" {
+		t.Errorf("Hooks polluted: %v", f2.Hooks["coding"])
+	}
+	if _, ok := f2.Hooks["evil"]; ok {
+		t.Error("Hooks map key polluted")
+	}
+}

@@ -1,6 +1,7 @@
 package feature
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 )
@@ -9,6 +10,7 @@ import (
 type mockStore struct {
 	features map[string]Feature
 	dirs     []string
+	listErr  error // 非 nil 時 ListFeatures 回傳此 error，供錯誤傳播測試
 }
 
 func newMockStore() *mockStore {
@@ -31,6 +33,9 @@ func (m *mockStore) LoadFeature(id string) (Feature, error) {
 }
 
 func (m *mockStore) ListFeatures() ([]Feature, error) {
+	if m.listErr != nil {
+		return nil, m.listErr
+	}
 	ff := make([]Feature, 0, len(m.features))
 	for _, f := range m.features {
 		ff = append(ff, f)
@@ -113,5 +118,24 @@ func TestNextNumber(t *testing.T) {
 	}
 	if n != 1001 {
 		t.Errorf("got %d, want 1001", n)
+	}
+}
+
+// TestNextNumberListError 驗證 ListFeatures 失敗時 NextNumber 將 error 往外傳，
+// 不再 silent fallback 到流水號 1（否則會與既有 feature 碰撞並覆蓋其 YAML）。
+func TestNextNumberListError(t *testing.T) {
+	sentinel := errors.New("disk on fire")
+	store := newMockStore()
+	store.listErr = sentinel
+
+	n, err := NextNumber(store)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, sentinel) {
+		t.Errorf("error %v should wrap sentinel", err)
+	}
+	if n == 1 {
+		t.Errorf("got %d, want non-1 on error (must not silent fallback to 1)", n)
 	}
 }

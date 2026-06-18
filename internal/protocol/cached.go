@@ -1,7 +1,6 @@
 package protocol
 
 import (
-	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -183,11 +182,19 @@ func yamlMtimesMatch(entries []os.DirEntry, mtimes map[string]time.Time) bool {
 }
 
 // LoadFeature 讀取單一 feature；對應 YAML 的 mtime 未變時回傳 cache。
+//
+// 短 ID（如 "F078"，無 slug 後綴）無法用 id+".yaml" 直接命中檔案，此時委派給
+// 非 cache 版 Workspace.LoadFeature（內含 resolveFeatureFile 短 ID 解析），該路徑
+// 每次重新 parse、不建 cache 條目，目標是「短 ID 至少能正確解析」。
+//
+// 回傳值一律經 Clone 深拷貝，與 cache 內存版本不共用任何 slice/map，
+// 呼叫端就地修改不會污染 cache。
 func (c *CachedWorkspace) LoadFeature(id string) (feature.Feature, error) {
 	path := filepath.Join(c.DotDir(), FeaturesDir, id+".yaml")
 	info, err := os.Stat(path)
 	if err != nil {
-		return feature.Feature{}, fmt.Errorf("read feature %s: %w", id, err)
+		// 短 ID 等情形 Stat 失敗，fallback 走非 cache 版的短 ID 解析路徑。
+		return c.Workspace.LoadFeature(id)
 	}
 	mtime := info.ModTime()
 
@@ -196,7 +203,7 @@ func (c *CachedWorkspace) LoadFeature(id string) (feature.Feature, error) {
 		if cached, ok := c.featureCache[id]; ok {
 			if mt, ok := c.featureMtime[id]; ok && mtime.Equal(mt) {
 				c.mu.RUnlock()
-				return cached, nil
+				return cached.Clone(), nil
 			}
 		}
 	}
@@ -219,5 +226,6 @@ func (c *CachedWorkspace) LoadFeature(id string) (feature.Feature, error) {
 		c.mu.Unlock()
 	}
 
-	return f, nil
+	// 回傳 clone，確保與 cache 內存的 f 不共用底層 slice/map。
+	return f.Clone(), nil
 }
