@@ -1,15 +1,19 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -300,8 +304,19 @@ func newRunCmd() *cobra.Command {
 				s.Runners = append(s.Runners, runnerName)
 			}
 
-			// 決定本次 run 的 profile：--profile 優先，否則沿用 resume 既有值，
-			// 再否則依 priority auto-select（或無 profiles 區段時回 full）。
+			// profile-select UI：無 --profile flag、非 resume（s.Profile 為空）、非 dry-run，
+			// 且 stdin/stdout 皆為互動式終端機時，列出可選 profile 讓使用者選；其餘情況沿用
+			// 既有解析（default_profile / priority auto-select）。
+			if profileFlag == "" && s.Profile == "" && !dryRun && isInteractiveTerminal() {
+				sel, serr := selectProfileInteractive(os.Stdin, os.Stdout, cfg, feature)
+				if serr != nil {
+					return serr
+				}
+				profileFlag = sel
+			}
+
+			// 決定本次 run 的 profile：--profile（含互動選定）優先，否則沿用 resume 既有值，
+			// 再否則依 default_profile / priority auto-select（或無 profiles 區段時回 full）。
 			profileOverride := profileFlag
 			if profileOverride == "" {
 				profileOverride = s.Profile
@@ -430,6 +445,89 @@ func newRunCmd() *cobra.Command {
 	cmd.Flags().StringVar(&profileFlag, "profile", "", "pipeline profile (full/normal/quick or custom); overrides priority-based auto-select")
 	cmd.Flags().BoolVar(&noNotify, "no-notify", false, "disable OS notification on run completion (overrides config)")
 	return cmd
+}
+
+// isInteractiveTerminal 回報 stdin 與 stdout 是否皆為互動式終端機（char device）。
+// 用 os.Stat 的 ModeCharDevice 判斷，避免引入 golang.org/x/term 重量依賴；
+// 任一為 pipe/redirect（背景、CI、--json 子程序）時回 false，不進互動選單。
+func isInteractiveTerminal() bool {
+	return isCharDevice(os.Stdin) && isCharDevice(os.Stdout)
+}
+
+func isCharDevice(f *os.File) bool {
+	info, err := f.Stat()
+	if err != nil {
+		return false
+	}
+	return info.Mode()&os.ModeCharDevice != 0
+}
+
+// profileOptions 回傳可選 profile 名稱清單（cfg.Profiles ∪ DefaultProfiles），
+// 依 canonical 順序（full/normal/quick）排在前、其餘自訂 profile 字母序在後，供互動選單列舉。
+func profileOptions(cfg protocol.Config) []string {
+	seen := map[string]bool{}
+	var ordered []string
+	for _, name := range []string{"full", "normal", "quick"} {
+		if _, ok := protocol.DefaultProfiles()[name]; ok {
+			ordered = append(ordered, name)
+			seen[name] = true
+		}
+	}
+	var custom []string
+	for name := range cfg.Profiles {
+		if !seen[name] {
+			custom = append(custom, name)
+			seen[name] = true
+		}
+	}
+	sort.Strings(custom)
+	return append(ordered, custom...)
+}
+
+// selectProfileInteractive 在終端機列出可選 profile 編號選單，預設項為 cfg.DefaultProfile
+// （未設定時為 full），讓使用者輸入編號或直接 Enter 採用預設。回傳選定的 profile 名稱
+// （空字串代表採用既有自動解析，不覆寫）。讀檔/輸入錯誤時回 error。
+func selectProfileInteractive(in io.Reader, out io.Writer, cfg protocol.Config, feature feat.Feature) (string, error) {
+	options := profileOptions(cfg)
+	if len(options) == 0 {
+		return "", nil
+	}
+	def := cfg.DefaultProfile
+	if def == "" {
+		def = "full"
+	}
+	defIdx := 0
+	for i, name := range options {
+		if name == def {
+			defIdx = i
+		}
+	}
+
+	fmt.Fprintf(out, "Select pipeline profile for %s:\n", feature.ID)
+	for i, name := range options {
+		marker := " "
+		if i == defIdx {
+			marker = "*"
+		}
+		fmt.Fprintf(out, "  %s %d) %s\n", marker, i+1, name)
+	}
+	fmt.Fprintf(out, "Enter number [%d]: ", defIdx+1)
+
+	reader := bufio.NewReader(in)
+	line, err := reader.ReadString('\n')
+	if err != nil && line == "" {
+		// EOF 無輸入：採用預設項。
+		return options[defIdx], nil
+	}
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return options[defIdx], nil
+	}
+	n, convErr := strconv.Atoi(line)
+	if convErr != nil || n < 1 || n > len(options) {
+		return "", fmt.Errorf("invalid profile selection %q (enter 1-%d)", line, len(options))
+	}
+	return options[n-1], nil
 }
 
 // promptOption 在 promptData 組好、模板 render 前對其做最後調整，

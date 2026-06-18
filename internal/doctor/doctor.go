@@ -66,6 +66,7 @@ const (
 	sectionSettings  = "settings"
 	sectionRunners   = "runners"
 	sectionRoles     = "roles"
+	sectionProfiles  = "profiles"
 	sectionWorkspace = "workspace"
 )
 
@@ -102,6 +103,7 @@ func Diagnose(opts Options) (Report, error) {
 	report.Checks = append(report.Checks, checkSettings(cfg, loadErr)...)
 	report.Checks = append(report.Checks, checkRunners(cfg, lookPath)...)
 	report.Checks = append(report.Checks, checkRoles(cfg)...)
+	report.Checks = append(report.Checks, checkProfiles(cfg, lookPath)...)
 	report.Checks = append(report.Checks, checkWorkspace(ws, opts.Root, processAlive)...)
 	return report, nil
 }
@@ -272,6 +274,87 @@ func checkRoles(cfg protocol.Config) []Check {
 			Section: sectionRoles, Name: string(protocol.RoleDeepReviewer), Severity: SeverityPass,
 			Detail: fmt.Sprintf("deep_model = %s", deepModel),
 		})
+	}
+	return checks
+}
+
+// checkProfiles 對每個自訂 profile 驗證新 phase 結構：phase 在 profileSelectablePhases 白名單、
+// 含 coding phase、每個 PhaseSpec.Runner（非空）存在於 runners 且 binary 在 PATH、每個
+// PhaseSpec.Model（非空）能被對應 runner 解析。無自訂 profile 時回單一 PASS。
+func checkProfiles(cfg protocol.Config, lookPath func(string) (string, error)) []Check {
+	if lookPath == nil {
+		lookPath = exec.LookPath
+	}
+	if len(cfg.Profiles) == 0 {
+		return []Check{{
+			Section: sectionProfiles, Name: "profiles", Severity: SeverityPass,
+			Detail: "未定義自訂 profile，使用內建 full/normal/quick",
+		}}
+	}
+
+	names := make([]string, 0, len(cfg.Profiles))
+	for name := range cfg.Profiles {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	var checks []Check
+	for _, name := range names {
+		pc := cfg.Profiles[name]
+		var issues []Check
+		hasCoding := false
+		for _, ps := range pc.Phases {
+			phase := protocol.Phase(ps.Phase)
+			if !protocol.IsSelectablePhase(phase) {
+				issues = append(issues, Check{
+					Section: sectionProfiles, Name: name, Severity: SeverityFail,
+					Detail: fmt.Sprintf("phase %q 不在可選白名單", ps.Phase),
+				})
+			}
+			if phase == protocol.PhaseCoding {
+				hasCoding = true
+			}
+			if ps.Runner != "" {
+				rc, ok := cfg.Runners[ps.Runner]
+				if !ok {
+					issues = append(issues, Check{
+						Section: sectionProfiles, Name: name, Severity: SeverityFail,
+						Detail: fmt.Sprintf("phase %q 的 runner %q 不在 runners 清單中", ps.Phase, ps.Runner),
+					})
+				} else {
+					if rc.Command != "" {
+						if _, err := lookPath(rc.Command); err != nil {
+							issues = append(issues, Check{
+								Section: sectionProfiles, Name: name, Severity: SeverityWarn,
+								Detail: fmt.Sprintf("phase %q 的 runner %q command %q 不在 PATH（若跑在遠端可忽略）", ps.Phase, ps.Runner, rc.Command),
+							})
+						}
+					}
+					if ps.Model != "" {
+						if _, err := protocol.ResolvePhaseModel(cfg, feature.Feature{}, pc, phase, protocol.RoleCoder, ps.Runner, ""); err != nil {
+							issues = append(issues, Check{
+								Section: sectionProfiles, Name: name, Severity: SeverityWarn,
+								Detail: fmt.Sprintf("phase %q 的 model %q 無法被 runner %q 解析（%v）", ps.Phase, ps.Model, ps.Runner, err),
+							})
+						}
+					}
+				}
+			}
+		}
+		if len(pc.Phases) > 0 && !hasCoding {
+			issues = append(issues, Check{
+				Section: sectionProfiles, Name: name, Severity: SeverityFail,
+				Detail: "profile 必須包含 coding phase",
+			})
+		}
+		if len(issues) == 0 {
+			checks = append(checks, Check{
+				Section: sectionProfiles, Name: name, Severity: SeverityPass,
+				Detail: fmt.Sprintf("%d 個 phase 設定正確", len(pc.Phases)),
+			})
+		} else {
+			checks = append(checks, issues...)
+		}
 	}
 	return checks
 }
