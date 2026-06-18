@@ -509,3 +509,110 @@ blocked: F001-user-model is not done (status: coding)
 4x done F001
 4x run F002
 ```
+
+## 整合 gstack Browse 進行 E2E 測試
+
+[gstack](https://github.com/garrytan/gstack) 提供一個持久化的 headless browser daemon，可以加速 4x 裡的 Playwright E2E 測試。不用每輪都冷啟動 Chromium（約 3-5 秒），daemon 讓 browser 保持運作並在各輪之間保留登入狀態。
+
+這是**選用功能**——4x 內建的 `web` 測試 profile 不需要 gstack 也能運作。daemon 最適合以下情境：
+
+- 你的專案需要登入（保留 session 省去每輪重新驗證）
+- 你以 batch 模式跑多個 feature（全部共用一個 browser 實例）
+- 你想要低於 200ms 的 browser 回應時間，而非冷啟動延遲
+
+### 安裝
+
+1. 把 gstack 安裝為 Claude Code skill：
+
+```bash
+git clone --depth 1 https://github.com/garrytan/gstack.git ~/.claude/skills/gstack
+cd ~/.claude/skills/gstack && ./setup
+```
+
+2. 啟動 browse daemon（在背景執行）：
+
+```bash
+# 在 Claude Code 中
+/browse-open http://localhost:4567
+```
+
+或手動啟動：
+
+```bash
+cd ~/.claude/skills/gstack && bun run browse/src/server.ts
+```
+
+daemon 會選一個隨機 port，並把連線資訊寫入 `.gstack/browse.json`。
+
+### 設定 4x 使用 gstack browse
+
+在 `.4x/settings.json` 中覆寫內建的 `web` 測試 profile：
+
+```json
+{
+  "test_profiles": {
+    "web": {
+      "include": "docs/test-profiles/gstack-web.md"
+    }
+  }
+}
+```
+
+建立 `docs/test-profiles/gstack-web.md`：
+
+```markdown
+Web UI E2E Testing with gstack Browse:
+
+- Use gstack browse daemon instead of launching a standalone Playwright instance
+- Read connection info from .gstack/browse.json (port + auth token)
+- Send commands via HTTP POST to the daemon:
+  - `POST /command` with `{"command": "goto", "args": ["http://localhost:4567"]}`
+  - `POST /command` with `{"command": "snapshot"}` to get the accessibility tree with @e refs
+  - `POST /command` with `{"command": "click", "args": ["@e5"]}` to interact with elements
+  - `POST /command` with `{"command": "screenshot"}` to capture evidence
+- Include Bearer token from browse.json in all requests
+- Save screenshots to the configured screenshot_dir
+- Each AC item must have at least one screenshot as evidence
+- Do NOT launch a separate Chromium instance — use the running daemon
+- If the daemon is not running, fall back to standard Playwright (npx playwright test)
+```
+
+### 範例：搭配 gstack 的 test-strategy.yaml
+
+```yaml
+web: true
+api: false
+coder_only: false
+profiles:
+  - web
+verify_commands:
+  - "make build"
+  - "make test"
+```
+
+當 Designer 標記 `profiles: [web]`，而你的 `test_profiles.web` 已指向 gstack 覆寫，Tester 的 prompt 裡就會自動注入 gstack 專屬的操作指引。
+
+### 需要登入的專案
+
+對於需要驗證的專案（例如管理後台），在跑 4x 之前先在 gstack daemon 中登入一次：
+
+```bash
+# 在 gstack daemon 中開啟登入頁
+/browse-open https://your-app.example.com/login
+
+# 手動登入，或透過 gstack fill 指令填表
+# Session cookie 會在後續所有 4x 測試輪次中持續保留
+```
+
+之後 Tester 可以完全跳過登入步驟——daemon 的 browser 已持有有效的 session。
+
+### 不使用 gstack
+
+如果你不用 gstack，內建的 `web` profile 開箱即用：
+
+- Tester 每輪測試啟動一個獨立的 Playwright 實例
+- 建立暫時工作區、以隨機 port 啟動 `4x live`
+- 跑測試、截圖、清理
+- 輪次之間無持久狀態（每輪都是全新開始）
+
+詳見[測試 Profile](concepts.md#test-profiles)了解覆寫 profile 的方法。

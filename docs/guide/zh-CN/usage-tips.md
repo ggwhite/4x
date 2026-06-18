@@ -511,3 +511,110 @@ blocked: F001-user-model is not done (status: coding)
 4x done F001
 4x run F002
 ```
+
+## 集成 gstack Browse 做 E2E 测试
+
+[gstack](https://github.com/garrytan/gstack) 提供一个持久化的无头浏览器守护进程，可以加速 4x 中基于 Playwright 的 E2E 测试。与每轮测试都冷启动 Chromium（约 3-5 秒）不同，守护进程让浏览器保持运行，并在轮次间保留登录状态。
+
+这是**可选的**——4x 内置的 `web` 测试配置文件无需 gstack 也能正常工作。以下场景使用守护进程最有价值：
+
+- 你的项目需要登录（会话持久化省去每轮重新认证）
+- 你以批量模式运行多个 feature（所有 feature 共用一个浏览器实例）
+- 你希望浏览器响应时间低于 200ms，而非等冷启动
+
+### 安装
+
+1. 将 gstack 作为 Claude Code skill 安装：
+
+```bash
+git clone --depth 1 https://github.com/garrytan/gstack.git ~/.claude/skills/gstack
+cd ~/.claude/skills/gstack && ./setup
+```
+
+2. 启动 browse 守护进程（在后台运行）：
+
+```bash
+# 在 Claude Code 中
+/browse-open http://localhost:4567
+```
+
+或手动启动：
+
+```bash
+cd ~/.claude/skills/gstack && bun run browse/src/server.ts
+```
+
+守护进程会随机选择一个端口，并将连接信息写入 `.gstack/browse.json`。
+
+### 配置 4x 使用 gstack browse
+
+在 `.4x/settings.json` 中覆盖内置的 `web` 测试配置文件：
+
+```json
+{
+  "test_profiles": {
+    "web": {
+      "include": "docs/test-profiles/gstack-web.md"
+    }
+  }
+}
+```
+
+创建 `docs/test-profiles/gstack-web.md`：
+
+```markdown
+Web UI E2E Testing with gstack Browse:
+
+- Use gstack browse daemon instead of launching a standalone Playwright instance
+- Read connection info from .gstack/browse.json (port + auth token)
+- Send commands via HTTP POST to the daemon:
+  - `POST /command` with `{"command": "goto", "args": ["http://localhost:4567"]}`
+  - `POST /command` with `{"command": "snapshot"}` to get the accessibility tree with @e refs
+  - `POST /command` with `{"command": "click", "args": ["@e5"]}` to interact with elements
+  - `POST /command` with `{"command": "screenshot"}` to capture evidence
+- Include Bearer token from browse.json in all requests
+- Save screenshots to the configured screenshot_dir
+- Each AC item must have at least one screenshot as evidence
+- Do NOT launch a separate Chromium instance — use the running daemon
+- If the daemon is not running, fall back to standard Playwright (npx playwright test)
+```
+
+### 示例：带 gstack 的 test-strategy.yaml
+
+```yaml
+web: true
+api: false
+coder_only: false
+profiles:
+  - web
+verify_commands:
+  - "make build"
+  - "make test"
+```
+
+当设计者标注 `profiles: [web]`，而你的 `test_profiles.web` 覆盖已指向 gstack 时，测试者会自动在 prompt 中获得 gstack 专属的操作说明。
+
+### 需要登录的项目
+
+对于需要身份认证的项目（如管理后台），在启动 4x run 之前通过 gstack 登录一次即可：
+
+```bash
+# 在 gstack 守护进程中打开登录页
+/browse-open https://your-app.example.com/login
+
+# 手动登录，或通过 gstack fill 命令填写
+# 会话 cookie 会在后续所有 4x 测试轮次中持续保留
+```
+
+这样测试者就可以完全跳过登录步骤——守护进程的浏览器已经持有有效会话。
+
+### 不使用 gstack 的情况
+
+如果不使用 gstack，内置的 `web` 配置文件开箱即用：
+
+- 测试者每轮测试启动一个独立的 Playwright 实例
+- 创建临时工作区，在随机端口启动 `4x live`
+- 执行测试、截图、清理
+- 轮次间没有持久状态（每轮都是全新开始）
+
+详见[测试配置文件](concepts.md#test-profiles)，了解如何覆盖配置文件。

@@ -373,3 +373,110 @@ blocked: F001-user-model is not done (status: coding)
 4x done F001
 4x run F002
 ```
+
+## gstack Browse を E2E テストに統合する
+
+[gstack](https://github.com/garrytan/gstack) は永続的なヘッドレスブラウザデーモンを提供しており、4x での Playwright ベースの E2E テストを高速化できます。テストラウンドのたびに Chromium をコールドスタートする（約3〜5秒）代わりに、デーモンがブラウザを常時起動したままにし、ラウンドをまたいでログイン状態を保持します。
+
+これは**任意の設定**です。4x 組み込みの `web` テストプロファイルは gstack なしでも動作します。デーモンが特に役立つのは以下のケースです：
+
+- プロジェクトにログインが必要な場合（セッション保持により、ラウンドごとの再認証が不要）
+- バッチで複数の Feature を実行する場合（すべてが1つのブラウザインスタンスを共有）
+- コールドスタートの遅延なしに、200ms 未満のブラウザ応答時間が欲しい場合
+
+### セットアップ
+
+1. gstack を Claude Code スキルとしてインストールします：
+
+```bash
+git clone --depth 1 https://github.com/garrytan/gstack.git ~/.claude/skills/gstack
+cd ~/.claude/skills/gstack && ./setup
+```
+
+2. browse デーモンをバックグラウンドで起動します：
+
+```bash
+# Claude Code 内で
+/browse-open http://localhost:4567
+```
+
+または手動で起動します：
+
+```bash
+cd ~/.claude/skills/gstack && bun run browse/src/server.ts
+```
+
+デーモンはランダムなポートを選択し、接続情報を `.gstack/browse.json` に書き込みます。
+
+### 4x が gstack browse を使うよう設定する
+
+`.4x/settings.json` で組み込みの `web` テストプロファイルを上書きします：
+
+```json
+{
+  "test_profiles": {
+    "web": {
+      "include": "docs/test-profiles/gstack-web.md"
+    }
+  }
+}
+```
+
+`docs/test-profiles/gstack-web.md` を作成します：
+
+```markdown
+Web UI E2E Testing with gstack Browse:
+
+- Use gstack browse daemon instead of launching a standalone Playwright instance
+- Read connection info from .gstack/browse.json (port + auth token)
+- Send commands via HTTP POST to the daemon:
+  - `POST /command` with `{"command": "goto", "args": ["http://localhost:4567"]}`
+  - `POST /command` with `{"command": "snapshot"}` to get the accessibility tree with @e refs
+  - `POST /command` with `{"command": "click", "args": ["@e5"]}` to interact with elements
+  - `POST /command` with `{"command": "screenshot"}` to capture evidence
+- Include Bearer token from browse.json in all requests
+- Save screenshots to the configured screenshot_dir
+- Each AC item must have at least one screenshot as evidence
+- Do NOT launch a separate Chromium instance — use the running daemon
+- If the daemon is not running, fall back to standard Playwright (npx playwright test)
+```
+
+### 例：gstack を使った test-strategy.yaml
+
+```yaml
+web: true
+api: false
+coder_only: false
+profiles:
+  - web
+verify_commands:
+  - "make build"
+  - "make test"
+```
+
+Designer が `profiles: [web]` を指定し、`test_profiles.web` の上書きが gstack を指している場合、Tester は自動的に gstack 固有の指示をプロンプトに受け取ります。
+
+### ログインが必要なプロジェクトの場合
+
+認証が必要なプロジェクト（管理画面など）では、`4x run` を開始する前に gstack 経由で一度ログインしておきます：
+
+```bash
+# gstack デーモンでログインページを開く
+/browse-open https://your-app.example.com/login
+
+# 手動または gstack の fill コマンドでログイン
+# セッション Cookie は以降のすべての 4x テストラウンドで保持される
+```
+
+これにより Tester はログインステップを完全にスキップできます。デーモンのブラウザはすでに有効なセッションを持っているためです。
+
+### gstack を使わない場合
+
+gstack を使用しない場合、組み込みの `web` プロファイルがそのまま使えます：
+
+- Tester がテストラウンドごとに独立した Playwright インスタンスを起動
+- 一時ワークスペースを作成し、ランダムなポートで `4x live` を起動
+- テストを実行してスクリーンショットを撮影し、クリーンアップ
+- ラウンド間で状態は保持されない（各ラウンドはクリーンな状態から開始）
+
+プロファイルの上書きについては[テストプロファイル](concepts.md#test-profiles)を参照してください。

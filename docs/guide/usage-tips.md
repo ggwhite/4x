@@ -511,3 +511,110 @@ Complete the dependency first, or manually mark it done:
 4x done F001
 4x run F002
 ```
+
+## Integrating gstack Browse for E2E Testing
+
+[gstack](https://github.com/garrytan/gstack) provides a persistent headless browser daemon that can speed up Playwright-based e2e testing in 4x. Instead of cold-starting Chromium every test round (~3-5s), the daemon keeps the browser running and preserves login state across rounds.
+
+This is **optional** — 4x's built-in `web` test profile works without gstack. The daemon is most useful when:
+
+- Your project requires login (session persistence saves re-authentication each round)
+- You run multiple features in batch (all share one browser instance)
+- You want sub-200ms browser response times instead of cold-start delays
+
+### Setup
+
+1. Install gstack as a Claude Code skill:
+
+```bash
+git clone --depth 1 https://github.com/garrytan/gstack.git ~/.claude/skills/gstack
+cd ~/.claude/skills/gstack && ./setup
+```
+
+2. Start the browse daemon (it runs in the background):
+
+```bash
+# In Claude Code
+/browse-open http://localhost:4567
+```
+
+Or start manually:
+
+```bash
+cd ~/.claude/skills/gstack && bun run browse/src/server.ts
+```
+
+The daemon picks a random port and writes connection info to `.gstack/browse.json`.
+
+### Configure 4x to use gstack browse
+
+Override the built-in `web` test profile in `.4x/settings.json`:
+
+```json
+{
+  "test_profiles": {
+    "web": {
+      "include": "docs/test-profiles/gstack-web.md"
+    }
+  }
+}
+```
+
+Create `docs/test-profiles/gstack-web.md`:
+
+```markdown
+Web UI E2E Testing with gstack Browse:
+
+- Use gstack browse daemon instead of launching a standalone Playwright instance
+- Read connection info from .gstack/browse.json (port + auth token)
+- Send commands via HTTP POST to the daemon:
+  - `POST /command` with `{"command": "goto", "args": ["http://localhost:4567"]}`
+  - `POST /command` with `{"command": "snapshot"}` to get the accessibility tree with @e refs
+  - `POST /command` with `{"command": "click", "args": ["@e5"]}` to interact with elements
+  - `POST /command` with `{"command": "screenshot"}` to capture evidence
+- Include Bearer token from browse.json in all requests
+- Save screenshots to the configured screenshot_dir
+- Each AC item must have at least one screenshot as evidence
+- Do NOT launch a separate Chromium instance — use the running daemon
+- If the daemon is not running, fall back to standard Playwright (npx playwright test)
+```
+
+### Example: test-strategy.yaml with gstack
+
+```yaml
+web: true
+api: false
+coder_only: false
+profiles:
+  - web
+verify_commands:
+  - "make build"
+  - "make test"
+```
+
+When the Designer tags `profiles: [web]` and you have the `test_profiles.web` override pointing to gstack, the Tester automatically gets gstack-specific instructions injected into its prompt.
+
+### With login-required projects
+
+For projects that require authentication (e.g., admin dashboards), log in once through gstack before starting the 4x run:
+
+```bash
+# Open login page in gstack daemon
+/browse-open https://your-app.example.com/login
+
+# Log in manually or via gstack fill commands
+# Session cookies persist across all subsequent 4x test rounds
+```
+
+The Tester can then skip the login step entirely — the daemon's browser already has a valid session.
+
+### Without gstack
+
+If you don't use gstack, the built-in `web` profile works out of the box:
+
+- Tester launches an isolated Playwright instance per test round
+- Creates a temp workspace, starts `4x live` on a random port
+- Runs tests, takes screenshots, cleans up
+- No persistent state between rounds (each round is a clean start)
+
+See [Test Profiles](concepts.md#test-profiles) for details on overriding profiles.
