@@ -36,6 +36,7 @@ Create a new feature with optional metadata.
 | `--rule` | Rule reference (repeatable) |
 | `--depends` | Dependency feature ID (repeatable) |
 | `--priority` | Priority level (0=critical, 1=high, 2=medium, 3=low) |
+| `--profile` | Pipeline profile written to the feature YAML (`full`/`normal`/`quick` or custom); applied per-feature on `4x batch run` |
 | `--repo` | Repository in scope (repeatable) |
 | `--json` | Output as JSON |
 

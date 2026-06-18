@@ -92,6 +92,17 @@ func TestCreate_WithAllOpts(t *testing.T) {
 	}
 }
 
+func TestCreate_WithProfile(t *testing.T) {
+	store := newMockStore()
+	f, err := Create(store, CreateOpts{Name: "Quick Feature", Profile: "quick"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Profile != "quick" {
+		t.Errorf("Profile = %q, want quick", f.Profile)
+	}
+}
+
 func TestCreate_SequentialNumbering(t *testing.T) {
 	store := newMockStore()
 

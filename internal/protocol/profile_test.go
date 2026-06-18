@@ -117,6 +117,81 @@ func TestResolveProfile_CustomProfileTakesPrecedenceOverDefault(t *testing.T) {
 	}
 }
 
+func TestResolveProfile_FeatureProfileHitsDefaults(t *testing.T) {
+	// feature YAML profile 命中 DefaultProfiles（cfg 無對應自訂 profile）。
+	cfg := Config{Profiles: DefaultProfiles()}
+	name, pc, err := ResolveProfile(cfg, feature.Feature{Priority: intPtr(0), Profile: "quick"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name != "quick" {
+		t.Errorf("name = %q, want quick (feature profile over priority auto-select)", name)
+	}
+	if pc.EnablesPhase(PhaseTesting) {
+		t.Error("quick should not enable testing")
+	}
+}
+
+func TestResolveProfile_FeatureProfileHitsCustom(t *testing.T) {
+	// feature YAML profile 命中 cfg.Profiles 自訂 profile。
+	cfg := Config{Profiles: map[string]ProfileConfig{
+		"custom": {Roles: []string{"coder", "reviewer"}},
+	}}
+	name, pc, err := ResolveProfile(cfg, feature.Feature{Profile: "custom"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name != "custom" {
+		t.Errorf("name = %q, want custom", name)
+	}
+	if pc.EnablesRole(RoleTester) {
+		t.Error("custom profile should not enable tester")
+	}
+}
+
+func TestResolveProfile_FeatureProfileUnknownIsError(t *testing.T) {
+	// feature YAML profile 不存在於 cfg.Profiles 也不在 DefaultProfiles → 報錯（落實 rule）。
+	cfg := Config{Profiles: DefaultProfiles()}
+	_, _, err := ResolveProfile(cfg, feature.Feature{ID: "F999-x", Profile: "nonexistent"}, "")
+	if err == nil {
+		t.Error("expected error for unknown feature profile")
+	}
+}
+
+func TestResolveProfile_OverrideWinsOverFeatureProfile(t *testing.T) {
+	// override（--profile）優先於 feature YAML profile。
+	cfg := Config{Profiles: DefaultProfiles()}
+	name, _, err := ResolveProfile(cfg, feature.Feature{Profile: "quick"}, "normal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name != "normal" {
+		t.Errorf("override should win over feature profile, got %q", name)
+	}
+}
+
+func TestResolveProfile_EmptyFeatureProfileFallsBackUnchanged(t *testing.T) {
+	// feature profile 為空時行為與現況一致：default_profile 與 auto-select 相對順序不變。
+	// (a) default_profile 仍優先於 auto-select。
+	cfg := Config{Profiles: DefaultProfiles(), DefaultProfile: "quick"}
+	name, _, err := ResolveProfile(cfg, feature.Feature{Priority: intPtr(0)}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name != "quick" {
+		t.Errorf("empty feature profile should still honor default_profile, got %q", name)
+	}
+	// (b) 無 default_profile 時退回 priority auto-select。
+	cfg2 := Config{Profiles: DefaultProfiles()}
+	name2, _, err := ResolveProfile(cfg2, feature.Feature{Priority: intPtr(2)}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name2 != "normal" {
+		t.Errorf("empty feature profile should fall back to auto-select, got %q", name2)
+	}
+}
+
 func TestProfileConfig_EnablesRole_DeepReviewer(t *testing.T) {
 	pc := DefaultProfiles()["full"]
 	if !pc.EnablesRole(RoleDeepReviewer) {

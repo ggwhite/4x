@@ -34,7 +34,7 @@ A **pipeline profile** is a list of **phases**, and per phase it can override th
 
 Profile phases may only be chosen from the selectable whitelist (`designing`, `coding`, `reviewing`, `deep-reviewing`, `testing`, `accepting`); `coding` is always required. A phase not in the active profile is skipped — the loop transitions along the same valid state edges without invoking that runner.
 
-**Selection**: `--profile` wins; otherwise, on an interactive terminal 4x prompts with a numbered menu (default `default_profile`); non-interactively it uses `default_profile`, then priority-based auto-select when a `profiles` section exists (highest priority → `full`, then `normal`, then `quick`), else `full`.
+**Selection** (high→low): `--profile` wins; then the feature YAML's `profile` field (a named profile that must exist in `profiles` or the built-ins, else an error — lets `4x batch run` apply a different profile per feature); then `default_profile`; then priority-based auto-select when a `profiles` section exists (highest priority → `full`, then `normal`, then `quick`), else `full`. On an interactive terminal 4x prompts with a numbered menu (default `default_profile`) when none of the higher-priority sources resolve it.
 
 **Per-phase runner/model precedence** (high→low): manual `--runner` > the feature YAML's `phase_overrides.<phase>.{runner,model}` > the profile's per-phase `runner`/`model` > `default_runner` / the role's configured model (`roles.<role>.model` → runner model → default tier).
 
