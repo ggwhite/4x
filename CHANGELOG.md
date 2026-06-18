@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.17] - 2026-06-18
+
+### Features
+
+- **Runner transient retry** — Runner 子程序遇到暫態 API 錯誤（socket closed、connection reset、rate limit、5xx）時自動 backoff 重試，預設 3 次，避免網路抖動中斷整個 batch run
+- **Runner robustness** — 強化 runner 錯誤處理與邊界條件防禦
+- **Server & dashboard reliability** — SSE server 與 dashboard 穩定性改進
+- **Feature ID & cache correctness** — Feature ID 解析與快取正確性修正
+- **State & concurrency safety** — 狀態機與併發操作的安全性強化
+- **Scope guard bypass fixes** — 修正 scope guard 可被繞過的邊界案例
+- **Doctor accuracy** — `4x doctor` 診斷準確度提升
+
+### Fixes
+
+- **Worktree feature YAML sync** — `syncFeatureToWorktree` 漏同步 feature YAML，導致 tester 在 worktree 裡無法執行 `4x verify`，造成 parallel review/test 無限 amending 迴圈
+- **Squash merge conflict cleanup** — `git merge --squash` 衝突時 `merge --abort` 因無 MERGE_HEAD 靜默失敗，殘留 staged/unmerged 檔案；改用 `reset --hard` 確保 index 乾淨
+- **Run loop resilience** — 修正 exit code 不一致、state write 錯誤靜默丟棄、worktree 清理提示、WorktreePath 掃描不完整、parallel no-progress tracking 繞過等多項問題
+- **App notification icon** — 註冊 app bundle 至 LaunchServices，修正通知圖示顯示
+- **Dashboard menu bar icons** — 加寬 menu bar 圖示提升可讀性
+- **Dashboard screenshots flickering** — 修正截圖 tab polling 刷新時的閃爍
+
+### Internal
+
+- **Security hardening** — CI actions 釘 SHA、安裝檔 checksum 驗證、檔案權限收緊
+- **Feature creator docs** — 同步 CREATOR.md 與最新 feature YAML schema
+
 ## [0.1.16] - 2026-06-18
 
 ### Features
