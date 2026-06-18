@@ -52,6 +52,10 @@ type Feature struct {
 	Description    string                   `yaml:"description" json:"description"`
 	Status         Status                   `yaml:"status" json:"status"`
 	Priority       *int                     `yaml:"priority,omitempty" json:"priority,omitempty"`
+	// Profile 宣告此 feature 要用哪個 pipeline profile 跑，供 batch per-feature 套用不同 profile。
+	// optional：空值時走既有 fallback（default_profile → priority auto-select）；
+	// 非空時必須存在於 settings profiles 或 DefaultProfiles，否則 ResolveProfile 報錯。
+	Profile        string                   `yaml:"profile,omitempty" json:"profile,omitempty"`
 	Repos          []string                 `yaml:"repos,omitempty" json:"repos,omitempty"`
 	Subtasks       []Subtask                `yaml:"subtasks,omitempty" json:"subtasks,omitempty"`
 	Rules          []string                 `yaml:"rules,omitempty" json:"rules,omitempty"`
