@@ -170,7 +170,7 @@ function highlightSearch(idx) { const items = document.getElementById('search-re
 function selectSearch(idx) {
   const item = searchFiltered[idx]; if (!item) return; closeSearch();
   if (item._projectId && item._projectId !== activeProjectId) switchTab(item._projectId);
-  current = item.id; sessionStorage.setItem('4x-current', item.id); load(); loadDetail(item);
+  current = item.id; sessionStorage.setItem('4x-current', item.id); sessionStorage.removeItem('4x-detail-tab'); load(); loadDetail(item);
 }
 function onSearchKey(e) {
   if (e.key==='ArrowDown') { e.preventDefault(); searchIdx=Math.min(searchIdx+1,searchFiltered.length-1); renderSearchResults(document.getElementById('search-input').value); }
@@ -343,6 +343,7 @@ function goHome() {
   main.style.overflowY = 'auto'; main.style.display = ''; main.style.flexDirection = '';
   document.getElementById('dashboard').classList.remove('hidden');
   activeDetailTab = 'overview';
+  sessionStorage.removeItem('4x-detail-tab');
   if (activeProjectId) { load(); renderDashboard(lastTasks); } else renderProjectPicker();
 }
 // requestNotificationPermission 在支援 Web Notification 且尚未決定權限時請求授權；
@@ -428,6 +429,7 @@ function openFeatureDetail(fid) {
   if (!task) return;
   current = fid;
   sessionStorage.setItem('4x-current', fid);
+  sessionStorage.removeItem('4x-detail-tab');
   load();
   loadDetail(task);
 }
@@ -1010,10 +1012,9 @@ async function loadDetail(task) {
 
   disconnectLogSSE();
   disconnectSSE();
-  activeDetailTab = 'overview';
+  const savedTab = sessionStorage.getItem('4x-detail-tab') || 'overview';
   document.getElementById('overview-panel').innerHTML = '';
-  setDetailTabUI('overview');
-  loadOverview(task.id);
+  switchDetailTab(savedTab);
 }
 
 function renderMsgCard(m) {
@@ -1206,6 +1207,7 @@ function toggleDocSection(id) {
 let _logsRefreshTimer = null;
 function switchDetailTab(tab) {
   activeDetailTab = tab;
+  sessionStorage.setItem('4x-detail-tab', tab);
   setDetailTabUI(tab);
   if (tab !== 'messages') disconnectSSE();
   if (tab !== 'logs') { disconnectLogSSE(); currentLogFile = null; stopLogsRefresh(); }
