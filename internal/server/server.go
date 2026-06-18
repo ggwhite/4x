@@ -31,8 +31,24 @@ import (
 	"github.com/ggwhite/4x/internal/state"
 )
 
-var settingsMu sync.Mutex
-var mergeMu sync.Mutex
+// settingsMu / mergeMu 為 per-project 鎖：以專案 root 為 key 取得對應 mutex，
+// 使同一專案的 settings 寫入 / merge 仍序列化，不同專案則互不阻塞。
+var settingsMu keyedMutex
+var mergeMu keyedMutex
+
+// keyedMutex 提供以字串 key 取得對應 *sync.Mutex 的並行安全機制。
+// 用於將原本的全域鎖改為 per-project 鎖：相同 key（專案 root）序列化，
+// 不同 key 互不阻塞；取鎖過程本身由 sync.Map 保證 thread-safe。
+type keyedMutex struct {
+	mutexes sync.Map // map[string]*sync.Mutex
+}
+
+// get 回傳 key 對應的 *sync.Mutex，key 首次出現時建立新鎖。
+// 呼叫者取得後自行 Lock/Unlock。
+func (k *keyedMutex) get(key string) *sync.Mutex {
+	m, _ := k.mutexes.LoadOrStore(key, &sync.Mutex{})
+	return m.(*sync.Mutex)
+}
 
 var supportedLocales = []string{"en", "zh-TW", "zh-CN", "ja", "ko", "es"}
 
@@ -242,6 +258,10 @@ func NewMux(resolver WorkspaceResolver) http.Handler {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
 		featureID := strings.TrimPrefix(r.URL.Path, "/api/messages/")
 		if !validFeatureID(featureID) {
 			http.Error(w, "invalid feature id", http.StatusBadRequest)
@@ -253,6 +273,10 @@ func NewMux(resolver WorkspaceResolver) http.Handler {
 		ws, _, _, err := resolver(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 		featureID := strings.TrimPrefix(r.URL.Path, "/api/overview/")
@@ -872,9 +896,18 @@ func handleSSE(ws *protocol.CachedWorkspace, featureID string, w http.ResponseWr
 				}
 				fmt.Fprintf(w, "data: %s\n\n", line)
 			}
-			if consumed > info.Size() {
-				consumed = info.Size()
+			// scanner 提前中止（超長行超過 64KB token 上限、或讀取出錯）時不前進 lastOffset，
+			// 讓下個 tick 從同一位置重試，避免靜默截斷導致事件永久遺失。
+			// 仍 flush 本輪在出錯前已送出的合法行（不因錯誤而被扣留），但保留 lastOffset 重試。
+			if err := scanner.Err(); err != nil {
+				slog.Error("events SSE scanner error", "feature", featureID, "error", err)
+				f.Close()
+				flusher.Flush()
+				continue
 			}
+			// events.jsonl 為 live append log，scanner 可能讀到 os.Stat 之後新 append 的完整行，
+			// 使 consumed > info.Size()。保留實際已消費位移（不 clamp 回 stale size），
+			// 否則下個 tick 會重 seek 並重送這些已送出的事件。
 			lastOffset = consumed
 			f.Close()
 			flusher.Flush()
@@ -1290,6 +1323,12 @@ func handleLogSSE(ws *protocol.CachedWorkspace, featureID string, w http.Respons
 	// 在連線生命週期內共用一個固定 32KB buffer，避免每秒 tick 重新分配造成 GC 壓力。
 	buf := make([]byte, 32*1024)
 
+	// carryBufs 保留各 log 檔尾不完整的 UTF-8 殘段，與 offsets 平行、跨 tick 持續保留。
+	// 固定切分會把橫跨 read chunk / tick 邊界的多位元組字元切兩半，各自 json.Marshal
+	// 會被替換成不可逆的 U+FFFD；故只 emit 完整 rune，殘段留待後續 bytes 補齊再送。
+	// 殘段 bytes 不計入 offsets（offsets 仍前進 n，但殘段保存在此），由下個 tick 拼回。
+	carryBufs := make(map[string][]byte)
+
 	// tailFile 讀取 current 自上次 offset 起的新增內容並以 SSE message 送出（帶 file 欄位）。
 	tailFile := func(current string) {
 		path := filepath.Join(logsDir, current)
@@ -1305,10 +1344,7 @@ func handleLogSSE(ws *protocol.CachedWorkspace, featureID string, w http.Respons
 		if offsets[current] > 0 {
 			f.Seek(offsets[current], 0)
 		}
-		// carry 保留上一個 32KB chunk 尾端不完整的 UTF-8 位元組。
-		// 固定切分會把橫跨邊界的多位元組字元切兩半，各自 json.Marshal 會被
-		// 替換成不可逆的 U+FFFD；故只 emit 完整 rune，殘段併入下一輪前綴。
-		var carry []byte
+		carry := carryBufs[current]
 		for {
 			n, readErr := f.Read(buf)
 			if n > 0 {
@@ -1321,18 +1357,17 @@ func handleLogSSE(ws *protocol.CachedWorkspace, featureID string, w http.Respons
 					chunk, _ := json.Marshal(map[string]string{"file": current, "content": string(complete)})
 					fmt.Fprintf(w, "data: %s\n\n", chunk)
 				}
+				// 複製 rest 到 carry 自有 backing，避免別名共用的 buf 在下個 tick 被覆寫。
 				carry = append(carry[:0], rest...)
 				offsets[current] += int64(n)
 			}
 			if readErr != nil {
-				// EOF：殘段即使不完整也必須送出，否則檔尾遺失（與舊行為一致）。
-				if len(carry) > 0 {
-					chunk, _ := json.Marshal(map[string]string{"file": current, "content": string(carry)})
-					fmt.Fprintf(w, "data: %s\n\n", chunk)
-				}
+				// EOF：殘段可能是 writer 寫入中途的不完整 rune，保留至下個 tick
+				// 收到後續 bytes 再拼成完整 rune 送出，不在此 emit，避免檔尾產生 U+FFFD。
 				break
 			}
 		}
+		carryBufs[current] = carry
 	}
 
 	for {
@@ -1434,28 +1469,28 @@ type doneRequest struct {
 func handlePostDone(ws *protocol.CachedWorkspace, w http.ResponseWriter, r *http.Request) {
 	var req doneRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
+		writeJSONError(w, http.StatusBadRequest, "invalid json")
 		return
 	}
 	if req.ID == "" {
-		http.Error(w, "id required", http.StatusBadRequest)
+		writeJSONError(w, http.StatusBadRequest, "id required")
 		return
 	}
 
 	s, err := ws.ReadState(req.ID)
 	if err != nil {
-		http.Error(w, "feature not found", http.StatusNotFound)
+		writeJSONError(w, http.StatusNotFound, "feature not found")
 		return
 	}
 
 	if s.Phase != protocol.PhasePendingReview {
-		http.Error(w, fmt.Sprintf("feature is in phase %q, not pending-review", s.Phase), http.StatusBadRequest)
+		writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("feature is in phase %q, not pending-review", s.Phase))
 		return
 	}
 
 	f, err := ws.LoadFeature(req.ID)
 	if err != nil {
-		http.Error(w, "failed to load feature: "+err.Error(), http.StatusInternalServerError)
+		writeJSONError(w, http.StatusInternalServerError, "failed to load feature: "+err.Error())
 		return
 	}
 
@@ -1467,9 +1502,10 @@ func handlePostDone(ws *protocol.CachedWorkspace, w http.ResponseWriter, r *http
 	cfg, _ := ws.LoadMergedConfig()
 	ops := gitops.New(ws.Root, ws.Workspace, cfg)
 
-	mergeMu.Lock()
+	mergeLock := mergeMu.get(ws.Root)
+	mergeLock.Lock()
 	result := ops.Merge(req.ID, name)
-	mergeMu.Unlock()
+	mergeLock.Unlock()
 
 	w.Header().Set("Content-Type", "application/json")
 	if result.Conflict {
@@ -1483,7 +1519,7 @@ func handlePostDone(ws *protocol.CachedWorkspace, w http.ResponseWriter, r *http
 		// 重新讀取最新 state，避免用 merge 前的 stale 值覆蓋其他欄位更新。
 		fresh, err := ws.ReadState(req.ID)
 		if err != nil {
-			http.Error(w, "failed to re-read state: "+err.Error(), http.StatusInternalServerError)
+			writeJSONError(w, http.StatusInternalServerError, "failed to re-read state: "+err.Error())
 			return
 		}
 		if fresh.Phase != protocol.PhasePendingReview {
@@ -1494,7 +1530,7 @@ func handlePostDone(ws *protocol.CachedWorkspace, w http.ResponseWriter, r *http
 		}
 
 		if _, err := transitionDone(ws, req.ID, fresh); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeJSONError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
@@ -1725,7 +1761,9 @@ func writeJSONError(w http.ResponseWriter, code int, msg string) {
 }
 
 func transitionDone(ws *protocol.CachedWorkspace, featureID string, s protocol.State) (protocol.State, error) {
-	newState, err := state.Transition(s, protocol.PhaseDone, protocol.RoleDesigner)
+	// PhaseDone 的 role 與 CLI finalizeDone（cmd/4x/done.go）一致用空字串，
+	// 使 server 與 CLI 寫出的 state.json Role 欄位相同。
+	newState, err := state.Transition(s, protocol.PhaseDone, "")
 	if err != nil {
 		return protocol.State{}, err
 	}
@@ -1802,8 +1840,9 @@ func handlePutSettings(ws *protocol.CachedWorkspace, w http.ResponseWriter, r *h
 	}
 	newData := append(result, '\n')
 
-	settingsMu.Lock()
-	defer settingsMu.Unlock()
+	settingsLock := settingsMu.get(ws.Root)
+	settingsLock.Lock()
+	defer settingsLock.Unlock()
 
 	settingsPath := filepath.Join(ws.DotDir(), protocol.ConfigFile)
 	oldData, err := os.ReadFile(settingsPath)

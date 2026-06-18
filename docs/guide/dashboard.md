@@ -86,9 +86,11 @@ Read-heavy endpoints (`/api/tasks`, `/api/overview`, `/api/projects`, `/api/sett
 | `/api/locales/{lang}` | GET | 回傳對應語言的翻譯 JSON |
 | `/api/supported-runners` | GET | List supported runner names |
 
+GET-only endpoints (including `/api/messages/{id}` and `/api/overview/{id}`) reject non-`GET` requests with **HTTP 405 Method Not Allowed**.
+
 #### `POST /api/done` Response
 
-Returns HTTP 200 in the normal case. The `status` field is `"done"` only after the state transition succeeds. If merge conflict or merge error occurs, `status` remains `"pending-review"`. Additional fields indicate merge result:
+Returns HTTP 200 in the normal case. The `status` field is `"done"` only after the state transition succeeds. If merge conflict or merge error occurs, `status` remains `"pending-review"`. Error cases (invalid JSON, missing `id`, feature not found, wrong phase, internal failures) return their HTTP status (400/404/500) with a JSON body `{"error":"..."}` and `Content-Type: application/json`, so clients can parse all responses as JSON uniformly. Additional fields indicate merge result:
 
 | Field | Type | Meaning |
 |---|---|---|
