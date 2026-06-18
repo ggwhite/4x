@@ -1827,6 +1827,74 @@ func TestRunLoop_ParallelReviewTest(t *testing.T) {
 	}
 }
 
+// TestRunLoop_ParallelReviewTest_MissingVerifyJSON 驗證 parallel 模式下，
+// tester 無法產生 verify.json 但 test-report verdict 是 PASS 時，
+// 應走 needs-attention 而非無限 amending。
+func TestRunLoop_ParallelReviewTest_MissingVerifyJSON(t *testing.T) {
+	ws := setupLoopWorkspace(t, "feat-noverify")
+	feat, _ := ws.LoadFeature("feat-noverify")
+	cfg, _ := ws.ReadConfig()
+	cfg.ParallelReviewTest = true
+
+	s := protocol.State{
+		FeatureID: "feat-noverify", Phase: protocol.PhaseInit,
+		MaxRounds: 5, Active: true, Runner: "mock", Profile: "full",
+	}
+	ws.WriteState("feat-noverify", s)
+
+	var mu sync.Mutex
+	var started []string
+	factory := func(logPath, _ string) runner.Runner {
+		role := roleFromLogPath(logPath)
+		return &noVerifyMockRunner{ws: ws, featureID: "feat-noverify", role: role, mu: &mu, started: &started}
+	}
+
+	if err := runLoop(context.Background(), ws, ws, feat, cfg, s, nil, factory, "never"); err != nil {
+		t.Fatalf("runLoop error: %v", err)
+	}
+
+	final, _ := ws.ReadState("feat-noverify")
+	if final.Phase != protocol.PhaseNeedsAttention {
+		t.Errorf("phase = %s, want needs-attention (verify.json missing with test-report PASS)", final.Phase)
+	}
+}
+
+// noVerifyMockRunner 和 roleMockRunner 類似，但 tester 不寫 verify.json（模擬 worktree 裡 `4x verify` 無法執行）
+type noVerifyMockRunner struct {
+	ws        *protocol.Workspace
+	featureID string
+	role      string
+	mu        *sync.Mutex
+	started   *[]string
+}
+
+func (m *noVerifyMockRunner) Run(_ context.Context, _ string) (*runner.Result, error) {
+	s, _ := m.ws.ReadState(m.featureID)
+	round := s.Round
+	roundDir := m.ws.RoundDir(m.featureID, round)
+	os.MkdirAll(roundDir, 0o755)
+	featureDir := m.ws.FeatureDir(m.featureID)
+
+	m.mu.Lock()
+	*m.started = append(*m.started, m.role)
+	m.mu.Unlock()
+
+	switch m.role {
+	case "designer":
+		os.WriteFile(filepath.Join(featureDir, protocol.TaskBrief), []byte("# Brief"), 0o644)
+		os.WriteFile(filepath.Join(featureDir, protocol.Criteria), []byte("# Criteria"), 0o644)
+	case "coder":
+		os.WriteFile(filepath.Join(roundDir, protocol.CoderReport), []byte("# Coder Report"), 0o644)
+	case "reviewer":
+		os.WriteFile(filepath.Join(roundDir, protocol.ReviewReport), []byte("## Verdict\nPASS\n"), 0o644)
+	case "tester":
+		// 不寫 verify.json — 模擬 worktree 裡 4x verify 無法執行
+		os.WriteFile(filepath.Join(roundDir, protocol.TestReport), []byte("## Verdict\nPASS\n"), 0o644)
+		os.WriteFile(filepath.Join(featureDir, protocol.FinalReport), []byte("# Final"), 0o644)
+	}
+	return &runner.Result{ExitCode: 0}, nil
+}
+
 func TestParseReviewVerdict_Warning(t *testing.T) {
 	tests := []struct {
 		name         string

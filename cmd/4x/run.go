@@ -1020,6 +1020,10 @@ func nextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) 
 			return protocol.PhaseDeepReviewing, protocol.RoleDeepReviewer, ""
 		}
 		if !verifyPassed(ws, featureID, s.Round) {
+			if reviewPassed(ws, featureID, s.Round, protocol.TestReport) {
+				return protocol.PhaseNeedsAttention, "",
+					"verify.json missing but test-report verdict is PASS — tester likely could not run `4x verify`"
+			}
 			return protocol.PhaseAmending, protocol.RoleCoder, ""
 		}
 		return protocol.PhaseNeedsAttention, "", strings.Join(result.Errors, "; ")
@@ -1229,8 +1233,17 @@ func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 	reviewOK := reviewPassed(ws, featureID, round, protocol.ReviewReport)
 	verifyOK := verifyPassed(ws, featureID, round)
 
-	// reviewer FAIL 或 tester verify 未過 → amending（合法邊 reviewing→amending）。
-	if !reviewOK || !verifyOK {
+	if !reviewOK {
+		return parallelTransition(ws, featureID, s, protocol.PhaseAmending, protocol.RoleCoder)
+	}
+	// verify.json 缺失（tester 跑不了 `4x verify`）但 test-report verdict 是 PASS
+	// → needs-attention 讓人介入，而非靜默 amending 形成無限迴圈
+	if !verifyOK {
+		testReportOK := reviewPassed(ws, featureID, round, protocol.TestReport)
+		if testReportOK {
+			return parallelNeedsAttention(ws, featureID, s,
+				"verify.json missing but test-report verdict is PASS — tester likely could not run `4x verify`")
+		}
 		return parallelTransition(ws, featureID, s, protocol.PhaseAmending, protocol.RoleCoder)
 	}
 
@@ -2282,6 +2295,12 @@ func syncFeatureToWorktree(main, wt *protocol.Workspace, featureID string, round
 	srcDir := main.FeatureDir(featureID)
 	dstDir := wt.FeatureDir(featureID)
 	os.MkdirAll(dstDir, 0o755)
+
+	// feature YAML（.4x/features/{id}.yaml）— runner 需要它來跑 `4x verify`
+	srcYAML := filepath.Join(main.DotDir(), protocol.FeaturesDir, featureID+".yaml")
+	dstFeaturesDir := filepath.Join(wt.DotDir(), protocol.FeaturesDir)
+	os.MkdirAll(dstFeaturesDir, 0o755)
+	gitops.CopyFileIfExists(srcYAML, filepath.Join(dstFeaturesDir, featureID+".yaml"))
 
 	// state + feature-level 檔案
 	for _, name := range []string{protocol.StateFile, protocol.TaskBrief, protocol.Criteria, protocol.TestStratFile} {
