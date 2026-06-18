@@ -38,21 +38,29 @@ func (h HookEntry) EffectiveOnFail() string {
 	return strings.ToLower(h.OnFail)
 }
 
+// PhaseOverride 是 feature YAML 對單一 phase 的 runner/model 覆寫，
+// 位於覆寫優先序的「feature 層」（高於 profile per-phase，低於 run 手動選擇）。
+type PhaseOverride struct {
+	Runner string `yaml:"runner,omitempty" json:"runner,omitempty"`
+	Model  string `yaml:"model,omitempty" json:"model,omitempty"`
+}
+
 // Feature 是 features/*.yaml 的結構
 type Feature struct {
-	ID          string                 `yaml:"id" json:"id"`
-	Name        string                 `yaml:"name" json:"name"`
-	Description string                 `yaml:"description" json:"description"`
-	Status      Status                 `yaml:"status" json:"status"`
-	Priority    *int                   `yaml:"priority,omitempty" json:"priority,omitempty"`
-	Repos       []string               `yaml:"repos,omitempty" json:"repos,omitempty"`
-	Subtasks    []Subtask              `yaml:"subtasks,omitempty" json:"subtasks,omitempty"`
-	Rules       []string               `yaml:"rules,omitempty" json:"rules,omitempty"`
-	Depends     []string               `yaml:"depends,omitempty" json:"depends,omitempty"`
-	Spec        string                 `yaml:"spec,omitempty" json:"-"`
-	Plan        string                 `yaml:"plan,omitempty" json:"-"`
-	Hooks       map[string][]HookEntry `yaml:"hooks,omitempty" json:"hooks,omitempty"`
-	Warnings    []string               `yaml:"-" json:"warnings,omitempty"`
+	ID             string                   `yaml:"id" json:"id"`
+	Name           string                   `yaml:"name" json:"name"`
+	Description    string                   `yaml:"description" json:"description"`
+	Status         Status                   `yaml:"status" json:"status"`
+	Priority       *int                     `yaml:"priority,omitempty" json:"priority,omitempty"`
+	Repos          []string                 `yaml:"repos,omitempty" json:"repos,omitempty"`
+	Subtasks       []Subtask                `yaml:"subtasks,omitempty" json:"subtasks,omitempty"`
+	Rules          []string                 `yaml:"rules,omitempty" json:"rules,omitempty"`
+	Depends        []string                 `yaml:"depends,omitempty" json:"depends,omitempty"`
+	Spec           string                   `yaml:"spec,omitempty" json:"-"`
+	Plan           string                   `yaml:"plan,omitempty" json:"-"`
+	Hooks          map[string][]HookEntry   `yaml:"hooks,omitempty" json:"hooks,omitempty"`
+	PhaseOverrides map[string]PhaseOverride `yaml:"phase_overrides,omitempty" json:"phaseOverrides,omitempty"`
+	Warnings       []string                 `yaml:"-" json:"warnings,omitempty"`
 }
 
 // Subtask 是 feature 內的子任務

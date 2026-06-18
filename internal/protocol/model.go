@@ -87,6 +87,14 @@ func ResolveModel(cfg Config, runnerName string, role Role) (string, error) {
 		tier = defaultTier
 	}
 
+	return resolveTierModel(cfg, runnerName, tier)
+}
+
+// resolveTierModel 把抽象 tier 解析為指定 runner 認識的實際 model name。
+// 優先序：runners[name].tiers[tier] > model_tiers[tier][runner] > error。
+// 抽出供 ResolveModel 與 ResolvePhaseModel 共用，確保 tier→model 的解析語意一致。
+func resolveTierModel(cfg Config, runnerName, tier string) (string, error) {
+	runnerCfg := cfg.Runners[runnerName]
 	if model, ok := runnerCfg.Tiers[tier]; ok {
 		return model, nil
 	}
@@ -95,7 +103,6 @@ func ResolveModel(cfg Config, runnerName string, role Role) (string, error) {
 			return model, nil
 		}
 	}
-
 	return "", fmt.Errorf("runner %q has no model for tier %q", runnerName, tier)
 }
 

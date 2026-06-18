@@ -77,7 +77,7 @@ func ValidateConfig(c Config) error {
 	}
 
 	for name, pc := range c.Profiles {
-		if err := validateProfileConfig(name, pc); err != nil {
+		if err := validateProfileConfig(c, name, pc); err != nil {
 			errs = append(errs, err.Error())
 		}
 	}
@@ -88,19 +88,27 @@ func ValidateConfig(c Config) error {
 	return fmt.Errorf("invalid settings: %s", strings.Join(errs, "; "))
 }
 
-func validateProfileConfig(name string, pc ProfileConfig) error {
+func validateProfileConfig(cfg Config, name string, pc ProfileConfig) error {
+	// 舊格式 Roles/CoderModel 在載入時已由 normalize 轉成 Phases；此處統一驗 Phases。
+	pc.normalize()
 	var errs []string
-	hasCoder := false
-	for _, r := range pc.Roles {
-		if !validRoleNames[r] {
-			errs = append(errs, fmt.Sprintf("profiles.%s.roles contains unknown role %q", name, r))
+	hasCoding := false
+	for _, ps := range pc.Phases {
+		phase := Phase(ps.Phase)
+		if !profileSelectablePhases[phase] {
+			errs = append(errs, fmt.Sprintf("profiles.%s.phases contains non-selectable phase %q", name, ps.Phase))
 		}
-		if r == string(RoleCoder) {
-			hasCoder = true
+		if phase == PhaseCoding {
+			hasCoding = true
+		}
+		if ps.Runner != "" && len(cfg.Runners) > 0 {
+			if _, ok := cfg.Runners[ps.Runner]; !ok {
+				errs = append(errs, fmt.Sprintf("profiles.%s.phases[%s].runner %q not found in runners", name, ps.Phase, ps.Runner))
+			}
 		}
 	}
-	if len(pc.Roles) > 0 && !hasCoder {
-		errs = append(errs, fmt.Sprintf("profiles.%s.roles must include \"coder\"", name))
+	if len(pc.Phases) > 0 && !hasCoding {
+		errs = append(errs, fmt.Sprintf("profiles.%s must include \"coding\" phase", name))
 	}
 	if len(errs) == 0 {
 		return nil
