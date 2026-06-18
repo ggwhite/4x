@@ -14,7 +14,7 @@ description: |-
     (6) 廢棄 CoderModel，改用統一的覆寫機制
 
     約束：profile 的 phases 只能從 state machine 白名單選；coder 仍為必要 role。
-status: ready-for-review
+status: done
 priority: 1
 subtasks:
     - id: profile-struct
