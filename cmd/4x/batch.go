@@ -254,11 +254,13 @@ func newBatchRunCmd() *cobra.Command {
 				return err
 			}
 
+			// manualRunner 保存使用者顯式指定的 --runner（覆寫優先序最高層，全 phase 套用）；
+			// 未指定時為空，讓 per-phase profile/feature override 與 default_runner 生效。
+			manualRunner := runnerName
 			if runnerName == "" {
 				runnerName = cfg.Default
 			}
-			runnerCfg, ok := cfg.Runners[runnerName]
-			if !ok {
+			if _, ok := cfg.Runners[runnerName]; !ok {
 				return fmt.Errorf("runner %q not found in config", runnerName)
 			}
 
@@ -351,10 +353,10 @@ func newBatchRunCmd() *cobra.Command {
 					commitStrategy = "per-round"
 				}
 
-				runnerFactory := func(logPath string, model string) runner.Runner {
-					return runner.NewRunner(batchRunnerWs, runnerName, runnerCfg, time.Duration(timeout)*time.Second, logPath, model)
+				runnerFactory := func(rn string, logPath string, model string) runner.Runner {
+					return runner.NewRunner(batchRunnerWs, rn, cfg.Runners[rn], time.Duration(timeout)*time.Second, logPath, model)
 				}
-				runErr := runLoop(batchCtx, ws, batchRunnerWs, feature, cfg, s, batchOps, runnerFactory, commitStrategy)
+				runErr := runLoop(batchCtx, ws, batchRunnerWs, feature, cfg, s, batchOps, runnerFactory, commitStrategy, manualRunner)
 
 				updated, _ := ws.LoadFeature(next)
 				return updated.Status, runErr

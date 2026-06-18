@@ -129,24 +129,46 @@ func TestValidateConfig_ProfileMissingCoder(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for profile missing coder")
 	}
-	if !strings.Contains(err.Error(), "must include \"coder\"") {
-		t.Fatalf("error should mention coder requirement: %v", err)
+	if !strings.Contains(err.Error(), "must include \"coding\" phase") {
+		t.Fatalf("error should mention coding phase requirement: %v", err)
 	}
 }
 
-func TestValidateConfig_ProfileUnknownRole(t *testing.T) {
+func TestValidateConfig_ProfileNonSelectablePhase(t *testing.T) {
 	c := Config{
 		Project: ProjectConfig{Name: "test"},
 		Profiles: map[string]ProfileConfig{
-			"bad": {Roles: []string{"coder", "ninja"}},
+			"bad": {Phases: []PhaseSpec{
+				{Phase: string(PhaseCoding)},
+				{Phase: string(PhaseAmending)}, // amending 不在白名單
+			}},
 		},
 	}
 	err := ValidateConfig(c)
 	if err == nil {
-		t.Fatal("expected error for unknown role in profile")
+		t.Fatal("expected error for non-selectable phase in profile")
 	}
-	if !strings.Contains(err.Error(), "ninja") {
-		t.Fatalf("error should mention unknown role: %v", err)
+	if !strings.Contains(err.Error(), "amending") {
+		t.Fatalf("error should mention non-selectable phase: %v", err)
+	}
+}
+
+func TestValidateConfig_ProfileUnknownRunner(t *testing.T) {
+	c := Config{
+		Project: ProjectConfig{Name: "test"},
+		Runners: map[string]RunnerConfig{"claude": {Command: "claude"}},
+		Profiles: map[string]ProfileConfig{
+			"bad": {Phases: []PhaseSpec{
+				{Phase: string(PhaseCoding), Runner: "ghost"},
+			}},
+		},
+	}
+	err := ValidateConfig(c)
+	if err == nil {
+		t.Fatal("expected error for unknown runner in profile phase")
+	}
+	if !strings.Contains(err.Error(), "ghost") {
+		t.Fatalf("error should mention unknown runner: %v", err)
 	}
 }
 

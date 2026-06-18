@@ -146,6 +146,9 @@ func newRunCmd() *cobra.Command {
 
 			syncPlugins(ws.Root, cfg)
 
+			// manualRunner 保存使用者顯式指定的 --runner（覆寫優先序最高層，全 phase 套用）；
+			// 未指定時為空，讓 per-phase profile/feature override 與 default_runner 生效。
+			manualRunner := runnerName
 			if runnerName == "" {
 				runnerName = cfg.Default
 			}
@@ -364,11 +367,11 @@ func newRunCmd() *cobra.Command {
 				}
 			}()
 
-			runnerCfg := cfg.Runners[runnerName]
-			runnerFactory := func(logPath string, model string) runner.Runner {
-				return runner.NewRunner(runnerWs, runnerName, runnerCfg, time.Duration(timeout)*time.Second, logPath, model)
+			// runnerFactory 依 phase 解析出的 runner 名稱建立 runner，取代過去 closure 固定單一 runner。
+			runnerFactory := func(rn string, logPath string, model string) runner.Runner {
+				return runner.NewRunner(runnerWs, rn, cfg.Runners[rn], time.Duration(timeout)*time.Second, logPath, model)
 			}
-			loopErr := runLoop(ctx, ws, runnerWs, feature, cfg, s, ops, runnerFactory, commitStrategy)
+			loopErr := runLoop(ctx, ws, runnerWs, feature, cfg, s, ops, runnerFactory, commitStrategy, manualRunner)
 
 			finalState, err := ws.ReadState(featureID)
 			if err != nil {
@@ -566,7 +569,7 @@ func prefetchablePhase(phase protocol.Phase, cfg protocol.Config) bool {
 	}
 }
 
-func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature feat.Feature, cfg protocol.Config, s protocol.State, ops gitops.Ops, newRunner func(logPath string, model string) runner.Runner, commitStrategy string) error {
+func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature feat.Feature, cfg protocol.Config, s protocol.State, ops gitops.Ops, newRunner func(runnerName string, logPath string, model string) runner.Runner, commitStrategy string, manualRunner string) error {
 	if ops == nil {
 		ops = gitops.New(ws.Root, ws, cfg)
 	}
@@ -681,7 +684,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		// S6：reviewing phase 啟用平行 reviewer + tester（兩者皆 read-only、共用 worktree）。
 		if phase == protocol.PhaseReviewing && cfg.ParallelReviewTest &&
 			pc.EnablesRole(protocol.RoleReviewer) && pc.EnablesRole(protocol.RoleTester) {
-			cont, err := runReviewTestParallel(ctx, ws, runnerWs, feature, cfg, &s, ops, newRunner)
+			cont, err := runReviewTestParallel(ctx, ws, runnerWs, feature, cfg, &s, ops, newRunner, pc, manualRunner)
 			if err != nil {
 				return err
 			}
@@ -694,7 +697,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		// F063：deep-reviewing phase 由自癒循環接管 — deep reviewer FAIL 時在同一 phase
 		// 內 spawn mini-coder + re-verifier 修正，通過才放行 accepting，不回主迴圈重跑整條流程。
 		if phase == protocol.PhaseDeepReviewing {
-			cont, err := runDeepReviewPhase(ctx, ws, runnerWs, feature, cfg, &s, ops, newRunner, commitStrategy)
+			cont, err := runDeepReviewPhase(ctx, ws, runnerWs, feature, cfg, &s, ops, newRunner, commitStrategy, manualRunner)
 			if err != nil {
 				return err
 			}
@@ -771,8 +774,16 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		}
 
 		// deep-reviewing phase 已由 runDeepReviewPhase 接管（含 deep_model 解析與跳過邏輯），
-		// 故此處 role 必不為 deep-reviewer，直接走 profile-aware 解析。
-		model, err := protocol.ResolveProfileModel(cfg, s.Runner, role, pc)
+		// 故此處 role 必不為 deep-reviewer，直接依覆寫優先序逐 phase 解析 runner 與 model。
+		phaseRunner, err := protocol.ResolvePhaseRunner(cfg, feature, pc, phase, manualRunner)
+		if err != nil {
+			s.Active = false
+			s.StopReason = "runner-error"
+			s.StopMessage = fmt.Sprintf("runner resolution for %s failed: %v", phase, err)
+			logStateWriteErr(ws.WriteState(featureID, s), featureID, s.Phase)
+			return fmt.Errorf("runner resolution failed: %w", err)
+		}
+		model, err := protocol.ResolvePhaseModel(cfg, feature, pc, phase, role, phaseRunner, manualRunner)
 		if err != nil {
 			s.Active = false
 			s.StopReason = "model-error"
@@ -783,10 +794,10 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "phase-start", Phase: phase, Role: role, Round: s.Round,
-			Runner: s.Runner, Model: model,
+			Runner: phaseRunner, Model: model,
 		})
 
-		slog.Info("phase transition", "feature", featureID, "phase", phase, "role", role, "round", s.Round, "model", model)
+		slog.Info("phase transition", "feature", featureID, "phase", phase, "role", role, "round", s.Round, "runner", phaseRunner, "model", model)
 
 		// P1：優先取用上一輪背景預生成的 prompt（role+round 比對）；prefetch 失敗或無
 		// matching prefetch 則退回同步 generatePrompt，同步亦失敗才用 minimal prompt。
@@ -809,7 +820,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		}
 
 		logPath := filepath.Join(runner.LogDir(ws, featureID), runner.LogFileName(s.Round, string(role)))
-		r := newRunner(logPath, model)
+		r := newRunner(phaseRunner, logPath, model)
 
 		commitWG.Wait()
 
@@ -824,16 +835,16 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		}
 
 		if model != "" {
-			fmt.Printf("[round %d] %s (%s) — invoking %s (model: %s)\n", s.Round, phase, role, s.Runner, model)
+			fmt.Printf("[round %d] %s (%s) — invoking %s (model: %s)\n", s.Round, phase, role, phaseRunner, model)
 		} else {
-			fmt.Printf("[round %d] %s (%s) — invoking %s\n", s.Round, phase, role, s.Runner)
+			fmt.Printf("[round %d] %s (%s) — invoking %s\n", s.Round, phase, role, phaseRunner)
 		}
 
-		slog.Info("plugin invocation", "feature", featureID, "role", role, "runner", s.Runner, "model", model, "round", s.Round, "status", "started")
+		slog.Info("plugin invocation", "feature", featureID, "role", role, "runner", phaseRunner, "model", model, "round", s.Round, "status", "started")
 		invokeStart := time.Now()
 		result, err := r.Run(ctx, prompt)
 		invokeDur := time.Since(invokeStart)
-		slog.Info("plugin invocation", "feature", featureID, "role", role, "runner", s.Runner, "model", model, "round", s.Round, "status", "completed", "duration_ms", invokeDur.Milliseconds())
+		slog.Info("plugin invocation", "feature", featureID, "role", role, "runner", phaseRunner, "model", model, "round", s.Round, "status", "completed", "duration_ms", invokeDur.Milliseconds())
 
 		if stopSync != nil {
 			stopSync()
@@ -859,7 +870,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			ws.AppendEvent(featureID, protocol.Event{
 				Type: "run-end", Phase: phase, Role: role, Round: s.Round,
 				Status: "error", Detail: err.Error(),
-				Runner: s.Runner, Model: model,
+				Runner: phaseRunner, Model: model,
 			})
 			return err
 		}
@@ -867,7 +878,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "run-end", Phase: phase, Role: role, Round: s.Round,
 			Status: fmt.Sprintf("exit-%d", result.ExitCode),
-			Runner: s.Runner, Model: model,
+			Runner: phaseRunner, Model: model,
 		})
 
 		if runner.IsHardError(result) {
@@ -1135,25 +1146,35 @@ func successorPhase(p protocol.Phase) (protocol.Phase, protocol.Role) {
 // worktree），兩者完成後合併判定。回傳 (cont, err)：cont 為 true 表示主迴圈應 continue
 // 接手後續 phase（deep-reviewing 或 amending）；cont 為 false 且 err 為 nil 表示已落入
 // 終止狀態（blocked / needs-attention），主迴圈應 break；err 非 nil 表示 hard error 直接中止。
-func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature feat.Feature, cfg protocol.Config, s *protocol.State, ops gitops.Ops, newRunner func(logPath string, model string) runner.Runner) (bool, error) {
+func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature feat.Feature, cfg protocol.Config, s *protocol.State, ops gitops.Ops, newRunner func(runnerName string, logPath string, model string) runner.Runner, pc protocol.ProfileConfig, manualRunner string) (bool, error) {
 	featureID := feature.ID
 	round := s.Round
 
-	reviewModel, err := protocol.ResolveModel(cfg, s.Runner, protocol.RoleReviewer)
-	if err != nil {
+	// reviewer 依 reviewing phase、tester 依其 canonical testing phase 各自解析 runner/model，
+	// 平行模式下兩者可用不同 runner（共用 worktree）。
+	resolveErr := func(what string, err error) (bool, error) {
 		s.Active = false
 		s.StopReason = "model-error"
-		s.StopMessage = fmt.Sprintf("reviewer model resolution failed: %v", err)
+		s.StopMessage = fmt.Sprintf("%s resolution failed: %v", what, err)
 		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
-		return false, fmt.Errorf("model resolution failed: %w", err)
+		return false, fmt.Errorf("%s resolution failed: %w", what, err)
 	}
-	testModel, err := protocol.ResolveModel(cfg, s.Runner, protocol.RoleTester)
+
+	reviewRunner, err := protocol.ResolvePhaseRunner(cfg, feature, pc, protocol.PhaseReviewing, manualRunner)
 	if err != nil {
-		s.Active = false
-		s.StopReason = "model-error"
-		s.StopMessage = fmt.Sprintf("tester model resolution failed: %v", err)
-		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
-		return false, fmt.Errorf("model resolution failed: %w", err)
+		return resolveErr("reviewer runner", err)
+	}
+	reviewModel, err := protocol.ResolvePhaseModel(cfg, feature, pc, protocol.PhaseReviewing, protocol.RoleReviewer, reviewRunner, manualRunner)
+	if err != nil {
+		return resolveErr("reviewer model", err)
+	}
+	testRunner, err := protocol.ResolvePhaseRunner(cfg, feature, pc, protocol.PhaseTesting, manualRunner)
+	if err != nil {
+		return resolveErr("tester runner", err)
+	}
+	testModel, err := protocol.ResolvePhaseModel(cfg, feature, pc, protocol.PhaseTesting, protocol.RoleTester, testRunner, manualRunner)
+	if err != nil {
+		return resolveErr("tester model", err)
 	}
 
 	if runnerWs.Root != ws.Root {
@@ -1161,25 +1182,26 @@ func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 	}
 
 	type runOutcome struct {
-		role   protocol.Role
-		model  string
-		result *runner.Result
-		err    error
+		role       protocol.Role
+		runnerName string
+		model      string
+		result     *runner.Result
+		err        error
 	}
 
-	runRole := func(role protocol.Role, model string) runOutcome {
+	runRole := func(role protocol.Role, runnerName, model string) runOutcome {
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "phase-start", Phase: protocol.PhaseReviewing, Role: role, Round: round,
-			Runner: s.Runner, Model: model,
+			Runner: runnerName, Model: model,
 		})
 		prompt, err := generatePrompt(ws, runnerWs, feature, cfg, role, round, 0)
 		if err != nil {
 			prompt = fmt.Sprintf("You are the %s for feature %s, round %d. Read .4x/%s/ for context.", role, featureID, round, featureID)
 		}
 		logPath := filepath.Join(runner.LogDir(ws, featureID), runner.LogFileName(round, string(role)))
-		r := newRunner(logPath, model)
+		r := newRunner(runnerName, logPath, model)
 		res, runErr := r.Run(ctx, prompt)
-		return runOutcome{role: role, model: model, result: res, err: runErr}
+		return runOutcome{role: role, runnerName: runnerName, model: model, result: res, err: runErr}
 	}
 
 	var stopSync func()
@@ -1187,13 +1209,13 @@ func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 		stopSync = startLiveSync(runnerWs, ws, featureID, round)
 	}
 
-	fmt.Printf("[round %d] reviewing — running reviewer + tester in parallel (%s)\n", round, s.Runner)
+	fmt.Printf("[round %d] reviewing — running reviewer (%s) + tester (%s) in parallel\n", round, reviewRunner, testRunner)
 
 	var wg sync.WaitGroup
 	outcomes := make([]runOutcome, 2)
 	wg.Add(2)
-	go func() { defer wg.Done(); outcomes[0] = runRole(protocol.RoleReviewer, reviewModel) }()
-	go func() { defer wg.Done(); outcomes[1] = runRole(protocol.RoleTester, testModel) }()
+	go func() { defer wg.Done(); outcomes[0] = runRole(protocol.RoleReviewer, reviewRunner, reviewModel) }()
+	go func() { defer wg.Done(); outcomes[1] = runRole(protocol.RoleTester, testRunner, testModel) }()
 	wg.Wait()
 
 	if stopSync != nil {
@@ -1222,7 +1244,7 @@ func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 			logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
 			ws.AppendEvent(featureID, protocol.Event{
 				Type: "run-end", Phase: protocol.PhaseReviewing, Role: o.role, Round: round,
-				Status: "error", Detail: o.err.Error(), Runner: s.Runner, Model: o.model,
+				Status: "error", Detail: o.err.Error(), Runner: o.runnerName, Model: o.model,
 			})
 			return false, o.err
 		}
@@ -1231,7 +1253,7 @@ func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 	for _, o := range outcomes {
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "run-end", Phase: protocol.PhaseReviewing, Role: o.role, Round: round,
-			Status: fmt.Sprintf("exit-%d", o.result.ExitCode), Runner: s.Runner, Model: o.model,
+			Status: fmt.Sprintf("exit-%d", o.result.ExitCode), Runner: o.runnerName, Model: o.model,
 		})
 	}
 
@@ -1379,7 +1401,7 @@ func parallelNeedsAttention(ws *protocol.Workspace, featureID string, s *protoco
 //
 // 回傳 (ok, err)：語意同 runDeepSubRole；ok 為 true 時 deep-review-report.md 已產出，
 // caller 接續走 reviewPassed → accepting / self-heal 分支。
-func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature feat.Feature, cfg protocol.Config, s *protocol.State, ops gitops.Ops, newRunner func(logPath string, model string) runner.Runner, deepModel string, groups [][]int, round int) (bool, error) {
+func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature feat.Feature, cfg protocol.Config, s *protocol.State, ops gitops.Ops, newRunner func(runnerName string, logPath string, model string) runner.Runner, runnerName, deepModel string, groups [][]int, round int) (bool, error) {
 	featureID := feature.ID
 
 	if runnerWs.Root != ws.Root {
@@ -1416,7 +1438,7 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 
 	outcomes := make([]runOutcome, len(missing))
 	if len(missing) > 0 {
-		fmt.Printf("[round %d] deep-reviewing — running %d parallel sub-reviewers (%s, model: %s)\n", round, len(missing), s.Runner, deepModel)
+		fmt.Printf("[round %d] deep-reviewing — running %d parallel sub-reviewers (%s, model: %s)\n", round, len(missing), runnerName, deepModel)
 
 		var wg sync.WaitGroup
 		for slot, idx := range missing {
@@ -1427,7 +1449,7 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 				partialName := deepReviewPartialName(idx)
 				ws.AppendEvent(featureID, protocol.Event{
 					Type: "phase-start", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleDeepReviewer, Round: round,
-					Runner: s.Runner, Model: deepModel,
+					Runner: runnerName, Model: deepModel,
 				})
 				prompt, perr := generatePrompt(ws, runnerWs, feature, cfg, protocol.RoleDeepReviewer, round, 0,
 					withParallelDeepReviewer(idx, len(groups), angles, partialName))
@@ -1435,14 +1457,14 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 					prompt = fmt.Sprintf("You are deep sub-reviewer %d for feature %s, round %d. Read .4x/%s/ for context.", idx, featureID, round, featureID)
 				}
 				logPath := filepath.Join(runner.LogDir(ws, featureID), runner.DeepReviewerLogFileName(round, idx))
-				r := newRunner(logPath, deepModel)
+				r := newRunner(runnerName, logPath, deepModel)
 				res, runErr := r.Run(ctx, prompt)
 				outcomes[slot] = runOutcome{index: idx, result: res, err: runErr}
 			}(slot, idx)
 		}
 		wg.Wait()
 	} else {
-		fmt.Printf("[round %d] deep-reviewing — all %d partials present, resuming at synthesizer (%s)\n", round, len(groups), s.Runner)
+		fmt.Printf("[round %d] deep-reviewing — all %d partials present, resuming at synthesizer (%s)\n", round, len(groups), runnerName)
 	}
 
 	// runner 執行錯誤分類：context cancel → interrupted；其餘 → runner-error needs-attention。
@@ -1463,7 +1485,7 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 			logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
 			ws.AppendEvent(featureID, protocol.Event{
 				Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleDeepReviewer, Round: round,
-				Status: "error", Detail: o.err.Error(), Runner: s.Runner, Model: deepModel,
+				Status: "error", Detail: o.err.Error(), Runner: runnerName, Model: deepModel,
 			})
 			return false, o.err
 		}
@@ -1471,7 +1493,7 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 	for _, o := range outcomes {
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleDeepReviewer, Round: round,
-			Status: fmt.Sprintf("exit-%d", o.result.ExitCode), Runner: s.Runner, Model: deepModel,
+			Status: fmt.Sprintf("exit-%d", o.result.ExitCode), Runner: runnerName, Model: deepModel,
 		})
 	}
 	for _, o := range outcomes {
@@ -1519,12 +1541,12 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 	// synthesizer 只做文本合併、不讀原始碼，用獨立的便宜 model（預設 sonnet tier，
 	// 可由 roles.synthesizer.model 覆寫）。解析失敗時 fallback 回 deepModel，不中斷 run。
 	synthModel := deepModel
-	if m, mErr := protocol.ResolveModel(cfg, s.Runner, protocol.RoleSynthesizer); mErr == nil {
+	if m, mErr := protocol.ResolveModel(cfg, runnerName, protocol.RoleSynthesizer); mErr == nil {
 		synthModel = m
 	}
 	ws.AppendEvent(featureID, protocol.Event{
 		Type: "phase-start", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleSynthesizer, Round: round,
-		Runner: s.Runner, Model: synthModel,
+		Runner: runnerName, Model: synthModel,
 	})
 	synthPrompt, perr := generatePrompt(ws, runnerWs, feature, cfg, protocol.RoleSynthesizer, round, 0,
 		withSynthesizerReports(partials))
@@ -1532,8 +1554,8 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 		synthPrompt = fmt.Sprintf("You are the deep review synthesizer for feature %s, round %d. Read .4x/%s/ for context.", featureID, round, featureID)
 	}
 	synthLog := filepath.Join(runner.LogDir(ws, featureID), runner.LogFileName(round, string(protocol.RoleSynthesizer)))
-	synthRunner := newRunner(synthLog, synthModel)
-	fmt.Printf("[round %d] deep-reviewing (synthesizer) — invoking %s (model: %s)\n", round, s.Runner, synthModel)
+	synthRunner := newRunner(runnerName, synthLog, synthModel)
+	fmt.Printf("[round %d] deep-reviewing (synthesizer) — invoking %s (model: %s)\n", round, runnerName, synthModel)
 	synthRes, synthErr := synthRunner.Run(ctx, synthPrompt)
 	if synthErr != nil {
 		cleanup()
@@ -1551,13 +1573,13 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleSynthesizer, Round: round,
-			Status: "error", Detail: synthErr.Error(), Runner: s.Runner, Model: synthModel,
+			Status: "error", Detail: synthErr.Error(), Runner: runnerName, Model: synthModel,
 		})
 		return false, synthErr
 	}
 	ws.AppendEvent(featureID, protocol.Event{
 		Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleSynthesizer, Round: round,
-		Status: fmt.Sprintf("exit-%d", synthRes.ExitCode), Runner: s.Runner, Model: synthModel,
+		Status: fmt.Sprintf("exit-%d", synthRes.ExitCode), Runner: runnerName, Model: synthModel,
 	})
 	if runner.IsHardError(synthRes) {
 		cleanup()
@@ -1594,11 +1616,11 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 // 回傳 (cont, err)：cont 為 true 表示主迴圈應 continue（已推進 accepting 或跳過 deep review）；
 // cont 為 false 且 err 為 nil 表示已落入終止狀態（needs-attention / blocked），主迴圈應 break；
 // err 非 nil 表示 hard error 或 context cancel，直接中止。
-func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature feat.Feature, cfg protocol.Config, s *protocol.State, ops gitops.Ops, newRunner func(logPath string, model string) runner.Runner, commitStrategy string) (bool, error) {
+func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature feat.Feature, cfg protocol.Config, s *protocol.State, ops gitops.Ops, newRunner func(runnerName string, logPath string, model string) runner.Runner, commitStrategy string, manualRunner string) (bool, error) {
 	featureID := feature.ID
 	round := s.Round
 
-	// active profile 用於解析 mini-coder 的 coder model（含 profile 的 coder_model 覆蓋）。
+	// active profile 用於解析 mini-coder 的 coder model 與 deep-reviewing phase 的 runner 覆寫。
 	_, pc, err := protocol.ResolveProfile(cfg, feature, s.Profile)
 	if err != nil {
 		s.Active = false
@@ -1608,8 +1630,19 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 		return false, fmt.Errorf("resolve profile: %w", err)
 	}
 
+	// deep-reviewing phase 的 runner 依覆寫優先序解析；其下所有子 role（deep-reviewer、
+	// mini-coder、re-verifier、synthesizer）皆共用此 runner，model 行為各自維持既有語意。
+	deepRunner, err := protocol.ResolvePhaseRunner(cfg, feature, pc, protocol.PhaseDeepReviewing, manualRunner)
+	if err != nil {
+		s.Active = false
+		s.StopReason = "runner-error"
+		s.StopMessage = fmt.Sprintf("deep-reviewer runner resolution failed: %v", err)
+		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+		return false, fmt.Errorf("deep runner resolution failed: %w", err)
+	}
+
 	// 1. 解析 deep_model（deep_model 掛在 reviewer role 上）；未設定時跳過 deep review 直接 accepting。
-	deepModel, err := protocol.ResolveDeepModel(cfg, s.Runner, protocol.RoleReviewer)
+	deepModel, err := protocol.ResolveDeepModel(cfg, deepRunner, protocol.RoleReviewer)
 	if err != nil {
 		s.Active = false
 		s.StopReason = "model-error"
@@ -1648,13 +1681,13 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 		protocol.DeepReviewAngleCount)
 	if len(groups) > 1 {
 		// 平行模式：N sub-reviewer 各寫 partial report，synthesizer 合併成 deep-review-report.md。
-		if ok, err := runDeepReviewParallel(ctx, ws, runnerWs, feature, cfg, s, ops, newRunner, deepModel, groups, round); !ok || err != nil {
+		if ok, err := runDeepReviewParallel(ctx, ws, runnerWs, feature, cfg, s, ops, newRunner, deepRunner, deepModel, groups, round); !ok || err != nil {
 			return ok, err
 		}
 	} else {
 		// fallback 單 agent：deep reviewer 直接輸出 deep-review-report.md（現行行為）。
 		if ok, err := runDeepSubRole(ctx, ws, runnerWs, feature, cfg, s, newRunner,
-			protocol.RoleDeepReviewer, deepModel, runner.LogFileName(round, string(protocol.RoleDeepReviewer)), round, 0); !ok || err != nil {
+			protocol.RoleDeepReviewer, deepRunner, deepModel, runner.LogFileName(round, string(protocol.RoleDeepReviewer)), round, 0); !ok || err != nil {
 			return ok, err
 		}
 		if ok, err := deepGuardCheck(ws, featureID, s, ops, protocol.RoleDeepReviewer); !ok || err != nil {
@@ -1674,7 +1707,7 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 
 	// 4. FAIL → 內部自癒循環。
 	maxFix := protocol.ResolveMaxFixRounds(cfg, protocol.RoleDeepReviewer)
-	coderModel, err := protocol.ResolveProfileModel(cfg, s.Runner, protocol.RoleCoder, pc)
+	coderModel, err := protocol.ResolvePhaseModel(cfg, feature, pc, protocol.PhaseCoding, protocol.RoleCoder, deepRunner, manualRunner)
 	if err != nil {
 		s.Active = false
 		s.StopReason = "model-error"
@@ -1682,7 +1715,7 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
 		return false, fmt.Errorf("coder model resolution failed: %w", err)
 	}
-	reviewModel, err := protocol.ResolveModel(cfg, s.Runner, protocol.RoleReviewer)
+	reviewModel, err := protocol.ResolveModel(cfg, deepRunner, protocol.RoleReviewer)
 	if err != nil {
 		s.Active = false
 		s.StopReason = "model-error"
@@ -1701,7 +1734,7 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 			return false, fmt.Errorf("write state (mini-coder): %w", err)
 		}
 		if ok, err := runDeepSubRole(ctx, ws, runnerWs, feature, cfg, s, newRunner,
-			protocol.RoleMiniCoder, coderModel, runner.DeepFixLogFileName(round, iter), round, iter); !ok || err != nil {
+			protocol.RoleMiniCoder, deepRunner, coderModel, runner.DeepFixLogFileName(round, iter), round, iter); !ok || err != nil {
 			return ok, err
 		}
 
@@ -1739,7 +1772,7 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 			return false, fmt.Errorf("write state (re-verifier): %w", err)
 		}
 		if ok, err := runDeepSubRole(ctx, ws, runnerWs, feature, cfg, s, newRunner,
-			protocol.RoleReVerifier, reviewModel, runner.DeepReverifyLogFileName(round, iter), round, iter); !ok || err != nil {
+			protocol.RoleReVerifier, deepRunner, reviewModel, runner.DeepReverifyLogFileName(round, iter), round, iter); !ok || err != nil {
 			return ok, err
 		}
 		if ok, err := deepGuardCheck(ws, featureID, s, ops, protocol.RoleReVerifier); !ok || err != nil {
@@ -1776,12 +1809,12 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 //
 // 回傳 (ok, err)：ok 為 true 表示 runner 正常結束，caller 可繼續；ok 為 false 且 err 為 nil
 // 表示已寫入終止狀態（needs-attention / blocked）；err 非 nil 表示 hard error 或 cancel。
-func runDeepSubRole(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature feat.Feature, cfg protocol.Config, s *protocol.State, newRunner func(logPath string, model string) runner.Runner, role protocol.Role, model, logName string, round, iteration int) (bool, error) {
+func runDeepSubRole(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature feat.Feature, cfg protocol.Config, s *protocol.State, newRunner func(runnerName string, logPath string, model string) runner.Runner, role protocol.Role, runnerName, model, logName string, round, iteration int) (bool, error) {
 	featureID := feature.ID
 
 	ws.AppendEvent(featureID, protocol.Event{
 		Type: "phase-start", Phase: protocol.PhaseDeepReviewing, Role: role, Round: round,
-		Runner: s.Runner, Model: model,
+		Runner: runnerName, Model: model,
 	})
 
 	prompt, err := generatePrompt(ws, runnerWs, feature, cfg, role, round, iteration)
@@ -1789,7 +1822,7 @@ func runDeepSubRole(ctx context.Context, ws *protocol.Workspace, runnerWs *proto
 		prompt = fmt.Sprintf("You are the %s for feature %s, round %d. Read .4x/%s/ for context.", role, featureID, round, featureID)
 	}
 	logPath := filepath.Join(runner.LogDir(ws, featureID), logName)
-	r := newRunner(logPath, model)
+	r := newRunner(runnerName, logPath, model)
 
 	if runnerWs.Root != ws.Root {
 		syncFeatureToWorktree(ws, runnerWs, featureID, round)
@@ -1800,9 +1833,9 @@ func runDeepSubRole(ctx context.Context, ws *protocol.Workspace, runnerWs *proto
 	}
 
 	if model != "" {
-		fmt.Printf("[round %d] deep-reviewing (%s) — invoking %s (model: %s)\n", round, role, s.Runner, model)
+		fmt.Printf("[round %d] deep-reviewing (%s) — invoking %s (model: %s)\n", round, role, runnerName, model)
 	} else {
-		fmt.Printf("[round %d] deep-reviewing (%s) — invoking %s\n", round, role, s.Runner)
+		fmt.Printf("[round %d] deep-reviewing (%s) — invoking %s\n", round, role, runnerName)
 	}
 
 	result, runErr := r.Run(ctx, prompt)
@@ -1831,14 +1864,14 @@ func runDeepSubRole(ctx context.Context, ws *protocol.Workspace, runnerWs *proto
 		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: role, Round: round,
-			Status: "error", Detail: runErr.Error(), Runner: s.Runner, Model: model,
+			Status: "error", Detail: runErr.Error(), Runner: runnerName, Model: model,
 		})
 		return false, runErr
 	}
 
 	ws.AppendEvent(featureID, protocol.Event{
 		Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: role, Round: round,
-		Status: fmt.Sprintf("exit-%d", result.ExitCode), Runner: s.Runner, Model: model,
+		Status: fmt.Sprintf("exit-%d", result.ExitCode), Runner: runnerName, Model: model,
 	})
 
 	if runner.IsHardError(result) {
