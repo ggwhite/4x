@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.16] - 2026-06-18
+
+### Features
+
+- **Screenshots tab** — 新增截圖分頁，依 round 分組顯示 tester 截圖，支援縮圖 grid 佈局與點擊放大 lightbox
+
 ## [0.1.15] - 2026-06-18
 
 ### Features
