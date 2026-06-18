@@ -965,7 +965,7 @@ async function loadDetail(task) {
   document.getElementById('dashboard').classList.add('hidden');
   document.getElementById('header').classList.remove('hidden');
   document.getElementById('messages').innerHTML = ''; renderedMsgKeys.clear(); currentLogFile = null; multiLogActive = false; multiLogBuffers = {};
-  document.getElementById('screenshots-panel').innerHTML = '';
+  document.getElementById('screenshots-panel').innerHTML = ''; _lastScreenshotHash = '';
   document.getElementById('h-id').textContent = task.id;
   document.getElementById('h-name').textContent = task.name;
   document.getElementById('h-badge').innerHTML = badge(task.status, task.phase, task.active);
@@ -1221,14 +1221,19 @@ function switchDetailTab(tab) {
   if (tab === 'screenshots' && current) loadScreenshots(current);
 }
 
+let _lastScreenshotHash = '';
 async function loadScreenshots(fid) {
   const el = document.getElementById('screenshots-panel');
-  el.innerHTML = `<div class="text-zinc-600 text-sm mt-8 text-center">${t('common.loading')}</div>`;
+  const isEmpty = !el.innerHTML || el.innerHTML.includes('text-center');
+  if (isEmpty) el.innerHTML = `<div class="text-zinc-600 text-sm mt-8 text-center">${t('common.loading')}</div>`;
   try {
     const resp = await fetch(apiBase()+'/api/features/'+fid+'/screenshots');
-    if (!resp.ok) { el.innerHTML = `<div class="text-zinc-600 text-sm mt-8 text-center">${t('screenshots.none')}</div>`; return; }
+    if (!resp.ok) { _lastScreenshotHash = ''; el.innerHTML = `<div class="text-zinc-600 text-sm mt-8 text-center">${t('screenshots.none')}</div>`; return; }
     const data = await resp.json();
-    if (!data.groups || data.groups.length === 0) { el.innerHTML = `<div class="text-zinc-600 text-sm mt-8 text-center">${t('screenshots.none')}</div>`; return; }
+    if (!data.groups || data.groups.length === 0) { _lastScreenshotHash = ''; el.innerHTML = `<div class="text-zinc-600 text-sm mt-8 text-center">${t('screenshots.none')}</div>`; return; }
+    const hash = JSON.stringify(data.groups);
+    if (hash === _lastScreenshotHash) return;
+    _lastScreenshotHash = hash;
     renderScreenshots(data.groups, el);
   } catch {
     el.innerHTML = `<div class="text-red-400 text-sm mt-8 text-center">${t('picker.connectionError')}</div>`;
