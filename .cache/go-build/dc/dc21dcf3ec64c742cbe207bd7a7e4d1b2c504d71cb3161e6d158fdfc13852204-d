@@ -1,0 +1,7 @@
+./batch_process.go
+./multi.go
+./process.go
+./projects.go
+./resolver.go
+./server.go
+./version.go

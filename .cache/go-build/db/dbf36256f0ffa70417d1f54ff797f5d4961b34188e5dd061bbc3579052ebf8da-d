@@ -1,0 +1,12 @@
+./cached.go
+./design_doc.go
+./discover.go
+./merge.go
+./model.go
+./override.go
+./process_unix.go
+./profile.go
+./reader.go
+./types.go
+./validate.go
+./workspace.go

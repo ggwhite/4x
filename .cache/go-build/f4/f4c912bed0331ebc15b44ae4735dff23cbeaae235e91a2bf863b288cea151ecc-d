@@ -1,0 +1,3 @@
+./hook.go
+./hook_test.go
+./integration_test.go

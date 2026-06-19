@@ -1,0 +1,5 @@
+./check.go
+./check_f060_test.go
+./check_f077_test.go
+./check_f081_test.go
+./check_test.go

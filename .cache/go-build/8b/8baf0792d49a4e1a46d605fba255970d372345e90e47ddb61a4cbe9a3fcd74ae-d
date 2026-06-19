@@ -1,0 +1,14 @@
+./env.go
+./proc_unix.go
+./pty_unix.go
+./runner.go
+./stream.go
+./transient.go
+./ansi_test.go
+./env_test.go
+./proc_unix_test.go
+./prompt_test.go
+./pty_f060_test.go
+./runner_test.go
+./stream_test.go
+./transient_test.go

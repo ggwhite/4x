@@ -1,0 +1,13 @@
+./backlog.go
+./clone.go
+./create.go
+./id.go
+./screenshot.go
+./store.go
+./types.go
+./validate.go
+./backlog_test.go
+./clone_test.go
+./create_test.go
+./id_test.go
+./validate_test.go

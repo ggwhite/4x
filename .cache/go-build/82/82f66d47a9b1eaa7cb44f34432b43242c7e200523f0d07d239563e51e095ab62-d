@@ -1,0 +1,10 @@
+./gitops.go
+./monorepo.go
+./multirepo.go
+./worktree.go
+./gitops_f060_test.go
+./gitops_f081_test.go
+./gitops_test.go
+./monorepo_test.go
+./multirepo_test.go
+./worktree_test.go
