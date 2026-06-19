@@ -112,6 +112,8 @@ func DefaultProfiles() map[string]ProfileConfig {
 //
 // 解析優先序：
 //   - override 非空（--profile / resume 沿用）：先查 cfg.Profiles，再退 DefaultProfiles；都找不到回 error。
+//   - override 為空且 feature YAML profile 欄位非空：用 f.Profile（查 cfg.Profiles 再退
+//     DefaultProfiles，找不到回 error），供 batch per-feature 套用不同 profile。
 //   - override 為空且 cfg.DefaultProfile 非空：用 cfg.DefaultProfile（查 cfg.Profiles 再退
 //     DefaultProfiles，找不到印 warning 退 full）。
 //   - override 為空且 cfg.DefaultProfile 為空：維持既有 fallback——cfg.Profiles 為空回 full；
@@ -141,6 +143,13 @@ func ResolveProfile(cfg Config, f feature.Feature, override string) (string, Pro
 			return "", ProfileConfig{}, fmt.Errorf("unknown profile %q", override)
 		}
 		name, pc = override, got
+
+	case f.Profile != "":
+		got, ok := lookup(f.Profile)
+		if !ok {
+			return "", ProfileConfig{}, fmt.Errorf("unknown profile %q in feature %s", f.Profile, f.ID)
+		}
+		name, pc = f.Profile, got
 
 	case cfg.DefaultProfile != "":
 		got, ok := lookup(cfg.DefaultProfile)

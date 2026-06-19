@@ -180,6 +180,24 @@ func TestNew_FeatureContent(t *testing.T) {
 	}
 }
 
+func TestNew_ProfileFlagWritesYAML(t *testing.T) {
+	dir := t.TempDir()
+	run4x(dir, "init")
+
+	out, err := run4x(dir, "new", "Quick feature", "--profile", "quick")
+	if err != nil {
+		t.Fatalf("new failed: %v\n%s", err, out)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, ".4x", "features", "F001-quick-feature.yaml"))
+	if err != nil {
+		t.Fatalf("read feature: %v", err)
+	}
+	if !strings.Contains(string(data), "profile: quick") {
+		t.Errorf("feature YAML missing profile field:\n%s", data)
+	}
+}
+
 func TestStatus_ShowsBacklogDriftWarning(t *testing.T) {
 	dir := t.TempDir()
 	run4x(dir, "init")

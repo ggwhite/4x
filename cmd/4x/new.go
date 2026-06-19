@@ -13,14 +13,15 @@ import (
 
 func newNewCmd() *cobra.Command {
 	var (
-		repos      []string
-		jsonOutput bool
-		customID   string
-		desc       string
-		subtasks   []string
-		rules      []string
-		depends    []string
-		priority   int
+		repos       []string
+		jsonOutput  bool
+		customID    string
+		desc        string
+		subtasks    []string
+		rules       []string
+		depends     []string
+		priority    int
+		profileName string
 	)
 
 	cmd := &cobra.Command{
@@ -80,6 +81,7 @@ Examples:
 				Rules:       rules,
 				Depends:     depends,
 				Repos:       repos,
+				Profile:     profileName,
 			}
 			if cmd.Flags().Changed("priority") {
 				opts.Priority = &priority
@@ -137,6 +139,7 @@ Examples:
 	cmd.Flags().StringSliceVar(&rules, "rule", nil, "rule reference (can be repeated)")
 	cmd.Flags().StringSliceVar(&depends, "depends", nil, "dependency feature ID (can be repeated)")
 	cmd.Flags().IntVar(&priority, "priority", 0, "priority level (0=critical, 1=high, 2=medium, 3=low)")
+	cmd.Flags().StringVar(&profileName, "profile", "", "pipeline profile written to feature YAML (e.g. full/normal/quick)")
 	return cmd
 }
 

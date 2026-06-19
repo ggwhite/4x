@@ -12,6 +12,7 @@ type CreateOpts struct {
 	Depends     []string
 	Priority    *int
 	Repos       []string
+	Profile     string
 }
 
 // Create 統一建立 feature 的邏輯，由 CLI（cmd/4x new）與 Server（POST /api/new）共用。
@@ -45,6 +46,7 @@ func Create(store Store, opts CreateOpts) (Feature, error) {
 		Rules:       opts.Rules,
 		Depends:     opts.Depends,
 		Priority:    opts.Priority,
+		Profile:     opts.Profile,
 	}
 
 	if err := store.SaveFeature(f); err != nil {
