@@ -12,7 +12,9 @@ func TestCanTransition_Valid(t *testing.T) {
 		to   protocol.Phase
 	}{
 		{protocol.PhaseInit, protocol.PhaseDesigning},
-		{protocol.PhaseDesigning, protocol.PhaseCoding},
+		{protocol.PhaseDesigning, protocol.PhaseDesignReviewing},
+		{protocol.PhaseDesignReviewing, protocol.PhaseCoding},
+		{protocol.PhaseDesignReviewing, protocol.PhaseDesigning},
 		{protocol.PhaseCoding, protocol.PhaseReviewing},
 		{protocol.PhaseReviewing, protocol.PhaseTesting},
 		{protocol.PhaseReviewing, protocol.PhaseAmending},
@@ -75,6 +77,7 @@ func TestCanTransition_Invalid(t *testing.T) {
 	}{
 		{protocol.PhaseInit, protocol.PhaseTesting},
 		{protocol.PhaseInit, protocol.PhaseCoding},
+		{protocol.PhaseDesigning, protocol.PhaseCoding},
 		{protocol.PhaseDesigning, protocol.PhaseTesting},
 		{protocol.PhaseCoding, protocol.PhaseAccepting},
 		{protocol.PhaseCoding, protocol.PhaseAmending},
@@ -150,7 +153,7 @@ func TestTransition_AbandonedSetsActiveFalse(t *testing.T) {
 }
 
 func TestTransition_FirstCodingRound(t *testing.T) {
-	s := protocol.State{Phase: protocol.PhaseDesigning, Round: 0}
+	s := protocol.State{Phase: protocol.PhaseDesignReviewing, Round: 0}
 	got, err := Transition(s, protocol.PhaseCoding, protocol.RoleCoder)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -221,6 +224,7 @@ func TestPhaseToRole(t *testing.T) {
 		want  protocol.Role
 	}{
 		{protocol.PhaseDesigning, protocol.RoleDesigner},
+		{protocol.PhaseDesignReviewing, protocol.RoleDesignReviewer},
 		{protocol.PhaseAccepting, protocol.RoleAcceptor},
 		{protocol.PhaseCoding, protocol.RoleCoder},
 		{protocol.PhaseAmending, protocol.RoleCoder},

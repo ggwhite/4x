@@ -662,7 +662,7 @@ type promptPrefetch struct {
 // （平行 runReviewTestParallel 自行呼叫 generatePrompt，不經頂端）。
 func prefetchablePhase(phase protocol.Phase, cfg protocol.Config) bool {
 	switch phase {
-	case protocol.PhaseCoding, protocol.PhaseAmending, protocol.PhaseTesting, protocol.PhaseAccepting:
+	case protocol.PhaseDesignReviewing, protocol.PhaseCoding, protocol.PhaseAmending, protocol.PhaseTesting, protocol.PhaseAccepting:
 		return true
 	case protocol.PhaseReviewing:
 		return !cfg.ParallelReviewTest
@@ -1154,7 +1154,17 @@ func nextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) 
 		if _, err := os.Stat(criteria); err != nil {
 			return protocol.PhaseNeedsAttention, "", "missing-artifact: " + protocol.Criteria
 		}
-		return protocol.PhaseCoding, protocol.RoleCoder, ""
+		return protocol.PhaseDesignReviewing, protocol.RoleDesignReviewer, ""
+
+	case protocol.PhaseDesignReviewing:
+		report := filepath.Join(ws.FeatureDir(featureID), protocol.DesignReviewReport)
+		if _, err := os.Stat(report); err != nil {
+			return protocol.PhaseNeedsAttention, "", "missing-artifact: " + protocol.DesignReviewReport
+		}
+		if reviewPassedAtPath(report) {
+			return protocol.PhaseCoding, protocol.RoleCoder, ""
+		}
+		return protocol.PhaseDesigning, protocol.RoleDesigner, ""
 
 	case protocol.PhaseCoding, protocol.PhaseAmending:
 		if esc := readEscalation(ws, featureID, s.Round); esc.Needed {
@@ -1230,6 +1240,8 @@ func nextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) 
 func successorPhase(p protocol.Phase) (protocol.Phase, protocol.Role) {
 	switch p {
 	case protocol.PhaseDesigning:
+		return protocol.PhaseDesignReviewing, protocol.RoleDesignReviewer
+	case protocol.PhaseDesignReviewing:
 		return protocol.PhaseCoding, protocol.RoleCoder
 	case protocol.PhaseCoding:
 		return protocol.PhaseReviewing, protocol.RoleReviewer
@@ -2180,7 +2192,11 @@ func writeDeepEscalation(ws *protocol.Workspace, featureID string, round int, re
 
 func reviewPassed(ws *protocol.Workspace, featureID string, round int, reportFile string) bool {
 	roundDir := ws.RoundDir(featureID, round)
-	data, err := os.ReadFile(filepath.Join(roundDir, reportFile))
+	return reviewPassedAtPath(filepath.Join(roundDir, reportFile))
+}
+
+func reviewPassedAtPath(path string) bool {
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return false
 	}
@@ -2265,6 +2281,8 @@ func cleanStaleArtifact(ws *protocol.Workspace, featureID string, phase protocol
 		removeIfIncomplete(filepath.Join(roundDir, protocol.CoderReport), coderReportComplete)
 	case protocol.PhaseReviewing:
 		removeIfIncomplete(filepath.Join(roundDir, protocol.ReviewReport), reviewReportComplete)
+	case protocol.PhaseDesignReviewing:
+		removeIfIncomplete(filepath.Join(ws.FeatureDir(featureID), protocol.DesignReviewReport), reviewReportComplete)
 	case protocol.PhaseTesting:
 		// test-report 與 verify.json 成對；verify.json 可解析即視為該 phase 完整。
 		verifyPath := filepath.Join(roundDir, protocol.VerifyFile)
@@ -2362,7 +2380,7 @@ func needsResumeRecovery(s protocol.State) bool {
 		return false
 	}
 	switch s.Phase {
-	case protocol.PhaseCoding, protocol.PhaseReviewing, protocol.PhaseTesting,
+	case protocol.PhaseDesignReviewing, protocol.PhaseCoding, protocol.PhaseReviewing, protocol.PhaseTesting,
 		protocol.PhaseDeepReviewing, protocol.PhaseAmending, protocol.PhaseAccepting:
 		return true
 	default:
@@ -2380,6 +2398,15 @@ func smartResumePhase(ws *protocol.Workspace, featureID string, round int, cfg p
 		return protocol.PhaseDesigning, protocol.RoleDesigner, ""
 	}
 	roundDir := ws.RoundDir(featureID, round)
+
+	designReviewPath := filepath.Join(ws.FeatureDir(featureID), protocol.DesignReviewReport)
+	if reviewReportComplete(designReviewPath) {
+		if !reviewPassedAtPath(designReviewPath) {
+			return protocol.PhaseDesigning, protocol.RoleDesigner, ""
+		}
+	} else if _, err := os.Stat(designReviewPath); err == nil {
+		return protocol.PhaseDesignReviewing, protocol.RoleDesignReviewer, ""
+	}
 
 	if !coderReportComplete(filepath.Join(roundDir, protocol.CoderReport)) {
 		return protocol.PhaseCoding, protocol.RoleCoder, ""
@@ -2521,7 +2548,7 @@ func syncFeatureToWorktree(main, wt *protocol.Workspace, featureID string, round
 	gitops.CopyFileIfExists(srcYAML, filepath.Join(dstFeaturesDir, featureID+".yaml"))
 
 	// state + feature-level 檔案
-	for _, name := range []string{protocol.StateFile, protocol.TaskBrief, protocol.Criteria, protocol.TestStratFile} {
+	for _, name := range []string{protocol.StateFile, protocol.TaskBrief, protocol.Criteria, protocol.TestStratFile, protocol.DesignReviewReport} {
 		gitops.CopyFileIfExists(filepath.Join(srcDir, name), filepath.Join(dstDir, name))
 	}
 
@@ -2553,7 +2580,7 @@ func syncFeatureFromWorktree(wt, main *protocol.Workspace, featureID string, rou
 	// feature-level 檔案
 	for _, name := range []string{
 		protocol.TaskBrief, protocol.Criteria, protocol.TestStratFile,
-		protocol.FinalReport,
+		protocol.DesignReviewReport, protocol.FinalReport,
 	} {
 		if _, err := gitops.CopyFileIfNewer(filepath.Join(srcDir, name), filepath.Join(dstDir, name)); err != nil {
 			errs = append(errs, fmt.Sprintf("%s: %v", name, err))

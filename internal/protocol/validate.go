@@ -6,12 +6,13 @@ import (
 )
 
 var validRoleNames = map[string]bool{
-	string(RoleDesigner):     true,
-	string(RoleCoder):        true,
-	string(RoleReviewer):     true,
-	string(RoleDeepReviewer): true,
-	string(RoleTester):       true,
-	string(RoleAcceptor):     true,
+	string(RoleDesigner):       true,
+	string(RoleDesignReviewer): true,
+	string(RoleCoder):          true,
+	string(RoleReviewer):       true,
+	string(RoleDeepReviewer):   true,
+	string(RoleTester):         true,
+	string(RoleAcceptor):       true,
 }
 
 var validIsolations = map[string]bool{
@@ -27,19 +28,20 @@ var validCommitStrategies = map[string]bool{
 }
 
 var validPhases = map[Phase]bool{
-	PhaseInit:           true,
-	PhaseDesigning:      true,
-	PhaseCoding:         true,
-	PhaseReviewing:      true,
-	PhaseDeepReviewing:  true,
-	PhaseTesting:        true,
-	PhaseAmending:       true,
-	PhaseAccepting:      true,
-	PhasePendingReview:  true,
-	PhaseDone:           true,
-	PhaseAbandoned:      true,
-	PhaseBlocked:        true,
-	PhaseNeedsAttention: true,
+	PhaseInit:            true,
+	PhaseDesigning:       true,
+	PhaseDesignReviewing: true,
+	PhaseCoding:          true,
+	PhaseReviewing:       true,
+	PhaseDeepReviewing:   true,
+	PhaseTesting:         true,
+	PhaseAmending:        true,
+	PhaseAccepting:       true,
+	PhasePendingReview:   true,
+	PhaseDone:            true,
+	PhaseAbandoned:       true,
+	PhaseBlocked:         true,
+	PhaseNeedsAttention:  true,
 }
 
 // ValidateConfig 驗證 Config 結構的合法性，回傳所有錯誤的彙整。
@@ -140,7 +142,7 @@ func ValidateState(s State) error {
 
 func roleNameList() string {
 	roles := []string{
-		string(RoleDesigner), string(RoleCoder), string(RoleReviewer),
+		string(RoleDesigner), string(RoleDesignReviewer), string(RoleCoder), string(RoleReviewer),
 		string(RoleDeepReviewer), string(RoleTester), string(RoleAcceptor),
 	}
 	return strings.Join(roles, ", ")

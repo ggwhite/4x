@@ -102,11 +102,12 @@ func checkRequiredFiles(ws *protocol.Workspace, featureID string, r *CheckResult
 	// 依 active profile 決定哪些 role 的產出物為必要：profile 未啟用 designer 時不要求
 	// task-brief/criteria；未啟用 tester 時不要求 tester 交付物。profile 無法解析時退回
 	// 全部必要（向後相容，等同 full）。
-	designerEnabled, testerEnabled := true, true
+	designerEnabled, designReviewerEnabled, testerEnabled := true, false, true
 	if cfg, cfgErr := ws.ReadConfig(); cfgErr == nil {
 		if feature, featErr := ws.LoadFeature(featureID); featErr == nil {
 			if _, pc, perr := protocol.ResolveProfile(cfg, feature, state.Profile); perr == nil {
 				designerEnabled = pc.EnablesRole(protocol.RoleDesigner)
+				designReviewerEnabled = state.Profile != "" && pc.EnablesRole(protocol.RoleDesignReviewer)
 				testerEnabled = pc.EnablesRole(protocol.RoleTester)
 			}
 		}
@@ -124,6 +125,9 @@ func checkRequiredFiles(ws *protocol.Workspace, featureID string, r *CheckResult
 	}
 	if needsDesignOutputs[state.Phase] && designerEnabled {
 		required = append(required, protocol.TaskBrief, protocol.Criteria)
+	}
+	if needsDesignOutputs[state.Phase] && designReviewerEnabled {
+		required = append(required, protocol.DesignReviewReport)
 	}
 	if testerEnabled && (state.Phase == protocol.PhaseAccepting || state.Phase == protocol.PhasePendingReview || state.Phase == protocol.PhaseDone) {
 		roundDir := ws.RoundDir(featureID, state.Round)

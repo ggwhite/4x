@@ -125,11 +125,11 @@ Escalation is written to `escalation.json`. The loop automatically routes `spec-
 ## State Machine
 
 ```
-init → designing → coding → reviewing → testing → deep-reviewing → accepting → pending-review → done
-                     ↑          ↓           ↓            ↓
-                     ├── amending ←──────────┴────────────┘
-                     ↑      ↓
-                     └──────┘
+init → designing → design-reviewing → coding → reviewing → testing → deep-reviewing → accepting → pending-review → done
+                              ↓          ↑          ↓           ↓            ↓
+                              └──────────┴── amending ←─────────┴────────────┘
+                                         ↑      ↓
+                                         └──────┘
 ```
 
 ### All Valid Transitions
@@ -137,7 +137,8 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
 | From | To |
 |---|---|
 | `init` | `designing` |
-| `designing` | `coding` |
+| `designing` | `design-reviewing` |
+| `design-reviewing` | `coding`, `designing` |
 | `coding` | `reviewing`, `designing` |
 | `reviewing` | `testing`, `amending` |
 | `amending` | `reviewing`, `designing` |
@@ -145,8 +146,8 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
 | `deep-reviewing` | `accepting`, `amending` |
 | `accepting` | `pending-review` |
 | `pending-review` | `done` |
-| `blocked` | `designing`, `coding`, `testing` |
-| `needs-attention` | `designing`, `coding`, `testing` |
+| `blocked` | `designing`, `design-reviewing`, `coding`, `testing` |
+| `needs-attention` | `designing`, `design-reviewing`, `coding`, `testing` |
 | any | `blocked`, `needs-attention`, `done`, `abandoned` |
 
 ### Round Counter

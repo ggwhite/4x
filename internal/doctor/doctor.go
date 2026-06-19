@@ -73,6 +73,7 @@ const (
 // canonicalRoles 是 doctor 會逐一解析 model 的標準 role 集合（deep-reviewer 另以 deep_model 檢查）。
 var canonicalRoles = []protocol.Role{
 	protocol.RoleDesigner,
+	protocol.RoleDesignReviewer,
 	protocol.RoleCoder,
 	protocol.RoleReviewer,
 	protocol.RoleTester,
@@ -331,7 +332,8 @@ func checkProfiles(cfg protocol.Config, lookPath func(string) (string, error)) [
 						}
 					}
 					if ps.Model != "" {
-						if _, err := protocol.ResolvePhaseModel(cfg, feature.Feature{}, pc, phase, protocol.RoleCoder, ps.Runner, ""); err != nil {
+						role := protocol.PhaseRole(phase)
+						if _, err := protocol.ResolvePhaseModel(cfg, feature.Feature{}, pc, phase, role, ps.Runner, ""); err != nil {
 							issues = append(issues, Check{
 								Section: sectionProfiles, Name: name, Severity: SeverityWarn,
 								Detail: fmt.Sprintf("phase %q 的 model %q 無法被 runner %q 解析（%v）", ps.Phase, ps.Model, ps.Runner, err),

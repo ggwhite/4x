@@ -65,6 +65,8 @@ func (r *softFailRunner) Run(_ context.Context, _ string) (*runner.Result, error
 	case protocol.PhaseDesigning:
 		os.WriteFile(filepath.Join(featureDir, protocol.TaskBrief), []byte("# Brief"), 0o644)
 		os.WriteFile(filepath.Join(featureDir, protocol.Criteria), []byte("# Criteria"), 0o644)
+	case protocol.PhaseDesignReviewing:
+		os.WriteFile(filepath.Join(featureDir, protocol.DesignReviewReport), []byte("## Verdict\nPASS\n"), 0o644)
 	}
 	if st.Phase == r.failPhase {
 		return &runner.Result{ExitCode: runner.ExitSoftFail}, nil
@@ -132,6 +134,8 @@ func (r *failingParallelRunner) Run(_ context.Context, _ string) (*runner.Result
 	case "designer":
 		os.WriteFile(filepath.Join(featureDir, protocol.TaskBrief), []byte("# Brief"), 0o644)
 		os.WriteFile(filepath.Join(featureDir, protocol.Criteria), []byte("# Criteria"), 0o644)
+	case "design-reviewer":
+		os.WriteFile(filepath.Join(featureDir, protocol.DesignReviewReport), []byte("## Verdict\nPASS\n"), 0o644)
 	case "coder":
 		os.WriteFile(filepath.Join(roundDir, protocol.CoderReport), []byte("# Coder Report"), 0o644)
 	case "reviewer":

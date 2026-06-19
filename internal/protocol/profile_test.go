@@ -202,15 +202,46 @@ func TestProfileConfig_EnablesRole_DeepReviewer(t *testing.T) {
 	}
 }
 
+func TestDefaultProfiles_DesignReviewPhase(t *testing.T) {
+	full := DefaultProfiles()["full"]
+	want := []Phase{
+		PhaseDesigning,
+		PhaseDesignReviewing,
+		PhaseCoding,
+		PhaseReviewing,
+		PhaseDeepReviewing,
+		PhaseTesting,
+		PhaseAccepting,
+	}
+	if len(full.Phases) != len(want) {
+		t.Fatalf("full phases = %v, want %v", full.Phases, want)
+	}
+	for i, phase := range want {
+		if got := Phase(full.Phases[i].Phase); got != phase {
+			t.Fatalf("full phase[%d] = %s, want %s", i, got, phase)
+		}
+	}
+	if !full.EnablesRole(RoleDesignReviewer) {
+		t.Fatal("full profile should enable design-reviewer")
+	}
+	if DefaultProfiles()["normal"].EnablesPhase(PhaseDesignReviewing) {
+		t.Fatal("normal profile should not enable design-reviewing")
+	}
+	if DefaultProfiles()["quick"].EnablesPhase(PhaseDesignReviewing) {
+		t.Fatal("quick profile should not enable design-reviewing")
+	}
+}
+
 func TestProfileConfig_Normalize_RolesToPhases(t *testing.T) {
 	// 舊格式 Roles[]string + CoderModel 應 normalize 成等價的 Phases。
-	pc := ProfileConfig{Roles: []string{"designer", "coder", "reviewer"}, CoderModel: "opus"}
+	pc := ProfileConfig{Roles: []string{"designer", "design-reviewer", "coder", "reviewer"}, CoderModel: "opus"}
 	pc.normalize()
 
 	want := map[Phase]string{
-		PhaseDesigning: "",
-		PhaseCoding:    "opus",
-		PhaseReviewing: "",
+		PhaseDesigning:       "",
+		PhaseDesignReviewing: "",
+		PhaseCoding:          "opus",
+		PhaseReviewing:       "",
 	}
 	if len(pc.Phases) != len(want) {
 		t.Fatalf("got %d phases, want %d: %+v", len(pc.Phases), len(want), pc.Phases)

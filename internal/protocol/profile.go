@@ -10,33 +10,36 @@ import (
 // profileSelectablePhases 是 profile 可選的工作 phase 白名單，對應 state.PhaseToRole 有 role 的
 // phase（不含 init/amending/pending-review/done/blocked/needs-attention/abandoned）。
 var profileSelectablePhases = map[Phase]bool{
-	PhaseDesigning:     true,
-	PhaseCoding:        true,
-	PhaseReviewing:     true,
-	PhaseDeepReviewing: true,
-	PhaseTesting:       true,
-	PhaseAccepting:     true,
+	PhaseDesigning:       true,
+	PhaseDesignReviewing: true,
+	PhaseCoding:          true,
+	PhaseReviewing:       true,
+	PhaseDeepReviewing:   true,
+	PhaseTesting:         true,
+	PhaseAccepting:       true,
 }
 
 // roleToPhaseMap 是 role → phase 的對應（與 state.PhaseToRole 的工作 phase 反向一致）。
 // 放在 protocol package（而非 state）避免循環依賴：state 依賴 protocol。
 var roleToPhaseMap = map[Role]Phase{
-	RoleDesigner:     PhaseDesigning,
-	RoleCoder:        PhaseCoding,
-	RoleReviewer:     PhaseReviewing,
-	RoleDeepReviewer: PhaseDeepReviewing,
-	RoleTester:       PhaseTesting,
-	RoleAcceptor:     PhaseAccepting,
+	RoleDesigner:       PhaseDesigning,
+	RoleDesignReviewer: PhaseDesignReviewing,
+	RoleCoder:          PhaseCoding,
+	RoleReviewer:       PhaseReviewing,
+	RoleDeepReviewer:   PhaseDeepReviewing,
+	RoleTester:         PhaseTesting,
+	RoleAcceptor:       PhaseAccepting,
 }
 
 // phaseToRoleMap 是 phase → role 的對應，供 doctor 等需要從 phase 反推 role 解析 model 時使用。
 var phaseToRoleMap = map[Phase]Role{
-	PhaseDesigning:     RoleDesigner,
-	PhaseCoding:        RoleCoder,
-	PhaseReviewing:     RoleReviewer,
-	PhaseDeepReviewing: RoleDeepReviewer,
-	PhaseTesting:       RoleTester,
-	PhaseAccepting:     RoleAcceptor,
+	PhaseDesigning:       RoleDesigner,
+	PhaseDesignReviewing: RoleDesignReviewer,
+	PhaseCoding:          RoleCoder,
+	PhaseReviewing:       RoleReviewer,
+	PhaseDeepReviewing:   RoleDeepReviewer,
+	PhaseTesting:         RoleTester,
+	PhaseAccepting:       RoleAcceptor,
 }
 
 // IsSelectablePhase 回報某 phase 是否屬於 profile 可選的工作 phase 白名單。
@@ -48,7 +51,7 @@ func IsSelectablePhase(phase Phase) bool {
 // 供 UI 列舉與 doctor 驗證使用。
 func SelectablePhases() []Phase {
 	return []Phase{
-		PhaseDesigning, PhaseCoding, PhaseReviewing,
+		PhaseDesigning, PhaseDesignReviewing, PhaseCoding, PhaseReviewing,
 		PhaseDeepReviewing, PhaseTesting, PhaseAccepting,
 	}
 }
@@ -61,6 +64,11 @@ func roleToPhase(role Role) Phase {
 // phaseRole 把工作 phase 對應回其 role；無對應時回空字串。
 func phaseRole(phase Phase) Role {
 	return phaseToRoleMap[phase]
+}
+
+// PhaseRole 回傳工作 phase 對應的 role；非 profile 工作 phase 回空字串。
+func PhaseRole(phase Phase) Role {
+	return phaseRole(phase)
 }
 
 // normalize 把舊格式 Roles[]string / CoderModel 轉成新的 Phases 結構（向後相容）。
@@ -84,11 +92,12 @@ func (pc *ProfileConfig) normalize() {
 }
 
 // DefaultProfiles 回傳內建三組 pipeline profile，作為 auto-select 與 fallback 用。
-// full 跑完整 6 phase；normal 省略 designing 與 deep-reviewing；quick 只跑 coding 與 reviewing。
+// full 跑完整 7 phase；normal 省略 designing、design-reviewing 與 deep-reviewing；quick 只跑 coding 與 reviewing。
 func DefaultProfiles() map[string]ProfileConfig {
 	return map[string]ProfileConfig{
 		"full": {Phases: []PhaseSpec{
 			{Phase: string(PhaseDesigning)},
+			{Phase: string(PhaseDesignReviewing)},
 			{Phase: string(PhaseCoding)},
 			{Phase: string(PhaseReviewing)},
 			{Phase: string(PhaseDeepReviewing)},

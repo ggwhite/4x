@@ -10,6 +10,7 @@
 |---|---|
 | `init` | Feature created, not yet started. |
 | `designing` | Designer role is active. |
+| `design-reviewing` | Design Reviewer role is active when enabled by the active pipeline profile. |
 | `coding` | Coder role is active. |
 | `reviewing` | Reviewer role is active. |
 | `testing` | Tester role is active. |
@@ -24,7 +25,9 @@
 | From | To | Trigger |
 |---|---|---|
 | `init` | `designing` | `4x run` or `4x transition` |
-| `designing` | `coding` | Designer outputs verified present |
+| `designing` | `design-reviewing` | Designer outputs verified present |
+| `design-reviewing` | `coding` | Design review verdict: pass |
+| `design-reviewing` | `designing` | Design review verdict: fail |
 | `coding` | `reviewing` | Coder outputs verified present |
 | `reviewing` | `testing` | Reviewer verdict: pass |
 | `reviewing` | `amending` | Reviewer verdict: fail |
@@ -35,8 +38,10 @@
 | `any` | `blocked` | Escalation with `blocker` reason |
 | `any` | `needs-attention` | Escalation with any other reason |
 | `blocked` | `designing` | Human resolves blocker, restarts |
+| `blocked` | `design-reviewing` | Human resolves blocker, restarts at design review |
 | `blocked` | `coding` | Human resolves blocker, restarts at coding |
 | `needs-attention` | `designing` | Human intervenes, restarts |
+| `needs-attention` | `design-reviewing` | Human intervenes, restarts at design review |
 | `needs-attention` | `coding` | Human intervenes, restarts at coding |
 
 The CLI rejects any transition not in this table.

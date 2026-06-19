@@ -51,10 +51,12 @@ func (m *mockRunner) Run(_ context.Context, prompt string) (*runner.Result, erro
 	}
 
 	outcome := mockOutcome{testPassed: true, reviewVerdict: "PASS"}
-	if m.idx < len(m.outcomes) {
-		outcome = m.outcomes[m.idx]
+	if s.Phase != protocol.PhaseDesignReviewing {
+		if m.idx < len(m.outcomes) {
+			outcome = m.outcomes[m.idx]
+		}
+		m.idx++
 	}
-	m.idx++
 
 	roundDir := m.ws.RoundDir(m.featureID, s.Round)
 	os.MkdirAll(roundDir, 0o755)
@@ -64,6 +66,10 @@ func (m *mockRunner) Run(_ context.Context, prompt string) (*runner.Result, erro
 	case protocol.PhaseDesigning:
 		os.WriteFile(filepath.Join(featureDir, protocol.TaskBrief), []byte("# Brief"), 0o644)
 		os.WriteFile(filepath.Join(featureDir, protocol.Criteria), []byte("# Criteria"), 0o644)
+
+	case protocol.PhaseDesignReviewing:
+		report := "# Design Review Report\n\n## Summary\nPASS\n\n## Architecture Risks\nNone\n\n## Overengineering\nNone\n\n## Missing Requirements\nNone\n\n## Verdict\nPASS\n"
+		os.WriteFile(filepath.Join(featureDir, protocol.DesignReviewReport), []byte(report), 0o644)
 
 	case protocol.PhaseCoding, protocol.PhaseAmending:
 		os.WriteFile(filepath.Join(roundDir, protocol.CoderReport), []byte("# Coder Report"), 0o644)
@@ -185,7 +191,7 @@ func TestRunLoop_HappyPath(t *testing.T) {
 	}
 
 	wantPhases := []protocol.Phase{
-		protocol.PhaseDesigning, protocol.PhaseCoding, protocol.PhaseReviewing,
+		protocol.PhaseDesigning, protocol.PhaseDesignReviewing, protocol.PhaseCoding, protocol.PhaseReviewing,
 		protocol.PhaseTesting, protocol.PhaseAccepting,
 	}
 	if len(mock.phases) != len(wantPhases) {
@@ -300,8 +306,8 @@ func TestRunLoop_TestPassMissingArtifactsStopsBeforeAccepting(t *testing.T) {
 	if !strings.Contains(final.StopMessage, protocol.FinalReport) {
 		t.Errorf("stopMessage = %q, want missing final-report detail", final.StopMessage)
 	}
-	if len(mock.phases) != 4 {
-		t.Fatalf("ran %d phases, want 4 before accepting: %v", len(mock.phases), mock.phases)
+	if len(mock.phases) != 5 {
+		t.Fatalf("ran %d phases, want 5 before accepting: %v", len(mock.phases), mock.phases)
 	}
 	for _, phase := range mock.phases {
 		if phase == protocol.PhaseAccepting {
@@ -339,7 +345,7 @@ func TestRunLoop_ReviewFailLoop(t *testing.T) {
 	}
 
 	wantPhases := []protocol.Phase{
-		protocol.PhaseDesigning, protocol.PhaseCoding, protocol.PhaseReviewing,
+		protocol.PhaseDesigning, protocol.PhaseDesignReviewing, protocol.PhaseCoding, protocol.PhaseReviewing,
 		protocol.PhaseAmending, protocol.PhaseReviewing,
 		protocol.PhaseTesting, protocol.PhaseAccepting,
 	}
@@ -382,7 +388,7 @@ func TestRunLoop_TestFailLoop(t *testing.T) {
 	}
 
 	wantPhases := []protocol.Phase{
-		protocol.PhaseDesigning, protocol.PhaseCoding, protocol.PhaseReviewing,
+		protocol.PhaseDesigning, protocol.PhaseDesignReviewing, protocol.PhaseCoding, protocol.PhaseReviewing,
 		protocol.PhaseTesting, protocol.PhaseAmending, protocol.PhaseReviewing,
 		protocol.PhaseTesting, protocol.PhaseAccepting,
 	}
@@ -850,7 +856,7 @@ func TestRunLoop_SeverityGate_PassWithCritical(t *testing.T) {
 	}
 
 	wantPhases := []protocol.Phase{
-		protocol.PhaseDesigning, protocol.PhaseCoding, protocol.PhaseReviewing,
+		protocol.PhaseDesigning, protocol.PhaseDesignReviewing, protocol.PhaseCoding, protocol.PhaseReviewing,
 		protocol.PhaseAmending, protocol.PhaseReviewing,
 		protocol.PhaseTesting, protocol.PhaseAccepting,
 	}
@@ -895,7 +901,7 @@ func TestRunLoop_SeverityGate_FailWithCritical(t *testing.T) {
 	}
 
 	wantPhases := []protocol.Phase{
-		protocol.PhaseDesigning, protocol.PhaseCoding, protocol.PhaseReviewing,
+		protocol.PhaseDesigning, protocol.PhaseDesignReviewing, protocol.PhaseCoding, protocol.PhaseReviewing,
 		protocol.PhaseAmending, protocol.PhaseReviewing,
 		protocol.PhaseTesting, protocol.PhaseAccepting,
 	}
@@ -940,7 +946,7 @@ func TestRunLoop_SeverityGate_ConditionalPassWithCritical(t *testing.T) {
 	}
 
 	wantPhases := []protocol.Phase{
-		protocol.PhaseDesigning, protocol.PhaseCoding, protocol.PhaseReviewing,
+		protocol.PhaseDesigning, protocol.PhaseDesignReviewing, protocol.PhaseCoding, protocol.PhaseReviewing,
 		protocol.PhaseAmending, protocol.PhaseReviewing,
 		protocol.PhaseTesting, protocol.PhaseAccepting,
 	}
@@ -1240,7 +1246,7 @@ func TestRunLoop_DeepReviewExecuted(t *testing.T) {
 	}
 
 	wantPhases := []protocol.Phase{
-		protocol.PhaseDesigning, protocol.PhaseCoding, protocol.PhaseReviewing,
+		protocol.PhaseDesigning, protocol.PhaseDesignReviewing, protocol.PhaseCoding, protocol.PhaseReviewing,
 		protocol.PhaseTesting, protocol.PhaseDeepReviewing, protocol.PhaseAccepting,
 	}
 	if len(mock.phases) != len(wantPhases) {
@@ -1294,7 +1300,7 @@ func TestRunLoop_DeepReviewSelfHeal(t *testing.T) {
 	}
 
 	wantRoles := []protocol.Role{
-		protocol.RoleDesigner, protocol.RoleCoder, protocol.RoleReviewer,
+		protocol.RoleDesigner, protocol.RoleDesignReviewer, protocol.RoleCoder, protocol.RoleReviewer,
 		protocol.RoleTester, protocol.RoleDeepReviewer, protocol.RoleMiniCoder,
 		protocol.RoleReVerifier, protocol.RoleAcceptor,
 	}
@@ -1364,7 +1370,7 @@ func TestRunLoop_DeepReviewSelfHealExhausted(t *testing.T) {
 	}
 
 	wantRoles := []protocol.Role{
-		protocol.RoleDesigner, protocol.RoleCoder, protocol.RoleReviewer,
+		protocol.RoleDesigner, protocol.RoleDesignReviewer, protocol.RoleCoder, protocol.RoleReviewer,
 		protocol.RoleTester, protocol.RoleDeepReviewer,
 		protocol.RoleMiniCoder, protocol.RoleReVerifier,
 		protocol.RoleMiniCoder, protocol.RoleReVerifier,
@@ -1464,12 +1470,12 @@ type mockOps struct {
 }
 
 func (m *mockOps) SetupWorktree(_ string, _ []string) (string, error) { return "", nil }
-func (m *mockOps) Commit(_, _, _ string) error                { return nil }
-func (m *mockOps) Merge(_, _ string) gitops.MergeResult       { return gitops.MergeResult{} }
-func (m *mockOps) Cleanup(_ string) error                     { return nil }
-func (m *mockOps) DetectChangedRepos(_ string) []string       { return m.changedRepos }
-func (m *mockOps) CaptureBaseline(_ string, _ []string) error { return nil }
-func (m *mockOps) IsMultiRepo() bool                          { return false }
+func (m *mockOps) Commit(_, _, _ string) error                        { return nil }
+func (m *mockOps) Merge(_, _ string) gitops.MergeResult               { return gitops.MergeResult{} }
+func (m *mockOps) Cleanup(_ string) error                             { return nil }
+func (m *mockOps) DetectChangedRepos(_ string) []string               { return m.changedRepos }
+func (m *mockOps) CaptureBaseline(_ string, _ []string) error         { return nil }
+func (m *mockOps) IsMultiRepo() bool                                  { return false }
 
 // TestRunLoop_GuardFailStopsLoop 驗證：非 designer runner 完成後若 guard.Check 回傳 Pass==false，
 // loop 立即停止並轉入 needs-attention，StopReason 包含 guard error 摘要。
@@ -1518,8 +1524,11 @@ func TestRunLoop_GuardFailStopsLoop(t *testing.T) {
 	if mock.phases[0] != protocol.PhaseDesigning {
 		t.Errorf("phases[0] = %s, want designing", mock.phases[0])
 	}
-	if mock.phases[1] != protocol.PhaseCoding {
-		t.Errorf("phases[1] = %s, want coding", mock.phases[1])
+	if mock.phases[1] != protocol.PhaseDesignReviewing {
+		t.Errorf("phases[1] = %s, want design-reviewing", mock.phases[1])
+	}
+	if mock.phases[2] != protocol.PhaseCoding {
+		t.Errorf("phases[2] = %s, want coding", mock.phases[2])
 	}
 }
 
@@ -1631,7 +1640,7 @@ func TestRunLoop_QuickProfile(t *testing.T) {
 	for _, e := range skipped {
 		skippedRoles[e.Role] = true
 	}
-	for _, r := range []protocol.Role{protocol.RoleDesigner, protocol.RoleTester, protocol.RoleDeepReviewer, protocol.RoleAcceptor} {
+	for _, r := range []protocol.Role{protocol.RoleDesigner, protocol.RoleDesignReviewer, protocol.RoleTester, protocol.RoleDeepReviewer, protocol.RoleAcceptor} {
 		if !skippedRoles[r] {
 			t.Errorf("expected phase-skipped event for role %s", r)
 		}
@@ -1743,6 +1752,8 @@ func (m *roleMockRunner) Run(_ context.Context, _ string) (*runner.Result, error
 	case "designer":
 		os.WriteFile(filepath.Join(featureDir, protocol.TaskBrief), []byte("# Brief"), 0o644)
 		os.WriteFile(filepath.Join(featureDir, protocol.Criteria), []byte("# Criteria"), 0o644)
+	case "design-reviewer":
+		os.WriteFile(filepath.Join(featureDir, protocol.DesignReviewReport), []byte("## Verdict\nPASS\n"), 0o644)
 	case "coder":
 		os.WriteFile(filepath.Join(roundDir, protocol.CoderReport), []byte("# Coder Report"), 0o644)
 	case "reviewer":
@@ -1759,7 +1770,7 @@ func (m *roleMockRunner) Run(_ context.Context, _ string) (*runner.Result, error
 
 func roleFromLogPath(logPath string) string {
 	// deep-reviewer 須在 reviewer 之前比對（前者含後者子字串）。
-	for _, r := range []string{"designer", "coder", "deep-reviewer", "reviewer", "tester", "acceptor"} {
+	for _, r := range []string{"designer", "coder", "deep-reviewer", "design-reviewer", "reviewer", "tester", "acceptor"} {
 		if strings.Contains(logPath, "-"+r+".") {
 			return r
 		}
@@ -1883,6 +1894,8 @@ func (m *noVerifyMockRunner) Run(_ context.Context, _ string) (*runner.Result, e
 	case "designer":
 		os.WriteFile(filepath.Join(featureDir, protocol.TaskBrief), []byte("# Brief"), 0o644)
 		os.WriteFile(filepath.Join(featureDir, protocol.Criteria), []byte("# Criteria"), 0o644)
+	case "design-reviewer":
+		os.WriteFile(filepath.Join(featureDir, protocol.DesignReviewReport), []byte("## Verdict\nPASS\n"), 0o644)
 	case "coder":
 		os.WriteFile(filepath.Join(roundDir, protocol.CoderReport), []byte("# Coder Report"), 0o644)
 	case "reviewer":

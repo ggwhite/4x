@@ -99,6 +99,35 @@ func TestCheckRequiredFiles_CodingPhaseWithFiles(t *testing.T) {
 	}
 }
 
+func TestCheckRequiredFiles_CodingPhaseRequiresDesignReviewWhenProfileEnabled(t *testing.T) {
+	ws := setupGuardWorkspace(t, "feat-1")
+	writeState(t, ws, "feat-1", protocol.State{Phase: protocol.PhaseCoding, Profile: "full"})
+
+	dir := ws.FeatureDir("feat-1")
+	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief")
+	writeFile(t, filepath.Join(dir, protocol.Criteria), "# Criteria")
+
+	result := Check(ws, "feat-1", nil)
+	if result.Pass {
+		t.Fatal("coding phase with full profile should require design-review-report.md")
+	}
+	found := false
+	for _, e := range result.Errors {
+		if e == "required file missing: "+protocol.DesignReviewReport {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected missing design review report, got %v", result.Errors)
+	}
+
+	writeFile(t, filepath.Join(dir, protocol.DesignReviewReport), "# Design Review\n\n## Verdict\nPASS\n")
+	result = Check(ws, "feat-1", nil)
+	if !result.Pass {
+		t.Fatalf("coding phase with design review report should pass, got %v", result.Errors)
+	}
+}
+
 func TestCheckTestingToAccepting_AllArtifactsPresent(t *testing.T) {
 	ws := setupGuardWorkspace(t, "feat-1")
 	roundDir := ws.RoundDir("feat-1", 1)

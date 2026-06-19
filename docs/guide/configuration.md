@@ -130,11 +130,11 @@ All of this happens in the CLI layer (plain text parse + file writes, no LLM cal
 
 ### Profiles
 
-A profile selects which roles run for a feature, so simple features can skip the full 6-role pipeline. Roles not listed are passed through — the state advances along the legal edge without invoking the runner, checking artifacts, or running guards. `coder` is the only required role; a profile missing it is a configuration error.
+A profile selects which phases run for a feature, so simple features can skip the full pipeline. Phases not listed are passed through — the state advances along the legal edge without invoking the runner, checking artifacts, or running guards. `coding` is the only required phase; a profile missing it is a configuration error. The optional `design-reviewing` phase runs only when included, and its `design-review-report.md` must PASS before coding starts.
 
 ```json
 "profiles": {
-  "full":   { "roles": ["designer", "coder", "reviewer", "tester", "deep-reviewer", "acceptor"] },
+  "full":   { "roles": ["designer", "design-reviewer", "coder", "reviewer", "tester", "deep-reviewer", "acceptor"] },
   "normal": { "roles": ["coder", "reviewer", "tester", "acceptor"] },
   "quick":  { "roles": ["coder", "reviewer"], "coder_model": "opus" }
 }
