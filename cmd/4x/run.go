@@ -524,7 +524,7 @@ func selectProfileInteractive(_ io.Reader, _ io.Writer, cfg protocol.Config, fea
 		Value(&selected).
 		Run()
 	if err != nil {
-		return def, nil
+		return "", fmt.Errorf("profile selection cancelled")
 	}
 	return selected, nil
 }
