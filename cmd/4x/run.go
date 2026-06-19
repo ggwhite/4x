@@ -2605,6 +2605,33 @@ func syncFeatureFromWorktree(wt, main *protocol.Workspace, featureID string, rou
 		}
 	}
 
+	// e2e/screenshots 目錄（tester 截圖）
+	srcE2E := filepath.Join(srcDir, "e2e", "screenshots")
+	dstE2E := filepath.Join(dstDir, "e2e", "screenshots")
+	if info, err := os.Stat(srcE2E); err == nil && info.IsDir() {
+		roundDirs, _ := os.ReadDir(srcE2E)
+		for _, rd := range roundDirs {
+			if !rd.IsDir() {
+				continue
+			}
+			srcRoundScreens := filepath.Join(srcE2E, rd.Name())
+			dstRoundScreens := filepath.Join(dstE2E, rd.Name())
+			if err := os.MkdirAll(dstRoundScreens, 0o755); err != nil {
+				errs = append(errs, err.Error())
+				continue
+			}
+			files, _ := os.ReadDir(srcRoundScreens)
+			for _, f := range files {
+				if f.IsDir() {
+					continue
+				}
+				if _, err := gitops.CopyFileIfNewer(filepath.Join(srcRoundScreens, f.Name()), filepath.Join(dstRoundScreens, f.Name())); err != nil {
+					errs = append(errs, fmt.Sprintf("screenshot %s/%s: %v", rd.Name(), f.Name(), err))
+				}
+			}
+		}
+	}
+
 	if len(errs) > 0 {
 		return fmt.Errorf("sync from worktree: %s", strings.Join(errs, "; "))
 	}
