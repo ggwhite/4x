@@ -43,6 +43,7 @@
     "full": {
       "phases": [
         {"phase": "designing"},
+        {"phase": "design-reviewing"},
         {"phase": "coding"},
         {"phase": "reviewing"},
         {"phase": "deep-reviewing"},
@@ -50,20 +51,29 @@
         {"phase": "accepting"}
       ]
     },
+    "normal": {
+      "phases": [
+        {"phase": "coding"},
+        {"phase": "reviewing"},
+        {"phase": "testing"},
+        {"phase": "accepting"}
+      ]
+    },
+    "quick": {
+      "phases": [
+        {"phase": "coding"},
+        {"phase": "reviewing"}
+      ]
+    },
     "cross-model": {
       "phases": [
         {"phase": "designing"},
+        {"phase": "design-reviewing"},
         {"phase": "coding"},
         {"phase": "reviewing", "runner": "gemini"},
         {"phase": "deep-reviewing"},
         {"phase": "testing"},
         {"phase": "accepting"}
-      ]
-    },
-    "quick-sonnet": {
-      "phases": [
-        {"phase": "coding", "model": "sonnet"},
-        {"phase": "reviewing", "model": "sonnet"}
       ]
     }
   },
@@ -78,6 +88,15 @@
         "task-brief 要具體到檔名和函式名，Coder 不需要猜",
         "acceptance-criteria 每項都要是可自動化驗證的（go test / CLI output）",
         "verify_commands 必須包含 make build && make test && make lint && make check-docs && make check-i18n"
+      ]
+    },
+    "design-reviewer": {
+      "model": "sonnet",
+      "instructions": [
+        "逐項比對 task-brief 與 feature YAML description 的需求——有遺漏或矛盾就 FAIL",
+        "檢查 acceptance-criteria 是否每項都可自動化驗證（go test / CLI output），模糊描述就 FAIL",
+        "確認 test-strategy.yaml 的 verify_commands 涵蓋所有 AC",
+        "不可修改 Designer 的產出——只能在 review-report 中指出問題"
       ]
     },
     "coder": {
