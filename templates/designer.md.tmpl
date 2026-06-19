@@ -133,6 +133,15 @@ been interrupted mid-work. If a file exists, read it:
 - A file with only headers or partial content means resume, not redo
 Do NOT assume existing files are complete — check each section.
 
+== Design Review Feedback ==
+Before starting, check if a design review report exists:
+  {{.DotDir}}/{{.Feature.ID}}/design-review-report.md
+
+If it exists and contains FAIL, you MUST read it carefully. The Design Reviewer
+has rejected your previous deliverables — address EVERY issue listed in the report.
+Do NOT reproduce the same task-brief/AC/test-strategy without fixing the flagged problems.
+Rewrite only the sections that need fixing; keep approved sections unchanged.
+
 == Constraints ==
 - You may NOT modify any source code
 - Focus on WHAT to build, not HOW to implement
