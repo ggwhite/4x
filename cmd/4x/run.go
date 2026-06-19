@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -13,12 +12,12 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 
+	"github.com/charmbracelet/huh"
 	feat "github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/guard"
@@ -484,10 +483,9 @@ func profileOptions(cfg protocol.Config) []string {
 	return append(ordered, custom...)
 }
 
-// selectProfileInteractive 在終端機列出可選 profile 編號選單，預設項為 cfg.DefaultProfile
-// （未設定時為 full），讓使用者輸入編號或直接 Enter 採用預設。回傳選定的 profile 名稱
-// （空字串代表採用既有自動解析，不覆寫）。讀檔/輸入錯誤時回 error。
-func selectProfileInteractive(in io.Reader, out io.Writer, cfg protocol.Config, feature feat.Feature) (string, error) {
+// selectProfileInteractive 用互動式選單讓使用者選取 pipeline profile，支援上下鍵導航。
+// 預設項為 cfg.DefaultProfile（未設定時為 full）。回傳選定的 profile 名稱。
+func selectProfileInteractive(_ io.Reader, _ io.Writer, cfg protocol.Config, feature feat.Feature) (string, error) {
 	options := profileOptions(cfg)
 	if len(options) == 0 {
 		return "", nil
@@ -495,12 +493,6 @@ func selectProfileInteractive(in io.Reader, out io.Writer, cfg protocol.Config, 
 	def := cfg.DefaultProfile
 	if def == "" {
 		def = "full"
-	}
-	defIdx := 0
-	for i, name := range options {
-		if name == def {
-			defIdx = i
-		}
 	}
 
 	defaults := protocol.DefaultProfiles()
@@ -514,37 +506,27 @@ func selectProfileInteractive(in io.Reader, out io.Writer, cfg protocol.Config, 
 		return protocol.ProfileConfig{}
 	}
 
-	fmt.Fprintf(out, "Select pipeline profile for %s:\n", feature.ID)
-	for i, name := range options {
-		marker := " "
-		if i == defIdx {
-			marker = "*"
-		}
+	huhOptions := make([]huh.Option[string], 0, len(options))
+	for _, name := range options {
 		pc := lookupProfile(name)
 		phases := make([]string, 0, len(pc.Phases))
 		for _, ps := range pc.Phases {
 			phases = append(phases, ps.Phase)
 		}
-		detail := strings.Join(phases, " → ")
-		fmt.Fprintf(out, "  %s %d) %s  [%s]\n", marker, i+1, name, detail)
+		label := fmt.Sprintf("%s  [%s]", name, strings.Join(phases, " → "))
+		huhOptions = append(huhOptions, huh.NewOption(label, name))
 	}
-	fmt.Fprintf(out, "Enter number [%d]: ", defIdx+1)
 
-	reader := bufio.NewReader(in)
-	line, err := reader.ReadString('\n')
-	if err != nil && line == "" {
-		// EOF 無輸入：採用預設項。
-		return options[defIdx], nil
+	var selected string
+	err := huh.NewSelect[string]().
+		Title(fmt.Sprintf("Select pipeline profile for %s", feature.ID)).
+		Options(huhOptions...).
+		Value(&selected).
+		Run()
+	if err != nil {
+		return def, nil
 	}
-	line = strings.TrimSpace(line)
-	if line == "" {
-		return options[defIdx], nil
-	}
-	n, convErr := strconv.Atoi(line)
-	if convErr != nil || n < 1 || n > len(options) {
-		return "", fmt.Errorf("invalid profile selection %q (enter 1-%d)", line, len(options))
-	}
-	return options[n-1], nil
+	return selected, nil
 }
 
 // promptOption 在 promptData 組好、模板 render 前對其做最後調整，

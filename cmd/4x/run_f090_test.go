@@ -25,40 +25,60 @@ func TestProfileOptions_OrderAndUnion(t *testing.T) {
 	}
 }
 
-func TestSelectProfileInteractive(t *testing.T) {
-	cfg := protocol.Config{Profiles: protocol.DefaultProfiles(), DefaultProfile: "normal"}
-	f := feature.Feature{ID: "feat-x"}
-
-	tests := []struct {
-		name    string
-		input   string
-		want    string
-		wantErr bool
-	}{
-		{"enter uses default", "\n", "normal", false},
-		{"explicit number", "3\n", "quick", false},
-		{"first option", "1\n", "full", false},
-		{"eof uses default", "", "normal", false},
-		{"invalid number", "9\n", "", true},
-		{"non-numeric", "abc\n", "", true},
+func TestProfileOptions(t *testing.T) {
+	cfg := protocol.Config{Profiles: protocol.DefaultProfiles()}
+	opts := profileOptions(cfg)
+	if len(opts) < 3 {
+		t.Fatalf("expected at least 3 options, got %d", len(opts))
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var out strings.Builder
-			got, err := selectProfileInteractive(strings.NewReader(tt.input), &out, cfg, f)
-			if tt.wantErr {
-				if err == nil {
-					t.Fatalf("expected error, got %q", got)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			if got != tt.want {
-				t.Errorf("got %q, want %q", got, tt.want)
-			}
-		})
+	if opts[0] != "full" || opts[1] != "normal" || opts[2] != "quick" {
+		t.Errorf("unexpected order: %v", opts)
+	}
+}
+
+func TestProfileOptions_CustomAppended(t *testing.T) {
+	cfg := protocol.Config{Profiles: map[string]protocol.ProfileConfig{
+		"my-custom": {Phases: []protocol.PhaseSpec{{Phase: "coding"}}},
+	}}
+	opts := profileOptions(cfg)
+	found := false
+	for _, o := range opts {
+		if o == "my-custom" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("custom profile not in options: %v", opts)
+	}
+}
+
+func TestResolveProfile_FeatureYAML(t *testing.T) {
+	cfg := protocol.Config{
+		Profiles:       protocol.DefaultProfiles(),
+		DefaultProfile: "full",
+	}
+	f := feature.Feature{ID: "feat-x", Profile: "quick"}
+	name, _, err := protocol.ResolveProfile(cfg, f, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name != "quick" {
+		t.Errorf("expected quick from feature YAML, got %q", name)
+	}
+}
+
+func TestResolveProfile_FlagOverridesFeatureYAML(t *testing.T) {
+	cfg := protocol.Config{
+		Profiles:       protocol.DefaultProfiles(),
+		DefaultProfile: "full",
+	}
+	f := feature.Feature{ID: "feat-x", Profile: "quick"}
+	name, _, err := protocol.ResolveProfile(cfg, f, "normal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name != "normal" {
+		t.Errorf("expected normal from flag, got %q", name)
 	}
 }
 
