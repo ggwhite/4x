@@ -518,11 +518,16 @@ func selectProfileInteractive(_ io.Reader, _ io.Writer, cfg protocol.Config, fea
 	}
 
 	var selected string
-	err := huh.NewSelect[string]().
-		Title(fmt.Sprintf("Select pipeline profile for %s", feature.ID)).
-		Options(huhOptions...).
-		Value(&selected).
-		Run()
+	km := huh.NewDefaultKeyMap()
+	km.Quit.SetKeys("ctrl+c", "esc")
+	err := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title(fmt.Sprintf("Select pipeline profile for %s", feature.ID)).
+				Options(huhOptions...).
+				Value(&selected),
+		),
+	).WithKeyMap(km).Run()
 	if err != nil {
 		return "", fmt.Errorf("profile selection cancelled")
 	}
