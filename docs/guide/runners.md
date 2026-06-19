@@ -110,6 +110,7 @@ Configure in `.4x/settings.json`:
 {
   "roles": {
     "designer": { "model": "opus" },
+    "design-reviewer": { "model": "sonnet" },
     "coder": { "model": "sonnet" },
     "reviewer": { "model": "sonnet", "deep_model": "opus" },
     "tester": { "model": "sonnet" },
@@ -132,7 +133,7 @@ Plugins follow a simple contract — read `.4x/` files, do AI work, write result
 2. Read `state.json` to know the current phase
 3. Read phase-specific inputs (task-brief.md, scope, etc.)
 4. Do the work (call your LLM, run tools)
-5. Write phase-specific outputs (coder-report.md, review-report.md, etc.)
+5. Write phase-specific outputs (design-review-report.md, coder-report.md, review-report.md, etc.)
 6. Exit with appropriate code (0 = success, 1 = soft fail, 2 = hard error)
 
 No SDK required. No runtime dependency. Just files.
