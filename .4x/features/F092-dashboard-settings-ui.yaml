@@ -14,6 +14,7 @@ description: |-
     此 feature 首次在 dashboard 引入 write 能力。
 status: not-started
 priority: 2
+profile: full
 subtasks:
     - id: server-write-api
       name: Server 加 write API——PUT /api/settings/profiles/{name}、DELETE /api/settings/profiles/{name}、PUT /api/settings/roles/{role}、PATCH /api/settings

@@ -12,6 +12,7 @@ description: |-
     反覆出現的 learning 由人手動升級到 template 或 instructions，再從 learnings.json 清除。
 status: not-started
 priority: 2
+profile: full
 subtasks:
     - id: template-override
       name: 支援 .4x/templates/ 覆寫內建 template——prompt 產生時先查專案目錄再 fallback go:embed

@@ -39,6 +39,34 @@
   "max_concurrent_runs": 5,
   "notifications": true,
   "default_profile": "full",
+  "profiles": {
+    "full": {
+      "phases": [
+        {"phase": "designing"},
+        {"phase": "coding"},
+        {"phase": "reviewing"},
+        {"phase": "deep-reviewing"},
+        {"phase": "testing"},
+        {"phase": "accepting"}
+      ]
+    },
+    "cross-model": {
+      "phases": [
+        {"phase": "designing"},
+        {"phase": "coding"},
+        {"phase": "reviewing", "runner": "gemini"},
+        {"phase": "deep-reviewing"},
+        {"phase": "testing"},
+        {"phase": "accepting"}
+      ]
+    },
+    "quick-sonnet": {
+      "phases": [
+        {"phase": "coding", "model": "sonnet"},
+        {"phase": "reviewing", "model": "sonnet"}
+      ]
+    }
+  },
   "roles": {
     "designer": {
       "model": "opus",

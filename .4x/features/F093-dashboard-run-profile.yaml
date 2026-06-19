@@ -13,6 +13,7 @@ description: |-
     依賴 F090（profile 結構）和 F092（settings write API）。
 status: not-started
 priority: 2
+profile: full
 subtasks:
     - id: profile-picker
       name: run 啟動頁面加 profile 選擇器，列出所有可用 profile 及其 phase 組成
