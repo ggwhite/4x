@@ -13,7 +13,8 @@ func TestValidateConfig_OK(t *testing.T) {
 			"claude": {Command: "claude"},
 		},
 		Roles: map[string]RoleConfig{
-			"coder": {Model: "opus"},
+			"coder":           {Model: "opus"},
+			"design-reviewer": {Model: "sonnet"},
 		},
 		Isolation: "worktree",
 		Commit:    "per-round",
@@ -195,6 +196,17 @@ func TestValidateState_OK(t *testing.T) {
 	}
 	if err := ValidateState(s); err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateState_DesignReviewingPhase(t *testing.T) {
+	s := State{
+		FeatureID: "f001-test",
+		Phase:     PhaseDesignReviewing,
+		Runner:    "claude",
+	}
+	if err := ValidateState(s); err != nil {
+		t.Fatalf("design-reviewing phase should be valid: %v", err)
 	}
 }
 

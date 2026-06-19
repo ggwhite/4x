@@ -9,17 +9,18 @@ import (
 // 合法的 phase 轉換表（對齊 docs/design.md §4）
 // blocked 和 needs-attention 是 universal target，由 CanTransition 特殊處理
 var transitions = map[protocol.Phase][]protocol.Phase{
-	protocol.PhaseInit:           {protocol.PhaseDesigning},
-	protocol.PhaseDesigning:      {protocol.PhaseCoding},
-	protocol.PhaseCoding:         {protocol.PhaseReviewing, protocol.PhaseDesigning},
-	protocol.PhaseReviewing:      {protocol.PhaseTesting, protocol.PhaseAmending},
-	protocol.PhaseAmending:       {protocol.PhaseReviewing, protocol.PhaseDesigning},
-	protocol.PhaseTesting:        {protocol.PhaseDeepReviewing, protocol.PhaseAmending, protocol.PhaseDesigning},
-	protocol.PhaseDeepReviewing:  {protocol.PhaseAccepting, protocol.PhaseAmending},
-	protocol.PhaseAccepting:      {protocol.PhasePendingReview},
-	protocol.PhasePendingReview:  {protocol.PhaseDone},
-	protocol.PhaseBlocked:        {protocol.PhaseDesigning, protocol.PhaseCoding, protocol.PhaseReviewing, protocol.PhaseTesting, protocol.PhaseDeepReviewing, protocol.PhaseAmending, protocol.PhaseAccepting},
-	protocol.PhaseNeedsAttention: {protocol.PhaseDesigning, protocol.PhaseCoding, protocol.PhaseReviewing, protocol.PhaseTesting, protocol.PhaseDeepReviewing, protocol.PhaseAmending, protocol.PhaseAccepting},
+	protocol.PhaseInit:            {protocol.PhaseDesigning},
+	protocol.PhaseDesigning:       {protocol.PhaseDesignReviewing},
+	protocol.PhaseDesignReviewing: {protocol.PhaseCoding, protocol.PhaseDesigning},
+	protocol.PhaseCoding:          {protocol.PhaseReviewing, protocol.PhaseDesigning},
+	protocol.PhaseReviewing:       {protocol.PhaseTesting, protocol.PhaseAmending},
+	protocol.PhaseAmending:        {protocol.PhaseReviewing, protocol.PhaseDesigning},
+	protocol.PhaseTesting:         {protocol.PhaseDeepReviewing, protocol.PhaseAmending, protocol.PhaseDesigning},
+	protocol.PhaseDeepReviewing:   {protocol.PhaseAccepting, protocol.PhaseAmending},
+	protocol.PhaseAccepting:       {protocol.PhasePendingReview},
+	protocol.PhasePendingReview:   {protocol.PhaseDone},
+	protocol.PhaseBlocked:         {protocol.PhaseDesigning, protocol.PhaseDesignReviewing, protocol.PhaseCoding, protocol.PhaseReviewing, protocol.PhaseTesting, protocol.PhaseDeepReviewing, protocol.PhaseAmending, protocol.PhaseAccepting},
+	protocol.PhaseNeedsAttention:  {protocol.PhaseDesigning, protocol.PhaseDesignReviewing, protocol.PhaseCoding, protocol.PhaseReviewing, protocol.PhaseTesting, protocol.PhaseDeepReviewing, protocol.PhaseAmending, protocol.PhaseAccepting},
 }
 
 // CanTransition 檢查從 from 到 to 是否合法。
@@ -72,7 +73,7 @@ func Transition(s protocol.State, to protocol.Phase, role protocol.Role) (protoc
 // 排除 init / pending-review / done / abandoned 等不該被 artifacts 推斷覆蓋的 phase。
 func isRecoverablePhase(p protocol.Phase) bool {
 	switch p {
-	case protocol.PhaseDesigning, protocol.PhaseCoding, protocol.PhaseReviewing,
+	case protocol.PhaseDesigning, protocol.PhaseDesignReviewing, protocol.PhaseCoding, protocol.PhaseReviewing,
 		protocol.PhaseTesting, protocol.PhaseDeepReviewing, protocol.PhaseAmending,
 		protocol.PhaseAccepting:
 		return true
@@ -109,6 +110,8 @@ func PhaseToRole(p protocol.Phase) protocol.Role {
 	switch p {
 	case protocol.PhaseDesigning:
 		return protocol.RoleDesigner
+	case protocol.PhaseDesignReviewing:
+		return protocol.RoleDesignReviewer
 	case protocol.PhaseAccepting:
 		return protocol.RoleAcceptor
 	case protocol.PhaseCoding, protocol.PhaseAmending:

@@ -3,8 +3,10 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -32,6 +34,26 @@ func TestLoadProfiles_BuiltinUnit(t *testing.T) {
 	}
 	if profiles[0].Content == "" {
 		t.Error("expected non-empty content for unit profile")
+	}
+}
+
+func TestLoadRoleTemplate_DesignReviewer(t *testing.T) {
+	tmpl, err := loadRoleTemplate(protocol.RoleDesignReviewer)
+	if err != nil {
+		t.Fatalf("load design-reviewer template: %v", err)
+	}
+	var b strings.Builder
+	err = tmpl.Execute(&b, promptData{
+		Feature: feature.Feature{ID: "F091-design-review-phase", Name: "Design Review Phase"},
+		DotDir:  "/tmp/project/.4x",
+		Round:   0,
+	})
+	if err != nil {
+		t.Fatalf("execute template: %v", err)
+	}
+	out := b.String()
+	if !strings.Contains(out, "/tmp/project/.4x/F091-design-review-phase/design-review-report.md") {
+		t.Fatalf("template should contain mandatory feature-level design review path, got:\n%s", out)
 	}
 }
 

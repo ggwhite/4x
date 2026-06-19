@@ -12,31 +12,33 @@ import (
 type Phase string
 
 const (
-	PhaseInit           Phase = "init"
-	PhaseDesigning      Phase = "designing"
-	PhaseCoding         Phase = "coding"
-	PhaseReviewing      Phase = "reviewing"
-	PhaseDeepReviewing  Phase = "deep-reviewing"
-	PhaseTesting        Phase = "testing"
-	PhaseAmending       Phase = "amending"
-	PhaseAccepting      Phase = "accepting"
-	PhasePendingReview  Phase = "pending-review"
-	PhaseDone           Phase = "done"
-	PhaseAbandoned      Phase = "abandoned"
-	PhaseBlocked        Phase = "blocked"
-	PhaseNeedsAttention Phase = "needs-attention"
+	PhaseInit            Phase = "init"
+	PhaseDesigning       Phase = "designing"
+	PhaseDesignReviewing Phase = "design-reviewing"
+	PhaseCoding          Phase = "coding"
+	PhaseReviewing       Phase = "reviewing"
+	PhaseDeepReviewing   Phase = "deep-reviewing"
+	PhaseTesting         Phase = "testing"
+	PhaseAmending        Phase = "amending"
+	PhaseAccepting       Phase = "accepting"
+	PhasePendingReview   Phase = "pending-review"
+	PhaseDone            Phase = "done"
+	PhaseAbandoned       Phase = "abandoned"
+	PhaseBlocked         Phase = "blocked"
+	PhaseNeedsAttention  Phase = "needs-attention"
 )
 
-// Role 表示 4x 的四個角色
+// Role 表示 4x pipeline 中的角色
 type Role string
 
 const (
-	RoleDesigner     Role = "designer"
-	RoleCoder        Role = "coder"
-	RoleReviewer     Role = "reviewer"
-	RoleDeepReviewer Role = "deep-reviewer"
-	RoleTester       Role = "tester"
-	RoleAcceptor     Role = "acceptor"
+	RoleDesigner       Role = "designer"
+	RoleDesignReviewer Role = "design-reviewer"
+	RoleCoder          Role = "coder"
+	RoleReviewer       Role = "reviewer"
+	RoleDeepReviewer   Role = "deep-reviewer"
+	RoleTester         Role = "tester"
+	RoleAcceptor       Role = "acceptor"
 	// RoleMiniCoder 與 RoleReVerifier 是 deep-reviewing phase 內自癒循環的子 role，
 	// 不對應任何 state machine phase（全程維持 deep-reviewing），僅用於 prompt template
 	// 與 event/log 辨識。

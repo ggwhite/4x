@@ -70,7 +70,11 @@ func TestRunLoop_PrefetchConsistency(t *testing.T) {
 	// 重建每一輪的 round 編號：designing 在 round 1，coding 起一律 round 1（happy path 單輪）。
 	for i, phase := range mock.phases {
 		role := mock.roles[i]
-		want, err := generatePrompt(ws, ws, feature, cfg, role, 1, 0)
+		round := 1
+		if phase == protocol.PhaseDesigning || phase == protocol.PhaseDesignReviewing {
+			round = 0
+		}
+		want, err := generatePrompt(ws, ws, feature, cfg, role, round, 0)
 		if err != nil {
 			t.Fatalf("generatePrompt(%s) failed: %v", role, err)
 		}

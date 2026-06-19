@@ -181,8 +181,25 @@ func TestNextPhaseAfter_DesigningRequiresCriteria(t *testing.T) {
 
 	os.WriteFile(filepath.Join(featureDir, protocol.Criteria), []byte("# criteria"), 0o644)
 	next2, role2, _ := nextPhaseAfter(ws, "feat-d", s)
-	if next2 != protocol.PhaseCoding || role2 != protocol.RoleCoder {
-		t.Errorf("with both artifacts: next=%s role=%s, want coding/coder", next2, role2)
+	if next2 != protocol.PhaseDesignReviewing || role2 != protocol.RoleDesignReviewer {
+		t.Errorf("with both artifacts: next=%s role=%s, want design-reviewing/design-reviewer", next2, role2)
+	}
+}
+
+func TestNextPhaseAfter_DesignReviewingVerdict(t *testing.T) {
+	ws := setupLoopWorkspace(t, "feat-dr")
+	s := protocol.State{FeatureID: "feat-dr", Phase: protocol.PhaseDesignReviewing, Round: 0}
+
+	writeFeatureFile(t, ws, "feat-dr", protocol.DesignReviewReport, "# Design Review\n\n## Verdict\nPASS\n")
+	next, role, reason := nextPhaseAfter(ws, "feat-dr", s)
+	if next != protocol.PhaseCoding || role != protocol.RoleCoder || reason != "" {
+		t.Fatalf("PASS: got next=%s role=%s reason=%q, want coding/coder", next, role, reason)
+	}
+
+	writeFeatureFile(t, ws, "feat-dr", protocol.DesignReviewReport, "# Design Review\n\n## Verdict\nFAIL\n")
+	next, role, reason = nextPhaseAfter(ws, "feat-dr", s)
+	if next != protocol.PhaseDesigning || role != protocol.RoleDesigner || reason != "" {
+		t.Fatalf("FAIL: got next=%s role=%s reason=%q, want designing/designer", next, role, reason)
 	}
 }
 
