@@ -8,7 +8,7 @@ description: |-
     目標：design-reviewer 評估設計方案的架構風險、過度設計、遺漏需求，給出 PASS/FAIL verdict。FAIL 時回 designing 修正，PASS 才進 coding。
 
     此 phase 為 optional——只有 profile 包含時才跑。依賴 F090 custom profile system，因為需要新 profile 結構才能讓 user 選擇是否啟用此 phase。
-status: ready-for-review
+status: done
 priority: 2
 subtasks:
     - id: phase-constant
