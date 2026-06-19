@@ -304,10 +304,10 @@ func newRunCmd() *cobra.Command {
 				s.Runners = append(s.Runners, runnerName)
 			}
 
-			// profile-select UI：無 --profile flag、非 resume（s.Profile 為空）、非 dry-run，
-			// 且 stdin/stdout 皆為互動式終端機時，列出可選 profile 讓使用者選；其餘情況沿用
-			// 既有解析（default_profile / priority auto-select）。
-			if profileFlag == "" && s.Profile == "" && !dryRun && isInteractiveTerminal() {
+			// profile-select UI：無 --profile flag、非 resume（s.Profile 為空）、feature YAML
+			// 未指定 profile、非 dry-run，且 stdin/stdout 皆為互動式終端機時，列出可選 profile
+			// 讓使用者選；其餘情況沿用既有解析（feature YAML / default_profile / priority auto-select）。
+			if profileFlag == "" && s.Profile == "" && feature.Profile == "" && !dryRun && isInteractiveTerminal() {
 				sel, serr := selectProfileInteractive(os.Stdin, os.Stdout, cfg, feature)
 				if serr != nil {
 					return serr
