@@ -758,7 +758,7 @@ function renderTaskItem(task) {
   const duration = !isActive && task.createdAt && task.updatedAt ? formatDuration(task.createdAt, task.updatedAt) : '';
   const timePart = elapsed ? ` · ⏱ ${elapsed}` : duration ? ` · ⏱ ${duration}` : '';
   const roundPart = task.round ? t('common.round').replace('{round}', task.round) : '';
-  const phaseRoleMap = {designing:'designer',coding:'coder',reviewing:'reviewer','deep-reviewing':'deep-reviewer',testing:'tester',accepting:'acceptor',amending:'coder'};
+  const phaseRoleMap = {designing:'designer','design-reviewing':'design-reviewer',coding:'coder',reviewing:'reviewer','deep-reviewing':'deep-reviewer',testing:'tester',accepting:'acceptor',amending:'coder'};
   const roleInfo = ROLES[phaseRoleMap[task.phase]] || {};
   const parallelTester = isActive && task.phase === 'reviewing' ? ROLES['tester'] : null;
   const emoji = isActive && roleInfo.emoji ? roleInfo.emoji + ' ' : '';

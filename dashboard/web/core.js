@@ -160,6 +160,7 @@ function fmtTokens(n) {
 // Constants
 const ROLES = {
   designer:{name:'Designer',emoji:'🎨',color:'#c084fc',bg:'rgba(192,132,252,.08)'},
+  'design-reviewer':{name:'Design Review',emoji:'📐',color:'#e879f9',bg:'rgba(232,121,249,.08)'},
   coder:{name:'Coder',emoji:'💻',color:'#22d3ee',bg:'rgba(34,211,238,.08)'},
   reviewer:{name:'Reviewer',emoji:'🔍',color:'#4ade80',bg:'rgba(74,222,128,.08)'},
   'deep-reviewer':{name:'Deep Review',emoji:'🔍',color:'#4ade80',bg:'rgba(74,222,128,.08)'},
@@ -169,10 +170,11 @@ const ROLES = {
   'deep-reverify':{name:'Deep Reverify',emoji:'🔬',color:'#a78bfa',bg:'rgba(167,139,250,.08)'},
   synthesizer:{name:'Synthesizer',emoji:'🧩',color:'#34d399',bg:'rgba(52,211,153,.08)'},
 };
-const PHASE_ICON = { designing:'◆',coding:'◆',reviewing:'◆','deep-reviewing':'◆',testing:'◆',accepting:'◆',amending:'◆','pending-review':'⏳',done:'✓',blocked:'✕','needs-attention':'!',init:'○','not-started':'○' };
+const PHASE_ICON = { designing:'◆','design-reviewing':'◆',coding:'◆',reviewing:'◆','deep-reviewing':'◆',testing:'◆',accepting:'◆',amending:'◆','pending-review':'⏳',done:'✓',blocked:'✕','needs-attention':'!',init:'○','not-started':'○' };
 
 const PHASE_COLORS = {
   designing:{letter:'D',color:'#c084fc',bg:'rgba(192,132,252,.15)',border:'rgba(192,132,252,.25)'},
+  'design-reviewing':{letter:'DR',color:'#e879f9',bg:'rgba(232,121,249,.15)',border:'rgba(232,121,249,.25)'},
   coding:   {letter:'C',color:'#22d3ee',bg:'rgba(34,211,238,.15)',border:'rgba(34,211,238,.25)'},
   reviewing:{letter:'R',color:'#4ade80',bg:'rgba(74,222,128,.15)',border:'rgba(74,222,128,.25)'},
   'deep-reviewing':{letter:'DR',color:'#22c55e',bg:'rgba(34,197,94,.15)',border:'rgba(34,197,94,.25)'},
