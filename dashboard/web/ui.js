@@ -1338,6 +1338,12 @@ function logBaseRole(name) {
     .replace(/^(deep-(?:fix|reverify|reviewer))-\d+$/, '$1');
 }
 
+let _renderMultiLogRAF = null;
+function scheduleRenderMultiLog() {
+  if (_renderMultiLogRAF) return;
+  _renderMultiLogRAF = requestAnimationFrame(() => { _renderMultiLogRAF = null; renderMultiLog(); });
+}
+
 // renderMultiLog 把 multiLogBuffers 內所有活躍 log 分區並列渲染到 viewer，
 // 每區一個帶 role 顏色的標題列，內容跟著該 log 即時累積。
 function renderMultiLog() {
@@ -1379,7 +1385,7 @@ function connectLogSSE(fid, file) {
         if (!knownFiles.has(d.file)) { knownFiles.add(d.file); loadLogs(fid); }
         viewer.classList.remove('hidden');
         multiLogBuffers[d.file] = (multiLogBuffers[d.file] || '') + d.content;
-        renderMultiLog();
+        scheduleRenderMultiLog();
       } else {
         if (viewer.classList.contains('hidden')) return;
         if (currentLogFile && d.file !== currentLogFile) return;

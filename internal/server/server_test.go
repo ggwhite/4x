@@ -1507,8 +1507,8 @@ func TestHandleLogSSE_MultiFile(t *testing.T) {
 	}
 }
 
-// TestHandleLogSSE_LargeDelta 驗證 delta > 32KB（100KB）時收到多個 message，
-// content 拼接後 byte 完全等於寫入內容，無遺漏/重複。
+// TestHandleLogSSE_LargeDelta 驗證 delta > maxInitialTail（100KB）時，
+// SSE 只串流尾端 maxInitialTail 的內容，避免大檔一口氣灌入導致前端卡死。
 func TestHandleLogSSE_LargeDelta(t *testing.T) {
 	ws, logsDir := setupLogSSEWorkspace(t)
 	logPath := filepath.Join(logsDir, "run.log")
@@ -1534,6 +1534,7 @@ func TestHandleLogSSE_LargeDelta(t *testing.T) {
 
 	var collected []string
 	totalLen := 0
+	wantLen := 64 * 1024 // maxInitialTail
 	scanner := bufio.NewScanner(resp.Body)
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -1549,18 +1550,19 @@ func TestHandleLogSSE_LargeDelta(t *testing.T) {
 			collected = append(collected, c)
 			totalLen += len(c)
 		}
-		if totalLen >= len(written) {
+		if totalLen >= wantLen {
 			cancel()
 			break
 		}
 	}
 
 	if len(collected) < 2 {
-		t.Errorf("want ≥2 messages for 100KB delta, got %d", len(collected))
+		t.Errorf("want ≥2 messages for 64KB tail, got %d", len(collected))
 	}
 	joined := strings.Join(collected, "")
-	if joined != string(written) {
-		t.Errorf("joined content len=%d, want %d; content mismatch", len(joined), len(written))
+	wantContent := string(written[len(written)-wantLen:])
+	if joined != wantContent {
+		t.Errorf("joined content len=%d, want %d; content mismatch", len(joined), len(wantContent))
 	}
 }
 
@@ -1633,9 +1635,9 @@ func TestHandleLogSSE_Boundary(t *testing.T) {
 	}
 }
 
-// TestHandleLogSSE_MultibyteBoundary 驗證含 CJK／emoji 的 delta >32KB 時，
-// 多位元組字元即使橫跨 32KB chunk 邊界也不會被切半損毀為 U+FFFD，
-// 拼接後 byte 完全等於寫入內容（AC-6 回歸測試）。
+// TestHandleLogSSE_MultibyteBoundary 驗證含 CJK／emoji 的大檔案（>maxInitialTail）時，
+// SSE 只串流尾端內容，且初始 offset 會對齊到 UTF-8 字元邊界，
+// 不會把多位元組字元切半損毀為 U+FFFD。
 func TestHandleLogSSE_MultibyteBoundary(t *testing.T) {
 	ws, logsDir := setupLogSSEWorkspace(t)
 	logPath := filepath.Join(logsDir, "run.log")
@@ -1666,6 +1668,7 @@ func TestHandleLogSSE_MultibyteBoundary(t *testing.T) {
 	defer resp.Body.Close()
 
 	var joined []byte
+	wantMaxLen := 64*1024 + len(unit) // maxInitialTail + alignment tolerance
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
 	for scanner.Scan() {
@@ -1681,17 +1684,20 @@ func TestHandleLogSSE_MultibyteBoundary(t *testing.T) {
 		if c, ok := msg["content"]; ok {
 			joined = append(joined, []byte(c)...)
 		}
-		if len(joined) >= len(written) {
+		if len(joined) >= wantMaxLen {
 			cancel()
 			break
 		}
 	}
 
 	if strings.ContainsRune(string(joined), '�') {
-		t.Errorf("content 含 U+FFFD，多位元組字元在 32KB 邊界被損毀")
+		t.Errorf("content 含 U+FFFD，多位元組字元在初始 offset 或 32KB 邊界被損毀")
 	}
-	if !bytes.Equal(joined, written) {
-		t.Errorf("拼接後 byte 不一致：joined len=%d, want %d", len(joined), len(written))
+	if !bytes.HasSuffix(written, joined) {
+		t.Errorf("received content is not a suffix of written content: joined len=%d, written len=%d", len(joined), len(written))
+	}
+	if len(joined) < 64*1024-len(unit) {
+		t.Errorf("received too little content: got %d, want ≥%d", len(joined), 64*1024-len(unit))
 	}
 }
 

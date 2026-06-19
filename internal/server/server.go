@@ -1316,12 +1316,21 @@ func handleLogSSE(ws *protocol.CachedWorkspace, featureID string, w http.Respons
 	// offsets 記每個正在 tail 的 log 已讀到的位移，跨 tick 持續累進。
 	// 未 pin 檔案時可同時 tail 多個活躍 log（平行 sub-reviewer / reviewer+tester），各自獨立 offset。
 	offsets := make(map[string]int64)
+	// seen 記錄哪些 log 檔已完成首次 offset 初始化，避免重複跳到尾端。
+	seen := make(map[string]bool)
+	// needAlign 標記因初始 offset 可能落在多位元組 UTF-8 字元中間，需在首次讀取時對齊。
+	needAlign := make(map[string]bool)
 
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
 	// 在連線生命週期內共用一個固定 32KB buffer，避免每秒 tick 重新分配造成 GC 壓力。
 	buf := make([]byte, 32*1024)
+
+	// SSE 首次 tail 每個 log 檔時，最多只串流尾端 maxInitialTail bytes 的內容，
+	// 避免大檔（如 3MB+ 的 coder log）一口氣灌入導致 WebView 卡死。
+	// 完整歷史內容由 REST /api/logs/ endpoint 提供。
+	const maxInitialTail int64 = 64 * 1024
 
 	// carryBufs 保留各 log 檔尾不完整的 UTF-8 殘段，與 offsets 平行、跨 tick 持續保留。
 	// 固定切分會把橫跨 read chunk / tick 邊界的多位元組字元切兩半，各自 json.Marshal
@@ -1333,7 +1342,17 @@ func handleLogSSE(ws *protocol.CachedWorkspace, featureID string, w http.Respons
 	tailFile := func(current string) {
 		path := filepath.Join(logsDir, current)
 		info, err := os.Stat(path)
-		if err != nil || info.Size() <= offsets[current] {
+		if err != nil {
+			return
+		}
+		if !seen[current] {
+			seen[current] = true
+			if info.Size() > maxInitialTail {
+				offsets[current] = info.Size() - maxInitialTail
+				needAlign[current] = true
+			}
+		}
+		if info.Size() <= offsets[current] {
 			return
 		}
 		f, err := os.Open(path)
@@ -1343,6 +1362,19 @@ func handleLogSSE(ws *protocol.CachedWorkspace, featureID string, w http.Respons
 		defer f.Close()
 		if offsets[current] > 0 {
 			f.Seek(offsets[current], 0)
+		}
+		if needAlign[current] {
+			delete(needAlign, current)
+			var probe [3]byte
+			pn, _ := f.ReadAt(probe[:], offsets[current])
+			skip := 0
+			for skip < pn && !utf8.RuneStart(probe[skip]) {
+				skip++
+			}
+			if skip > 0 {
+				offsets[current] += int64(skip)
+				f.Seek(offsets[current], 0)
+			}
 		}
 		carry := carryBufs[current]
 		for {
