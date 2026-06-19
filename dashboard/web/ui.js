@@ -1068,10 +1068,19 @@ async function loadMessages(id) {
   let added = false;
   list.forEach(m => {
     const key = m.file || m.label;
-    if (renderedMsgKeys.has(key)) return;
-    renderedMsgKeys.add(key);
-    el.appendChild(renderMsgCard(m));
-    added = true;
+    const hash = key + ':' + m.content.length + ':' + m.content.slice(0, 200);
+    const prev = renderedMsgKeys.get(key);
+    if (prev === hash) return;
+    const card = renderMsgCard(m);
+    card.dataset.msgKey = key;
+    if (prev) {
+      const old = el.querySelector(`[data-msg-key="${CSS.escape(key)}"]`);
+      if (old) old.replaceWith(card);
+    } else {
+      el.appendChild(card);
+      added = true;
+    }
+    renderedMsgKeys.set(key, hash);
   });
   if (added) el.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'end' });
 }
