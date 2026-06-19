@@ -702,6 +702,18 @@ func handleMessages(ws *protocol.CachedWorkspace, featureID string, w http.Respo
 		}
 	}
 
+	drr := readIfExists(filepath.Join(dir, protocol.DesignReviewReport))
+	if drr != "" {
+		messages = append(messages, messageInfo{
+			Role:     "design-reviewer",
+			Label:    protocol.DesignReviewReport,
+			Content:  drr,
+			File:     protocol.DesignReviewReport,
+			Duration: phases[durationKey{"design-reviewer", 0}].duration,
+			Model:    phases[durationKey{"design-reviewer", 0}].model,
+		})
+	}
+
 	roundsDir := filepath.Join(dir, protocol.RoundsDir)
 	entries, _ := os.ReadDir(roundsDir)
 	for _, entry := range entries {
