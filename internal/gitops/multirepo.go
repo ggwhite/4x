@@ -176,17 +176,22 @@ func (m *multiRepo) Merge(featureID, featureName string) MergeResult {
 		out, err := exec.Command("git", "-C", rh.repoPath, "merge", "--squash", branch).CombinedOutput()
 		if err != nil {
 			files := conflictFiles(rh.repoPath)
-			exec.Command("git", "-C", rh.repoPath, "merge", "--abort").Run()
-			exec.Command("git", "-C", rh.repoPath, "reset", "--hard", "HEAD").Run()
-
-			for _, done := range merged {
-				exec.Command("git", "-C", done.repoPath, "reset", "--hard", done.head).Run()
+			hadConflicts := len(files) > 0
+			if hadConflicts {
+				autoResolveFeatureYAML(rh.repoPath, files)
+				files = conflictFiles(rh.repoPath)
 			}
-
-			if len(files) > 0 {
-				return MergeResult{Conflict: true, ConflictRepo: rh.name, Files: files}
+			if len(files) > 0 || !hadConflicts {
+				exec.Command("git", "-C", rh.repoPath, "merge", "--abort").Run()
+				exec.Command("git", "-C", rh.repoPath, "reset", "--hard", "HEAD").Run()
+				for _, done := range merged {
+					exec.Command("git", "-C", done.repoPath, "reset", "--hard", done.head).Run()
+				}
+				if len(files) > 0 {
+					return MergeResult{Conflict: true, ConflictRepo: rh.name, Files: files}
+				}
+				return MergeResult{Error: fmt.Sprintf("%s: %s", rh.name, strings.TrimSpace(string(out)))}
 			}
-			return MergeResult{Error: fmt.Sprintf("%s: %s", rh.name, strings.TrimSpace(string(out)))}
 		}
 		if out, err := exec.Command("git", "-C", rh.repoPath, "commit", "-m", msg).CombinedOutput(); err != nil {
 			if !isNothingToCommit(string(out)) {

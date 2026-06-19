@@ -194,3 +194,15 @@ func conflictFiles(root string) []string {
 	}
 	return files
 }
+
+// autoResolveFeatureYAML 自動解決 .4x/features/*.yaml 的 merge 衝突，
+// 取 main（ours）的版本，因為 4x run 在 main 維護最新的 status 欄位。
+func autoResolveFeatureYAML(root string, files []string) {
+	for _, f := range files {
+		if !strings.HasPrefix(f, ".4x/features/") || !strings.HasSuffix(f, ".yaml") {
+			continue
+		}
+		exec.Command("git", "-C", root, "checkout", "--ours", "--", f).Run()
+		exec.Command("git", "-C", root, "add", f).Run()
+	}
+}

@@ -242,6 +242,48 @@ func TestMonoRepo_MergeConflict(t *testing.T) {
 	}
 }
 
+func TestMonoRepo_MergeAutoResolvesFeatureYAML(t *testing.T) {
+	root, _, ops := setupMonoWorkspace(t)
+	featureID := "feat-yaml"
+	_, err := ops.SetupWorktree(featureID, nil)
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+
+	yamlPath := filepath.Join(".4x", "features", featureID+".yaml")
+
+	wtDir := Dir(root, featureID)
+	os.MkdirAll(filepath.Join(wtDir, ".4x", "features"), 0o755)
+	os.WriteFile(filepath.Join(wtDir, yamlPath), []byte("id: feat-yaml\nstatus: in-progress\n"), 0o644)
+	os.WriteFile(filepath.Join(wtDir, "code.go"), []byte("package main\nfunc A(){}\n"), 0o644)
+	runGit(t, wtDir, "add", "-A")
+	runGit(t, wtDir, "commit", "-m", "branch: yaml + code")
+
+	os.MkdirAll(filepath.Join(root, ".4x", "features"), 0o755)
+	os.WriteFile(filepath.Join(root, yamlPath), []byte("id: feat-yaml\nstatus: ready-for-review\n"), 0o644)
+	runGit(t, root, "add", yamlPath)
+	runGit(t, root, "commit", "-m", "main: update yaml status")
+
+	result := ops.Merge(featureID, "YAML Feature")
+	if result.Conflict {
+		t.Fatalf("expected auto-resolve, got conflict: %v", result.Files)
+	}
+	if result.Error != "" {
+		t.Fatalf("unexpected error: %s", result.Error)
+	}
+
+	data, err := os.ReadFile(filepath.Join(root, yamlPath))
+	if err != nil {
+		t.Fatalf("read yaml: %v", err)
+	}
+	if !strings.Contains(string(data), "status: ready-for-review") {
+		t.Errorf("expected main's status to win, got:\n%s", data)
+	}
+	if _, err := os.Stat(filepath.Join(root, "code.go")); err != nil {
+		t.Error("code.go from branch should be present after merge")
+	}
+}
+
 // TestMonoRepo_MergeCommitFailCleansStaged 驗證 commit 失敗（非 nothing-to-commit）時，
 // Merge 會清理 squash 留下的 staged changes，使 main 回到 merge 前的乾淨狀態（F086 task 7）。
 // 用 pre-commit hook 強制 commit 失敗來重現。

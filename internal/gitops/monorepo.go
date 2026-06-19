@@ -89,13 +89,19 @@ func (m *monoRepo) Merge(featureID, featureName string) MergeResult {
 	out, err := exec.Command("git", "-C", m.root, "merge", "--squash", branch).CombinedOutput()
 	if err != nil {
 		files := conflictFiles(m.root)
-		// --squash 不建立 MERGE_HEAD，merge --abort 會靜默失敗；用 reset --hard 確保還原
-		exec.Command("git", "-C", m.root, "merge", "--abort").Run()
-		exec.Command("git", "-C", m.root, "reset", "--hard", "HEAD").Run()
+		if len(files) == 0 {
+			// --squash 不建立 MERGE_HEAD，merge --abort 會靜默失敗；用 reset --hard 確保還原
+			exec.Command("git", "-C", m.root, "merge", "--abort").Run()
+			exec.Command("git", "-C", m.root, "reset", "--hard", "HEAD").Run()
+			return MergeResult{Error: strings.TrimSpace(string(out))}
+		}
+		autoResolveFeatureYAML(m.root, files)
+		files = conflictFiles(m.root)
 		if len(files) > 0 {
+			exec.Command("git", "-C", m.root, "merge", "--abort").Run()
+			exec.Command("git", "-C", m.root, "reset", "--hard", "HEAD").Run()
 			return MergeResult{Conflict: true, Files: files}
 		}
-		return MergeResult{Error: strings.TrimSpace(string(out))}
 	}
 
 	msg := fmt.Sprintf("feat(%s): %s", featureID, featureName)
