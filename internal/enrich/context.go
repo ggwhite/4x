@@ -107,13 +107,17 @@ func grepSnippets(root string, keywords []string) string {
 		if remaining := maxTotalSnippetLines - totalLines; remaining < limit {
 			limit = remaining
 		}
-		cmd := exec.Command("grep", "-rn", "--include=*.go", "-m", fmt.Sprintf("%d", limit), kw, root)
+		// grep -m 是 per-file 上限（遞迴搜尋時每個檔案各算 limit 個 match），
+		// 單一常見 keyword 跨多檔即可回傳 limit×檔數 行而灌爆 prompt，無法保證
+		// per-keyword 與合計上限。故 grep 後再自行硬截斷到 limit 行。
+		cmd := exec.Command("grep", "-rn", "--include=*.go", kw, root)
 		out, _ := cmd.Output()
-		if len(out) == 0 {
+		snippet := truncateLines(string(out), limit)
+		if snippet == "" {
 			continue
 		}
-		fmt.Fprintf(&b, "### keyword: %s\n%s\n", kw, string(out))
-		totalLines += strings.Count(string(out), "\n")
+		fmt.Fprintf(&b, "### keyword: %s\n%s\n", kw, snippet)
+		totalLines += strings.Count(snippet, "\n")
 	}
 	if b.Len() == 0 {
 		return "(no code snippets found)"
@@ -133,10 +137,25 @@ func formatFeatureList(features []featureSummary) string {
 	return b.String()
 }
 
-// truncate 截斷字串到指定長度，超出時補上省略符號。
-func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
+// truncateLines 保留 s 的前 n 行（以 \n 為界），其餘捨棄。
+// 用於把 grep 輸出硬截斷到 per-keyword 行數上限，不倚賴 grep -m 的 per-file 語義。
+func truncateLines(s string, n int) string {
+	if n <= 0 || s == "" {
+		return ""
+	}
+	lines := strings.SplitAfter(s, "\n")
+	if len(lines) <= n {
 		return s
 	}
-	return s[:maxLen] + "..."
+	return strings.Join(lines[:n], "")
+}
+
+// truncate 截斷字串到指定長度（以 rune 計），超出時補上省略符號。
+// 以 rune 而非 byte 截斷，避免把繁中等多位元組字元切在中間產生無效 UTF-8。
+func truncate(s string, maxLen int) string {
+	r := []rune(s)
+	if len(r) <= maxLen {
+		return s
+	}
+	return string(r[:maxLen]) + "..."
 }
