@@ -248,6 +248,7 @@ func newRunCmd() *cobra.Command {
 					return fmt.Errorf("worktree setup: %w", err)
 				}
 				runnerWs = &protocol.Workspace{Root: wtPath}
+				ws.SkipAutoCommit = true
 				fmt.Printf("worktree: %s\n", wtPath)
 			} else {
 				runnerWs = ws

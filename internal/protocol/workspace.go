@@ -64,6 +64,9 @@ const (
 // Workspace 管理 .4x/ 目錄的讀寫
 type Workspace struct {
 	Root string
+	// SkipAutoCommit 為 true 時，SyncFeatureStatus 只寫入檔案不自動 commit。
+	// worktree 模式下主 repo 不應 commit feature YAML status，避免與 branch merge 衝突。
+	SkipAutoCommit bool
 }
 
 // Find 從目前目錄往上找 .4x/ 目錄
@@ -366,6 +369,9 @@ func (w *Workspace) SyncFeatureStatus(featureID string, phase Phase) error {
 // autoCommitFeatureYAML 在 feature YAML 被 git 追蹤時自動 commit 狀態變更。
 // Best-effort：git 不存在、檔案未追蹤、或 commit 失敗都靜默略過。
 func (w *Workspace) autoCommitFeatureYAML(featureID string, status feature.Status) {
+	if w.SkipAutoCommit {
+		return
+	}
 	yamlPath := filepath.Join(FeaturesDir, featureID+".yaml")
 	absPath := filepath.Join(w.DotDir(), yamlPath)
 

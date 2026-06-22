@@ -1309,6 +1309,28 @@ func TestSyncFeatureStatus_NotFound(t *testing.T) {
 	}
 }
 
+func TestSyncFeatureStatus_SkipAutoCommit(t *testing.T) {
+	ws := setupWorkspace(t)
+	ws.SkipAutoCommit = true
+
+	f := feature.Feature{ID: "feat-skip", Name: "Skip", Status: feature.StatusNotStarted}
+	if err := ws.SaveFeature(f); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ws.SyncFeatureStatus("feat-skip", PhaseCoding); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := ws.LoadFeature("feat-skip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != feature.StatusInProgress {
+		t.Errorf("status = %s, want %s", got.Status, feature.StatusInProgress)
+	}
+}
+
 func TestListFeatures_IncludesWarnings(t *testing.T) {
 	ws := setupWorkspace(t)
 
