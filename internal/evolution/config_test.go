@@ -35,3 +35,28 @@ func TestResolveEvolution_Overrides(t *testing.T) {
 		t.Errorf("runner/model overrides not applied: %+v", got)
 	}
 }
+
+func intPtr(n int) *int { return &n }
+
+// TestResolveEvolution_MaxIdleRounds 驗證 nil/0/負數/正數四種輸入的 resolve 結果（AC-10、L013）。
+func TestResolveEvolution_MaxIdleRounds(t *testing.T) {
+	cases := []struct {
+		name string
+		in   *int
+		want int
+	}{
+		{"nil 套預設 3", nil, 3},
+		{"明確 0 停用", intPtr(0), 0},
+		{"負數停用", intPtr(-1), -1},
+		{"正數照值", intPtr(5), 5},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := protocol.Config{Evolution: &protocol.EvolutionConfig{MaxIdleRounds: tc.in}}
+			got := ResolveEvolution(cfg).MaxIdleRounds
+			if got != tc.want {
+				t.Errorf("MaxIdleRounds = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
