@@ -10,7 +10,7 @@ description: |-
     迭代迴路：跑 feature → Acceptor 產 retro learnings → 累積到 learnings.json → 下個 feature Designer 選相關 learnings → 注入到各 role prompt → prompt 品質提升。
 
     反覆出現的 learning 由人手動升級到 template 或 instructions，再從 learnings.json 清除。
-status: not-started
+status: in-progress
 priority: 1
 profile: full
 subtasks:
