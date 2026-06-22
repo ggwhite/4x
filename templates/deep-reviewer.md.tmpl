@@ -245,6 +245,15 @@ interrupted mid-review. If it exists, read it:
 - If Verdict is already filled → the review is complete, verify consistency and finish
 Do NOT assume an existing file means the review is done — check which angles were covered.
 
+{{- if .SelectedLearnings}}
+
+== Learnings from Past Features ==
+以下是從過去經驗中挑出與本次工作相關的教訓，請納入考量：
+{{- range .SelectedLearnings}}
+- [{{.Category}}] {{.Content}}
+{{- end}}
+{{- end}}
+
 == Constraints ==
 - You may NOT modify source code
 - You may ONLY write {{$reportFile}} — do NOT write final-report.md or any other protocol file

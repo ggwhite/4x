@@ -13,7 +13,7 @@ import (
 // renderDeep 用 loadRoleTemplate 直接 render deep-reviewer 模板，套用給定的 promptOption。
 func renderDeep(t *testing.T, role protocol.Role, opts ...promptOption) string {
 	t.Helper()
-	tmpl, err := loadRoleTemplate(role)
+	tmpl, err := loadRoleTemplate("", role)
 	if err != nil {
 		t.Fatalf("load template: %v", err)
 	}

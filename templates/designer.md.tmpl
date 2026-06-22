@@ -142,6 +142,27 @@ has rejected your previous deliverables — address EVERY issue listed in the re
 Do NOT reproduce the same task-brief/AC/test-strategy without fixing the flagged problems.
 Rewrite only the sections that need fixing; keep approved sections unchanged.
 
+{{- if .Learnings}}
+
+== Past Learnings ==
+以下是過去 feature 累積的經驗教訓。從中挑出與本次 feature 相關的 ID，
+寫入 selected-learnings.json：
+
+  {{.DotDir}}/{{.Feature.ID}}/selected-learnings.json
+
+格式：
+{
+  "selected": ["L001", "L003"]
+}
+
+只選真正相關的，不相關就寫空 array：{"selected": []}。不超過 10 條。
+
+可用的 learnings：
+{{- range .Learnings}}
+- [{{.ID}}] ({{.Category}}) {{.Content}}
+{{- end}}
+{{- end}}
+
 == Constraints ==
 - You may NOT modify any source code
 - Focus on WHAT to build, not HOW to implement

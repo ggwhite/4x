@@ -184,11 +184,15 @@ Roles communicate through the `.4x/` directory, not shared context windows.
 ├── batch-report.json                # Last batch run report (stats + per-feature outcome)
 ├── features/
 │   └── {id}.yaml                    # Feature definition (canonical source)
+├── learnings.json                  # Retro learnings store (accumulated across features)
+├── templates/                      # Optional project-level prompt template overrides (4x init --dump-templates)
 └── {feature-id}/
     ├── state.json                   # Phase, role, round, active, runner, runners, stopReason, profile
     ├── events.jsonl                 # Audit trail
     ├── baseline.json                # Pre-coding snapshot (HEAD, branch, dirty files)
     ├── task-brief.md                # Designer → Coder: spec + architecture
+    ├── retro-learnings.json         # Acceptor → CLI: harvested into learnings.json
+    ├── selected-learnings.json      # Designer → CLI: relevant learning IDs to inject downstream
     ├── acceptance-criteria.md       # Designer → Tester: testable criteria
     ├── test-strategy.yaml           # Designer → Tester: test approach
     ├── final-report.md              # End-of-loop summary

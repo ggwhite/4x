@@ -8,17 +8,29 @@ import (
 
 	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
+	"github.com/ggwhite/4x/templates"
 	"github.com/spf13/cobra"
 )
 
 func newInitCmd() *cobra.Command {
-	return &cobra.Command{
+	var dumpTmpl, force bool
+
+	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Initialize a 4x project in the current directory",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
 			if err != nil {
 				return err
+			}
+
+			if dumpTmpl {
+				dotDir := filepath.Join(cwd, protocol.DirName)
+				if _, err := os.Stat(dotDir); err != nil {
+					return fmt.Errorf("%s not found — run '4x init' first", protocol.DirName)
+				}
+				fmt.Println("Dumping built-in templates to .4x/templates/:")
+				return dumpTemplates(dotDir, force)
 			}
 
 			dotDir := filepath.Join(cwd, protocol.DirName)
@@ -67,6 +79,48 @@ func newInitCmd() *cobra.Command {
 			return nil
 		},
 	}
+
+	cmd.Flags().BoolVar(&dumpTmpl, "dump-templates", false, "dump built-in templates to .4x/templates/ for customization")
+	cmd.Flags().BoolVar(&force, "force", false, "overwrite existing template files (with --dump-templates)")
+	return cmd
+}
+
+// dumpTemplates 把內建 role prompt template 倒出到 .4x/templates/，供專案整檔覆寫。
+// 只倒出 templates.FS 內的頂層 *.tmpl（含 locale.tmpl）；profiles/ 不在此 FS 中
+// （由 templates.ProfilesFS 管理，有自己的覆寫機制），故不會被倒出。
+// 已存在的檔案預設跳過並 warn，force 為 true 時才覆蓋。
+func dumpTemplates(dotDir string, force bool) error {
+	tmplDir := filepath.Join(dotDir, "templates")
+	if err := os.MkdirAll(tmplDir, 0o755); err != nil {
+		return fmt.Errorf("create templates dir: %w", err)
+	}
+
+	entries, err := templates.FS.ReadDir(".")
+	if err != nil {
+		return fmt.Errorf("read embedded templates: %w", err)
+	}
+
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		dest := filepath.Join(tmplDir, e.Name())
+		if !force {
+			if _, err := os.Stat(dest); err == nil {
+				slog.Warn("template exists, skipping (use --force to overwrite)", "file", e.Name())
+				continue
+			}
+		}
+		data, err := templates.FS.ReadFile(e.Name())
+		if err != nil {
+			return fmt.Errorf("read embedded %s: %w", e.Name(), err)
+		}
+		if err := os.WriteFile(dest, data, 0o644); err != nil {
+			return fmt.Errorf("write %s: %w", dest, err)
+		}
+		fmt.Printf("  %s\n", e.Name())
+	}
+	return nil
 }
 
 func detectProjectProfile(root string) protocol.ProjectConfig {

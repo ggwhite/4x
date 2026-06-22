@@ -18,6 +18,20 @@ Initialize a `.4x/` workspace in the current directory.
 - Adds `@import` lines to root-level files (CLAUDE.md, AGENTS.md, GEMINI.md, AGY.md, .cursorrules)
 - Errors if `.4x/` already exists
 
+### `4x init --dump-templates`
+
+Dump the built-in role prompt templates into `.4x/templates/` so a project can override them.
+
+```
+4x init --dump-templates          # write built-in templates to .4x/templates/
+4x init --dump-templates --force  # overwrite existing template files
+```
+
+- Requires `.4x/` to already exist (run `4x init` first)
+- Writes every embedded `*.md.tmpl` (including `locale.tmpl`) to `.4x/templates/`
+- Existing files are skipped with a warning unless `--force` is given
+- At prompt time, `.4x/templates/{file}` takes precedence over the embedded template (whole-file override); `locale.tmpl` and each role template fall back independently
+
 ---
 
 ## `4x new <title>`
@@ -312,6 +326,27 @@ Remove workspace artifacts (`logs/`, `rounds/`, reports, `state.json`, `events.j
 ```
 
 Only features in `done` or `abandoned` status with an existing workspace directory are eligible. Active (running) features are never cleaned, and `blocked` / `needs-attention` features are kept so their debug artifacts remain available. Cleaning is not a state-machine transition — it does not change feature lifecycle.
+
+---
+
+## `4x learn`
+
+Manage retro learnings — development lessons accumulated across features in `.4x/learnings.json`.
+
+The Acceptor of each feature writes a `retro-learnings.json`; the CLI harvests it into `.4x/learnings.json`. On the next feature, the Designer picks relevant entries into `selected-learnings.json`, and the CLI injects them (filtered by category) into each role's prompt. learnings are managed entirely by the CLI — runners never write `learnings.json` directly, and any learnings failure only warns without blocking state transitions.
+
+```
+4x learn list                     # list all learnings (id/category/status/used/content)
+4x learn list --category=testing  # filter by category
+4x learn prune                    # mark stale (>90 days unused) entries and remove them
+4x learn prune --dry-run          # preview stale entries without removing
+4x learn promote <id>             # mark a learning as promoted (kept but no longer injected)
+4x learn remove <id>              # remove a learning entry
+```
+
+- Categories: `design`, `code-quality`, `testing`, `review`, `tooling`, `process`
+- Status: `active` (injectable), `stale` (>90 days unused, auto-marked on read), `promoted` (upgraded to template/instructions)
+- A soft cap of 100 active entries triggers a warning suggesting `4x learn prune` — entries are never auto-deleted
 
 ---
 

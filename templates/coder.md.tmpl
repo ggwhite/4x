@@ -104,6 +104,15 @@ exactly what was already done, so nothing needs to be re-discovered or re-implem
 ## Verification
 - command: result
 
+{{- if .SelectedLearnings}}
+
+== Learnings from Past Features ==
+以下是從過去經驗中挑出與本次工作相關的教訓，請納入考量：
+{{- range .SelectedLearnings}}
+- [{{.Category}}] {{.Content}}
+{{- end}}
+{{- end}}
+
 == Constraints ==
 - Only modify files in allowed repos
 - Run verify commands after every change

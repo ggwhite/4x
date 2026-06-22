@@ -50,6 +50,11 @@ const (
 	BatchConflictFile  = "batch-conflict.json"
 	BatchReportFile    = "batch-report.json"
 	BatchPIDFile       = "batch-pid"
+
+	// retro learnings 相關檔名。
+	LearningsFile         = "learnings.json"          // .4x/learnings.json，跨 feature 累積的 learnings 庫
+	RetroLearningsFile    = "retro-learnings.json"    // .4x/{feature-id}/retro-learnings.json，Acceptor 產出
+	SelectedLearningsFile = "selected-learnings.json" // .4x/{feature-id}/selected-learnings.json，Designer 選出
 )
 
 // Workspace 管理 .4x/ 目錄的讀寫

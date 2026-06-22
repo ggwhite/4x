@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/ggwhite/4x/internal/feature"
+	"github.com/ggwhite/4x/internal/learning"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -38,7 +39,7 @@ func TestLoadProfiles_BuiltinUnit(t *testing.T) {
 }
 
 func TestLoadRoleTemplate_DesignReviewer(t *testing.T) {
-	tmpl, err := loadRoleTemplate(protocol.RoleDesignReviewer)
+	tmpl, err := loadRoleTemplate("", protocol.RoleDesignReviewer)
 	if err != nil {
 		t.Fatalf("load design-reviewer template: %v", err)
 	}
@@ -54,6 +55,199 @@ func TestLoadRoleTemplate_DesignReviewer(t *testing.T) {
 	out := b.String()
 	if !strings.Contains(out, "/tmp/project/.4x/F091-design-review-phase/design-review-report.md") {
 		t.Fatalf("template should contain mandatory feature-level design review path, got:\n%s", out)
+	}
+}
+
+func TestLoadRoleTemplate_ProjectOverride(t *testing.T) {
+	root := t.TempDir()
+	if err := protocol.Init(root, protocol.Config{}); err != nil {
+		t.Fatal(err)
+	}
+	ws := &protocol.Workspace{Root: root}
+	dotDir := ws.DotDir()
+
+	tmplDir := filepath.Join(dotDir, "templates")
+	if err := os.MkdirAll(tmplDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	customContent := `CUSTOM DESIGNER PROMPT for {{.Feature.ID}}`
+	writeTestFileHelper(t, filepath.Join(tmplDir, "designer.md.tmpl"), customContent)
+
+	tmpl, err := loadRoleTemplate(dotDir, protocol.RoleDesigner)
+	if err != nil {
+		t.Fatalf("load template: %v", err)
+	}
+
+	var b strings.Builder
+	err = tmpl.Execute(&b, promptData{
+		Feature: feature.Feature{ID: "F089-test", Name: "Test"},
+		DotDir:  dotDir,
+	})
+	if err != nil {
+		t.Fatalf("execute template: %v", err)
+	}
+	if !strings.Contains(b.String(), "CUSTOM DESIGNER PROMPT for F089-test") {
+		t.Errorf("expected project override content, got:\n%s", b.String())
+	}
+}
+
+func TestLoadRoleTemplate_FallbackBuiltin(t *testing.T) {
+	root := t.TempDir()
+	if err := protocol.Init(root, protocol.Config{}); err != nil {
+		t.Fatal(err)
+	}
+	ws := &protocol.Workspace{Root: root}
+	dotDir := ws.DotDir()
+
+	// 不建 .4x/templates/ 目錄，應 fallback 內建
+	tmpl, err := loadRoleTemplate(dotDir, protocol.RoleDesigner)
+	if err != nil {
+		t.Fatalf("load template: %v", err)
+	}
+
+	var b strings.Builder
+	err = tmpl.Execute(&b, promptData{
+		Feature: feature.Feature{ID: "F089-test", Name: "Test"},
+		DotDir:  dotDir,
+	})
+	if err != nil {
+		t.Fatalf("execute template: %v", err)
+	}
+	if !strings.Contains(b.String(), "You are the Designer for feature") {
+		t.Errorf("expected builtin template content, got:\n%s", b.String())
+	}
+}
+
+func TestPromptData_DesignerWithLearnings(t *testing.T) {
+	tmpl, err := loadRoleTemplate("", protocol.RoleDesigner)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	data := promptData{
+		Feature: feature.Feature{ID: "F089-test", Name: "Test Feature"},
+		DotDir:  "/tmp/.4x",
+		Learnings: []learning.Entry{
+			{ID: "L001", Category: learning.CategoryCodeQuality, Content: "always wrap errors"},
+			{ID: "L002", Category: learning.CategoryDesign, Content: "split large features"},
+		},
+	}
+
+	var b strings.Builder
+	if err := tmpl.Execute(&b, data); err != nil {
+		t.Fatal(err)
+	}
+	out := b.String()
+	if !strings.Contains(out, "Past Learnings") {
+		t.Error("expected Past Learnings section")
+	}
+	if !strings.Contains(out, "[L001]") || !strings.Contains(out, "always wrap errors") {
+		t.Error("expected L001 content in prompt")
+	}
+	if !strings.Contains(out, "selected-learnings.json") {
+		t.Error("expected selected-learnings.json instruction")
+	}
+}
+
+func TestPromptData_DesignerWithoutLearnings(t *testing.T) {
+	tmpl, err := loadRoleTemplate("", protocol.RoleDesigner)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	data := promptData{
+		Feature: feature.Feature{ID: "F089-test", Name: "Test"},
+		DotDir:  "/tmp/.4x",
+	}
+
+	var b strings.Builder
+	if err := tmpl.Execute(&b, data); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(b.String(), "Past Learnings") {
+		t.Error("should not contain Past Learnings when empty")
+	}
+}
+
+func TestLoadSelectedLearnings_FiltersByCategory(t *testing.T) {
+	root := t.TempDir()
+	if err := protocol.Init(root, protocol.Config{}); err != nil {
+		t.Fatal(err)
+	}
+	ws := &protocol.Workspace{Root: root}
+	featureID := "F042-test"
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatal(err)
+	}
+
+	store := learning.Store{Version: 1, Entries: []learning.Entry{
+		{ID: "L001", Category: learning.CategoryCodeQuality, Content: "wrap errors", Status: learning.StatusActive},
+		{ID: "L002", Category: learning.CategoryTesting, Content: "test edges", Status: learning.StatusActive},
+		{ID: "L003", Category: learning.CategoryProcess, Content: "escalate early", Status: learning.StatusActive},
+	}}
+	storePath := filepath.Join(ws.DotDir(), protocol.LearningsFile)
+	if err := store.Save(storePath); err != nil {
+		t.Fatal(err)
+	}
+
+	sel := `{"selected": ["L001", "L002", "L003"]}`
+	writeTestFileHelper(t, filepath.Join(ws.FeatureDir(featureID), protocol.SelectedLearningsFile), sel)
+
+	// Coder：code-quality（L001）有；process（L003）無；testing（L002）不在 coder 白名單
+	entries := loadSelectedLearnings(ws.DotDir(), featureID, protocol.RoleCoder)
+	if len(entries) != 1 || entries[0].ID != "L001" {
+		t.Fatalf("expected [L001] for coder, got %v", entries)
+	}
+
+	// Tester：testing（L002）有
+	entries = loadSelectedLearnings(ws.DotDir(), featureID, protocol.RoleTester)
+	if len(entries) != 1 || entries[0].ID != "L002" {
+		t.Fatalf("expected [L002] for tester, got %v", entries)
+	}
+
+	// Acceptor：process（L003）有
+	entries = loadSelectedLearnings(ws.DotDir(), featureID, protocol.RoleAcceptor)
+	if len(entries) != 1 || entries[0].ID != "L003" {
+		t.Fatalf("expected [L003] for acceptor, got %v", entries)
+	}
+}
+
+func TestLoadSelectedLearnings_NoFile(t *testing.T) {
+	root := t.TempDir()
+	if err := protocol.Init(root, protocol.Config{}); err != nil {
+		t.Fatal(err)
+	}
+	ws := &protocol.Workspace{Root: root}
+
+	entries := loadSelectedLearnings(ws.DotDir(), "F042-test", protocol.RoleCoder)
+	if entries != nil {
+		t.Errorf("expected nil when no selected-learnings.json, got %v", entries)
+	}
+}
+
+func TestLoadSelectedLearnings_SkipsNonActive(t *testing.T) {
+	root := t.TempDir()
+	if err := protocol.Init(root, protocol.Config{}); err != nil {
+		t.Fatal(err)
+	}
+	ws := &protocol.Workspace{Root: root}
+	featureID := "F042-test"
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatal(err)
+	}
+
+	store := learning.Store{Version: 1, Entries: []learning.Entry{
+		{ID: "L001", Category: learning.CategoryCodeQuality, Content: "a", Status: learning.StatusPromoted},
+		{ID: "L002", Category: learning.CategoryCodeQuality, Content: "b", Status: learning.StatusActive},
+	}}
+	if err := store.Save(filepath.Join(ws.DotDir(), protocol.LearningsFile)); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFileHelper(t, filepath.Join(ws.FeatureDir(featureID), protocol.SelectedLearningsFile), `{"selected":["L001","L002"]}`)
+
+	entries := loadSelectedLearnings(ws.DotDir(), featureID, protocol.RoleCoder)
+	if len(entries) != 1 || entries[0].ID != "L002" {
+		t.Fatalf("expected only active L002, got %v", entries)
 	}
 }
 

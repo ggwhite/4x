@@ -72,7 +72,40 @@ If every issue raised during the loop was resolved, write "None — all issues r
 {{- end}}
 {{- end}}
 
+== Retro Learnings ==
+除了 final-report.md，你還必須產出一份 retro learnings 檔案：
+
+  {{.DotDir}}/{{.Feature.ID}}/retro-learnings.json
+
+回顧整個 feature 的開發過程，萃取出對未來 feature 有價值的教訓。
+
+格式（嚴格遵守此 JSON 結構）：
+{
+  "learnings": [
+    {
+      "category": "design | code-quality | testing | review | tooling | process",
+      "content": "具體、可操作的一句話教訓"
+    }
+  ]
+}
+
+原則：
+- 只寫「未來能改善什麼」，不寫「這次做了什麼」
+- 每條要具體到可直接當作 instruction 使用
+- category 必須是以下之一：design, code-quality, testing, review, tooling, process
+- 不超過 5 條——只留最有價值的
+- 如果這次開發沒什麼特別教訓，寫空 array：{"learnings": []}
+
+{{- if .SelectedLearnings}}
+
+== Learnings from Past Features ==
+以下是從過去經驗中挑出與本次工作相關的教訓，請納入考量：
+{{- range .SelectedLearnings}}
+- [{{.Category}}] {{.Content}}
+{{- end}}
+{{- end}}
+
 == Constraints ==
 - You may NOT modify source code
-- You may ONLY write final-report.md
+- You may ONLY write final-report.md and retro-learnings.json
 - Be honest about OPEN issues — do not hide them

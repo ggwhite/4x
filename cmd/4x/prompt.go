@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"text/template"
 
 	"github.com/ggwhite/4x/internal/feature"
+	"github.com/ggwhite/4x/internal/learning"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/state"
 	"github.com/ggwhite/4x/templates"
@@ -82,7 +84,13 @@ func newPromptCmd() *cobra.Command {
 				ProfileInstructions: loadProfiles(ws, featureID, cfg),
 			}
 
-			tmpl, err := loadRoleTemplate(r)
+			if r == protocol.RoleDesigner {
+				data.Learnings = loadActiveLearnings(ws.DotDir())
+			} else {
+				data.SelectedLearnings = loadSelectedLearnings(ws.DotDir(), featureID, r)
+			}
+
+			tmpl, err := loadRoleTemplate(ws.DotDir(), r)
 			if err != nil {
 				return err
 			}
@@ -113,6 +121,10 @@ type promptData struct {
 	RepoMap          map[string]string
 	// ProfileInstructions 是 test-strategy.yaml profiles 載入後的測試方法論，供 Tester template 注入。
 	ProfileInstructions []profileContent
+	// Learnings 是所有 active learnings，供 Designer template 列出供選擇。
+	Learnings []learning.Entry
+	// SelectedLearnings 是已選中且符合本 role category 的 learnings，供後續 role template 注入。
+	SelectedLearnings []learning.Entry
 	// 以下欄位僅平行 deep review 模式使用：
 	// ReviewerIndex/ReviewerCount 標示本 sub-reviewer 是第幾個、共幾個；
 	// AssignedAngles 為本 sub-reviewer 負責的 angle 編號清單（為空代表 fallback 單 agent 跑全部）；
@@ -367,21 +379,118 @@ var roleTemplateFiles = map[protocol.Role]string{
 	protocol.RoleSynthesizer:    "synthesizer.md.tmpl",
 }
 
-func loadRoleTemplate(r protocol.Role) (*template.Template, error) {
+// loadRoleTemplate 載入指定 role 的 prompt template。
+// 查找順序為兩階段：先查專案目錄 .4x/templates/{filename}，找不到才 fallback
+// 到 go:embed 內建 template。locale.tmpl 與 role template 各自獨立 fallback，
+// 讓專案可只覆寫其中一個。dotDir 為空字串時等同只用內建 template。
+func loadRoleTemplate(dotDir string, r protocol.Role) (*template.Template, error) {
 	filename, ok := roleTemplateFiles[r]
 	if !ok {
 		return nil, fmt.Errorf("unknown role: %s", r)
 	}
 
-	locale, err := templates.FS.ReadFile("locale.tmpl")
-	if err != nil {
-		return nil, fmt.Errorf("read locale template: %w", err)
+	locale := loadTemplateFile(dotDir, "locale.tmpl")
+	role := loadTemplateFile(dotDir, filename)
+
+	if locale == "" {
+		data, err := templates.FS.ReadFile("locale.tmpl")
+		if err != nil {
+			return nil, fmt.Errorf("read locale template: %w", err)
+		}
+		locale = string(data)
+	}
+	if role == "" {
+		data, err := templates.FS.ReadFile(filename)
+		if err != nil {
+			return nil, fmt.Errorf("read role template %s: %w", filename, err)
+		}
+		role = string(data)
 	}
 
-	role, err := templates.FS.ReadFile(filename)
+	return template.New(string(r)).Funcs(tmplFuncs).Parse(locale + role)
+}
+
+// loadTemplateFile 嘗試從 .4x/templates/ 讀取 template 檔案，找不到時回傳空字串
+// （由呼叫端 fallback 到內建 template）。dotDir 為空時直接回傳空字串。
+func loadTemplateFile(dotDir, filename string) string {
+	if dotDir == "" {
+		return ""
+	}
+	path := filepath.Join(dotDir, "templates", filename)
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("read role template %s: %w", filename, err)
+		return ""
+	}
+	return string(data)
+}
+
+// loadActiveLearnings 讀取 learnings.json 中所有 active 條目，供 Designer prompt 列出供選擇。
+// 任何讀取失敗只 warn 並回傳 nil，不影響 prompt 產生。
+func loadActiveLearnings(dotDir string) []learning.Entry {
+	storePath := filepath.Join(dotDir, protocol.LearningsFile)
+	store, err := learning.LoadStore(storePath)
+	if err != nil {
+		slog.Warn("load learnings for prompt failed", "error", err)
+		return nil
+	}
+	return store.ActiveEntries()
+}
+
+// loadSelectedLearnings 讀取 Designer 產出的 selected-learnings.json，反查 learnings.json
+// 取完整內容，只保留 status==active 且 category 屬於該 role 白名單的條目，並硬限制最多
+// MaxSelectedPerRole 條。任何失敗只回傳 nil（warn），不影響 prompt 產生。
+func loadSelectedLearnings(dotDir, featureID string, role protocol.Role) []learning.Entry {
+	selPath := filepath.Join(dotDir, featureID, protocol.SelectedLearningsFile)
+	data, err := os.ReadFile(selPath)
+	if err != nil {
+		return nil
 	}
 
-	return template.New(string(r)).Funcs(tmplFuncs).Parse(string(locale) + string(role))
+	var payload selectedLearningsPayload
+	if err := json.Unmarshal(data, &payload); err != nil {
+		slog.Warn("parse selected-learnings.json failed", "error", err)
+		return nil
+	}
+	if len(payload.Selected) == 0 {
+		return nil
+	}
+
+	storePath := filepath.Join(dotDir, protocol.LearningsFile)
+	store, err := learning.LoadStore(storePath)
+	if err != nil {
+		slog.Warn("load learnings store for injection failed", "error", err)
+		return nil
+	}
+
+	entryMap := make(map[string]learning.Entry, len(store.Entries))
+	for _, e := range store.Entries {
+		entryMap[e.ID] = e
+	}
+
+	categories := learning.CategoriesForRole(string(role))
+	catSet := make(map[learning.Category]bool, len(categories))
+	for _, c := range categories {
+		catSet[c] = true
+	}
+
+	var result []learning.Entry
+	for _, id := range payload.Selected {
+		if len(result) >= learning.MaxSelectedPerRole {
+			break
+		}
+		e, ok := entryMap[id]
+		if !ok || e.Status != learning.StatusActive {
+			continue
+		}
+		if !catSet[e.Category] {
+			continue
+		}
+		result = append(result, e)
+	}
+	return result
+}
+
+// selectedLearningsPayload 是 selected-learnings.json 的結構。
+type selectedLearningsPayload struct {
+	Selected []string `json:"selected"`
 }

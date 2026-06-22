@@ -22,6 +22,7 @@ import (
 	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/guard"
 	"github.com/ggwhite/4x/internal/health"
+	"github.com/ggwhite/4x/internal/learning"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/runner"
 	"github.com/ggwhite/4x/internal/state"
@@ -635,8 +636,74 @@ func withSynthesizerReports(reports []includeContent) promptOption {
 	}
 }
 
+// harvestLearnings 讀取 Acceptor 產出的 retro-learnings.json，追加到 .4x/learnings.json。
+// learnings 屬 nice-to-have，任何錯誤只 warn，絕不影響 state transition。
+func harvestLearnings(ws *protocol.Workspace, featureID string) {
+	retroPath := filepath.Join(ws.FeatureDir(featureID), protocol.RetroLearningsFile)
+	learnings, err := learning.ParseRetroFile(retroPath)
+	if err != nil {
+		slog.Warn("skip learnings harvest", "feature", featureID, "error", err)
+		return
+	}
+	if len(learnings) == 0 {
+		return
+	}
+
+	storePath := filepath.Join(ws.DotDir(), protocol.LearningsFile)
+	store, err := learning.LoadStore(storePath)
+	if err != nil {
+		slog.Warn("load learnings store failed", "error", err)
+		return
+	}
+
+	store.MarkStale(learning.DefaultStaleDays)
+	added := store.Harvest(featureID, learnings)
+	if added == 0 {
+		return
+	}
+
+	if err := store.Save(storePath); err != nil {
+		slog.Warn("save learnings store failed", "error", err)
+		return
+	}
+
+	active := len(store.ActiveEntries())
+	slog.Info("harvested learnings", "feature", featureID, "added", added, "total_active", active)
+	if active > learning.MaxActiveEntries {
+		slog.Warn("learnings store exceeds capacity, consider running '4x learn prune'",
+			"active", active, "limit", learning.MaxActiveEntries)
+	}
+}
+
+// updateLearningsUsage 在第一個非 Designer phase 時呼叫一次：讀 selected-learnings.json，
+// 更新被選中 learning 的 last_used 與 used_count。任何失敗只 warn，不影響 state transition。
+func updateLearningsUsage(ws *protocol.Workspace, featureID string) {
+	selPath := filepath.Join(ws.FeatureDir(featureID), protocol.SelectedLearningsFile)
+	data, err := os.ReadFile(selPath)
+	if err != nil {
+		return
+	}
+
+	var payload selectedLearningsPayload
+	if err := json.Unmarshal(data, &payload); err != nil || len(payload.Selected) == 0 {
+		return
+	}
+
+	storePath := filepath.Join(ws.DotDir(), protocol.LearningsFile)
+	store, err := learning.LoadStore(storePath)
+	if err != nil {
+		slog.Warn("load learnings store for usage update failed", "error", err)
+		return
+	}
+
+	store.UpdateUsage(payload.Selected)
+	if err := store.Save(storePath); err != nil {
+		slog.Warn("save learnings store after usage update failed", "error", err)
+	}
+}
+
 func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature feat.Feature, cfg protocol.Config, role protocol.Role, round, iteration int, opts ...promptOption) (string, error) {
-	tmpl, err := loadRoleTemplate(role)
+	tmpl, err := loadRoleTemplate(runnerWs.DotDir(), role)
 	if err != nil {
 		return "", fmt.Errorf("no template for role %s: %w", role, err)
 	}
@@ -680,6 +747,15 @@ func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, featur
 		PlanningDoc:         loadPlanningDocs(ws.Root, feature, cfg.DesignDocDirs),
 		RepoMap:             repoMap,
 		ProfileInstructions: loadProfiles(ws, feature.ID, cfg),
+	}
+	// 兩者皆從主 workspace（ws.DotDir()）讀取，而非 runnerWs.DotDir()：
+	//   - learnings.json 由 CLI 在主 workspace 管理，本來就不會 sync 到 worktree。
+	//   - selected-learnings.json 由 Designer 寫在 worktree，但會由 syncFeatureFromWorktree
+	//     帶回主 workspace，因此後續 role 一律從主 workspace 讀取最新選擇。
+	if role == protocol.RoleDesigner {
+		data.Learnings = loadActiveLearnings(ws.DotDir())
+	} else {
+		data.SelectedLearnings = loadSelectedLearnings(ws.DotDir(), feature.ID, role)
 	}
 	for _, opt := range opts {
 		opt(&data)
@@ -778,6 +854,9 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 	// P1：保存上一輪 transition 後背景啟動的 prompt 預生成；消費端以 role+round 比對。
 	var pending *promptPrefetch
 
+	// learnings 的 used_count 只在進入第一個非 designing/design-reviewing phase 時更新一次。
+	var learningsUsageUpdated bool
+
 	for s.Active {
 		if ctx.Err() != nil {
 			s.Active = false
@@ -808,6 +887,12 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 
 		if phase == protocol.PhaseDone || phase == protocol.PhasePendingReview || phase == protocol.PhaseBlocked || phase == protocol.PhaseNeedsAttention || phase == protocol.PhaseAbandoned {
 			break
+		}
+
+		// 第一個非 designing/design-reviewing phase 時，標記被選用的 learnings 已使用。
+		if !learningsUsageUpdated && phase != protocol.PhaseDesigning && phase != protocol.PhaseDesignReviewing {
+			updateLearningsUsage(ws, featureID)
+			learningsUsageUpdated = true
 		}
 
 		// pass-through：role 不在 active profile 時，沿成功路徑的下一個合法邊跳過，
@@ -1166,6 +1251,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 
 	switch s.Phase {
 	case protocol.PhasePendingReview:
+		harvestLearnings(ws, featureID)
 		s.Active = false
 		s.StopReason = "pending-review"
 		logStateWriteErr(ws.WriteState(featureID, s), featureID, s.Phase)
@@ -2605,7 +2691,8 @@ func syncFeatureToWorktree(main, wt *protocol.Workspace, featureID string, round
 	gitops.CopyFileIfExists(srcYAML, filepath.Join(dstFeaturesDir, featureID+".yaml"))
 
 	// state + feature-level 檔案
-	for _, name := range []string{protocol.StateFile, protocol.TaskBrief, protocol.Criteria, protocol.TestStratFile, protocol.DesignReviewReport} {
+	// 帶入 SelectedLearningsFile，讓 resume 重建 worktree 時 Designer 先前的選擇不致遺失。
+	for _, name := range []string{protocol.StateFile, protocol.TaskBrief, protocol.Criteria, protocol.TestStratFile, protocol.DesignReviewReport, protocol.SelectedLearningsFile} {
 		gitops.CopyFileIfExists(filepath.Join(srcDir, name), filepath.Join(dstDir, name))
 	}
 
@@ -2635,9 +2722,13 @@ func syncFeatureFromWorktree(wt, main *protocol.Workspace, featureID string, rou
 	}
 
 	// feature-level 檔案
+	// SelectedLearningsFile（Designer 選出）與 RetroLearningsFile（Acceptor 產出）是 feature 層
+	// runner artifact，後續 role 的 prompt 注入、updateLearningsUsage 與 harvestLearnings 都從主
+	// workspace 讀取，必須在 worktree 模式下隨此 sync 帶回，否則 learnings 注入迴路會靜默失效。
 	for _, name := range []string{
 		protocol.TaskBrief, protocol.Criteria, protocol.TestStratFile,
 		protocol.DesignReviewReport, protocol.FinalReport,
+		protocol.SelectedLearningsFile, protocol.RetroLearningsFile,
 	} {
 		if _, err := gitops.CopyFileIfNewer(filepath.Join(srcDir, name), filepath.Join(dstDir, name)); err != nil {
 			errs = append(errs, fmt.Sprintf("%s: %v", name, err))
