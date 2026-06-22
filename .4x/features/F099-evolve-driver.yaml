@@ -1,0 +1,48 @@
+id: F099-evolve-driver
+name: 'F099: 4x evolve continuous self-improvement driver'
+description: |-
+    現狀：L1/L2/L3 零件齊了（F089 記憶、F095 miner、F096 enrich、F097 gate、F098 guard），但沒有把它們串起來、定期跑的入口。這是使用者最初問的「怎麼讓 4x 一直迭代自我進化」的總驅動器。
+
+    需求：新增 4x evolve 命令，自動化整條迴路：
+    mine(F095) → enrich(F096) → gate(F097) → enqueue → (可選)依 profile 自動 4x run（受 F098 guard 保護）→ Acceptor 產 learnings(F089) → 回饋下一輪。
+    - --auto-run flag：閘門通過的 feature 自動進 meta-loop（預設關，半自動）
+    - --dry-run：只報告會做什麼不動 backlog
+    - 產 .4x/evolve-report.md 摘要本輪發現/接受/拒絕/排入
+    - dashboard 顯示 evolve 結果（沿用既有 discovered-features 呈現）
+
+    約束：預設半自動（閘門通過只 enqueue，--auto-run 才自動跑）；自動跑強制套 F098 scope guard；每輪產 report；連續 N 輪沒接受任何 candidate 即停止報告防空轉。
+status: not-started
+priority: 2
+subtasks:
+    - id: evolve-command
+      name: 新增 4x evolve subcommand（cmd/4x/evolve.go）
+      status: ""
+    - id: pipeline-wire
+      name: 串 miner → enrich → gate → enqueue 全鏈路
+      status: ""
+    - id: auto-run-opt
+      name: --auto-run flag，閘門通過 feature 自動進 meta-loop（預設關）
+      status: ""
+    - id: dry-run
+      name: --dry-run 只報告不動 backlog
+      status: ""
+    - id: evolve-report
+      name: 產 .4x/evolve-report.md 摘要發現/接受/拒絕/排入
+      status: ""
+    - id: dashboard-surface
+      name: dashboard 顯示 evolve 結果，沿用既有 discovered-features 呈現
+      status: ""
+    - id: test-coverage
+      name: pipeline 整合測試
+      status: ""
+rules:
+    - 預設半自動：閘門通過只 enqueue，--auto-run 才自動跑
+    - 自動跑時強制套 F098 scope guard
+    - 每輪產出 report，符合每輪結束貼進度的自治條款
+    - 連續 N 輪沒接受任何 candidate → 停止並報告，防空轉
+depends:
+    - F089-template-retro-learnings
+    - F095-history-miner
+    - F096-discovered-feature-enrichment
+    - F097-evolution-value-gate
+    - F098-self-mod-scope-guard

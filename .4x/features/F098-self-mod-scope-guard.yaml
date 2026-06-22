@@ -1,0 +1,34 @@
+id: F098-self-mod-scope-guard
+name: 'F098: Self-modification scope guard'
+description: |-
+    現狀：meta-loop（4x 跑自己）已在用，但沒有針對「改自己核心」的額外保護。AI 改 internal/state/machine.go（狀態機）、internal/guard/、internal/protocol/ 一旦翻車會破壞整個迴路地基，比改一般 feature 危險得多。
+
+    需求：
+    - 在 settings 定義受保護路徑（state machine/guard/protocol/三層架構紅線）
+    - guardrail 偵測 feature scope 觸及受保護路徑 → 自動轉 pending-review/needs-attention，要求人工 approve
+    - 受保護路徑單輪 diff 行數上限，超過即擋
+    - 改受保護路徑時要求對應測試存在且通過才能進 accepting
+
+    約束：受保護路徑為白名單，預設涵蓋 state machine/guardrail/protocol；觸及一律需人工 approve 不可全自動 merge；此 guard 疊加在既有 scope guard 之上不取代。
+status: not-started
+priority: 0
+subtasks:
+    - id: protected-paths
+      name: settings 定義受保護路徑（state machine/guard/protocol/紅線）
+      status: ""
+    - id: guard-escalate
+      name: 偵測觸及受保護路徑 → 自動轉 pending-review/needs-attention 要求人工 approve
+      status: ""
+    - id: diff-budget
+      name: 受保護路徑單輪 diff 行數上限，超過即擋
+      status: ""
+    - id: test-gate
+      name: 改受保護路徑時要求對應測試存在且通過才能進 accepting
+      status: ""
+    - id: test-coverage
+      name: scope guard 的單元測試
+      status: ""
+rules:
+    - 受保護路徑清單為白名單，預設涵蓋 state machine/guardrail/protocol
+    - 觸及受保護路徑一律需人工 approve，不可全自動 merge
+    - 此 guard 疊加在既有 scope guard 之上，不取代

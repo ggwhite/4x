@@ -1,0 +1,41 @@
+id: F097-evolution-value-gate
+name: 'F097: Evolution value and convergence gate'
+description: |-
+    現狀：L2 一直生 candidate、L3 meta-loop 一直跑，backlog 會無限膨脹、可能淨做低價值 feature。完全沒有「這值不值得做」的閘門，也沒有 anti-hack 機制。
+
+    需求（套反 hack 三招）：
+    - value-score：對每個 candidate 評分（影響範圍 × 證據強度 × 出現頻率），低於門檻丟棄
+    - cruel-metric：殘酷指標，任一面向退步（測試數下降/scope 擴大/重複既有 done feature）整筆否決，不用加權平均
+    - why-not-hack：強制每個被接受 candidate 附「為何不是 hack/為何真有價值」論述，無論述不准進
+    - dedupe-vs-done：candidate 必須與 67 張 done feature 比對去重
+    - convergence-cap：單次 evolve 接受上限 + backlog 未做數上限，超過停止生成
+
+    約束：任一殘酷指標不過整筆否決；holdout 資料 miner 不可讀，僅用於驗證閘門。
+status: not-started
+priority: 1
+subtasks:
+    - id: value-score
+      name: candidate 評分（影響範圍 × 證據強度 × 出現頻率），低於門檻丟棄
+      status: ""
+    - id: cruel-metric
+      name: 殘酷指標，任一面向退步整筆否決，不用加權平均
+      status: ""
+    - id: why-not-hack
+      name: 強制接受的 candidate 附「為何不是 hack」論述，無論述否決
+      status: ""
+    - id: dedupe-vs-done
+      name: candidate 與所有 done feature 比對去重
+      status: ""
+    - id: convergence-cap
+      name: 單次接受上限 + backlog 未做數上限，超過停止生成
+      status: ""
+    - id: test-coverage
+      name: 閘門邏輯測試含 holdout（藏一組該拒 candidate 驗證擋得住）
+      status: ""
+rules:
+    - 任一殘酷指標不過 → 整筆否決
+    - 接受的 candidate 必須有「為何不是 hack」論述
+    - backlog 未做數超過上限時停止生成新 candidate
+    - holdout 資料 miner 不可讀，僅用於驗證閘門
+depends:
+    - F095-history-miner

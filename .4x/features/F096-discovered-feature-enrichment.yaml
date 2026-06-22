@@ -1,0 +1,36 @@
+id: F096-discovered-feature-enrichment
+name: 'F096: Discovered feature enrichment'
+description: |-
+    現狀：autoDiscoverFeatures 建出的 feature 只有 Name+Description+not-started（run.go），沒有 subtasks/scope/priority/rules。meta-loop 撿起來跑時，Designer 輸入貧瘠，品質先天不良。
+
+    需求：
+    - candidate 進 backlog 前先過 feature-shaping，補出 subtasks/repos/rules/priority 骨架
+    - shaping 可為 LLM role（Designer 輕量前置）或 template 化 CLI heuristic，brainstorm 時二選一
+    - 從 candidate 描述推斷可能影響路徑，預填 repos/scope
+    - 接進 auto-discover 與 F095 miner 的輸出
+
+    約束：enrich 後 feature 必須含 ≥2 個可獨立驗證 subtask；不得捏造需求，資訊不足標 needs-human-shaping；維持向後相容，舊薄 feature 仍可 run。
+status: not-started
+priority: 2
+subtasks:
+    - id: shaping-input
+      name: 定義 candidate → 完整 feature YAML 的轉換契約
+      status: ""
+    - id: shaping-impl
+      name: 實作補強，subtasks 至少 2 個、推斷 repos/scope、預設 priority
+      status: ""
+    - id: scope-inference
+      name: 從 candidate 描述推斷影響路徑，預填 repos/scope
+      status: ""
+    - id: wire-into-discover
+      name: 把 enrichment 接進 auto-discover 與 F095 miner 輸出
+      status: ""
+    - id: test-coverage
+      name: 補強結果的結構驗證測試
+      status: ""
+rules:
+    - enrich 後 feature 必須含 ≥2 個可獨立驗證的 subtask
+    - 不得捏造需求，資訊不足時標 needs-human-shaping 不硬填
+    - 維持向後相容：舊的薄 feature 仍可被 run
+depends:
+    - F095-history-miner

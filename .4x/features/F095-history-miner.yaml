@@ -1,0 +1,38 @@
+id: F095-history-miner
+name: 'F095: Self-improvement history miner'
+description: |-
+    現狀：autoDiscoverFeatures（cmd/4x/run.go）只在 deep review PASS 時、只 parse deep-review-report.md 的 [NEW-FEATURE] 標記，忽略訊號最濃的失敗資料（escalation.json、needs-attention/abandoned feature、反覆的 reviewer/deep-reviewer FAIL pattern）。
+
+    需求：
+    - 新增 CLI 層 miner，掃全 .4x/ 歷史（非單次 run），把失敗訊號彙整成 candidate feature pool + candidate learnings
+    - 新增 4x mine 命令，輸出 candidate 到 .4x/candidates.json
+    - 沿用既有 DedupeDiscovered 的 Jaccard 去重，candidate 與既有 feature 及既有 candidate 都比對
+    - candidate 必須標記來源（escalation/stuck/fail-pattern）供追溯
+
+    約束：純 CLI 不呼叫 LLM；只產 candidate pool 不自動建 feature（建檔交由 F097 閘門後決定）；掃描 best-effort，單一 feature 資料壞掉只記 log 不中斷。
+status: not-started
+priority: 1
+subtasks:
+    - id: scan-escalations
+      name: 掃 .4x/*/rounds/*/escalation.json，依 reason 分類成 candidate
+      status: ""
+    - id: scan-stuck-features
+      name: 掃 needs-attention/abandoned feature，抽出阻塞原因
+      status: ""
+    - id: scan-fail-patterns
+      name: 統計跨 feature 反覆出現（≥N 次）的 reviewer/deep-reviewer FAIL，升級成 candidate
+      status: ""
+    - id: miner-command
+      name: 新增 4x mine 命令，輸出 candidate pool 到 .4x/candidates.json
+      status: ""
+    - id: reuse-dedupe
+      name: candidate 與既有 feature + 既有 candidate 用 IsSimilarFeature 去重
+      status: ""
+    - id: test-coverage
+      name: 各掃描器與去重的單元測試
+      status: ""
+rules:
+    - miner 純 CLI 層，不呼叫 LLM
+    - 不自動建 feature，只產 candidate pool
+    - 掃描 best-effort：單一 feature 資料壞掉只記 log 不中斷
+    - candidate 必須標記來源（escalation/stuck/fail-pattern）供追溯
