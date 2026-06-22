@@ -11,7 +11,7 @@ description: |-
     (3) 允許臨時覆寫個別 phase 的 runner/model，只影響本次 run
 
     依賴 F090（profile 結構）和 F092（settings write API）。
-status: in-progress
+status: ready-for-review
 priority: 2
 profile: full
 subtasks:
