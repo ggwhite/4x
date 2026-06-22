@@ -122,20 +122,45 @@ Todo esto ocurre en la capa del CLI (parseo de texto plano + escritura de archiv
 
 ### Perfiles
 
-Un perfil selecciona qué roles se ejecutan para un feature, de modo que features simples pueden omitir el pipeline completo de 6 roles. Los roles no listados se omiten — el estado avanza por la arista legal sin invocar el runner, verificar artefactos ni ejecutar guardrails. `coder` es el único rol obligatorio; un perfil que no lo incluya es un error de configuración.
+Un perfil selecciona qué phases se ejecutan para un feature, de modo que features simples pueden omitir el pipeline completo. Las phases no listadas se omiten — el estado avanza por la arista legal sin invocar el runner, verificar artefactos ni ejecutar guardrails. `coding` es la única phase obligatoria; un perfil que no la incluya es un error de configuración. La phase opcional `design-reviewing` solo se ejecuta cuando está incluida, y su `design-review-report.md` debe PASS antes de que comience coding.
 
 ```json
 "profiles": {
-  "full":   { "roles": ["designer", "coder", "reviewer", "tester", "deep-reviewer", "acceptor"] },
-  "normal": { "roles": ["coder", "reviewer", "tester", "acceptor"] },
-  "quick":  { "roles": ["coder", "reviewer"], "coder_model": "opus" }
+  "full": {
+    "phases": [
+      { "phase": "designing" },
+      { "phase": "design-reviewing" },
+      { "phase": "coding" },
+      { "phase": "reviewing" },
+      { "phase": "testing" },
+      { "phase": "deep-reviewing" },
+      { "phase": "accepting" }
+    ]
+  },
+  "normal": {
+    "phases": [
+      { "phase": "coding" },
+      { "phase": "reviewing" },
+      { "phase": "testing" },
+      { "phase": "accepting" }
+    ]
+  },
+  "quick": {
+    "phases": [
+      { "phase": "coding", "model": "opus" },
+      { "phase": "reviewing" }
+    ]
+  }
 }
 ```
 
+Cada entrada de phase soporta sobrescrituras opcionales de `runner` y `model`:
+
 | Campo | Descripción |
 |---|---|
-| `roles` | Nombres de roles habilitados (el orden es irrelevante; el orden de ejecución sigue el pipeline canónico) |
-| `coder_model` | Sobrescritura opcional del tier del modelo del coder en este perfil |
+| `phase` | Nombre de la phase (debe ser una phase seleccionable: designing, design-reviewing, coding, reviewing, testing, deep-reviewing, accepting) |
+| `runner` | Sobrescritura opcional del runner para esta phase |
+| `model` | Sobrescritura opcional del tier de modelo para esta phase |
 
 **Precedencia de selección:**
 

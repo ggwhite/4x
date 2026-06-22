@@ -279,7 +279,10 @@ func handlePatchSettings(ws *protocol.CachedWorkspace, w http.ResponseWriter, r 
 			case "project":
 				// nested object merge
 				if projMap, ok := val.(map[string]interface{}); ok {
-					projJSON, _ := json.Marshal(projMap)
+					projJSON, err := json.Marshal(projMap)
+				if err != nil {
+					return clientErr("marshal project config: " + err.Error())
+				}
 					var projCfg protocol.ProjectConfig
 					if err := json.Unmarshal(projJSON, &projCfg); err != nil {
 						return clientErr("invalid project config: " + err.Error())
@@ -295,7 +298,10 @@ func handlePatchSettings(ws *protocol.CachedWorkspace, w http.ResponseWriter, r 
 						cfg.Runners = make(map[string]protocol.RunnerConfig)
 					}
 					for runnerName, runnerVal := range runnersMap {
-						runnerJSON, _ := json.Marshal(runnerVal)
+						runnerJSON, err := json.Marshal(runnerVal)
+						if err != nil {
+							return clientErr("marshal runner config for " + runnerName + ": " + err.Error())
+						}
 						var runnerCfg protocol.RunnerConfig
 						if err := json.Unmarshal(runnerJSON, &runnerCfg); err != nil {
 							return clientErr("invalid runner config for " + runnerName + ": " + err.Error())
@@ -312,7 +318,10 @@ func handlePatchSettings(ws *protocol.CachedWorkspace, w http.ResponseWriter, r 
 						cfg.Roles = make(map[string]protocol.RoleConfig)
 					}
 					for roleName, roleVal := range rolesMap {
-						roleJSON, _ := json.Marshal(roleVal)
+						roleJSON, err := json.Marshal(roleVal)
+						if err != nil {
+							return clientErr("marshal role config for " + roleName + ": " + err.Error())
+						}
 						var roleCfg protocol.RoleConfig
 						if err := json.Unmarshal(roleJSON, &roleCfg); err != nil {
 							return clientErr("invalid role config for " + roleName + ": " + err.Error())
@@ -329,7 +338,10 @@ func handlePatchSettings(ws *protocol.CachedWorkspace, w http.ResponseWriter, r 
 						cfg.Profiles = make(map[string]protocol.ProfileConfig)
 					}
 					for profileName, profileVal := range profilesMap {
-						profileJSON, _ := json.Marshal(profileVal)
+						profileJSON, err := json.Marshal(profileVal)
+						if err != nil {
+							return clientErr("marshal profile config for " + profileName + ": " + err.Error())
+						}
 						var profileCfg protocol.ProfileConfig
 						if err := json.Unmarshal(profileJSON, &profileCfg); err != nil {
 							return clientErr("invalid profile config for " + profileName + ": " + err.Error())

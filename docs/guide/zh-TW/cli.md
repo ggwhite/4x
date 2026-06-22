@@ -71,7 +71,7 @@
 
 `--profile` 選擇要啟用哪些角色。內建 profile：`full`（全部 6 個角色）、`normal`（coder/reviewer/tester/acceptor）、`quick`（coder/reviewer）。未在 profile 中的角色會直接跳過（狀態沿合法邊界推進但不呼叫 runner）。省略時，若 `settings.json` 有 `profiles` 區段，會依 feature 的 priority 自動選取（否則為 `full`）。詳見[設定 → Profiles](configuration.md#profiles)。
 
-迴圈驅動：init → designing → coding → reviewing → testing → deep-reviewing → accepting → pending-review。Review 失敗時，code 會再跑一輪。Test 失敗時，迴圈重新進入 coding。
+迴圈驅動：init → designing → design-reviewing → coding → reviewing → testing → deep-reviewing → accepting → pending-review。Review 失敗時，code 會再跑一輪。Test 失敗時，迴圈重新進入 coding。
 
 每個非 Designer 角色完成後，會自動執行 guardrail 檢查（scope、baseline、必要檔案）。違規時 feature 轉為 `needs-attention` 並停止迴圈。Designer 豁免——它不修改原始碼。
 

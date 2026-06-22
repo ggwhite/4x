@@ -122,20 +122,45 @@
 
 ### プロファイル
 
-プロファイルは Feature に対してどのロールを実行するかを選択します。シンプルな Feature は全6ロールパイプラインをスキップできます。リストにないロールはパススルーされ、ランナーの起動、アーティファクトのチェック、ガードの実行なしに、正規のエッジに沿って状態が進みます。`coder` は唯一の必須ロールです。これを含まないプロファイルは設定エラーです。
+プロファイルは Feature に対してどの phase を実行するかを選択します。シンプルな Feature は完全なパイプラインをスキップできます。リストにない phase はパススルーされ、ランナーの起動、アーティファクトのチェック、ガードの実行なしに、正規のエッジに沿って状態が進みます。`coding` は唯一の必須 phase です。これを含まないプロファイルは設定エラーです。オプションの `design-reviewing` phase はリストに含まれた場合のみ実行され、その `design-review-report.md` が PASS しないと coding が開始されません。
 
 ```json
 "profiles": {
-  "full":   { "roles": ["designer", "coder", "reviewer", "tester", "deep-reviewer", "acceptor"] },
-  "normal": { "roles": ["coder", "reviewer", "tester", "acceptor"] },
-  "quick":  { "roles": ["coder", "reviewer"], "coder_model": "opus" }
+  "full": {
+    "phases": [
+      { "phase": "designing" },
+      { "phase": "design-reviewing" },
+      { "phase": "coding" },
+      { "phase": "reviewing" },
+      { "phase": "testing" },
+      { "phase": "deep-reviewing" },
+      { "phase": "accepting" }
+    ]
+  },
+  "normal": {
+    "phases": [
+      { "phase": "coding" },
+      { "phase": "reviewing" },
+      { "phase": "testing" },
+      { "phase": "accepting" }
+    ]
+  },
+  "quick": {
+    "phases": [
+      { "phase": "coding", "model": "opus" },
+      { "phase": "reviewing" }
+    ]
+  }
 }
 ```
 
+各 phase エントリはオプションの `runner` と `model` の上書きをサポートします：
+
 | フィールド | 説明 |
 |---|---|
-| `roles` | 有効なロール名（順序は無関係；実行順序は正規パイプラインに従う） |
-| `coder_model` | このプロファイルでの coder モデルのオプションティア上書き |
+| `phase` | Phase 名（選択可能な phase である必要があります：designing、design-reviewing、coding、reviewing、testing、deep-reviewing、accepting） |
+| `runner` | この phase のオプション runner 上書き |
+| `model` | この phase のオプションモデルティア上書き |
 
 **選択優先度：**
 

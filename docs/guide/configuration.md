@@ -134,16 +134,41 @@ A profile selects which phases run for a feature, so simple features can skip th
 
 ```json
 "profiles": {
-  "full":   { "roles": ["designer", "design-reviewer", "coder", "reviewer", "tester", "deep-reviewer", "acceptor"] },
-  "normal": { "roles": ["coder", "reviewer", "tester", "acceptor"] },
-  "quick":  { "roles": ["coder", "reviewer"], "coder_model": "opus" }
+  "full": {
+    "phases": [
+      { "phase": "designing" },
+      { "phase": "design-reviewing" },
+      { "phase": "coding" },
+      { "phase": "reviewing" },
+      { "phase": "testing" },
+      { "phase": "deep-reviewing" },
+      { "phase": "accepting" }
+    ]
+  },
+  "normal": {
+    "phases": [
+      { "phase": "coding" },
+      { "phase": "reviewing" },
+      { "phase": "testing" },
+      { "phase": "accepting" }
+    ]
+  },
+  "quick": {
+    "phases": [
+      { "phase": "coding", "model": "opus" },
+      { "phase": "reviewing" }
+    ]
+  }
 }
 ```
 
+Each phase entry supports optional `runner` and `model` overrides:
+
 | Field | Description |
 |---|---|
-| `roles` | Enabled role names (order is irrelevant; execution order follows the canonical pipeline) |
-| `coder_model` | Optional tier override for the coder model in this profile |
+| `phase` | Phase name (must be a selectable phase: designing, design-reviewing, coding, reviewing, testing, deep-reviewing, accepting) |
+| `runner` | Optional runner override for this phase |
+| `model` | Optional model tier override for this phase |
 
 **Selection precedence:**
 

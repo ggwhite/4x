@@ -71,7 +71,7 @@
 
 `--profile`은 어떤 역할이 실행될지 선택합니다. 기본 제공 프로파일: `full`(전체 6개 역할), `normal`(coder/reviewer/tester/acceptor), `quick`(coder/reviewer). 프로파일에 포함되지 않은 역할은 통과됩니다(러너를 호출하지 않고 합법적 경로를 따라 상태가 진행됨). 생략 시, `settings.json`에 `profiles` 섹션이 존재하면 기능의 우선순위에 따라 자동 선택되고, 그렇지 않으면 `full`입니다. 자세한 내용은 [설정 → 프로파일](configuration.md#프로파일)을 참조하세요.
 
-루프는 다음을 수행합니다: init → designing → coding → reviewing → testing → deep-reviewing → accepting → pending-review. 리뷰 실패 시 코드가 다시 수행됩니다. 테스트 실패 시 루프가 코딩으로 재진입합니다.
+루프는 다음을 수행합니다: init → designing → design-reviewing → coding → reviewing → testing → deep-reviewing → accepting → pending-review. 리뷰 실패 시 코드가 다시 수행됩니다. 테스트 실패 시 루프가 코딩으로 재진입합니다.
 
 비 designer 러너가 완료될 때마다 가드레일 검사가 자동으로 시행됩니다(범위, 베이스라인, 필수 파일). 위반 시 기능이 `needs-attention`으로 전환되고 루프가 중단됩니다. Designer는 소스 코드를 수정하지 않으므로 면제됩니다.
 

@@ -158,6 +158,7 @@ func makeEvolveRunFeature(ws *protocol.Workspace, cfg protocol.Config, runnerNam
 			}
 			runnerWs = &protocol.Workspace{Root: wtPath}
 			ws.SkipAutoCommit = true
+			defer func() { ws.SkipAutoCommit = false }()
 			commitStrategy = "per-round"
 		}
 
@@ -224,15 +225,16 @@ func runEvolve(ctx context.Context, ws *protocol.Workspace, cfg protocol.Config,
 	round := estate.Round + 1
 
 	// 1. mine：掃描歷史失敗訊號，去重後合併入 candidate pool 並存檔。
-	all, learnings := scanEvolveCandidates(ws, opts.minOccurrences)
-	existingPool, err := protocol.LoadCandidates(filepath.Join(dot, protocol.CandidatesFile))
-	if err != nil {
-		return err
-	}
+	// feature 清單一次讀取，掃描器與去重、gate 皆共用同一份。
 	existing, err := ws.ListFeatures()
 	if err != nil {
 		return err
 	}
+	existingPool, err := protocol.LoadCandidates(filepath.Join(dot, protocol.CandidatesFile))
+	if err != nil {
+		return err
+	}
+	all, learnings := scanEvolveCandidates(ws, existing, opts.minOccurrences)
 	keptNew := protocol.DedupeCandidates(all, existing, existingPool.Candidates)
 	merged := make([]protocol.Candidate, 0, len(existingPool.Candidates)+len(keptNew))
 	merged = append(merged, existingPool.Candidates...)
@@ -318,15 +320,16 @@ func runEvolve(ctx context.Context, ws *protocol.Workspace, cfg protocol.Config,
 // 不寫任何 .4x/ 檔、不 spawn runner、不建 feature。
 func runEvolveDryRun(ws *protocol.Workspace, resolved evolution.ResolvedEvolution, opts evolveOpts) error {
 	dot := ws.DotDir()
-	all, _ := scanEvolveCandidates(ws, opts.minOccurrences)
-	existingPool, err := protocol.LoadCandidates(filepath.Join(dot, protocol.CandidatesFile))
-	if err != nil {
-		return err
-	}
+	// feature 清單一次讀取，掃描器與去重、PreVeto 皆共用同一份。
 	existing, err := ws.ListFeatures()
 	if err != nil {
 		return err
 	}
+	existingPool, err := protocol.LoadCandidates(filepath.Join(dot, protocol.CandidatesFile))
+	if err != nil {
+		return err
+	}
+	all, _ := scanEvolveCandidates(ws, existing, opts.minOccurrences)
 	keptNew := protocol.DedupeCandidates(all, existing, existingPool.Candidates)
 	merged := make([]protocol.Candidate, 0, len(existingPool.Candidates)+len(keptNew))
 	merged = append(merged, existingPool.Candidates...)
@@ -414,10 +417,11 @@ func autoRunEnqueued(ctx context.Context, ws *protocol.Workspace, enqueued []evo
 
 // scanEvolveCandidates 跑三個 best-effort 掃描器（escalation / stuck / fail-pattern），
 // 回傳彙整後的 candidate 與 fail-pattern 衍生的 learnings。
-func scanEvolveCandidates(ws *protocol.Workspace, minOccurrences int) ([]protocol.Candidate, []protocol.CandidateLearning) {
-	esc := protocol.ScanEscalations(ws)
-	stuck := protocol.ScanStuckFeatures(ws)
-	failCands, learnings := protocol.ScanFailPatterns(ws, minOccurrences)
+// features 由呼叫端傳入，避免重複呼叫 ListFeatures。
+func scanEvolveCandidates(ws *protocol.Workspace, features []feat.Feature, minOccurrences int) ([]protocol.Candidate, []protocol.CandidateLearning) {
+	esc := protocol.ScanEscalations(ws, features)
+	stuck := protocol.ScanStuckFeatures(ws, features)
+	failCands, learnings := protocol.ScanFailPatterns(ws, features, minOccurrences)
 	all := make([]protocol.Candidate, 0, len(esc)+len(stuck)+len(failCands))
 	all = append(all, esc...)
 	all = append(all, stuck...)

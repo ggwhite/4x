@@ -71,7 +71,7 @@ Ejecutar el ciclo Design-Code-Review-Test para un feature.
 
 `--profile` selecciona qué roles se ejecutan. Perfiles integrados: `full` (los 6 roles), `normal` (coder/reviewer/tester/acceptor), `quick` (coder/reviewer). Los roles que no están en el perfil se omiten (el estado avanza por la arista legal sin invocar el runner). Cuando se omite, el perfil se selecciona automáticamente según la prioridad del feature si existe una sección `profiles` en `settings.json` (de lo contrario, `full`). Ver [Configuración -> Perfiles](configuration.md#profiles) para más detalles.
 
-El ciclo ejecuta: init -> designing -> coding -> reviewing -> testing -> deep-reviewing -> accepting -> pending-review. En fallo de review, code recibe otra pasada. En fallo de test, el ciclo re-entra en coding.
+El ciclo ejecuta: init -> designing -> design-reviewing -> coding -> reviewing -> testing -> deep-reviewing -> accepting -> pending-review. En fallo de review, code recibe otra pasada. En fallo de test, el ciclo re-entra en coding.
 
 Después de que cada runner (excepto el designer) finaliza, se aplican automáticamente las verificaciones de guardrails (alcance, baseline, archivos requeridos). Una violación transiciona el feature a `needs-attention` y detiene el ciclo. El designer está exento ya que no modifica código fuente.
 

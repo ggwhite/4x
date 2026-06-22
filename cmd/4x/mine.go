@@ -42,22 +42,22 @@ func newMineCmd() *cobra.Command {
 				return fmt.Errorf("load existing candidates: %w", err)
 			}
 
+			// 取 feature 清單一次，供掃描器與去重共用；失敗時以空 slice 繼續（少一層比對，不中斷產出）。
+			existingFeatures, err := ws.ListFeatures()
+			if err != nil {
+				slog.Warn("mine: list features failed, scanners and dedupe will skip feature-level checks", "error", err)
+				existingFeatures = []feature.Feature{}
+			}
+
 			// 三個掃描器各自 best-effort，內部錯誤只 log 不中斷。
-			escalations := protocol.ScanEscalations(ws)
-			stuck := protocol.ScanStuckFeatures(ws)
-			failCands, learnings := protocol.ScanFailPatterns(ws, minOccurrences)
+			escalations := protocol.ScanEscalations(ws, existingFeatures)
+			stuck := protocol.ScanStuckFeatures(ws, existingFeatures)
+			failCands, learnings := protocol.ScanFailPatterns(ws, existingFeatures, minOccurrences)
 
 			all := make([]protocol.Candidate, 0, len(escalations)+len(stuck)+len(failCands))
 			all = append(all, escalations...)
 			all = append(all, stuck...)
 			all = append(all, failCands...)
-
-			// 取既有 feature 清單供去重；失敗時以空 slice 繼續（少一層比對，不該中斷產出）。
-			existingFeatures, err := ws.ListFeatures()
-			if err != nil {
-				slog.Warn("mine: list features failed, dedupe against existing features skipped", "error", err)
-				existingFeatures = []feature.Feature{}
-			}
 
 			kept := protocol.DedupeCandidates(all, existingFeatures, existingPool.Candidates)
 

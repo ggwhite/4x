@@ -122,20 +122,45 @@
 
 ### Profiles
 
-Profile 选择某个 feature 运行哪些角色，使简单的 feature 可以跳过完整的 6 角色流水线。不在列表中的角色被直接跳过——状态沿合法边推进但不调用 runner、不检查产物、不运行护栏。`coder` 是唯一必需的角色；缺少它的 profile 是配置错误。
+Profile 选择某个 feature 运行哪些 phase，使简单的 feature 可以跳过完整流水线。不在列表中的 phase 被直接跳过——状态沿合法边推进但不调用 runner、不检查产物、不运行护栏。`coding` 是唯一必需的 phase；缺少它的 profile 是配置错误。可选的 `design-reviewing` phase 仅在列入时运行，且其 `design-review-report.md` 必须 PASS 后才能进入 coding。
 
 ```json
 "profiles": {
-  "full":   { "roles": ["designer", "coder", "reviewer", "tester", "deep-reviewer", "acceptor"] },
-  "normal": { "roles": ["coder", "reviewer", "tester", "acceptor"] },
-  "quick":  { "roles": ["coder", "reviewer"], "coder_model": "opus" }
+  "full": {
+    "phases": [
+      { "phase": "designing" },
+      { "phase": "design-reviewing" },
+      { "phase": "coding" },
+      { "phase": "reviewing" },
+      { "phase": "testing" },
+      { "phase": "deep-reviewing" },
+      { "phase": "accepting" }
+    ]
+  },
+  "normal": {
+    "phases": [
+      { "phase": "coding" },
+      { "phase": "reviewing" },
+      { "phase": "testing" },
+      { "phase": "accepting" }
+    ]
+  },
+  "quick": {
+    "phases": [
+      { "phase": "coding", "model": "opus" },
+      { "phase": "reviewing" }
+    ]
+  }
 }
 ```
 
+每个 phase 条目支持可选的 `runner` 和 `model` 覆盖：
+
 | 字段 | 说明 |
 |---|---|
-| `roles` | 启用的角色名（顺序无关；执行顺序遵循规范的流水线顺序） |
-| `coder_model` | 此 profile 中 coder 模型的可选 tier 覆盖 |
+| `phase` | Phase 名称（必须是可选用的 phase：designing、design-reviewing、coding、reviewing、testing、deep-reviewing、accepting） |
+| `runner` | 此 phase 的可选 runner 覆盖 |
+| `model` | 此 phase 的可选模型 tier 覆盖 |
 
 **选择优先级：**
 

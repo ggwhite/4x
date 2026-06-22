@@ -71,7 +71,7 @@ Feature に対して Design-Code-Review-Test ループを実行します。
 
 `--profile` は実行するロールを選択します。組み込みプロファイル：`full`（全6ロール）、`normal`（coder/reviewer/tester/acceptor）、`quick`（coder/reviewer）。プロファイルに含まれないロールはパススルーされます（ランナーを起動せずに正規の状態遷移エッジに沿って進みます）。省略時は、`settings.json` に `profiles` セクションがあれば Feature の優先度に基づいて自動選択されます（ない場合は `full`）。詳細は [設定 → プロファイル](configuration.md#profiles) を参照してください。
 
-ループの流れ：init → designing → coding → reviewing → testing → deep-reviewing → accepting → pending-review。レビュー失敗時はコードが再実行されます。テスト失敗時はコーディングに戻ります。
+ループの流れ：init → designing → design-reviewing → coding → reviewing → testing → deep-reviewing → accepting → pending-review。レビュー失敗時はコードが再実行されます。テスト失敗時はコーディングに戻ります。
 
 Designer 以外の各ランナー完了後、ガードレールチェック（スコープ、ベースライン、必須ファイル）が自動的に実施されます。違反が検出されると Feature は `needs-attention` に遷移し、ループが停止します。Designer は免除されます（ソースコードを変更しないため）。
 

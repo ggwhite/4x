@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/ggwhite/4x/internal/protocol"
 )
 
 // EvolveState 跨多次 `4x evolve` 呼叫持久化 anti-spin 防空轉計數，存於 .4x/evolve-state.json。
@@ -40,26 +42,7 @@ func (s EvolveState) Save(path string) error {
 	if err != nil {
 		return fmt.Errorf("marshal evolve-state: %w", err)
 	}
-	dir := filepath.Dir(path)
-	tmp, err := os.CreateTemp(dir, ".evolve-state-*.json")
-	if err != nil {
-		return err
-	}
-	tmpPath := tmp.Name()
-	if _, err := tmp.Write(append(data, '\n')); err != nil {
-		tmp.Close()
-		os.Remove(tmpPath)
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		os.Remove(tmpPath)
-		return err
-	}
-	if err := os.Rename(tmpPath, path); err != nil {
-		os.Remove(tmpPath)
-		return err
-	}
-	return nil
+	return protocol.AtomicWriteFile(filepath.Dir(path), filepath.Base(path), ".evolve-state-*.json", append(data, '\n'), 0o644)
 }
 
 // ShouldHalt 回報是否已達 anti-spin 早退門檻。

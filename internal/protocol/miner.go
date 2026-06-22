@@ -88,24 +88,15 @@ func (p CandidatePool) Save(path string) error {
 	if err != nil {
 		return fmt.Errorf("marshal candidates: %w", err)
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, append(data, '\n'), 0o644); err != nil {
-		return fmt.Errorf("write candidates tmp: %w", err)
-	}
-	return os.Rename(tmp, path)
+	return AtomicWriteFile(filepath.Dir(path), filepath.Base(path), ".candidates-*.json", append(data, '\n'), 0o644)
 }
 
 // ScanEscalations 走訪所有 feature 的所有 round dir，讀取 escalation.json，
 // 對 Needed==true 且 reason 在白名單內的條目產出一筆 candidate。
-// best-effort：ListFeatures 失敗、讀檔失敗、JSON 壞掉、reason 不在白名單都只 slog.Warn 後略過，
+// best-effort：讀檔失敗、JSON 壞掉、reason 不在白名單都只 slog.Warn 後略過，
 // 不 panic、不中斷其他 feature 或其他掃描器。
-func ScanEscalations(ws *Workspace) []Candidate {
-	features, err := ws.ListFeatures()
-	if err != nil {
-		slog.Warn("miner: list features failed in escalation scan", "error", err)
-		return nil
-	}
-
+// features 由呼叫端傳入，避免重複呼叫 ListFeatures。
+func ScanEscalations(ws *Workspace, features []feature.Feature) []Candidate {
 	var cands []Candidate
 	for _, f := range features {
 		for _, round := range listRoundNumbers(ws, f.ID) {
@@ -142,14 +133,9 @@ func ScanEscalations(ws *Workspace) []Candidate {
 
 // ScanStuckFeatures 掃描卡在 needs-attention/abandoned/blocked 的 feature，抽出阻塞原因產出 candidate。
 // 阻塞原因優先取 state.json 的 StopReason/StopMessage，皆空時回退讀最新 round 的 escalation.json Detail。
-// best-effort：ListFeatures 失敗、state 讀不到或壞掉都只 slog.Warn 後略過。
-func ScanStuckFeatures(ws *Workspace) []Candidate {
-	features, err := ws.ListFeatures()
-	if err != nil {
-		slog.Warn("miner: list features failed in stuck scan", "error", err)
-		return nil
-	}
-
+// best-effort：state 讀不到或壞掉都只 slog.Warn 後略過。
+// features 由呼叫端傳入，避免重複呼叫 ListFeatures。
+func ScanStuckFeatures(ws *Workspace, features []feature.Feature) []Candidate {
 	var cands []Candidate
 	for _, f := range features {
 		state, err := ws.ReadState(f.ID)
@@ -177,14 +163,9 @@ func ScanStuckFeatures(ws *Workspace) []Candidate {
 // 對 verdict 非 PASS 的報告蒐集其 issue 標題，用 IsSimilarFeature（Jaccard）跨 feature 聚類，
 // 統計每群涵蓋的「不同 feature 數」（同一 feature 多輪只算一次）。涵蓋數 >= minOccurrences 的群
 // 升級為一筆 candidate，並同時產出一筆 CategoryReview 的 CandidateLearning。
-// best-effort：ListFeatures 失敗回 (nil, nil)，讀檔失敗只 slog.Warn 後略過。
-func ScanFailPatterns(ws *Workspace, minOccurrences int) ([]Candidate, []CandidateLearning) {
-	features, err := ws.ListFeatures()
-	if err != nil {
-		slog.Warn("miner: list features failed in fail-pattern scan", "error", err)
-		return nil, nil
-	}
-
+// best-effort：讀檔失敗只 slog.Warn 後略過。
+// features 由呼叫端傳入，避免重複呼叫 ListFeatures。
+func ScanFailPatterns(ws *Workspace, features []feature.Feature, minOccurrences int) ([]Candidate, []CandidateLearning) {
 	type issueItem struct {
 		title     string
 		featureID string

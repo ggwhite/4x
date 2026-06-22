@@ -559,10 +559,10 @@ func (w *Workspace) WriteState(featureID string, s State) error {
 	if err != nil {
 		return err
 	}
-	return atomicWriteFile(w.FeatureDir(featureID), StateFile, ".state-*.json", data, 0o644)
+	return AtomicWriteFile(w.FeatureDir(featureID), StateFile, ".state-*.json", data, 0o644)
 }
 
-// atomicWriteFile 以「同目錄 temp file + os.Rename」原子寫入 finalName。
+// AtomicWriteFile 以「同目錄 temp file + os.Rename」原子寫入 finalName。
 //
 // 直接 os.WriteFile 會先 truncate 再寫，這段空窗期內 concurrent 的讀者可能讀到
 // 截斷或半寫的內容而解析失敗。改用同目錄 temp file（tmpPattern 為 os.CreateTemp
@@ -570,7 +570,7 @@ func (w *Workspace) WriteState(featureID string, s State) error {
 //
 // temp file 必須與目標同目錄以確保位於同一 filesystem，os.Rename 才保證 atomic。
 // payload 的結尾換行等差異由呼叫端在 data 內自行決定。
-func atomicWriteFile(dir, finalName, tmpPattern string, data []byte, perm os.FileMode) error {
+func AtomicWriteFile(dir, finalName, tmpPattern string, data []byte, perm os.FileMode) error {
 	tmp, err := os.CreateTemp(dir, tmpPattern)
 	if err != nil {
 		return err
@@ -627,7 +627,7 @@ func (w *Workspace) AppendEvent(featureID string, evt Event) error {
 // 語意上 stop 為「請求」：若目標 feature 已無存活 loop，signal 不會被消費，
 // 留待既有 ReconcileActive 在下次 ReadState 校正 Active。
 func (w *Workspace) RequestStop(featureID string) error {
-	return atomicWriteFile(w.FeatureDir(featureID), StopFile, ".stop-*", []byte("mcp-stop\n"), 0o644)
+	return AtomicWriteFile(w.FeatureDir(featureID), StopFile, ".stop-*", []byte("mcp-stop\n"), 0o644)
 }
 
 // StopRequested 回傳 feature dir 下是否存在 stop signal 檔。
@@ -654,7 +654,7 @@ func (w *Workspace) WriteBatchConflict(c BatchConflict) error {
 	}
 	// 原子寫入：dashboard 可能在寫入過程中 ReadBatchConflict，非原子的 os.WriteFile
 	// 會讓讀者撞上截斷／半寫的 JSON 而 Unmarshal 失敗。
-	return atomicWriteFile(w.DotDir(), BatchConflictFile, ".batch-conflict-*.json", append(data, '\n'), 0o644)
+	return AtomicWriteFile(w.DotDir(), BatchConflictFile, ".batch-conflict-*.json", append(data, '\n'), 0o644)
 }
 
 // ReadBatchConflict 讀取 .4x/batch-conflict.json；檔案不存在時回 (nil, nil) 代表目前無衝突。
@@ -689,7 +689,7 @@ func (w *Workspace) WriteBatchReport(r BatchReport) error {
 	if err != nil {
 		return err
 	}
-	return atomicWriteFile(w.DotDir(), BatchReportFile, ".batch-report-*.json", append(data, '\n'), 0o644)
+	return AtomicWriteFile(w.DotDir(), BatchReportFile, ".batch-report-*.json", append(data, '\n'), 0o644)
 }
 
 // ReadBatchReport 讀取 .4x/batch-report.json；檔案不存在時回 (nil, nil) 代表尚無 batch 報告。

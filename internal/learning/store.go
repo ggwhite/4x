@@ -131,6 +131,10 @@ func (s *Store) Save(path string) error {
 		os.Remove(tmpName)
 		return err
 	}
+	if err := os.Chmod(tmpName, 0o644); err != nil {
+		os.Remove(tmpName)
+		return err
+	}
 	return os.Rename(tmpName, path)
 }
 

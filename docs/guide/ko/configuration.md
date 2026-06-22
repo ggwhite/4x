@@ -122,20 +122,45 @@
 
 ### 프로파일
 
-프로파일은 기능에 대해 어떤 역할이 실행될지 선택하여, 단순한 기능이 전체 6역할 파이프라인을 건너뛸 수 있게 합니다. 나열되지 않은 역할은 통과됩니다 — 러너를 호출하거나 아티팩트를 확인하거나 가드를 실행하지 않고 합법적 경로를 따라 상태가 진행됩니다. `coder`만이 유일한 필수 역할입니다; 누락된 프로파일은 설정 오류입니다.
+프로파일은 기능에 대해 어떤 phase가 실행될지 선택하여, 단순한 기능이 전체 파이프라인을 건너뛸 수 있게 합니다. 나열되지 않은 phase는 통과됩니다 — 러너를 호출하거나 아티팩트를 확인하거나 가드를 실행하지 않고 합법적 경로를 따라 상태가 진행됩니다. `coding`만이 유일한 필수 phase입니다; 누락된 프로파일은 설정 오류입니다. 선택적 `design-reviewing` phase는 포함된 경우에만 실행되며, coding 시작 전에 `design-review-report.md`가 PASS해야 합니다.
 
 ```json
 "profiles": {
-  "full":   { "roles": ["designer", "coder", "reviewer", "tester", "deep-reviewer", "acceptor"] },
-  "normal": { "roles": ["coder", "reviewer", "tester", "acceptor"] },
-  "quick":  { "roles": ["coder", "reviewer"], "coder_model": "opus" }
+  "full": {
+    "phases": [
+      { "phase": "designing" },
+      { "phase": "design-reviewing" },
+      { "phase": "coding" },
+      { "phase": "reviewing" },
+      { "phase": "testing" },
+      { "phase": "deep-reviewing" },
+      { "phase": "accepting" }
+    ]
+  },
+  "normal": {
+    "phases": [
+      { "phase": "coding" },
+      { "phase": "reviewing" },
+      { "phase": "testing" },
+      { "phase": "accepting" }
+    ]
+  },
+  "quick": {
+    "phases": [
+      { "phase": "coding", "model": "opus" },
+      { "phase": "reviewing" }
+    ]
+  }
 }
 ```
 
+각 phase 항목은 선택적 `runner` 및 `model` 재정의를 지원합니다:
+
 | 필드 | 설명 |
 |---|---|
-| `roles` | 활성화된 역할 이름 (순서 무관; 실행 순서는 정규 파이프라인을 따름) |
-| `coder_model` | 이 프로파일에서 coder 모델의 선택적 티어 재정의 |
+| `phase` | Phase 이름 (선택 가능한 phase이어야 함: designing, design-reviewing, coding, reviewing, testing, deep-reviewing, accepting) |
+| `runner` | 이 phase의 선택적 runner 재정의 |
+| `model` | 이 phase의 선택적 모델 티어 재정의 |
 
 **선택 우선순위:**
 

@@ -66,7 +66,11 @@ func TestScanEscalations(t *testing.T) {
 	// 壞掉的 JSON → best-effort 跳過，不中斷。
 	writeRoundFile(t, ws, "F002-b", 3, EscalationFile, "{not valid json")
 
-	cands := ScanEscalations(ws)
+	features, err := ws.ListFeatures()
+	if err != nil {
+		t.Fatalf("ListFeatures: %v", err)
+	}
+	cands := ScanEscalations(ws, features)
 	if len(cands) != 2 {
 		t.Fatalf("got %d candidates, want 2: %+v", len(cands), cands)
 	}
@@ -85,13 +89,13 @@ func TestScanEscalations(t *testing.T) {
 }
 
 func TestScanEscalations_ListFeaturesMissing(t *testing.T) {
-	// 沒有 features dir → ListFeatures 回 (nil,nil)，掃描器回空 slice 不 panic。
+	// 空 feature 清單 → 掃描器回空 slice 不 panic。
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, DirName), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	ws := &Workspace{Root: root}
-	if cands := ScanEscalations(ws); len(cands) != 0 {
+	if cands := ScanEscalations(ws, nil); len(cands) != 0 {
 		t.Errorf("got %d candidates, want 0", len(cands))
 	}
 }
@@ -125,7 +129,11 @@ func TestScanStuckFeatures(t *testing.T) {
 	}
 	writeEscalation(t, ws, "F012-fallback", 1, Escalation{Needed: true, Reason: "blocker", Detail: "waiting on upstream API"})
 
-	cands := ScanStuckFeatures(ws)
+	features, err := ws.ListFeatures()
+	if err != nil {
+		t.Fatalf("ListFeatures: %v", err)
+	}
+	cands := ScanStuckFeatures(ws, features)
 	if len(cands) != 2 {
 		t.Fatalf("got %d candidates, want 2: %+v", len(cands), cands)
 	}
@@ -160,7 +168,11 @@ func TestScanFailPatterns_CrossFeatureCluster(t *testing.T) {
 		writeRoundFile(t, ws, id, 1, ReviewReport, failReport("FAIL", "Missing error handling"))
 	}
 
-	cands, learnings := ScanFailPatterns(ws, 3)
+	features, err := ws.ListFeatures()
+	if err != nil {
+		t.Fatalf("ListFeatures: %v", err)
+	}
+	cands, learnings := ScanFailPatterns(ws, features, 3)
 	if len(cands) != 1 {
 		t.Fatalf("got %d candidates, want 1: %+v", len(cands), cands)
 	}
@@ -185,7 +197,11 @@ func TestScanFailPatterns_SingleFeatureMultiRoundCountedOnce(t *testing.T) {
 	for r := 1; r <= 3; r++ {
 		writeRoundFile(t, ws, "F030-x", r, ReviewReport, failReport("FAIL", "Missing error handling"))
 	}
-	cands, _ := ScanFailPatterns(ws, 3)
+	features, err := ws.ListFeatures()
+	if err != nil {
+		t.Fatalf("ListFeatures: %v", err)
+	}
+	cands, _ := ScanFailPatterns(ws, features, 3)
 	if len(cands) != 0 {
 		t.Fatalf("got %d candidates, want 0 (single feature must not pass threshold): %+v", len(cands), cands)
 	}
@@ -198,7 +214,11 @@ func TestScanFailPatterns_PassReportsIgnored(t *testing.T) {
 		// PASS verdict → issue 不蒐集。
 		writeRoundFile(t, ws, id, 1, ReviewReport, failReport("PASS", "Missing error handling"))
 	}
-	cands, _ := ScanFailPatterns(ws, 3)
+	features, err := ws.ListFeatures()
+	if err != nil {
+		t.Fatalf("ListFeatures: %v", err)
+	}
+	cands, _ := ScanFailPatterns(ws, features, 3)
 	if len(cands) != 0 {
 		t.Fatalf("got %d candidates, want 0 (PASS reports ignored)", len(cands))
 	}
@@ -231,7 +251,11 @@ func TestScanFailPatterns_JaccardBoundary(t *testing.T) {
 		writeRoundFile(t, ws, id, 1, DeepReviewReport, failReport("FAIL", title))
 	}
 
-	cands, _ := ScanFailPatterns(ws, 3)
+	features, err := ws.ListFeatures()
+	if err != nil {
+		t.Fatalf("ListFeatures: %v", err)
+	}
+	cands, _ := ScanFailPatterns(ws, features, 3)
 	if len(cands) != 1 {
 		t.Fatalf("got %d candidates, want exactly 1 (similar group clusters, distinct group does not): %+v", len(cands), cands)
 	}

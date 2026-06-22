@@ -69,7 +69,7 @@
 
 `--profile` 选择运行哪些角色。内置 profile：`full`（全部 6 个角色）、`normal`（coder/reviewer/tester/acceptor）、`quick`（coder/reviewer）。不在 profile 中的角色会被跳过（状态沿合法边推进，不调用 runner）。省略时，若 `settings.json` 中存在 `profiles` 配置区块，则按 feature 优先级自动选择（否则为 `full`）。详见[配置 → Profiles](configuration.md#profiles)。
 
-循环驱动：init → designing → coding → reviewing → testing → deep-reviewing → accepting → pending-review。审查失败时，编码者再做一轮。测试失败时，循环重新进入编码阶段。
+循环驱动：init → designing → design-reviewing → coding → reviewing → testing → deep-reviewing → accepting → pending-review。审查失败时，编码者再做一轮。测试失败时，循环重新进入编码阶段。
 
 每个非设计者角色完成后，会自动执行护栏检查（范围、基线、必需文件）。违规时 feature 转为 `needs-attention` 并停止循环。设计者因不修改源代码而豁免。
 
