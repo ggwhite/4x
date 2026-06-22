@@ -67,6 +67,7 @@ Los endpoints de lectura intensiva (`/api/tasks`, `/api/overview`, `/api/project
 | `/api/events/{id}` | GET | Obtener eventos de un feature |
 | `/api/overview/{id}` | GET | Obtener resumen del feature (campos YAML + contenido spec/plan, resuelto vía el `protocol.ResolveDesignDoc` compartido — ver [Resolución de documentos de diseño](concepts.md#resolucion-de-documentos-de-diseno)) |
 | `/api/messages/{id}` | GET | Obtener mensajes de un feature |
+| `/api/evolve-report` | GET | Último resumen de ronda de `4x evolve` (`.4x/evolve-report.md`); `{content, exists}`, `exists:false` cuando no existe |
 | `/api/features/{id}/screenshots` | GET | Obtener capturas de pantalla agrupadas por ronda |
 | `/api/features/{id}/screenshots/{filename}` | GET | Servir una imagen de captura de pantalla |
 | `/api/logs/{id}` | GET | Listar archivos de log de un feature |

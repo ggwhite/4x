@@ -134,6 +134,64 @@ Feature 内のサブタスクのステータスを更新します。
 
 ---
 
+## `4x gate`
+
+マイニングされた候補 feature に F097 evolve **value gate** の拒否レイヤーを適用します。純粋な CLI 確定的拒否であり、LLM を呼び出しません。`gate` LLM ロールは2つのフェーズの間で実行され（evolve driver がオーケストレーション）、`gate-verdicts.json` を出力します。
+
+`--pre` または `--post` のいずれかを指定する必要があります：
+
+- `--pre` — PRE-拒否：`.4x/candidates.json` を読み込み、既存の feature やバッチ内の重複と Jaccard 類似の候補を除外し、生存者を `.4x/gate-input.json` に書き込みます。
+- `--post` — POST-拒否：`.4x/gate-input.json` + `.4x/gate-verdicts.json` を読み込み、オーバーライド不可のハード拒否（non-accept / `why_not_hack` 欠落 / `value_floor` 未満 / 既存と重複 / `max_accept_per_run` 超過 / `max_backlog_undone` 超過）を適用し、通過した候補（`value_score`/`why_not_hack` 付き）を `.4x/accepted-candidates.json` に書き込みます。
+
+閾値は `settings.json` の `evolution` セクション（`value_floor`、`max_accept_per_run`、`max_backlog_undone`、`dedup_threshold`）から取得されます。
+
+```
+4x gate --pre
+4x gate --post
+```
+
+---
+
+## `4x evolve`
+
+継続的自己改善パイプラインを1ラウンド実行し、既存の進化パーツを繰り返し実行可能なクローズドループに接続します：
+
+**mine → gate (pre → gate LLM ロール → post) → enrich → enqueue → (オプション) auto-run メタループ → learnings が次のラウンドにフィードバック。**
+
+CLI 層は直接 LLM を呼び出しません — gate ロールと enrichment はどちらも `runner` サブプロセスとして実行されます。各呼び出しはちょうど**1ラウンド**を実行します。複数ラウンドは外部駆動（cron または `4x evolve` の繰り返し呼び出し）で行います。各ラウンドの結果は `.4x/evolve-report.md` に書き込まれます。
+
+パイプラインステップ：
+
+1. **mine** — `.4x/` をスキャンして失敗シグナル（エスカレーション / スタックした feature / 繰り返しの FAIL パターン）を検出し、重複排除して `.4x/candidates.json` にマージします。
+2. **gate pre** — Jaccard 重複排除で生存者を `.4x/gate-input.json` に書き込みます。
+3. **gate role** — `gate` LLM ロールを起動して `.4x/gate-verdicts.json` を書き込みます。
+4. **gate post** — オーバーライド不可の拒否 + 収束キャップを適用し、`.4x/accepted-candidates.json` に書き込みます。
+5. **enrich + enqueue** — 通過した各候補を `not-started` feature YAML に具現化します（enrichment 失敗時は候補テキストから作成したベア feature にフォールバックし、`enriched=false` とマークします）。
+6. **auto-run**（オプション）— エンキューされた各 feature のメタループを実行します（F098 self-mod scope guard で保護）。
+
+アンチスピン：あるラウンドで何も受け入れられなかった場合、`.4x/evolve-state.json` の `consecutiveNoAccept` がインクリメントされます。`evolution.max_idle_rounds`（デフォルト 3、`<= 0` で無効化）に達すると、次の呼び出しは早期に中止し、レポートを `Halted` とマークして exit 0 で終了します。`--force` でオーバーライドできます。
+
+```
+4x evolve                        # 1ラウンド実行、feature は not-started のまま
+4x evolve --dry-run              # 読み取り専用：mine/dedupe サマリーを表示、ファイル書き込みなし
+4x evolve --auto-run             # エンキューされた feature のメタループも実行
+4x evolve --force                # アンチスピン停止をバイパス
+```
+
+| フラグ | 説明 |
+|---|---|
+| `--auto-run` | エンキューされた各 feature のメタループを実行（F098 self-mod guard は常に強制） |
+| `--dry-run` | 読み取り専用分析：mined/deduped 数を表示、ファイル書き込み・runner 起動・feature 作成なし |
+| `--min-occurrences` | 失敗パターンが候補になるための distinct-feature 閾値（デフォルト 3） |
+| `--force` | アンチスピン停止をオーバーライドし、連続アイドルラウンド後も実行 |
+| `--runner` | gate / enrich / auto-run に使用する runner プラグイン（デフォルト `evolution.gate_runner` またはプロジェクトデフォルト） |
+| `--timeout` | LLM サブプロセスのタイムアウト秒数（デフォルト 3600） |
+| `--max-rounds` | `--auto-run` 時の feature あたりの最大ラウンド数（デフォルト 5） |
+
+Dashboard は `GET /api/evolve-report` で最新レポートを表示します。
+
+---
+
 ## `4x check <feature-id>`
 
 状態遷移なしでガードレールチェックを実行します。

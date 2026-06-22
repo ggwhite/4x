@@ -80,6 +80,18 @@ Deep Reviewer가 차단 이슈를 발견하면, `deep-reviewing` 단계에서 `a
 
 이 단계는 최선의 노력으로 수행됩니다: 오류가 발생해도 `accepting`으로의 전환을 차단하지 않습니다. 최종 딥 리뷰 PASS에서만 실행됩니다 — 중간 라운드와 FAIL/`needs-attention` 경로에서는 실행되지 않습니다. 설정에 대해서는 [설정 → 자동 발견 기능](configuration.md#auto-discover-features)을 참조하세요.
 
+### Evolve Driver
+
+`4x evolve`는 mine, F097 value gate, enrichment를 하나의 반복 실행 가능한 폐쇄 루프로 연결합니다: **mine → gate (pre → gate LLM 역할 → post) → enrich → enqueue → (선택) auto-run → learnings가 다음 라운드에 피드백**. CLI 레이어는 LLM에 접근하지 않습니다 — gate 역할과 enrichment 모두 `runner.Runner` 하위 프로세스로 실행되며, 인라인 API 호출은 없습니다.
+
+파이프라인 순서는 **mine → gate → enrich → enqueue**입니다(mine → enrich → gate가 아닙니다): gate는 가공되지 않은 `Candidate`를 소비하므로, enrichment — 후보를 완전한 `feature.Feature`로 구현하는 처리 — 는 gate 생존자에 대해서만 실행되며, 거부된 후보에 LLM 비용을 낭비하지 않습니다. 통과한 후보는 `not-started` feature YAML로 대기열에 넣어집니다(value gate 통과**가 곧** 승인이며, draft→not-started의 두 번째 단계는 없습니다). enrichment가 실패하거나 폐기된 경우에도 후보는 설명 텍스트로 생성된 기본 feature로 대기열에 넣어지며 `enriched=false`로 표시됩니다 — gate가 이미 그 가치를 보증했습니다.
+
+각 호출은 정확히 **1라운드**를 실행합니다. 반복 라운드는 외부 구동(cron 또는 반복 호출)입니다. 각 라운드는 `.4x/evolve-report.md`(Mined / Accepted / Rejected / Enqueued / Auto-Run / Halted)에 기록되며, Dashboard가 `GET /api/evolve-report`를 통해 표시합니다.
+
+**공회전 방지 중단**은 성과 없이 루프가 영원히 도는 것을 방지합니다. `.4x/evolve-state.json`은 호출 간에 `consecutiveNoAccept`를 영속화합니다. 아무것도 수락하지 않은 라운드는 증가시키고, 무엇이든 수락한 라운드는 0으로 리셋합니다. `evolution.max_idle_rounds`에 도달하면 다음 호출이 마이닝 전에 중단되고 보고서를 `Halted`로 표시하며 exit 0으로 종료합니다. 이 설정은 **미설정**(`nil` → 기본값 `3`)과 명시적 `<= 0`(중단 비활성화 — 항상 실행)을 구별합니다. `--force`는 한 번의 중단을 재정의합니다.
+
+`--auto-run`을 사용하면 대기열에 넣은 각 feature의 메타 루프가 즉시 실행되며, 항상 F098 self-mod scope guard 하에서 동작합니다: `self_mod_guard.protected_paths`에 접근하는 승인되지 않은 feature는 자동 완료되지 않고 보고서에서 `SelfModBlocked`로 표시됩니다(`4x done --approve-self-mod`로 해제). `--dry-run`은 읽기 전용 — mine/dedupe 요약을 출력하고, 아무것도 기록하지 않고, runner를 시작하지 않고, feature를 생성하지 않습니다(`--auto-run`이 있으면 경고와 함께 무시합니다).
+
 ### 에스컬레이션
 
 Coder 또는 Tester는 다음과 같은 경우 에스컬레이션할 수 있습니다:

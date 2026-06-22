@@ -80,6 +80,18 @@ Deep Reviewer は各スコープ外候補を `deep-review-report.md` の `## Dis
 
 このステップはベストエフォートです。エラーが発生しても `accepting` への遷移をブロックしません。最終的な Deep Review PASS でのみ実行されます（中間ラウンドや FAIL/`needs-attention` パスでは実行されません）。設定については [設定 → 自動検出 Feature](configuration.md#auto-discover-features) を参照してください。
 
+### Evolve Driver
+
+`4x evolve` は mine、F097 value gate、enrichment を1つの繰り返し実行可能なクローズドループに接続します：**mine → gate (pre → gate LLM ロール → post) → enrich → enqueue → (オプション) auto-run → learnings が次のラウンドにフィードバック**。CLI 層は LLM に触れません — gate ロールと enrichment はどちらも `runner.Runner` サブプロセスとして実行され、インライン API 呼び出しは一切ありません。
+
+パイプラインの順序は **mine → gate → enrich → enqueue**（mine → enrich → gate ではありません）：gate は未加工の `Candidate` を消費するため、enrichment — 候補を完全な `feature.Feature` に具現化する処理 — は gate の生存者に対してのみ実行され、拒否された候補に LLM コストを浪費しません。通過した候補は `not-started` feature YAML としてエンキューされます（value gate の通過**がそのまま**承認です。draft→not-started の第2ステップはありません）。enrichment が失敗または破棄された場合でも、候補はその説明テキストから作成されたベア feature としてエンキューされ、`enriched=false` とマークされます — gate がすでにその価値を保証しています。
+
+各呼び出しはちょうど**1ラウンド**を実行します。繰り返しラウンドは外部駆動（cron または繰り返し呼び出し）です。各ラウンドは `.4x/evolve-report.md`（Mined / Accepted / Rejected / Enqueued / Auto-Run / Halted）に書き込まれ、Dashboard が `GET /api/evolve-report` で表示します。
+
+**アンチスピン停止**は、成果なしにループが永遠に回り続けるのを防ぎます。`.4x/evolve-state.json` は呼び出しをまたいで `consecutiveNoAccept` を永続化します。何も受け入れなかったラウンドはインクリメントし、何かを受け入れたラウンドはゼロにリセットします。`evolution.max_idle_rounds` に達すると、次の呼び出しはマイニング前に中止し、レポートを `Halted` とマークして exit 0 で終了します。この設定は**未設定**（`nil` → デフォルト `3`）と明示的な `<= 0`（停止を無効化 — 常に実行）を区別します。`--force` は1回の停止をオーバーライドします。
+
+`--auto-run` を使用すると、エンキューされた各 feature のメタループが即座に実行され、常に F098 self-mod scope guard の下で動作します：`self_mod_guard.protected_paths` に触れる承認されていない feature は自動完了されず、レポートで `SelfModBlocked` とマークされます（`4x done --approve-self-mod` で解除）。`--dry-run` は読み取り専用 — mine/dedupe サマリーを表示し、何も書き込まず、runner を起動せず、feature を作成しません（`--auto-run` がある場合は警告付きで無視します）。
+
 ### エスカレーション
 
 Coder または Tester は以下の場合にエスカレーションできます：

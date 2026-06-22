@@ -67,6 +67,7 @@ AI 開発ループのリアルタイム監視。
 | `/api/events/{id}` | GET | Feature のイベントを取得 |
 | `/api/overview/{id}` | GET | Feature の概要を取得（YAML フィールド + spec/plan 内容、共有 `protocol.ResolveDesignDoc` で解決。[Design Doc Resolution](concepts.md#design-doc-resolution) を参照） |
 | `/api/messages/{id}` | GET | Feature のメッセージを取得 |
+| `/api/evolve-report` | GET | 最新の `4x evolve` ラウンドサマリー（`.4x/evolve-report.md`）；`{content, exists}`、存在しない場合 `exists:false` |
 | `/api/features/{id}/screenshots` | GET | ラウンドごとにグループ化されたスクリーンショットを取得 |
 | `/api/features/{id}/screenshots/{filename}` | GET | 1枚のスクリーンショット画像を提供 |
 | `/api/logs/{id}` | GET | Feature のログファイルをリスト |

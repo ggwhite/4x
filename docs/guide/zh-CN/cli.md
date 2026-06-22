@@ -132,6 +132,64 @@
 
 ---
 
+## `4x gate`
+
+对挖掘出的候选 feature 应用 F097 evolve **value gate** 否决层。纯 CLI 确定性否决——不调用 LLM。`gate` LLM 角色在两阶段之间执行（由 evolve driver 编排），产出 `gate-verdicts.json`。
+
+必须指定 `--pre` 或 `--post` 其中之一：
+
+- `--pre` — PRE-否决：读取 `.4x/candidates.json`，丢弃与既有 feature 或批次内重复的 Jaccard 相似候选，将存活者写入 `.4x/gate-input.json`。
+- `--post` — POST-否决：读取 `.4x/gate-input.json` + `.4x/gate-verdicts.json`，应用不可覆盖的硬否决（non-accept / 缺少 `why_not_hack` / 低于 `value_floor` / 与既有重复 / 超过 `max_accept_per_run` / 超过 `max_backlog_undone`），将通过的候选（含 `value_score`/`why_not_hack`）写入 `.4x/accepted-candidates.json`。
+
+阈值来自 `settings.json` 的 `evolution` 区段（`value_floor`、`max_accept_per_run`、`max_backlog_undone`、`dedup_threshold`）。
+
+```
+4x gate --pre
+4x gate --post
+```
+
+---
+
+## `4x evolve`
+
+执行一轮持续自我改进 pipeline，将既有的进化零件串成可重复执行的闭回路：
+
+**mine → gate (pre → gate LLM 角色 → post) → enrich → enqueue → (可选) auto-run meta-loop → learnings 反馈下一轮。**
+
+CLI 层绝不直接调用 LLM——gate 角色与 enrichment 都以 `runner` 子进程执行。每次调用恰好执行**一轮**；通过外部驱动（cron 或重复调用 `4x evolve`）进行多轮。每轮结果写入 `.4x/evolve-report.md`。
+
+Pipeline 步骤：
+
+1. **mine** — 扫描 `.4x/` 寻找失败信号（escalation / 卡住的 feature / 反复 FAIL 模式），去重后合并至 `.4x/candidates.json`。
+2. **gate pre** — Jaccard 去重存活者至 `.4x/gate-input.json`。
+3. **gate role** — 启动 `gate` LLM 角色写入 `.4x/gate-verdicts.json`。
+4. **gate post** — 应用不可覆盖的否决 + 收敛上限，写入 `.4x/accepted-candidates.json`。
+5. **enrich + enqueue** — 将每个通过的候选具现化为 `not-started` feature YAML（enrichment 失败时降级为从候选文字创建的基本 feature，标记 `enriched=false`）。
+6. **auto-run**（可选）— 为每个排入的 feature 执行 meta-loop，受 F098 self-mod scope guard 保护。
+
+反空转：当某轮未接受任何候选时，`.4x/evolve-state.json` 递增 `consecutiveNoAccept`；达到 `evolution.max_idle_rounds`（默认 3；设 `<= 0` 禁用）后，下次调用提早中止并标记报告为 `Halted`，以 exit 0 结束。使用 `--force` 可覆盖。
+
+```
+4x evolve                        # 执行一轮，feature 维持 not-started
+4x evolve --dry-run              # 只读：打印 mine/dedupe 摘要，不写入任何文件
+4x evolve --auto-run             # 同时为排入的 feature 执行 meta-loop
+4x evolve --force                # 绕过反空转中止
+```
+
+| Flag | 说明 |
+|---|---|
+| `--auto-run` | 为每个排入的 feature 执行 meta-loop（F098 self-mod guard 始终强制） |
+| `--dry-run` | 只读分析：打印 mined/deduped 数量，不写入文件、不启动 runner、不创建 feature |
+| `--min-occurrences` | 失败模式成为候选的 distinct-feature 阈值（默认 3） |
+| `--force` | 覆盖反空转中止，即使连续空转轮也执行 |
+| `--runner` | gate / enrich / auto-run 使用的 runner plugin（默认 `evolution.gate_runner` 或项目默认） |
+| `--timeout` | LLM 子进程超时秒数（默认 3600） |
+| `--max-rounds` | `--auto-run` 时每个 feature 的最大轮数（默认 5） |
+
+Dashboard 通过 `GET /api/evolve-report` 呈现最新报告。
+
+---
+
 ## `4x check <feature-id>`
 
 运行护栏检查但不转换状态。

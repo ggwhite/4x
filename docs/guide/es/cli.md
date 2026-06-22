@@ -134,6 +134,64 @@ Ejemplo:
 
 ---
 
+## `4x gate`
+
+Aplica las capas de veto del **value gate** F097 evolve a las features candidatas minadas. Veto CLI puro determinístico — no llama a un LLM. El rol LLM `gate` se ejecuta entre las dos fases (orquestado por el evolve driver) y produce `gate-verdicts.json`.
+
+Se debe especificar exactamente uno de `--pre` / `--post`:
+
+- `--pre` — PRE-veto: lee `.4x/candidates.json`, descarta candidatos con similitud Jaccard a features existentes (y duplicados intra-lote), escribe los sobrevivientes en `.4x/gate-input.json`.
+- `--post` — POST-veto: lee `.4x/gate-input.json` + `.4x/gate-verdicts.json`, aplica el veto duro no anulable (non-accept / falta `why_not_hack` / por debajo de `value_floor` / duplica existente / excede `max_accept_per_run` / excede `max_backlog_undone`), escribe los candidatos aceptados (con `value_score`/`why_not_hack`) en `.4x/accepted-candidates.json`.
+
+Los umbrales provienen de la sección `evolution` de `settings.json` (`value_floor`, `max_accept_per_run`, `max_backlog_undone`, `dedup_threshold`).
+
+```
+4x gate --pre
+4x gate --post
+```
+
+---
+
+## `4x evolve`
+
+Ejecuta una ronda del pipeline de auto-mejora continua, conectando las piezas de evolución existentes en un bucle cerrado repetible:
+
+**mine → gate (pre → rol LLM gate → post) → enrich → enqueue → (opcional) meta-loop auto-run → learnings alimentan la siguiente ronda.**
+
+La capa CLI nunca llama directamente a un LLM — tanto el rol gate como el enrichment se ejecutan como subprocesos `runner`. Cada llamada ejecuta exactamente **una ronda**; las rondas repetidas se manejan externamente (cron o llamadas repetidas a `4x evolve`). Cada ronda escribe un resumen en `.4x/evolve-report.md`.
+
+Pasos del pipeline:
+
+1. **mine** — escanea `.4x/` buscando señales de fallo (escalaciones / features atascados / patrones FAIL recurrentes), deduplica y fusiona en `.4x/candidates.json`.
+2. **gate pre** — deduplicación Jaccard de sobrevivientes en `.4x/gate-input.json`.
+3. **gate role** — inicia el rol LLM `gate` para escribir `.4x/gate-verdicts.json`.
+4. **gate post** — aplica el veto no anulable + topes de convergencia, escribe `.4x/accepted-candidates.json`.
+5. **enrich + enqueue** — materializa cada candidato aceptado en un feature YAML `not-started` (en caso de fallo del enrichment, recurre a un feature básico creado desde el texto del candidato, marcado como `enriched=false`).
+6. **auto-run** (opcional) — ejecuta el meta-loop para cada feature encolado, protegido por el F098 self-mod scope guard.
+
+Anti-giro: cuando una ronda no acepta nada, `.4x/evolve-state.json` incrementa `consecutiveNoAccept`; al alcanzar `evolution.max_idle_rounds` (por defecto 3; `<= 0` para desactivar), la siguiente llamada se detiene anticipadamente, marca el reporte como `Halted` y sale con código 0. Use `--force` para anular.
+
+```
+4x evolve                        # ejecutar una ronda, features quedan en not-started
+4x evolve --dry-run              # solo lectura: imprime resumen mine/dedupe, no escribe archivos
+4x evolve --auto-run             # también ejecuta el meta-loop para features encolados
+4x evolve --force                # anular la detención anti-giro
+```
+
+| Flag | Descripción |
+|---|---|
+| `--auto-run` | Ejecutar el meta-loop para cada feature encolado (F098 self-mod guard siempre forzado) |
+| `--dry-run` | Análisis solo lectura: imprime cantidades mined/deduped, sin escritura de archivos, sin iniciar runner, sin crear features |
+| `--min-occurrences` | Umbral de distinct-feature para que un patrón de fallo se convierta en candidato (por defecto 3) |
+| `--force` | Anular la detención anti-giro y ejecutar incluso después de rondas inactivas consecutivas |
+| `--runner` | Plugin runner para gate / enrich / auto-run (por defecto `evolution.gate_runner` o el predeterminado del proyecto) |
+| `--timeout` | Timeout del subproceso LLM en segundos (por defecto 3600) |
+| `--max-rounds` | Máximo de rondas por feature cuando se usa `--auto-run` (por defecto 5) |
+
+El dashboard muestra el último reporte mediante `GET /api/evolve-report`.
+
+---
+
 ## `4x check <feature-id>`
 
 Ejecutar verificaciones de guardrails sin transicionar estado.

@@ -80,6 +80,18 @@ Deep reviewer 將每個超出範圍的候選寫為 `deep-review-report.md` 的 `
 
 此步驟為 best-effort：任何錯誤都會記錄但不會阻擋轉換到 `accepting`。它只在最終 deep review PASS 時執行——中間輪次和 FAIL/`needs-attention` 路徑永遠不會到達它。詳見[設定 → Auto-Discover Features](configuration.md#auto-discover-features)。
 
+### Evolve Driver
+
+`4x evolve` 將 mine、F097 value gate 與 enrichment 串成一條可重複執行的閉迴路：**mine → gate (pre → gate LLM 角色 → post) → enrich → enqueue → (可選) auto-run → learnings 回饋下一輪**。CLI 層維持不碰 LLM——gate 角色與 enrichment 都以 `runner.Runner` 子程序執行，絕非內嵌 API 呼叫。
+
+Pipeline 順序為 **mine → gate → enrich → enqueue**（而非 mine → enrich → gate）：gate 消費的是未加工的 `Candidate`，因此 enrichment——將候選具現化為完整 `feature.Feature`——只在 gate 存活者上執行，絕不浪費 LLM 成本在被否決的候選上。通過的候選排入為 `not-started` feature YAML（通過 value gate **即為**核准；沒有第二道 draft→not-started 步驟）。若 enrichment 失敗或被捨棄，候選仍以其描述文字建立的基本 feature 排入，標記 `enriched=false`——gate 已為其價值背書。
+
+每次呼叫恰好執行**一輪**；重複輪次由外部驅動（cron 或重複呼叫）。每輪寫入 `.4x/evolve-report.md`（Mined / Accepted / Rejected / Enqueued / Auto-Run / Halted），由 dashboard 透過 `GET /api/evolve-report` 呈現。
+
+**反空轉中止**防止迴路在毫無產出時無限運轉。`.4x/evolve-state.json` 跨呼叫持久化 `consecutiveNoAccept`；未接受任何候選的一輪遞增它，接受任何候選的一輪重置為零。達到 `evolution.max_idle_rounds` 時，下次呼叫在 mining 前中止，標記報告為 `Halted`，以 exit 0 結束。此設定區分**未設定**（`nil` → 預設 `3`）與明確設為 `<= 0`（停用中止——永遠執行）；`--force` 可覆寫單次中止。
+
+使用 `--auto-run` 時，每個排入 feature 的 meta-loop 立即執行，始終在 F098 self-mod scope guard 下運作：觸及 `self_mod_guard.protected_paths` 且未獲核准的 feature 不會被自動完成，而是在報告中標記 `SelfModBlocked`（以 `4x done --approve-self-mod` 解除）。`--dry-run` 為唯讀——印出 mine/dedupe 摘要、不寫入任何內容、不啟動 runner、不建立 feature（且在有 `--auto-run` 時以警告忽略）。
+
 ### Escalation
 
 Coder 或 Tester 可以在以下情況時 escalate：

@@ -134,6 +134,64 @@
 
 ---
 
+## `4x gate`
+
+마이닝된 후보 feature에 F097 evolve **value gate** 거부 레이어를 적용합니다. 순수 CLI 결정론적 거부이며 LLM을 호출하지 않습니다. `gate` LLM 역할은 두 단계 사이에서 실행되며(evolve driver가 오케스트레이션), `gate-verdicts.json`을 출력합니다.
+
+`--pre` 또는 `--post` 중 하나를 반드시 지정해야 합니다:
+
+- `--pre` — PRE-거부: `.4x/candidates.json`을 읽고, 기존 feature 및 배치 내 중복과 Jaccard 유사한 후보를 제거하여 생존자를 `.4x/gate-input.json`에 기록합니다.
+- `--post` — POST-거부: `.4x/gate-input.json` + `.4x/gate-verdicts.json`을 읽고, 재정의 불가능한 하드 거부(non-accept / `why_not_hack` 누락 / `value_floor` 미달 / 기존과 중복 / `max_accept_per_run` 초과 / `max_backlog_undone` 초과)를 적용하여 통과한 후보(`value_score`/`why_not_hack` 포함)를 `.4x/accepted-candidates.json`에 기록합니다.
+
+임계값은 `settings.json`의 `evolution` 섹션(`value_floor`, `max_accept_per_run`, `max_backlog_undone`, `dedup_threshold`)에서 가져옵니다.
+
+```
+4x gate --pre
+4x gate --post
+```
+
+---
+
+## `4x evolve`
+
+지속적 자기 개선 파이프라인을 1라운드 실행하여 기존 진화 부품들을 반복 실행 가능한 폐쇄 루프로 연결합니다:
+
+**mine → gate (pre → gate LLM 역할 → post) → enrich → enqueue → (선택) auto-run 메타 루프 → learnings가 다음 라운드에 피드백.**
+
+CLI 레이어는 직접 LLM을 호출하지 않습니다 — gate 역할과 enrichment 모두 `runner` 하위 프로세스로 실행됩니다. 각 호출은 정확히 **1라운드**를 실행합니다. 여러 라운드는 외부 구동(cron 또는 `4x evolve` 반복 호출)으로 수행합니다. 각 라운드의 결과는 `.4x/evolve-report.md`에 기록됩니다.
+
+파이프라인 단계:
+
+1. **mine** — `.4x/`를 스캔하여 실패 신호(에스컬레이션 / 정체된 feature / 반복 FAIL 패턴)를 탐지하고, 중복 제거 후 `.4x/candidates.json`에 병합합니다.
+2. **gate pre** — Jaccard 중복 제거로 생존자를 `.4x/gate-input.json`에 기록합니다.
+3. **gate role** — `gate` LLM 역할을 시작하여 `.4x/gate-verdicts.json`을 기록합니다.
+4. **gate post** — 재정의 불가능한 거부 + 수렴 상한을 적용하여 `.4x/accepted-candidates.json`에 기록합니다.
+5. **enrich + enqueue** — 통과한 각 후보를 `not-started` feature YAML로 구현합니다(enrichment 실패 시 후보 텍스트로 생성한 기본 feature로 폴백, `enriched=false` 표시).
+6. **auto-run**(선택) — 대기열에 넣은 각 feature의 메타 루프를 실행합니다(F098 self-mod scope guard로 보호).
+
+공회전 방지: 어떤 라운드에서 아무것도 수락하지 않으면 `.4x/evolve-state.json`의 `consecutiveNoAccept`가 증가합니다. `evolution.max_idle_rounds`(기본값 3, `<= 0`으로 비활성화)에 도달하면 다음 호출이 조기 중단되고 보고서를 `Halted`로 표시하며 exit 0으로 종료합니다. `--force`로 재정의할 수 있습니다.
+
+```
+4x evolve                        # 1라운드 실행, feature는 not-started 유지
+4x evolve --dry-run              # 읽기 전용: mine/dedupe 요약 출력, 파일 기록 없음
+4x evolve --auto-run             # 대기열에 넣은 feature의 메타 루프도 실행
+4x evolve --force                # 공회전 방지 중단 우회
+```
+
+| 플래그 | 설명 |
+|---|---|
+| `--auto-run` | 대기열에 넣은 각 feature의 메타 루프 실행(F098 self-mod guard 항상 강제) |
+| `--dry-run` | 읽기 전용 분석: mined/deduped 수 출력, 파일 기록·runner 시작·feature 생성 없음 |
+| `--min-occurrences` | 실패 패턴이 후보가 되기 위한 distinct-feature 임계값(기본값 3) |
+| `--force` | 공회전 방지 중단을 재정의하여 연속 유휴 라운드 후에도 실행 |
+| `--runner` | gate / enrich / auto-run에 사용할 runner 플러그인(기본값 `evolution.gate_runner` 또는 프로젝트 기본값) |
+| `--timeout` | LLM 하위 프로세스 타임아웃 초(기본값 3600) |
+| `--max-rounds` | `--auto-run` 시 feature당 최대 라운드 수(기본값 5) |
+
+Dashboard는 `GET /api/evolve-report`를 통해 최신 보고서를 표시합니다.
+
+---
+
 ## `4x check <feature-id>`
 
 상태 전환 없이 가드레일 검사를 실행합니다.

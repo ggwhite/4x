@@ -80,6 +80,18 @@ El deep reviewer escribe cada candidato fuera de alcance como un bloque `[NEW-FE
 
 El paso es best-effort: cualquier error se registra y nunca bloquea la transición a `accepting`. Solo se ejecuta en el PASS final del deep review — las rondas intermedias y las rutas FAIL/`needs-attention` nunca lo alcanzan. Ver [Configuración -> Auto-descubrimiento de features](configuration.md#auto-discover-features) para la configuración.
 
+### Evolve Driver
+
+`4x evolve` conecta mine, el F097 value gate y enrichment en un bucle cerrado repetible: **mine → gate (pre → rol LLM gate → post) → enrich → enqueue → (opcional) auto-run → learnings alimentan la siguiente ronda**. La capa CLI se mantiene libre de LLM — tanto el rol gate como el enrichment se ejecutan como subprocesos `runner.Runner`, nunca como llamadas API en línea.
+
+El orden del pipeline es **mine → gate → enrich → enqueue** (no mine → enrich → gate): el gate consume `Candidate`s sin procesar, por lo que el enrichment — que materializa un candidato en un `feature.Feature` completo — solo se ejecuta sobre los sobrevivientes del gate, sin desperdiciar costo de LLM en candidatos vetados. Los candidatos aceptados se encolan como feature YAMLs `not-started` (pasar el value gate **es** la aprobación; no hay un segundo paso draft→not-started). Si el enrichment falla o se descarta, el candidato aún se encola como un feature básico construido desde su texto descriptivo, marcado como `enriched=false` — el gate ya avaló su valor.
+
+Cada llamada ejecuta exactamente **una ronda**; las rondas repetidas se manejan externamente (cron o invocación repetida). Cada ronda escribe `.4x/evolve-report.md` (Mined / Accepted / Rejected / Enqueued / Auto-Run / Halted), que el dashboard muestra mediante `GET /api/evolve-report`.
+
+**Detención anti-giro** previene que el bucle gire para siempre sin resultados. `.4x/evolve-state.json` persiste `consecutiveNoAccept` entre llamadas; una ronda que no acepta nada lo incrementa, una ronda que acepta algo lo reinicia a cero. Al alcanzar `evolution.max_idle_rounds`, la siguiente llamada se detiene antes del mining, marca el reporte como `Halted` y sale con código 0. Esta configuración distingue **no establecido** (`nil` → por defecto `3`) de un explícito `<= 0` (desactiva la detención — ejecutar siempre); `--force` anula una detención por una vez.
+
+Con `--auto-run`, el meta-loop de cada feature encolado se ejecuta inmediatamente, siempre bajo el F098 self-mod scope guard: un feature que toca `self_mod_guard.protected_paths` sin aprobación no se auto-completa y se marca como `SelfModBlocked` en el reporte (resolver con `4x done --approve-self-mod`). `--dry-run` es solo lectura — imprime el resumen mine/dedupe y no escribe nada, no inicia runners ni crea features (e ignora `--auto-run` con una advertencia).
+
 ### Escalación
 
 El Coder o Tester pueden escalar cuando:

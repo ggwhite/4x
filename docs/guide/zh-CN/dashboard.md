@@ -67,6 +67,7 @@
 | `/api/events/{id}` | GET | 获取 feature 的事件 |
 | `/api/overview/{id}` | GET | 获取 feature 概览（YAML 字段 + spec/plan 内容，通过共享的 `protocol.ResolveDesignDoc` 解析——参见[设计文档解析](concepts.md#design-doc-resolution)） |
 | `/api/messages/{id}` | GET | 获取 feature 的消息 |
+| `/api/evolve-report` | GET | 最新 `4x evolve` 轮次摘要（`.4x/evolve-report.md`）；`{content, exists}`，不存在时 `exists:false` |
 | `/api/features/{id}/screenshots` | GET | 获取按轮次分组的截图 |
 | `/api/features/{id}/screenshots/{filename}` | GET | 获取单张截图 |
 | `/api/logs/{id}` | GET | 列出 feature 的日志文件 |

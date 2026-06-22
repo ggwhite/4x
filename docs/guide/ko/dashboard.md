@@ -67,6 +67,7 @@ AI 개발 루프의 실시간 모니터링.
 | `/api/events/{id}` | GET | 기능의 이벤트 가져오기 |
 | `/api/overview/{id}` | GET | 기능 개요 가져오기 (YAML 필드 + spec/plan 내용, 공유 `protocol.ResolveDesignDoc`를 통해 해석 — [설계 문서 해석](concepts.md#설계-문서-해석) 참조) |
 | `/api/messages/{id}` | GET | 기능의 메시지 가져오기 |
+| `/api/evolve-report` | GET | 최신 `4x evolve` 라운드 요약(`.4x/evolve-report.md`); `{content, exists}`, 존재하지 않을 때 `exists:false` |
 | `/api/features/{id}/screenshots` | GET | 라운드별 그룹화된 스크린샷 가져오기 |
 | `/api/features/{id}/screenshots/{filename}` | GET | 스크린샷 이미지 하나 서빙 |
 | `/api/logs/{id}` | GET | 기능의 로그 파일 나열 |

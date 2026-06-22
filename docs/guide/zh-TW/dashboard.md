@@ -67,6 +67,7 @@ Overview 還包含一個批次控制面板，背後使用[批次控制 API](#bat
 | `/api/events/{id}` | GET | 取得 feature 的事件 |
 | `/api/overview/{id}` | GET | 取得 feature overview（YAML 欄位 + spec/plan 內容，透過共用的 `protocol.ResolveDesignDoc` 解析——見[設計文件解析](concepts.md#design-doc-resolution)） |
 | `/api/messages/{id}` | GET | 取得 feature 的訊息 |
+| `/api/evolve-report` | GET | 最新 `4x evolve` 輪次摘要（`.4x/evolve-report.md`）；`{content, exists}`，不存在時 `exists:false` |
 | `/api/features/{id}/screenshots` | GET | 取得依輪次分組的截圖 |
 | `/api/features/{id}/screenshots/{filename}` | GET | 提供單張截圖 |
 | `/api/logs/{id}` | GET | 列出 feature 的日誌檔 |
