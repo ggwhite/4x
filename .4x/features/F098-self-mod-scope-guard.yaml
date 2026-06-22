@@ -10,7 +10,7 @@ description: |-
     - 改受保護路徑時要求對應測試存在且通過才能進 accepting
 
     約束：受保護路徑為白名單，預設涵蓋 state machine/guardrail/protocol；觸及一律需人工 approve 不可全自動 merge；此 guard 疊加在既有 scope guard 之上不取代。
-status: ready-for-review
+status: done
 priority: 0
 subtasks:
     - id: protected-paths
