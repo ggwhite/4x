@@ -10,6 +10,7 @@ const (
 	defaultMaxAcceptPerRun  = 3
 	defaultMaxBacklogUndone = 15
 	defaultDedupThreshold   = 0.6
+	defaultMaxIdleRounds    = 3
 )
 
 // ResolvedEvolution 為填妥預設值後的 evolution 設定，供 veto 邏輯直接取用。
@@ -20,6 +21,9 @@ type ResolvedEvolution struct {
 	GateRunner       string
 	GateModel        string
 	DedupThreshold   float64
+	// MaxIdleRounds 為 anti-spin 早退門檻：<= 0 表示停用（永遠跑），正數才啟用。
+	// 來源 EvolutionConfig.MaxIdleRounds 為 nil 時套預設 3，非 nil 照值（含明確的 0/負數）。
+	MaxIdleRounds int
 }
 
 // ResolveEvolution 把 cfg.Evolution 的零值數值欄位補上預設值後回傳。
@@ -48,6 +52,13 @@ func ResolveEvolution(cfg protocol.Config) ResolvedEvolution {
 	}
 	if r.DedupThreshold == 0 {
 		r.DedupThreshold = defaultDedupThreshold
+	}
+	// MaxIdleRounds 用 sentinel pointer 區分「未設」與「設為 0」（L013）：
+	// nil → 預設 3；非 nil → 照值（含明確的 0/負數，代表停用 halt）。
+	if e.MaxIdleRounds == nil {
+		r.MaxIdleRounds = defaultMaxIdleRounds
+	} else {
+		r.MaxIdleRounds = *e.MaxIdleRounds
 	}
 	return r
 }

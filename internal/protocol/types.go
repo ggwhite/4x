@@ -366,6 +366,10 @@ type EvolutionConfig struct {
 	GateModel string `json:"gate_model,omitempty"`
 	// DedupThreshold 為 candidate 去重的 Jaccard 門檻；0 時套預設 0.6。
 	DedupThreshold float64 `json:"dedup_threshold,omitempty"`
+	// MaxIdleRounds 控制 anti-spin 防空轉：連續這麼多輪未接受任何 candidate 即早退停跑。
+	// 用 pointer 區分「未設定」（nil → evolution.ResolveEvolution 套預設 3）與「明確設值」；
+	// 明確設為 <= 0 表示停用 halt（永遠跑），正數才啟用門檻。
+	MaxIdleRounds *int `json:"max_idle_rounds,omitempty"`
 }
 
 // SelfModSettings 是 .4x/settings.json 內 self_mod_guard 區段的設定，
