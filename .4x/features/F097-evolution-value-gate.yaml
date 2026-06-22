@@ -11,7 +11,7 @@ description: |-
     - convergence-cap：單次 evolve 接受上限 + backlog 未做數上限，超過停止生成
 
     約束：任一殘酷指標不過整筆否決；holdout 資料 miner 不可讀，僅用於驗證閘門。
-status: in-progress
+status: ready-for-review
 priority: 1
 subtasks:
     - id: value-score
