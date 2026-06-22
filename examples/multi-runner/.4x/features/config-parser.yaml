@@ -1,0 +1,19 @@
+id: config-parser
+name: "YAML/JSON config parser library"
+status: todo
+description: |
+  A Go library that reads application config from YAML or JSON files.
+
+  Requirements:
+  - Auto-detect file format by extension (.yaml/.yml/.json)
+  - Validate required fields and value types against a schema struct
+  - Apply default values for missing fields via struct tags
+  - Override any config value with an environment variable (e.g. APP_DB_HOST)
+  - Return structured errors listing all validation failures, not just the first
+max_rounds: 5
+acceptance:
+  - "Reads both YAML and JSON files and returns the same typed struct."
+  - "Missing required fields produce a validation error before the caller uses partial config."
+  - "Default values from struct tags are applied when the field is absent in the file."
+  - "Environment variables override file values using a PREFIX_FIELD_NAME convention."
+  - "Invalid input (malformed file, wrong types) returns a descriptive multi-error."

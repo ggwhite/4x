@@ -1,0 +1,24 @@
+{
+  "project": {
+    "name": "task-tracker"
+  },
+  "commands": {
+    "build": "npm run build",
+    "test": "npm test",
+    "lint": "npx eslint ."
+  },
+  "runners": {
+    "claude": {
+      "command": "claude",
+      "args": ["-p", "{prompt}"],
+      "model": "opus"
+    }
+  },
+  "default_runner": "claude",
+  "roles": {
+    "designer": { "model": "opus" },
+    "coder": { "model": "sonnet" },
+    "reviewer": { "model": "sonnet", "deep_model": "opus" },
+    "tester": { "model": "sonnet" }
+  }
+}

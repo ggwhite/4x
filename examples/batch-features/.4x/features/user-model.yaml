@@ -1,0 +1,19 @@
+id: user-model
+name: "User model"
+status: todo
+priority: 1
+description: |
+  Define the core User model and implement CRUD operations.
+
+  - User fields: id (UUID), email (unique), name, passwordHash, createdAt, updatedAt
+  - Data access layer with create, findById, findByEmail, update, delete
+  - Input validation: email format, required fields, password minimum length
+  - Unit tests for all CRUD operations using an in-memory store or test DB
+repos:
+  - .
+max_rounds: 3
+acceptance:
+  - "User model has all required fields with correct types."
+  - "CRUD operations work correctly and return appropriate errors for invalid input."
+  - "Email uniqueness is enforced at the data layer."
+  - "Unit tests cover all CRUD operations and edge cases."

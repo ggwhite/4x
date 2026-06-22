@@ -1,0 +1,21 @@
+id: auth-middleware
+name: "Auth middleware"
+status: todo
+priority: 2
+depends:
+  - user-model
+description: |
+  Implement JWT-based authentication middleware.
+
+  - Login endpoint: POST /auth/login accepts email + password, returns JWT
+  - JWT contains user ID and email, signed with a configurable secret
+  - Middleware function that validates the JWT and attaches user info to the request
+  - Returns 401 for missing/invalid/expired tokens
+  - Unit tests for token generation, validation, and middleware behavior
+repos:
+  - .
+max_rounds: 3
+acceptance:
+  - "POST /auth/login returns a valid JWT for correct credentials and 401 for incorrect ones."
+  - "Middleware rejects requests with missing, malformed, or expired tokens."
+  - "Authenticated requests have user info available in the request context."

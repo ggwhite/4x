@@ -1,0 +1,31 @@
+[project]
+name = "md2html"
+version = "0.1.0"
+description = "Markdown to HTML converter CLI — 4x example project"
+requires-python = ">=3.10"
+dependencies = [
+    "markdown>=3.5",
+]
+
+[project.scripts]
+md2html = "md2html.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.4",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

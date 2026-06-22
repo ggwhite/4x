@@ -1,0 +1,26 @@
+id: markdown-converter
+name: "Markdown to HTML converter CLI"
+status: todo
+description: |
+  Build a CLI tool that reads Markdown files and converts them to HTML.
+
+  Requirements:
+  - Accept one or more .md file paths as positional arguments.
+  - Convert Markdown to HTML with support for headings, lists, code blocks,
+    bold/italic, links, and fenced code blocks with syntax highlighting.
+  - Print HTML to stdout by default.
+  - Support --output/-o flag to write HTML to a file instead.
+  - Exit code 0 on success, 1 when any input file is missing or unreadable.
+
+  Constraints:
+  - Use the `markdown` library (or `mistune`) for conversion; do not write a
+    custom parser.
+  - CLI entry point at `src/md2html/cli.py` using argparse (no click/typer).
+  - Keep dependencies minimal; only add what is needed.
+max_rounds: 5
+acceptance:
+  - "Headings (h1-h6), unordered/ordered lists, and fenced code blocks render correctly."
+  - "--output flag writes HTML to the specified file path."
+  - "Exit code 1 and a stderr message when an input file does not exist."
+  - "All unit tests pass (pytest tests/ -v exits 0)."
+  - "ruff check passes with no errors."

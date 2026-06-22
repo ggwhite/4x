@@ -1,0 +1,48 @@
+{
+  "project": {
+    "name": "multi-runner-demo"
+  },
+  "commands": {
+    "build": "go build ./...",
+    "test": "go test ./...",
+    "lint": "go vet ./..."
+  },
+  "runners": {
+    "claude": {
+      "command": "claude",
+      "args": ["-p", "{prompt}"],
+      "model": "opus"
+    },
+    "gemini": {
+      "command": "gemini",
+      "args": ["-p", "{prompt}"]
+    },
+    "codex": {
+      "command": "codex",
+      "args": ["exec"],
+      "stdin": true,
+      "quiet": true
+    }
+  },
+  "default_runner": "claude",
+  "roles": {
+    "designer": { "model": "opus" },
+    "coder": { "model": "sonnet" },
+    "reviewer": { "model": "sonnet", "deep_model": "opus" },
+    "tester": { "model": "sonnet" }
+  },
+  "profiles": {
+    "multi": {
+      "phases": [
+        { "phase": "designing",        "runner": "claude",  "model": "opus" },
+        { "phase": "design-reviewing",  "runner": "claude",  "model": "opus" },
+        { "phase": "coding",           "runner": "gemini" },
+        { "phase": "reviewing",        "runner": "claude",  "model": "sonnet" },
+        { "phase": "testing",          "runner": "codex" },
+        { "phase": "deep-reviewing",   "runner": "claude",  "model": "opus" },
+        { "phase": "accepting",        "runner": "claude",  "model": "sonnet" }
+      ]
+    }
+  },
+  "default_profile": "multi"
+}

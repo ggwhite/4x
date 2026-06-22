@@ -1,0 +1,28 @@
+{
+  "project": {
+    "name": "python-cli"
+  },
+  "runners": {
+    "claude": {
+      "command": "claude",
+      "args": ["-p", "{prompt}"],
+      "model": "opus"
+    },
+    "codex": {
+      "command": "codex",
+      "args": ["exec", "--prompt-file", "{promptFile}"]
+    }
+  },
+  "default_runner": "claude",
+  "roles": {
+    "coder": { "model": "sonnet" },
+    "designer": { "model": "opus" },
+    "reviewer": { "model": "sonnet", "deep_model": "opus" },
+    "tester": { "model": "sonnet" }
+  },
+  "commands": {
+    "build": "pip install -e .",
+    "test": "pytest tests/ -v",
+    "lint": "ruff check src/ tests/"
+  }
+}

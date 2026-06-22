@@ -1,0 +1,205 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "L001",
+      "source_feature": "F095-history-miner",
+      "category": "design",
+      "content": "task-brief 限制某檔案「只加某常量」時，會逼 Coder 在該檔旁另造局部 helper 而非抽共用 method，造成邏輯重複；設計階段若已知有可重用原語，應在 scope 內明確允許重構或預先抽出 exported helper。",
+      "created_at": "2026-06-22T15:08:29.037309+08:00",
+      "last_used": "2026-06-22T18:37:42.346702+08:00",
+      "used_count": 5,
+      "status": "active"
+    },
+    {
+      "id": "L002",
+      "source_feature": "F095-history-miner",
+      "category": "code-quality",
+      "content": "避免用字串前綴嗅探另一函式的 fallback 文案來還原其控制流（如 stuckTitleText 判斷 stuckReason 是否走 fallback）；應讓來源函式回傳 (value, found bool) 顯式布林訊號，防止文案改字後靜默失效。",
+      "created_at": "2026-06-22T15:08:29.037309+08:00",
+      "last_used": "2026-06-22T16:46:05.824263+08:00",
+      "used_count": 3,
+      "status": "active"
+    },
+    {
+      "id": "L003",
+      "source_feature": "F095-history-miner",
+      "category": "review",
+      "content": "命令層產出多個關聯集合（如 candidates 與其衍生 learnings）時，去重/同步邏輯應同時涵蓋所有關聯集合，避免一方被濾除後另一方變孤兒；設計 AC 時要明確界定關聯資料是否需一對一存活。",
+      "created_at": "2026-06-22T15:08:29.037309+08:00",
+      "last_used": "2026-06-22T19:30:37.62636+08:00",
+      "used_count": 3,
+      "status": "active"
+    },
+    {
+      "id": "L004",
+      "source_feature": "F095-history-miner",
+      "category": "testing",
+      "content": "對「重跑/idempotency」類命令，必須在 AC 與測試中明確涵蓋「對未變動輸入重跑結果穩定」案例；本次此情境直到 deep-review 才被發現為 CRITICAL，應在 designer 階段就列為驗收項。",
+      "created_at": "2026-06-22T15:08:29.037309+08:00",
+      "last_used": "2026-06-22T19:30:37.62636+08:00",
+      "used_count": 6,
+      "status": "active"
+    },
+    {
+      "id": "L005",
+      "source_feature": "F098-self-mod-scope-guard",
+      "category": "testing",
+      "content": "AC 若在 Verification Method 明寫某 package 的整合測試（如 internal/gitops 建 worktree 測 DetectChangedFiles），Coder 必須在該 package 同目錄補測；用其他層的 fake 單元測試代替不算達標。",
+      "created_at": "2026-06-22T17:02:55.599908+08:00",
+      "last_used": "2026-06-22T18:37:42.346702+08:00",
+      "used_count": 1,
+      "status": "active"
+    },
+    {
+      "id": "L006",
+      "source_feature": "F098-self-mod-scope-guard",
+      "category": "review",
+      "content": "孤立單元測試綠燈不等於端到端生效：AC-3 對 MergeConfig 單測通過，但 merged config 從未流到消費點（guard 用 ReadConfig 而非 LoadMergedConfig），驗收應追到資料真正被消費的呼叫鏈。",
+      "created_at": "2026-06-22T17:02:55.599908+08:00",
+      "last_used": "2026-06-22T18:37:42.346702+08:00",
+      "used_count": 2,
+      "status": "active"
+    },
+    {
+      "id": "L007",
+      "source_feature": "F098-self-mod-scope-guard",
+      "category": "code-quality",
+      "content": "新增跨 project/user 兩層的 config 欄位時，先確認消費端讀的是 merged config；否則 user 層欄位與 merge fallback 會變成死碼。",
+      "created_at": "2026-06-22T17:02:55.599908+08:00",
+      "last_used": "2026-06-22T18:37:42.346702+08:00",
+      "used_count": 2,
+      "status": "active"
+    },
+    {
+      "id": "L008",
+      "source_feature": "F098-self-mod-scope-guard",
+      "category": "testing",
+      "content": "宣稱 idempotent 的 AC 要避免用固定 slice 的 fake 掩蓋真實非決定性來源（如 multi-repo map iteration）；測試應覆蓋會產生順序變動的實際 detector。",
+      "created_at": "2026-06-22T17:02:55.599908+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L009",
+      "source_feature": "F096-discovered-feature-enrichment",
+      "category": "design",
+      "content": "task-brief 應主動標出 spec 與 plan 程式碼骨架的矛盾並裁決（如 draft 是 Status 非 Phase、reject 後用 abandoned 非 done），避免 Coder 照抄錯誤骨架。",
+      "created_at": "2026-06-22T17:56:03.049721+08:00",
+      "last_used": "2026-06-22T19:30:37.62636+08:00",
+      "used_count": 2,
+      "status": "active"
+    },
+    {
+      "id": "L010",
+      "source_feature": "F096-discovered-feature-enrichment",
+      "category": "code-quality",
+      "content": "新增 cobra subcommand 一律一檔一指令，即使 task-brief 寫「一檔含兩個 command」也要遵循 codebase 既有慣例，否則 review 必被打回。",
+      "created_at": "2026-06-22T17:56:03.049721+08:00",
+      "last_used": "2026-06-22T18:37:42.346702+08:00",
+      "used_count": 1,
+      "status": "active"
+    },
+    {
+      "id": "L011",
+      "source_feature": "F096-discovered-feature-enrichment",
+      "category": "review",
+      "content": "對 LLM 委託流程做對抗審查時，重點查端到端陷阱：prompt 範例被回顯誤解析（取 marker 用 LastIndex）、grep -m 是 per-file 而非總量上限、byte 截斷切壞 CJK rune。",
+      "created_at": "2026-06-22T17:56:03.049721+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L012",
+      "source_feature": "F096-discovered-feature-enrichment",
+      "category": "code-quality",
+      "content": "CLI 委託子程序的長迴圈應把呼叫鏈的 ctx 一路傳到 runner，並讓每個項目用獨立 log 路徑，否則 Ctrl-C 無法中止且 log 互相覆寫——設計階段就把 ctx 與 log 命名納入簽名。",
+      "created_at": "2026-06-22T17:56:03.049721+08:00",
+      "last_used": "2026-06-22T19:30:37.62636+08:00",
+      "used_count": 1,
+      "status": "active"
+    },
+    {
+      "id": "L013",
+      "source_feature": "F097-evolution-value-gate",
+      "category": "design",
+      "content": "對有語意的 cap 欄位（如 max_accept_per_run），用零值補預設會吃掉「0=不收」的使用者意圖；若 0 是合法輸入應改用 *int 或在 doctor 加 WARN，並在 GoDoc 明示 0 的行為。",
+      "created_at": "2026-06-22T18:59:50.866254+08:00",
+      "last_used": "2026-06-22T19:30:37.62636+08:00",
+      "used_count": 1,
+      "status": "active"
+    },
+    {
+      "id": "L014",
+      "source_feature": "F097-evolution-value-gate",
+      "category": "code-quality",
+      "content": "同一套 Jaccard 去重邏輯在 PreVeto/PostVeto/DedupeDiscovered 各特化一份時，互為二次確認的兩處（PreVeto 與 PostVeto 規則4）應共用同一 helper，避免門檻語意未來悄悄分歧。",
+      "created_at": "2026-06-22T18:59:50.866254+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L015",
+      "source_feature": "F097-evolution-value-gate",
+      "category": "design",
+      "content": "讀檔回空 pool 不報錯的 API（LoadCandidates）在編排命令中會把「前置步驟沒跑」遮蔽成「靜默成功 exit 0」；對手動操作的子命令應對缺前置輸入給明確 error。",
+      "created_at": "2026-06-22T18:59:50.866254+08:00",
+      "last_used": "2026-06-22T19:30:37.62636+08:00",
+      "used_count": 1,
+      "status": "active"
+    },
+    {
+      "id": "L016",
+      "source_feature": "F097-evolution-value-gate",
+      "category": "review",
+      "content": "git diff main..HEAD 顯示的「刪除」可能是 branch 落後 main 的比較假象；判定 scope 違規前先用 merge-base（git diff $(git merge-base main HEAD)..HEAD）查證，避免誤報。",
+      "created_at": "2026-06-22T18:59:50.866254+08:00",
+      "last_used": "2026-06-22T19:30:37.62636+08:00",
+      "used_count": 1,
+      "status": "active"
+    },
+    {
+      "id": "L017",
+      "source_feature": "F097-evolution-value-gate",
+      "category": "process",
+      "content": "當 plan 基於過時假設（假設依賴 feature 未實作）而現況已 merge，task-brief 應在開頭明列「設計裁決」覆寫 plan 並指定重用既有型別，避免 coder 重造輪子。",
+      "created_at": "2026-06-22T18:59:50.866254+08:00",
+      "last_used": "2026-06-22T19:30:37.62636+08:00",
+      "used_count": 1,
+      "status": "active"
+    },
+    {
+      "id": "L018",
+      "source_feature": "F099-evolve-driver",
+      "category": "code-quality",
+      "content": "當新命令重用既有命令的編排流程（如 mine 的掃描+去重+冪等 merge），把 orchestration glue 抽成共用純函式再讓多個 entry 共用，不要整段複製到 runEvolve/runEvolveDryRun，避免冪等不變式散落多處日後漂移。",
+      "created_at": "2026-06-22T20:26:15.186565+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L019",
+      "source_feature": "F099-evolve-driver",
+      "category": "code-quality",
+      "content": "讀取由 LLM 子程序產出的檔案（如 gate-verdicts.json）前，先刪除上一輪殘留檔，讓『runner 回 nil 卻沒寫新檔』退化為明確的 parse error，而非靜默吃舊資料。",
+      "created_at": "2026-06-22T20:26:15.186565+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L020",
+      "source_feature": "F099-evolve-driver",
+      "category": "design",
+      "content": "report 的統計欄位（如 deduped）要明確定義來源語意，不要把不同階段的丟棄數（本輪 mine 去重 vs pool-wide PreVeto）相加塞進同一數字，避免多輪累積後誤導使用者。",
+      "created_at": "2026-06-22T20:26:15.186565+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    }
+  ]
+}

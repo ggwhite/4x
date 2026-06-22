@@ -1,0 +1,22 @@
+id: protected-routes
+name: "Protected routes"
+status: todo
+priority: 3
+depends:
+  - auth-middleware
+description: |
+  Add protected API routes that require authentication.
+
+  - GET /me returns the authenticated user's profile
+  - PUT /me updates the authenticated user's name or email
+  - DELETE /me deactivates the authenticated user's account
+  - All routes use the auth middleware; unauthenticated requests get 401
+  - Users can only access their own data (no cross-user access)
+repos:
+  - .
+max_rounds: 3
+acceptance:
+  - "All /me endpoints return 401 when called without a valid token."
+  - "GET /me returns the correct user profile for the authenticated user."
+  - "PUT /me updates only the authenticated user's own data."
+  - "DELETE /me deactivates the account and subsequent requests with the same token are rejected."
