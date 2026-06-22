@@ -12,7 +12,7 @@ description: |-
     (4) Default 設定 — default_profile、default_runner
 
     此 feature 首次在 dashboard 引入 write 能力。
-status: ready-for-review
+status: done
 priority: 2
 profile: full
 subtasks:
