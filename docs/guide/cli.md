@@ -69,6 +69,7 @@ Run the Design-Code-Review-Test loop for a feature.
 | `--dry-run` | `false` | Print role prompts without calling LLM |
 | `--json` | `false` | Start run and return JSON immediately |
 | `--profile` | auto | Pipeline profile (`full`/`normal`/`quick` or custom); overrides `default_profile`/priority auto-select |
+| `--phase-override` | none | Temporary per-phase runner/model override for this run only, format `<phase>:<runner>:<model>` (repeatable); not written back to settings or the feature YAML |
 | `--no-notify` | `false` | Disable the OS notification on run completion (overrides the `notifications` config) |
 
 When the run ends (success, failure, or interruption), 4x sends a native OS notification (`osascript` on macOS, `notify-send` on Linux, PowerShell balloon on Windows). Pass `--no-notify` to suppress it, or set `"notifications": false` in `settings.json`. Missing notification tooling is silently ignored.
@@ -77,7 +78,7 @@ With `--json`, the loop runs in a detached background process and the command re
 
 `--profile` selects which phases run and, per phase, which runner and model. Built-in profiles: `full` (designing/design-reviewing/coding/reviewing/deep-reviewing/testing/accepting), `normal` (coding/reviewing/testing/accepting), `quick` (coding/reviewing). Phases not in the profile are passed through (state advances along the legal edge without invoking the runner); `coding` is always required. When `--profile` is omitted: if stdin/stdout are interactive terminals (not `--json`/dry-run/resume) 4x shows a numbered profile menu defaulting to `default_profile`; otherwise it uses `default_profile`, then priority-based auto-select when a `profiles` section exists (else `full`).
 
-The per-phase runner/model is resolved by this precedence (high→low): `--runner`/manual selection > the feature YAML's `phase_overrides.<phase>` > the profile's per-phase `runner`/`model` > `default_runner` / the role's configured model. See [Configuration → Profiles](configuration.md#profiles) for details.
+The per-phase runner/model is resolved by this precedence (high→low): `--phase-override <phase>:<runner>:<model>` (this-run-only temporary override) > `--runner`/manual selection > the feature YAML's `phase_overrides.<phase>` > the profile's per-phase `runner`/`model` > `default_runner` / the role's configured model. `--phase-override` only affects the phase it names (either dimension can be left empty, e.g. `reviewing:gemini:` for runner-only or `testing::opus` for model-only) and is never written back to `settings.json` or the feature YAML — the same temporary override the dashboard run dialog sends. See [Configuration → Profiles](configuration.md#profiles) for details.
 
 The loop drives: init → designing → coding → reviewing → testing → deep-reviewing → accepting → pending-review. On review failure, code gets another pass. On test failure, the loop re-enters coding.
 

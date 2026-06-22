@@ -1419,33 +1419,101 @@ function getRunId(featureId) {
 
 let _runModalFid = null;
 let _runRounds = 5;
+let _runOverrides = {};       // phase -> {runner, model}（本次 run 的臨時覆寫）
+let _runMergedConfig = null;  // 快取 merged-config 供 pipeline 渲染（runners + tiers）
 async function openRunModal(fid) {
   _runModalFid = fid;
   _runRounds = 5;
+  _runOverrides = {};
   document.getElementById('run-modal-fid').textContent = fid;
   document.getElementById('run-rounds-val').textContent = '5';
   document.getElementById('run-extra-prompt').value = '';
-  const sel = document.getElementById('run-runner');
+  const sel = document.getElementById('run-profile');
   sel.innerHTML = '';
   try {
     const s = await fetch(apiBase()+'/api/merged-config').then(r => r.json());
-    const runners = s.runners || {};
-    const names = Object.keys(runners);
-    if (names.length === 0) names.push('claude');
-    const def = s.default_runner || names[0];
+    _runMergedConfig = s;
+    const profiles = s.profiles || {};
+    const names = Object.keys(profiles);
+    // 內建 full/normal/quick 永遠可選（即使 profiles 區段為空）。
+    ['full','normal','quick'].forEach(n => { if (!names.includes(n)) names.push(n); });
+    const featProfile = (lastTasks.find(t => t.id === fid) || {}).profile;
+    const def = s.default_profile || featProfile || names[0];
     names.forEach(n => { const o = document.createElement('option'); o.value = n; o.textContent = cap(n); if (n === def) o.selected = true; sel.appendChild(o); });
-  } catch { sel.innerHTML = '<option value="claude">Claude</option>'; }
+  } catch { _runMergedConfig = null; sel.innerHTML = '<option value="full">Full</option>'; }
   document.getElementById('run-modal').classList.add('open');
+  renderRunPipeline();
 }
 function closeRunModal() { document.getElementById('run-modal').classList.remove('open'); _runModalFid = null; }
 function adjRunRounds(d) {
   _runRounds = Math.max(1, Math.min(99, _runRounds + d));
   document.getElementById('run-rounds-val').textContent = _runRounds;
 }
+
+// onRunProfileChange — 切換 profile 後清掉與新 profile 無關（被停用）的 override，再重繪。
+async function onRunProfileChange() { renderRunPipeline(); }
+
+// renderRunPipeline — 以目前 profile + _runOverrides 打 /api/run/preview，渲染每個 phase
+// 一列：phase 名、解析後 runner（帶色）、解析後 model，並附 per-phase 覆寫控制。
+async function renderRunPipeline() {
+  const container = document.getElementById('run-pipeline-preview');
+  if (!container || !_runModalFid) return;
+  const profile = document.getElementById('run-profile').value;
+  container.innerHTML = `<div style="font-size:12px;color:var(--text-4)">${esc(t('run.pipelineLoading'))}</div>`;
+  let pipeline;
+  try {
+    const overrides = Object.entries(_runOverrides).map(([phase, ov]) => ({ phase, runner: ov.runner || '', model: ov.model || '' }));
+    const res = await fetch(apiBase()+'/api/run/preview', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ featureId: _runModalFid, profile, overrides }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    pipeline = await res.json();
+  } catch (e) {
+    container.innerHTML = `<div style="font-size:12px;color:var(--danger,#ef4444)">${esc(t('run.pipelineError'))}: ${esc(String(e.message||e))}</div>`;
+    return;
+  }
+  // 切換 profile 後，丟掉已不在 pipeline 中（被停用）的 phase 覆寫。
+  const activePhases = new Set(pipeline.map(p => p.phase));
+  Object.keys(_runOverrides).forEach(ph => { if (!activePhases.has(ph)) delete _runOverrides[ph]; });
+
+  const runners = (_runMergedConfig && _runMergedConfig.runners) || {};
+  const runnerNames = Object.keys(runners);
+  container.innerHTML = pipeline.map(p => {
+    const ov = _runOverrides[p.phase] || {};
+    const tiers = (runners[p.runner] && runners[p.runner].tiers) ? Object.keys(runners[p.runner].tiers) : [];
+    const runnerOpts = `<option value="">${esc(t('run.phaseDefault'))}</option>` +
+      runnerNames.map(rn => `<option value="${escAttr(rn)}"${ov.runner === rn ? ' selected' : ''}>${esc(cap(rn))}</option>`).join('');
+    const modelOpts = `<option value="">${esc(t('run.phaseDefault'))}</option>` +
+      tiers.map(tr => `<option value="${escAttr(tr)}"${ov.model === tr ? ' selected' : ''}>${esc(tr)}</option>`).join('');
+    const selStyle = 'flex:1;min-width:0;padding:4px 6px;font-size:11px;background:var(--bg-hover);border:1px solid var(--border);border-radius:6px;color:var(--text-1);font-family:inherit;outline:none';
+    return `<div style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;background:var(--bg-input)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="font-size:12px;font-weight:600;color:var(--text-1);text-transform:capitalize;flex:1">${esc(p.phase)}</span>
+        <span class="runner-tag" style="border-color:${runnerColor(p.runner)}40;color:${runnerColor(p.runner)}">${esc(cap(p.runner))}</span>
+        <span style="font-size:11px;color:var(--text-3)">${esc(p.model)}</span>
+      </div>
+      <div style="display:flex;gap:6px">
+        <select onchange="setRunOverride('${escAttr(p.phase)}','runner',this.value)" style="${selStyle}">${runnerOpts}</select>
+        <select onchange="setRunOverride('${escAttr(p.phase)}','model',this.value)" style="${selStyle}">${modelOpts}</select>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// setRunOverride — 寫入／清除某 phase 的 runner 或 model 臨時覆寫，再重繪 pipeline。
+function setRunOverride(phase, dim, value) {
+  const ov = _runOverrides[phase] || {};
+  if (value) ov[dim] = value; else delete ov[dim];
+  if (ov.runner || ov.model) _runOverrides[phase] = ov; else delete _runOverrides[phase];
+  renderRunPipeline();
+}
+
 async function submitRun() {
   if (!_runModalFid) return;
-  const runner = document.getElementById('run-runner').value;
-  const body = { featureId: _runModalFid, runner, maxRounds: _runRounds };
+  const profile = document.getElementById('run-profile').value;
+  const overrides = Object.entries(_runOverrides).map(([phase, ov]) => ({ phase, runner: ov.runner || '', model: ov.model || '' }));
+  const body = { featureId: _runModalFid, profile, overrides, maxRounds: _runRounds };
   closeRunModal();
   const res = await fetch(apiBase()+'/api/run', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
   if (!res.ok) { showToast(t('toast.runFailed').replace('{error}', await res.text())); return; }

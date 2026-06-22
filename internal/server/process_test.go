@@ -51,7 +51,7 @@ func TestProcessManager_StartAndList(t *testing.T) {
 	pm := NewProcessManager(ws, 2, fakeRunCommand(t))
 	defer pm.Shutdown()
 
-	info, err := pm.Start("test-feat", "", 5)
+	info, err := pm.Start("test-feat", "", 5, "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestProcessManager_Stop(t *testing.T) {
 	pm := NewProcessManager(ws, 2, fakeRunCommand(t))
 	defer pm.Shutdown()
 
-	info, err := pm.Start("test-feat", "", 5)
+	info, err := pm.Start("test-feat", "", 5, "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestProcessManager_PipeOutputToEvents(t *testing.T) {
 	pm := NewProcessManager(ws, 2, fakeRunCommand(t))
 	defer pm.Shutdown()
 
-	if _, err := pm.Start("test-feat", "", 5); err != nil {
+	if _, err := pm.Start("test-feat", "", 5, "", nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -128,12 +128,53 @@ func TestProcessManager_MaxParallel(t *testing.T) {
 	pm := NewProcessManager(ws, 1, fakeRunCommand(t))
 	defer pm.Shutdown()
 
-	if _, err := pm.Start("test-feat", "", 5); err != nil {
+	if _, err := pm.Start("test-feat", "", 5, "", nil); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := pm.Start("test-feat-2", "", 5); err == nil {
+	if _, err := pm.Start("test-feat-2", "", 5, "", nil); err == nil {
 		t.Error("expected error for exceeding max parallel, got nil")
+	}
+}
+
+func TestBuildRunArgs_ProfileOverrides(t *testing.T) {
+	args := buildRunArgs("F001", "claude", 3, "normal", []phaseOverrideReq{
+		{Phase: "reviewing", Runner: "gemini"},
+		{Phase: "testing", Model: "opus"},
+		{Phase: "coding", Runner: "codex", Model: "sonnet"},
+	})
+	joined := strings.Join(args, " ")
+	want := "run F001 --runner claude --profile normal " +
+		"--phase-override reviewing:gemini: --phase-override testing::opus " +
+		"--phase-override coding:codex:sonnet --max-rounds 3"
+	if joined != want {
+		t.Errorf("buildRunArgs:\n got: %s\nwant: %s", joined, want)
+	}
+}
+
+func TestBuildRunArgs_NoProfileOrOverrides(t *testing.T) {
+	args := buildRunArgs("F001", "claude", 5, "", nil)
+	joined := strings.Join(args, " ")
+	want := "run F001 --runner claude --max-rounds 5"
+	if joined != want {
+		t.Errorf("buildRunArgs: got %q, want %q", joined, want)
+	}
+}
+
+func TestProcessManager_StartRecordsProfile(t *testing.T) {
+	ws := setupPMWorkspace(t)
+	pm := NewProcessManager(ws, 2, fakeRunCommand(t))
+	defer pm.Shutdown()
+
+	info, err := pm.Start("test-feat", "", 5, "quick", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Profile != "quick" {
+		t.Errorf("info.Profile = %q, want quick", info.Profile)
+	}
+	if pm.List()[0].Profile != "quick" {
+		t.Errorf("List()[0].Profile = %q, want quick (cloneRunInfo)", pm.List()[0].Profile)
 	}
 }
 
@@ -142,11 +183,11 @@ func TestProcessManager_DuplicateFeature(t *testing.T) {
 	pm := NewProcessManager(ws, 2, fakeRunCommand(t))
 	defer pm.Shutdown()
 
-	if _, err := pm.Start("test-feat", "", 5); err != nil {
+	if _, err := pm.Start("test-feat", "", 5, "", nil); err != nil {
 		t.Fatal(err)
 	}
 
-	_, err := pm.Start("test-feat", "", 5)
+	_, err := pm.Start("test-feat", "", 5, "", nil)
 	if err == nil {
 		t.Fatal("expected error for duplicate feature run, got nil")
 	}
@@ -159,7 +200,7 @@ func TestProcessManager_Shutdown(t *testing.T) {
 	ws := setupPMWorkspace(t)
 	pm := NewProcessManager(ws, 2, fakeRunCommand(t))
 
-	if _, err := pm.Start("test-feat", "", 5); err != nil {
+	if _, err := pm.Start("test-feat", "", 5, "", nil); err != nil {
 		t.Fatal(err)
 	}
 

@@ -135,7 +135,7 @@ func TestRunLoop_PerPhaseRunner(t *testing.T) {
 		return mock
 	}
 
-	if err := runLoop(context.Background(), ws, ws, f, cfg, s, nil, factory, "never", ""); err != nil {
+	if err := runLoop(context.Background(), ws, ws, f, cfg, s, nil, factory, "never", "", nil); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -223,7 +223,7 @@ func TestRunLoop_ManualRunnerModelResolves(t *testing.T) {
 	}
 
 	// manualRunner="codex"（模擬 --runner codex）：每個 phase 都應用 codex 且 model 解析成功。
-	if err := runLoop(context.Background(), ws, ws, f, cfg, s, nil, factory, "never", "codex"); err != nil {
+	if err := runLoop(context.Background(), ws, ws, f, cfg, s, nil, factory, "never", "codex", nil); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 

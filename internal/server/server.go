@@ -82,6 +82,18 @@ func NewMux(resolver WorkspaceResolver) http.Handler {
 		}
 		handlePostRun(ws, pm, w, r)
 	})
+	mux.HandleFunc("/api/run/preview", func(w http.ResponseWriter, r *http.Request) {
+		ws, _, _, err := resolver(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		handlePostRunPreview(ws, w, r)
+	})
 	mux.HandleFunc("/api/runs", func(w http.ResponseWriter, r *http.Request) {
 		_, pm, _, err := resolver(r)
 		if err != nil {
@@ -493,9 +505,18 @@ type overviewInfo struct {
 }
 
 type runRequest struct {
-	FeatureID string `json:"featureId"`
-	Runner    string `json:"runner"`
-	MaxRounds int    `json:"maxRounds"`
+	FeatureID string             `json:"featureId"`
+	Runner    string             `json:"runner"` // 保留向後相容（全域 --runner）
+	Profile   string             `json:"profile,omitempty"`
+	Overrides []phaseOverrideReq `json:"overrides,omitempty"`
+	MaxRounds int                `json:"maxRounds"`
+}
+
+// phaseOverrideReq 是 dashboard 送來的單筆 per-phase 臨時覆寫，只影響本次 run、不落地。
+type phaseOverrideReq struct {
+	Phase  string `json:"phase"`
+	Runner string `json:"runner,omitempty"`
+	Model  string `json:"model,omitempty"`
 }
 
 func handlePostRun(ws *protocol.CachedWorkspace, pm *ProcessManager, w http.ResponseWriter, r *http.Request) {
@@ -508,7 +529,8 @@ func handlePostRun(ws *protocol.CachedWorkspace, pm *ProcessManager, w http.Resp
 		http.Error(w, "featureId required", http.StatusBadRequest)
 		return
 	}
-	if _, err := ws.LoadFeature(req.FeatureID); err != nil {
+	feature, err := ws.LoadFeature(req.FeatureID)
+	if err != nil {
 		http.Error(w, "feature not found", http.StatusNotFound)
 		return
 	}
@@ -518,16 +540,31 @@ func handlePostRun(ws *protocol.CachedWorkspace, pm *ProcessManager, w http.Resp
 			return
 		}
 	}
-	if req.Runner == "" {
-		if cfg, err := ws.ReadConfig(); err == nil {
-			req.Runner = cfg.Default
+
+	cfg := mergedConfig(ws)
+	// 驗證 profile（若非空，沿用 CLI 早期驗證語意：存在 + 含 coding phase）。
+	if req.Profile != "" {
+		if _, _, err := protocol.ResolveProfile(cfg, feature, req.Profile); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
 		}
+	}
+	// 驗證每筆 override 的 phase 屬於可選白名單。
+	for _, ov := range req.Overrides {
+		if !protocol.IsSelectablePhase(protocol.Phase(ov.Phase)) {
+			http.Error(w, fmt.Sprintf("invalid override phase %q", ov.Phase), http.StatusBadRequest)
+			return
+		}
+	}
+
+	if req.Runner == "" {
+		req.Runner = cfg.Default
 	}
 	if req.MaxRounds <= 0 {
 		req.MaxRounds = 5
 	}
 
-	info, err := pm.Start(req.FeatureID, req.Runner, req.MaxRounds)
+	info, err := pm.Start(req.FeatureID, req.Runner, req.MaxRounds, req.Profile, req.Overrides)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
@@ -535,6 +572,58 @@ func handlePostRun(ws *protocol.CachedWorkspace, pm *ProcessManager, w http.Resp
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(info)
+}
+
+type runPreviewRequest struct {
+	FeatureID string             `json:"featureId"`
+	Profile   string             `json:"profile,omitempty"`
+	Overrides []phaseOverrideReq `json:"overrides,omitempty"`
+}
+
+// handlePostRunPreview 解析給定 profile + 臨時覆寫下的完整 pipeline 並回傳 []protocol.ResolvedPhase，
+// 供 dashboard run dialog 顯示每個 phase 合併所有覆寫層級後的最終 runner/model。
+// 與實際 run loop 共用 protocol.ResolvePipeline，確保預覽與執行結果一致。
+// 解析錯誤（unknown profile/runner、bad phase）回 400 並帶訊息。
+func handlePostRunPreview(ws *protocol.CachedWorkspace, w http.ResponseWriter, r *http.Request) {
+	var req runPreviewRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	if req.FeatureID == "" {
+		http.Error(w, "featureId required", http.StatusBadRequest)
+		return
+	}
+	feature, err := ws.LoadFeature(req.FeatureID)
+	if err != nil {
+		http.Error(w, "feature not found", http.StatusNotFound)
+		return
+	}
+
+	overridesMap := make(map[protocol.Phase]protocol.PhaseSpec, len(req.Overrides))
+	for _, ov := range req.Overrides {
+		phase := protocol.Phase(ov.Phase)
+		if !protocol.IsSelectablePhase(phase) {
+			http.Error(w, fmt.Sprintf("invalid override phase %q", ov.Phase), http.StatusBadRequest)
+			return
+		}
+		overridesMap[phase] = protocol.PhaseSpec{Phase: ov.Phase, Runner: ov.Runner, Model: ov.Model}
+	}
+
+	cfg := mergedConfig(ws)
+	pipeline, err := protocol.ResolvePipeline(cfg, feature, req.Profile, "", overridesMap)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if pipeline == nil {
+		pipeline = []protocol.ResolvedPhase{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(pipeline); err != nil {
+		slog.Error("encode run preview pipeline", "error", err)
+	}
 }
 
 func handleGetRuns(pm *ProcessManager, w http.ResponseWriter) {

@@ -117,6 +117,7 @@ func newRunCmd() *cobra.Command {
 	var dryRun bool
 	var jsonOutput bool
 	var profileFlag string
+	var phaseOverrides []string
 	var noNotify bool
 
 	cmd := &cobra.Command{
@@ -169,6 +170,12 @@ func newRunCmd() *cobra.Command {
 				return err
 			}
 
+			// 解析 per-phase 臨時覆寫（--phase-override），覆寫優先序最高層、只影響本次 run。
+			runOverrides, err := parsePhaseOverrides(phaseOverrides)
+			if err != nil {
+				return err
+			}
+
 			if jsonOutput {
 				bgArgs := []string{"run", featureID}
 				if runnerName != "" {
@@ -176,6 +183,9 @@ func newRunCmd() *cobra.Command {
 				}
 				if profileFlag != "" {
 					bgArgs = append(bgArgs, "--profile", profileFlag)
+				}
+				for _, po := range phaseOverrides {
+					bgArgs = append(bgArgs, "--phase-override", po)
 				}
 				if maxRounds > 0 {
 					bgArgs = append(bgArgs, "--max-rounds", fmt.Sprintf("%d", maxRounds))
@@ -385,7 +395,7 @@ func newRunCmd() *cobra.Command {
 			runnerFactory := func(rn string, logPath string, model string) runner.Runner {
 				return runner.NewRunner(runnerWs, rn, cfg.Runners[rn], time.Duration(timeout)*time.Second, logPath, model)
 			}
-			loopErr := runLoop(ctx, ws, runnerWs, feature, cfg, s, ops, runnerFactory, commitStrategy, manualRunner)
+			loopErr := runLoop(ctx, ws, runnerWs, feature, cfg, s, ops, runnerFactory, commitStrategy, manualRunner, runOverrides)
 
 			finalState, err := ws.ReadState(featureID)
 			if err != nil {
@@ -442,8 +452,46 @@ func newRunCmd() *cobra.Command {
 	// --profile 與 --only 互斥；目前 Go run 指令沒有 --only（屬 skill 編排層），
 	// 故此處不註冊互斥規則，未來若新增 --only 再加 MarkFlagsMutuallyExclusive。
 	cmd.Flags().StringVar(&profileFlag, "profile", "", "pipeline profile (full/normal/quick or custom); overrides priority-based auto-select")
+	cmd.Flags().StringArrayVar(&phaseOverrides, "phase-override", nil, "temporary per-phase runner/model override for this run only, format <phase>:<runner>:<model> (repeatable)")
 	cmd.Flags().BoolVar(&noNotify, "no-notify", false, "disable OS notification on run completion (overrides config)")
 	return cmd
+}
+
+// parsePhaseOverrides 解析 --phase-override 旗標的原始字串為 per-phase 臨時覆寫 map。
+//
+// 每筆格式為 <phase>:<runner>:<model>，三段以冒號分隔；runner / model 任一可留空代表
+// 不覆寫該維度，但兩者不可同時為空。phase 必須通過 IsSelectablePhase，重複 phase 視為錯誤。
+//
+// 範例：
+//
+//	reviewing:gemini:    只覆寫 runner
+//	testing::opus        只覆寫 model tier
+//	coding:codex:sonnet  兩者都覆寫
+func parsePhaseOverrides(raw []string) (map[protocol.Phase]protocol.PhaseSpec, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	out := make(map[protocol.Phase]protocol.PhaseSpec, len(raw))
+	for _, entry := range raw {
+		parts := strings.SplitN(entry, ":", 3)
+		if len(parts) != 3 {
+			return nil, fmt.Errorf("invalid --phase-override %q: expected <phase>:<runner>:<model>", entry)
+		}
+		phase := protocol.Phase(strings.TrimSpace(parts[0]))
+		runnerName := strings.TrimSpace(parts[1])
+		model := strings.TrimSpace(parts[2])
+		if !protocol.IsSelectablePhase(phase) {
+			return nil, fmt.Errorf("invalid --phase-override %q: %q is not a selectable phase", entry, phase)
+		}
+		if runnerName == "" && model == "" {
+			return nil, fmt.Errorf("invalid --phase-override %q: runner and model cannot both be empty", entry)
+		}
+		if _, dup := out[phase]; dup {
+			return nil, fmt.Errorf("invalid --phase-override %q: phase %q overridden more than once", entry, phase)
+		}
+		out[phase] = protocol.PhaseSpec{Phase: string(phase), Runner: runnerName, Model: model}
+	}
+	return out, nil
 }
 
 // isInteractiveTerminal 回報 stdin 與 stdout 是否皆為互動式終端機（char device）。
@@ -671,7 +719,7 @@ func prefetchablePhase(phase protocol.Phase, cfg protocol.Config) bool {
 	}
 }
 
-func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature feat.Feature, cfg protocol.Config, s protocol.State, ops gitops.Ops, newRunner func(runnerName string, logPath string, model string) runner.Runner, commitStrategy string, manualRunner string) error {
+func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature feat.Feature, cfg protocol.Config, s protocol.State, ops gitops.Ops, newRunner func(runnerName string, logPath string, model string) runner.Runner, commitStrategy string, manualRunner string, runOverrides map[protocol.Phase]protocol.PhaseSpec) error {
 	if ops == nil {
 		ops = gitops.New(ws.Root, ws, cfg)
 	}
@@ -786,7 +834,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		// S6：reviewing phase 啟用平行 reviewer + tester（兩者皆 read-only、共用 worktree）。
 		if phase == protocol.PhaseReviewing && cfg.ParallelReviewTest &&
 			pc.EnablesRole(protocol.RoleReviewer) && pc.EnablesRole(protocol.RoleTester) {
-			cont, err := runReviewTestParallel(ctx, ws, runnerWs, feature, cfg, &s, ops, newRunner, pc, manualRunner)
+			cont, err := runReviewTestParallel(ctx, ws, runnerWs, feature, cfg, &s, ops, newRunner, pc, manualRunner, runOverrides)
 			if err != nil {
 				return err
 			}
@@ -799,7 +847,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		// F063：deep-reviewing phase 由自癒循環接管 — deep reviewer FAIL 時在同一 phase
 		// 內 spawn mini-coder + re-verifier 修正，通過才放行 accepting，不回主迴圈重跑整條流程。
 		if phase == protocol.PhaseDeepReviewing {
-			cont, err := runDeepReviewPhase(ctx, ws, runnerWs, feature, cfg, &s, ops, newRunner, commitStrategy, manualRunner)
+			cont, err := runDeepReviewPhase(ctx, ws, runnerWs, feature, cfg, &s, ops, newRunner, commitStrategy, manualRunner, runOverrides)
 			if err != nil {
 				return err
 			}
@@ -877,7 +925,9 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 
 		// deep-reviewing phase 已由 runDeepReviewPhase 接管（含 deep_model 解析與跳過邏輯），
 		// 故此處 role 必不為 deep-reviewer，直接依覆寫優先序逐 phase 解析 runner 與 model。
-		phaseRunner, err := protocol.ResolvePhaseRunner(cfg, feature, pc, phase, manualRunner)
+		// per-phase 臨時覆寫疊在全域 manualRunner 之上（覆寫優先序最高層）。
+		runnerManual, modelManual := protocol.EffectiveManual(runOverrides, phase, manualRunner)
+		phaseRunner, err := protocol.ResolvePhaseRunner(cfg, feature, pc, phase, runnerManual)
 		if err != nil {
 			s.Active = false
 			s.StopReason = "runner-error"
@@ -885,9 +935,9 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 			logStateWriteErr(ws.WriteState(featureID, s), featureID, s.Phase)
 			return fmt.Errorf("runner resolution failed: %w", err)
 		}
-		// ResolvePhaseModel 的最後一個參數是手動指定的 model tier（對應未來的 --model flag），
-		// 不是 runner 名稱；目前 CLI 尚無 --model flag，故一律傳空字串。
-		model, err := protocol.ResolvePhaseModel(cfg, feature, pc, phase, role, phaseRunner, "")
+		// ResolvePhaseModel 的最後一個參數是手動指定的 model tier（per-phase 臨時覆寫或全域），
+		// 不是 runner 名稱；無覆寫時為空字串，沿用 F090 既有解析。
+		model, err := protocol.ResolvePhaseModel(cfg, feature, pc, phase, role, phaseRunner, modelManual)
 		if err != nil {
 			s.Active = false
 			s.StopReason = "model-error"
@@ -1262,7 +1312,7 @@ func successorPhase(p protocol.Phase) (protocol.Phase, protocol.Role) {
 // worktree），兩者完成後合併判定。回傳 (cont, err)：cont 為 true 表示主迴圈應 continue
 // 接手後續 phase（deep-reviewing 或 amending）；cont 為 false 且 err 為 nil 表示已落入
 // 終止狀態（blocked / needs-attention），主迴圈應 break；err 非 nil 表示 hard error 直接中止。
-func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature feat.Feature, cfg protocol.Config, s *protocol.State, ops gitops.Ops, newRunner func(runnerName string, logPath string, model string) runner.Runner, pc protocol.ProfileConfig, manualRunner string) (bool, error) {
+func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature feat.Feature, cfg protocol.Config, s *protocol.State, ops gitops.Ops, newRunner func(runnerName string, logPath string, model string) runner.Runner, pc protocol.ProfileConfig, manualRunner string, runOverrides map[protocol.Phase]protocol.PhaseSpec) (bool, error) {
 	featureID := feature.ID
 	round := s.Round
 
@@ -1276,19 +1326,23 @@ func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 		return false, fmt.Errorf("%s resolution failed: %w", what, err)
 	}
 
-	reviewRunner, err := protocol.ResolvePhaseRunner(cfg, feature, pc, protocol.PhaseReviewing, manualRunner)
+	// reviewing / testing phase 各自套用 per-phase 臨時覆寫（疊在全域 manualRunner 之上）。
+	reviewRunnerManual, reviewModelManual := protocol.EffectiveManual(runOverrides, protocol.PhaseReviewing, manualRunner)
+	testRunnerManual, testModelManual := protocol.EffectiveManual(runOverrides, protocol.PhaseTesting, manualRunner)
+
+	reviewRunner, err := protocol.ResolvePhaseRunner(cfg, feature, pc, protocol.PhaseReviewing, reviewRunnerManual)
 	if err != nil {
 		return resolveErr("reviewer runner", err)
 	}
-	reviewModel, err := protocol.ResolvePhaseModel(cfg, feature, pc, protocol.PhaseReviewing, protocol.RoleReviewer, reviewRunner, "")
+	reviewModel, err := protocol.ResolvePhaseModel(cfg, feature, pc, protocol.PhaseReviewing, protocol.RoleReviewer, reviewRunner, reviewModelManual)
 	if err != nil {
 		return resolveErr("reviewer model", err)
 	}
-	testRunner, err := protocol.ResolvePhaseRunner(cfg, feature, pc, protocol.PhaseTesting, manualRunner)
+	testRunner, err := protocol.ResolvePhaseRunner(cfg, feature, pc, protocol.PhaseTesting, testRunnerManual)
 	if err != nil {
 		return resolveErr("tester runner", err)
 	}
-	testModel, err := protocol.ResolvePhaseModel(cfg, feature, pc, protocol.PhaseTesting, protocol.RoleTester, testRunner, "")
+	testModel, err := protocol.ResolvePhaseModel(cfg, feature, pc, protocol.PhaseTesting, protocol.RoleTester, testRunner, testModelManual)
 	if err != nil {
 		return resolveErr("tester model", err)
 	}
@@ -1732,7 +1786,7 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 // 回傳 (cont, err)：cont 為 true 表示主迴圈應 continue（已推進 accepting 或跳過 deep review）；
 // cont 為 false 且 err 為 nil 表示已落入終止狀態（needs-attention / blocked），主迴圈應 break；
 // err 非 nil 表示 hard error 或 context cancel，直接中止。
-func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature feat.Feature, cfg protocol.Config, s *protocol.State, ops gitops.Ops, newRunner func(runnerName string, logPath string, model string) runner.Runner, commitStrategy string, manualRunner string) (bool, error) {
+func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature feat.Feature, cfg protocol.Config, s *protocol.State, ops gitops.Ops, newRunner func(runnerName string, logPath string, model string) runner.Runner, commitStrategy string, manualRunner string, runOverrides map[protocol.Phase]protocol.PhaseSpec) (bool, error) {
 	featureID := feature.ID
 	round := s.Round
 
@@ -1746,9 +1800,10 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 		return false, fmt.Errorf("resolve profile: %w", err)
 	}
 
-	// deep-reviewing phase 的 runner 依覆寫優先序解析；其下所有子 role（deep-reviewer、
-	// mini-coder、re-verifier、synthesizer）皆共用此 runner，model 行為各自維持既有語意。
-	deepRunner, err := protocol.ResolvePhaseRunner(cfg, feature, pc, protocol.PhaseDeepReviewing, manualRunner)
+	// deep-reviewing phase 的 runner 依覆寫優先序解析（含 per-phase 臨時覆寫）；其下所有子 role
+	// （deep-reviewer、mini-coder、re-verifier、synthesizer）皆共用此 runner，model 行為各自維持既有語意。
+	deepRunnerManual, _ := protocol.EffectiveManual(runOverrides, protocol.PhaseDeepReviewing, manualRunner)
+	deepRunner, err := protocol.ResolvePhaseRunner(cfg, feature, pc, protocol.PhaseDeepReviewing, deepRunnerManual)
 	if err != nil {
 		s.Active = false
 		s.StopReason = "runner-error"
@@ -1823,7 +1878,9 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 
 	// 4. FAIL → 內部自癒循環。
 	maxFix := protocol.ResolveMaxFixRounds(cfg, protocol.RoleDeepReviewer)
-	coderModel, err := protocol.ResolvePhaseModel(cfg, feature, pc, protocol.PhaseCoding, protocol.RoleCoder, deepRunner, "")
+	// mini-coder 的 model 沿用 coding phase 的解析（含 coding 的 per-phase 臨時 model 覆寫）。
+	_, coderModelManual := protocol.EffectiveManual(runOverrides, protocol.PhaseCoding, manualRunner)
+	coderModel, err := protocol.ResolvePhaseModel(cfg, feature, pc, protocol.PhaseCoding, protocol.RoleCoder, deepRunner, coderModelManual)
 	if err != nil {
 		s.Active = false
 		s.StopReason = "model-error"

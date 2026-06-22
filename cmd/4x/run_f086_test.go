@@ -33,7 +33,7 @@ func TestRunLoop_SoftFailMessageExitCode(t *testing.T) {
 		return &softFailRunner{ws: ws, featureID: "feat-sf", failPhase: protocol.PhaseCoding}
 	}
 
-	if err := runLoop(context.Background(), ws, ws, feat0, cfg, s, nil, factory, "never", ""); err != nil {
+	if err := runLoop(context.Background(), ws, ws, feat0, cfg, s, nil, factory, "never", "", nil); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -94,7 +94,7 @@ func TestRunLoop_ParallelNoProgressStops(t *testing.T) {
 		return &failingParallelRunner{ws: ws, featureID: "feat-np", role: roleFromLogPath(logPath), mu: &mu}
 	}
 
-	if err := runLoop(context.Background(), ws, ws, feat0, cfg, s, nil, factory, "never", ""); err != nil {
+	if err := runLoop(context.Background(), ws, ws, feat0, cfg, s, nil, factory, "never", "", nil); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 

@@ -59,7 +59,7 @@ func TestRunLoop_PrefetchConsistency(t *testing.T) {
 		{}, {}, {reviewVerdict: "PASS"}, {testPassed: true}, {},
 	}}
 
-	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string, string) runner.Runner { return mock }, "never", ""); err != nil {
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string, string) runner.Runner { return mock }, "never", "", nil); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -132,7 +132,7 @@ func TestRunLoop_AsyncCommitCompletesBeforeReturn(t *testing.T) {
 	}}
 	ops := &commitRecordingOps{delay: 20 * time.Millisecond}
 
-	if err := runLoop(context.Background(), main, runnerWs, feature, cfg, s, ops, func(string, string, string) runner.Runner { return mock }, "per-round", ""); err != nil {
+	if err := runLoop(context.Background(), main, runnerWs, feature, cfg, s, ops, func(string, string, string) runner.Runner { return mock }, "per-round", "", nil); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 
@@ -176,7 +176,7 @@ func TestRunLoop_GuardFailNoCommit(t *testing.T) {
 	ops := &commitRecordingOps{}
 	ops.mockOps.changedRepos = []string{"out-of-scope-repo"}
 
-	if err := runLoop(context.Background(), main, runnerWs, feature, cfg, s, ops, func(string, string, string) runner.Runner { return mock }, "per-round", ""); err != nil {
+	if err := runLoop(context.Background(), main, runnerWs, feature, cfg, s, ops, func(string, string, string) runner.Runner { return mock }, "per-round", "", nil); err != nil {
 		t.Fatalf("runLoop error: %v", err)
 	}
 

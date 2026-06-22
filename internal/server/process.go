@@ -21,6 +21,7 @@ type RunInfo struct {
 	ID        string    `json:"id"`
 	FeatureID string    `json:"featureId"`
 	Runner    string    `json:"runner"`
+	Profile   string    `json:"profile,omitempty"`
 	Pid       int       `json:"pid,omitempty"`
 	Cmd       *exec.Cmd `json:"-"`
 	StartTime time.Time `json:"startTime"`
@@ -62,8 +63,9 @@ func (pm *ProcessManager) SetMaxParallel(n int) {
 	pm.maxParallel = n
 }
 
-// Start 啟動一個 4x run subprocess。
-func (pm *ProcessManager) Start(featureID, runner string, maxRounds int) (*RunInfo, error) {
+// Start 啟動一個 4x run subprocess。profile 與 overrides 為本次 run 的 pipeline profile
+// 與 per-phase 臨時覆寫（皆可為空），會轉成對應 CLI args 傳給子程序、不寫回 settings.json。
+func (pm *ProcessManager) Start(featureID, runner string, maxRounds int, profile string, overrides []phaseOverrideReq) (*RunInfo, error) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
@@ -77,7 +79,7 @@ func (pm *ProcessManager) Start(featureID, runner string, maxRounds int) (*RunIn
 		return nil, fmt.Errorf("max concurrent runs reached (%d)", pm.maxParallel)
 	}
 
-	cmd := exec.Command(pm.binName, buildRunArgs(featureID, runner, maxRounds)...)
+	cmd := exec.Command(pm.binName, buildRunArgs(featureID, runner, maxRounds, profile, overrides)...)
 	cmd.Dir = pm.ws.Root
 
 	stdout, err := cmd.StdoutPipe()
@@ -103,6 +105,7 @@ func (pm *ProcessManager) Start(featureID, runner string, maxRounds int) (*RunIn
 		ID:        id,
 		FeatureID: featureID,
 		Runner:    runner,
+		Profile:   profile,
 		Pid:       cmd.Process.Pid,
 		Cmd:       cmd,
 		StartTime: time.Now().UTC(),
@@ -119,10 +122,16 @@ func (pm *ProcessManager) Start(featureID, runner string, maxRounds int) (*RunIn
 	return cloneRunInfo(info), nil
 }
 
-func buildRunArgs(featureID, runner string, maxRounds int) []string {
+func buildRunArgs(featureID, runner string, maxRounds int, profile string, overrides []phaseOverrideReq) []string {
 	args := []string{"run", featureID}
 	if runner != "" {
 		args = append(args, "--runner", runner)
+	}
+	if profile != "" {
+		args = append(args, "--profile", profile)
+	}
+	for _, ov := range overrides {
+		args = append(args, "--phase-override", fmt.Sprintf("%s:%s:%s", ov.Phase, ov.Runner, ov.Model))
 	}
 	if maxRounds > 0 {
 		args = append(args, "--max-rounds", strconv.Itoa(maxRounds))
@@ -280,6 +289,7 @@ func cloneRunInfo(info *RunInfo) *RunInfo {
 		ID:        info.ID,
 		FeatureID: info.FeatureID,
 		Runner:    info.Runner,
+		Profile:   info.Profile,
 		Pid:       info.Pid,
 		StartTime: info.StartTime,
 	}

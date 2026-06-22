@@ -356,7 +356,7 @@ func newBatchRunCmd() *cobra.Command {
 				runnerFactory := func(rn string, logPath string, model string) runner.Runner {
 					return runner.NewRunner(batchRunnerWs, rn, cfg.Runners[rn], time.Duration(timeout)*time.Second, logPath, model)
 				}
-				runErr := runLoop(batchCtx, ws, batchRunnerWs, feature, cfg, s, batchOps, runnerFactory, commitStrategy, manualRunner)
+				runErr := runLoop(batchCtx, ws, batchRunnerWs, feature, cfg, s, batchOps, runnerFactory, commitStrategy, manualRunner, nil)
 
 				updated, _ := ws.LoadFeature(next)
 				return updated.Status, runErr
