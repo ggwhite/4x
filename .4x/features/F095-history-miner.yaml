@@ -10,7 +10,7 @@ description: |-
     - candidate 必須標記來源（escalation/stuck/fail-pattern）供追溯
 
     約束：純 CLI 不呼叫 LLM；只產 candidate pool 不自動建 feature（建檔交由 F097 閘門後決定）；掃描 best-effort，單一 feature 資料壞掉只記 log 不中斷。
-status: ready-for-review
+status: done
 priority: 1
 subtasks:
     - id: scan-escalations
