@@ -87,8 +87,6 @@ async function openProjectSettings() {
     const sections = document.getElementById('ps-settings-sections');
     if (sections) sections.style.display = '';
     renderProfilesTab();
-    renderRolesConfig();
-    renderDefaultsUI();
     document.getElementById('project-settings-modal').classList.add('open');
     const panel = document.querySelector('#project-settings-modal .modal-panel');
     const header = document.getElementById('ps-sticky-header');
@@ -147,8 +145,6 @@ function switchPSTab(tab) {
     if (saveBtn) saveBtn.style.display = '';
     renderProjectSettingsForm();
     renderProfilesTab();
-    renderRolesConfig();
-    renderDefaultsUI();
   } else if (tab === 'json') {
     const obj = collectFormData();
     const editor = document.getElementById('ps-json-editor');
@@ -500,6 +496,14 @@ function renderProjectSettingsForm() {
       ${_supportedRunners.map(r => `<option value="${escAttr(r.name)}"${s.default_runner===r.name?' selected':''}>${esc(cap(r.name))}</option>`).join('')}
     </select>
   </div>`;
+  const profileNames = Object.keys(s.profiles || {});
+  html += `<div class="ps-field-row" data-label="default profile" data-key="ps-default-profile" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <label style="font-size:13px;color:var(--text-2);min-width:160px">${t('projectSettings.defaultProfile')}</label>
+    <select id="ps-default-profile" onchange="autoSave()" style="flex:1;max-width:400px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none">
+      <option value="">${t('projectSettings.none')}</option>
+      ${profileNames.map(n => `<option value="${escAttr(n)}"${s.default_profile===n?' selected':''}>${esc(n)}</option>`).join('')}
+    </select>
+  </div>`;
   html += `<div class="ps-field-row" data-label="isolation" data-key="ps-isolation" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
     <label style="font-size:13px;color:var(--text-2);min-width:160px">${t('projectSettings.isolation')}</label>
     <select id="ps-isolation" onchange="autoSave()" style="flex:1;max-width:400px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none">
@@ -552,14 +556,14 @@ function renderProjectSettingsForm() {
   </div></div>`;
 
   // Roles section
-  const roleNames = ['designer', 'coder', 'reviewer', 'tester', 'acceptor'];
+  const roleNames = ['designer', 'design-reviewer', 'coder', 'reviewer', 'tester', 'deep-reviewer', 'acceptor'];
   html += `<div style="margin-bottom:20px"><div class="settings-label">${t('projectSettings.roles')}</div>`;
   roleNames.forEach(rn => {
     const rc = roles[rn] || {};
     html += `<div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px">
       <div style="font-size:13px;font-weight:600;color:var(--text-1);margin-bottom:10px;text-transform:capitalize">${rn}</div>
       ${psField(t('field.model'), 'ps-role-model-'+rn, rc.model)}
-      ${rn === 'reviewer' ? psField(t('field.deepModel'), 'ps-role-deepmodel-'+rn, rc.deep_model) : ''}
+      ${rn === 'reviewer' || rn === 'deep-reviewer' ? psField(t('field.deepModel'), 'ps-role-deepmodel-'+rn, rc.deep_model) : ''}
       ${rn === 'tester' ? psField(t('field.screenshotDir'), 'ps-role-screenshot-dir-'+rn, rc.screenshot_dir || '.4x/e2e/{feature-id}/screenshot/') : ''}
       ${psTagField(t('field.instructions'), 'ps-role-instr-'+rn, rc.instructions)}
       ${psTagField(t('field.includes'), 'ps-role-includes-'+rn, rc.includes)}
@@ -643,6 +647,8 @@ function collectFormData() {
 
   const defRunner = (document.getElementById('ps-default') || {}).value?.trim();
   if (defRunner) obj.default_runner = defRunner;
+  const defProfile = (document.getElementById('ps-default-profile') || {}).value?.trim();
+  if (defProfile) obj.default_profile = defProfile;
   const isolation = (document.getElementById('ps-isolation') || {}).value?.trim();
   if (isolation) obj.isolation = isolation;
   const maxRunsEl = document.getElementById('ps-maxruns');
@@ -684,13 +690,13 @@ function collectFormData() {
   if (Object.keys(runners).length) obj.runners = runners;
 
   // Roles
-  const roleNames = ['designer', 'coder', 'reviewer', 'tester', 'acceptor'];
+  const roleNames = ['designer', 'design-reviewer', 'coder', 'reviewer', 'tester', 'deep-reviewer', 'acceptor'];
   const rolesObj = {};
   roleNames.forEach(rn => {
     const rc = {};
     const model = (document.getElementById('ps-role-model-'+rn) || {}).value?.trim();
     if (model) rc.model = model;
-    if (rn === 'reviewer') {
+    if (rn === 'reviewer' || rn === 'deep-reviewer') {
       const dm = (document.getElementById('ps-role-deepmodel-'+rn) || {}).value?.trim();
       if (dm) rc.deep_model = dm;
     }
