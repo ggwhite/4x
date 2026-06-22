@@ -1522,9 +1522,10 @@ async function renderRunPipeline() {
     const modelOpts = `<option value="">${esc(t('run.phaseDefault'))}</option>` +
       tiers.map(tr => `<option value="${escAttr(tr)}"${ov.model === tr ? ' selected' : ''}>${esc(tr)}</option>`).join('');
     const selStyle = 'flex:1;min-width:0;padding:4px 6px;font-size:11px;background:var(--bg-hover);border:1px solid var(--border);border-radius:6px;color:var(--text-1);font-family:inherit;outline:none';
-    return `<div style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;background:var(--bg-input)">
+    const pc = PHASE_COLORS[p.phase] || {color:'var(--text-1)',bg:'var(--bg-input)',border:'var(--border)'};
+    return `<div style="border:1px solid ${pc.border};border-radius:8px;padding:8px 10px;background:${pc.bg}">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-        <span style="font-size:12px;font-weight:600;color:var(--text-1);text-transform:capitalize;flex:1">${esc(p.phase)}</span>
+        <span style="font-size:12px;font-weight:600;color:${pc.color};text-transform:capitalize;flex:1">${esc(p.phase)}</span>
         <span class="runner-tag" style="border-color:${runnerColor(p.runner)}40;color:${runnerColor(p.runner)}">${esc(cap(p.runner))}</span>
         <span style="font-size:11px;color:var(--text-3)">${esc(p.model)}</span>
       </div>

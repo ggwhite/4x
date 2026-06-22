@@ -52,7 +52,7 @@ func IsSelectablePhase(phase Phase) bool {
 func SelectablePhases() []Phase {
 	return []Phase{
 		PhaseDesigning, PhaseDesignReviewing, PhaseCoding, PhaseReviewing,
-		PhaseDeepReviewing, PhaseTesting, PhaseAccepting,
+		PhaseTesting, PhaseDeepReviewing, PhaseAccepting,
 	}
 }
 
