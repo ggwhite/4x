@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/huh"
+	"github.com/ggwhite/4x/internal/enrich"
 	feat "github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/guard"
@@ -1972,7 +1973,7 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 
 	// 3. PASS → accepting。
 	if reviewPassed(ws, featureID, round, protocol.DeepReviewReport) {
-		autoDiscoverFeatures(ws, feature, cfg, round)
+		autoDiscoverFeatures(ws, feature, cfg, round, newEnrichRunner(ws, cfg, deepRunner, feature, newRunner, round))
 		return deepTransitionAccepting(ws, featureID, s)
 	}
 
@@ -2054,7 +2055,7 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 
 		// 4d. re-verifier 已把 deep-review-report.md 的 Verdict 改 PASS → accepting。
 		if reviewPassed(ws, featureID, round, protocol.DeepReviewReport) {
-			autoDiscoverFeatures(ws, feature, cfg, round)
+			autoDiscoverFeatures(ws, feature, cfg, round, newEnrichRunner(ws, cfg, deepRunner, feature, newRunner, round))
 			return deepTransitionAccepting(ws, featureID, s)
 		}
 	}
@@ -2212,7 +2213,10 @@ func deepTransitionAccepting(ws *protocol.Workspace, featureID string, s *protoc
 // 只在兩個 deep review PASS return 點（首次 PASS、self-heal 後 re-verifier 改 PASS）被呼叫，
 // 中間輪與 FAIL/needs-attention 路徑都到不了，因此等同「只在 final deep review 觸發」。
 // 為 best-effort：任何錯誤只記 log，絕不中斷 accepting 轉換。
-func autoDiscoverFeatures(ws *protocol.Workspace, feature feat.Feature, cfg protocol.Config, round int) {
+// r 為 enrichment 用的 runner，可為 nil：nil 或 cfg.EnrichDiscoveredFeatures 關閉時走原本的
+// 薄 feature 路徑（向後相容）；開啟且 r 非 nil 時每個 candidate 先經 LLM enrichment 補強，
+// 補強失敗（Discarded 或 runner error）的 candidate 不入庫，記入報告的 Enrichment Failed 段。
+func autoDiscoverFeatures(ws *protocol.Workspace, feature feat.Feature, cfg protocol.Config, round int, r runner.Runner) {
 	if !cfg.AutoDiscoverFeatures {
 		return
 	}
@@ -2254,7 +2258,13 @@ func autoDiscoverFeatures(ws *protocol.Workspace, feature feat.Feature, cfg prot
 		}
 	}
 
+	var enricher *enrich.Enricher
+	if cfg.EnrichDiscoveredFeatures && r != nil {
+		enricher = enrich.New(ws, r, cfg.EnrichAutoApprove)
+	}
+
 	var createdList []discoveredCreated
+	var enrichFailed []protocol.DiscoveredFeature
 	for _, d := range kept {
 		next, nerr := feat.NextNumber(ws)
 		if nerr != nil {
@@ -2262,12 +2272,32 @@ func autoDiscoverFeatures(ws *protocol.Workspace, feature feat.Feature, cfg prot
 			continue
 		}
 		id := feat.GenerateFeatureID(next, d.Title)
-		f := feat.Feature{
-			ID:          id,
-			Name:        fmt.Sprintf("F%03d: %s", next, d.Title),
-			Description: d.Description,
-			Status:      feat.StatusNotStarted,
+
+		var f feat.Feature
+		if enricher != nil {
+			result, eerr := enricher.Enrich(context.Background(), d)
+			if eerr != nil {
+				slog.Warn("auto-discover: enrichment error", "feature", feature.ID, "title", d.Title, "error", eerr)
+				enrichFailed = append(enrichFailed, d)
+				continue
+			}
+			if result.Discarded {
+				slog.Info("auto-discover: enrichment discarded", "feature", feature.ID, "title", d.Title, "reason", result.Reason)
+				enrichFailed = append(enrichFailed, d)
+				continue
+			}
+			f = result.Feature
+			f.ID = id
+			f.Name = fmt.Sprintf("F%03d: %s", next, d.Title)
+		} else {
+			f = feat.Feature{
+				ID:          id,
+				Name:        fmt.Sprintf("F%03d: %s", next, d.Title),
+				Description: d.Description,
+				Status:      feat.StatusNotStarted,
+			}
 		}
+
 		if serr := ws.SaveFeature(f); serr != nil {
 			slog.Warn("auto-discover: save feature failed", "feature", feature.ID, "title", d.Title, "error", serr)
 			continue
@@ -2278,7 +2308,7 @@ func autoDiscoverFeatures(ws *protocol.Workspace, feature feat.Feature, cfg prot
 		})
 	}
 
-	writeDiscoveredFeaturesReport(ws, feature.ID, createdList, skipped, capped)
+	writeDiscoveredFeaturesReport(ws, feature.ID, createdList, skipped, capped, enrichFailed)
 
 	fmt.Printf("[round %d] auto-discovered %d feature(s)\n", round, len(createdList))
 }
@@ -2286,9 +2316,24 @@ func autoDiscoverFeatures(ws *protocol.Workspace, feature feat.Feature, cfg prot
 // discoveredCreated 記錄一筆已建立的 feature（id 與 title），供摘要報告列出。
 type discoveredCreated struct{ id, title string }
 
+// newEnrichRunner 為 auto-discover enrichment 構造 runner：沿用 deep-review 的 runner 名稱與
+// 較便宜的 reviewer model，避免在 CLI 層直接呼叫 LLM。enrichment 關閉時回 nil，讓
+// autoDiscoverFeatures 走原本的薄 feature 路徑。reviewer model 解析失敗時退回空字串（不帶 --model）。
+func newEnrichRunner(ws *protocol.Workspace, cfg protocol.Config, deepRunner string, feature feat.Feature, newRunner func(string, string, string) runner.Runner, round int) runner.Runner {
+	if !cfg.EnrichDiscoveredFeatures {
+		return nil
+	}
+	model, err := protocol.ResolveModel(cfg, deepRunner, protocol.RoleReviewer)
+	if err != nil {
+		model = ""
+	}
+	logPath := filepath.Join(runner.LogDir(ws, feature.ID), fmt.Sprintf("round-%d-enrich.log", round))
+	return newRunner(deepRunner, logPath, model)
+}
+
 // writeDiscoveredFeaturesReport 寫出 .4x/{featureID}/discovered-features.md 摘要：
 // 列出已建立、因重複略過、因超過上限略過的候選 feature。
-func writeDiscoveredFeaturesReport(ws *protocol.Workspace, featureID string, created []discoveredCreated, skipped, capped []protocol.DiscoveredFeature) {
+func writeDiscoveredFeaturesReport(ws *protocol.Workspace, featureID string, created []discoveredCreated, skipped, capped, enrichFailed []protocol.DiscoveredFeature) {
 	var b strings.Builder
 	b.WriteString("# Discovered Features\n\n")
 
@@ -2315,6 +2360,15 @@ func writeDiscoveredFeaturesReport(ws *protocol.Workspace, featureID string, cre
 		b.WriteString("None\n")
 	} else {
 		for _, d := range capped {
+			fmt.Fprintf(&b, "- %s\n", d.Title)
+		}
+	}
+
+	b.WriteString("\n## Enrichment Failed (discarded)\n")
+	if len(enrichFailed) == 0 {
+		b.WriteString("None\n")
+	} else {
+		for _, d := range enrichFailed {
 			fmt.Fprintf(&b, "- %s\n", d.Title)
 		}
 	}

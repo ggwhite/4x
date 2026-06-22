@@ -103,9 +103,19 @@ The deep reviewer writes each out-of-scope candidate as a `[NEW-FEATURE] <title>
 - **Dedupes** each candidate against existing features and against already-kept candidates, using a Jaccard token-overlap similarity check.
 - **Caps** the count at `max_discovered_features` (default `3`); the rest are recorded as capped.
 - **Creates** the kept candidates as new feature YAMLs (status `not-started`, reusing the same numbering as `4x new`), appending a `feature-discovered` event per creation.
-- **Summarizes** the outcome (created / skipped-as-duplicate / capped) to `.4x/{feature-id}/discovered-features.md`.
+- **Summarizes** the outcome (created / skipped-as-duplicate / capped / enrichment-failed) to `.4x/{feature-id}/discovered-features.md`.
 
 The step is best-effort: any error is logged and never blocks the transition to `accepting`. It runs only on the final deep review PASS — intermediate rounds and FAIL/`needs-attention` paths never reach it. See [Configuration → Auto-Discover Features](configuration.md#auto-discover-features) for the settings.
+
+#### Enrichment
+
+A raw candidate carries only a title and a one-line description — too thin for a Designer to produce a high-quality task-brief. When `enrich_discovered_features` is enabled, each kept candidate is first passed through an **LLM enrichment** step before it lands in the backlog. Enrichment is delegated through the existing `runner.Runner` interface (the CLI layer never calls an LLM directly), reusing the deep-review runner with the cheaper reviewer model, and:
+
+- Gathers heavyweight context — the existing feature list, the project directory tree, and code snippets grepped by keywords extracted from the candidate title.
+- Asks the runner to return a structured JSON block (`[ENRICHMENT-RESULT] … [/ENRICHMENT-RESULT]`) with inferred `subtasks` (≥ 2 independently verifiable), `repos`, `rules`, `priority`, and a polished `description`.
+- **Discards** any candidate whose response is malformed JSON or yields fewer than 2 subtasks (recorded under *Enrichment Failed* in the summary) — a thin candidate is not worth polluting the backlog.
+
+The resulting feature's status depends on `enrich_auto_approve`: `true` (fully automatic) saves it as `not-started`; `false` saves it as `draft`, holding it out of the meta-loop until a human runs `4x approve` (→ `not-started`) or `4x reject` (→ `abandoned`). When `enrich_discovered_features` is disabled (or no runner is available), the loop falls back to the original thin-feature path for full backward compatibility.
 
 ### History Miner & Candidate Pool
 

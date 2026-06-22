@@ -13,6 +13,7 @@ const (
 	StatusBlocked        Status = "blocked"
 	StatusNeedsAttention Status = "needs-attention"
 	StatusReadyForReview Status = "ready-for-review"
+	StatusDraft          Status = "draft"
 )
 
 // BatchCompleted 判斷 feature 的最終狀態是否視為 batch 已完成。

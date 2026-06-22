@@ -16,6 +16,7 @@ var validStatuses = map[Status]bool{
 	StatusBlocked:        true,
 	StatusNeedsAttention: true,
 	StatusReadyForReview: true,
+	StatusDraft:          true,
 }
 
 var validSubtaskStatuses = map[string]bool{
@@ -116,7 +117,7 @@ func (s Subtask) validateLoose(index int) []string {
 func statusList() string {
 	all := []Status{
 		StatusNotStarted, StatusInProgress, StatusDone, StatusAbandoned,
-		StatusBlocked, StatusNeedsAttention, StatusReadyForReview,
+		StatusBlocked, StatusNeedsAttention, StatusReadyForReview, StatusDraft,
 	}
 	parts := make([]string, len(all))
 	for i, s := range all {
