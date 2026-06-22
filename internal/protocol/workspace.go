@@ -61,8 +61,8 @@ const (
 	AcceptedCandidatesFile = "accepted-candidates.json" // POST-veto 通過者，附 value_score/why_not_hack
 
 	// F099 evolve driver 相關檔名（皆在 .4x/ 根，非 per-feature）。
-	EvolveReportFile = "evolve-report.md"   // 每輪 evolve pipeline 的摘要報告（dashboard surface）
-	EvolveStateFile  = "evolve-state.json"  // anti-spin 防空轉跨呼叫持久化計數
+	EvolveReportFile = "evolve-report.md"  // 每輪 evolve pipeline 的摘要報告（dashboard surface）
+	EvolveStateFile  = "evolve-state.json" // anti-spin 防空轉跨呼叫持久化計數
 
 	// retro learnings 相關檔名。
 	LearningsFile         = "learnings.json"          // .4x/learnings.json，跨 feature 累積的 learnings 庫
