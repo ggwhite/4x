@@ -1,4 +1,4 @@
-[English](README.md) | [繁體中文](README.zh-TW.md) | **简体中文** | [日本語](README.ja.md) | [한국어](README.ko.md) | [Español](README.es.md)
+[English](../../README.md) | [繁體中文](README.zh-TW.md) | **简体中文** | [日本語](README.ja.md) | [한국어](README.ko.md) | [Español](README.es.md)
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/ggwhite/4x.svg)](https://pkg.go.dev/github.com/ggwhite/4x)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ggwhite/4x)](https://goreportcard.com/report/github.com/ggwhite/4x)
@@ -6,16 +6,30 @@
 [![CI](https://github.com/ggwhite/4x/actions/workflows/ci.yml/badge.svg)](https://github.com/ggwhite/4x/actions/workflows/ci.yml)
 
 <p align="center">
-  <img src="docs/assets/4x-banner.svg" alt="4X — Design. Code. Review. Test." width="480">
+  <img src="../assets/4x-banner.svg" alt="4X — Design. Code. Review. Test." width="480">
 </p>
 
 <p align="center">
-  <img src="docs/assets/demo.gif" alt="4x demo" width="720">
+  <img src="../assets/demo.gif" alt="4x demo" width="720">
 </p>
 
 **4x 是一个多角色 AI 开发框架，将软件工程循环拆分为四个专业阶段** — 设计 (Design)、编码 (Code)、审查 (Review)、测试 (Test) — 每个阶段由一个专属 AI agent 驱动。正如 4X 策略游戏（探索、扩张、开发、征服）一样，这个名字体现了一个系统：不同角色各司其职，协力征服复杂性。
 
 ---
+
+## 主要功能
+
+| 类别 | 亮点 |
+|---|---|
+| **多角色循环** | Design → Code → Review → Test → Deep Review → Accept，角色隔离。Adaptive pipeline 按功能复杂度选择 profile（full / mini / quick）。 |
+| **6 种 AI Runner** | Claude Code · Codex · Gemini CLI · Antigravity · Copilot · Cursor — 统一 `.4x/` 文件协议，可按角色混搭。 |
+| **Dashboard（4x Live）** | macOS 原生（Swift）+ Windows / Linux（Tauri）。实时 SSE 监控、依赖图、Runner log streaming、截图 gallery、设置 UI、批量监控。6 语言 i18n、系统通知、menu bar 集成。 |
+| **确定性护栏** | 状态机、scope lock、baseline snapshot、证据测试关卡、依赖关卡 — 由 Go CLI 强制执行，不是靠 LLM prompt。 |
+| **Crash Recovery** | Runner 中断 → 从最后保存的状态自动恢复。暂态 API 错误（网络、rate limit）→ 自动 backoff 重试。 |
+| **批量模式** | 依赖感知 DAG 调度、完成后自动合并、批量报告、优雅停止。几十个 feature 排入夜间执行，早上再 review。 |
+| **MCP Server** | Model Context Protocol server，可与 MCP 兼容的 client 集成。 |
+| **20+ CLI 命令** | `run`、`batch`、`live`、`doctor`、`clean`、`verify`、`mcp`、phase hooks、health check、structured logging 等。 |
+| **自我进化** | 从历史 run 挖掘改进信号、自动发现 feature 充实化、evolution value gate + anti-hack、自我修改 scope guard、持续改进驱动器（`4x evolve`）。4x 从自身失败中学习并自我迭代。 |
 
 ## 为什么选择 4x？
 
@@ -40,7 +54,7 @@
 
 ### 劣势
 
-- **显著更高的 token 消耗。** 每个功能至少经过 4 次以上的独立 LLM 调用。审查失败会翻倍。预期同一任务的 token 消耗是单 agent 方法的 3-10 倍。参见[使用技巧](docs/guide/zh-CN/usage-tips.md)了解成本估算。
+- **显著更高的 token 消耗。** 每个功能至少经过 4 次以上的独立 LLM 调用。审查失败会翻倍。预期同一任务的 token 消耗是单 agent 方法的 3-10 倍。参见[使用技巧](../guide/zh-CN/usage-tips.md)了解成本估算。
 - **简单任务更慢。** 一行的 bug 修复不需要设计者、审查者和测试者。完整循环的开销在琐碎改动上是浪费的。简单修复请使用单 agent 工具。
 - **初始化成本。** `4x init`、feature YAML、设置配置 — 开始前需要一些仪式性操作。对于一次性脚本不值得。
 - **固定的循环结构。** 设计 → 编码 → 审查 → 测试的顺序是固定的。如果你的工作流不适合四个角色，你会在跟框架对抗而不是使用它。
@@ -201,14 +215,14 @@ CLI 的确定性护栏（范围锁定、基线快照、状态机）提供安全�
 
 | 文档 | 说明 |
 |---|---|
-| **[用户指南](docs/guide/zh-CN/)** | 完整的使用文档 |
-| [快速开始](docs/guide/zh-CN/getting-started.md) | 安装与首次运行 |
-| [CLI 参考](docs/guide/zh-CN/cli.md) | 所有命令和标志 |
-| [核心概念](docs/guide/zh-CN/concepts.md) | 角色、状态机、协议、护栏 |
-| [配置](docs/guide/zh-CN/configuration.md) | 设置、模型、语言、runner |
-| [Runner 与插件](docs/guide/zh-CN/runners.md) | 支持的 runner 和插件合约 |
-| [仪表盘](docs/guide/zh-CN/dashboard.md) | 4x Live 多项目仪表盘 |
-| [批量模式](docs/guide/zh-CN/batch.md) | 依赖感知的批量执行 |
+| **[用户指南](../guide/zh-CN/)** | 完整的使用文档 |
+| [快速开始](../guide/zh-CN/getting-started.md) | 安装与首次运行 |
+| [CLI 参考](../guide/zh-CN/cli.md) | 所有命令和标志 |
+| [核心概念](../guide/zh-CN/concepts.md) | 角色、状态机、协议、护栏 |
+| [配置](../guide/zh-CN/configuration.md) | 设置、模型、语言、runner |
+| [Runner 与插件](../guide/zh-CN/runners.md) | 支持的 runner 和插件合约 |
+| [仪表盘](../guide/zh-CN/dashboard.md) | 4x Live 多项目仪表盘 |
+| [批量模式](../guide/zh-CN/batch.md) | 依赖感知的批量执行 |
 
 ## 项目结构
 

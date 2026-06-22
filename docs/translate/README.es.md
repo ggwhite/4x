@@ -1,4 +1,4 @@
-[English](README.md) | [繁體中文](README.zh-TW.md) | [简体中文](README.zh-CN.md) | [日本語](README.ja.md) | [한국어](README.ko.md) | **Español**
+[English](../../README.md) | [繁體中文](README.zh-TW.md) | [简体中文](README.zh-CN.md) | [日本語](README.ja.md) | [한국어](README.ko.md) | **Español**
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/ggwhite/4x.svg)](https://pkg.go.dev/github.com/ggwhite/4x)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ggwhite/4x)](https://goreportcard.com/report/github.com/ggwhite/4x)
@@ -6,16 +6,30 @@
 [![CI](https://github.com/ggwhite/4x/actions/workflows/ci.yml/badge.svg)](https://github.com/ggwhite/4x/actions/workflows/ci.yml)
 
 <p align="center">
-  <img src="docs/assets/4x-banner.svg" alt="4X — Design. Code. Review. Test." width="480">
+  <img src="../assets/4x-banner.svg" alt="4X — Design. Code. Review. Test." width="480">
 </p>
 
 <p align="center">
-  <img src="docs/assets/demo.gif" alt="4x demo" width="720">
+  <img src="../assets/demo.gif" alt="4x demo" width="720">
 </p>
 
 **4x es un framework de desarrollo con IA multi-rol que divide el ciclo de ingeniería de software en cuatro fases especializadas** — Design, Code, Review, Test — cada una impulsada por un agente de IA dedicado. Al igual que los juegos de estrategia 4X (eXplore, eXpand, eXploit, eXterminate), el nombre refleja un sistema donde roles distintos con fortalezas distintas convergen para conquistar la complejidad.
 
 ---
+
+## Características principales
+
+| Categoría | Destacados |
+|---|---|
+| **Bucle multi-rol** | Design → Code → Review → Test → Deep Review → Accept, con aislamiento de roles. Pipeline adaptativo selecciona perfil (full / mini / quick) según la complejidad de la feature. |
+| **6 runners de IA** | Claude Code · Codex · Gemini CLI · Antigravity · Copilot · Cursor — mismo protocolo de archivos `.4x/`, mezcla y combina por rol. |
+| **Dashboard (4x Live)** | macOS nativo (Swift) + Windows / Linux (Tauri). Monitoreo SSE en tiempo real, grafo de dependencias, streaming de logs del runner, galería de capturas, UI de configuración, monitoreo batch. i18n en 6 idiomas, notificaciones del sistema, integración con barra de menú. |
+| **Guardrails determinísticos** | Máquina de estados, bloqueo de alcance, snapshots de baseline, compuerta de testing basada en evidencia, compuerta de dependencias — aplicados por el CLI en Go, no por un prompt al LLM. |
+| **Recuperación de fallos** | Runner interrumpido → reanudación automática desde el último estado guardado. Errores transitorios de API (red, límites de tasa) → reintento automático con backoff. |
+| **Modo batch** | Programación DAG con reconocimiento de dependencias, auto-merge al completar, reportes batch, parada elegante. Encola docenas de features durante la noche y revisa por la mañana. |
+| **Servidor MCP** | Servidor Model Context Protocol para integración con clientes compatibles con MCP. |
+| **20+ comandos CLI** | `run`, `batch`, `live`, `doctor`, `clean`, `verify`, `mcp`, hooks de fase, health checks, logging estructurado, y más. |
+| **Auto-evolución** | Minería de historial de ejecuciones pasadas, enriquecimiento automático de features descubiertas, compuerta de valor de evolución + anti-hack, guardia de alcance para auto-modificación, driver de mejora continua (`4x evolve`). 4x aprende de sus propios fallos y se itera a sí mismo. |
 
 ## ¿Por qué 4x?
 
@@ -40,7 +54,7 @@ Elegir 4x significa intercambiar velocidad y costo por estructura y corrección.
 
 ### Debilidades
 
-- **Costo de tokens significativamente mayor.** Cada feature pasa por al menos 4+ llamadas separadas al LLM como mínimo. Un fallo en la revisión duplica eso. Espera 3-10x el costo de tokens de un enfoque de un solo agente para la misma tarea. Consulta [Consejos de uso](docs/guide/es/usage-tips.md) para estimaciones de costos.
+- **Costo de tokens significativamente mayor.** Cada feature pasa por al menos 4+ llamadas separadas al LLM como mínimo. Un fallo en la revisión duplica eso. Espera 3-10x el costo de tokens de un enfoque de un solo agente para la misma tarea. Consulta [Consejos de uso](../guide/es/usage-tips.md) para estimaciones de costos.
 - **Más lento para tareas simples.** Un bug fix de una línea no necesita un Designer, Reviewer y Tester. La sobrecarga del ciclo completo se desperdicia en cambios triviales. Usa herramientas de un solo agente para correcciones rápidas.
 - **Costo de configuración.** `4x init`, YAML del feature, configuración de settings — hay ceremonia antes de empezar. No vale la pena para un script desechable.
 - **Estructura de ciclo rígida.** La secuencia Design → Code → Review → Test es fija. Si tu flujo de trabajo no encaja en cuatro roles, lucharás contra el framework en vez de usarlo.
@@ -201,14 +215,14 @@ Los guardrails determinísticos del CLI (bloqueo de alcance, snapshots de baseli
 
 | Documento | Descripción |
 |---|---|
-| **[Guía del usuario](docs/guide/es/)** | Documentación completa de uso |
-| [Primeros pasos](docs/guide/es/getting-started.md) | Instalación y primera ejecución |
-| [Referencia del CLI](docs/guide/es/cli.md) | Todos los comandos y banderas |
-| [Conceptos principales](docs/guide/es/concepts.md) | Roles, máquina de estados, protocolo, guardrails |
-| [Configuración](docs/guide/es/configuration.md) | Settings, modelos, locale, runners |
-| [Runners y plugins](docs/guide/es/runners.md) | Runners soportados y contrato de plugins |
-| [Dashboard](docs/guide/es/dashboard.md) | Dashboard multi-proyecto 4x Live |
-| [Modo batch](docs/guide/es/batch.md) | Ejecución batch con reconocimiento de dependencias |
+| **[Guía del usuario](../guide/es/)** | Documentación completa de uso |
+| [Primeros pasos](../guide/es/getting-started.md) | Instalación y primera ejecución |
+| [Referencia del CLI](../guide/es/cli.md) | Todos los comandos y banderas |
+| [Conceptos principales](../guide/es/concepts.md) | Roles, máquina de estados, protocolo, guardrails |
+| [Configuración](../guide/es/configuration.md) | Settings, modelos, locale, runners |
+| [Runners y plugins](../guide/es/runners.md) | Runners soportados y contrato de plugins |
+| [Dashboard](../guide/es/dashboard.md) | Dashboard multi-proyecto 4x Live |
+| [Modo batch](../guide/es/batch.md) | Ejecución batch con reconocimiento de dependencias |
 
 ## Estructura del proyecto
 

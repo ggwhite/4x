@@ -93,10 +93,24 @@ tailwind.config = {
       <span data-i18n="hero.github">View on GitHub</span>
     </a>
   </div>
-  <div class="flex gap-3 justify-center flex-wrap">
+  <div class="flex gap-3 justify-center flex-wrap mb-8">
     <img src="https://img.shields.io/github/stars/ggwhite/4x?style=social" alt="GitHub Stars">
     <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License">
     <img src="https://github.com/ggwhite/4x/actions/workflows/ci.yml/badge.svg" alt="CI">
+  </div>
+  <div class="grid grid-cols-3 gap-4 max-w-lg mx-auto">
+    <div class="code-block rounded-xl py-3 px-4 text-center">
+      <div class="text-2xl font-bold gradient-text">72+</div>
+      <div class="text-muted text-xs mt-1" data-i18n="stats.features">Features Shipped</div>
+    </div>
+    <div class="code-block rounded-xl py-3 px-4 text-center">
+      <div class="text-2xl font-bold text-purple">6</div>
+      <div class="text-muted text-xs mt-1" data-i18n="stats.runners">AI Runners</div>
+    </div>
+    <div class="code-block rounded-xl py-3 px-4 text-center">
+      <div class="text-2xl font-bold text-green">3</div>
+      <div class="text-muted text-xs mt-1" data-i18n="stats.platforms">Platforms</div>
+    </div>
   </div>
 </header>
 
@@ -326,7 +340,7 @@ tailwind.config = {
 <!-- Dashboard -->
 <section class="max-w-5xl mx-auto px-6 py-16">
   <h2 class="text-2xl font-bold text-center mb-4" data-i18n="dash.title">4x Live Dashboard</h2>
-  <p class="text-muted text-center mb-8" data-i18n="dash.desc">Native macOS app for real-time monitoring. Watch your AI agents work, review results, and manage features.</p>
+  <p class="text-muted text-center mb-8" data-i18n="dash.desc">macOS native (Swift) + Windows / Linux (Tauri). Real-time SSE monitoring, dependency graph, screenshot gallery, 6-language i18n, system notifications.</p>
   <!-- Main screenshot -->
   <div class="code-block rounded-xl p-2 mb-6 gallery-thumb" onclick="openLightbox(0)">
     <img src="assets/dashboard-overview.png" alt="4x Live Dashboard overview" class="rounded-lg w-full" loading="lazy">
@@ -400,6 +414,26 @@ tailwind.config = {
         <img class="w-8 h-8" src="assets/antigravity-color.svg" alt="Antigravity"></svg>
       </div>
       <div class="font-medium text-sm">Antigravity</div>
+    </div>
+  </div>
+</section>
+
+<!-- Self-Evolution -->
+<section class="max-w-4xl mx-auto px-6 py-16">
+  <h2 class="text-2xl font-bold text-center mb-4" data-i18n="evo.title">Self-Evolution</h2>
+  <p class="text-muted text-center mb-8" data-i18n="evo.desc">4x learns from its own runs and continuously improves — mining failures, enriching discoveries, gating by value, and iterating itself.</p>
+  <div class="grid sm:grid-cols-3 gap-4">
+    <div class="feature-card rounded-xl p-5">
+      <div class="text-purple text-lg font-bold mb-2" data-i18n="evo.mine.title">History Mining</div>
+      <p class="text-muted text-sm" data-i18n="evo.mine.desc">Extract improvement signals from failed runs, escalations, and recurring FAIL patterns.</p>
+    </div>
+    <div class="feature-card rounded-xl p-5">
+      <div class="text-orange text-lg font-bold mb-2" data-i18n="evo.gate.title">Value Gate</div>
+      <p class="text-muted text-sm" data-i18n="evo.gate.desc">ROI evaluation with anti-hack mechanism prevents backlog bloat and low-value work.</p>
+    </div>
+    <div class="feature-card rounded-xl p-5">
+      <div class="text-green text-lg font-bold mb-2" data-i18n="evo.driver.title">Evolve Driver</div>
+      <p class="text-muted text-sm" data-i18n="evo.driver.desc">One command to start the continuous self-improvement loop: mine → evaluate → implement → verify → deploy.</p>
     </div>
   </div>
 </section>
@@ -505,7 +539,7 @@ const i18n = {
     "demo.title": "See It In Action",
     "demo.desc": "Initialize, create a feature, and start the AI development loop — all from the terminal.",
     "dash.title": "4x Live Dashboard",
-    "dash.desc": "Native macOS app for real-time monitoring. Watch your AI agents work, review results, and manage features.",
+    "dash.desc": "macOS native (Swift) + Windows / Linux (Tauri). Real-time SSE monitoring, dependency graph, screenshot gallery, 6-language i18n, system notifications.",
     "dash.overview.caption": "Dashboard overview — status summary, rounds distribution, recent completions",
     "dash.messages": "Structured acceptance criteria from Designer",
     "dash.logs": "Full development loop logs per round",
@@ -514,7 +548,18 @@ const i18n = {
     "runners.desc": "Use any AI coding tool. Mix and match per role.",
     "footer.docs": "Documentation",
     "footer.releases": "Releases",
-    "footer.tagline": "Design. Code. Review. Test. — The AI development loop."
+    "footer.tagline": "Design. Code. Review. Test. — The AI development loop.",
+    "stats.features": "Features Shipped",
+    "stats.runners": "AI Runners",
+    "stats.platforms": "Platforms",
+    "evo.title": "Self-Evolution",
+    "evo.desc": "4x learns from its own runs and continuously improves — mining failures, enriching discoveries, gating by value, and iterating itself.",
+    "evo.mine.title": "History Mining",
+    "evo.mine.desc": "Extract improvement signals from failed runs, escalations, and recurring FAIL patterns.",
+    "evo.gate.title": "Value Gate",
+    "evo.gate.desc": "ROI evaluation with anti-hack mechanism prevents backlog bloat and low-value work.",
+    "evo.driver.title": "Evolve Driver",
+    "evo.driver.desc": "One command to start the continuous self-improvement loop: mine → evaluate → implement → verify → deploy."
   },
   "zh-TW": {
     "hero.desc": "多角色 AI 開發框架，將軟體工程迴圈拆分為四個專業階段 — 設計、實作、審查、測試 — 每個階段由專屬 AI agent 驅動。",
@@ -562,7 +607,19 @@ const i18n = {
     "runners.desc": "使用任何 AI 編程工具。可依角色混搭。",
     "footer.docs": "文件",
     "footer.releases": "版本發佈",
-    "footer.tagline": "Design. Code. Review. Test. — AI 開發迴圈。"
+    "footer.tagline": "Design. Code. Review. Test. — AI 開發迴圈。",
+    "stats.features": "已交付功能",
+    "stats.runners": "AI Runner",
+    "stats.platforms": "跨平台",
+    "dash.desc": "macOS 原生（Swift）+ Windows / Linux（Tauri）。即時 SSE 監控、依賴圖、截圖 gallery、6 語系 i18n、系統通知。",
+    "evo.title": "自我演化",
+    "evo.desc": "4x 從自身 run 中學習並持續改進 — 挖掘失敗、充實發現、價值把關、自我迭代。",
+    "evo.mine.title": "歷史挖掘",
+    "evo.mine.desc": "從失敗 run、escalation、反覆 FAIL pattern 中提取改進訊號。",
+    "evo.gate.title": "價值閘門",
+    "evo.gate.desc": "ROI 評估 + anti-hack 機制，防止 backlog 膨脹與低價值工作。",
+    "evo.driver.title": "演化驅動器",
+    "evo.driver.desc": "一條指令啟動持續自我改進迴路：挖掘 → 評估 → 實作 → 驗證 → 部署。"
   },
   "zh-CN": {
     "hero.desc": "多角色 AI 开发框架，将软件工程循环拆分为四个专业阶段 — 设计、编码、审查、测试 — 每个阶段由专属 AI agent 驱动。",
@@ -610,7 +667,19 @@ const i18n = {
     "runners.desc": "使用任何 AI 编程工具。可按角色混搭。",
     "footer.docs": "文档",
     "footer.releases": "版本发布",
-    "footer.tagline": "Design. Code. Review. Test. — AI 开发循环。"
+    "footer.tagline": "Design. Code. Review. Test. — AI 开发循环。",
+    "stats.features": "已交付功能",
+    "stats.runners": "AI Runner",
+    "stats.platforms": "跨平台",
+    "dash.desc": "macOS 原生（Swift）+ Windows / Linux（Tauri）。实时 SSE 监控、依赖图、截图 gallery、6 语言 i18n、系统通知。",
+    "evo.title": "自我进化",
+    "evo.desc": "4x 从自身 run 中学习并持续改进 — 挖掘失败、充实发现、价值把关、自我迭代。",
+    "evo.mine.title": "历史挖掘",
+    "evo.mine.desc": "从失败 run、escalation、反复 FAIL pattern 中提取改进信号。",
+    "evo.gate.title": "价值闸门",
+    "evo.gate.desc": "ROI 评估 + anti-hack 机制，防止 backlog 膨胀与低价值工作。",
+    "evo.driver.title": "进化驱动器",
+    "evo.driver.desc": "一条命令启动持续自我改进循环：挖掘 → 评估 → 实现 → 验证 → 部署。"
   },
   ja: {
     "hero.desc": "ソフトウェア開発ループを4つの専門フェーズに分割するマルチロール AI 開発フレームワーク — 各フェーズは専用 AI エージェントが担当。",
@@ -658,7 +727,19 @@ const i18n = {
     "runners.desc": "どの AI コーディングツールでも使用可能。ロールごとに混合も可。",
     "footer.docs": "ドキュメント",
     "footer.releases": "リリース",
-    "footer.tagline": "Design. Code. Review. Test. — AI 開発ループ。"
+    "footer.tagline": "Design. Code. Review. Test. — AI 開発ループ。",
+    "stats.features": "出荷済み機能",
+    "stats.runners": "AI ランナー",
+    "stats.platforms": "プラットフォーム",
+    "dash.desc": "macOS ネイティブ（Swift）+ Windows / Linux（Tauri）。リアルタイム SSE モニタリング、依存関係グラフ、スクリーンショットギャラリー、6言語 i18n、システム通知。",
+    "evo.title": "自己進化",
+    "evo.desc": "4x は自らの実行から学び、継続的に改善する — 失敗の発掘、発見の充実、価値による選別、自己反復。",
+    "evo.mine.title": "履歴マイニング",
+    "evo.mine.desc": "失敗した run、エスカレーション、繰り返す FAIL パターンから改善シグナルを抽出。",
+    "evo.gate.title": "バリューゲート",
+    "evo.gate.desc": "ROI 評価 + アンチハック機構でバックログの膨張と低価値作業を防止。",
+    "evo.driver.title": "進化ドライバー",
+    "evo.driver.desc": "1コマンドで継続的自己改善ループを開始：発掘 → 評価 → 実装 → 検証 → デプロイ。"
   },
   ko: {
     "hero.desc": "소프트웨어 엔지니어링 루프를 4가지 전문 단계로 나누는 다중 역할 AI 개발 프레임워크 — 각 단계는 전담 AI 에이전트가 수행합니다.",
@@ -706,7 +787,19 @@ const i18n = {
     "runners.desc": "어떤 AI 코딩 도구든 사용 가능. 역할별로 혼합 가능.",
     "footer.docs": "문서",
     "footer.releases": "릴리스",
-    "footer.tagline": "Design. Code. Review. Test. — AI 개발 루프."
+    "footer.tagline": "Design. Code. Review. Test. — AI 개발 루프.",
+    "stats.features": "출시된 기능",
+    "stats.runners": "AI 러너",
+    "stats.platforms": "플랫폼",
+    "dash.desc": "macOS 네이티브 (Swift) + Windows / Linux (Tauri). 실시간 SSE 모니터링, 의존성 그래프, 스크린샷 갤러리, 6개 언어 i18n, 시스템 알림.",
+    "evo.title": "자기 진화",
+    "evo.desc": "4x는 자체 실행에서 학습하고 지속적으로 개선합니다 — 실패 마이닝, 발견 보강, 가치 게이팅, 자기 반복.",
+    "evo.mine.title": "히스토리 마이닝",
+    "evo.mine.desc": "실패한 run, 에스컬레이션, 반복되는 FAIL 패턴에서 개선 신호를 추출.",
+    "evo.gate.title": "밸류 게이트",
+    "evo.gate.desc": "ROI 평가 + 안티 핵 메커니즘으로 백로그 비대화와 저가치 작업을 방지.",
+    "evo.driver.title": "이볼브 드라이버",
+    "evo.driver.desc": "한 명령어로 지속적 자기 개선 루프 시작: 마이닝 → 평가 → 구현 → 검증 → 배포."
   },
   es: {
     "hero.desc": "Un framework de desarrollo con IA multi-rol que divide el ciclo de ingeniería de software en cuatro fases especializadas — cada una impulsada por un agente de IA dedicado.",
@@ -754,7 +847,19 @@ const i18n = {
     "runners.desc": "Usa cualquier herramienta de codificación IA. Mezcla y combina por rol.",
     "footer.docs": "Documentación",
     "footer.releases": "Versiones",
-    "footer.tagline": "Design. Code. Review. Test. — El ciclo de desarrollo IA."
+    "footer.tagline": "Design. Code. Review. Test. — El ciclo de desarrollo IA.",
+    "stats.features": "Features Entregados",
+    "stats.runners": "Runners de IA",
+    "stats.platforms": "Plataformas",
+    "dash.desc": "macOS nativo (Swift) + Windows / Linux (Tauri). Monitoreo SSE en tiempo real, grafo de dependencias, galería de capturas, i18n en 6 idiomas, notificaciones del sistema.",
+    "evo.title": "Auto-Evolución",
+    "evo.desc": "4x aprende de sus propias ejecuciones y mejora continuamente — minería de fallos, enriquecimiento de descubrimientos, filtrado por valor, e iteración propia.",
+    "evo.mine.title": "Minería de Historial",
+    "evo.mine.desc": "Extrae señales de mejora de runs fallidos, escalaciones y patrones FAIL recurrentes.",
+    "evo.gate.title": "Compuerta de Valor",
+    "evo.gate.desc": "Evaluación ROI + mecanismo anti-hack para prevenir backlog inflado y trabajo de bajo valor.",
+    "evo.driver.title": "Driver de Evolución",
+    "evo.driver.desc": "Un comando para iniciar el ciclo de mejora continua: minar → evaluar → implementar → verificar → desplegar."
   }
 };
 

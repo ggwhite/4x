@@ -1,4 +1,4 @@
-[English](README.md) | [繁體中文](README.zh-TW.md) | [简体中文](README.zh-CN.md) | [日本語](README.ja.md) | **한국어** | [Español](README.es.md)
+[English](../../README.md) | [繁體中文](README.zh-TW.md) | [简体中文](README.zh-CN.md) | [日本語](README.ja.md) | **한국어** | [Español](README.es.md)
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/ggwhite/4x.svg)](https://pkg.go.dev/github.com/ggwhite/4x)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ggwhite/4x)](https://goreportcard.com/report/github.com/ggwhite/4x)
@@ -6,16 +6,30 @@
 [![CI](https://github.com/ggwhite/4x/actions/workflows/ci.yml/badge.svg)](https://github.com/ggwhite/4x/actions/workflows/ci.yml)
 
 <p align="center">
-  <img src="docs/assets/4x-banner.svg" alt="4X — Design. Code. Review. Test." width="480">
+  <img src="../assets/4x-banner.svg" alt="4X — Design. Code. Review. Test." width="480">
 </p>
 
 <p align="center">
-  <img src="docs/assets/demo.gif" alt="4x demo" width="720">
+  <img src="../assets/demo.gif" alt="4x demo" width="720">
 </p>
 
 **4x는 소프트웨어 엔지니어링 루프를 네 가지 전문 단계로 나누는 다중 역할 AI 개발 프레임워크입니다** — Design, Code, Review, Test — 각 단계는 전담 AI 에이전트가 수행합니다. 4X 전략 게임(eXplore, eXpand, eXploit, eXterminate)처럼, 이름은 고유한 강점을 가진 역할들이 복잡성을 정복하기 위해 협력하는 시스템을 나타냅니다.
 
 ---
+
+## 주요 기능
+
+| 카테고리 | 하이라이트 |
+|---|---|
+| **멀티 역할 루프** | Design → Code → Review → Test → Deep Review → Accept, 역할 격리. Adaptive pipeline이 기능 복잡도에 따라 프로필 선택 (full / mini / quick). |
+| **6종 AI 러너** | Claude Code · Codex · Gemini CLI · Antigravity · Copilot · Cursor — 통일된 `.4x/` 파일 프로토콜, 역할별 혼합 가능. |
+| **대시보드 (4x Live)** | macOS 네이티브 (Swift) + Windows / Linux (Tauri). 실시간 SSE 모니터링, 의존성 그래프, 러너 로그 스트리밍, 스크린샷 갤러리, 설정 UI, 배치 모니터링. 6개 언어 i18n, 시스템 알림, 메뉴 바 통합. |
+| **확정적 가드레일** | 상태 머신, 스코프 잠금, 베이스라인 스냅샷, 증거 기반 테스트 게이트, 의존성 게이트 — Go CLI로 시행, LLM 프롬프트에 의존하지 않음. |
+| **크래시 리커버리** | 러너 중단 → 마지막 저장 상태에서 자동 복구. 일시적 API 오류 (네트워크, 레이트 리밋) → 자동 백오프 재시도. |
+| **배치 모드** | 의존성 인식 DAG 스케줄링, 완료 시 자동 머지, 배치 리포트, 정상 종료. 수십 개의 기능을 밤새 대기열에 넣고 아침에 리뷰. |
+| **MCP 서버** | Model Context Protocol 서버, MCP 호환 클라이언트와의 통합용. |
+| **20+ CLI 명령어** | `run`, `batch`, `live`, `doctor`, `clean`, `verify`, `mcp`, 페이즈 훅, 헬스 체크, 구조화 로깅 등. |
+| **자기 진화** | 과거 런에서 개선 신호 마이닝, 자동 발견 기능 보강, evolution value gate + 안티 핵, 자기 수정 스코프 가드, 지속적 개선 드라이버 (`4x evolve`). 4x는 자체 실패에서 학습하고 스스로 반복 개선. |
 
 ## 왜 4x인가?
 
@@ -40,7 +54,7 @@
 
 ### 약점
 
-- **토큰 비용이 상당히 높습니다.** 모든 기능은 최소 4회 이상의 별도 LLM 호출을 거칩니다. 리뷰 실패 시 두 배가 됩니다. 같은 작업에 대해 단일 에이전트 방식보다 3-10배의 토큰 비용을 예상하세요. [사용 팁](docs/guide/ko/usage-tips.md)에서 비용 추정치를 확인하세요.
+- **토큰 비용이 상당히 높습니다.** 모든 기능은 최소 4회 이상의 별도 LLM 호출을 거칩니다. 리뷰 실패 시 두 배가 됩니다. 같은 작업에 대해 단일 에이전트 방식보다 3-10배의 토큰 비용을 예상하세요. [사용 팁](../guide/ko/usage-tips.md)에서 비용 추정치를 확인하세요.
 - **간단한 작업에는 느립니다.** 한 줄짜리 버그 수정에 Designer, Reviewer, Tester가 필요하지 않습니다. 사소한 변경에는 전체 루프의 오버헤드가 낭비됩니다. 빠른 수정에는 단일 에이전트 도구를 사용하세요.
 - **설정 비용.** `4x init`, 기능 YAML, 설정 구성 — 시작 전에 절차가 있습니다. 일회용 스크립트에는 가치가 없습니다.
 - **고정된 루프 구조.** Design → Code → Review → Test 순서가 고정되어 있습니다. 워크플로우가 네 가지 역할에 맞지 않으면 프레임워크와 싸우게 됩니다.
@@ -201,14 +215,14 @@ CLI의 확정적 가드레일(범위 잠금, 베이스라인 스냅샷, 상태 �
 
 | 문서 | 설명 |
 |---|---|
-| **[사용자 가이드](docs/guide/ko/)** | 전체 사용 문서 |
-| [시작하기](docs/guide/ko/getting-started.md) | 설치 및 첫 실행 |
-| [CLI 레퍼런스](docs/guide/ko/cli.md) | 모든 명령어와 플래그 |
-| [핵심 개념](docs/guide/ko/concepts.md) | 역할, 상태 머신, 프로토콜, 가드레일 |
-| [설정](docs/guide/ko/configuration.md) | 설정, 모델, 로케일, 러너 |
-| [러너 & 플러그인](docs/guide/ko/runners.md) | 지원되는 러너와 플러그인 계약 |
-| [대시보드](docs/guide/ko/dashboard.md) | 4x Live 다중 프로젝트 대시보드 |
-| [배치 모드](docs/guide/ko/batch.md) | 의존성 인식 배치 실행 |
+| **[사용자 가이드](../guide/ko/)** | 전체 사용 문서 |
+| [시작하기](../guide/ko/getting-started.md) | 설치 및 첫 실행 |
+| [CLI 레퍼런스](../guide/ko/cli.md) | 모든 명령어와 플래그 |
+| [핵심 개념](../guide/ko/concepts.md) | 역할, 상태 머신, 프로토콜, 가드레일 |
+| [설정](../guide/ko/configuration.md) | 설정, 모델, 로케일, 러너 |
+| [러너 & 플러그인](../guide/ko/runners.md) | 지원되는 러너와 플러그인 계약 |
+| [대시보드](../guide/ko/dashboard.md) | 4x Live 다중 프로젝트 대시보드 |
+| [배치 모드](../guide/ko/batch.md) | 의존성 인식 배치 실행 |
 
 ## 프로젝트 구조
 

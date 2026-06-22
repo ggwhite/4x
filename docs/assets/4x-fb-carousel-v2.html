@@ -1,0 +1,949 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>4x Facebook Carousel v2</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #f6f8fb;
+      --soft: #dbe4ee;
+      --muted: #9dabbd;
+      --panel: rgba(10, 15, 24, .72);
+      --panel-strong: rgba(14, 20, 31, .92);
+      --line: rgba(230, 237, 243, .14);
+      --blue: #58a6ff;
+      --violet: #a78bfa;
+      --green: #56d364;
+      --amber: #f2cc60;
+      --red: #ff7b72;
+      --cyan: #39c5cf;
+      --pink: #f778ba;
+    }
+
+    * { box-sizing: border-box; margin: 0; }
+
+    body {
+      background: #05070b;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+        "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    }
+
+    .slide {
+      position: relative;
+      width: 1080px;
+      height: 1350px;
+      overflow: hidden;
+      color: var(--ink);
+    }
+
+    /* ---------- backgrounds ---------- */
+    .slide-01 {
+      background:
+        radial-gradient(ellipse 600px 500px at 10% 8%, rgba(88,166,255,.35), transparent),
+        radial-gradient(ellipse 500px 400px at 92% 12%, rgba(167,139,250,.28), transparent),
+        radial-gradient(ellipse 400px 350px at 80% 92%, rgba(57,197,207,.15), transparent),
+        linear-gradient(145deg, #070a11, #101827 54%, #161120);
+    }
+    .slide-02 {
+      background:
+        radial-gradient(ellipse 500px 400px at 50% 5%, rgba(88,166,255,.25), transparent),
+        radial-gradient(ellipse 400px 350px at 18% 88%, rgba(86,211,100,.15), transparent),
+        linear-gradient(145deg, #070a11, #111827 50%, #101521);
+    }
+    .slide-03 {
+      background:
+        radial-gradient(ellipse 600px 450px at 85% 10%, rgba(167,139,250,.3), transparent),
+        radial-gradient(ellipse 400px 350px at 12% 75%, rgba(88,166,255,.18), transparent),
+        linear-gradient(145deg, #070a11, #101827 50%, #151120);
+    }
+    .slide-04 {
+      background:
+        radial-gradient(ellipse 500px 400px at 15% 10%, rgba(86,211,100,.28), transparent),
+        radial-gradient(ellipse 400px 350px at 85% 85%, rgba(57,197,207,.18), transparent),
+        linear-gradient(145deg, #070a11, #111827 50%, #101521);
+    }
+    .slide-05 {
+      background:
+        radial-gradient(ellipse 600px 500px at 50% 8%, rgba(247,120,186,.22), transparent),
+        radial-gradient(ellipse 400px 350px at 10% 90%, rgba(167,139,250,.18), transparent),
+        linear-gradient(145deg, #070a11, #101827 50%, #161120);
+    }
+    .slide-06 {
+      background:
+        radial-gradient(ellipse 600px 500px at 50% 50%, rgba(88,166,255,.2), transparent),
+        radial-gradient(ellipse 400px 350px at 85% 15%, rgba(86,211,100,.2), transparent),
+        radial-gradient(ellipse 400px 350px at 15% 85%, rgba(167,139,250,.18), transparent),
+        linear-gradient(145deg, #070a11, #101827 50%, #101521);
+    }
+
+    .grid {
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,.048) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.048) 1px, transparent 1px);
+      background-size: 72px 72px;
+      mask-image: linear-gradient(to bottom, rgba(0,0,0,.7), transparent 85%);
+    }
+
+    .frame {
+      position: absolute; inset: 30px;
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      pointer-events: none;
+    }
+
+    .content {
+      position: relative; z-index: 1;
+      height: 100%;
+      padding: 58px 64px 50px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ---------- shared components ---------- */
+    .top {
+      display: flex; align-items: flex-start;
+      justify-content: space-between; gap: 24px;
+    }
+
+    .brand {
+      display: flex; align-items: flex-start; gap: 18px;
+    }
+
+    .logo {
+      font-size: 94px; line-height: .82; font-weight: 950;
+      background: linear-gradient(110deg, var(--blue), #7c8cff 52%, var(--violet));
+      -webkit-background-clip: text; background-clip: text;
+      color: transparent;
+    }
+
+    .brand-copy {
+      padding-top: 8px; color: var(--muted);
+      font-size: 20px; line-height: 1.27;
+      font-weight: 900; letter-spacing: 2.4px;
+      text-transform: uppercase;
+    }
+
+    .number {
+      min-width: 104px; padding: 14px 18px;
+      border: 1px solid rgba(86,211,100,.45);
+      border-radius: 999px;
+      background: rgba(86,211,100,.1);
+      color: #cff7d5; font-size: 23px; line-height: 1;
+      font-weight: 950; text-align: center;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    .eyebrow {
+      margin-top: 44px;
+      font-size: 25px; line-height: 1.2; font-weight: 950;
+      letter-spacing: 1.4px; text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 18px 0 0; max-width: 960px;
+      font-size: 74px; line-height: 1.08;
+      font-weight: 950;
+    }
+
+    .lead {
+      margin: 24px 0 0; max-width: 920px;
+      color: var(--soft); font-size: 34px;
+      line-height: 1.42; font-weight: 750;
+    }
+
+    .footer {
+      margin-top: auto;
+      display: flex; align-items: flex-end;
+      justify-content: space-between; gap: 30px;
+      color: var(--muted); font-size: 23px;
+      line-height: 1.25; font-weight: 850;
+    }
+
+    .repo {
+      color: #eef4fb;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 23px; font-weight: 850;
+    }
+
+    .blue { color: var(--blue); }
+    .violet { color: var(--violet); }
+    .green { color: var(--green); }
+    .amber { color: var(--amber); }
+    .red { color: var(--red); }
+    .cyan { color: var(--cyan); }
+    .pink { color: var(--pink); }
+
+    /* ---------- slide 01 ---------- */
+    .slide-01 h1 { font-size: 78px; }
+
+    .stat-row {
+      margin-top: 38px;
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+    }
+
+    .stat {
+      padding: 28px 26px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--panel);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.055);
+    }
+
+    .stat-value {
+      font-size: 56px; line-height: 1;
+      font-weight: 950;
+    }
+
+    .stat-label {
+      margin-top: 10px;
+      color: #b8c5d4; font-size: 22px;
+      line-height: 1.3; font-weight: 800;
+    }
+
+    .thesis {
+      margin-top: 34px;
+      padding: 28px 32px;
+      border-left: 6px solid var(--green);
+      background: rgba(86,211,100,.08);
+      color: #e8faec; font-size: 30px;
+      line-height: 1.42; font-weight: 900;
+    }
+
+    .mini-features {
+      margin-top: 28px;
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+
+    .mini-feat {
+      padding: 20px 22px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--panel);
+    }
+
+    .mini-feat strong {
+      display: block; font-size: 23px;
+      line-height: 1.2; font-weight: 950;
+    }
+
+    .mini-feat span {
+      display: block; margin-top: 8px;
+      color: #b8c5d4; font-size: 19px;
+      line-height: 1.35; font-weight: 720;
+    }
+
+    /* ---------- slide 02: roles ---------- */
+    .role-grid {
+      margin-top: 34px;
+      display: grid; grid-template-columns: repeat(2, 1fr);
+      gap: 18px;
+    }
+
+    .role {
+      min-height: 220px;
+      padding: 28px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--panel);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.055);
+    }
+
+    .role-head {
+      display: flex; align-items: baseline;
+      justify-content: space-between; gap: 14px;
+    }
+
+    .role-name {
+      font-size: 44px; line-height: 1;
+      font-weight: 950;
+    }
+
+    .role-num {
+      color: var(--muted); font-size: 18px;
+      font-weight: 950;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    .role p {
+      margin: 16px 0 0;
+      color: #c2cedc; font-size: 24px;
+      line-height: 1.4; font-weight: 750;
+    }
+
+    .flow-strip {
+      margin-top: 28px;
+      padding: 24px 28px;
+      border: 1px solid rgba(88,166,255,.28);
+      border-radius: 20px;
+      background: rgba(88,166,255,.07);
+      display: flex; align-items: center;
+      justify-content: center; gap: 0;
+    }
+
+    .flow-node {
+      padding: 10px 20px;
+      font-size: 22px; font-weight: 950;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    .flow-arrow {
+      color: var(--blue); font-size: 24px;
+      font-weight: 900; padding: 0 4px;
+    }
+
+    .amend-note {
+      margin-top: 16px;
+      padding: 18px 24px;
+      border-radius: 14px;
+      background: rgba(255,123,114,.08);
+      border: 1px solid rgba(255,123,114,.25);
+      color: #ffd7d5; font-size: 22px;
+      line-height: 1.4; font-weight: 800;
+    }
+
+    /* ---------- slide 03: runners & dashboard ---------- */
+    .runner-grid {
+      margin-top: 30px;
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .runner {
+      padding: 26px 24px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--panel);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.055);
+      text-align: center;
+    }
+
+    .runner-name {
+      font-size: 30px; line-height: 1;
+      font-weight: 950;
+    }
+
+    .runner-type {
+      margin-top: 8px;
+      color: var(--muted); font-size: 17px;
+      font-weight: 800; text-transform: uppercase;
+      letter-spacing: 1.2px;
+    }
+
+    .dash-section {
+      margin-top: 24px;
+    }
+
+    .dash-title {
+      font-size: 28px; font-weight: 950;
+      margin-bottom: 14px;
+    }
+
+    .dash-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+    }
+
+    .dash-card {
+      padding: 22px 24px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(14,20,31,.8);
+    }
+
+    .dash-card strong {
+      display: block; font-size: 22px;
+      line-height: 1.2; font-weight: 950;
+    }
+
+    .dash-card span {
+      display: block; margin-top: 8px;
+      color: #b0bccb; font-size: 19px;
+      line-height: 1.35; font-weight: 720;
+    }
+
+    .platform-strip {
+      margin-top: 20px;
+      display: flex; gap: 14px;
+    }
+
+    .platform-badge {
+      padding: 12px 22px;
+      border-radius: 999px;
+      font-size: 19px; font-weight: 900;
+      letter-spacing: 0.5px;
+    }
+
+    .platform-badge.mac {
+      border: 1px solid rgba(88,166,255,.4);
+      background: rgba(88,166,255,.1);
+      color: #b8daff;
+    }
+
+    .platform-badge.win {
+      border: 1px solid rgba(57,197,207,.4);
+      background: rgba(57,197,207,.1);
+      color: #b0ecf0;
+    }
+
+    .platform-badge.linux {
+      border: 1px solid rgba(242,204,96,.4);
+      background: rgba(242,204,96,.1);
+      color: #f5e6b4;
+    }
+
+    /* ---------- slide 04: guardrails ---------- */
+    .guard-grid {
+      margin-top: 30px;
+      display: grid; grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+
+    .guard {
+      padding: 26px 28px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--panel);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.055);
+    }
+
+    .guard strong {
+      display: block; font-size: 28px;
+      line-height: 1.1; font-weight: 950;
+    }
+
+    .guard span {
+      display: block; margin-top: 10px;
+      color: #c0ccda; font-size: 22px;
+      line-height: 1.38; font-weight: 740;
+    }
+
+    .recovery-strip {
+      margin-top: 22px;
+      padding: 26px 30px;
+      border: 1px solid rgba(86,211,100,.3);
+      border-radius: 20px;
+      background: rgba(86,211,100,.07);
+    }
+
+    .recovery-strip strong {
+      display: block; font-size: 28px;
+      line-height: 1.1; font-weight: 950;
+      color: #cff7d5;
+    }
+
+    .recovery-strip span {
+      display: block; margin-top: 10px;
+      color: #d4ecd8; font-size: 23px;
+      line-height: 1.38; font-weight: 760;
+    }
+
+    /* ---------- slide 05: evolution ---------- */
+    .evo-pipeline {
+      margin-top: 30px;
+      display: grid; gap: 16px;
+    }
+
+    .evo-step {
+      display: grid;
+      grid-template-columns: 72px 1fr;
+      gap: 20px; align-items: start;
+      padding: 24px 28px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--panel);
+    }
+
+    .evo-id {
+      padding: 8px 0;
+      font-size: 18px; font-weight: 950;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      text-align: center;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(14,20,31,.6);
+    }
+
+    .evo-body strong {
+      display: block; font-size: 26px;
+      line-height: 1.15; font-weight: 950;
+    }
+
+    .evo-body span {
+      display: block; margin-top: 6px;
+      color: #b8c5d4; font-size: 20px;
+      line-height: 1.38; font-weight: 720;
+    }
+
+    .evo-vision {
+      margin-top: 22px;
+      padding: 26px 30px;
+      border-left: 6px solid var(--pink);
+      background: rgba(247,120,186,.07);
+      color: #fde0ef; font-size: 28px;
+      line-height: 1.42; font-weight: 900;
+    }
+
+    /* ---------- slide 06: CTA ---------- */
+    .cta-install {
+      margin-top: 36px;
+      padding: 36px 40px;
+      border: 1px solid rgba(88,166,255,.4);
+      border-radius: 24px;
+      background: rgba(88,166,255,.09);
+    }
+
+    .cta-label {
+      color: var(--muted); font-size: 20px;
+      font-weight: 950; letter-spacing: 2.4px;
+      text-transform: uppercase;
+    }
+
+    .cta-command {
+      margin-top: 14px;
+      font-size: 40px; line-height: 1.2;
+      font-weight: 900; color: #f3f8ff;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    .cta-alt {
+      margin-top: 10px;
+      color: var(--muted); font-size: 22px;
+      font-weight: 800;
+    }
+
+    .value-grid {
+      margin-top: 32px;
+      display: grid; grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+
+    .value-card {
+      padding: 28px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--panel);
+    }
+
+    .value-card strong {
+      display: block; font-size: 26px;
+      line-height: 1.15; font-weight: 950;
+    }
+
+    .value-card span {
+      display: block; margin-top: 8px;
+      color: #b8c5d4; font-size: 20px;
+      line-height: 1.38; font-weight: 720;
+    }
+
+    .cta-repo {
+      margin-top: 28px;
+      padding: 30px 36px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--panel-strong);
+      text-align: center;
+    }
+
+    .cta-repo-url {
+      font-size: 36px; font-weight: 950;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      background: linear-gradient(110deg, var(--blue), var(--violet));
+      -webkit-background-clip: text; background-clip: text;
+      color: transparent;
+    }
+
+    .cta-repo-sub {
+      margin-top: 10px;
+      color: var(--muted); font-size: 22px;
+      font-weight: 800;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==================== SLIDE 01: HOOK ==================== -->
+  <section class="slide slide-01">
+    <div class="grid"></div>
+    <div class="frame"></div>
+    <main class="content">
+      <header class="top">
+        <div class="brand">
+          <div class="logo">4x</div>
+          <div class="brand-copy">Multi-Role AI<br>Development Loop</div>
+        </div>
+        <div class="number">01/06</div>
+      </header>
+
+      <div class="eyebrow blue">Open Source Framework</div>
+      <h1>你的 AI 自己寫、自己審、<br>然後自己說 LGTM？</h1>
+      <p class="lead">4x 把 AI 開發拆成四個隔離角色，讓每一步都有獨立檢查，而不是讓同一個腦袋從頭包到尾。</p>
+
+      <section class="stat-row">
+        <article class="stat">
+          <div class="stat-value blue">72<span style="font-size:36px">+</span></div>
+          <div class="stat-label">Features Shipped<br>by the framework itself</div>
+        </article>
+        <article class="stat">
+          <div class="stat-value violet">6</div>
+          <div class="stat-label">AI Runners<br>Claude · Codex · Gemini 等</div>
+        </article>
+        <article class="stat">
+          <div class="stat-value green">3</div>
+          <div class="stat-label">Platforms<br>macOS · Windows · Linux</div>
+        </article>
+      </section>
+
+      <div class="thesis">核心原則：AI 負責判斷，Go CLI 負責邊界。<br>Guardrail 寫在工具裡，不是寫在 prompt 裡。</div>
+
+      <section class="mini-features">
+        <article class="mini-feat">
+          <strong class="blue">角色隔離</strong>
+          <span>設計、實作、審查、測試分開跑</span>
+        </article>
+        <article class="mini-feat">
+          <strong class="green">可中斷續跑</strong>
+          <span>Session 斷了從斷點恢復</span>
+        </article>
+        <article class="mini-feat">
+          <strong class="violet">LLM 不綁定</strong>
+          <span>統一 .4x/ 檔案協定</span>
+        </article>
+      </section>
+
+      <footer class="footer">
+        <span>MIT License · 給大型功能開發的 AI 工作流</span>
+        <span class="repo">github.com/ggwhite/4x</span>
+      </footer>
+    </main>
+  </section>
+
+  <!-- ==================== SLIDE 02: THE LOOP ==================== -->
+  <section class="slide slide-02">
+    <div class="grid"></div>
+    <div class="frame"></div>
+    <main class="content">
+      <header class="top">
+        <div class="brand">
+          <div class="logo">4x</div>
+          <div class="brand-copy">Design · Code<br>Review · Test</div>
+        </div>
+        <div class="number">02/06</div>
+      </header>
+
+      <div class="eyebrow blue">The Loop</div>
+      <h1>四個角色，四種視角，<br>零自我審查。</h1>
+
+      <section class="role-grid">
+        <article class="role">
+          <div class="role-head">
+            <div class="role-name blue">Design</div>
+            <div class="role-num">01</div>
+          </div>
+          <p>釐清需求、限制、風險與驗收標準。<br>Designer 不寫程式碼。</p>
+        </article>
+        <article class="role">
+          <div class="role-head">
+            <div class="role-name violet">Code</div>
+            <div class="role-num">02</div>
+          </div>
+          <p>根據規格實作。看不到 Reviewer 的回饋，不替自己批准。</p>
+        </article>
+        <article class="role">
+          <div class="role-head">
+            <div class="role-name amber">Review</div>
+            <div class="role-num">03</div>
+          </div>
+          <p>對抗式審查：範圍越界？設計偏離？錯誤處理不足？</p>
+        </article>
+        <article class="role">
+          <div class="role-head">
+            <div class="role-name red">Test</div>
+            <div class="role-num">04</div>
+          </div>
+          <p>依照事前標準驗證，留下可檢查證據，不信 Coder 自述。</p>
+        </article>
+      </section>
+
+      <div class="flow-strip">
+        <span class="flow-node blue">Design</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-node violet">Code</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-node amber">Review</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-node red">Test</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-node cyan">Deep Review</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-node green">Done</span>
+      </div>
+
+      <div class="amend-note">
+        Review 或 Test 失敗？自動進入 amending 回圈重來。<br>
+        人類在最終 Accept 階段把關，而不是每一步都盯。
+      </div>
+
+      <footer class="footer">
+        <span>同一個 feature，分成四種責任。</span>
+        <span class="repo">4x run --runner claude</span>
+      </footer>
+    </main>
+  </section>
+
+  <!-- ==================== SLIDE 03: RUNNERS & DASHBOARD ==================== -->
+  <section class="slide slide-03">
+    <div class="grid"></div>
+    <div class="frame"></div>
+    <main class="content">
+      <header class="top">
+        <div class="brand">
+          <div class="logo">4x</div>
+          <div class="brand-copy">Runners &<br>Dashboard</div>
+        </div>
+        <div class="number">03/06</div>
+      </header>
+
+      <div class="eyebrow violet">Ecosystem</div>
+      <h1>一份協定，六種 AI，<br>即時可視化。</h1>
+
+      <section class="runner-grid">
+        <article class="runner">
+          <div class="runner-name blue">Claude Code</div>
+          <div class="runner-type">Anthropic</div>
+        </article>
+        <article class="runner">
+          <div class="runner-name green">Codex</div>
+          <div class="runner-type">OpenAI</div>
+        </article>
+        <article class="runner">
+          <div class="runner-name amber">Gemini CLI</div>
+          <div class="runner-type">Google</div>
+        </article>
+        <article class="runner">
+          <div class="runner-name violet">Antigravity</div>
+          <div class="runner-type">agy.ai</div>
+        </article>
+        <article class="runner">
+          <div class="runner-name cyan">Copilot</div>
+          <div class="runner-type">GitHub</div>
+        </article>
+        <article class="runner">
+          <div class="runner-name pink">Cursor</div>
+          <div class="runner-type">Anysphere</div>
+        </article>
+      </section>
+
+      <section class="dash-section">
+        <div class="dash-title">Dashboard — 4x Live</div>
+        <div class="dash-grid">
+          <article class="dash-card">
+            <strong class="blue">即時監控</strong>
+            <span>SSE 串流，每個 feature 的 phase、log、訊息即時更新</span>
+          </article>
+          <article class="dash-card">
+            <strong class="green">截圖 Gallery</strong>
+            <span>Tester 截圖按 round 分組，縮圖 + 點擊放大</span>
+          </article>
+          <article class="dash-card">
+            <strong class="violet">依賴圖</strong>
+            <span>Feature 依賴關係視覺化，自動分群佈局</span>
+          </article>
+          <article class="dash-card">
+            <strong class="amber">6 語系 i18n</strong>
+            <span>EN · 繁中 · 简中 · 日 · 韓 · 西</span>
+          </article>
+        </div>
+      </section>
+
+      <div class="platform-strip">
+        <span class="platform-badge mac">macOS Native (Swift)</span>
+        <span class="platform-badge win">Windows (Tauri)</span>
+        <span class="platform-badge linux">Linux (Tauri)</span>
+      </div>
+
+      <footer class="footer">
+        <span>不用盯 terminal，Dashboard 全程可視化。</span>
+        <span class="repo">4x live</span>
+      </footer>
+    </main>
+  </section>
+
+  <!-- ==================== SLIDE 04: GUARDRAILS ==================== -->
+  <section class="slide slide-04">
+    <div class="grid"></div>
+    <div class="frame"></div>
+    <main class="content">
+      <header class="top">
+        <div class="brand">
+          <div class="logo">4x</div>
+          <div class="brand-copy">Deterministic<br>Guardrails</div>
+        </div>
+        <div class="number">04/06</div>
+      </header>
+
+      <div class="eyebrow green">Safety</div>
+      <h1>安全邊界寫在 Go 裡，<br>不是寫在 prompt 裡。</h1>
+      <p class="lead">不靠 AI 自律，用 CLI 工具硬性強制每一條邊界。</p>
+
+      <section class="guard-grid">
+        <article class="guard">
+          <strong class="blue">狀態機</strong>
+          <span>init → designing → coding → reviewing → testing → done，禁止亂跳。</span>
+        </article>
+        <article class="guard">
+          <strong class="violet">Scope Lock</strong>
+          <span>改的檔案必須在宣告的 repos 範圍內，越界直接擋。</span>
+        </article>
+        <article class="guard">
+          <strong class="amber">Baseline Snapshot</strong>
+          <span>Coding 前快照，隨時可 rollback 到乾淨狀態。</span>
+        </article>
+        <article class="guard">
+          <strong class="cyan">Evidence Gate</strong>
+          <span>Tester 必須產出 verify.json + test-report，不接受空口無憑。</span>
+        </article>
+        <article class="guard">
+          <strong class="green">Dependency Gate</strong>
+          <span>前置 feature 未完成？這個 feature 不准開始。</span>
+        </article>
+        <article class="guard">
+          <strong class="red">Human Gate</strong>
+          <span>AI 跑完全部 phase 後，pending-review 等人類最終審核。</span>
+        </article>
+      </section>
+
+      <div class="recovery-strip">
+        <strong>Crash Recovery + Transient Retry</strong>
+        <span>Runner 中斷自動恢復、API 暫態錯誤自動 backoff 重試。<br>網路抖一下不會毀掉整個 batch run。</span>
+      </div>
+
+      <footer class="footer">
+        <span>AI 負責判斷，CLI 負責邊界。</span>
+        <span class="repo">.4x/ protocol</span>
+      </footer>
+    </main>
+  </section>
+
+  <!-- ==================== SLIDE 05: EVOLUTION ROADMAP ==================== -->
+  <section class="slide slide-05">
+    <div class="grid"></div>
+    <div class="frame"></div>
+    <main class="content">
+      <header class="top">
+        <div class="brand">
+          <div class="logo">4x</div>
+          <div class="brand-copy">Self-Evolution<br>Built-in</div>
+        </div>
+        <div class="number">05/06</div>
+      </header>
+
+      <div class="eyebrow pink">Self-Evolution</div>
+      <h1>4x 會從自己的<br>失敗中學習。</h1>
+
+      <section class="evo-pipeline">
+        <article class="evo-step">
+          <div class="evo-id violet">L1</div>
+          <div class="evo-body">
+            <strong>Retro Learnings</strong>
+            <span>每輪結束後回顧，自動調整下一輪的 prompt template。越跑越準。</span>
+          </div>
+        </article>
+        <article class="evo-step">
+          <div class="evo-id blue">L2</div>
+          <div class="evo-body">
+            <strong>History Mining</strong>
+            <span>從失敗 run、escalation、反覆 FAIL pattern 中挖掘改進訊號。</span>
+          </div>
+        </article>
+        <article class="evo-step">
+          <div class="evo-id cyan">L3</div>
+          <div class="evo-body">
+            <strong>Feature Enrichment</strong>
+            <span>自動發現的改進項目，補齊 subtask、scope、priority 後直接排入 pipeline。</span>
+          </div>
+        </article>
+        <article class="evo-step">
+          <div class="evo-id amber">L4</div>
+          <div class="evo-body">
+            <strong>Value Gate + Scope Guard</strong>
+            <span>ROI 評估 + anti-hack 防護。改自己核心時額外保護，防止越改越壞。</span>
+          </div>
+        </article>
+        <article class="evo-step">
+          <div class="evo-id green">L5</div>
+          <div class="evo-body">
+            <strong>Evolve Driver</strong>
+            <span>一條指令啟動持續自我改進迴路：挖掘 → 評估 → 實作 → 驗證 → 部署。</span>
+          </div>
+        </article>
+      </section>
+
+      <div class="evo-vision">AI 不只是執行工程流程——它從自己的失敗中學習，持續迭代，越跑越強。</div>
+
+      <footer class="footer">
+        <span>用 4x evolve 啟動自我改進迴路</span>
+        <span class="repo">4x evolve</span>
+      </footer>
+    </main>
+  </section>
+
+  <!-- ==================== SLIDE 06: CTA ==================== -->
+  <section class="slide slide-06">
+    <div class="grid"></div>
+    <div class="frame"></div>
+    <main class="content">
+      <header class="top">
+        <div class="brand">
+          <div class="logo">4x</div>
+          <div class="brand-copy">Get Started<br>in 30 Seconds</div>
+        </div>
+        <div class="number">06/06</div>
+      </header>
+
+      <div class="eyebrow green">Install</div>
+      <h1>把 AI agent 當成工程 pipeline 管。</h1>
+
+      <div class="cta-install">
+        <div class="cta-label">Homebrew</div>
+        <div class="cta-command">brew install ggwhite/tap/4x</div>
+        <div class="cta-alt">或 go install github.com/ggwhite/4x/cmd/4x@latest</div>
+      </div>
+
+      <section class="value-grid">
+        <article class="value-card">
+          <strong class="blue">Open Source</strong>
+          <span>MIT License，原始碼全公開，歡迎 contribute。</span>
+        </article>
+        <article class="value-card">
+          <strong class="violet">LLM 不綁定</strong>
+          <span>同一份 .4x/ 協定，混搭任何 AI runner。</span>
+        </article>
+        <article class="value-card">
+          <strong class="green">Crash Resistant</strong>
+          <span>所有狀態存在檔案裡，斷電重來不丟進度。</span>
+        </article>
+        <article class="value-card">
+          <strong class="amber">Human in the Loop</strong>
+          <span>AI 跑完提案，人類決定是否 merge。</span>
+        </article>
+      </section>
+
+      <div class="cta-repo">
+        <div class="cta-repo-url">github.com/ggwhite/4x</div>
+        <div class="cta-repo-sub">Star ⭐ the repo · Read the docs · Join the conversation</div>
+      </div>
+
+      <footer class="footer">
+        <span>Stop hoping your AI writes correct code. Start verifying it.</span>
+        <span class="repo">v0.1.17</span>
+      </footer>
+    </main>
+  </section>
+
+</body>
+</html>

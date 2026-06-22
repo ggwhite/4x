@@ -1,4 +1,4 @@
-[English](README.md) | **繁體中文** | [简体中文](README.zh-CN.md) | [日本語](README.ja.md) | [한국어](README.ko.md) | [Español](README.es.md)
+[English](../../README.md) | **繁體中文** | [简体中文](README.zh-CN.md) | [日本語](README.ja.md) | [한국어](README.ko.md) | [Español](README.es.md)
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/ggwhite/4x.svg)](https://pkg.go.dev/github.com/ggwhite/4x)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ggwhite/4x)](https://goreportcard.com/report/github.com/ggwhite/4x)
@@ -6,16 +6,30 @@
 [![CI](https://github.com/ggwhite/4x/actions/workflows/ci.yml/badge.svg)](https://github.com/ggwhite/4x/actions/workflows/ci.yml)
 
 <p align="center">
-  <img src="docs/assets/4x-banner.svg" alt="4X — Design. Code. Review. Test." width="480">
+  <img src="../assets/4x-banner.svg" alt="4X — Design. Code. Review. Test." width="480">
 </p>
 
 <p align="center">
-  <img src="docs/assets/demo.gif" alt="4x demo" width="720">
+  <img src="../assets/demo.gif" alt="4x demo" width="720">
 </p>
 
 **4x 是一個多角色 AI 開發框架，將軟體工程迴圈拆分為四個專業階段** — Design（設計）、Code（實作）、Review（審查）、Test（測試） — 每個階段由專屬的 AI agent 驅動。如同 4X 策略遊戲（eXplore、eXpand、eXploit、eXterminate），這個名字反映了一個由不同角色、各具優勢，合力征服複雜度的系統。
 
 ---
+
+## 主要功能
+
+| 類別 | 亮點 |
+|---|---|
+| **多角色迴圈** | Design → Code → Review → Test → Deep Review → Accept，角色隔離。Adaptive pipeline 依功能複雜度選擇 profile（full / mini / quick）。 |
+| **6 種 AI Runner** | Claude Code · Codex · Gemini CLI · Antigravity · Copilot · Cursor — 統一 `.4x/` 檔案協定，可按角色混搭。 |
+| **Dashboard（4x Live）** | macOS 原生（Swift）+ Windows / Linux（Tauri）。即時 SSE 監控、依賴圖、Runner log streaming、截圖 gallery、設定 UI、批次監控。6 語系 i18n、系統通知、menu bar 整合。 |
+| **確定性 Guardrail** | 狀態機、scope lock、baseline snapshot、證據測試閘門、依賴閘門 — 由 Go CLI 強制執行，不是靠 LLM prompt。 |
+| **Crash Recovery** | Runner 中斷 → 從最後儲存狀態自動恢復。暫態 API 錯誤（網路、rate limit）→ 自動 backoff 重試。 |
+| **批次模式** | 依賴感知 DAG 排程、完成後自動合併、批次報告、優雅停止。幾十個 feature 排進夜間執行，早上再 review。 |
+| **MCP Server** | Model Context Protocol server，可與 MCP 相容的 client 整合。 |
+| **20+ CLI 指令** | `run`、`batch`、`live`、`doctor`、`clean`、`verify`、`mcp`、phase hooks、health check、structured logging 等。 |
+| **自我演化** | 從歷史 run 挖掘改進訊號、自動發現 feature 充實化、evolution value gate + anti-hack、自我修改 scope guard、持續改進驅動器（`4x evolve`）。4x 從自己的失敗中學習並自我迭代。 |
 
 ## 為什麼選 4x？
 
@@ -40,7 +54,7 @@
 
 ### 劣勢
 
-- **Token 成本顯著更高。** 每個 feature 至少經過 4 次以上的獨立 LLM 呼叫。Review 失敗會翻倍。預期同一任務的 token 成本是單一 agent 方式的 3-10 倍。參見 [使用技巧](docs/guide/zh-TW/usage-tips.md) 的成本估算。
+- **Token 成本顯著更高。** 每個 feature 至少經過 4 次以上的獨立 LLM 呼叫。Review 失敗會翻倍。預期同一任務的 token 成本是單一 agent 方式的 3-10 倍。參見 [使用技巧](../guide/zh-TW/usage-tips.md) 的成本估算。
 - **簡單任務更慢。** 一行 bug fix 不需要 Designer、Reviewer 和 Tester。完整迴圈的開銷在瑣碎變更上是浪費。簡單修復請用單一 agent 工具。
 - **設定成本。** `4x init`、feature YAML、settings 設定 — 開始前有一些儀式。不值得為一個用完即丟的腳本這樣做。
 - **固定的迴圈結構。** Design → Code → Review → Test 的順序是固定的。如果你的工作流不適合四個角色，你會與框架對抗而非使用它。
@@ -201,14 +215,14 @@ CLI 的確定性 guardrail（範圍鎖定、基線快照、狀態機）提供安
 
 | 文件 | 說明 |
 |---|---|
-| **[使用指南](docs/guide/zh-TW/)** | 完整的使用文件 |
-| [快速開始](docs/guide/zh-TW/getting-started.md) | 安裝與首次執行 |
-| [CLI 參考](docs/guide/zh-TW/cli.md) | 所有命令與旗標 |
-| [核心概念](docs/guide/zh-TW/concepts.md) | 角色、狀態機、協定、guardrail |
-| [設定](docs/guide/zh-TW/configuration.md) | Settings、模型、語系、runner |
-| [Runner 與 Plugin](docs/guide/zh-TW/runners.md) | 支援的 runner 與 plugin 合約 |
-| [儀表板](docs/guide/zh-TW/dashboard.md) | 4x Live 多專案儀表板 |
-| [批次模式](docs/guide/zh-TW/batch.md) | 依賴感知的批次執行 |
+| **[使用指南](../guide/zh-TW/)** | 完整的使用文件 |
+| [快速開始](../guide/zh-TW/getting-started.md) | 安裝與首次執行 |
+| [CLI 參考](../guide/zh-TW/cli.md) | 所有命令與旗標 |
+| [核心概念](../guide/zh-TW/concepts.md) | 角色、狀態機、協定、guardrail |
+| [設定](../guide/zh-TW/configuration.md) | Settings、模型、語系、runner |
+| [Runner 與 Plugin](../guide/zh-TW/runners.md) | 支援的 runner 與 plugin 合約 |
+| [儀表板](../guide/zh-TW/dashboard.md) | 4x Live 多專案儀表板 |
+| [批次模式](../guide/zh-TW/batch.md) | 依賴感知的批次執行 |
 
 ## 專案結構
 

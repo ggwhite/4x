@@ -1,4 +1,4 @@
-**English** | [繁體中文](README.zh-TW.md) | [简体中文](README.zh-CN.md) | [日本語](README.ja.md) | [한국어](README.ko.md) | [Español](README.es.md)
+**English** | [繁體中文](docs/translate/README.zh-TW.md) | [简体中文](docs/translate/README.zh-CN.md) | [日本語](docs/translate/README.ja.md) | [한국어](docs/translate/README.ko.md) | [Español](docs/translate/README.es.md)
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/ggwhite/4x.svg)](https://pkg.go.dev/github.com/ggwhite/4x)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ggwhite/4x)](https://goreportcard.com/report/github.com/ggwhite/4x)
@@ -14,6 +14,20 @@
 </p>
 
 **4x is a multi-role AI development framework that splits the software engineering loop into four specialized phases** — Design, Code, Review, Test — each driven by a dedicated AI agent. Like 4X strategy games (eXplore, eXpand, eXploit, eXterminate), the name reflects a system where distinct roles with distinct strengths converge to conquer complexity.
+
+## Key Features
+
+| Category | Highlights |
+|---|---|
+| **Multi-Role Loop** | Design → Code → Review → Test → Deep Review → Accept, with role isolation. Adaptive pipeline selects profile (full / mini / quick) by feature complexity. |
+| **6 AI Runners** | Claude Code · Codex · Gemini CLI · Antigravity · Copilot · Cursor — same `.4x/` file protocol, mix and match per role. |
+| **Dashboard (4x Live)** | macOS native (Swift) + Windows / Linux (Tauri). Real-time SSE monitoring, dependency graph, runner log streaming, screenshot gallery, settings UI, batch monitoring. 6-language i18n, system notifications, menu bar integration. |
+| **Deterministic Guardrails** | State machine, scope lock, baseline snapshots, evidence-based testing gate, dependency gate — enforced by the Go CLI, not by prompting an LLM. |
+| **Crash Recovery** | Runner crash → auto-resume from last saved state. Transient API errors (network, rate limits) → automatic backoff retry. |
+| **Batch Mode** | Dependency-aware DAG scheduling, auto-merge on completion, batch reports, graceful stop. Queue dozens of features and review in the morning. |
+| **MCP Server** | Model Context Protocol server for integration with MCP-compatible clients. |
+| **20+ CLI Commands** | `run`, `batch`, `live`, `doctor`, `clean`, `verify`, `mcp`, phase hooks, health checks, structured logging, and more. |
+| **Self-Evolution** | History mining from past runs, auto-discovered feature enrichment, evolution value gate with anti-hack, self-modification scope guard, and continuous improvement driver (`4x evolve`). 4x learns from its own failures and iterates itself. |
 
 ---
 

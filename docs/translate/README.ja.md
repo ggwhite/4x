@@ -1,4 +1,4 @@
-[English](README.md) | [繁體中文](README.zh-TW.md) | [简体中文](README.zh-CN.md) | **日本語** | [한국어](README.ko.md) | [Español](README.es.md)
+[English](../../README.md) | [繁體中文](README.zh-TW.md) | [简体中文](README.zh-CN.md) | **日本語** | [한국어](README.ko.md) | [Español](README.es.md)
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/ggwhite/4x.svg)](https://pkg.go.dev/github.com/ggwhite/4x)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ggwhite/4x)](https://goreportcard.com/report/github.com/ggwhite/4x)
@@ -6,16 +6,30 @@
 [![CI](https://github.com/ggwhite/4x/actions/workflows/ci.yml/badge.svg)](https://github.com/ggwhite/4x/actions/workflows/ci.yml)
 
 <p align="center">
-  <img src="docs/assets/4x-banner.svg" alt="4X — Design. Code. Review. Test." width="480">
+  <img src="../assets/4x-banner.svg" alt="4X — Design. Code. Review. Test." width="480">
 </p>
 
 <p align="center">
-  <img src="docs/assets/demo.gif" alt="4x demo" width="720">
+  <img src="../assets/demo.gif" alt="4x demo" width="720">
 </p>
 
 **4x は、ソフトウェア開発ループを4つの専門フェーズに分割するマルチロール AI 開発フレームワークです** -- Design（設計）、Code（実装）、Review（レビュー）、Test（テスト） -- それぞれ専用の AI エージェントが担当します。4X ストラテジーゲーム（eXplore, eXpand, eXploit, eXterminate）のように、異なる強みを持つ異なる役割が連携して複雑さを克服するシステムを表しています。
 
 ---
+
+## 主な機能
+
+| カテゴリ | ハイライト |
+|---|---|
+| **マルチロールループ** | Design → Code → Review → Test → Deep Review → Accept、ロール分離。Adaptive pipeline が機能の複雑さに応じて profile を選択（full / mini / quick）。 |
+| **6種類の AI ランナー** | Claude Code · Codex · Gemini CLI · Antigravity · Copilot · Cursor — 統一された `.4x/` ファイルプロトコル、ロールごとに混在可能。 |
+| **ダッシュボード（4x Live）** | macOS ネイティブ（Swift）+ Windows / Linux（Tauri）。リアルタイム SSE モニタリング、依存関係グラフ、ランナーログストリーミング、スクリーンショットギャラリー、設定 UI、バッチモニタリング。6言語 i18n、システム通知、メニューバー統合。 |
+| **決定的ガードレール** | ステートマシン、スコープロック、ベースラインスナップショット、エビデンスベースのテストゲート、依存関係ゲート — Go CLI で強制、LLM プロンプトに依存しない。 |
+| **クラッシュリカバリー** | ランナー中断 → 最後に保存された状態から自動復旧。一時的な API エラー（ネットワーク、レート制限）→ 自動バックオフリトライ。 |
+| **バッチモード** | 依存関係を考慮した DAG スケジューリング、完了時の自動マージ、バッチレポート、グレースフルストップ。数十の Feature を夜間にキューイングし、翌朝レビュー。 |
+| **MCP サーバー** | Model Context Protocol サーバー、MCP 互換クライアントとの統合用。 |
+| **20以上の CLI コマンド** | `run`、`batch`、`live`、`doctor`、`clean`、`verify`、`mcp`、フェーズフック、ヘルスチェック、構造化ログなど。 |
+| **自己進化** | 過去のランからの改善シグナルのマイニング、自動発見 Feature の充実化、evolution value gate + アンチハック、自己修正スコープガード、継続的改善ドライバー（`4x evolve`）。4x は自らの失敗から学び、自己改善を繰り返す。 |
 
 ## なぜ 4x なのか？
 
@@ -40,7 +54,7 @@
 
 ### 弱み
 
-- **トークンコストが大幅に増加する。** 各機能は最低でも4回以上の個別 LLM 呼び出しを経る。レビュー失敗でさらに倍増する。同じタスクに対してシングルエージェントの3〜10倍のトークンコストを見込むこと。[使い方のヒント](docs/guide/ja/usage-tips.md)でコスト見積もりを参照。
+- **トークンコストが大幅に増加する。** 各機能は最低でも4回以上の個別 LLM 呼び出しを経る。レビュー失敗でさらに倍増する。同じタスクに対してシングルエージェントの3〜10倍のトークンコストを見込むこと。[使い方のヒント](../guide/ja/usage-tips.md)でコスト見積もりを参照。
 - **シンプルなタスクには遅い。** 1行のバグ修正に Designer、Reviewer、Tester は不要。フルループのオーバーヘッドは些細な変更には無駄になる。クイックフィックスにはシングルエージェントツールを使うこと。
 - **セットアップコストがかかる。** `4x init`、feature YAML、settings 設定 -- 開始前に準備が必要。使い捨てのスクリプトには割に合わない。
 - **ループ構造が固定的。** Design → Code → Review → Test のシーケンスは固定。ワークフローが4つのロールに合わない場合、フレームワークと戦うことになる。
@@ -201,14 +215,14 @@ CLI の決定的なガードレール（スコープロック、ベースライ�
 
 | ドキュメント | 説明 |
 |---|---|
-| **[ユーザーガイド](docs/guide/ja/)** | 完全な使用方法ドキュメント |
-| [はじめに](docs/guide/ja/getting-started.md) | インストールと初回実行 |
-| [CLI リファレンス](docs/guide/ja/cli.md) | すべてのコマンドとフラグ |
-| [基本コンセプト](docs/guide/ja/concepts.md) | ロール、ステートマシン、プロトコル、ガードレール |
-| [設定](docs/guide/ja/configuration.md) | Settings、モデル、ロケール、ランナー |
-| [ランナー & プラグイン](docs/guide/ja/runners.md) | サポートされるランナーとプラグイン規約 |
-| [ダッシュボード](docs/guide/ja/dashboard.md) | 4x Live マルチプロジェクトダッシュボード |
-| [バッチモード](docs/guide/ja/batch.md) | 依存関係を考慮したバッチ実行 |
+| **[ユーザーガイド](../guide/ja/)** | 完全な使用方法ドキュメント |
+| [はじめに](../guide/ja/getting-started.md) | インストールと初回実行 |
+| [CLI リファレンス](../guide/ja/cli.md) | すべてのコマンドとフラグ |
+| [基本コンセプト](../guide/ja/concepts.md) | ロール、ステートマシン、プロトコル、ガードレール |
+| [設定](../guide/ja/configuration.md) | Settings、モデル、ロケール、ランナー |
+| [ランナー & プラグイン](../guide/ja/runners.md) | サポートされるランナーとプラグイン規約 |
+| [ダッシュボード](../guide/ja/dashboard.md) | 4x Live マルチプロジェクトダッシュボード |
+| [バッチモード](../guide/ja/batch.md) | 依存関係を考慮したバッチ実行 |
 
 ## プロジェクト構造
 
