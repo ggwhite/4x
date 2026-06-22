@@ -71,6 +71,7 @@ Read-heavy endpoints (`/api/tasks`, `/api/overview`, `/api/projects`, `/api/sett
 | `/api/events/{id}` | GET | Get events for a feature |
 | `/api/overview/{id}` | GET | Get feature overview (YAML fields + spec/plan content, resolved via the shared `protocol.ResolveDesignDoc` — see [Design Doc Resolution](concepts.md#design-doc-resolution)) |
 | `/api/messages/{id}` | GET | Get messages for a feature |
+| `/api/evolve-report` | GET | Latest `4x evolve` round summary (`.4x/evolve-report.md`); `{content, exists}`, `exists:false` when absent |
 | `/api/features/{id}/screenshots` | GET | Get screenshots grouped by round |
 | `/api/features/{id}/screenshots/{filename}` | GET | Serve one screenshot image |
 | `/api/logs/{id}` | GET | List log files for a feature |

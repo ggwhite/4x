@@ -135,6 +135,18 @@ The output `CandidatePool` (`candidates.json`) holds `Version`, `GeneratedAt`, a
 
 The whole command is best-effort — a single corrupt feature is logged and skipped, never aborting the scan. Crucially, `4x mine` **only produces the candidate pool; it never creates features**. Whether a candidate is promoted into a real feature is left to a separate gate (F097). This makes it complementary to — not a replacement for — Auto-Discovered Features: one harvests in-scope notes on success, the other harvests failure signals across all of history.
 
+### Evolve Driver
+
+`4x evolve` stitches mine, the F097 value gate, and enrichment into one repeatable closed loop: **mine → gate (pre → gate LLM role → post) → enrich → enqueue → (optional) auto-run → learnings feed the next round**. The CLI layer stays LLM-free — the gate role and enrichment both run as `runner.Runner` subprocesses, never an inline API call.
+
+The pipeline order is **mine → gate → enrich → enqueue** (not mine → enrich → gate): the gate consumes bare `Candidate`s, so enrichment — which materializes a full `feature.Feature` — only runs on gate survivors, never wasting LLM cost on candidates that get vetoed. Accepted candidates are enqueued as `not-started` feature YAMLs (passing the value gate **is** the approval; there is no second draft→not-started step). If enrichment fails or is discarded, the candidate is still enqueued as a bare feature built from its description, marked `enriched=false` — the gate already vouched for its value.
+
+Each call runs exactly **one** round; repeated rounds are driven externally (cron or repeated invocation). Every round writes `.4x/evolve-report.md` (Mined / Accepted / Rejected / Enqueued / Auto-Run / Halted), surfaced by the dashboard via `GET /api/evolve-report`.
+
+**Anti-spin halt** prevents the loop spinning forever with nothing to show. `.4x/evolve-state.json` persists `consecutiveNoAccept` across calls; a round that accepts nothing increments it, a round that accepts anything resets it to zero. Once it reaches `evolution.max_idle_rounds` the next call halts before mining, marks the report `Halted`, and exits 0. The setting distinguishes **unset** (`nil` → default `3`) from an explicit `<= 0` (disables the halt — always run); `--force` overrides a halt for one call.
+
+With `--auto-run`, each enqueued feature's meta-loop runs immediately, always under the F098 self-mod scope guard: a feature that touches `self_mod_guard.protected_paths` without approval is not auto-completed and is flagged `SelfModBlocked` in the report (resolve with `4x done --approve-self-mod`). `--dry-run` is read-only — it prints the mine/dedupe summary and writes nothing, spawns no runner, and creates no feature (and ignores `--auto-run` with a warning).
+
 ### Escalation
 
 The Coder or Tester can escalate when:

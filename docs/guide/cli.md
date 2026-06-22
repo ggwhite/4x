@@ -199,6 +199,46 @@ Thresholds come from the `evolution` section of `settings.json` (`value_floor`, 
 
 ---
 
+## `4x evolve`
+
+Run one round of the continuous self-improvement pipeline, stitching the existing evolution parts into a repeatable closed loop:
+
+**mine → gate (pre → gate LLM role → post) → enrich → enqueue → (optional) auto-run meta-loop → learnings feed the next round.**
+
+The CLI layer never calls an LLM directly — the gate role and enrichment both run as `runner` subprocesses. Each call runs exactly **one** round; drive repeated rounds externally (cron or repeated `4x evolve`). Every round writes a summary to `.4x/evolve-report.md`.
+
+Pipeline steps:
+
+1. **mine** — scan `.4x/` for failure signals (escalations / stuck features / recurring FAIL patterns), dedupe, merge into `.4x/candidates.json`.
+2. **gate pre** — Jaccard dedupe survivors to `.4x/gate-input.json`.
+3. **gate role** — spawn the `gate` LLM role to write `.4x/gate-verdicts.json`.
+4. **gate post** — apply the non-overridable veto + convergence caps, write `.4x/accepted-candidates.json`.
+5. **enrich + enqueue** — materialize each accepted candidate into a `not-started` feature YAML (on enrich failure it falls back to a bare feature built from the candidate text, marked `enriched=false`).
+6. **auto-run** (optional) — run the meta-loop for each enqueued feature, protected by the F098 self-mod scope guard.
+
+Anti-spin: when a round accepts nothing, `.4x/evolve-state.json` increments `consecutiveNoAccept`; once it reaches `evolution.max_idle_rounds` (default 3; set `<= 0` to disable) the next call halts early, marks the report `Halted`, and exits 0. Use `--force` to override.
+
+```
+4x evolve                        # run one round, leave features at not-started
+4x evolve --dry-run              # read-only: print mine/dedupe summary, write nothing
+4x evolve --auto-run             # also run the meta-loop for enqueued features
+4x evolve --force                # bypass the anti-spin halt
+```
+
+| Flag | Description |
+|---|---|
+| `--auto-run` | Run the meta-loop for each enqueued feature (F098 self-mod guard always enforced) |
+| `--dry-run` | Read-only analysis: print mined/deduped counts, write no files, spawn no runner, create no feature |
+| `--min-occurrences` | Distinct-feature threshold for a fail-pattern to become a candidate (default 3) |
+| `--force` | Override the anti-spin halt and run even after consecutive idle rounds |
+| `--runner` | Runner plugin for gate / enrich / auto-run (default `evolution.gate_runner` or project default) |
+| `--timeout` | LLM subprocess timeout in seconds (default 3600) |
+| `--max-rounds` | Max rounds per feature when `--auto-run` is set (default 5) |
+
+The dashboard surfaces the latest report via `GET /api/evolve-report`.
+
+---
+
 ## `4x check <feature-id>`
 
 Run guardrail checks without transitioning state.
