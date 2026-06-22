@@ -88,7 +88,11 @@ func (p CandidatePool) Save(path string) error {
 	if err != nil {
 		return fmt.Errorf("marshal candidates: %w", err)
 	}
-	return os.WriteFile(path, append(data, '\n'), 0o644)
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, append(data, '\n'), 0o644); err != nil {
+		return fmt.Errorf("write candidates tmp: %w", err)
+	}
+	return os.Rename(tmp, path)
 }
 
 // ScanEscalations 走訪所有 feature 的所有 round dir，讀取 escalation.json，

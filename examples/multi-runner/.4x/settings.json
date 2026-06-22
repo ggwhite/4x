@@ -1,11 +1,9 @@
 {
   "project": {
-    "name": "multi-runner-demo"
-  },
-  "commands": {
-    "build": "go build ./...",
-    "test": "go test ./...",
-    "lint": "go vet ./..."
+    "name": "multi-runner-demo",
+    "build": ["go build ./..."],
+    "test": ["go test ./..."],
+    "lint": ["go vet ./..."]
   },
   "runners": {
     "claude": {

@@ -20,8 +20,9 @@ func TestMarkDone_SelfModBlocksAutoMerge(t *testing.T) {
 		SelfModPaths:   []string{"internal/state/machine.go"},
 	})
 
-	if err := markDone(ws, "feat-sm", false); err != nil {
-		t.Fatalf("markDone should return nil when blocked, got: %v", err)
+	err := markDone(ws, "feat-sm", false)
+	if err == nil {
+		t.Fatal("markDone should return error when self-mod approval is required")
 	}
 
 	final, _ := ws.ReadState("feat-sm")

@@ -1,11 +1,9 @@
 {
   "project": {
-    "name": "task-tracker"
-  },
-  "commands": {
-    "build": "npm run build",
-    "test": "npm test",
-    "lint": "npx eslint ."
+    "name": "task-tracker",
+    "build": ["npm run build"],
+    "test": ["npm test"],
+    "lint": ["npx eslint ."]
   },
   "runners": {
     "claude": {

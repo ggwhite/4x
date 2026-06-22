@@ -1,6 +1,9 @@
 {
   "project": {
-    "name": "python-cli"
+    "name": "python-cli",
+    "build": ["pip install -e ."],
+    "test": ["pytest tests/ -v"],
+    "lint": ["ruff check src/ tests/"]
   },
   "runners": {
     "claude": {
@@ -19,10 +22,5 @@
     "designer": { "model": "opus" },
     "reviewer": { "model": "sonnet", "deep_model": "opus" },
     "tester": { "model": "sonnet" }
-  },
-  "commands": {
-    "build": "pip install -e .",
-    "test": "pytest tests/ -v",
-    "lint": "ruff check src/ tests/"
   }
 }

@@ -45,7 +45,10 @@ func runGate(dir string, opts gateOpts) error {
 	if err != nil {
 		return fmt.Errorf("not in a 4x project: %w", err)
 	}
-	cfg, _ := ws.LoadMergedConfig()
+	cfg, err := ws.LoadMergedConfig()
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
 	resolved := evolution.ResolveEvolution(cfg)
 	dot := ws.DotDir()
 

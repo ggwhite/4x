@@ -80,7 +80,7 @@ func TestAutoDiscover_EnrichDisabled(t *testing.T) {
 	cfg := protocol.Config{AutoDiscoverFeatures: true, EnrichDiscoveredFeatures: false}
 	writeDeepReviewReport(t, ws, seed.ID, 1, "[NEW-FEATURE] Thin Feature\nSome description")
 
-	autoDiscoverFeatures(ws, seed, cfg, 1, nil)
+	autoDiscoverFeatures(context.Background(), ws, seed, cfg, 1,nil)
 
 	found := discoveredOther(t, ws, seed.ID)
 	if found == nil {
@@ -107,7 +107,7 @@ func TestAutoDiscover_EnrichEnabled_DraftMode(t *testing.T) {
 	writeDeepReviewReport(t, ws, seed.ID, 1, "[NEW-FEATURE] Rich Feature\nNeeds enrichment")
 
 	r := &mockEnrichRunner{logContent: validEnrichLogForTest}
-	autoDiscoverFeatures(ws, seed, cfg, 1, r)
+	autoDiscoverFeatures(context.Background(), ws, seed, cfg, 1,r)
 
 	found := discoveredOther(t, ws, seed.ID)
 	if found == nil {
@@ -134,7 +134,7 @@ func TestAutoDiscover_EnrichEnabled_AutoApprove(t *testing.T) {
 	writeDeepReviewReport(t, ws, seed.ID, 1, "[NEW-FEATURE] Rich Feature\nNeeds enrichment")
 
 	r := &mockEnrichRunner{logContent: validEnrichLogForTest}
-	autoDiscoverFeatures(ws, seed, cfg, 1, r)
+	autoDiscoverFeatures(context.Background(), ws, seed, cfg, 1,r)
 
 	found := discoveredOther(t, ws, seed.ID)
 	if found == nil {
@@ -161,7 +161,7 @@ func TestAutoDiscover_EnrichFailed_Discarded(t *testing.T) {
 	writeDeepReviewReport(t, ws, seed.ID, 1, "[NEW-FEATURE] Bad Feature\nVague description")
 
 	r := &mockEnrichRunner{logContent: "[ENRICHMENT-RESULT]\n{\"subtasks\":[],\"priority\":0}\n[/ENRICHMENT-RESULT]"}
-	autoDiscoverFeatures(ws, seed, cfg, 1, r)
+	autoDiscoverFeatures(context.Background(), ws, seed, cfg, 1,r)
 
 	if found := discoveredOther(t, ws, seed.ID); found != nil {
 		t.Errorf("expected 0 discovered features (enrich failed), got %s", found.ID)

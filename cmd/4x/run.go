@@ -1152,7 +1152,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 				logStateWriteErr(ws.WriteState(featureID, s), featureID, s.Phase)
 				ws.AppendEvent(featureID, protocol.Event{
 					Type: "self-mod-detected", Phase: phase, Role: role, Round: s.Round,
-					Detail: strings.Join(guardResult.SelfModPaths, ", "), Runner: s.Runner, Notify: protocol.NotifyWarning,
+					Detail: strings.Join(guardResult.SelfModPaths, ", "), Runner: phaseRunner, Notify: protocol.NotifyWarning,
 				})
 			}
 
@@ -1166,7 +1166,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 				logSyncErr(ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention), featureID, protocol.PhaseNeedsAttention)
 				ws.AppendEvent(featureID, protocol.Event{
 					Type: "guard-fail", Phase: phase, Role: role, Round: s.Round,
-					Detail: guardMsg, Runner: s.Runner, Notify: protocol.NotifyError,
+					Detail: guardMsg, Runner: phaseRunner, Notify: protocol.NotifyError,
 				})
 				return nil
 			}
@@ -1974,7 +1974,7 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 
 	// 3. PASS → accepting。
 	if reviewPassed(ws, featureID, round, protocol.DeepReviewReport) {
-		autoDiscoverFeatures(ws, feature, cfg, round, newEnrichRunner(ws, cfg, deepRunner, feature, newRunner, round))
+		autoDiscoverFeatures(ctx, ws, feature, cfg, round, newEnrichRunner(ws, cfg, deepRunner, feature, newRunner, round))
 		return deepTransitionAccepting(ws, featureID, s)
 	}
 
@@ -2056,7 +2056,7 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 
 		// 4d. re-verifier 已把 deep-review-report.md 的 Verdict 改 PASS → accepting。
 		if reviewPassed(ws, featureID, round, protocol.DeepReviewReport) {
-			autoDiscoverFeatures(ws, feature, cfg, round, newEnrichRunner(ws, cfg, deepRunner, feature, newRunner, round))
+			autoDiscoverFeatures(ctx, ws, feature, cfg, round, newEnrichRunner(ws, cfg, deepRunner, feature, newRunner, round))
 			return deepTransitionAccepting(ws, featureID, s)
 		}
 	}
@@ -2217,7 +2217,7 @@ func deepTransitionAccepting(ws *protocol.Workspace, featureID string, s *protoc
 // r 為 enrichment 用的 runner，可為 nil：nil 或 cfg.EnrichDiscoveredFeatures 關閉時走原本的
 // 薄 feature 路徑（向後相容）；開啟且 r 非 nil 時每個 candidate 先經 LLM enrichment 補強，
 // 補強失敗（Discarded 或 runner error）的 candidate 不入庫，記入報告的 Enrichment Failed 段。
-func autoDiscoverFeatures(ws *protocol.Workspace, feature feat.Feature, cfg protocol.Config, round int, r runner.Runner) {
+func autoDiscoverFeatures(ctx context.Context, ws *protocol.Workspace, feature feat.Feature, cfg protocol.Config, round int, r runner.Runner) {
 	if !cfg.AutoDiscoverFeatures {
 		return
 	}
@@ -2276,7 +2276,7 @@ func autoDiscoverFeatures(ws *protocol.Workspace, feature feat.Feature, cfg prot
 
 		var f feat.Feature
 		if enricher != nil {
-			result, eerr := enricher.Enrich(context.Background(), d)
+			result, eerr := enricher.Enrich(ctx, d)
 			if eerr != nil {
 				slog.Warn("auto-discover: enrichment error", "feature", feature.ID, "title", d.Title, "error", eerr)
 				enrichFailed = append(enrichFailed, d)

@@ -18,7 +18,7 @@ All PRs must pass `make test` and `make lint`.
 
 ### Bug Reports & Feature Requests
 
-Open an [issue](https://github.com/ggwhite/4x/issues) using the appropriate template. Include your `4x version` output and the runner you're using.
+Open an [issue](https://github.com/ggwhite/4x/issues) using the appropriate template. Include your `4x --version` output and the runner you're using.
 
 ### Documentation & Translations
 
@@ -55,9 +55,9 @@ The instruction file teaches the agent the 4x role contract: what each role read
 **Option A: Full PR (instruction file + Go integration)**
 
 1. Create `plugins/{name}/` with instruction file + README
-2. Add default runner config in `internal/protocol/types.go` (`DefaultRunners`)
+2. Add default runner config in `internal/protocol/types.go` (`SupportedRunners`)
 3. Add embed directive in `plugins/embed.go`
-4. Add deploy logic in `internal/protocol/workspace.go` (`DeployPlugins`)
+4. Add deploy logic in `cmd/4x/init.go` (plugin deployment)
 5. Submit PR
 
 **Option B: Instruction file only**

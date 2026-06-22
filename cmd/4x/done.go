@@ -55,7 +55,7 @@ func markDone(ws *protocol.Workspace, featureID string, approveSelfMod bool) err
 
 	if guard.SelfModNeedsApproval(s, approveSelfMod) {
 		printSelfModApprovalRequired(featureID, s.SelfModPaths)
-		return nil
+		return fmt.Errorf("feature %s requires --approve-self-mod to complete", featureID)
 	}
 	if approveSelfMod && s.SelfModTouched && !s.SelfModApproved {
 		if err := approveSelfModState(ws, featureID, &s); err != nil {

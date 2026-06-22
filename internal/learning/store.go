@@ -273,11 +273,13 @@ func ParseRetroFile(path string) ([]RetroLearning, error) {
 }
 
 var roleCategoryMap = map[string][]Category{
-	"coder":         {CategoryDesign, CategoryCodeQuality, CategoryTooling},
-	"reviewer":      {CategoryCodeQuality, CategoryReview},
-	"deep-reviewer": {CategoryCodeQuality, CategoryReview, CategoryDesign},
-	"tester":        {CategoryTesting, CategoryTooling},
-	"acceptor":      {CategoryProcess},
+	"designer":        {CategoryDesign, CategoryProcess},
+	"design-reviewer": {CategoryDesign, CategoryReview},
+	"coder":           {CategoryDesign, CategoryCodeQuality, CategoryTooling},
+	"reviewer":        {CategoryCodeQuality, CategoryReview},
+	"deep-reviewer":   {CategoryCodeQuality, CategoryReview, CategoryDesign},
+	"tester":          {CategoryTesting, CategoryTooling},
+	"acceptor":        {CategoryProcess},
 }
 
 // CategoriesForRole 回傳指定 role 應注入的 category 列表；未知 role 回傳 nil。
