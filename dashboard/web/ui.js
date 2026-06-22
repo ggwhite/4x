@@ -1249,8 +1249,10 @@ async function loadScreenshots(fid) {
   }
 }
 
+let _lbItems = [];
 function renderScreenshots(groups, el) {
   let html = '';
+  _lbItems = [];
   groups.sort((a, b) => b.round - a.round);
   groups.forEach(g => {
     const title = t('screenshots.round').replace('{round}', g.round);
@@ -1259,7 +1261,9 @@ function renderScreenshots(groups, el) {
     g.screenshots.forEach(s => {
       const desc = s.description || s.filename;
       const imgUrl = apiBase() + s.url;
-      html += `<div class="rounded-lg overflow-hidden cursor-pointer transition-transform hover:scale-[1.02]" style="background:var(--bg-2);border:1px solid var(--border)" onclick="openLightbox('${escAttr(imgUrl)}','${escAttr(desc)}')">`;
+      const idx = _lbItems.length;
+      _lbItems.push({url: imgUrl, title: desc});
+      html += `<div class="rounded-lg overflow-hidden cursor-pointer transition-transform hover:scale-[1.02]" style="background:var(--bg-2);border:1px solid var(--border)" onclick="openLightbox(${idx})">`;
       html += `<img src="${escAttr(imgUrl)}" alt="${escAttr(desc)}" loading="lazy" style="width:100%;display:block;max-height:200px;object-fit:cover">`;
       html += `<div class="px-3 py-2"><div class="text-[11px] truncate" style="color:var(--text-2)">${esc(desc)}</div>`;
       if (s.step) html += `<div class="text-[10px]" style="color:var(--text-4)">Step ${esc(s.step)}</div>`;
@@ -1270,23 +1274,54 @@ function renderScreenshots(groups, el) {
   el.innerHTML = html;
 }
 
-function openLightbox(url, title) {
+function openLightbox(idx) {
+  let cur = idx;
   const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:zoom-out;backdrop-filter:blur(4px)';
-  overlay.onclick = () => overlay.remove();
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)';
   const img = document.createElement('img');
-  img.src = url;
-  img.alt = title;
-  img.style.cssText = 'max-width:90vw;max-height:90vh;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.5)';
-  overlay.appendChild(img);
-  if (title) {
-    const cap = document.createElement('div');
-    cap.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);color:#fff;font-size:13px;background:rgba(0,0,0,.6);padding:6px 16px;border-radius:8px';
-    cap.textContent = title;
-    overlay.appendChild(cap);
+  img.style.cssText = 'max-width:90vw;max-height:90vh;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.5);cursor:zoom-out';
+  const cap = document.createElement('div');
+  cap.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);color:#fff;font-size:13px;background:rgba(0,0,0,.6);padding:6px 16px;border-radius:8px;pointer-events:none';
+  const counter = document.createElement('div');
+  counter.style.cssText = 'position:fixed;top:20px;right:24px;color:rgba(255,255,255,.5);font-size:12px;pointer-events:none';
+  const btnStyle = 'position:fixed;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.1);border:none;color:#fff;font-size:28px;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s';
+  const prevBtn = document.createElement('button');
+  prevBtn.style.cssText = btnStyle + ';left:16px';
+  prevBtn.innerHTML = '&#8249;';
+  prevBtn.onmouseenter = () => prevBtn.style.background = 'rgba(255,255,255,.25)';
+  prevBtn.onmouseleave = () => prevBtn.style.background = 'rgba(255,255,255,.1)';
+  const nextBtn = document.createElement('button');
+  nextBtn.style.cssText = btnStyle + ';right:16px';
+  nextBtn.innerHTML = '&#8250;';
+  nextBtn.onmouseenter = () => nextBtn.style.background = 'rgba(255,255,255,.25)';
+  nextBtn.onmouseleave = () => nextBtn.style.background = 'rgba(255,255,255,.1)';
+
+  function show() {
+    const item = _lbItems[cur];
+    img.src = item.url; img.alt = item.title;
+    cap.textContent = item.title;
+    counter.textContent = `${cur + 1} / ${_lbItems.length}`;
+    prevBtn.style.visibility = cur > 0 ? 'visible' : 'hidden';
+    nextBtn.style.visibility = cur < _lbItems.length - 1 ? 'visible' : 'hidden';
   }
+  function nav(delta) { cur = Math.max(0, Math.min(_lbItems.length - 1, cur + delta)); show(); }
+  function close() { overlay.remove(); document.removeEventListener('keydown', onKey); }
+
+  prevBtn.onclick = (e) => { e.stopPropagation(); nav(-1); };
+  nextBtn.onclick = (e) => { e.stopPropagation(); nav(1); };
+  img.onclick = (e) => { e.stopPropagation(); close(); };
+  overlay.onclick = close;
+
+  function onKey(e) {
+    if (e.key === 'Escape') close();
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') nav(-1);
+    else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') nav(1);
+  }
+
+  overlay.append(img, cap, counter, prevBtn, nextBtn);
   document.body.appendChild(overlay);
-  document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', esc); } });
+  document.addEventListener('keydown', onKey);
+  show();
 }
 
 function startLogsRefresh(fid) {
