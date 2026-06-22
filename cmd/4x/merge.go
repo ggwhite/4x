@@ -6,12 +6,14 @@ import (
 	"os"
 
 	"github.com/ggwhite/4x/internal/gitops"
+	"github.com/ggwhite/4x/internal/guard"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/spf13/cobra"
 )
 
 func newMergeCmd() *cobra.Command {
-	return &cobra.Command{
+	var approveSelfMod bool
+	cmd := &cobra.Command{
 		Use:   "merge <feature-id>",
 		Short: "Complete merge after resolving conflicts",
 		Long:  "Use after '4x done' reported a merge conflict and you resolved it in the worktree.",
@@ -37,6 +39,16 @@ func newMergeCmd() *cobra.Command {
 			}
 			if s.Phase != protocol.PhasePendingReview && s.Phase != protocol.PhaseDone {
 				return fmt.Errorf("feature %s is in phase %q, not pending-review or done (run '4x done %s' first)", featureID, s.Phase, featureID)
+			}
+
+			if guard.SelfModNeedsApproval(s, approveSelfMod) {
+				printSelfModApprovalRequired(featureID, s.SelfModPaths)
+				return nil
+			}
+			if approveSelfMod && s.SelfModTouched && !s.SelfModApproved {
+				if err := approveSelfModState(ws, featureID, &s); err != nil {
+					return err
+				}
 			}
 
 			cfg, err := ws.LoadMergedConfig()
@@ -88,4 +100,7 @@ func newMergeCmd() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&approveSelfMod, "approve-self-mod", false,
+		"approve self-modification of protected paths so the feature can be merged")
+	return cmd
 }

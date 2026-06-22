@@ -369,6 +369,13 @@ func newBatchRunCmd() *cobra.Command {
 				if err != nil {
 					return gitops.MergeResult{Error: fmt.Sprintf("cannot read state for %s: %v", featureID, err)}
 				}
+				// self-mod guard：觸及受保護路徑的 feature 一律需人工 approve，不可全自動 merge。
+				// batch 為非互動流程，無法在此核可，只能 block 並 warn，由人工跑 4x done --approve-self-mod。
+				if guard.SelfModNeedsApproval(st, false) {
+					slog.Warn("self-mod guard: protected paths touched, auto-merge blocked — use 4x done --approve-self-mod",
+						"feature", featureID, "paths", st.SelfModPaths)
+					return gitops.MergeResult{Error: "self-mod: protected paths require manual --approve-self-mod"}
+				}
 				f, _ := ws.LoadFeature(featureID)
 				name := featureID
 				if f.Name != "" {

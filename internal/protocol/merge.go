@@ -35,6 +35,11 @@ func MergeConfig(user UserConfig, project Config) Config {
 		result.Notifications = user.Notifications
 	}
 
+	// SelfMod：project 非 nil 已在 result 沿用；project 未設定時退回 user 設定（與 Notifications 同模式）。
+	if result.SelfMod == nil && user.SelfMod != nil {
+		result.SelfMod = user.SelfMod
+	}
+
 	return result
 }
 

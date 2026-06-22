@@ -1140,6 +1140,20 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 
 		if phase == protocol.PhaseCoding || phase == protocol.PhaseAmending {
 			guardResult := guard.Check(ws, featureID, ops)
+
+			// self-mod guard：觸及受保護路徑時持久化到 state，供後續 test-gate 與 done/merge 的人工 approve 關卡讀取。
+			// commit 時序關鍵：guard.Check 在背景 wip-commit 前觀察 working tree，到 testing phase 已看不到 diff，
+			// 故偵測只在此做一次並持久化。diff-budget 超標由下方既有 !Pass 邏輯落到 needs-attention。
+			if guardResult.SelfModTouched {
+				s.SelfModTouched = true
+				s.SelfModPaths = guardResult.SelfModPaths
+				logStateWriteErr(ws.WriteState(featureID, s), featureID, s.Phase)
+				ws.AppendEvent(featureID, protocol.Event{
+					Type: "self-mod-detected", Phase: phase, Role: role, Round: s.Round,
+					Detail: strings.Join(guardResult.SelfModPaths, ", "), Runner: s.Runner, Notify: protocol.NotifyWarning,
+				})
+			}
+
 			if !guardResult.Pass {
 				s.Phase = protocol.PhaseNeedsAttention
 				s.Active = false

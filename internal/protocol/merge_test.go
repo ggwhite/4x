@@ -22,6 +22,23 @@ func TestMergeConfig_DefaultRunner_FallbackToUser(t *testing.T) {
 	}
 }
 
+func TestMergeConfig_SelfMod_ProjectOverrides(t *testing.T) {
+	userSM := &SelfModSettings{MaxDiffLines: 50}
+	projSM := &SelfModSettings{MaxDiffLines: 999}
+	got := MergeConfig(UserConfig{SelfMod: userSM}, Config{Project: ProjectConfig{Name: "x"}, SelfMod: projSM})
+	if got.SelfMod == nil || got.SelfMod.MaxDiffLines != 999 {
+		t.Errorf("project SelfMod should win, got %+v", got.SelfMod)
+	}
+}
+
+func TestMergeConfig_SelfMod_FallbackToUser(t *testing.T) {
+	userSM := &SelfModSettings{MaxDiffLines: 50}
+	got := MergeConfig(UserConfig{SelfMod: userSM}, Config{Project: ProjectConfig{Name: "x"}})
+	if got.SelfMod == nil || got.SelfMod.MaxDiffLines != 50 {
+		t.Errorf("nil project SelfMod should fall back to user, got %+v", got.SelfMod)
+	}
+}
+
 func TestMergeConfig_Runners_FieldMerge(t *testing.T) {
 	user := UserConfig{
 		Runners: map[string]RunnerConfig{

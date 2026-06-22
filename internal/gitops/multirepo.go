@@ -306,6 +306,22 @@ func (m *multiRepo) DetectChangedRepos(featureID string) []string {
 	return changed
 }
 
+// DetectChangedFiles 回傳 feature 範圍內各 repo 的檔案層變更清單，路徑以 "<repo 名稱>/" 為前綴。
+// worktree 隔離模式下每個 repo 的工作目錄是 <worktreeRoot>/<name>（與 DetectChangedRepos 一致），
+// 否則回退 main 的 rc.Path。供 self-mod guard 做受保護路徑前綴比對與 diff-budget。
+func (m *multiRepo) DetectChangedFiles(featureID string) []protocol.ChangedFile {
+	wtDir := Dir(m.root, featureID)
+	var files []protocol.ChangedFile
+	for name, rc := range m.cfg.Workspace.Repos {
+		repoPath := filepath.Join(m.root, rc.Path)
+		if wtRepoDir := filepath.Join(wtDir, name); isLinkedWorktree(wtRepoDir) {
+			repoPath = wtRepoDir
+		}
+		files = append(files, changedFilesIn(repoPath, name+"/")...)
+	}
+	return files
+}
+
 // isLinkedWorktree 回報 dir 是否為一個存在的 linked git worktree。
 func isLinkedWorktree(dir string) bool {
 	info, ok := DetectWorktree(dir)

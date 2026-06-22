@@ -18,6 +18,12 @@ type CheckResult struct {
 	Pass   bool     `json:"pass"`
 	Errors []string `json:"errors"`
 	Warns  []string `json:"warnings"`
+	// SelfModTouched 表示本輪變更觸及受保護路徑（self-mod guard）。
+	SelfModTouched bool `json:"selfModTouched,omitempty"`
+	// SelfModPaths 是觸及的受保護檔案路徑。
+	SelfModPaths []string `json:"selfModPaths,omitempty"`
+	// SelfModDiffLines 是受保護路徑變更的總行數（diff-budget 依此判斷）。
+	SelfModDiffLines int `json:"selfModDiffLines,omitempty"`
 }
 
 // ScopeDetector 偵測哪些 repo 有 uncommitted changes，由 gitops.Ops 實作。
@@ -33,6 +39,7 @@ func Check(ws *protocol.Workspace, featureID string, detector ScopeDetector) Che
 	checkRequiredFiles(ws, featureID, &r)
 	checkBaseline(ws, featureID, &r)
 	checkScope(ws, featureID, detector, &r)
+	checkSelfMod(ws, featureID, detector, &r)
 	checkDependencies(ws, featureID, &r)
 	checkBacklogDrift(ws, featureID, &r)
 
@@ -211,6 +218,31 @@ func checkTestingToAccepting(ws *protocol.Workspace, featureID string, round int
 					"verify.json claims passed but command %q exited %d (expected %d)", c.Command, c.ExitCode, expected))
 			}
 		}
+	}
+
+	checkSelfModTestGate(ws, featureID, r)
+}
+
+// checkSelfModTestGate 在 testing → accepting 閘門加上 self-mod test-gate：
+// 若本 feature 觸及受保護路徑且 policy 要求測試，則受保護的 .go 變更必須附帶受保護的 _test.go 變更，
+// 否則擋下（verify 本身是否通過已由上游邏輯涵蓋，此處不重複）。
+func checkSelfModTestGate(ws *protocol.Workspace, featureID string, r *CheckResult) {
+	s, err := ws.ReadState(featureID)
+	if err != nil || !s.SelfModTouched {
+		return
+	}
+	cfg, cfgErr := ws.ReadConfig()
+	if cfgErr != nil {
+		cfg = protocol.Config{}
+	}
+	policy := ResolveSelfMod(cfg)
+	if !policy.RequireTests {
+		return
+	}
+	if !HasAccompanyingTests(s.SelfModPaths, policy.ProtectedPaths) {
+		r.Pass = false
+		r.Errors = append(r.Errors,
+			"self-mod: changes to protected paths require accompanying passing tests")
 	}
 }
 

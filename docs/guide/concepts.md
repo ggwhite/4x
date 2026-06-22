@@ -339,8 +339,27 @@ Deterministic checks enforced by the CLI — not dependent on AI judgment.
 | **Dependencies** | Blocks `4x run` if depended features are not done |
 | **Backlog drift** | Warns when `.4x/features/*.yaml` and external mirrors are out of sync |
 | **Testing → Accepting gate** | Requires `verify.json` (passed=true), `test-report.md`, `final-report.md` |
+| **Self-mod guard** | Layered on top of Scope (does not replace it): flags file-level changes to protected paths (default `internal/state/`, `internal/guard/`, `internal/protocol/`), blocks the round when the per-round protected diff exceeds the budget, requires accompanying tests before accepting, and blocks auto-merge until manually approved |
 
 Run manually with `4x check <feature-id>`.
+
+### Self-mod guard
+
+When 4x runs on itself (meta-loop), changes to its own core foundation (state machine / guardrails / protocol) are riskier than ordinary feature work — a regression there breaks the whole multi-role loop. The self-mod guard adds an extra layer on top of the repo-level Scope guard, configured under `self_mod_guard` in `settings.json`:
+
+```json
+"self_mod_guard": {
+  "protected_paths": ["internal/state/", "internal/guard/", "internal/protocol/"],
+  "max_diff_lines": 200,
+  "require_tests": true
+}
+```
+
+- `protected_paths` — path-prefix allowlist (relative to scope root); changes under these are flagged. Defaults to the three architecture red lines when unset.
+- `max_diff_lines` — per-round protected diff budget; exceeding it fails the guard and drops the feature to `needs-attention`. Defaults to `200`.
+- `require_tests` — when `true` (default), protected `.go` changes must ship with protected `_test.go` changes before the feature can leave `testing`.
+
+A touch is detected once during the post-coding guard check and persisted to `state.json` (`selfModTouched` / `selfModPaths`). Touching protected paths never auto-merges: `4x done` / `4x merge` block until you re-run with `--approve-self-mod`, which records `selfModApproved` in state.
 
 ---
 

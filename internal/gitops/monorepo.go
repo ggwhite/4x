@@ -185,6 +185,12 @@ func (m *monoRepo) DetectChangedRepos(featureID string) []string {
 	return repos
 }
 
+// DetectChangedFiles 回傳 feature worktree 內檔案層的變更清單（路徑相對 scope root）。
+// 沿用 DetectChangedRepos 的 worktree 解析（ScopeRoot），供 self-mod guard 做受保護路徑前綴比對與 diff-budget。
+func (m *monoRepo) DetectChangedFiles(featureID string) []protocol.ChangedFile {
+	return changedFilesIn(ScopeRoot(m.root, featureID), "")
+}
+
 func (m *monoRepo) CaptureBaseline(featureID string, featureRepos []string) error {
 	if len(featureRepos) == 0 {
 		featureRepos = []string{"."}

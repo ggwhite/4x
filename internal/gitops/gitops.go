@@ -17,6 +17,7 @@ type Ops interface {
 	Merge(featureID, featureName string) MergeResult
 	Cleanup(featureID string) error
 	DetectChangedRepos(featureID string) []string
+	DetectChangedFiles(featureID string) []protocol.ChangedFile
 	CaptureBaseline(featureID string, featureRepos []string) error
 	IsMultiRepo() bool
 }
@@ -56,6 +57,76 @@ func gitOutput(dir string, args ...string) string {
 		return ""
 	}
 	return strings.TrimSpace(string(out))
+}
+
+// changedFilesIn 回傳 dir（一個 git 工作目錄）內的檔案層變更清單。
+// tracked 變更取自 git diff --numstat HEAD（added+deleted 行數，binary 顯示為 "-" 時計 0）；
+// untracked 新檔取自 git ls-files --others --exclude-standard，行數為檔案總行數。
+// pathPrefix 會被加在每個回傳 Path 之前（multi-repo 用 repo 名稱前綴；mono 傳空字串）。
+// 兩條指令各自獨立容錯，單一失敗不影響另一條已找到的變更（與 DetectChangedRepos 一致）。
+func changedFilesIn(dir, pathPrefix string) []protocol.ChangedFile {
+	var files []protocol.ChangedFile
+
+	numstatCmd := exec.Command("git", "diff", "--numstat", "HEAD")
+	numstatCmd.Dir = dir
+	if out, err := numstatCmd.Output(); err == nil {
+		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			if line == "" {
+				continue
+			}
+			// numstat 格式：<added>\t<deleted>\t<path>；binary 檔 added/deleted 為 "-"。
+			parts := strings.SplitN(line, "\t", 3)
+			if len(parts) < 3 {
+				continue
+			}
+			added := parseNumstatCount(parts[0])
+			deleted := parseNumstatCount(parts[1])
+			files = append(files, protocol.ChangedFile{Path: pathPrefix + parts[2], Lines: added + deleted})
+		}
+	}
+
+	untrackedCmd := exec.Command("git", "ls-files", "--others", "--exclude-standard")
+	untrackedCmd.Dir = dir
+	if out, err := untrackedCmd.Output(); err == nil {
+		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			if line == "" {
+				continue
+			}
+			lines := countFileLines(filepath.Join(dir, line))
+			files = append(files, protocol.ChangedFile{Path: pathPrefix + line, Lines: lines})
+		}
+	}
+
+	return files
+}
+
+// parseNumstatCount 解析 numstat 的 added/deleted 欄位，binary 檔的 "-" 視為 0。
+func parseNumstatCount(s string) int {
+	if s == "-" {
+		return 0
+	}
+	n := 0
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return 0
+		}
+		n = n*10 + int(c-'0')
+	}
+	return n
+}
+
+// countFileLines 回傳檔案的行數（以 '\n' 計），讀檔失敗回 0。
+// 末行無換行時補計 1 行，使單行無換行的檔案計為 1 而非 0。
+func countFileLines(path string) int {
+	data, err := os.ReadFile(path)
+	if err != nil || len(data) == 0 {
+		return 0
+	}
+	lines := strings.Count(string(data), "\n")
+	if data[len(data)-1] != '\n' {
+		lines++
+	}
+	return lines
 }
 
 func ensureGitignore(root, entry string) {

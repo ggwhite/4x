@@ -298,6 +298,12 @@ Only works when feature is in `pending-review` phase. Errors on any other phase.
 
 If a merge conflict or merge error occurs, the feature remains in `pending-review`, the worktree is preserved, and guidance is printed. In multi-repo mode, the conflicting repo name is printed as `repo: <name>`. Use `4x merge <id>` to complete after resolving conflicts.
 
+If the feature touched self-mod protected paths (see the `self_mod_guard` settings), the merge is blocked until you confirm with `--approve-self-mod`; the touched protected paths are printed for review:
+
+```
+4x done <feature-id> --approve-self-mod
+```
+
 ---
 
 ## `4x merge <feature-id>`
@@ -311,6 +317,8 @@ Complete a merge after resolving conflicts from `4x done`.
 Only works when feature is in `pending-review` or `done` phase and a worktree exists at `.worktrees/4x/<id>`. Commits resolved conflicts in the worktree, merges to main, then removes the worktree and branch. If the feature is still in `pending-review`, it is marked `done` after the merge succeeds.
 
 In multi-repo mode, resolved conflicts are committed per repo (each repo under `.worktrees/4x/<id>/<repo-name>/` is staged and committed independently), then all repos are merged all-or-nothing. The conflicting repo name is shown as `repo: <name>` if a conflict recurs.
+
+Like `4x done`, this command blocks merging a feature that touched self-mod protected paths until confirmed with `--approve-self-mod`.
 
 ---
 

@@ -38,6 +38,15 @@
   "auto_discover_features": true,
   "max_concurrent_runs": 5,
   "notifications": true,
+  "self_mod_guard": {
+    "protected_paths": [
+      "internal/state/",
+      "internal/guard/",
+      "internal/protocol/"
+    ],
+    "max_diff_lines": 200,
+    "require_tests": true
+  },
   "default_profile": "full",
   "profiles": {
     "full": {

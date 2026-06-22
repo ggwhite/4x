@@ -115,6 +115,13 @@ type State struct {
 	Runners               []string  `json:"runners,omitempty"`
 	// Profile 記錄本次 run 使用的 pipeline profile 名稱，供 dashboard 顯示與 resume 沿用。
 	Profile string `json:"profile,omitempty"`
+	// SelfModTouched 標記本 feature 最新一輪 coding/amending 是否觸及受保護路徑（self-mod guard）。
+	// 由 guard.Check 在 coding 後偵測並持久化，供後續 test-gate 與 done/merge 的人工 approve 關卡讀取。
+	SelfModTouched bool `json:"selfModTouched,omitempty"`
+	// SelfModPaths 記錄最新一輪觸及的受保護檔案路徑（相對 scope root），test-gate 以此判斷是否附帶對應測試。
+	SelfModPaths []string `json:"selfModPaths,omitempty"`
+	// SelfModApproved 表示人工已透過 --approve-self-mod 核可此 feature 的受保護路徑變更，允許 merge。
+	SelfModApproved bool `json:"selfModApproved,omitempty"`
 }
 
 // Event 是 events.jsonl 的一行
@@ -328,6 +335,30 @@ type Config struct {
 	// Notifications 控制 run 結束時是否推送 OS 原生通知；用 pointer 區分「未設定」與「明確 false」，
 	// nil（未設定）時 NotificationsEnabled 視為啟用。project 端非 nil 會覆蓋 user 端設定。
 	Notifications *bool `json:"notifications,omitempty"`
+	// SelfMod 設定 meta-loop 跑自己時對「改自己核心地基」變更的額外保護（受保護路徑、單輪 diff 上限、
+	// 是否要求對應測試）；nil 時 guard 套用內建預設（見 guard.ResolveSelfMod）。project 端非 nil 會覆蓋 user 端。
+	SelfMod *SelfModSettings `json:"self_mod_guard,omitempty"`
+}
+
+// SelfModSettings 是 .4x/settings.json 內 self_mod_guard 區段的設定，
+// 描述哪些路徑視為「核心地基」受保護、單輪 diff 行數上限、以及是否要求對應測試。
+// 各欄位零值（含 nil）代表「未設定」，由 guard.ResolveSelfMod 退回內建預設。
+type SelfModSettings struct {
+	// ProtectedPaths 是受保護路徑前綴白名單（相對 scope root），如 "internal/state/"。
+	ProtectedPaths []string `json:"protected_paths,omitempty"`
+	// MaxDiffLines 是受保護路徑單輪 diff 行數上限，超過即擋下轉 needs-attention；<= 0 視為未設定。
+	MaxDiffLines int `json:"max_diff_lines,omitempty"`
+	// RequireTests 控制改受保護路徑是否必須附帶對應測試才能進 accepting；
+	// 用 pointer 區分「未設定」（預設 true）與「明確 false」。
+	RequireTests *bool `json:"require_tests,omitempty"`
+}
+
+// ChangedFile 是檔案層變更的跨層共用型別（guard 與 gitops 共用，放 protocol 避免 import cycle）。
+type ChangedFile struct {
+	// Path 是變更檔案相對 scope root 的路徑。
+	Path string
+	// Lines 是變更行數：tracked 檔為 added+deleted，untracked 檔為檔案總行數。
+	Lines int
 }
 
 // NotificationsEnabled 回報合併後設定是否啟用 OS 通知。
@@ -443,6 +474,8 @@ type UserConfig struct {
 	// Notifications 為使用者層級的 OS 通知開關；用 pointer 區分「未設定」與「明確 false」，
 	// 會被 project 端非 nil 的設定覆蓋（見 MergeConfig）。
 	Notifications *bool `json:"notifications,omitempty"`
+	// SelfMod 為使用者層級的 self-mod guard 設定，project 端非 nil 時被覆蓋（見 MergeConfig）。
+	SelfMod *SelfModSettings `json:"self_mod_guard,omitempty"`
 }
 
 // RunnerPreset 描述一個受支援 runner 的預設設定
