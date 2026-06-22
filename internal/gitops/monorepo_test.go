@@ -242,31 +242,65 @@ func TestMonoRepo_MergeConflict(t *testing.T) {
 	}
 }
 
-func TestMonoRepo_MergeAutoResolvesFeatureYAML(t *testing.T) {
+func TestMonoRepo_CommitExcludesFeatureYAML(t *testing.T) {
 	root, _, ops := setupMonoWorkspace(t)
 	featureID := "feat-yaml"
-	_, err := ops.SetupWorktree(featureID, nil)
+
+	yamlPath := filepath.Join(".4x", "features", featureID+".yaml")
+	os.MkdirAll(filepath.Join(root, ".4x", "features"), 0o755)
+	os.WriteFile(filepath.Join(root, yamlPath), []byte("id: feat-yaml\nstatus: not-started\n"), 0o644)
+	runGit(t, root, "add", ".")
+	runGit(t, root, "commit", "-m", "add feature yaml")
+
+	wtPath, err := ops.SetupWorktree(featureID, nil)
 	if err != nil {
 		t.Fatalf("SetupWorktree: %v", err)
 	}
 
+	os.WriteFile(filepath.Join(wtPath, yamlPath), []byte("id: feat-yaml\nstatus: in-progress\n"), 0o644)
+	os.WriteFile(filepath.Join(wtPath, "code.go"), []byte("package main\nfunc A(){}\n"), 0o644)
+	if err := ops.Commit(wtPath, featureID, "wip(feat-yaml): round 1"); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+
+	out, _ := exec.Command("git", "-C", wtPath, "diff", "HEAD~1", "HEAD", "--name-only").Output()
+	committed := strings.TrimSpace(string(out))
+	if strings.Contains(committed, "features/feat-yaml.yaml") {
+		t.Errorf("feature YAML should NOT be in wip commit, got:\n%s", committed)
+	}
+	if !strings.Contains(committed, "code.go") {
+		t.Errorf("code.go should be in wip commit, got:\n%s", committed)
+	}
+}
+
+func TestMonoRepo_MergeNoConflictAfterExclude(t *testing.T) {
+	root, _, ops := setupMonoWorkspace(t)
+	featureID := "feat-yaml2"
+
 	yamlPath := filepath.Join(".4x", "features", featureID+".yaml")
-
-	wtDir := Dir(root, featureID)
-	os.MkdirAll(filepath.Join(wtDir, ".4x", "features"), 0o755)
-	os.WriteFile(filepath.Join(wtDir, yamlPath), []byte("id: feat-yaml\nstatus: in-progress\n"), 0o644)
-	os.WriteFile(filepath.Join(wtDir, "code.go"), []byte("package main\nfunc A(){}\n"), 0o644)
-	runGit(t, wtDir, "add", "-A")
-	runGit(t, wtDir, "commit", "-m", "branch: yaml + code")
-
 	os.MkdirAll(filepath.Join(root, ".4x", "features"), 0o755)
-	os.WriteFile(filepath.Join(root, yamlPath), []byte("id: feat-yaml\nstatus: ready-for-review\n"), 0o644)
+	os.WriteFile(filepath.Join(root, yamlPath), []byte("id: feat-yaml2\nstatus: not-started\n"), 0o644)
+	runGit(t, root, "add", ".")
+	runGit(t, root, "commit", "-m", "add feature yaml")
+
+	wtPath, err := ops.SetupWorktree(featureID, nil)
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+
+	os.WriteFile(filepath.Join(wtPath, yamlPath), []byte("id: feat-yaml2\nstatus: in-progress\n"), 0o644)
+	os.WriteFile(filepath.Join(wtPath, "code.go"), []byte("package main\nfunc A(){}\n"), 0o644)
+	if err := ops.Commit(wtPath, featureID, "wip(feat-yaml2): round 1"); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+
+	os.WriteFile(filepath.Join(root, yamlPath), []byte("id: feat-yaml2\nstatus: ready-for-review\n"), 0o644)
 	runGit(t, root, "add", yamlPath)
 	runGit(t, root, "commit", "-m", "main: update yaml status")
 
 	result := ops.Merge(featureID, "YAML Feature")
 	if result.Conflict {
-		t.Fatalf("expected auto-resolve, got conflict: %v", result.Files)
+		t.Fatalf("expected no conflict, got: %v", result.Files)
 	}
 	if result.Error != "" {
 		t.Fatalf("unexpected error: %s", result.Error)
@@ -277,7 +311,7 @@ func TestMonoRepo_MergeAutoResolvesFeatureYAML(t *testing.T) {
 		t.Fatalf("read yaml: %v", err)
 	}
 	if !strings.Contains(string(data), "status: ready-for-review") {
-		t.Errorf("expected main's status to win, got:\n%s", data)
+		t.Errorf("expected main's status preserved, got:\n%s", data)
 	}
 	if _, err := os.Stat(filepath.Join(root, "code.go")); err != nil {
 		t.Error("code.go from branch should be present after merge")

@@ -60,6 +60,12 @@ func (m *monoRepo) Commit(wtPath, featureID, msg string) error {
 	if out, err := exec.Command("git", "-C", wtPath, "add", "-A").CombinedOutput(); err != nil {
 		return fmt.Errorf("git add: %s: %w", string(out), err)
 	}
+	// syncFeatureToWorktree 會從 main 複製 feature YAML 讓 runner 讀，但 main 也會透過
+	// SyncFeatureStatus 更新同一份 YAML（status 欄位）。若把複製結果 commit 到 feature branch，
+	// merge --squash 時幾乎保證衝突。此處 unstage 整個 features 目錄，讓 YAML 只留在 working
+	// tree 供下一輪 runner 讀取，不進 feature branch 的 commit。
+	featuresPath := filepath.Join(protocol.DirName, protocol.FeaturesDir)
+	exec.Command("git", "-C", wtPath, "reset", "HEAD", "--", featuresPath).Run()
 	if exec.Command("git", "-C", wtPath, "diff", "--cached", "--quiet").Run() == nil {
 		return nil
 	}
