@@ -1,3 +1,4 @@
+{% raw %}
 # F096 — Discovered Feature Enrichment
 
 ## 概述
@@ -204,3 +205,4 @@ draft → done          （reject）
 | `TestAutoDiscover_DraftMode` | `enrichAutoApprove=false` 時狀態為 `draft` |
 
 LLM 呼叫用 mock runner 回傳固定 JSON，不實際呼叫 LLM。
+{% endraw %}

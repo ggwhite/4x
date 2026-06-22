@@ -1,3 +1,4 @@
+{% raw %}
 # F089: Template Override + Retro Learnings Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -1784,3 +1785,4 @@ git commit -m "refactor(F089): extract protocol constants for learnings file nam
 git add docs/ dashboard/
 git commit -m "docs(F089): update CLI guide and i18n for learn subcommand"
 ```
+{% endraw %}

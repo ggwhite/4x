@@ -1,3 +1,4 @@
+{% raw %}
 # F089 — Project-Level Template Override + Retro Learnings Loop
 
 ## 概述
@@ -217,3 +218,4 @@ Feature N+1 開始
             3. 更新 used_count/last_used（第一個非 Designer phase 做一次）
   └─ 後續 role 同理
 ```
+{% endraw %}

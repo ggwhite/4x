@@ -1,3 +1,4 @@
+{% raw %}
 # F097: Evolution Value & Convergence Gate — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -1341,3 +1342,4 @@ git commit -m "test(F097): add golden fixtures validating veto catches junk"
 - candidate 的產生（escalation/stuck/fail-pattern 掃描）→ **F095 history-miner**
 - accepted-candidates 補 subtask/scope 後 enqueue 成 feature YAML → **F096 discovered-feature-enrichment**
 - 實作層 regression（測試數下降/scope 擴大）guard → **F098 self-mod-scope-guard**
+{% endraw %}
