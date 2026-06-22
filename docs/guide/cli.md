@@ -350,6 +350,35 @@ The Acceptor of each feature writes a `retro-learnings.json`; the CLI harvests i
 
 ---
 
+## `4x mine`
+
+Scan the entire `.4x/` history for failure signals and aggregate them into a candidate pool at `.4x/candidates.json`. Unlike auto-discovery (which only fires on a single run's deep-review PASS and parses `[NEW-FEATURE]` markers), the miner sweeps **all** features for the densest failure data: escalations, stuck features, and recurring review failures.
+
+The miner is a pure CLI/protocol-layer scan — it never calls an LLM and never creates features. It only produces candidates; whether a candidate is promoted to a real feature is decided later by the F097 gate.
+
+```
+4x mine                          # scan and write .4x/candidates.json
+4x mine --dry-run                # print summary without writing
+4x mine --min-occurrences 5      # raise the fail-pattern threshold (default 3)
+4x mine --output path.json       # write to a custom path
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--min-occurrences` | `3` | Distinct-feature count a recurring review issue must reach to become a candidate |
+| `--output` | `.4x/candidates.json` | Candidate pool output path |
+| `--dry-run` | `false` | Print the summary only, write nothing |
+
+Three scanners feed the pool, each tagging candidates with a `source` for traceability:
+
+- **escalation** — reads every round's `escalation.json` (`spec-mismatch` / `criteria-wrong` / `blocker` / `scope-change`)
+- **stuck** — features stuck in `needs-attention` / `abandoned` / `blocked`, with the blocking reason extracted from `state.json` or the latest escalation
+- **fail-pattern** — review / deep-review FAIL issues that recur across `>= --min-occurrences` distinct features (clustered by Jaccard similarity); each cluster also emits a candidate learning suggesting a review checklist
+
+Scanning is best-effort: a single corrupt feature only logs a warning and never aborts the rest. Candidates are deduplicated (Jaccard) against existing features, the previous `candidates.json`, and each other.
+
+---
+
 ## `4x config`
 
 Manage user-level configuration (`~/.4x/settings.json`).

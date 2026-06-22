@@ -107,6 +107,24 @@ The deep reviewer writes each out-of-scope candidate as a `[NEW-FEATURE] <title>
 
 The step is best-effort: any error is logged and never blocks the transition to `accepting`. It runs only on the final deep review PASS — intermediate rounds and FAIL/`needs-attention` paths never reach it. See [Configuration → Auto-Discover Features](configuration.md#auto-discover-features) for the settings.
 
+### History Miner & Candidate Pool
+
+Auto-Discovered Features only fires on a **final deep review PASS**, and only parses the `[NEW-FEATURE]` blocks of that single round's `deep-review-report.md`. The richest signal — the *failures* — never gets harvested: an `escalation.json`, a feature stuck in `needs-attention`/`abandoned`/`blocked`, or the same reviewer FAIL issue recurring across many features.
+
+The `4x mine` command closes that gap. It scans the **entire** `.4x/` directory for historical failure signals and aggregates them into a candidate pool at `.4x/candidates.json`. It is a pure CLI/protocol-layer command — **no LLM call**, just mechanical scanning plus the same Jaccard token-overlap dedup used by Auto-Discovered Features. Three scanners feed the pool, each tagging every candidate with a `Source` and an `Origin` traceability string:
+
+| Source | Signal | Origin format |
+|---|---|---|
+| `escalation` | each round's `escalation.json` with `needed: true`, classified by `reason` (spec-mismatch / criteria-wrong / blocker / scope-change) | `<featureID> round-<n> <reason>` |
+| `stuck` | features whose `state.json` phase is `needs-attention`, `abandoned`, or `blocked`; blocker reason taken from `stopReason`/`stopMessage`, falling back to the latest round's escalation `detail` | `<featureID> <phase>` |
+| `fail-pattern` | reviewer/deep-reviewer FAIL issue titles that recur across **distinct** features (same feature's multiple rounds count once), clustered by Jaccard similarity and gated by `--min-occurrences` (default `3`) | `N features: <ids>` |
+
+A recurring fail-pattern also emits a `CandidateLearning` (category `review`) suggesting the issue be promoted into a review checklist or template.
+
+The output `CandidatePool` (`candidates.json`) holds `Version`, `GeneratedAt`, a list of `Candidate`s, and a list of `CandidateLearning`s. Before writing, candidates are deduped three ways: against existing feature YAMLs, against the previous `candidates.json`, and within the current batch. Flags: `--min-occurrences` (fail-pattern threshold), `--output` (default `.4x/candidates.json`), and `--dry-run` (print the summary without writing).
+
+The whole command is best-effort — a single corrupt feature is logged and skipped, never aborting the scan. Crucially, `4x mine` **only produces the candidate pool; it never creates features**. Whether a candidate is promoted into a real feature is left to a separate gate (F097). This makes it complementary to — not a replacement for — Auto-Discovered Features: one harvests in-scope notes on success, the other harvests failure signals across all of history.
+
 ### Escalation
 
 The Coder or Tester can escalate when:
