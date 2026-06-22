@@ -13,8 +13,12 @@ const (
 
 // parseResponse 從 runner log 中提取 [ENRICHMENT-RESULT] … [/ENRICHMENT-RESULT] 區塊並解析 JSON。
 // 缺任一 marker 或 JSON 非法時回 error，由呼叫端轉為 Discarded 結果。
+//
+// 取「最後一組」marker：stdin-echo runner（如 codex）會把 prompt 回顯進 log，而 prompt template
+// 內含一組合法的輸出範例 marker；真實回應總在 prompt 之後，故以 LastIndex 鎖定最後一組，
+// 避免誤解析到範例佔位資料。
 func parseResponse(logContent string) (*enrichResponse, error) {
-	startIdx := strings.Index(logContent, enrichResultStart)
+	startIdx := strings.LastIndex(logContent, enrichResultStart)
 	if startIdx < 0 {
 		return nil, fmt.Errorf("enrichment marker %s not found", enrichResultStart)
 	}
