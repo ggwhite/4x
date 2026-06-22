@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] - 2026-06-22
+
+### Features
+
+- **Self-evolution pipeline (`4x evolve`)** — 從歷史 run 挖掘失敗訊號，自動產出候選 feature，經 value gate 篩選後排入 backlog 並跑完整 loop；支援 dry-run 預覽、pre/post veto、convergence 偵測
+- **Evolution value gate (`4x gate`)** — 候選 feature 須通過 LLM 價值評估（value score 閾值 + 反 hack 論述），防止低品質或自我膨脹的 feature 進入 backlog
+- **History miner (`4x mine`)** — 掃描 escalation、stuck feature、跨 feature 反覆出現的 review FAIL pattern，彙整為候選池（candidates.json）
+- **Self-modification scope guard** — 自動偵測 coding phase 觸及受保護路徑（state machine、guard、runner 等核心地基），要求人工 `--approve-self-mod` 才能完成 merge
+- **Discovered feature enrichment** — auto-discover 產出的候選 feature 可經 LLM enrichment 補齊 subtasks、repos、rules、priority，支援 auto-approve 或 draft + `4x approve/reject` 人工審核
+- **Template & retro learnings** — Acceptor 產出的 learnings 自動 harvest 到 learnings.json，透過 prompt 注入後續 feature 的各 role，支援 stale 標記、prune、promote 生命週期
+- **Project-level template overrides** — 支援覆寫 role prompt 模板，per-project 客製化 designer/coder/reviewer/tester 行為
+
+### Fixes
+
+- **Event runner attribution** — self-mod-detected 和 guard-fail event 現在正確記錄 per-phase runner，而非 default runner
+- **Enrichment cancellation** — auto-discover enrichment 改用 propagated context，Ctrl+C 可正確中斷
+- **Done exit code** — `4x done` 被 self-mod guard 擋住時回傳 error（exit 1），不再靜默 exit 0
+- **Gate config error handling** — `4x gate` 不再吞掉 settings.json 載入錯誤
+- **Learning role mapping** — 補上 designer 和 design-reviewer 的 category mapping，修正這兩個 role 無法收到 learnings 注入的問題
+- **Candidate pool atomic write** — CandidatePool.Save 改為 atomic temp+rename，避免 dashboard SSE 並發讀到截斷 JSON
+- **Feature schema ID pattern** — JSON Schema 的 ID pattern 改接受大寫 F 開頭，補上 draft status
+- **Worktree auto-commit skip** — 修正 worktree 模式下 feature YAML status 被意外 auto-commit 的問題
+- **Enricher response parsing** — parseResponse 取最後一個 marker block，避免 prompt echo 干擾解析
+- **Dashboard settings form** — 統一 project settings UI，修正表單樣式
+- **Dashboard pipeline phases** — 正確 color-code pipeline phase 並修正 canonical 排序
+
+### Docs
+
+- **CONTRIBUTING.md** — 新增社群貢獻指南，涵蓋 bug report、docs、examples、plugin、core 五種路徑
+- **Three new examples** — python-cli（跨語言）、batch-features（批次排程）、multi-runner（runner 混搭）
+- **State machine diagram** — 更新 CLAUDE.md 圖示，補上 design-reviewing 和 pending-review phase
+- **Profile docs** — 更新 configuration.md 的 profile 範例為 phases 格式，同步 6 語系
+- **Evolve & gate docs** — cli.md、concepts.md、dashboard.md 新增 evolve/gate 章節，同步 5 語系
+
+### Internal
+
+- **Miner I/O dedup** — 三個 scanner 共用一份 ListFeatures 結果，消除 4+ 次重複 YAML I/O
+- **AtomicWriteFile export** — 統一 3 處 atomic write pattern 為共用 helper
+- **Settings PATCH error handling** — 4 處 json.Marshal error 改為回傳 clientErr
+- **Evolve SkipAutoCommit** — 修正 worktree closure 後 flag 沒還原的 mutation leak
+- **Review role model tier** — 升級 reviewer/deep-reviewer 預設 model 至 opus tier
+
 ## [0.1.17] - 2026-06-18
 
 ### Features
