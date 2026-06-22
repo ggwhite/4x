@@ -329,6 +329,12 @@ type Config struct {
 	AutoDiscoverFeatures bool `json:"auto_discover_features,omitempty"`
 	// MaxDiscoveredFeatures 限制單次 run 最多自動建立幾張 feature；未設定或 <= 0 時套預設值（3）。
 	MaxDiscoveredFeatures int `json:"max_discovered_features,omitempty"`
+	// EnrichDiscoveredFeatures 啟用後，auto-discover 產出的 candidate 會經 LLM enrichment
+	// 補齊 subtasks/repos/rules/priority 後才存入 backlog；關閉時走舊路徑直接存薄 feature。預設 false。
+	EnrichDiscoveredFeatures bool `json:"enrich_discovered_features,omitempty"`
+	// EnrichAutoApprove 控制 enrich 後的 feature 狀態：true → not-started（全自動），
+	// false → draft（需人工 approve）。僅在 EnrichDiscoveredFeatures 開啟時有意義。預設 false。
+	EnrichAutoApprove bool `json:"enrich_auto_approve,omitempty"`
 	// DesignDocDirs 指定設計文件（spec/plan）的額外搜尋目錄，優先於預設 docs/design/。
 	// 例如 ["docs/feature"] 會讓 ResolveDesignDoc 先找 docs/feature/{id}-spec.md。
 	DesignDocDirs []string `json:"design_doc_dirs,omitempty"`
