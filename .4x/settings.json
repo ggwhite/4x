@@ -36,6 +36,8 @@
   "isolation": "worktree",
   "parallel_review_test": true,
   "auto_discover_features": true,
+  "enrich_discovered_features": true,
+  "enrich_auto_approve": true,
   "max_concurrent_runs": 5,
   "notifications": true,
   "self_mod_guard": {

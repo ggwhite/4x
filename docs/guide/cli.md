@@ -161,6 +161,26 @@ Example:
 
 ---
 
+## `4x approve <feature-id>`
+
+Approve a `draft` feature produced by enriched auto-discover, transitioning it `draft → not-started` so the meta-loop will pick it up. Drafts are only created when `enrich_discovered_features` is enabled and `enrich_auto_approve` is `false`. Errors if the feature is not in `draft` status.
+
+```
+4x approve F042-some-discovered-feature
+```
+
+---
+
+## `4x reject <feature-id>`
+
+Reject a `draft` feature produced by enriched auto-discover, transitioning it `draft → abandoned` so it stays out of the meta-loop. Errors if the feature is not in `draft` status.
+
+```
+4x reject F042-some-discovered-feature
+```
+
+---
+
 ## `4x check <feature-id>`
 
 Run guardrail checks without transitioning state.
