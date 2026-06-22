@@ -26,6 +26,50 @@ curl -sSfL https://raw.githubusercontent.com/ggwhite/4x/main/install.sh | sh
 
 macOS、Linux、Windows（amd64 / arm64）のビルド済みバイナリは [Releases](https://github.com/ggwhite/4x/releases) ページからダウンロードできます。
 
+### macOS Gatekeeper
+
+CLI バイナリと 4x Live ダッシュボードアプリは Apple Developer 証明書で署名されていません。macOS Gatekeeper が初回起動時にブロックします。2つの解決方法：
+
+**方法 A：隔離属性を削除（推奨）**
+
+```bash
+# CLI バイナリ
+xattr -cr /usr/local/bin/4x
+
+# Dashboard アプリ
+xattr -cr /Applications/4x\ Live.app
+```
+
+**方法 B：システム設定から許可**
+
+1. アプリをダブルクリック — macOS が「開発元を確認できないため開けません」と表示
+2. **システム設定 → プライバシーとセキュリティ**を開く
+3. **セキュリティ**セクションまでスクロール — ブロックされたアプリのメッセージが表示される
+4. **このまま開く**をクリック
+5. パスワードを入力するか Touch ID で確認
+6. アプリが起動します。macOS は次回以降の選択を記憶します
+
+### Windows SmartScreen
+
+バイナリはコード署名証明書で署名されていません。Chrome や Edge がダウンロードをブロックし、Windows SmartScreen が実行をブロックする場合があります。
+
+**ブラウザによるダウンロードブロック：**
+
+1. Chrome：ダウンロード警告をクリック → **保存** → **保存する**
+2. Edge：ダウンロードバーの `...` をクリック → **保持** → **詳細表示** → **保持する**
+
+**SmartScreen による実行ブロック：**
+
+1. exe をダブルクリック — Windows が「WindowsによってPCが保護されました」と表示
+2. **詳細情報**をクリック
+3. **実行**をクリック
+
+または PowerShell でブロックを解除：
+
+```powershell
+Unblock-File -Path .\4x.exe
+```
+
 ### 確認
 
 以下で確認してください：

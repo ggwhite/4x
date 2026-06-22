@@ -2,6 +2,24 @@
 
 Monitoreo en tiempo real de tu ciclo de desarrollo con IA.
 
+## macOS Gatekeeper
+
+La app 4x Live no está firmada con un certificado de Apple Developer. macOS la bloqueará en el primer lanzamiento.
+
+**Opción A: Eliminar atributo de cuarentena (recomendado)**
+
+```bash
+xattr -cr /Applications/4x\ Live.app
+```
+
+**Opción B: Permitir desde Configuración del Sistema**
+
+1. Haga doble clic en la app — macOS muestra "no se puede abrir porque no se puede verificar al desarrollador"
+2. Abra **Configuración del Sistema → Privacidad y Seguridad**
+3. Desplácese hasta la sección **Seguridad** — verá un mensaje sobre la app bloqueada
+4. Haga clic en **Abrir de todos modos**, ingrese su contraseña o use Touch ID para confirmar
+5. macOS recordará su elección para futuros lanzamientos
+
 ## Iniciar el dashboard
 
 ```bash

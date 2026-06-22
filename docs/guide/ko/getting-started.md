@@ -26,6 +26,50 @@ curl -sSfL https://raw.githubusercontent.com/ggwhite/4x/main/install.sh | sh
 
 macOS, Linux, Windows (amd64 / arm64) 사전 빌드된 바이너리는 [Releases](https://github.com/ggwhite/4x/releases) 페이지에서 다운로드할 수 있습니다.
 
+### macOS Gatekeeper
+
+CLI 바이너리와 4x Live 대시보드 앱은 Apple Developer 인증서로 서명되지 않았습니다. macOS Gatekeeper가 첫 실행 시 차단합니다. 두 가지 해결 방법:
+
+**방법 A: 격리 속성 제거 (권장)**
+
+```bash
+# CLI 바이너리
+xattr -cr /usr/local/bin/4x
+
+# Dashboard 앱
+xattr -cr /Applications/4x\ Live.app
+```
+
+**방법 B: 시스템 설정에서 허용**
+
+1. 앱을 더블클릭 — macOS가 "개발자를 확인할 수 없기 때문에 열 수 없습니다" 표시
+2. **시스템 설정 → 개인 정보 보호 및 보안**을 열기
+3. **보안** 섹션까지 스크롤 — 차단된 앱에 대한 메시지가 표시됨
+4. **확인 없이 열기**를 클릭
+5. 비밀번호를 입력하거나 Touch ID로 확인
+6. 앱이 실행됩니다. macOS가 선택을 기억하여 이후에는 묻지 않습니다
+
+### Windows SmartScreen
+
+바이너리는 코드 서명 인증서로 서명되지 않았습니다. Chrome과 Edge가 다운로드를 차단하고, Windows SmartScreen이 실행을 차단할 수 있습니다.
+
+**브라우저 다운로드 차단:**
+
+1. Chrome: 다운로드 경고 클릭 → **유지** → **계속 유지**
+2. Edge: 다운로드 바에서 `...` 클릭 → **유지** → **자세히 보기** → **계속 유지**
+
+**SmartScreen 실행 차단:**
+
+1. exe를 더블클릭 — Windows가 "Windows가 PC를 보호했습니다" 표시
+2. **추가 정보**를 클릭
+3. **실행**을 클릭
+
+또는 PowerShell로 차단 해제:
+
+```powershell
+Unblock-File -Path .\4x.exe
+```
+
 ### 확인
 
 다음으로 확인:

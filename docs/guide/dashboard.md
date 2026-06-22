@@ -2,6 +2,24 @@
 
 Real-time monitoring of your AI development loop.
 
+## macOS Gatekeeper
+
+The 4x Live app is not signed with an Apple Developer certificate. macOS will block it on first launch.
+
+**Option A: Remove quarantine attribute (recommended)**
+
+```bash
+xattr -cr /Applications/4x\ Live.app
+```
+
+**Option B: Allow via System Settings**
+
+1. Double-click the app — macOS shows "cannot be opened because the developer cannot be verified"
+2. Open **System Settings → Privacy & Security**
+3. Scroll down to the **Security** section — you'll see a message about the blocked app
+4. Click **Open Anyway**, then enter your password or use Touch ID
+5. macOS remembers your choice for future launches
+
 ## Starting the Dashboard
 
 ```bash

@@ -2,6 +2,24 @@
 
 即時監控你的 AI 開發迴圈。
 
+## macOS Gatekeeper
+
+4x Live app 未經 Apple Developer 簽名。macOS 會在首次啟動時封鎖。
+
+**方法 A：移除隔離屬性（推薦）**
+
+```bash
+xattr -cr /Applications/4x\ Live.app
+```
+
+**方法 B：從系統設定允許**
+
+1. 雙擊 app — macOS 顯示「無法打開，因為無法驗證開發者」
+2. 開啟**系統設定 → 隱私權與安全性**
+3. 向下捲動至**安全性**區段 — 會看到被封鎖的 app 訊息
+4. 點擊**仍要打開**，輸入密碼或使用 Touch ID 確認
+5. macOS 會記住你的選擇，之後不再詢問
+
 ## 啟動儀表板
 
 ```bash

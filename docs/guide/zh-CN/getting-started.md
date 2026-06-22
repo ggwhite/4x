@@ -26,6 +26,50 @@ curl -sSfL https://raw.githubusercontent.com/ggwhite/4x/main/install.sh | sh
 
 macOS、Linux、Windows（amd64 / arm64）的预编译 binary 可在 [Releases](https://github.com/ggwhite/4x/releases) 页面下载。
 
+### macOS Gatekeeper
+
+CLI 可执行文件与 4x Live dashboard app 未经 Apple Developer 签名。macOS Gatekeeper 会在首次启动时阻止。两种解决方式：
+
+**方法 A：移除隔离属性（推荐）**
+
+```bash
+# CLI 可执行文件
+xattr -cr /usr/local/bin/4x
+
+# Dashboard app
+xattr -cr /Applications/4x\ Live.app
+```
+
+**方法 B：从系统设置允许**
+
+1. 双击 app — macOS 显示"无法打开，因为无法验证开发者"
+2. 打开**系统设置 → 隐私与安全性**
+3. 向下滚动至**安全性**区域 — 会看到被阻止的 app 消息
+4. 点击**仍要打开**
+5. 输入密码或使用 Touch ID 确认
+6. App 将启动；macOS 会记住你的选择，之后不再询问
+
+### Windows SmartScreen
+
+可执行文件未经代码签名。Chrome 和 Edge 可能阻止下载，Windows SmartScreen 可能阻止执行。
+
+**浏览器阻止下载：**
+
+1. Chrome：点击下载警告 → **保留** → **仍要保留**
+2. Edge：点击下载栏的 `...` → **保留** → **显示更多** → **仍要保留**
+
+**SmartScreen 阻止执行：**
+
+1. 双击 exe — Windows 显示"Windows 已保护你的电脑"
+2. 点击**详细信息**
+3. 点击**仍要运行**
+
+或通过 PowerShell 解除阻止：
+
+```powershell
+Unblock-File -Path .\4x.exe
+```
+
 ### 验证
 
 验证安装：

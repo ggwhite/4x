@@ -26,6 +26,50 @@ curl -sSfL https://raw.githubusercontent.com/ggwhite/4x/main/install.sh | sh
 
 Pre-built binaries for macOS, Linux, and Windows (amd64 / arm64) are available on the [Releases](https://github.com/ggwhite/4x/releases) page.
 
+### macOS Gatekeeper
+
+The CLI binary and the 4x Live dashboard app are not signed with an Apple Developer certificate. macOS Gatekeeper will block them on first launch. Two ways to fix this:
+
+**Option A: Remove quarantine attribute (recommended)**
+
+```bash
+# For the CLI binary
+xattr -cr /usr/local/bin/4x
+
+# For the dashboard app
+xattr -cr /Applications/4x\ Live.app
+```
+
+**Option B: Allow via System Settings**
+
+1. Double-click the app — macOS shows "cannot be opened because the developer cannot be verified"
+2. Open **System Settings → Privacy & Security**
+3. Scroll down to the **Security** section — you'll see a message about the blocked app
+4. Click **Open Anyway**
+5. Enter your password or use Touch ID to confirm
+6. The app will launch; macOS remembers your choice for future launches
+
+### Windows SmartScreen
+
+The binary is not signed with a code signing certificate. Chrome and Edge may block the download, and Windows SmartScreen may block execution.
+
+**Download blocked by browser:**
+
+1. Chrome: click the download warning → **Keep** → **Keep anyway**
+2. Edge: click `...` on the download bar → **Keep** → **Show more** → **Keep anyway**
+
+**Execution blocked by SmartScreen:**
+
+1. Double-click the exe — Windows shows "Windows protected your PC"
+2. Click **More info**
+3. Click **Run anyway**
+
+Alternatively, unblock via PowerShell:
+
+```powershell
+Unblock-File -Path .\4x.exe
+```
+
 ### Verify
 
 Verify with:

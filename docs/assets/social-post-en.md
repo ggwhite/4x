@@ -1,5 +1,7 @@
 # 4x — FB Post Draft (English)
 
+Content below can be copied directly to FB — no markdown syntax.
+
 ---
 
 Your AI writes the code, reviews it, and approves it — all by itself?
@@ -21,18 +23,14 @@ Here's what makes it different:
 
 The framework eats its own dogfood — 4x is built with 4x.
 
+Install:
+brew install ggwhite/tap/fourx
+or
+go install github.com/ggwhite/4x/cmd/4x@latest
+
 MIT License. Try it, file issues, contribute.
 
 GitHub: https://github.com/ggwhite/4x
 Docs: https://ggwhite.github.io/4x/
-
-Install:
-```
-brew install ggwhite/tap/fourx
-```
-or
-```
-go install github.com/ggwhite/4x/cmd/4x@latest
-```
 
 #ClaudeCode #Codex #GeminiCLI #AIagents #OpenSource #DevTools #MultiAgent #4x

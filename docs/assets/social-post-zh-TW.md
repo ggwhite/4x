@@ -1,5 +1,7 @@
 # 4x — FB 發文草稿（繁體中文）
 
+以下內容可直接複製貼到 FB，不含 markdown 語法。
+
 ---
 
 你的 AI 自己寫 code、自己 review、然後自己說 LGTM？
@@ -20,6 +22,11 @@
 🔹 Crash Recovery — session 斷了從斷點恢復，API 暫態錯誤自動重試
 
 4x 本身就是用 4x 開發的。框架自己吃自己的 dogfood。
+
+安裝：
+brew install ggwhite/tap/fourx
+或
+go install github.com/ggwhite/4x/cmd/4x@latest
 
 MIT License，歡迎試用、提 issue、contribute。
 
