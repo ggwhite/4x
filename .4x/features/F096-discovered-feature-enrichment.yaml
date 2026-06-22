@@ -10,7 +10,7 @@ description: |-
     - 接進 auto-discover 與 F095 miner 的輸出
 
     約束：enrich 後 feature 必須含 ≥2 個可獨立驗證 subtask；不得捏造需求，資訊不足標 needs-human-shaping；維持向後相容，舊薄 feature 仍可 run。
-status: in-progress
+status: ready-for-review
 priority: 2
 subtasks:
     - id: shaping-input
