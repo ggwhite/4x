@@ -377,6 +377,7 @@ var roleTemplateFiles = map[protocol.Role]string{
 	protocol.RoleMiniCoder:      "mini-coder.md.tmpl",
 	protocol.RoleReVerifier:     "re-verifier.md.tmpl",
 	protocol.RoleSynthesizer:    "synthesizer.md.tmpl",
+	protocol.RoleGate:           "gate.md.tmpl",
 }
 
 // loadRoleTemplate 載入指定 role 的 prompt template。

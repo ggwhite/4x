@@ -81,6 +81,12 @@ func ParseDiscoveredFeatures(report string) []DiscoveredFeature {
 // IsSimilarFeature 判斷兩段文字是否相似：將文字正規化（小寫、去標點、切 token）後
 // 計算 Jaccard token overlap，>= similarityThreshold（0.6）視為相似。
 func IsSimilarFeature(a, b string) bool {
+	return IsSimilarFeatureThreshold(a, b, similarityThreshold)
+}
+
+// IsSimilarFeatureThreshold 同 IsSimilarFeature，但相似門檻可由呼叫端指定（如 F097 的 dedup_threshold）。
+// 任一方無 token 或 union 為 0 時回 false。
+func IsSimilarFeatureThreshold(a, b string, threshold float64) bool {
 	ta := tokenSet(a)
 	tb := tokenSet(b)
 	if len(ta) == 0 || len(tb) == 0 {
@@ -97,7 +103,7 @@ func IsSimilarFeature(a, b string) bool {
 	if union == 0 {
 		return false
 	}
-	return float64(inter)/float64(union) >= similarityThreshold
+	return float64(inter)/float64(union) >= threshold
 }
 
 // DedupeDiscovered 過濾候選 feature：保留的 candidate 必須與每個 existing feature

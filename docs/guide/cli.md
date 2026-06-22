@@ -181,6 +181,24 @@ Reject a `draft` feature produced by enriched auto-discover, transitioning it `d
 
 ---
 
+## `4x gate`
+
+Apply the F097 evolve **value gate** veto layers to mined candidate features. Pure CLI deterministic veto — it does not call an LLM. The `gate` LLM role runs between the two phases (orchestrated by the evolve driver) to produce `gate-verdicts.json`.
+
+Exactly one of `--pre` / `--post` must be given:
+
+- `--pre` — PRE-veto: read `.4x/candidates.json`, drop candidates that are Jaccard-similar to existing features (and intra-batch duplicates), write survivors to `.4x/gate-input.json`.
+- `--post` — POST-veto: read `.4x/gate-input.json` + `.4x/gate-verdicts.json`, apply the non-overridable hard veto (non-accept / missing `why_not_hack` / below `value_floor` / duplicates existing / over `max_accept_per_run` / over `max_backlog_undone`), write accepted candidates (with `value_score`/`why_not_hack`) to `.4x/accepted-candidates.json`.
+
+Thresholds come from the `evolution` section of `settings.json` (`value_floor`, `max_accept_per_run`, `max_backlog_undone`, `dedup_threshold`).
+
+```
+4x gate --pre
+4x gate --post
+```
+
+---
+
 ## `4x check <feature-id>`
 
 Run guardrail checks without transitioning state.

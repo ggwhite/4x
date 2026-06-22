@@ -38,6 +38,16 @@ func TestLoadProfiles_BuiltinUnit(t *testing.T) {
 	}
 }
 
+func TestLoadRoleTemplate_Gate(t *testing.T) {
+	tmpl, err := loadRoleTemplate("", protocol.RoleGate)
+	if err != nil {
+		t.Fatalf("load gate template: %v", err)
+	}
+	if tmpl == nil {
+		t.Fatal("expected non-nil gate template")
+	}
+}
+
 func TestLoadRoleTemplate_DesignReviewer(t *testing.T) {
 	tmpl, err := loadRoleTemplate("", protocol.RoleDesignReviewer)
 	if err != nil {

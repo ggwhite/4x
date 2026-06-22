@@ -55,6 +55,11 @@ const (
 	// 產出的 candidate pool（候選 feature + 候選 learnings），供後續 F097 閘門決定是否升級。
 	CandidatesFile = "candidates.json"
 
+	// F097 evolve 價值閘門相關檔名（皆在 .4x/ 根，CandidatePool 格式）。
+	GateInputFile          = "gate-input.json"          // PRE-veto 倖存者，供 gate role 讀
+	GateVerdictsFile       = "gate-verdicts.json"       // gate role 產出的價值判斷
+	AcceptedCandidatesFile = "accepted-candidates.json" // POST-veto 通過者，附 value_score/why_not_hack
+
 	// retro learnings 相關檔名。
 	LearningsFile         = "learnings.json"          // .4x/learnings.json，跨 feature 累積的 learnings 庫
 	RetroLearningsFile    = "retro-learnings.json"    // .4x/{feature-id}/retro-learnings.json，Acceptor 產出

@@ -521,3 +521,29 @@ func TestCheckProfiles_Valid(t *testing.T) {
 		t.Fatalf("expected PASS for valid profile, got %+v", c)
 	}
 }
+
+func TestCheckEvolution(t *testing.T) {
+	cases := []struct {
+		name     string
+		cfg      protocol.Config
+		wantFail bool
+	}{
+		{"nil ok", protocol.Config{}, false},
+		{"valid", protocol.Config{Evolution: &protocol.EvolutionConfig{ValueFloor: 0.6, MaxAcceptPerRun: 3, MaxBacklogUndone: 10, DedupThreshold: 0.6}}, false},
+		{"floor too high", protocol.Config{Evolution: &protocol.EvolutionConfig{ValueFloor: 1.5}}, true},
+		{"negative cap", protocol.Config{Evolution: &protocol.EvolutionConfig{MaxAcceptPerRun: -1}}, true},
+		{"dedup out of range", protocol.Config{Evolution: &protocol.EvolutionConfig{DedupThreshold: 2}}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			checks := checkEvolution(tc.cfg)
+			if len(checks) == 0 {
+				t.Fatal("checkEvolution returned no checks")
+			}
+			gotFail := hasSeverity(checks, sectionEvolution, SeverityFail)
+			if gotFail != tc.wantFail {
+				t.Errorf("fail = %v, want %v (checks=%+v)", gotFail, tc.wantFail, checks)
+			}
+		})
+	}
+}

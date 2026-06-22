@@ -68,6 +68,7 @@ const (
 	sectionRoles     = "roles"
 	sectionProfiles  = "profiles"
 	sectionWorkspace = "workspace"
+	sectionEvolution = "evolution"
 )
 
 // canonicalRoles 是 doctor 會逐一解析 model 的標準 role 集合（deep-reviewer 另以 deep_model 檢查）。
@@ -106,7 +107,34 @@ func Diagnose(opts Options) (Report, error) {
 	report.Checks = append(report.Checks, checkRoles(cfg)...)
 	report.Checks = append(report.Checks, checkProfiles(cfg, lookPath)...)
 	report.Checks = append(report.Checks, checkWorkspace(ws, opts.Root, processAlive)...)
+	report.Checks = append(report.Checks, checkEvolution(cfg)...)
 	return report, nil
+}
+
+// checkEvolution 驗證 F097 evolution 設定的數值範圍。read-only。
+// Evolution 為 nil 時回一筆 PASS（套預設）；各數值越界各報一筆 FAIL；全合法回一筆 PASS。
+func checkEvolution(cfg protocol.Config) []Check {
+	if cfg.Evolution == nil {
+		return []Check{{Section: sectionEvolution, Name: "config", Severity: SeverityPass, Detail: "evolution not configured (defaults apply)"}}
+	}
+	var checks []Check
+	e := cfg.Evolution
+	if e.ValueFloor < 0 || e.ValueFloor > 1 {
+		checks = append(checks, Check{Section: sectionEvolution, Name: "value_floor", Severity: SeverityFail, Detail: "must be in [0,1]"})
+	}
+	if e.MaxAcceptPerRun < 0 {
+		checks = append(checks, Check{Section: sectionEvolution, Name: "max_accept_per_run", Severity: SeverityFail, Detail: "must be >= 0"})
+	}
+	if e.MaxBacklogUndone < 0 {
+		checks = append(checks, Check{Section: sectionEvolution, Name: "max_backlog_undone", Severity: SeverityFail, Detail: "must be >= 0"})
+	}
+	if e.DedupThreshold < 0 || e.DedupThreshold > 1 {
+		checks = append(checks, Check{Section: sectionEvolution, Name: "dedup_threshold", Severity: SeverityFail, Detail: "must be in [0,1]"})
+	}
+	if len(checks) == 0 {
+		checks = append(checks, Check{Section: sectionEvolution, Name: "config", Severity: SeverityPass, Detail: "evolution settings valid"})
+	}
+	return checks
 }
 
 // checkSettings 驗證合併後 settings 的可載入性與必要欄位。loadErr 為 ReadConfig 的原始錯誤。

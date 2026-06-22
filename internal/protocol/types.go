@@ -47,6 +47,9 @@ const (
 	// RoleSynthesizer 是平行 deep review 模式下合併多份 partial report 的子 role，
 	// 同樣全程維持 deep-reviewing phase，僅用於 prompt template 與 event/log 辨識。
 	RoleSynthesizer Role = "synthesizer"
+	// RoleGate 是 F097 evolve 價值閘門 role，判斷 candidate feature 是否值得進 backlog 並強制寫
+	// why_not_hack。不對應任何 state machine phase，由 evolve driver（F099）在 CLI veto 之間執行。
+	RoleGate Role = "gate"
 )
 
 // SubPhase 表示 deep-reviewing phase 內的子步驟，僅在 phase==deep-reviewing 時有意義；
@@ -344,6 +347,25 @@ type Config struct {
 	// SelfMod 設定 meta-loop 跑自己時對「改自己核心地基」變更的額外保護（受保護路徑、單輪 diff 上限、
 	// 是否要求對應測試）；nil 時 guard 套用內建預設（見 guard.ResolveSelfMod）。project 端非 nil 會覆蓋 user 端。
 	SelfMod *SelfModSettings `json:"self_mod_guard,omitempty"`
+	// Evolution 設定 F097 evolve pipeline 的價值閘門與收斂上限；nil 時由 evolution.ResolveEvolution 套全部預設值。
+	Evolution *EvolutionConfig `json:"evolution,omitempty"`
+}
+
+// EvolutionConfig 是 .4x/settings.json 內 evolution 區段的設定，描述 candidate feature
+// 進 backlog 前的價值閘門門檻與收斂上限。各數值欄位為零值時由 evolution.ResolveEvolution 套預設。
+type EvolutionConfig struct {
+	// ValueFloor 為 gate role 給的 value_score 最低門檻，低於此一律拒；0 時套預設 0.6。
+	ValueFloor float64 `json:"value_floor,omitempty"`
+	// MaxAcceptPerRun 限制單次 gate 最多接受幾筆 candidate（convergence cap）；0 時套預設 3。
+	MaxAcceptPerRun int `json:"max_accept_per_run,omitempty"`
+	// MaxBacklogUndone 為 backlog 未做數上限，超過即停止接受新 candidate；0 時套預設 15。
+	MaxBacklogUndone int `json:"max_backlog_undone,omitempty"`
+	// GateRunner 指定 gate role 用哪個 runner；空字串不補預設（由下游決定）。
+	GateRunner string `json:"gate_runner,omitempty"`
+	// GateModel 指定 gate role 用哪個 model；空字串用 runner 預設。
+	GateModel string `json:"gate_model,omitempty"`
+	// DedupThreshold 為 candidate 去重的 Jaccard 門檻；0 時套預設 0.6。
+	DedupThreshold float64 `json:"dedup_threshold,omitempty"`
 }
 
 // SelfModSettings 是 .4x/settings.json 內 self_mod_guard 區段的設定，

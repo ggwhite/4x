@@ -38,6 +38,11 @@ type Candidate struct {
 	Description string          `json:"description"` // 描述（含失敗細節）
 	Source      CandidateSource `json:"source"`      // 來源分類
 	Origin      string          `json:"origin"`      // 追溯字串（feature id / round / reason / pattern）
+	// ValueScore 是 F097 gate role 給的價值分數（0–1），僅 gate 接受後（accepted-candidates.json）有值。
+	ValueScore float64 `json:"value_score,omitempty"`
+	// WhyNotHack 是 F097 gate role 強制要求的「為何此 candidate 真有價值、非為看起來有產出而生」論述，
+	// 僅 gate 接受後（accepted-candidates.json）有值。
+	WhyNotHack string `json:"why_not_hack,omitempty"`
 }
 
 // CandidateLearning 是一筆候選 learning，沿用 internal/learning 的 category 白名單。

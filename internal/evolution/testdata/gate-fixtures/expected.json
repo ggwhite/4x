@@ -1,0 +1,4 @@
+{
+  "accept": ["Recover abandoned features automatically", "Add runner transient retry"],
+  "reject": ["asdf test junk"]
+}

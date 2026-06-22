@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "candidates": [
+    {
+      "title": "Recover abandoned features automatically",
+      "description": "scan abandoned features and propose recovery so work is not silently lost",
+      "source": "stuck",
+      "origin": "F012 abandoned"
+    },
+    {
+      "title": "asdf test junk",
+      "description": "",
+      "source": "fail-pattern",
+      "origin": "noise"
+    },
+    {
+      "title": "Add runner transient retry",
+      "description": "retry transient runner errors with exponential backoff",
+      "source": "fail-pattern",
+      "origin": "3 features"
+    }
+  ]
+}
