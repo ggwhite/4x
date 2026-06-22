@@ -112,7 +112,7 @@
 ### Homebrew (macOS / Linux)
 
 ```bash
-brew install ggwhite/tap/4x
+brew install ggwhite/tap/fourx
 ```
 
 ### Go Install

@@ -112,7 +112,7 @@ Choosing 4x means trading speed and cost for structure and correctness. Be hones
 ### Homebrew (macOS / Linux)
 
 ```bash
-brew install ggwhite/tap/4x
+brew install ggwhite/tap/fourx
 ```
 
 ### Go Install

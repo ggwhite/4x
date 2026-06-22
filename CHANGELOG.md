@@ -330,7 +330,7 @@ First public release.
 ### Distribution
 
 - Cross-platform binaries — macOS, Linux, Windows (amd64 + arm64)
-- Homebrew tap — `brew install ggwhite/tap/4x`
+- Homebrew tap — `brew install ggwhite/tap/fourx`
 - Go install — `go install github.com/ggwhite/4x/cmd/4x@latest`
 - GitHub Releases with checksums
 

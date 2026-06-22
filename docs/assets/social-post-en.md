@@ -28,7 +28,7 @@ Docs: https://ggwhite.github.io/4x/
 
 Install:
 ```
-brew install ggwhite/tap/4x
+brew install ggwhite/tap/fourx
 ```
 or
 ```
