@@ -108,7 +108,7 @@
       ]
     },
     "design-reviewer": {
-      "model": "sonnet",
+      "model": "opus",
       "instructions": [
         "逐項比對 task-brief 與 feature YAML description 的需求——有遺漏或矛盾就 FAIL",
         "檢查 acceptance-criteria 是否每項都可自動化驗證（go test / CLI output），模糊描述就 FAIL",
@@ -128,7 +128,7 @@
       ]
     },
     "reviewer": {
-      "model": "sonnet",
+      "model": "opus",
       "deep_model": "opus",
       "instructions": [
         "重點檢查：是否繞過 state machine、是否在 CLI 層呼叫 LLM、是否破壞 .4x/ protocol",
@@ -142,7 +142,7 @@
       "parallel_reviewers": 3
     },
     "tester": {
-      "model": "sonnet",
+      "model": "opus",
       "screenshot_dir": ".4x/{feature-id}/e2e/screenshots/round-{round}/",
       "instructions": [
         "verify.json 必須每項 AC 都有對應的 pass/fail 結果",
