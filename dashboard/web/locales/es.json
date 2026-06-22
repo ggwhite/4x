@@ -241,5 +241,21 @@
   "notifications.runInterrupted": "Ejecución interrumpida",
   "notifications.guardFail": "Falló la verificación de guardrail",
   "notifications.escalation": "Requiere atención",
-  "globalSettings.notifications": "Notificaciones"
+  "globalSettings.notifications": "Notificaciones",
+  "projectSettings.defaults": "Valores predeterminados",
+  "projectSettings.profiles": "Perfiles",
+  "projectSettings.defaultProfile": "Perfil predeterminado",
+  "projectSettings.saveDefaults": "Guardar valores predeterminados",
+  "projectSettings.defaultsSaved": "Valores predeterminados guardados",
+  "projectSettings.noProfiles": "No hay perfiles configurados",
+  "projectSettings.phasesCount": "{count} fases",
+  "projectSettings.edit": "Editar",
+  "projectSettings.delete": "Eliminar",
+  "projectSettings.addProfile": "Añadir perfil",
+  "projectSettings.profileNameRequired": "El nombre del perfil no puede estar vacío",
+  "projectSettings.profileSaved": "Perfil guardado",
+  "projectSettings.deleteProfileConfirm": "¿Eliminar el perfil \"{name}\"?",
+  "projectSettings.deleteFailed": "Error al eliminar: {error}",
+  "projectSettings.profileDeleted": "Perfil eliminado",
+  "projectSettings.roleSaved": "Rol {role} guardado"
 }

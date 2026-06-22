@@ -130,6 +130,34 @@ func NewMux(resolver WorkspaceResolver) http.Handler {
 		}
 		handlePostNew(ws, w, r)
 	})
+	mux.HandleFunc("/api/settings/profiles/", func(w http.ResponseWriter, r *http.Request) {
+		ws, _, _, err := resolver(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if r.Method == http.MethodPut {
+			handlePutProfile(ws, w, r)
+			return
+		}
+		if r.Method == http.MethodDelete {
+			handleDeleteProfile(ws, w, r)
+			return
+		}
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	})
+	mux.HandleFunc("/api/settings/roles/", func(w http.ResponseWriter, r *http.Request) {
+		ws, _, _, err := resolver(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if r.Method == http.MethodPut {
+			handlePutRole(ws, w, r)
+			return
+		}
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	})
 	mux.HandleFunc("/api/settings", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			ws, _, _, err := resolver(r)
@@ -148,6 +176,15 @@ func NewMux(resolver WorkspaceResolver) http.Handler {
 			}
 			handlePutSettings(ws, w, r)
 			reloadProcessManager(ws, pm)
+			return
+		}
+		if r.Method == http.MethodPatch {
+			ws, _, _, err := resolver(r)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			handlePatchSettings(ws, w, r)
 			return
 		}
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

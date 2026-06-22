@@ -205,6 +205,23 @@
     </div>
     </div>
     <div id="ps-form" style="padding:20px 24px"></div>
+    <div id="ps-settings-sections" style="display:none;padding:0 24px 20px">
+      <div style="border-top:1px solid var(--border);margin:0 0 20px"></div>
+      <div style="display:flex;flex-direction:column;gap:20px">
+        <section>
+          <div class="settings-label" data-i18n="projectSettings.defaults">Defaults</div>
+          <div id="settings-defaults-section"></div>
+        </section>
+        <section>
+          <div class="settings-label" data-i18n="projectSettings.profiles">Profiles</div>
+          <div id="settings-profiles-section"></div>
+        </section>
+        <section>
+          <div class="settings-label" data-i18n="projectSettings.roles">Roles</div>
+          <div id="settings-roles-section"></div>
+        </section>
+      </div>
+    </div>
     <div id="ps-json" style="padding:20px 24px;display:none">
       <textarea id="ps-json-editor" style="width:100%;min-height:400px;background:var(--bg-input);color:var(--text-1);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:ui-monospace,monospace;font-size:13px;resize:vertical;outline:none;box-sizing:border-box" spellcheck="false"></textarea>
       <div id="ps-json-error" style="color:#f87171;font-size:12px;margin-top:6px;display:none"></div>
@@ -216,6 +233,23 @@
     <div style="padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
       <button onclick="closeProjectSettings()" style="padding:8px 16px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-2);cursor:pointer" data-i18n="projectSettings.cancel">Cancel</button>
       <button id="ps-save-btn" onclick="saveProjectSettings()" style="padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer" data-i18n="projectSettings.save">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Profile Editor Modal -->
+<div id="profile-editor-modal" class="modal-backdrop" onclick="if(event.target===this)closeProfileEditor()">
+  <div class="modal-panel fade-in" style="width:760px;max-height:85vh;overflow-y:auto">
+    <div style="padding:20px 24px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+      <span style="font-size:16px;font-weight:700">Profile Editor</span>
+      <input id="profile-editor-name" type="text" placeholder="Profile name" style="margin-left:auto;width:220px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none">
+    </div>
+    <div style="padding:20px 24px">
+      <div id="profile-editor-phases"></div>
+    </div>
+    <div style="padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
+      <button onclick="closeProfileEditor()" style="padding:8px 16px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-2);cursor:pointer">Cancel</button>
+      <button onclick="saveProfile()" style="padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Save</button>
     </div>
   </div>
 </div>

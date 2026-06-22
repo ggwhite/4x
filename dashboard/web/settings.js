@@ -84,6 +84,11 @@ async function openProjectSettings() {
     const si = document.getElementById('ps-search-input');
     if (si) { si.value = ''; filterPSFields(''); }
     document.getElementById('ps-search-bar').style.display = '';
+    const sections = document.getElementById('ps-settings-sections');
+    if (sections) sections.style.display = '';
+    renderProfilesTab();
+    renderRolesConfig();
+    renderDefaultsUI();
     document.getElementById('project-settings-modal').classList.add('open');
     const panel = document.querySelector('#project-settings-modal .modal-panel');
     const header = document.getElementById('ps-sticky-header');
@@ -97,6 +102,9 @@ async function openProjectSettings() {
 
 function closeProjectSettings() {
   document.getElementById('project-settings-modal').classList.remove('open');
+  const sections = document.getElementById('ps-settings-sections');
+  if (sections) sections.style.display = 'none';
+  closeProfileEditor();
   _projectSettings = null;
 }
 
@@ -114,6 +122,7 @@ function switchPSTab(tab) {
   const tabForm = document.getElementById('ps-tab-form');
   const tabJSON = document.getElementById('ps-tab-json');
   const tabMerged = document.getElementById('ps-tab-merged');
+  const settingsSections = document.getElementById('ps-settings-sections');
   const saveBtn = document.getElementById('ps-save-btn');
   const activeStyle = {background:'var(--accent)',color:'#000',border:'none',fontWeight:'600'};
   const inactiveStyle = {background:'var(--bg-input)',color:'var(--text-2)',border:'1px solid var(--border)',fontWeight:''};
@@ -132,22 +141,28 @@ function switchPSTab(tab) {
       }
     }
     formEl.style.display = ''; jsonEl.style.display = 'none'; mergedEl.style.display = 'none';
+    if (settingsSections) settingsSections.style.display = '';
     applyStyle(tabForm, activeStyle); applyStyle(tabJSON, inactiveStyle); applyStyle(tabMerged, inactiveStyle);
     document.getElementById('ps-search-bar').style.display = '';
     if (saveBtn) saveBtn.style.display = '';
     renderProjectSettingsForm();
+    renderProfilesTab();
+    renderRolesConfig();
+    renderDefaultsUI();
   } else if (tab === 'json') {
     const obj = collectFormData();
     const editor = document.getElementById('ps-json-editor');
     editor.value = JSON.stringify(obj, null, 2);
     document.getElementById('ps-json-error').style.display = 'none';
     formEl.style.display = 'none'; jsonEl.style.display = ''; mergedEl.style.display = 'none';
+    if (settingsSections) settingsSections.style.display = 'none';
     applyStyle(tabJSON, activeStyle); applyStyle(tabForm, inactiveStyle); applyStyle(tabMerged, inactiveStyle);
     document.getElementById('ps-search-bar').style.display = 'none';
     if (saveBtn) saveBtn.style.display = '';
     editor.oninput = function() { validatePSJson(this.value); };
   } else if (tab === 'merged') {
     formEl.style.display = 'none'; jsonEl.style.display = 'none'; mergedEl.style.display = '';
+    if (settingsSections) settingsSections.style.display = 'none';
     applyStyle(tabMerged, activeStyle); applyStyle(tabForm, inactiveStyle); applyStyle(tabJSON, inactiveStyle);
     document.getElementById('ps-search-bar').style.display = 'none';
     if (saveBtn) saveBtn.style.display = 'none';
@@ -735,3 +750,420 @@ async function saveProjectSettings() {
   } catch(err) { showToast(t('toast.connectionError').replace('{error}', err.message)); }
 }
 function initSettings() { applyTheme(settings.theme); applyFont(); }
+
+// ── Dashboard Settings UI ────────────────────────────────────────────────────
+
+let _profilesData = [];
+let _profileEditorMode = null; // 'create' or 'edit'
+let _profileEditorName = null;
+let _profileDragSource = null;
+const _selectablePhases = ['designing', 'design-reviewing', 'coding', 'reviewing', 'deep-reviewing', 'testing', 'accepting'];
+
+async function loadSupportedRunners() {
+  try {
+    const resp = await fetch(apiBase() + '/api/supported-runners');
+    if (resp.ok) {
+      _supportedRunners = await resp.json();
+    }
+  } catch(err) { console.warn('Failed to load supported runners:', err); }
+}
+
+// renderProfilesTab — 列出所有 profiles，每筆顯示名稱、啟用 phase 數量、操作按鈕
+function renderProfilesTab() {
+  const container = document.getElementById('settings-profiles-section');
+  if (!container) return;
+
+  const profiles = (_projectSettings && _projectSettings.profiles) || {};
+  const entries = Object.entries(profiles);
+  let html = '<div style="display:flex;flex-direction:column;gap:10px">';
+  if (entries.length === 0) {
+   html += `<div style="padding:12px;border:1px dashed var(--border);border-radius:8px;color:var(--text-3)">${esc(t('projectSettings.noProfiles'))}</div>`;
+  } else {
+   for (const [name, profile] of entries) {
+     const phaseCount = Array.isArray(profile.phases) ? profile.phases.length : 0;
+     html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-input)">
+       <div style="min-width:0">
+         <strong style="color:var(--text-1)">${esc(name)}</strong>
+         <span style="color:var(--text-3);margin-left:12px">${esc(t('projectSettings.phasesCount').replace('{count}', phaseCount))}</span>
+       </div>
+       <div style="display:flex;gap:8px;flex-shrink:0">
+         <button onclick="openProfileEditor('${escAttr(name)}')" style="padding:4px 8px;background:var(--accent);color:#000;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">${esc(t('projectSettings.edit'))}</button>
+         <button onclick="deleteProfile('${escAttr(name)}')" style="padding:4px 8px;background:#ef4444;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px">${esc(t('projectSettings.delete'))}</button>
+       </div>
+     </div>`;
+   }
+  }
+  html += `</div><button onclick="openProfileEditor('')" style="margin-top:12px;padding:8px 12px;background:var(--accent);color:#000;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600">${esc(t('projectSettings.addProfile'))}</button>`;
+  container.innerHTML = html;
+}
+
+// openProfileEditor — 開啟 profile 編輯面板
+function openProfileEditor(name) {
+  _profileEditorMode = name ? 'edit' : 'create';
+  _profileEditorName = name;
+
+  const editor = document.getElementById('profile-editor-modal');
+  if (!editor) return;
+
+  const profile = name && _projectSettings && _projectSettings.profiles && _projectSettings.profiles[name] ? _projectSettings.profiles[name] : {};
+
+  const nameInput = editor.querySelector('#profile-editor-name');
+  if (nameInput) {
+   nameInput.value = name || '';
+   nameInput.readOnly = _profileEditorMode === 'edit';
+  }
+
+  const phasesContainer = editor.querySelector('#profile-editor-phases');
+  if (phasesContainer) {
+   const existingPhases = Array.isArray(profile.phases) ? profile.phases : [];
+   const orderedPhases = [];
+   const seen = new Set();
+   existingPhases.forEach(ps => {
+     if (ps && _selectablePhases.includes(ps.phase) && !seen.has(ps.phase)) {
+       orderedPhases.push(ps.phase);
+       seen.add(ps.phase);
+     }
+   });
+   _selectablePhases.forEach(phase => {
+     if (!seen.has(phase)) orderedPhases.push(phase);
+   });
+
+   let html = '';
+   orderedPhases.forEach(phase => {
+     const phaseData = existingPhases.find(p => p.phase === phase) || {};
+     const isChecked = phase === 'coding' || !!phaseData.phase;
+     const isDisabled = phase === 'coding';
+
+     html += `<div data-phase-row data-phase="${escAttr(phase)}" draggable="true" style="display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:start;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:var(--bg-input);cursor:grab">
+       <div style="display:flex;align-items:center;gap:8px;min-width:0">
+         <span aria-hidden="true" style="color:var(--text-4);font-size:16px;line-height:1">⋮⋮</span>
+         <input type="checkbox" id="phase-${escAttr(phase)}" ${isChecked ? 'checked' : ''} ${isDisabled ? 'disabled' : ''} onchange="updatePhaseSelection('${escAttr(phase)}')">
+         <label for="phase-${escAttr(phase)}" style="font-size:13px;color:var(--text-1);text-transform:capitalize">${esc(phase)}</label>
+       </div>
+       <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+         <div id="phase-runner-${escAttr(phase)}"></div>
+         <div id="phase-model-${escAttr(phase)}"></div>
+       </div>
+       <div style="font-size:11px;color:var(--text-4);padding-top:3px">${isDisabled ? 'required' : ''}</div>
+     </div>`;
+   });
+   phasesContainer.innerHTML = html;
+   orderedPhases.forEach(phase => {
+     const phaseData = existingPhases.find(p => p.phase === phase) || {};
+     renderPhaseRunnerPicker(phase, phaseData.runner || '', phaseData.model || '');
+   });
+   initProfileDragSort();
+  }
+
+  editor.classList.add('open');
+}
+
+// closeProfileEditor — 關閉編輯面板
+function closeProfileEditor() {
+  const editor = document.getElementById('profile-editor-modal');
+  if (editor) editor.classList.remove('open');
+  _profileEditorMode = null;
+  _profileEditorName = null;
+  _profileDragSource = null;
+}
+
+// renderPhaseRunnerPicker — per-phase runner/model 選擇器
+function renderPhaseRunnerPicker(phaseId, currentRunner, currentModel) {
+  const runnerContainer = document.getElementById(`phase-runner-${phaseId}`);
+  if (runnerContainer) {
+    let html = '<label style="font-size:10px;color:var(--text-3);display:block;margin-bottom:2px">Runner</label>';
+    html += `<select id="phase-runner-select-${escAttr(phaseId)}" style="width:100%;padding:6px 8px;font-size:12px;background:var(--bg-hover);border:1px solid var(--border);border-radius:6px;color:var(--text-1);font-family:inherit;outline:none">`;
+    html += '<option value="">(inherit default_runner)</option>';
+    _supportedRunners.forEach(runner => {
+      html += `<option value="${escAttr(runner.name)}"${currentRunner === runner.name ? ' selected' : ''}>${esc(runner.name)}</option>`;
+    });
+    html += '</select>';
+    runnerContainer.innerHTML = html;
+  }
+
+  const modelContainer = document.getElementById(`phase-model-${phaseId}`);
+  if (modelContainer) {
+    let html = '<label style="font-size:10px;color:var(--text-3);display:block;margin-bottom:2px">Model Tier</label>';
+    html += `<select id="phase-model-select-${escAttr(phaseId)}" style="width:100%;padding:6px 8px;font-size:12px;background:var(--bg-hover);border:1px solid var(--border);border-radius:6px;color:var(--text-1);font-family:inherit;outline:none">`;
+    html += '<option value="">(inherit)</option>';
+    ['light', 'standard', 'pro'].forEach(tier => {
+      html += `<option value="${tier}"${currentModel === tier ? ' selected' : ''}>${tier}</option>`;
+    });
+    html += '</select>';
+    modelContainer.innerHTML = html;
+  }
+}
+
+// updatePhaseSelection — 在複選框變更時更新
+function updatePhaseSelection(phase) {
+  // 確保 coding 始終勾選
+  if (phase === 'coding') {
+    const checkbox = document.getElementById('phase-coding');
+    if (checkbox) checkbox.checked = true;
+  }
+}
+
+function initProfileDragSort() {
+  const list = document.getElementById('profile-editor-phases');
+  if (!list) return;
+
+  list.querySelectorAll('[data-phase-row]').forEach(row => {
+    row.addEventListener('dragstart', e => {
+      _profileDragSource = row;
+      row.style.opacity = '0.5';
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', row.dataset.phase || '');
+      }
+    });
+    row.addEventListener('dragend', () => {
+      row.style.opacity = '';
+      _profileDragSource = null;
+    });
+    row.addEventListener('dragover', e => {
+      e.preventDefault();
+      if (!_profileDragSource || _profileDragSource === row) return;
+      const rect = row.getBoundingClientRect();
+      const before = e.clientY < rect.top + rect.height / 2;
+      if (before) {
+        list.insertBefore(_profileDragSource, row);
+      } else {
+        list.insertBefore(_profileDragSource, row.nextSibling);
+      }
+    });
+    row.addEventListener('drop', e => e.preventDefault());
+  });
+}
+
+// saveProfile — 呼叫 PUT /api/settings/profiles/{name} 儲存
+async function saveProfile() {
+  const nameInput = document.querySelector('#profile-editor-name');
+  const name = nameInput ? nameInput.value.trim() : '';
+  
+  if (!name) {
+    showToast(t('projectSettings.profileNameRequired'));
+    return;
+  }
+
+  const phases = [];
+  const rows = document.querySelectorAll('#profile-editor-phases [data-phase-row]');
+  rows.forEach(row => {
+    const phase = row.dataset.phase || '';
+    if (!phase) return;
+    const checkbox = row.querySelector(`input[type="checkbox"]`);
+    if (!checkbox || !checkbox.checked) return;
+    const runner = (document.getElementById(`phase-runner-select-${phase}`) || {}).value || '';
+    const model = (document.getElementById(`phase-model-select-${phase}`) || {}).value || '';
+    const spec = { phase };
+    if (runner) spec.runner = runner;
+    if (model) spec.model = model;
+    phases.push(spec);
+  });
+
+  const payload = { phases };
+
+  try {
+    const resp = await fetch(apiBase() + `/api/settings/profiles/${encodeURIComponent(name)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) {
+      showToast(t('projectSettings.saveFailed').replace('{error}', await resp.text()));
+      return;
+    }
+    _projectSettings = await resp.json();
+    closeProfileEditor();
+    renderProfilesTab();
+    renderDefaultsUI();
+    showToast(t('projectSettings.profileSaved'));
+  } catch(err) {
+    showToast(t('toast.connectionError').replace('{error}', err.message));
+  }
+}
+
+// deleteProfile — 刪除 profile，需確認
+async function deleteProfile(name) {
+  if (!confirm(t('projectSettings.deleteProfileConfirm').replace('{name}', name))) return;
+
+  try {
+    const resp = await fetch(apiBase() + `/api/settings/profiles/${encodeURIComponent(name)}`, {
+      method: 'DELETE',
+    });
+    if (!resp.ok) {
+      showToast(t('projectSettings.deleteFailed').replace('{error}', await resp.text()));
+      return;
+    }
+    _projectSettings = await resp.json();
+    renderProfilesTab();
+    renderDefaultsUI();
+    showToast(t('projectSettings.profileDeleted'));
+  } catch(err) {
+    showToast(t('toast.connectionError').replace('{error}', err.message));
+  }
+}
+
+// ROLE_EXTRA_FIELDS 定義各 role 除了通用欄位外，UI 要額外顯示哪些 RoleConfig 欄位。
+// deep_model 對 reviewer/deep-reviewer 有意義；screenshot_dir 對 tester 有意義。
+// instructions/includes 為所有 role 共用，於下方無條件渲染。
+const ROLE_EXTRA_FIELDS = {
+  'reviewer': ['deep_model'],
+  'deep-reviewer': ['deep_model'],
+  'tester': ['screenshot_dir'],
+};
+
+// roleTextRow — 產生單一文字欄位列（label + input），id 形如 role-{field}-{role}
+function roleTextRow(role, field, labelKey, value) {
+  return `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+      <span style="font-size:12px;color:var(--text-3)">${esc(t(labelKey))}</span>
+      <input id="role-${field}-${escAttr(role)}" type="text" value="${escAttr(value || '')}"
+        style="padding:4px;border:1px solid var(--border);border-radius:3px;width:160px">
+    </div>`;
+}
+
+// renderRolesConfig — 顯示各角色的 model、延伸欄位（deep_model/screenshot_dir）與
+// 共用的 instructions/includes（逗號分隔）。儲存時保留 UI 未涵蓋的進階欄位（見 saveRoleConfig）。
+function renderRolesConfig() {
+  const container = document.getElementById('settings-roles-section');
+  if (!container) return;
+
+  const roles = (_projectSettings && _projectSettings.roles) || {};
+  const roleNames = ['designer', 'coder', 'reviewer', 'tester', 'acceptor', 'design-reviewer', 'deep-reviewer'];
+
+  let html = '<div class="space-y-2">';
+  roleNames.forEach(role => {
+    const roleConfig = roles[role] || {};
+    html += `<div style="padding:8px;border:1px solid var(--border);border-radius:4px">
+      <strong style="font-size:13px;color:var(--text-1)">${esc(role)}</strong>`;
+    html += roleTextRow(role, 'model', 'field.model', roleConfig.model);
+    (ROLE_EXTRA_FIELDS[role] || []).forEach(field => {
+      if (field === 'deep_model') html += roleTextRow(role, 'deep_model', 'field.deepModel', roleConfig.deep_model);
+      if (field === 'screenshot_dir') html += roleTextRow(role, 'screenshot_dir', 'field.screenshotDir', roleConfig.screenshot_dir);
+    });
+    html += roleTextRow(role, 'instructions', 'field.instructions', (roleConfig.instructions || []).join(', '));
+    html += roleTextRow(role, 'includes', 'field.includes', (roleConfig.includes || []).join(', '));
+    html += `<button onclick="saveRoleConfig('${escAttr(role)}')" style="margin-top:8px;padding:4px 8px;background:var(--accent);color:white;border:none;border-radius:3px;cursor:pointer">${esc(t('projectSettings.save'))}</button>
+    </div>`;
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+// csvToList — 把逗號分隔字串轉成去空白、去空項的陣列
+function csvToList(raw) {
+  return (raw || '').split(',').map(s => s.trim()).filter(Boolean);
+}
+
+// saveRoleConfig — 保存單一 role config。
+// 以現有 roleConfig 為基底再覆寫 UI 欄位，避免 PUT 全量替換時把 UI 未顯示的進階欄位
+// （max_fix_rounds、parallel_reviewers、angles_per_reviewer）清掉。
+async function saveRoleConfig(role) {
+  const existing = (_projectSettings && _projectSettings.roles && _projectSettings.roles[role]) || {};
+  const payload = { ...existing };
+
+  const readField = (field) => {
+    const el = document.getElementById(`role-${field}-${role}`);
+    return el ? el.value.trim() : null;
+  };
+
+  const setStr = (field, key) => {
+    const v = readField(field);
+    if (v === null) return;
+    if (v) payload[key] = v; else delete payload[key];
+  };
+  const setList = (field, key) => {
+    const el = document.getElementById(`role-${field}-${role}`);
+    if (!el) return;
+    const list = csvToList(el.value);
+    if (list.length) payload[key] = list; else delete payload[key];
+  };
+
+  setStr('model', 'model');
+  if (ROLE_EXTRA_FIELDS[role] && ROLE_EXTRA_FIELDS[role].includes('deep_model')) setStr('deep_model', 'deep_model');
+  if (ROLE_EXTRA_FIELDS[role] && ROLE_EXTRA_FIELDS[role].includes('screenshot_dir')) setStr('screenshot_dir', 'screenshot_dir');
+  setList('instructions', 'instructions');
+  setList('includes', 'includes');
+
+  try {
+    const resp = await fetch(apiBase() + `/api/settings/roles/${encodeURIComponent(role)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) {
+      showToast(t('projectSettings.saveFailed').replace('{error}', await resp.text()));
+      return;
+    }
+    _projectSettings = await resp.json();
+    renderRolesConfig();
+    showToast(t('projectSettings.roleSaved').replace('{role}', role));
+  } catch(err) {
+    showToast(t('toast.connectionError').replace('{error}', err.message));
+  }
+}
+
+// renderDefaultsUI — 顯示 default_runner 和 default_profile 設定
+function renderDefaultsUI() {
+  const container = document.getElementById('settings-defaults-section');
+  if (!container) return;
+
+  const profileNames = Object.keys((_projectSettings && _projectSettings.profiles) || {});
+  const supportedRunnerNames = _supportedRunners.map(runner => runner.name);
+  const defaultRunner = _projectSettings && _projectSettings.default_runner ? _projectSettings.default_runner : '';
+  const defaultProfile = _projectSettings && _projectSettings.default_profile ? _projectSettings.default_profile : '';
+  
+  let html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
+  
+  // Default Runner
+  html += `<div style="padding:8px;border:1px solid var(--border);border-radius:4px">
+    <label style="display:block;margin-bottom:6px">${esc(t('projectSettings.defaultRunner'))}</label>
+    <select id="defaults-runner" style="width:100%;padding:4px;border:1px solid var(--border);border-radius:3px">
+      <option value=""${defaultRunner ? '' : ' selected'}>${esc(t('projectSettings.none'))}</option>`;
+  supportedRunnerNames.forEach(runner => {
+    html += `<option value="${escAttr(runner)}"${defaultRunner === runner ? ' selected' : ''}>${esc(runner)}</option>`;
+  });
+  html += `</select>
+  </div>`;
+
+  // Default Profile
+  html += `<div style="padding:8px;border:1px solid var(--border);border-radius:4px">
+    <label style="display:block;margin-bottom:6px">${esc(t('projectSettings.defaultProfile'))}</label>
+    <select id="defaults-profile" style="width:100%;padding:4px;border:1px solid var(--border);border-radius:3px">
+      <option value=""${defaultProfile ? '' : ' selected'}>${esc(t('projectSettings.none'))}</option>`;
+  profileNames.forEach(name => {
+    html += `<option value="${escAttr(name)}"${defaultProfile === name ? ' selected' : ''}>${esc(name)}</option>`;
+  });
+  html += `</select>
+  </div>`;
+
+  html += '</div>';
+  html += `<button onclick="saveDefaults()" style="margin-top:12px;padding:8px 12px;background:var(--accent);color:white;border:none;border-radius:3px;cursor:pointer">${esc(t('projectSettings.saveDefaults'))}</button>`;
+  container.innerHTML = html;
+}
+
+// saveDefaults — 保存預設值
+async function saveDefaults() {
+  const runnerSelect = document.getElementById('defaults-runner');
+  const profileSelect = document.getElementById('defaults-profile');
+  
+  const payload = {};
+  if (runnerSelect) payload.default_runner = runnerSelect.value.trim();
+  if (profileSelect) payload.default_profile = profileSelect.value.trim();
+
+  try {
+    const resp = await fetch(apiBase() + '/api/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) {
+      showToast(t('projectSettings.saveFailed').replace('{error}', await resp.text()));
+      return;
+    }
+    _projectSettings = await resp.json();
+    renderDefaultsUI();
+    showToast(t('projectSettings.defaultsSaved'));
+  } catch(err) {
+    showToast(t('toast.connectionError').replace('{error}', err.message));
+  }
+}

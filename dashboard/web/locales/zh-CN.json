@@ -241,5 +241,21 @@
   "notifications.runInterrupted": "运行中断",
   "notifications.guardFail": "Guardrail 检查未通过",
   "notifications.escalation": "需要人工介入",
-  "globalSettings.notifications": "通知"
+  "globalSettings.notifications": "通知",
+  "projectSettings.defaults": "默认值",
+  "projectSettings.profiles": "Profiles",
+  "projectSettings.defaultProfile": "默认 Profile",
+  "projectSettings.saveDefaults": "保存默认值",
+  "projectSettings.defaultsSaved": "默认值已保存",
+  "projectSettings.noProfiles": "尚未配置任何 profile",
+  "projectSettings.phasesCount": "{count} 个 phase",
+  "projectSettings.edit": "编辑",
+  "projectSettings.delete": "删除",
+  "projectSettings.addProfile": "添加 Profile",
+  "projectSettings.profileNameRequired": "Profile 名称不能为空",
+  "projectSettings.profileSaved": "Profile 已保存",
+  "projectSettings.deleteProfileConfirm": "确定删除 profile“{name}”？",
+  "projectSettings.deleteFailed": "删除失败：{error}",
+  "projectSettings.profileDeleted": "Profile 已删除",
+  "projectSettings.roleSaved": "角色 {role} 已保存"
 }

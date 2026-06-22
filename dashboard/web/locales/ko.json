@@ -241,5 +241,21 @@
   "notifications.runInterrupted": "실행 중단됨",
   "notifications.guardFail": "Guardrail 검사 실패",
   "notifications.escalation": "조치가 필요함",
-  "globalSettings.notifications": "알림"
+  "globalSettings.notifications": "알림",
+  "projectSettings.defaults": "기본값",
+  "projectSettings.profiles": "프로파일",
+  "projectSettings.defaultProfile": "기본 프로파일",
+  "projectSettings.saveDefaults": "기본값 저장",
+  "projectSettings.defaultsSaved": "기본값이 저장되었습니다",
+  "projectSettings.noProfiles": "구성된 프로파일이 없습니다",
+  "projectSettings.phasesCount": "{count}개 단계",
+  "projectSettings.edit": "편집",
+  "projectSettings.delete": "삭제",
+  "projectSettings.addProfile": "프로파일 추가",
+  "projectSettings.profileNameRequired": "프로파일 이름은 비워둘 수 없습니다",
+  "projectSettings.profileSaved": "프로파일이 저장되었습니다",
+  "projectSettings.deleteProfileConfirm": "프로파일 \"{name}\"을(를) 삭제하시겠습니까?",
+  "projectSettings.deleteFailed": "삭제 실패: {error}",
+  "projectSettings.profileDeleted": "프로파일이 삭제되었습니다",
+  "projectSettings.roleSaved": "역할 {role}이(가) 저장되었습니다"
 }

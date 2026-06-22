@@ -241,5 +241,21 @@
   "notifications.runInterrupted": "Run interrupted",
   "notifications.guardFail": "Guardrail check failed",
   "notifications.escalation": "Needs attention",
-  "globalSettings.notifications": "Notifications"
+  "globalSettings.notifications": "Notifications",
+  "projectSettings.defaults": "Defaults",
+  "projectSettings.profiles": "Profiles",
+  "projectSettings.defaultProfile": "Default Profile",
+  "projectSettings.saveDefaults": "Save Defaults",
+  "projectSettings.defaultsSaved": "Defaults saved",
+  "projectSettings.noProfiles": "No profiles configured",
+  "projectSettings.phasesCount": "{count} phases",
+  "projectSettings.edit": "Edit",
+  "projectSettings.delete": "Delete",
+  "projectSettings.addProfile": "Add Profile",
+  "projectSettings.profileNameRequired": "Profile name cannot be empty",
+  "projectSettings.profileSaved": "Profile saved",
+  "projectSettings.deleteProfileConfirm": "Delete profile \"{name}\"?",
+  "projectSettings.deleteFailed": "Delete failed: {error}",
+  "projectSettings.profileDeleted": "Profile deleted",
+  "projectSettings.roleSaved": "Role {role} saved"
 }

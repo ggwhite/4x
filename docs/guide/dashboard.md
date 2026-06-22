@@ -37,6 +37,8 @@ The phase label of a running feature is refined by `taskInfo.subPhase` (carried 
 
 The **New Feature** modal is a progressive form. The basic area always shows **Name** (required), **Description** (optional, defaults to the name), and a **Priority** select (P0–P3 or none). An **Advanced** toggle reveals **Custom ID** (leave empty to auto-generate), **Depends** (comma-separated feature IDs), **Rules** (comma-separated), and a dynamic **Subtasks** list (add/remove rows of id + name). Submitting `POST`s to [`/api/new`](#rest); the CLI `4x new` and the dashboard now share a single creation path (`feature.Create`, see [Concepts](concepts.md#feature-creation)), so both honor the same flags/fields and ID generation.
 
+The **Project Settings** modal complements the raw Form/JSON editors with three structured sections that write through dedicated endpoints (no full-file replace): **Defaults** (the `default_runner` / `default_profile` selectors, saved via `PATCH /api/settings`), **Profiles** (list, add, edit with a drag-sortable phase picker, and delete, via `PUT`/`DELETE /api/settings/profiles/{name}`), and **Roles** (per-role `model`, plus `deep_model` for reviewer/deep-reviewer, `screenshot_dir` for tester, and comma-separated `instructions` / `includes`, saved via `PUT /api/settings/roles/{role}`). Edits are reflected immediately without restarting the server, and all section labels and messages are localized.
+
 ## Dependency DAG
 
 The overview renders a dependency graph of all features as inline SVG — no external charting library (d3, mermaid, chart.js) is loaded. Features are laid out in layers by dependency depth; edges run from each feature to the features it depends on. Node color follows phase status: green = done, blue = running (active run or an in-progress phase such as coding/reviewing/testing), gray = todo, red = blocked / needs-attention. Clicking a node opens that feature's detail, the same path as clicking a feature card. The graph is rebuilt from the cached `/api/tasks` data on every polling cycle, so colors update live as features advance.
@@ -79,6 +81,10 @@ Read-heavy endpoints (`/api/tasks`, `/api/overview`, `/api/projects`, `/api/sett
 | `/api/browse` | GET | Folder picker |
 | `/api/settings` | GET | Get project settings (`.4x/settings.json`) |
 | `/api/settings` | PUT | Update project settings (validates, backs up, writes) |
+| `/api/settings` | PATCH | Partial update — merges only the fields present in the body (e.g. `default_runner`, `default_profile`, `roles`); type-mismatched or invalid payloads return **400** |
+| `/api/settings/profiles/{name}` | PUT | Create or overwrite a single pipeline profile |
+| `/api/settings/profiles/{name}` | DELETE | Delete a profile; clears `default_profile` if it pointed at the removed profile |
+| `/api/settings/roles/{role}` | PUT | Create or overwrite a single role config (model, deep_model, screenshot_dir, instructions, includes) |
 | `/api/user-config` | GET | Get user config (`~/.4x/settings.json`) |
 | `/api/user-config` | PUT | Update user config (backs up to `.bak`, then writes) |
 | `/api/merged-config` | GET | Read-only view of project + user merged effective config |

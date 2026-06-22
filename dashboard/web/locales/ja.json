@@ -241,5 +241,21 @@
   "notifications.runInterrupted": "実行が中断されました",
   "notifications.guardFail": "ガードレールチェックに失敗しました",
   "notifications.escalation": "対応が必要です",
-  "globalSettings.notifications": "通知"
+  "globalSettings.notifications": "通知",
+  "projectSettings.defaults": "デフォルト",
+  "projectSettings.profiles": "プロファイル",
+  "projectSettings.defaultProfile": "デフォルトプロファイル",
+  "projectSettings.saveDefaults": "デフォルトを保存",
+  "projectSettings.defaultsSaved": "デフォルトを保存しました",
+  "projectSettings.noProfiles": "プロファイルが設定されていません",
+  "projectSettings.phasesCount": "{count} フェーズ",
+  "projectSettings.edit": "編集",
+  "projectSettings.delete": "削除",
+  "projectSettings.addProfile": "プロファイルを追加",
+  "projectSettings.profileNameRequired": "プロファイル名は必須です",
+  "projectSettings.profileSaved": "プロファイルを保存しました",
+  "projectSettings.deleteProfileConfirm": "プロファイル「{name}」を削除しますか？",
+  "projectSettings.deleteFailed": "削除に失敗しました: {error}",
+  "projectSettings.profileDeleted": "プロファイルを削除しました",
+  "projectSettings.roleSaved": "ロール {role} を保存しました"
 }
