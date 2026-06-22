@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>4x 社群圖卡</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #090b10;
+      --panel: #121824;
+      --line: #263241;
+      --text: #f4f7fb;
+      --muted: #9aa8ba;
+      --blue: #58a6ff;
+      --violet: #bc8cff;
+      --green: #56d364;
+      --amber: #f2cc60;
+      --red: #ff7b72;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: #05070b;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    }
+
+    .card {
+      position: relative;
+      width: 1200px;
+      height: 1200px;
+      overflow: hidden;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 18% 12%, rgba(88, 166, 255, .26), transparent 29%),
+        radial-gradient(circle at 84% 18%, rgba(188, 140, 255, .22), transparent 31%),
+        radial-gradient(circle at 70% 88%, rgba(86, 211, 100, .13), transparent 30%),
+        linear-gradient(145deg, #080b12 0%, #111827 54%, #14101f 100%);
+    }
+
+    .grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, .055) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, .055) 1px, transparent 1px);
+      background-size: 72px 72px;
+      mask-image: linear-gradient(to bottom, rgba(0, 0, 0, .65), transparent 78%);
+    }
+
+    .frame {
+      position: absolute;
+      inset: 48px;
+      border: 1px solid rgba(230, 237, 243, .13);
+      border-radius: 28px;
+    }
+
+    .content {
+      position: relative;
+      z-index: 1;
+      height: 100%;
+      padding: 86px 92px 78px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 36px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: baseline;
+      gap: 20px;
+    }
+
+    .logo {
+      font-size: 112px;
+      line-height: .85;
+      font-weight: 950;
+      letter-spacing: 0;
+      background: linear-gradient(110deg, var(--blue), #7c8cff 52%, var(--violet));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      text-shadow: 0 22px 72px rgba(88, 166, 255, .38);
+    }
+
+    .tag {
+      padding-top: 12px;
+      color: var(--muted);
+      font-size: 24px;
+      font-weight: 800;
+      line-height: 1.25;
+      text-transform: uppercase;
+      letter-spacing: 3.2px;
+    }
+
+    .badge {
+      border: 1px solid rgba(86, 211, 100, .5);
+      background: rgba(86, 211, 100, .1);
+      color: #c9f5cf;
+      padding: 18px 24px;
+      border-radius: 999px;
+      font-size: 23px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    h1 {
+      margin: 72px 0 0;
+      max-width: 950px;
+      font-size: 76px;
+      line-height: 1.06;
+      letter-spacing: 0;
+      font-weight: 950;
+    }
+
+    .lead {
+      margin: 28px 0 0;
+      max-width: 940px;
+      color: #d7dee8;
+      font-size: 34px;
+      line-height: 1.48;
+      font-weight: 650;
+    }
+
+    .loop {
+      margin-top: 68px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 18px;
+    }
+
+    .step {
+      position: relative;
+      min-height: 178px;
+      padding: 26px 24px;
+      border: 1px solid rgba(230, 237, 243, .13);
+      border-radius: 18px;
+      background: rgba(13, 17, 23, .62);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05);
+    }
+
+    .step::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      right: -18px;
+      width: 18px;
+      height: 2px;
+      background: linear-gradient(90deg, rgba(88, 166, 255, .7), rgba(188, 140, 255, .7));
+    }
+
+    .step:last-child::after {
+      display: none;
+    }
+
+    .num {
+      color: var(--muted);
+      font-size: 18px;
+      font-weight: 900;
+    }
+
+    .name {
+      margin-top: 16px;
+      font-size: 34px;
+      line-height: 1;
+      font-weight: 950;
+    }
+
+    .desc {
+      margin-top: 17px;
+      color: #aeb9c8;
+      font-size: 20px;
+      line-height: 1.38;
+      font-weight: 650;
+    }
+
+    .blue { color: var(--blue); }
+    .violet { color: var(--violet); }
+    .amber { color: var(--amber); }
+    .red { color: var(--red); }
+
+    .bottom {
+      margin-top: auto;
+      display: grid;
+      grid-template-columns: 1.15fr .85fr;
+      gap: 28px;
+      align-items: stretch;
+    }
+
+    .message {
+      padding: 28px 30px;
+      border-left: 5px solid var(--green);
+      background: rgba(86, 211, 100, .075);
+      color: #e7f8ea;
+      font-size: 29px;
+      line-height: 1.4;
+      font-weight: 800;
+    }
+
+    .facts {
+      display: grid;
+      gap: 12px;
+      padding: 28px 30px;
+      border: 1px solid rgba(230, 237, 243, .13);
+      border-radius: 18px;
+      background: rgba(13, 17, 23, .54);
+    }
+
+    .fact {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      color: #dbe4ef;
+      font-size: 23px;
+      line-height: 1.25;
+      font-weight: 750;
+    }
+
+    .dot {
+      width: 11px;
+      height: 11px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: var(--blue);
+      box-shadow: 0 0 20px rgba(88, 166, 255, .75);
+    }
+
+    .foot {
+      margin-top: 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #8b949e;
+      font-size: 21px;
+      font-weight: 800;
+    }
+
+    .command {
+      color: #e6edf3;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 22px;
+      font-weight: 800;
+    }
+  </style>
+</head>
+<body>
+  <main class="card" aria-label="4x 社群推廣圖卡">
+    <div class="grid"></div>
+    <div class="frame"></div>
+    <section class="content">
+      <header class="top">
+        <div class="brand">
+          <div class="logo">4x</div>
+          <div class="tag">Multi-Role AI<br>Development Loop</div>
+        </div>
+        <div class="badge">給大型功能開發的 AI 工作流</div>
+      </header>
+
+      <h1>AI 開發，不該只有一個腦袋一路衝。</h1>
+      <p class="lead">4x 把軟體工程拆成四個隔離角色：先設計、再實作、獨立審查、最後用證據測試。</p>
+
+      <div class="loop">
+        <article class="step">
+          <div class="num">01</div>
+          <div class="name blue">Design</div>
+          <div class="desc">先定義需求、邊界與驗收標準</div>
+        </article>
+        <article class="step">
+          <div class="num">02</div>
+          <div class="name violet">Code</div>
+          <div class="desc">照規格實作，不替自己打分數</div>
+        </article>
+        <article class="step">
+          <div class="num">03</div>
+          <div class="name amber">Review</div>
+          <div class="desc">用對抗視角找風險與破綻</div>
+        </article>
+        <article class="step">
+          <div class="num">04</div>
+          <div class="name red">Test</div>
+          <div class="desc">根據事前標準留下驗證證據</div>
+        </article>
+      </div>
+
+      <div class="bottom">
+        <div class="message">不是讓 AI 更自由，而是讓 AI 在結構裡可靠地交付。</div>
+        <div class="facts">
+          <div class="fact"><span class="dot"></span><span>Go CLI 強制 guardrail</span></div>
+          <div class="fact"><span class="dot"></span><span>.4x 檔案協定可中斷續跑</span></div>
+          <div class="fact"><span class="dot"></span><span>支援 Claude / Codex / Gemini 等 runner</span></div>
+        </div>
+      </div>
+
+      <footer class="foot">
+        <span>github.com/ggwhite/4x</span>
+        <span class="command">brew install ggwhite/tap/4x</span>
+      </footer>
+    </section>
+  </main>
+</body>
+</html>

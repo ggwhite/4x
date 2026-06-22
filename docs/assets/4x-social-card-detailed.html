@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>4x 詳細版社群圖卡</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #080b12;
+      --panel: rgba(13, 17, 23, .72);
+      --panel-strong: rgba(18, 24, 36, .9);
+      --line: rgba(230, 237, 243, .13);
+      --text: #f5f8fc;
+      --muted: #a9b6c7;
+      --soft: #d9e2ee;
+      --blue: #58a6ff;
+      --violet: #bc8cff;
+      --green: #56d364;
+      --amber: #f2cc60;
+      --red: #ff7b72;
+      --cyan: #39c5cf;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: #05070b;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    }
+
+    .card {
+      position: relative;
+      width: 1080px;
+      height: 2200px;
+      overflow: hidden;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 15% 8%, rgba(88, 166, 255, .28), transparent 25%),
+        radial-gradient(circle at 88% 9%, rgba(188, 140, 255, .2), transparent 26%),
+        radial-gradient(circle at 85% 68%, rgba(57, 197, 207, .13), transparent 28%),
+        radial-gradient(circle at 16% 91%, rgba(86, 211, 100, .13), transparent 26%),
+        linear-gradient(145deg, #070a11 0%, #111827 52%, #15111f 100%);
+    }
+
+    .grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, .05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, .05) 1px, transparent 1px);
+      background-size: 60px 60px;
+      mask-image: linear-gradient(to bottom, rgba(0, 0, 0, .72), transparent 84%);
+    }
+
+    .frame {
+      position: absolute;
+      inset: 38px;
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      pointer-events: none;
+    }
+
+    .content {
+      position: relative;
+      z-index: 1;
+      height: 100%;
+      padding: 66px 72px 58px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 30px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: flex-start;
+      gap: 20px;
+    }
+
+    .logo {
+      font-size: 96px;
+      line-height: .82;
+      font-weight: 950;
+      letter-spacing: 0;
+      background: linear-gradient(110deg, var(--blue), #7c8cff 52%, var(--violet));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      text-shadow: 0 22px 64px rgba(88, 166, 255, .34);
+    }
+
+    .brand-copy {
+      padding-top: 9px;
+      color: var(--muted);
+      font-size: 21px;
+      line-height: 1.28;
+      font-weight: 850;
+      letter-spacing: 2.7px;
+      text-transform: uppercase;
+    }
+
+    .badge {
+      padding: 14px 20px;
+      border: 1px solid rgba(86, 211, 100, .45);
+      border-radius: 999px;
+      background: rgba(86, 211, 100, .1);
+      color: #cff7d5;
+      font-size: 20px;
+      line-height: 1.25;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    h1 {
+      margin: 56px 0 0;
+      max-width: 900px;
+      font-size: 62px;
+      line-height: 1.08;
+      letter-spacing: 0;
+      font-weight: 950;
+    }
+
+    .lead {
+      margin: 24px 0 0;
+      max-width: 910px;
+      color: #dce4ee;
+      font-size: 29px;
+      line-height: 1.5;
+      font-weight: 700;
+    }
+
+    .thesis {
+      margin-top: 30px;
+      padding: 24px 28px;
+      border-left: 5px solid var(--green);
+      background: rgba(86, 211, 100, .08);
+      color: #e7f9eb;
+      font-size: 27px;
+      line-height: 1.42;
+      font-weight: 850;
+    }
+
+    .section-title {
+      margin: 44px 0 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      color: #f1f5fb;
+      font-size: 26px;
+      line-height: 1.2;
+      font-weight: 950;
+    }
+
+    .section-title::before {
+      content: "";
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--blue);
+      box-shadow: 0 0 24px rgba(88, 166, 255, .72);
+    }
+
+    .roles {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+
+    .role {
+      min-height: 178px;
+      padding: 22px 22px 20px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--panel);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05);
+    }
+
+    .role-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .role-index {
+      color: var(--muted);
+      font-size: 17px;
+      font-weight: 950;
+    }
+
+    .role-name {
+      font-size: 32px;
+      line-height: 1;
+      font-weight: 950;
+    }
+
+    .role p {
+      margin: 18px 0 0;
+      color: #bec9d8;
+      font-size: 21px;
+      line-height: 1.42;
+      font-weight: 700;
+    }
+
+    .blue { color: var(--blue); }
+    .violet { color: var(--violet); }
+    .amber { color: var(--amber); }
+    .red { color: var(--red); }
+    .green { color: var(--green); }
+    .cyan { color: var(--cyan); }
+
+    .compare {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .compare-card {
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--panel-strong);
+    }
+
+    .compare-card h2 {
+      margin: 0 0 18px;
+      font-size: 27px;
+      line-height: 1.16;
+      font-weight: 950;
+    }
+
+    .points {
+      display: grid;
+      gap: 12px;
+    }
+
+    .point {
+      display: flex;
+      gap: 12px;
+      color: #d7e0eb;
+      font-size: 20px;
+      line-height: 1.36;
+      font-weight: 720;
+    }
+
+    .mark {
+      width: 9px;
+      height: 9px;
+      margin-top: 9px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 20px currentColor;
+    }
+
+    .guardrails {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+
+    .guard {
+      min-height: 138px;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(13, 17, 23, .64);
+    }
+
+    .guard strong {
+      display: block;
+      color: #f2f6fb;
+      font-size: 22px;
+      line-height: 1.2;
+      font-weight: 950;
+    }
+
+    .guard span {
+      display: block;
+      margin-top: 12px;
+      color: #b8c4d3;
+      font-size: 18px;
+      line-height: 1.35;
+      font-weight: 700;
+    }
+
+    .fit {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .fit-card {
+      padding: 23px 24px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(13, 17, 23, .62);
+    }
+
+    .fit-card h2 {
+      margin: 0 0 14px;
+      font-size: 25px;
+      line-height: 1.18;
+      font-weight: 950;
+    }
+
+    .fit-list {
+      display: grid;
+      gap: 10px;
+      color: #d6dfeb;
+      font-size: 19px;
+      line-height: 1.34;
+      font-weight: 720;
+    }
+
+    .bottom {
+      margin-top: auto;
+      display: grid;
+      grid-template-columns: 1.05fr .95fr;
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .install {
+      padding: 22px 24px;
+      border: 1px solid rgba(88, 166, 255, .32);
+      border-radius: 18px;
+      background: rgba(88, 166, 255, .08);
+    }
+
+    .install-label {
+      color: var(--muted);
+      font-size: 18px;
+      font-weight: 850;
+      text-transform: uppercase;
+      letter-spacing: 1.6px;
+    }
+
+    .command {
+      margin-top: 10px;
+      color: #f3f8ff;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 23px;
+      line-height: 1.25;
+      font-weight: 850;
+    }
+
+    .repo {
+      padding: 22px 24px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(13, 17, 23, .64);
+    }
+
+    .repo strong {
+      display: block;
+      color: #f3f7fc;
+      font-size: 25px;
+      line-height: 1.18;
+      font-weight: 950;
+    }
+
+    .repo span {
+      display: block;
+      margin-top: 12px;
+      color: #a9b6c7;
+      font-size: 20px;
+      line-height: 1.34;
+      font-weight: 750;
+    }
+  </style>
+</head>
+<body>
+  <main class="card" aria-label="4x 詳細版社群推廣圖卡">
+    <div class="grid"></div>
+    <div class="frame"></div>
+    <section class="content">
+      <header class="top">
+        <div class="brand">
+          <div class="logo">4x</div>
+          <div class="brand-copy">Multi-Role AI<br>Development Loop</div>
+        </div>
+        <div class="badge">AI coding workflow</div>
+      </header>
+
+      <h1>把 AI 開發從「單人衝刺」變成「工程流程」。</h1>
+      <p class="lead">4x 是一個多角色 AI 開發框架，把真實軟體工程拆成 Design、Code、Review、Test 四個階段，讓不同 AI agent 各司其職。</p>
+      <div class="thesis">核心想法：不要讓同一個 AI 同時設計、實作、審查、測試。角色隔離可以降低自我審查偏見，讓複雜功能更可控。</div>
+
+      <div class="section-title">四個角色，各自負責一段工程判斷</div>
+      <section class="roles">
+        <article class="role">
+          <div class="role-head">
+            <div class="role-name blue">Design</div>
+            <div class="role-index">01</div>
+          </div>
+          <p>先釐清需求、限制、風險與驗收標準。Designer 不寫程式，只負責把「要做什麼」講清楚。</p>
+        </article>
+        <article class="role">
+          <div class="role-head">
+            <div class="role-name violet">Code</div>
+            <div class="role-index">02</div>
+          </div>
+          <p>Coder 根據規格實作，不自己批准自己的產出。它只拿到該看的上下文，避免無限發散。</p>
+        </article>
+        <article class="role">
+          <div class="role-head">
+            <div class="role-name amber">Review</div>
+            <div class="role-index">03</div>
+          </div>
+          <p>Reviewer 天生用對抗視角檢查：範圍是否越界、設計是否被破壞、錯誤處理是否足夠。</p>
+        </article>
+        <article class="role">
+          <div class="role-head">
+            <div class="role-name red">Test</div>
+            <div class="role-index">04</div>
+          </div>
+          <p>Tester 依照事前標準驗證，而不是照 Coder 的說法相信它。測試結果必須留下可檢查證據。</p>
+        </article>
+      </section>
+
+      <div class="section-title">跟單一 agent 最大的差別</div>
+      <section class="compare">
+        <article class="compare-card">
+          <h2 class="red">單一 agent</h2>
+          <div class="points">
+            <div class="point red"><span class="mark"></span><span>速度快，但容易一邊寫一邊合理化自己的錯誤。</span></div>
+            <div class="point red"><span class="mark"></span><span>設計、實作、審查混在同一段上下文裡，偏見會互相污染。</span></div>
+            <div class="point red"><span class="mark"></span><span>適合小修、小腳本、低風險改動。</span></div>
+          </div>
+        </article>
+        <article class="compare-card">
+          <h2 class="green">4x loop</h2>
+          <div class="points">
+            <div class="point green"><span class="mark"></span><span>每個角色只做自己的工作，責任邊界清楚。</span></div>
+            <div class="point green"><span class="mark"></span><span>CLI 用狀態機、scope lock、證據要求強制流程，不靠 AI 自律。</span></div>
+            <div class="point green"><span class="mark"></span><span>適合大型 feature、重構、跨模組與高風險變更。</span></div>
+          </div>
+        </article>
+      </section>
+
+      <div class="section-title">4x 的 guardrail 不是 prompt，是工具強制</div>
+      <section class="guardrails">
+        <article class="guard">
+          <strong class="blue">狀態機</strong>
+          <span>init → designing → coding → reviewing → testing → accepting，流程可追蹤。</span>
+        </article>
+        <article class="guard">
+          <strong class="violet">檔案協定</strong>
+          <span>所有角色透過 .4x/ 交換 artifact，不依賴共享腦內上下文。</span>
+        </article>
+        <article class="guard">
+          <strong class="cyan">可續跑</strong>
+          <span>Session 中斷或機器重開後，4x run 能從中斷點恢復。</span>
+        </article>
+      </section>
+
+      <div class="section-title">什麼時候適合用？什麼時候不要用？</div>
+      <section class="fit">
+        <article class="fit-card">
+          <h2 class="green">適合</h2>
+          <div class="fit-list">
+            <div>大型功能開發，需要明確 spec 與驗收</div>
+            <div>跨模組重構，容易破壞既有行為</div>
+            <div>需要 review / test 證據，而不是只看 AI 自述</div>
+          </div>
+        </article>
+        <article class="fit-card">
+          <h2 class="amber">不適合</h2>
+          <div class="fit-list">
+            <div>一行 bug fix、一次性腳本、低風險小改</div>
+            <div>token 預算非常緊，不能接受多輪 agent</div>
+            <div>需求本身很模糊，還沒有可驗收標準</div>
+          </div>
+        </article>
+      </section>
+
+      <section class="bottom">
+        <div class="install">
+          <div class="install-label">Install</div>
+          <div class="command">brew install ggwhite/tap/4x</div>
+        </div>
+        <div class="repo">
+          <strong>github.com/ggwhite/4x</strong>
+          <span>把 AI agent 當成工程 pipeline 管，而不是單一萬能助手。</span>
+        </div>
+      </section>
+    </section>
+  </main>
+</body>
+</html>

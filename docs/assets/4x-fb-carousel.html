@@ -1,0 +1,639 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>4x Facebook Carousel</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #f6f8fb;
+      --soft: #dbe4ee;
+      --muted: #9dabbd;
+      --panel: rgba(10, 15, 24, .72);
+      --panel-strong: rgba(14, 20, 31, .92);
+      --line: rgba(230, 237, 243, .14);
+      --blue: #58a6ff;
+      --violet: #a78bfa;
+      --green: #56d364;
+      --amber: #f2cc60;
+      --red: #ff7b72;
+      --cyan: #39c5cf;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #05070b;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    }
+
+    .slide {
+      position: relative;
+      width: 1080px;
+      height: 1350px;
+      overflow: hidden;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 14% 10%, rgba(88, 166, 255, .3), transparent 30%),
+        radial-gradient(circle at 88% 13%, rgba(167, 139, 250, .22), transparent 30%),
+        radial-gradient(circle at 76% 91%, rgba(57, 197, 207, .13), transparent 28%),
+        linear-gradient(145deg, #070a11 0%, #101827 54%, #161120 100%);
+    }
+
+    .slide:nth-child(even) {
+      background:
+        radial-gradient(circle at 84% 12%, rgba(86, 211, 100, .2), transparent 28%),
+        radial-gradient(circle at 18% 88%, rgba(88, 166, 255, .18), transparent 31%),
+        linear-gradient(145deg, #070a11 0%, #111827 50%, #101521 100%);
+    }
+
+    .grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, .052) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, .052) 1px, transparent 1px);
+      background-size: 72px 72px;
+      mask-image: linear-gradient(to bottom, rgba(0, 0, 0, .78), transparent 88%);
+    }
+
+    .frame {
+      position: absolute;
+      inset: 30px;
+      border: 1px solid var(--line);
+      border-radius: 28px;
+    }
+
+    .content {
+      position: relative;
+      z-index: 1;
+      height: 100%;
+      padding: 58px 64px 50px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 32px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: flex-start;
+      gap: 18px;
+    }
+
+    .logo {
+      font-size: 94px;
+      line-height: .82;
+      font-weight: 950;
+      letter-spacing: 0;
+      background: linear-gradient(110deg, var(--blue), #7c8cff 52%, var(--violet));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .brand-copy {
+      padding-top: 8px;
+      color: var(--muted);
+      font-size: 20px;
+      line-height: 1.27;
+      font-weight: 900;
+      letter-spacing: 2.4px;
+      text-transform: uppercase;
+    }
+
+    .number {
+      min-width: 104px;
+      padding: 14px 18px;
+      border: 1px solid rgba(86, 211, 100, .45);
+      border-radius: 999px;
+      background: rgba(86, 211, 100, .1);
+      color: #cff7d5;
+      font-size: 23px;
+      line-height: 1;
+      font-weight: 950;
+      text-align: center;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    .eyebrow {
+      margin-top: 50px;
+      color: var(--blue);
+      font-size: 25px;
+      line-height: 1.2;
+      font-weight: 950;
+      letter-spacing: 1.4px;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 22px 0 0;
+      max-width: 900px;
+      font-size: 76px;
+      line-height: 1.06;
+      letter-spacing: 0;
+      font-weight: 950;
+    }
+
+    .lead {
+      margin: 30px 0 0;
+      max-width: 900px;
+      color: var(--soft);
+      font-size: 36px;
+      line-height: 1.42;
+      font-weight: 750;
+    }
+
+    .thesis {
+      margin-top: 38px;
+      padding: 32px 36px;
+      border-left: 6px solid var(--green);
+      background: rgba(86, 211, 100, .085);
+      color: #e8faec;
+      font-size: 32px;
+      line-height: 1.42;
+      font-weight: 900;
+    }
+
+    .footer {
+      margin-top: auto;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 30px;
+      color: var(--muted);
+      font-size: 23px;
+      line-height: 1.25;
+      font-weight: 850;
+    }
+
+    .repo {
+      color: #eef4fb;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 23px;
+      font-weight: 850;
+    }
+
+    .role-grid {
+      margin-top: 40px;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+
+    .role {
+      min-height: 238px;
+      padding: 30px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--panel);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, .055);
+    }
+
+    .role-head,
+    .mini-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .role-name {
+      font-size: 42px;
+      line-height: 1;
+      font-weight: 950;
+    }
+
+    .role-num,
+    .mini-num {
+      color: var(--muted);
+      font-size: 18px;
+      font-weight: 950;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    .role p {
+      margin: 20px 0 0;
+      color: #c2cedc;
+      font-size: 25px;
+      line-height: 1.4;
+      font-weight: 750;
+    }
+
+    .two-col {
+      margin-top: 42px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px;
+    }
+
+    .compare-card,
+    .fit-card {
+      min-height: 520px;
+      padding: 34px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--panel-strong);
+    }
+
+    .compare-card h2,
+    .fit-card h2 {
+      margin: 0;
+      font-size: 40px;
+      line-height: 1.1;
+      font-weight: 950;
+    }
+
+    .points {
+      margin-top: 28px;
+      display: grid;
+      gap: 24px;
+    }
+
+    .point {
+      display: flex;
+      gap: 14px;
+      color: #d9e2ee;
+      font-size: 27px;
+      line-height: 1.36;
+      font-weight: 760;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      margin-top: 12px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 20px currentColor;
+    }
+
+    .guard-list {
+      margin-top: 42px;
+      display: grid;
+      gap: 22px;
+    }
+
+    .guard {
+      display: grid;
+      grid-template-columns: 230px 1fr;
+      gap: 30px;
+      align-items: start;
+      padding: 34px 36px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--panel);
+    }
+
+    .guard strong {
+      font-size: 38px;
+      line-height: 1.1;
+      font-weight: 950;
+    }
+
+    .guard span {
+      color: #c9d4e1;
+      font-size: 29px;
+      line-height: 1.38;
+      font-weight: 760;
+    }
+
+    .install {
+      margin-top: 42px;
+      padding: 36px 38px;
+      border: 1px solid rgba(88, 166, 255, .36);
+      border-radius: 20px;
+      background: rgba(88, 166, 255, .09);
+    }
+
+    .install-label {
+      color: var(--muted);
+      font-size: 19px;
+      font-weight: 950;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .command {
+      margin-top: 14px;
+      color: #f3f8ff;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 34px;
+      line-height: 1.2;
+      font-weight: 900;
+    }
+
+    .blue { color: var(--blue); }
+    .violet { color: var(--violet); }
+    .green { color: var(--green); }
+    .amber { color: var(--amber); }
+    .red { color: var(--red); }
+    .cyan { color: var(--cyan); }
+
+    .mechanics {
+      margin-top: 38px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+    }
+
+    .mechanic {
+      min-height: 180px;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--panel);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, .055);
+    }
+
+    .mechanic strong {
+      display: block;
+      color: #f4f8fd;
+      font-size: 26px;
+      line-height: 1.18;
+      font-weight: 950;
+    }
+
+    .mechanic span {
+      display: block;
+      margin-top: 14px;
+      color: #c4cfdd;
+      font-size: 21px;
+      line-height: 1.35;
+      font-weight: 760;
+    }
+
+    .flow-strip {
+      margin-top: 34px;
+      padding: 28px 30px;
+      border: 1px solid rgba(88, 166, 255, .28);
+      border-radius: 20px;
+      background: rgba(88, 166, 255, .075);
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      align-items: center;
+    }
+
+    .flow-step {
+      position: relative;
+      color: #edf5ff;
+      font-size: 22px;
+      line-height: 1.16;
+      font-weight: 950;
+      text-align: center;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    .flow-step::after {
+      content: "→";
+      position: absolute;
+      right: -12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--blue);
+      font-size: 22px;
+    }
+
+    .flow-step:last-child::after {
+      display: none;
+    }
+
+    .slide-01 h1 {
+      font-size: 82px;
+    }
+
+    .slide-01 .lead {
+      font-size: 37px;
+    }
+
+    .slide-02 h1,
+    .slide-04 h1 {
+      font-size: 72px;
+    }
+
+    .slide-04 .guard {
+      min-height: 212px;
+    }
+
+    .slide-05 .fit-card {
+      min-height: 552px;
+    }
+  </style>
+</head>
+<body>
+  <section class="slide slide-01">
+    <div class="grid"></div>
+    <div class="frame"></div>
+    <main class="content">
+      <header class="top">
+        <div class="brand">
+          <div class="logo">4x</div>
+          <div class="brand-copy">Multi-Role AI<br>Development Loop</div>
+        </div>
+        <div class="number">01/05</div>
+      </header>
+      <div class="eyebrow">What is 4x?</div>
+      <h1>把 AI 開發從「單人衝刺」變成「工程流程」。</h1>
+      <p class="lead">4x 是一個多角色 AI 開發框架，把真實軟體工程拆成 Design、Code、Review、Test 四個階段，讓不同 AI agent 各司其職。</p>
+      <div class="thesis">核心想法：不要讓同一個 AI 同時設計、實作、審查、測試。角色隔離可以降低自我審查偏見，讓複雜功能更可控。</div>
+      <section class="mechanics">
+        <article class="mechanic">
+          <strong class="blue">Role isolation</strong>
+          <span>設計、實作、審查、測試分開跑，避免同一段上下文互相污染。</span>
+        </article>
+        <article class="mechanic">
+          <strong class="green">CLI guardrail</strong>
+          <span>範圍、狀態、證據由 Go CLI 強制，不靠 AI 自己乖。</span>
+        </article>
+        <article class="mechanic">
+          <strong class="violet">File protocol</strong>
+          <span>所有角色透過 .4x/ artifacts 協作，可以中斷續跑。</span>
+        </article>
+      </section>
+      <footer class="footer">
+        <span>給大型功能、重構、跨模組變更的 AI 工作流</span>
+        <span class="repo">github.com/ggwhite/4x</span>
+      </footer>
+    </main>
+  </section>
+
+  <section class="slide slide-02">
+    <div class="grid"></div>
+    <div class="frame"></div>
+    <main class="content">
+      <header class="top">
+        <div class="brand">
+          <div class="logo">4x</div>
+          <div class="brand-copy">Design<br>Code Review Test</div>
+        </div>
+        <div class="number">02/05</div>
+      </header>
+      <div class="eyebrow">Four roles</div>
+      <h1>四個角色，各自負責一段工程判斷。</h1>
+      <section class="role-grid">
+        <article class="role">
+          <div class="role-head">
+            <div class="role-name blue">Design</div>
+            <div class="role-num">01</div>
+          </div>
+          <p>先釐清需求、限制、風險與驗收標準。Designer 不寫程式，只負責把「要做什麼」講清楚。</p>
+        </article>
+        <article class="role">
+          <div class="role-head">
+            <div class="role-name violet">Code</div>
+            <div class="role-num">02</div>
+          </div>
+          <p>Coder 根據規格實作，不自己批准自己的產出。它只拿到該看的上下文，避免無限發散。</p>
+        </article>
+        <article class="role">
+          <div class="role-head">
+            <div class="role-name amber">Review</div>
+            <div class="role-num">03</div>
+          </div>
+          <p>Reviewer 用對抗視角檢查：範圍是否越界、設計是否被破壞、錯誤處理是否足夠。</p>
+        </article>
+        <article class="role">
+          <div class="role-head">
+            <div class="role-name red">Test</div>
+            <div class="role-num">04</div>
+          </div>
+          <p>Tester 依照事前標準驗證，而不是照 Coder 的說法相信它。結果必須留下可檢查證據。</p>
+        </article>
+      </section>
+      <section class="flow-strip">
+        <div class="flow-step">Design</div>
+        <div class="flow-step">Code</div>
+        <div class="flow-step">Review</div>
+        <div class="flow-step">Test</div>
+        <div class="flow-step">Done</div>
+      </section>
+      <footer class="footer">
+        <span>同一個 feature，分成四種責任與四種視角。</span>
+        <span class="repo">4x run</span>
+      </footer>
+    </main>
+  </section>
+
+  <section class="slide slide-03">
+    <div class="grid"></div>
+    <div class="frame"></div>
+    <main class="content">
+      <header class="top">
+        <div class="brand">
+          <div class="logo">4x</div>
+          <div class="brand-copy">Single agent<br>vs 4x loop</div>
+        </div>
+        <div class="number">03/05</div>
+      </header>
+      <div class="eyebrow">Why split the loop?</div>
+      <h1>單一 agent 快，但容易把自己的錯誤合理化。</h1>
+      <section class="two-col">
+        <article class="compare-card">
+          <h2 class="red">單一 agent</h2>
+          <div class="points">
+            <div class="point red"><span class="dot"></span><span>速度快，但一邊寫一邊審，容易自我說服。</span></div>
+            <div class="point red"><span class="dot"></span><span>設計、實作、審查混在同一段上下文，偏見會互相污染。</span></div>
+            <div class="point red"><span class="dot"></span><span>適合小修、小腳本、低風險改動。</span></div>
+          </div>
+        </article>
+        <article class="compare-card">
+          <h2 class="green">4x loop</h2>
+          <div class="points">
+            <div class="point green"><span class="dot"></span><span>每個角色只做自己的工作，責任邊界清楚。</span></div>
+            <div class="point green"><span class="dot"></span><span>Reviewer 不替 Coder 圓場，Tester 不照 Coder 自述驗收。</span></div>
+            <div class="point green"><span class="dot"></span><span>適合大型 feature、重構、跨模組與高風險變更。</span></div>
+          </div>
+        </article>
+      </section>
+      <div class="thesis">4x 不是追求最少步驟，而是把「會出錯的地方」拆開，讓每一步都有獨立檢查。</div>
+    </main>
+  </section>
+
+  <section class="slide slide-04">
+    <div class="grid"></div>
+    <div class="frame"></div>
+    <main class="content">
+      <header class="top">
+        <div class="brand">
+          <div class="logo">4x</div>
+          <div class="brand-copy">Deterministic<br>Guardrails</div>
+        </div>
+        <div class="number">04/05</div>
+      </header>
+      <div class="eyebrow">Guardrails</div>
+      <h1>4x 的安全邊界不是 prompt，是工具強制。</h1>
+      <section class="guard-list">
+        <article class="guard">
+          <strong class="blue">狀態機</strong>
+          <span>init → designing → coding → reviewing → testing → accepting，流程可追蹤，也能阻止亂跳階段。</span>
+        </article>
+        <article class="guard">
+          <strong class="violet">檔案協定</strong>
+          <span>所有角色透過 .4x/ 交換 artifact，不依賴共享腦內上下文，也不需要 CLI 直接呼叫 LLM。</span>
+        </article>
+        <article class="guard">
+          <strong class="cyan">可續跑</strong>
+          <span>Session 中斷、機器重開、runner crash 後，4x run 可以從已保存的狀態與證據繼續。</span>
+        </article>
+      </section>
+      <footer class="footer">
+        <span>AI 負責判斷，CLI 負責邊界。</span>
+        <span class="repo">.4x/ protocol</span>
+      </footer>
+    </main>
+  </section>
+
+  <section class="slide slide-05">
+    <div class="grid"></div>
+    <div class="frame"></div>
+    <main class="content">
+      <header class="top">
+        <div class="brand">
+          <div class="logo">4x</div>
+          <div class="brand-copy">When to use<br>How to start</div>
+        </div>
+        <div class="number">05/05</div>
+      </header>
+      <div class="eyebrow">Fit</div>
+      <h1>用速度和 token 成本，換結構與正確性。</h1>
+      <section class="two-col">
+        <article class="fit-card">
+          <h2 class="green">適合</h2>
+          <div class="points">
+            <div class="point green"><span class="dot"></span><span>大型功能開發，需要明確 spec 與驗收。</span></div>
+            <div class="point green"><span class="dot"></span><span>跨模組重構，容易破壞既有行為。</span></div>
+            <div class="point green"><span class="dot"></span><span>需要 review / test 證據，不只看 AI 自述。</span></div>
+          </div>
+        </article>
+        <article class="fit-card">
+          <h2 class="amber">不適合</h2>
+          <div class="points">
+            <div class="point amber"><span class="dot"></span><span>一行 bug fix、一次性腳本、低風險小改。</span></div>
+            <div class="point amber"><span class="dot"></span><span>token 預算很緊，不能接受多輪 agent。</span></div>
+            <div class="point amber"><span class="dot"></span><span>需求仍然模糊，還沒有可驗收標準。</span></div>
+          </div>
+        </article>
+      </section>
+      <div class="install">
+        <div class="install-label">Install</div>
+        <div class="command">brew install ggwhite/tap/4x</div>
+      </div>
+      <footer class="footer">
+        <span>把 AI agent 當成工程 pipeline 管，而不是單一萬能助手。</span>
+        <span class="repo">github.com/ggwhite/4x</span>
+      </footer>
+    </main>
+  </section>
+</body>
+</html>
