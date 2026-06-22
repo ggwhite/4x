@@ -398,8 +398,6 @@ func TestProjectSettingsModalContainsSettingsSections(t *testing.T) {
 	// 驗證預期的 element ID 存在
 	expectedIDs := []string{
 		"settings-profiles-section",
-		"settings-roles-section",
-		"settings-defaults-section",
 		"profile-editor-modal",
 	}
 

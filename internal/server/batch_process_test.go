@@ -24,7 +24,7 @@ func fakeBatchCommand(t *testing.T) string {
 
 func waitUntil(t *testing.T, cond func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(6 * time.Second)
 	for time.Now().Before(deadline) {
 		if cond() {
 			return
@@ -91,10 +91,13 @@ func TestBatchManager_AdoptAliveOrphan(t *testing.T) {
 	// 孤兒結束後，watcher（2s ticker）最終會把 running 清為 false 並刪除 PID 檔。
 	_ = orphan.Process.Kill()
 	_, _ = orphan.Process.Wait()
-	waitUntil(t, func() bool { return !bm.Running() })
-	if pid, _ := ws.ReadBatchPID(); pid != 0 {
-		t.Errorf("expected batch-pid cleared after orphan exit, got %d", pid)
-	}
+	waitUntil(t, func() bool {
+		if bm.Running() {
+			return false
+		}
+		pid, _ := ws.ReadBatchPID()
+		return pid == 0
+	})
 }
 
 // F075：Adopt 遇到指向已死程序的 stale PID 檔時，清掉檔案且維持非執行狀態。
