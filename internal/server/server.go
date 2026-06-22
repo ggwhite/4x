@@ -301,6 +301,18 @@ func NewMux(resolver WorkspaceResolver) http.Handler {
 		}
 		handlePostBatchContinue(ws, bm, w, r)
 	})
+	mux.HandleFunc("/api/evolve-report", func(w http.ResponseWriter, r *http.Request) {
+		ws, _, _, err := resolver(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		handleEvolveReport(ws, w)
+	})
 	mux.HandleFunc("/api/messages/", func(w http.ResponseWriter, r *http.Request) {
 		ws, _, _, err := resolver(r)
 		if err != nil {
@@ -956,6 +968,17 @@ func buildPhaseInfo(ws *protocol.CachedWorkspace, featureID string) map[duration
 		}
 	}
 	return result
+}
+
+// handleEvolveReport 回傳 .4x/evolve-report.md 內容（markdown 字串），供 dashboard surface
+// 最近一輪 evolve pipeline 的發現/接受/拒絕/排入摘要。檔不存在時回 exists:false 與空 content。
+func handleEvolveReport(ws *protocol.CachedWorkspace, w http.ResponseWriter) {
+	content := readIfExists(filepath.Join(ws.DotDir(), protocol.EvolveReportFile))
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(struct {
+		Content string `json:"content"`
+		Exists  bool   `json:"exists"`
+	}{Content: content, Exists: content != ""})
 }
 
 func handleEvents(ws *protocol.CachedWorkspace, featureID string, w http.ResponseWriter) {

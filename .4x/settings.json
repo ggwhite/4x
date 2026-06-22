@@ -53,7 +53,8 @@
     "value_floor": 0.6,
     "max_accept_per_run": 3,
     "max_backlog_undone": 15,
-    "dedup_threshold": 0.6
+    "dedup_threshold": 0.6,
+    "max_idle_rounds": 3
   },
   "default_profile": "full",
   "profiles": {

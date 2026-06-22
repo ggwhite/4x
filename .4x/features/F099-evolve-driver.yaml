@@ -11,7 +11,7 @@ description: |-
     - dashboard 顯示 evolve 結果（沿用既有 discovered-features 呈現）
 
     約束：預設半自動（閘門通過只 enqueue，--auto-run 才自動跑）；自動跑強制套 F098 scope guard；每輪產 report；連續 N 輪沒接受任何 candidate 即停止報告防空轉。
-status: not-started
+status: in-progress
 priority: 2
 subtasks:
     - id: evolve-command
