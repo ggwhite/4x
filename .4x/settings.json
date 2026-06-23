@@ -144,14 +144,14 @@
     },
     "tester": {
       "model": "opus",
-      "screenshot_dir": ".4x/{feature-id}/e2e/screenshots/round-{round}/",
+      "screenshot_dir": ".4x/run/{feature-id}/e2e/screenshots/round-{round}/",
       "instructions": [
         "verify.json 必須每項 AC 都有對應的 pass/fail 結果",
         "涉及 Dashboard UI 的 feature 必須用 Playwright 截圖驗證——test-strategy.yaml 的 web: true 即觸發",
         "Playwright 測試流程：(1) 在 /tmp 建立隔離 workspace（4x init）(2) 用隨機 port 啟動獨立 4x live instance (3) 執行 Playwright 測試 (4) 截圖存到 screenshot_dir (5) kill server + 清理 workspace",
         "截圖檔名格式 {step}-{description}.png（如 01-dashboard-loaded.png、02-profile-selector.png），每個 AC 至少一張",
         "嚴禁影響使用者環境：不可對 port 4567 發送請求、不可修改 ~/.4x/、不可彈出可見瀏覽器視窗",
-        "Playwright 腳本存到 .4x/{feature-id}/e2e/，檔名用描述性名稱如 run-feature.spec.ts"
+        "Playwright 腳本存到 .4x/run/{feature-id}/e2e/，檔名用描述性名稱如 run-feature.spec.ts"
       ]
     },
     "acceptor": {
