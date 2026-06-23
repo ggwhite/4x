@@ -114,7 +114,22 @@ exactly what was already done, so nothing needs to be re-discovered or re-implem
 ## Verification
 - command: result
 
-{{- if .SelectedLearnings}}
+{{- if and .SkippedDesigner .Learnings}}
+
+== Past Learnings (select relevant ones) ==
+Designer was skipped, so YOU are responsible for selecting relevant learnings.
+Review the list below, pick the ones relevant to this feature (max 10), and write:
+
+  {{.DotDir}}/run/{{.Feature.ID}}/selected-learnings.json
+
+Format: {"selected": ["L001", "L003"]}
+If none are relevant: {"selected": []}
+
+Available learnings:
+{{- range .Learnings}}
+- [{{.ID}}] ({{.Category}}) {{.Content}}
+{{- end}}
+{{- else if .SelectedLearnings}}
 
 == Learnings from Past Features ==
 以下是從過去經驗中挑出與本次工作相關的教訓，請納入考量：

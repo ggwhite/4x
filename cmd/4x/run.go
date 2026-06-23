@@ -754,18 +754,19 @@ func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, featur
 	//   - learnings.json 由 CLI 在主 workspace 管理，本來就不會 sync 到 worktree。
 	//   - selected-learnings.json 由 Designer 寫在 worktree，但會由 syncFeatureFromWorktree
 	//     帶回主 workspace，因此後續 role 一律從主 workspace 讀取最新選擇。
+	briefPath := filepath.Join(ws.FeatureDir(feature.ID), protocol.TaskBrief)
+	skippedDesigner := false
+	if _, err := os.Stat(briefPath); err != nil {
+		skippedDesigner = true
+	}
 	if role == protocol.RoleDesigner {
+		data.Learnings = loadActiveLearnings(ws.DotDir())
+	} else if skippedDesigner && round == 1 && role == protocol.RoleCoder {
 		data.Learnings = loadActiveLearnings(ws.DotDir())
 	} else {
 		data.SelectedLearnings = loadSelectedLearnings(ws.DotDir(), feature.ID, role)
-		if len(data.SelectedLearnings) == 0 {
-			data.SelectedLearnings = autoSelectLearnings(ws.DotDir(), role)
-		}
 	}
-	briefPath := filepath.Join(ws.FeatureDir(feature.ID), protocol.TaskBrief)
-	if _, err := os.Stat(briefPath); err != nil {
-		data.SkippedDesigner = true
-	}
+	data.SkippedDesigner = skippedDesigner
 	for _, opt := range opts {
 		opt(&data)
 	}

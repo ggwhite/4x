@@ -439,40 +439,6 @@ func loadActiveLearnings(dotDir string) []learning.Entry {
 	return store.ActiveEntries()
 }
 
-// loadSelectedLearnings 讀取 Designer 產出的 selected-learnings.json，反查 learnings.json
-// 取完整內容，只保留 status==active 且 category 屬於該 role 白名單的條目，並硬限制最多
-// MaxSelectedPerRole 條。任何失敗只回傳 nil（warn），不影響 prompt 產生。
-// autoSelectLearnings 在 profile 跳過 designer 時自動按 role category 篩選 active learnings，
-// 取代 designer 手動選擇的流程。回傳最多 MaxSelectedPerRole 筆。
-func autoSelectLearnings(dotDir string, role protocol.Role) []learning.Entry {
-	storePath := filepath.Join(dotDir, protocol.LearningsFile)
-	store, err := learning.LoadStore(storePath)
-	if err != nil {
-		return nil
-	}
-
-	categories := learning.CategoriesForRole(string(role))
-	catSet := make(map[learning.Category]bool, len(categories))
-	for _, c := range categories {
-		catSet[c] = true
-	}
-
-	var result []learning.Entry
-	for _, e := range store.Entries {
-		if len(result) >= learning.MaxSelectedPerRole {
-			break
-		}
-		if e.Status != learning.StatusActive {
-			continue
-		}
-		if !catSet[e.Category] {
-			continue
-		}
-		result = append(result, e)
-	}
-	return result
-}
-
 func loadSelectedLearnings(dotDir, featureID string, role protocol.Role) []learning.Entry {
 	selPath := filepath.Join(dotDir, protocol.RunDir, featureID, protocol.SelectedLearningsFile)
 	data, err := os.ReadFile(selPath)
