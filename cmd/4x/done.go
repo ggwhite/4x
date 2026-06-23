@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
+	"path/filepath"
 
 	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/guard"
@@ -115,9 +117,36 @@ func autoMergeFeature(ws *protocol.Workspace, cfg protocol.Config, s protocol.St
 	if !result.Conflict && result.Error == "" {
 		if err := finalizeDone(ws, featureID, s); err != nil {
 			result.Error = fmt.Sprintf("finalize state failed: %v", err)
+		} else {
+			commitLearnings(ws)
 		}
 	}
 	return result
+}
+
+// commitLearnings 在 feature done 後自動 commit learnings.json（若有變更）。
+func commitLearnings(ws *protocol.Workspace) {
+	lpath := filepath.Join(ws.DotDir(), protocol.LearningsFile)
+	if _, err := os.Stat(lpath); err != nil {
+		return
+	}
+	rel, _ := filepath.Rel(ws.Root, lpath)
+	cmd := exec.Command("git", "diff", "--quiet", "--", rel)
+	cmd.Dir = ws.Root
+	if cmd.Run() == nil {
+		return
+	}
+	add := exec.Command("git", "add", rel)
+	add.Dir = ws.Root
+	if err := add.Run(); err != nil {
+		slog.Warn("git add learnings.json failed", "error", err)
+		return
+	}
+	ci := exec.Command("git", "commit", "-m", "chore: update learnings.json")
+	ci.Dir = ws.Root
+	if err := ci.Run(); err != nil {
+		slog.Warn("git commit learnings.json failed", "error", err)
+	}
 }
 
 // printSelfModApprovalRequired 印出受保護路徑變更需人工 approve 的訊息，列出觸及路徑與重跑指示。
