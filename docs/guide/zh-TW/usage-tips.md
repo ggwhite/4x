@@ -616,3 +616,31 @@ verify_commands:
 - 輪次之間無持久狀態（每輪都是全新開始）
 
 詳見[測試 Profile](concepts.md#test-profiles)了解覆寫 profile 的方法。
+
+---
+
+## 一次教會你的 AI Agent 4x
+
+預設情況下，每次新的 AI 對話都會從頭重讀 4x 文件。你可以透過新增**全域指令檔**來省去這個步驟，讓 agent 在對話開始前就已經知道 4x 命令、目錄結構與角色契約。
+
+### Claude Code
+
+在 `~/.claude/rules/4x.md` 建立 4x 快速參考（見下方範例）。`~/.claude/rules/` 裡的檔案會自動載入每個 session。
+
+### Gemini CLI
+
+在 `~/.gemini/instructions/4x.md` 建立相同內容。
+
+### Codex
+
+將 4x 指令加入你的全域 `AGENTS.md`。
+
+### 範例：全域規則用 4x 快速參考
+
+將 [`docs/reference/4x-agent-rules.md`](../../reference/4x-agent-rules.md) 複製到你的 agent 全域規則目錄。其中包含：
+
+- 所有 CLI 命令與常用旗標
+- `.4x/` 目錄結構
+- 角色契約（讀取 / 寫入 / 限制）
+- 狀態機轉換
+- 支援的 runner

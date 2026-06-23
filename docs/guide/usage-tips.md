@@ -618,3 +618,31 @@ If you don't use gstack, the built-in `web` profile works out of the box:
 - No persistent state between rounds (each round is a clean start)
 
 See [Test Profiles](concepts.md#test-profiles) for details on overriding profiles.
+
+---
+
+## Teach Your AI Agent 4x (Once)
+
+By default, every new AI conversation re-reads 4x docs from scratch. You can eliminate this by adding a **global instruction file** so your agent already knows 4x commands, directory layout, and role contracts before the conversation starts.
+
+### Claude Code
+
+Create `~/.claude/rules/4x.md` with the 4x quick reference (see example below). Files in `~/.claude/rules/` are loaded into every session automatically.
+
+### Gemini CLI
+
+Create `~/.gemini/instructions/4x.md` with the same content.
+
+### Codex
+
+Add 4x instructions to your global `AGENTS.md`.
+
+### Example: 4x Quick Reference for Global Rules
+
+Copy [`docs/reference/4x-agent-rules.md`](../reference/4x-agent-rules.md) to your agent's global rules directory. It contains:
+
+- All CLI commands with common flags
+- `.4x/` directory structure
+- Role contracts (reads / writes / constraints)
+- State machine transitions
+- Supported runners

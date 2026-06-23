@@ -616,3 +616,33 @@ Si no usas gstack, el perfil `web` integrado funciona de forma inmediata:
 - Crea un workspace temporal, arranca `4x live` en un puerto aleatorio
 - Ejecuta los tests, toma capturas de pantalla y limpia
 - No hay estado persistente entre rondas (cada ronda comienza desde cero)
+
+Consulta [Perfiles de Test](concepts.md#test-profiles) para más detalles sobre cómo sobreescribir perfiles.
+
+---
+
+## Enseña a tu AI Agent 4x (una sola vez)
+
+Por defecto, cada nueva conversación de AI vuelve a leer la documentación de 4x desde cero. Puedes eliminar esto añadiendo un **archivo de instrucciones global** para que tu agente ya conozca los comandos de 4x, la estructura de directorios y los contratos de rol antes de que comience la conversación.
+
+### Claude Code
+
+Crea `~/.claude/rules/4x.md` con la referencia rápida de 4x (ver ejemplo a continuación). Los archivos en `~/.claude/rules/` se cargan automáticamente en cada sesión.
+
+### Gemini CLI
+
+Crea `~/.gemini/instructions/4x.md` con el mismo contenido.
+
+### Codex
+
+Añade las instrucciones de 4x a tu `AGENTS.md` global.
+
+### Ejemplo: Referencia Rápida de 4x para Reglas Globales
+
+Copia [`docs/reference/4x-agent-rules.md`](../../reference/4x-agent-rules.md) al directorio de reglas globales de tu agente. Contiene:
+
+- Todos los comandos CLI con las flags más comunes
+- Estructura del directorio `.4x/`
+- Contratos de rol (lecturas / escrituras / restricciones)
+- Transiciones de la máquina de estados
+- Runners soportados
