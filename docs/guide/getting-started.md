@@ -167,6 +167,25 @@ cat .4x/F001/commit-plan.md
 4x done F001
 ```
 
+## Version Control
+
+`4x init` creates a `.4x/.gitignore` that excludes runtime artifacts. Commit the rest:
+
+| Path | Track | Why |
+|---|---|---|
+| `.4x/settings.json` | **Yes** | Project config — shared across the team |
+| `.4x/features/*.yaml` | **Yes** | Feature definitions |
+| `.4x/learnings.json` | **Yes** | Cross-feature retro knowledge base |
+| `.4x/candidates.json` | **Yes** | Auto-discovered feature candidate pool |
+| `.4x/plugins/` | **Yes** | Runner instruction files |
+| `.4x/run/` | **No** | Runtime artifacts (state, logs, reports) — auto-excluded by `.gitignore` |
+
+For existing projects initialized before this feature, add the gitignore manually:
+
+```bash
+printf 'run/\ngate-input.json\ngate-verdicts.json\nevolve-state.json\n' > .4x/.gitignore
+```
+
 ## Upgrade Plugin Files
 
 When you update the `4x` binary, re-deploy embedded plugins:

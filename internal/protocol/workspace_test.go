@@ -90,6 +90,14 @@ func TestInit_CreatesStructure(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dotDir, ConfigFile)); err != nil {
 		t.Errorf(".4x/settings.json not created: %v", err)
 	}
+	gi := filepath.Join(dotDir, ".gitignore")
+	if _, err := os.Stat(gi); err != nil {
+		t.Errorf(".4x/.gitignore not created: %v", err)
+	}
+	data, _ := os.ReadFile(gi)
+	if !strings.Contains(string(data), "run/") {
+		t.Errorf(".gitignore should contain 'run/', got: %s", data)
+	}
 }
 
 func TestConfigRoundtrip(t *testing.T) {

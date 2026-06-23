@@ -157,6 +157,25 @@ cat .4x/F001/commit-plan.md
 4x done F001
 ```
 
+## 版本控制
+
+`4x init` 会创建 `.4x/.gitignore` 排除运行时产物。其余文件应提交：
+
+| 路径 | 追踪 | 原因 |
+|---|---|---|
+| `.4x/settings.json` | **是** | 项目配置 — 团队共享 |
+| `.4x/features/*.yaml` | **是** | Feature 定义 |
+| `.4x/learnings.json` | **是** | 跨 feature 的回顾知识库 |
+| `.4x/candidates.json` | **是** | 自动发现的 feature 候选池 |
+| `.4x/plugins/` | **是** | Runner 指令文件 |
+| `.4x/run/` | **否** | 运行时产物（状态、日志、报告）— 由 `.gitignore` 自动排除 |
+
+对于在此功能之前初始化的既有项目，手动添加 gitignore：
+
+```bash
+printf 'run/\ngate-input.json\ngate-verdicts.json\nevolve-state.json\n' > .4x/.gitignore
+```
+
 ## 升级插件文件
 
 更新 `4x` 二进制文件后，重新部署嵌入的插件：

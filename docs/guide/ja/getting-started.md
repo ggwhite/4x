@@ -167,6 +167,25 @@ cat .4x/F001/commit-plan.md
 4x done F001
 ```
 
+## バージョン管理
+
+`4x init` はランタイム成果物を除外する `.4x/.gitignore` を作成します。それ以外はコミットしてください：
+
+| パス | 追跡 | 理由 |
+|---|---|---|
+| `.4x/settings.json` | **する** | プロジェクト設定 — チームで共有 |
+| `.4x/features/*.yaml` | **する** | Feature 定義 |
+| `.4x/learnings.json` | **する** | Feature 横断のレトロ知識ベース |
+| `.4x/candidates.json` | **する** | 自動発見された Feature 候補プール |
+| `.4x/plugins/` | **する** | Runner 指示ファイル |
+| `.4x/run/` | **しない** | ランタイム成果物（状態、ログ、レポート）— `.gitignore` で自動除外 |
+
+この機能より前に初期化された既存プロジェクトの場合は、手動で gitignore を追加してください：
+
+```bash
+printf 'run/\ngate-input.json\ngate-verdicts.json\nevolve-state.json\n' > .4x/.gitignore
+```
+
 ## プラグインファイルのアップグレード
 
 `4x` バイナリを更新した際は、埋め込みプラグインを再デプロイしてください：

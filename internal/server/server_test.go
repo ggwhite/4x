@@ -1265,6 +1265,7 @@ func setupMergeableWorktree(t *testing.T, ws *protocol.Workspace, featureID stri
 
 	makePendingReview(t, ws, featureID)
 	runGit(t, root, "add", "-A")
+	runGit(t, root, "add", "-f", filepath.Join(".4x", protocol.RunDir))
 	runGit(t, root, "commit", "-m", "base")
 
 	wtDir := filepath.Join(root, ".worktrees", "4x", featureID)

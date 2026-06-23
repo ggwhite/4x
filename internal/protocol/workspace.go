@@ -102,7 +102,24 @@ func Init(root string, cfg Config) error {
 		return fmt.Errorf("create .4x/: %w", err)
 	}
 
+	if err := writeGitignore(dotDir); err != nil {
+		return err
+	}
+
 	return WriteConfig(dotDir, cfg)
+}
+
+// writeGitignore 在 .4x/ 目錄內建立 .gitignore，排除 runtime artifacts。
+func writeGitignore(dotDir string) error {
+	const content = `# Runtime artifacts (per-feature state, logs, reports)
+run/
+
+# Evolve pipeline intermediate files
+gate-input.json
+gate-verdicts.json
+evolve-state.json
+`
+	return os.WriteFile(filepath.Join(dotDir, ".gitignore"), []byte(content), 0o644)
 }
 
 // DotDir 回傳 .4x/ 的完整路徑

@@ -157,6 +157,25 @@ cat .4x/F001/commit-plan.md
 4x done F001
 ```
 
+## Control de versiones
+
+`4x init` crea un `.4x/.gitignore` que excluye los artefactos de ejecución. Haz commit del resto:
+
+| Ruta | Rastrear | Razón |
+|---|---|---|
+| `.4x/settings.json` | **Sí** | Configuración del proyecto — compartida en el equipo |
+| `.4x/features/*.yaml` | **Sí** | Definiciones de features |
+| `.4x/learnings.json` | **Sí** | Base de conocimiento retrospectivo entre features |
+| `.4x/candidates.json` | **Sí** | Pool de features candidatos auto-descubiertos |
+| `.4x/plugins/` | **Sí** | Archivos de instrucciones del runner |
+| `.4x/run/` | **No** | Artefactos de ejecución (estado, logs, reportes) — excluidos automáticamente por `.gitignore` |
+
+Para proyectos existentes inicializados antes de esta característica, agrega el gitignore manualmente:
+
+```bash
+printf 'run/\ngate-input.json\ngate-verdicts.json\nevolve-state.json\n' > .4x/.gitignore
+```
+
 ## Actualizar archivos de plugins
 
 Cuando actualices el binario `4x`, vuelve a desplegar los plugins embebidos:

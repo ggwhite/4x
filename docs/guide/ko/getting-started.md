@@ -157,6 +157,25 @@ cat .4x/F001/commit-plan.md
 4x done F001
 ```
 
+## 버전 관리
+
+`4x init`은 런타임 아티팩트를 제외하는 `.4x/.gitignore`를 생성합니다. 나머지는 커밋하세요:
+
+| 경로 | 추적 | 이유 |
+|---|---|---|
+| `.4x/settings.json` | **예** | 프로젝트 설정 — 팀 공유 |
+| `.4x/features/*.yaml` | **예** | Feature 정의 |
+| `.4x/learnings.json` | **예** | Feature 간 회고 지식 베이스 |
+| `.4x/candidates.json` | **예** | 자동 발견된 feature 후보 풀 |
+| `.4x/plugins/` | **예** | Runner 지침 파일 |
+| `.4x/run/` | **아니요** | 런타임 아티팩트 (상태, 로그, 보고서) — `.gitignore`에 의해 자동 제외 |
+
+이 기능 이전에 초기화된 기존 프로젝트의 경우 수동으로 gitignore를 추가하세요:
+
+```bash
+printf 'run/\ngate-input.json\ngate-verdicts.json\nevolve-state.json\n' > .4x/.gitignore
+```
+
 ## 플러그인 파일 업그레이드
 
 `4x` 바이너리를 업데이트한 후 내장된 플러그인을 다시 배포합니다:

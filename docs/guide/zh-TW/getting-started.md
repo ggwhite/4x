@@ -157,6 +157,25 @@ cat .4x/F001/commit-plan.md
 4x done F001
 ```
 
+## 版本控制
+
+`4x init` 會建立 `.4x/.gitignore` 排除 runtime artifacts。其餘檔案應 commit：
+
+| 路徑 | 追蹤 | 原因 |
+|---|---|---|
+| `.4x/settings.json` | **是** | 專案設定 — 團隊共享 |
+| `.4x/features/*.yaml` | **是** | Feature 定義 |
+| `.4x/learnings.json` | **是** | 跨 feature 的 retro 知識庫 |
+| `.4x/candidates.json` | **是** | 自動發現的 feature 候選池 |
+| `.4x/plugins/` | **是** | Runner 指令檔 |
+| `.4x/run/` | **否** | Runtime artifacts（state、logs、reports）— 由 `.gitignore` 自動排除 |
+
+對於在此功能之前 init 的既有專案，手動加 gitignore：
+
+```bash
+printf 'run/\ngate-input.json\ngate-verdicts.json\nevolve-state.json\n' > .4x/.gitignore
+```
+
 ## 升級 Plugin 檔
 
 當你更新 `4x` binary 後，重新部署內嵌的 plugin：
