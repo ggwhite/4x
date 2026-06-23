@@ -11,8 +11,12 @@ You MUST create this file before finishing:
 Use the Write tool. Do NOT just print the content — write to disk.
 
 == Inputs ==
+{{- if .SkippedDesigner}}
+1. Read: {{.DotDir}}/features/{{.Feature.ID}}.yaml — the original design intent and acceptance criteria (Designer was skipped, no task-brief or acceptance-criteria)
+{{- else}}
 1. Read: {{.DotDir}}/run/{{.Feature.ID}}/task-brief.md — the original design intent
 2. Read: {{.DotDir}}/run/{{.Feature.ID}}/acceptance-criteria.md — what must be true
+{{- end}}
 3. Read the FINAL round's reports under {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/:
    - review-report.md — checklist reviewer findings
    - test-report.md — test results and pass/fail per AC

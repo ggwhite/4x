@@ -145,6 +145,7 @@
 #batch-panel .batch-btn { padding: 5px 14px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer; border: 1px solid var(--border); transition: filter .15s; }
 #batch-panel .batch-btn:hover { filter: brightness(1.15); }
 .batch-btn-start { background: var(--accent); color: #000; border: none; }
+.batch-btn-replan { background: rgba(96,165,250,.15); color: #60a5fa; border-color: rgba(96,165,250,.4); }
 .batch-btn-stop { background: rgba(239,68,68,.15); color: #f87171; border-color: rgba(239,68,68,.4); }
 .batch-btn-continue { background: rgba(245,158,11,.18); color: #fbbf24; border-color: rgba(245,158,11,.4); margin-top: 8px; }
 .batch-running-ind { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #34d399; }

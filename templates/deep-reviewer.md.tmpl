@@ -99,8 +99,16 @@ You MUST create this file before finishing:
 Use the Write tool. Do NOT just print the content — write to disk.
 
 == Inputs (you MUST read ALL of these) ==
+{{- if .SkippedDesigner}}
+1. Read: {{.DotDir}}/features/{{.Feature.ID}}.yaml — understand WHAT the code should do (no acceptance-criteria because Designer was skipped)
+{{- else}}
 1. Read: {{.DotDir}}/run/{{.Feature.ID}}/acceptance-criteria.md — understand WHAT the code should do
+{{- end}}
+{{- if .SkippedDesigner}}
+2. Read: {{.DotDir}}/features/{{.Feature.ID}}.yaml — understand the design intent (no task-brief because Designer was skipped)
+{{- else}}
 2. Read: {{.DotDir}}/run/{{.Feature.ID}}/task-brief.md — understand the design intent
+{{- end}}
 3. Read: {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/coder-report.md — see what was changed
 4. Read: {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/review-report.md — see what the checklist reviewer already caught
 5. Run: git diff HEAD — see the actual diff

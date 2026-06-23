@@ -125,6 +125,8 @@ type promptData struct {
 	Learnings []learning.Entry
 	// SelectedLearnings 是已選中且符合本 role category 的 learnings，供後續 role template 注入。
 	SelectedLearnings []learning.Entry
+	// SkippedDesigner 為 true 代表 profile 跳過了 designer phase，template 應從 feature YAML 讀需求。
+	SkippedDesigner bool
 	// 以下欄位僅平行 deep review 模式使用：
 	// ReviewerIndex/ReviewerCount 標示本 sub-reviewer 是第幾個、共幾個；
 	// AssignedAngles 為本 sub-reviewer 負責的 angle 編號清單（為空代表 fallback 單 agent 跑全部）；
@@ -440,6 +442,37 @@ func loadActiveLearnings(dotDir string) []learning.Entry {
 // loadSelectedLearnings 讀取 Designer 產出的 selected-learnings.json，反查 learnings.json
 // 取完整內容，只保留 status==active 且 category 屬於該 role 白名單的條目，並硬限制最多
 // MaxSelectedPerRole 條。任何失敗只回傳 nil（warn），不影響 prompt 產生。
+// autoSelectLearnings 在 profile 跳過 designer 時自動按 role category 篩選 active learnings，
+// 取代 designer 手動選擇的流程。回傳最多 MaxSelectedPerRole 筆。
+func autoSelectLearnings(dotDir string, role protocol.Role) []learning.Entry {
+	storePath := filepath.Join(dotDir, protocol.LearningsFile)
+	store, err := learning.LoadStore(storePath)
+	if err != nil {
+		return nil
+	}
+
+	categories := learning.CategoriesForRole(string(role))
+	catSet := make(map[learning.Category]bool, len(categories))
+	for _, c := range categories {
+		catSet[c] = true
+	}
+
+	var result []learning.Entry
+	for _, e := range store.Entries {
+		if len(result) >= learning.MaxSelectedPerRole {
+			break
+		}
+		if e.Status != learning.StatusActive {
+			continue
+		}
+		if !catSet[e.Category] {
+			continue
+		}
+		result = append(result, e)
+	}
+	return result
+}
+
 func loadSelectedLearnings(dotDir, featureID string, role protocol.Role) []learning.Entry {
 	selPath := filepath.Join(dotDir, protocol.RunDir, featureID, protocol.SelectedLearningsFile)
 	data, err := os.ReadFile(selPath)

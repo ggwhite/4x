@@ -758,6 +758,13 @@ func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, featur
 		data.Learnings = loadActiveLearnings(ws.DotDir())
 	} else {
 		data.SelectedLearnings = loadSelectedLearnings(ws.DotDir(), feature.ID, role)
+		if len(data.SelectedLearnings) == 0 {
+			data.SelectedLearnings = autoSelectLearnings(ws.DotDir(), role)
+		}
+	}
+	briefPath := filepath.Join(ws.FeatureDir(feature.ID), protocol.TaskBrief)
+	if _, err := os.Stat(briefPath); err != nil {
+		data.SkippedDesigner = true
 	}
 	for _, opt := range opts {
 		opt(&data)

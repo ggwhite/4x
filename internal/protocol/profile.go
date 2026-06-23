@@ -91,6 +91,16 @@ func (pc *ProfileConfig) normalize() {
 	}
 }
 
+// HasPhase 回報此 profile 是否包含指定 phase。
+func (pc ProfileConfig) HasPhase(phase Phase) bool {
+	for _, ps := range pc.Phases {
+		if ps.Phase == string(phase) {
+			return true
+		}
+	}
+	return false
+}
+
 // DefaultProfiles 回傳內建三組 pipeline profile，作為 auto-select 與 fallback 用。
 // full 跑完整 7 phase；normal 省略 designing、design-reviewing 與 deep-reviewing；quick 只跑 coding 與 reviewing。
 func DefaultProfiles() map[string]ProfileConfig {

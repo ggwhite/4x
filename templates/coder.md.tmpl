@@ -8,7 +8,13 @@ You MUST create this file before finishing. The system checks it exists.
 Use the Write tool to create the file. Do NOT just print the content — write to disk.
 
 == Inputs ==
+{{- if .SkippedDesigner}}
+This feature uses a profile that skips the Designer phase — there is no task-brief.md.
+Read the feature spec directly: {{.DotDir}}/features/{{.Feature.ID}}.yaml
+The feature YAML description IS your task brief. Implement what the description says.
+{{- else}}
 Read your task brief: {{.DotDir}}/run/{{.Feature.ID}}/task-brief.md
+{{- end}}
 {{- if gt .Round 1}}
 Read the previous test report: {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{(sub .Round 1)}}/test-report.md
 Read the previous review report (amending feedback to address): {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{(sub .Round 1)}}/review-report.md
@@ -85,7 +91,11 @@ This protects progress if the session is interrupted. On resume, git log tells t
 exactly what was already done, so nothing needs to be re-discovered or re-implemented.
 
 == Workflow ==
+{{- if .SkippedDesigner}}
+1. Read feature YAML ({{.Feature.ID}}.yaml) — this is your spec
+{{- else}}
 1. Read task-brief.md
+{{- end}}
 2. Check for prior progress — a previous session may have been interrupted:
    - Run: git log --oneline -20 — commits are the source of truth for what code is already done
    - Run: git diff — uncommitted changes may be leftover from the interrupted session

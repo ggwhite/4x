@@ -577,7 +577,8 @@ function renderBatchPanel(status) {
     controls = `<span class="batch-running-ind"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span>${t('batch.running')}</span>
       <button onclick="stopBatch()" class="batch-btn batch-btn-stop">${t('batch.stop')}</button>`;
   } else {
-    controls = `<button onclick="startBatch()" class="batch-btn batch-btn-start">${t('batch.start')}</button>`;
+    controls = `<button onclick="replanBatch()" class="batch-btn batch-btn-replan">${t('batch.replan')}</button>
+      <button onclick="startBatch()" class="batch-btn batch-btn-start">${t('batch.start')}</button>`;
   }
 
   let conflictCard = '';
@@ -662,6 +663,14 @@ function startBatch() {
   showConfirm(t('batch.confirmTitle'), t('batch.confirmMsg'), async () => {
     const res = await fetch(apiBase() + '/api/batch/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     if (!res.ok) { showToast(t('batch.startFailed').replace('{error}', await res.text())); return; }
+    load();
+  });
+}
+
+function replanBatch() {
+  fetch(apiBase() + '/api/batch/replan', { method: 'POST' }).then(async res => {
+    if (!res.ok) { showToast(t('batch.replanFailed').replace('{error}', await res.text())); return; }
+    showToast(t('batch.replanOk'));
     load();
   });
 }

@@ -301,6 +301,18 @@ func NewMux(resolver WorkspaceResolver) http.Handler {
 		}
 		handlePostBatchContinue(ws, bm, w, r)
 	})
+	mux.HandleFunc("/api/batch/replan", func(w http.ResponseWriter, r *http.Request) {
+		ws, _, bm, err := resolver(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		handlePostBatchReplan(ws, bm, w)
+	})
 	mux.HandleFunc("/api/evolve-report", func(w http.ResponseWriter, r *http.Request) {
 		ws, _, _, err := resolver(r)
 		if err != nil {
@@ -764,6 +776,9 @@ func handleTasks(ws *protocol.CachedWorkspace, w http.ResponseWriter) {
 			if !s.UpdatedAt.IsZero() {
 				t.UpdatedAt = s.UpdatedAt.Format(time.RFC3339)
 			}
+		}
+		if t.Profile == "" {
+			t.Profile = f.Profile
 		}
 		tasks = append(tasks, t)
 	}
@@ -1929,6 +1944,47 @@ func startBatch(ws *protocol.CachedWorkspace, bm *BatchManager, w http.ResponseW
 	}
 	if err := bm.Start(req.Runner, req.MaxRounds); err != nil {
 		writeJSONError(w, http.StatusConflict, err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprint(w, `{"ok":true}`)
+}
+
+// handlePostBatchReplan 重新產生 batch-plan.json（batch 沒在跑時才允許）。
+func handlePostBatchReplan(ws *protocol.CachedWorkspace, bm *BatchManager, w http.ResponseWriter) {
+	if bm.Running() {
+		writeJSONError(w, http.StatusConflict, "batch is running — stop it first")
+		return
+	}
+	cfg := mergedConfig(ws)
+	features, err := ws.ListFeatures()
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	var pending []feature.Feature
+	for _, f := range features {
+		if f.Status != feature.StatusDone && f.Status != feature.StatusAbandoned {
+			pending = append(pending, f)
+		}
+	}
+	if len(pending) == 0 {
+		writeJSONError(w, http.StatusBadRequest, "no pending features")
+		return
+	}
+	plan, err := batch.PlanBatch(pending, protocol.EffectiveHubRepos(cfg), 4)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	data, err := json.MarshalIndent(plan, "", "  ")
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	planPath := filepath.Join(ws.DotDir(), "batch-plan.json")
+	if err := os.WriteFile(planPath, data, 0o644); err != nil {
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
