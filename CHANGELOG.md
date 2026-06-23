@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.2] - 2026-06-23
+
+### Features
+
+- **Profile-aware templates** — 跳過 Designer 的 profile（normal/quick）不再讓 Coder 找不到 task-brief，template 自動引導 role 從 feature YAML 讀取需求與驗收標準
+- **Coder learnings selection** — 跳過 Designer 時由 round 1 Coder 承接 learnings 選擇責任，從全部 active learnings 中挑出相關的寫入 selected-learnings.json，後續 role 正常消費
+- **Auto-commit learnings.json** — feature merge 成功後自動 commit learnings.json（若有變更），batch 與手動 `4x done` 兩條路徑皆適用，避免累積的 learnings 遺失
+- **Batch replan API** — Dashboard 新增「重建計畫」按鈕，新增 feature 或調整 profile 後可重新產生 batch-plan.json，無需重啟 batch
+- **`.4x/.gitignore` on init** — `4x init` 自動產生 `.gitignore`，排除 runtime artifacts 避免誤 commit
+- **`deep_model` fallback** — deep_model 未設定時自動 fallback 到 opus tier，不再報錯
+
+### Fixes
+
+- **Screenshot path** — 修正 working directory 重構後 screenshot_dir 路徑未更新的問題
+- **Dashboard profile tag** — feature 卡片的 profile tag 改為同時讀取 state 與 feature YAML，未跑過的 feature 也能正確顯示
+
+### Docs
+
+- **Global agent rules** — 新增持久化 4x 知識的 global agent rules 設定範例
+
 ## [0.2.1] - 2026-06-23
 
 ### Features
