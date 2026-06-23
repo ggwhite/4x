@@ -60,8 +60,8 @@ Deep Review は11の異なるアングル（正確性、品質、規約、履歴
 
 | サブロール | モデル | 読み取り | 書き込み |
 |---|---|---|---|
-| **sub-reviewer** (xN) | ディープモデル | diff + 割り当てられたアングルサブセット | `deep-review-partial-{i}.md` |
-| **synthesizer** | ディープモデル | すべての部分レポートの全内容 | `deep-review-report.md` |
+| **sub-reviewer** (xN) | ディープモデル (`roles.reviewer.deep_model`) | diff + 割り当てられたアングルサブセット | `deep-review-partial-{i}.md` |
+| **synthesizer** | synthesizer モデル (`roles.synthesizer.model`、デフォルトは `sonnet` tier) | すべての部分レポートの全内容 | `deep-review-report.md` |
 
 アングルは均等かつ重複なく分割されます：デフォルトの `parallel_reviewers: 3` では `[1-4]`、`[5-8]`、`[9-11]`（正確性 / 品質+規約 / 履歴+フィードバック）となります。`roles.deep-reviewer.angles_per_reviewer` でグループサイズを明示的に固定できます。未設定の場合は自動 `ceil(11/N)` バランシングです。N個のサブレビュアーが並列実行された後、単一の synthesizer が重複排除、コンフリクト裁定、信頼度スコアリングの統一を行い、自己修復ループと `parseReviewVerdict` が既に使用しているのと同じ `deep-review-report.md` 形式にまとめます。下流の処理は一切変更されません。
 

@@ -141,6 +141,33 @@ func TestResolveDeepModel_NoDeepModel(t *testing.T) {
 	}
 }
 
+func TestDeepModelFallbackToDefaultTier(t *testing.T) {
+	cfg := Config{
+		Runners: map[string]RunnerConfig{
+			"claude": {Command: "claude", Tiers: map[string]string{"opus": "opus"}},
+		},
+		Roles: map[string]RoleConfig{
+			"reviewer": {Model: "sonnet"},
+		},
+	}
+	// ResolveDeepModel 回傳空字串（reviewer 未設 deep_model）
+	got, err := ResolveDeepModel(cfg, "claude", RoleReviewer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "" {
+		t.Errorf("ResolveDeepModel got %q, want empty", got)
+	}
+	// caller 用 ResolveTierModel + DefaultDeepTier 做 fallback
+	fallback, err := ResolveTierModel(cfg, "claude", DefaultDeepTier)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fallback != "opus" {
+		t.Errorf("fallback got %q, want %q", fallback, "opus")
+	}
+}
+
 func TestResolveMaxFixRounds_Default(t *testing.T) {
 	cfg := Config{}
 	if got := ResolveMaxFixRounds(cfg, RoleDeepReviewer); got != defaultMaxFixRounds {

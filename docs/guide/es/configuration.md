@@ -84,7 +84,7 @@ Si `{model}` no está presente en `args`, el runner agrega automáticamente `--m
 | Campo | Descripción |
 |---|---|
 | `model` | Nombre del modelo para este rol |
-| `deep_model` | Modelo para la pasada de revisión adversarial (solo reviewer) |
+| `deep_model` | Modelo para la pasada de revisión adversarial (solo reviewer). **Requerido para que la fase `deep-reviewing` se ejecute** — si no está configurado, la fase se omite y la ejecución transiciona directamente de `testing` a `accepting`. |
 | `max_fix_rounds` | Iteraciones máximas de auto-reparación en la fase `deep-reviewing` (solo `deep-reviewer`; predeterminado 2). Cada iteración ejecuta un mini-coder + re-verifier focalizados; exceder el límite escala a `needs-attention`. |
 | `instructions` | Instrucciones adicionales inyectadas en el prompt del rol |
 | `includes` | Archivos a incluir en el prompt del rol |

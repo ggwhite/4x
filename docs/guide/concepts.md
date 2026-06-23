@@ -66,8 +66,8 @@ The fan-out is driven entirely by the 4x CLI — it does not rely on the LLM's o
 
 | Sub-role | Model | Reads | Writes |
 |---|---|---|---|
-| **sub-reviewer** (×N) | deep model | the diff + its assigned angle subset | `deep-review-partial-{i}.md` |
-| **synthesizer** | deep model | every partial report's full content | `deep-review-report.md` |
+| **sub-reviewer** (×N) | deep model (`roles.reviewer.deep_model`) | the diff + its assigned angle subset | `deep-review-partial-{i}.md` |
+| **synthesizer** | synthesizer model (`roles.synthesizer.model`, defaults to `sonnet` tier) | every partial report's full content | `deep-review-report.md` |
 
 Angles are split evenly and without overlap: with the default `parallel_reviewers: 3` the groups are `[1–4]`, `[5–8]`, `[9–11]` (correctness / quality+convention / history+feedback). Set `roles.deep-reviewer.angles_per_reviewer` to fix the group size explicitly; leave it empty for automatic `ceil(11/N)` balancing. The N sub-reviewers run in parallel, then a single synthesizer de-duplicates, arbitrates conflicts, and unifies the confidence scoring into the same `deep-review-report.md` format the self-heal loop and `parseReviewVerdict` already consume — so everything downstream is unchanged.
 

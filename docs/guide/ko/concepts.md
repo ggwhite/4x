@@ -60,8 +60,8 @@ Deep Reviewer가 차단 이슈를 발견하면, `deep-reviewing` 단계에서 `a
 
 | 하위 역할 | 모델 | 입력 | 출력 |
 |---|---|---|---|
-| **sub-reviewer** (xN) | 딥 모델 | 디프 + 할당된 관점 하위 집합 | `deep-review-partial-{i}.md` |
-| **synthesizer** | 딥 모델 | 모든 부분 보고서의 전체 내용 | `deep-review-report.md` |
+| **sub-reviewer** (xN) | 딥 모델 (`roles.reviewer.deep_model`) | 디프 + 할당된 관점 하위 집합 | `deep-review-partial-{i}.md` |
+| **synthesizer** | synthesizer 모델 (`roles.synthesizer.model`, 기본값 `sonnet` 티어) | 모든 부분 보고서의 전체 내용 | `deep-review-report.md` |
 
 관점은 균등하게 겹침 없이 분할됩니다: 기본 `parallel_reviewers: 3`에서 그룹은 `[1-4]`, `[5-8]`, `[9-11]`(정확성 / 품질+관례 / 이력+피드백)입니다. `roles.deep-reviewer.angles_per_reviewer`를 설정하면 그룹 크기를 명시적으로 지정할 수 있으며, 비워두면 자동으로 `ceil(11/N)` 균형이 적용됩니다. N개의 sub-reviewer가 병렬로 실행된 후, 단일 synthesizer가 중복을 제거하고 충돌을 중재하며 신뢰도 점수를 통합하여 자가 치유 루프와 `parseReviewVerdict`가 이미 사용하는 것과 동일한 `deep-review-report.md` 형식으로 통합합니다 — 따라서 하위 단계는 모두 변경 없이 동작합니다.
 

@@ -91,6 +91,8 @@ Configurar en `.4x/settings.json`:
 }
 ```
 
+> **Nota:** `deep_model` se configura en el rol **reviewer** (no en deep-reviewer). Si `roles.reviewer.deep_model` no está configurado, la fase `deep-reviewing` se **omite por completo** — la ejecución transiciona directamente de `testing` a `accepting`. Esto es intencional: la revisión profunda es opt-in.
+
 También puedes mezclar runners — usa Claude para Design, Gemini para Code, etc. — ejecutando cada fase manualmente con diferentes banderas `--runner` y `4x transition` entre fases.
 
 ## Escribir un plugin

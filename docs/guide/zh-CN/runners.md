@@ -91,6 +91,8 @@ Runner 在 `.4x/settings.json` 的 `runners` 键下配置。CLI 以子进程方�
 }
 ```
 
+> **注意：** `deep_model` 配置在 **reviewer** role 上（不是 deep-reviewer）。如果未设置 `roles.reviewer.deep_model`，`deep-reviewing` 阶段会被**完全跳过** — 流程直接从 `testing` 转到 `accepting`。这是设计意图：深度审查是 opt-in 的。
+
 你也可以混合使用 runner — 用 Claude 做设计、Gemini 做编码等 — 通过手动使用不同的 `--runner` 标志运行每个阶段，并用 `4x transition` 在阶段间切换。
 
 ## 编写插件

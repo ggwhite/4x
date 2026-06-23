@@ -60,8 +60,8 @@ La distribución la maneja completamente el CLI de 4x — no depende de las capa
 
 | Sub-rol | Modelo | Lee | Escribe |
 |---|---|---|---|
-| **sub-reviewer** (xN) | modelo profundo | el diff + su subconjunto de ángulos asignado | `deep-review-partial-{i}.md` |
-| **synthesizer** | modelo profundo | el contenido completo de cada reporte parcial | `deep-review-report.md` |
+| **sub-reviewer** (xN) | modelo profundo (`roles.reviewer.deep_model`) | el diff + su subconjunto de ángulos asignado | `deep-review-partial-{i}.md` |
+| **synthesizer** | modelo synthesizer (`roles.synthesizer.model`, predeterminado tier `sonnet`) | el contenido completo de cada reporte parcial | `deep-review-report.md` |
 
 Los ángulos se dividen uniformemente y sin solapamiento: con el valor predeterminado `parallel_reviewers: 3`, los grupos son `[1-4]`, `[5-8]`, `[9-11]` (corrección / calidad+convención / historial+retroalimentación). Configura `roles.deep-reviewer.angles_per_reviewer` para fijar el tamaño del grupo explícitamente; déjalo vacío para el balanceo automático `ceil(11/N)`. Los N sub-revisores se ejecutan en paralelo, luego un único synthesizer deduplica, arbitra conflictos y unifica la puntuación de confianza en el mismo formato de `deep-review-report.md` que el ciclo de auto-reparación y `parseReviewVerdict` ya consumen — así que todo lo que viene después queda sin cambios.
 

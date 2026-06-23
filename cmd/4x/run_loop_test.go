@@ -146,7 +146,6 @@ func setupLoopWorkspace(t *testing.T, featureID string) *protocol.Workspace {
 		Default: "mock",
 		Runners: map[string]protocol.RunnerConfig{"mock": {Command: "echo"}},
 		ModelTiers: map[string]map[string]string{
-			"opus":   {"mock": "mock-opus"},
 			"sonnet": {"mock": "mock-sonnet"},
 			"haiku":  {"mock": "mock-haiku"},
 		},
@@ -1074,6 +1073,7 @@ func TestRunLoopEventsCarryRunnerModel(t *testing.T) {
 
 	feature, _ := ws.LoadFeature("feat-evt-rm")
 	cfg, _ := ws.ReadConfig()
+	cfg.ModelTiers["opus"] = map[string]string{"mock": "mock-opus"}
 	cfg.Roles = map[string]protocol.RoleConfig{
 		"designer": {Model: "opus"},
 	}
@@ -1149,7 +1149,6 @@ func TestRunLoop_MergedConfig(t *testing.T) {
 		Project: protocol.ProjectConfig{Name: "merge-test"},
 		Default: "mock",
 		ModelTiers: map[string]map[string]string{
-			"opus":   {"mock": "mock-opus"},
 			"sonnet": {"mock": "mock-sonnet"},
 		},
 	}
@@ -1217,6 +1216,7 @@ func TestRunLoop_DeepReviewExecuted(t *testing.T) {
 	ws := setupLoopWorkspace(t, "feat-deep")
 	feature, _ := ws.LoadFeature("feat-deep")
 	cfg, _ := ws.ReadConfig()
+	cfg.ModelTiers["opus"] = map[string]string{"mock": "mock-opus"}
 	cfg.Roles = map[string]protocol.RoleConfig{
 		"reviewer": {Model: "sonnet", DeepModel: "opus"},
 	}
@@ -1266,6 +1266,7 @@ func TestRunLoop_DeepReviewSelfHeal(t *testing.T) {
 	ws := setupLoopWorkspace(t, "feat-deep-fail")
 	feature, _ := ws.LoadFeature("feat-deep-fail")
 	cfg, _ := ws.ReadConfig()
+	cfg.ModelTiers["opus"] = map[string]string{"mock": "mock-opus"}
 	cfg.Roles = map[string]protocol.RoleConfig{
 		"reviewer": {Model: "sonnet", DeepModel: "opus"},
 	}
@@ -1334,6 +1335,7 @@ func TestRunLoop_DeepReviewSelfHealExhausted(t *testing.T) {
 	ws := setupLoopWorkspace(t, "feat-deep-exhaust")
 	feature, _ := ws.LoadFeature("feat-deep-exhaust")
 	cfg, _ := ws.ReadConfig()
+	cfg.ModelTiers["opus"] = map[string]string{"mock": "mock-opus"}
 	cfg.Roles = map[string]protocol.RoleConfig{
 		"reviewer":      {Model: "sonnet", DeepModel: "opus"},
 		"deep-reviewer": {MaxFixRounds: 2},
@@ -1415,6 +1417,7 @@ func TestRunLoop_DeepReviewMiniCoderScopeExceed(t *testing.T) {
 	ws.SaveFeature(f)
 	feature, _ := ws.LoadFeature("feat-deep-scope")
 	cfg, _ := ws.ReadConfig()
+	cfg.ModelTiers["opus"] = map[string]string{"mock": "mock-opus"}
 	cfg.Roles = map[string]protocol.RoleConfig{
 		"reviewer": {Model: "sonnet", DeepModel: "opus"},
 	}

@@ -62,7 +62,7 @@ func ResolvePhaseModel(cfg Config, f feature.Feature, pc ProfileConfig, phase Ph
 		}
 	}
 	if tier != "" {
-		return resolveTierModel(cfg, runnerName, tier)
+		return ResolveTierModel(cfg, runnerName, tier)
 	}
 	return ResolveModel(cfg, runnerName, role)
 }

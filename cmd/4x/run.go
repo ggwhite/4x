@@ -1914,7 +1914,7 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 		return false, fmt.Errorf("deep runner resolution failed: %w", err)
 	}
 
-	// 1. 解析 deep_model（deep_model 掛在 reviewer role 上）；未設定時跳過 deep review 直接 accepting。
+	// 1. 解析 deep_model（deep_model 掛在 reviewer role 上）；未設定時 fallback 到 DefaultDeepTier。
 	deepModel, err := protocol.ResolveDeepModel(cfg, deepRunner, protocol.RoleReviewer)
 	if err != nil {
 		s.Active = false
@@ -1922,6 +1922,10 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 		s.StopMessage = fmt.Sprintf("deep-reviewer model resolution failed: %v", err)
 		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
 		return false, fmt.Errorf("deep model resolution failed: %w", err)
+	}
+	if deepModel == "" {
+		// Fallback：未明確設定 deep_model 時，嘗試用 DefaultDeepTier（"opus"）解析。
+		deepModel, _ = protocol.ResolveTierModel(cfg, deepRunner, protocol.DefaultDeepTier)
 	}
 	if deepModel == "" {
 		newState, err := state.Transition(*s, protocol.PhaseAccepting, protocol.RoleAcceptor)
@@ -1935,10 +1939,15 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 		logSyncErr(ws.SyncFeatureStatus(featureID, s.Phase), featureID, s.Phase)
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "transition", Phase: s.Phase, Role: s.Role, Round: round,
-			Runner: s.Runner, Detail: "deep_model not configured, skipping deep review",
+			Runner: s.Runner, Detail: fmt.Sprintf("deep_model not configured and runner cannot resolve default tier %q", protocol.DefaultDeepTier),
 		})
-		fmt.Printf("[round %d] deep-reviewing — skipped (no deep_model configured)\n", round)
+		fmt.Printf("[round %d] deep-reviewing — skipped (runner cannot resolve default tier %q)\n", round, protocol.DefaultDeepTier)
 		return true, nil
+	}
+
+	// 若 deep_model 是 fallback 解析的（非明確設定），印提示訊息。
+	if rc, ok := cfg.Roles[string(protocol.RoleReviewer)]; !ok || rc.DeepModel == "" {
+		fmt.Printf("[round %d] deep-reviewing — using default tier %q (no explicit deep_model configured)\n", round, protocol.DefaultDeepTier)
 	}
 
 	// 2. 跑 deep reviewer：依設定走平行 N sub-reviewer + synthesizer，或 fallback 單 agent。

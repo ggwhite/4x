@@ -91,6 +91,8 @@
 }
 ```
 
+> **참고:** `deep_model`은 **reviewer** 역할에 설정합니다 (deep-reviewer가 아님). `roles.reviewer.deep_model`이 설정되지 않으면 `deep-reviewing` 단계가 **완전히 건너뛰어지며**, `testing`에서 바로 `accepting`으로 전환됩니다. 이는 설계 의도입니다: 딥 리뷰는 opt-in 기능입니다.
+
 러너를 혼합할 수도 있습니다 — Design에는 Claude, Code에는 Gemini를 사용하는 식으로 — 각 단계를 다른 `--runner` 플래그로 수동 실행하고 단계 사이에 `4x transition`을 사용합니다.
 
 ## 플러그인 작성

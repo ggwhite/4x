@@ -91,7 +91,7 @@ Non-transient failures (compilation errors, assertion failures, panics), exit 0,
 | Field | Description |
 |---|---|
 | `model` | Model name for this role |
-| `deep_model` | Model for adversarial review pass (reviewer only) |
+| `deep_model` | Model for adversarial review pass (reviewer only). **Required for the `deep-reviewing` phase to execute** — if unset, the phase is skipped and the run transitions directly from `testing` to `accepting`. |
 | `max_fix_rounds` | Max self-heal iterations in the `deep-reviewing` phase (`deep-reviewer` only; default 2). Each iteration runs a scoped mini-coder + re-verifier; exceeding the cap escalates to `needs-attention`. |
 | `instructions` | Additional instructions injected into the role prompt |
 | `includes` | Files to include in the role prompt |

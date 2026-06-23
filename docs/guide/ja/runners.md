@@ -91,6 +91,8 @@
 }
 ```
 
+> **注意:** `deep_model` は **reviewer** ロールに設定します（deep-reviewer ではありません）。`roles.reviewer.deep_model` が未設定の場合、`deep-reviewing` フェーズは**完全にスキップ**され、`testing` から直接 `accepting` に遷移します。これは設計上の仕様です：ディープレビューはオプトイン機能です。
+
 ランナーを混在させることもできます -- 設計に Claude、実装に Gemini を使用するなど -- 各フェーズを異なる `--runner` フラグで手動実行し、フェーズ間で `4x transition` を使用します。
 
 ## プラグインの作成

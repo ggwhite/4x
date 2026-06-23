@@ -60,8 +60,8 @@
 
 | 子角色 | 模型 | 读取 | 写入 |
 |---|---|---|---|
-| **sub-reviewer**（×N） | deep 模型 | diff + 分配的角度子集 | `deep-review-partial-{i}.md` |
-| **synthesizer** | deep 模型 | 每份部分报告的完整内容 | `deep-review-report.md` |
+| **sub-reviewer**（×N） | deep 模型 (`roles.reviewer.deep_model`) | diff + 分配的角度子集 | `deep-review-partial-{i}.md` |
+| **synthesizer** | synthesizer 模型 (`roles.synthesizer.model`，默认为 `sonnet` tier) | 每份部分报告的完整内容 | `deep-review-report.md` |
 
 角度均匀分配且不重叠：默认 `parallel_reviewers: 3` 时分组为 `[1-4]`、`[5-8]`、`[9-11]`（正确性 / 质量+规范 / 历史+反馈）。设置 `roles.deep-reviewer.angles_per_reviewer` 可显式固定组大小；留空则自动 `ceil(11/N)` 均分。N 个子审查者并行运行，然后由一个 synthesizer 去重、仲裁冲突，将置信度评分统一为同样的 `deep-review-report.md` 格式——自修复循环和 `parseReviewVerdict` 照常消费，下游完全无变化。
 

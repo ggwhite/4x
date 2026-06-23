@@ -60,8 +60,8 @@ fan-out 完全由 4x CLI 驅動——不依賴 LLM 自身的 subagent 或工具�
 
 | 子角色 | 模型 | 讀取 | 寫入 |
 |---|---|---|---|
-| **sub-reviewer**（×N） | deep 模型 | diff + 分配到的角度子集 | `deep-review-partial-{i}.md` |
-| **synthesizer** | deep 模型 | 每份 partial report 的完整內容 | `deep-review-report.md` |
+| **sub-reviewer**（×N） | deep 模型 (`roles.reviewer.deep_model`) | diff + 分配到的角度子集 | `deep-review-partial-{i}.md` |
+| **synthesizer** | synthesizer 模型 (`roles.synthesizer.model`，預設為 `sonnet` tier) | 每份 partial report 的完整內容 | `deep-review-report.md` |
 
 角度平均分配且不重疊：預設 `parallel_reviewers: 3` 時，群組為 `[1–4]`、`[5–8]`、`[9–11]`（正確性 / 品質+慣例 / 歷史+回饋）。設定 `roles.deep-reviewer.angles_per_reviewer` 可明確固定群組大小；不設則自動 `ceil(11/N)` 均分。N 個 sub-reviewer 平行執行，然後單一 synthesizer 去重、仲裁衝突、統一信心評分，產出與自我修復迴圈和 `parseReviewVerdict` 已消費的相同 `deep-review-report.md` 格式——下游一切不變。
 

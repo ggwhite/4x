@@ -84,7 +84,7 @@
 | 欄位 | 說明 |
 |---|---|
 | `model` | 此角色的模型名稱 |
-| `deep_model` | 對抗式審查的模型（僅限 reviewer） |
+| `deep_model` | 對抗式審查的模型（僅限 reviewer）。**`deep-reviewing` 階段執行的必要條件** — 未設定時該階段被跳過，流程直接從 `testing` 跳到 `accepting`。 |
 | `max_fix_rounds` | `deep-reviewing` 階段的最大自我修復迭代次數（僅限 deep-reviewer；預設 2）。每次迭代執行範圍限定的 mini-coder + re-verifier；超過上限則升級到 `needs-attention`。 |
 | `instructions` | 注入到角色 prompt 的額外指示 |
 | `includes` | 要引入角色 prompt 的檔案 |

@@ -84,7 +84,7 @@
 | フィールド | 説明 |
 |---|---|
 | `model` | このロールのモデル名 |
-| `deep_model` | 敵対的レビューパスのモデル（reviewer のみ） |
+| `deep_model` | 敵対的レビューパスのモデル（reviewer のみ）。**`deep-reviewing` フェーズの実行に必須** — 未設定の場合、フェーズはスキップされ `testing` から直接 `accepting` に遷移します。 |
 | `max_fix_rounds` | `deep-reviewing` フェーズでの最大自己修復イテレーション数（`deep-reviewer` のみ、デフォルト 2）。各イテレーションはスコープ付き mini-coder + re-verifier を実行し、上限を超えると `needs-attention` にエスカレーションされます。 |
 | `instructions` | ロールプロンプトに注入される追加の指示 |
 | `includes` | ロールプロンプトにインクルードするファイル |

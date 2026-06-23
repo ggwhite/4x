@@ -162,12 +162,22 @@ func TestCheckRoles_ResolveFail(t *testing.T) {
 	}
 }
 
-func TestCheckRoles_DeepModelUnset(t *testing.T) {
+func TestCheckRoles_DeepModelUnset_FallbackResolves(t *testing.T) {
 	cfg := baseConfig()
-	cfg.Roles["reviewer"] = protocol.RoleConfig{Model: "sonnet"} // 無 deep_model
+	cfg.Roles["reviewer"] = protocol.RoleConfig{Model: "sonnet"} // 無 deep_model，但 runner 有 opus tier
+	checks := checkRoles(cfg)
+	if c := findCheck(checks, sectionRoles, "deep-reviewer"); c == nil || c.Severity != SeverityPass {
+		t.Fatalf("runner 可解析預設 tier 應 PASS，得 %+v", c)
+	}
+}
+
+func TestCheckRoles_DeepModelUnset_FallbackFails(t *testing.T) {
+	cfg := baseConfig()
+	cfg.Roles["reviewer"] = protocol.RoleConfig{Model: "sonnet"}
+	cfg.Runners["claude"] = protocol.RunnerConfig{Command: "claude"} // 無 tiers，fallback 無法解析
 	checks := checkRoles(cfg)
 	if c := findCheck(checks, sectionRoles, "deep-reviewer"); c == nil || c.Severity != SeverityWarn {
-		t.Fatalf("未設 deep_model 應 WARN，得 %+v", c)
+		t.Fatalf("runner 無法解析預設 tier 應 WARN，得 %+v", c)
 	}
 }
 

@@ -294,10 +294,18 @@ func checkRoles(cfg protocol.Config) []Check {
 			Detail: fmt.Sprintf("無法解析 deep_model（%v），deep review 會退回一般 model", err),
 		})
 	case deepModel == "":
-		checks = append(checks, Check{
-			Section: sectionRoles, Name: string(protocol.RoleDeepReviewer), Severity: SeverityWarn,
-			Detail: "未設定 deep_model，deep review 會退回一般 model",
-		})
+		// 未明確設定 deep_model，嘗試 fallback 到 DefaultDeepTier
+		if fallback, fbErr := protocol.ResolveTierModel(cfg, cfg.Default, protocol.DefaultDeepTier); fbErr == nil && fallback != "" {
+			checks = append(checks, Check{
+				Section: sectionRoles, Name: string(protocol.RoleDeepReviewer), Severity: SeverityPass,
+				Detail: fmt.Sprintf("deep_model 未設定，fallback 到預設 tier %q → %s", protocol.DefaultDeepTier, fallback),
+			})
+		} else {
+			checks = append(checks, Check{
+				Section: sectionRoles, Name: string(protocol.RoleDeepReviewer), Severity: SeverityWarn,
+				Detail: fmt.Sprintf("未設定 deep_model 且 runner 無法解析預設 tier %q，deep-reviewing 會被跳過", protocol.DefaultDeepTier),
+			})
+		}
 	default:
 		checks = append(checks, Check{
 			Section: sectionRoles, Name: string(protocol.RoleDeepReviewer), Severity: SeverityPass,

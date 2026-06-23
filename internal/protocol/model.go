@@ -4,6 +4,11 @@ import "fmt"
 
 const defaultTier = "sonnet"
 
+// DefaultDeepTier 是 deep_model 未設定時的 fallback tier。
+// full profile 包含 deep-reviewing，即使未明確設定 deep_model，
+// 只要 runner 能解析此 tier 就會自動啟用 deep review。
+const DefaultDeepTier = "opus"
+
 // defaultMaxFixRounds 是 deep-reviewing phase 內自癒循環的預設最大迭代次數。
 const defaultMaxFixRounds = 2
 
@@ -87,13 +92,13 @@ func ResolveModel(cfg Config, runnerName string, role Role) (string, error) {
 		tier = defaultTier
 	}
 
-	return resolveTierModel(cfg, runnerName, tier)
+	return ResolveTierModel(cfg, runnerName, tier)
 }
 
-// resolveTierModel 把抽象 tier 解析為指定 runner 認識的實際 model name。
+// ResolveTierModel 把抽象 tier 解析為指定 runner 認識的實際 model name。
 // 優先序：runners[name].tiers[tier] > model_tiers[tier][runner] > error。
-// 抽出供 ResolveModel 與 ResolvePhaseModel 共用，確保 tier→model 的解析語意一致。
-func resolveTierModel(cfg Config, runnerName, tier string) (string, error) {
+// 供 ResolveModel、ResolvePhaseModel 共用，也供 caller 對 DefaultDeepTier 做 fallback 解析。
+func ResolveTierModel(cfg Config, runnerName, tier string) (string, error) {
 	runnerCfg := cfg.Runners[runnerName]
 	if model, ok := runnerCfg.Tiers[tier]; ok {
 		return model, nil
@@ -108,23 +113,11 @@ func resolveTierModel(cfg Config, runnerName, tier string) (string, error) {
 
 // ResolveDeepModel 解析 role 的 deep_model tier，回傳 runner 認識的 model name。
 // 若 role 未設 deep_model，回傳空字串與 nil error（表示不需要 deep model）。
+// caller（如 runDeepReviewPhase）可自行用 ResolveTierModel + DefaultDeepTier 做 fallback。
 func ResolveDeepModel(cfg Config, runnerName string, role Role) (string, error) {
 	rc, ok := cfg.Roles[string(role)]
 	if !ok || rc.DeepModel == "" {
 		return "", nil
 	}
-
-	tier := rc.DeepModel
-	runnerCfg := cfg.Runners[runnerName]
-
-	if model, ok := runnerCfg.Tiers[tier]; ok {
-		return model, nil
-	}
-	if tierMap, ok := cfg.ModelTiers[tier]; ok {
-		if model, ok := tierMap[runnerName]; ok {
-			return model, nil
-		}
-	}
-
-	return "", fmt.Errorf("runner %q has no model for deep tier %q", runnerName, tier)
+	return ResolveTierModel(cfg, runnerName, rc.DeepModel)
 }

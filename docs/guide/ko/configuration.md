@@ -84,7 +84,7 @@
 | 필드 | 설명 |
 |---|---|
 | `model` | 이 역할의 모델 이름 |
-| `deep_model` | 적대적 리뷰 패스용 모델 (reviewer 전용) |
+| `deep_model` | 적대적 리뷰 패스용 모델 (reviewer 전용). **`deep-reviewing` 단계 실행에 필수** — 미설정 시 해당 단계가 건너뛰어지며 `testing`에서 바로 `accepting`으로 전환됩니다. |
 | `max_fix_rounds` | `deep-reviewing` 단계에서 최대 자가 치유 반복 횟수 (`deep-reviewer` 전용; 기본값 2). 각 반복은 범위가 한정된 mini-coder + re-verifier를 실행하며, 상한 초과 시 `needs-attention`으로 에스컬레이션합니다. |
 | `instructions` | 역할 프롬프트에 주입되는 추가 지침 |
 | `includes` | 역할 프롬프트에 포함할 파일 |

@@ -70,6 +70,9 @@ func ResolvePipeline(cfg Config, f feature.Feature, profileName string, manualRu
 			// 完全一致），不走 regular model tier；per-phase model 覆寫對此 phase 不適用（run loop 也忽略），
 			// 故傳 runnerName 而非套用 modelManual，確保 preview 與實際執行的 deep model 結果相同。
 			model, err = ResolveDeepModel(cfg, runnerName, RoleReviewer)
+			if err == nil && model == "" {
+				model, _ = ResolveTierModel(cfg, runnerName, DefaultDeepTier)
+			}
 		} else {
 			model, err = ResolvePhaseModel(cfg, f, pc, phase, role, runnerName, modelManual)
 		}
