@@ -7,18 +7,18 @@ actually fixed, AND make sure the fix did not introduce a new bug.
 == MANDATORY — write these files or the task fails ==
 1. You MUST write your re-verify result to:
 
-     {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/deep-reverify-{{.Iteration}}.md
+     {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/deep-reverify-{{.Iteration}}.md
 
 2. You MUST update the Verdict of the deep review report:
 
-     {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/deep-review-report.md
+     {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/deep-review-report.md
 
 Use the Write tool. Do NOT just print — write to disk.
 
 == Inputs (read ONLY these) ==
-1. Read: {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/deep-review-report.md
+1. Read: {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/deep-review-report.md
    — the `## Issues` list is the set of issues you must verify, one by one.
-2. Read: {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/coder-report.md
+2. Read: {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/coder-report.md
    — see what the mini-coder claims to have changed this iteration.
 3. Run: git diff — review ONLY the lines the mini-coder changed this iteration. Do NOT re-review the
    whole feature diff; scope yourself to the new changes plus the files named in the issues.

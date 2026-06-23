@@ -76,7 +76,7 @@ Deep Reviewer は各スコープ外候補を `deep-review-report.md` の `## Dis
 - 各候補を既存の Feature および既にキープされた候補と Jaccard トークンオーバーラップ類似度で**重複排除**します。
 - カウントを `max_discovered_features`（デフォルト `3`）で**制限**します。残りは capped として記録されます。
 - キープされた候補を新しい Feature YAML として**作成**します（ステータス `not-started`、`4x new` と同じ番号付け）。作成ごとに `feature-discovered` イベントを追記します。
-- 結果（作成 / 重複スキップ / 制限超過）を `.4x/{feature-id}/discovered-features.md` に**サマリー**として出力します。
+- 結果（作成 / 重複スキップ / 制限超過）を `.4x/run/{feature-id}/discovered-features.md` に**サマリー**として出力します。
 
 このステップはベストエフォートです。エラーが発生しても `accepting` への遷移をブロックしません。最終的な Deep Review PASS でのみ実行されます（中間ラウンドや FAIL/`needs-attention` パスでは実行されません）。設定については [設定 → 自動検出 Feature](configuration.md#auto-discover-features) を参照してください。
 
@@ -168,26 +168,27 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
 ├── batch-report.json                # 前回のバッチ実行レポート（統計 + Feature ごとの結果）
 ├── features/
 │   └── {id}.yaml                    # Feature 定義（正規ソース）
-└── {feature-id}/
-    ├── state.json                   # フェーズ、ロール、ラウンド、アクティブ、ランナー、runners、停止理由、プロファイル
-    ├── events.jsonl                 # 監査証跡
-    ├── baseline.json                # コーディング前のスナップショット（HEAD、ブランチ、ダーティファイル）
-    ├── task-brief.md                # Designer → Coder: 仕様 + アーキテクチャ
-    ├── acceptance-criteria.md       # Designer → Tester: テスト可能な基準
-    ├── test-strategy.yaml           # Designer → Tester: テストアプローチ
-    ├── final-report.md              # ループ終了時のサマリー
-    ├── logs/
-    │   ├── round-{N}-{role}.log              # ラウンドごと・ロールごとの実行ログ
-    │   ├── round-{N}-deep-reviewer-{i}.log   # 並列サブレビュアーごと（ファンアウト時）
-    │   └── round-{N}-synthesizer.log         # 部分レポートをマージする synthesizer
-    └── rounds/round-{N}/
-        ├── coder-report.md            # Coder の作業内容
-        ├── review-report.md           # Reviewer の所見 + 判定
-        ├── test-report.md             # Tester の結果
-        ├── deep-review-partial-{i}.md # 並列サブレビュアーの所見（ファンアウト時）
-        ├── deep-review-report.md      # マージ済み Deep Review（synthesizer 出力、または単一エージェント）
-        ├── verify.json                # {passed, round, role, commands[]}
-        └── escalation.json            # {needed, reason, detail}
+└── run/                            # ランタイム成果物（feature ごとの作業ディレクトリ）
+    └── {feature-id}/
+        ├── state.json                   # フェーズ、ロール、ラウンド、アクティブ、ランナー、runners、停止理由、プロファイル
+        ├── events.jsonl                 # 監査証跡
+        ├── baseline.json                # コーディング前のスナップショット（HEAD、ブランチ、ダーティファイル）
+        ├── task-brief.md                # Designer → Coder: 仕様 + アーキテクチャ
+        ├── acceptance-criteria.md       # Designer → Tester: テスト可能な基準
+        ├── test-strategy.yaml           # Designer → Tester: テストアプローチ
+        ├── final-report.md              # ループ終了時のサマリー
+        ├── logs/
+        │   ├── round-{N}-{role}.log              # ラウンドごと・ロールごとの実行ログ
+        │   ├── round-{N}-deep-reviewer-{i}.log   # 並列サブレビュアーごと（ファンアウト時）
+        │   └── round-{N}-synthesizer.log         # 部分レポートをマージする synthesizer
+        └── rounds/round-{N}/
+            ├── coder-report.md            # Coder の作業内容
+            ├── review-report.md           # Reviewer の所見 + 判定
+            ├── test-report.md             # Tester の結果
+            ├── deep-review-partial-{i}.md # 並列サブレビュアーの所見（ファンアウト時）
+            ├── deep-review-report.md      # マージ済み Deep Review（synthesizer 出力、または単一エージェント）
+            ├── verify.json                # {passed, round, role, commands[]}
+            └── escalation.json            # {needed, reason, detail}
 ```
 
 ### バッチシグナルファイル
@@ -367,7 +368,7 @@ post_{target_phase} フック（配列順）
 }
 ```
 
-stdout/stderr の全出力は `.4x/{feature-id}/hook-logs/{timestamp}-hook-{n}.log` に書き込まれます。
+stdout/stderr の全出力は `.4x/run/{feature-id}/hook-logs/{timestamp}-hook-{n}.log` に書き込まれます。
 
 ### フックのマージ（`MergeHooks`）
 

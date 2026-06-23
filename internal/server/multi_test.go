@@ -316,7 +316,7 @@ func TestMultiMux_ScreenshotsBackwardCompat(t *testing.T) {
 	reg := NewProjectRegistry()
 	reg.Add(ws)
 
-	shotDir := filepath.Join(ws.DotDir(), "e2e", "feat-1", "screenshot")
+	shotDir := filepath.Join(ws.DotDir(), "run", "feat-1", "screenshot")
 	if err := os.MkdirAll(shotDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -338,7 +338,7 @@ func TestMultiMux_Screenshots_MultiProject(t *testing.T) {
 	id1 := reg.Add(ws1)
 	reg.Add(ws2)
 
-	shotDir := filepath.Join(ws1.DotDir(), "e2e", "feat-1", "screenshot")
+	shotDir := filepath.Join(ws1.DotDir(), "run", "feat-1", "screenshot")
 	if err := os.MkdirAll(shotDir, 0o755); err != nil {
 		t.Fatal(err)
 	}

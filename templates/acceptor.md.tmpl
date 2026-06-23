@@ -6,14 +6,14 @@ that are still OPEN, so the human reviewer sees what (if anything) still needs a
 == MANDATORY — write this file or the task fails ==
 You MUST create this file before finishing:
 
-  {{.DotDir}}/{{.Feature.ID}}/final-report.md
+  {{.DotDir}}/run/{{.Feature.ID}}/final-report.md
 
 Use the Write tool. Do NOT just print the content — write to disk.
 
 == Inputs ==
-1. Read: {{.DotDir}}/{{.Feature.ID}}/task-brief.md — the original design intent
-2. Read: {{.DotDir}}/{{.Feature.ID}}/acceptance-criteria.md — what must be true
-3. Read the FINAL round's reports under {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/:
+1. Read: {{.DotDir}}/run/{{.Feature.ID}}/task-brief.md — the original design intent
+2. Read: {{.DotDir}}/run/{{.Feature.ID}}/acceptance-criteria.md — what must be true
+3. Read the FINAL round's reports under {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/:
    - review-report.md — checklist reviewer findings
    - test-report.md — test results and pass/fail per AC
    - deep-review-report.md — adversarial review findings (if present)
@@ -75,7 +75,7 @@ If every issue raised during the loop was resolved, write "None — all issues r
 == Retro Learnings ==
 除了 final-report.md，你還必須產出一份 retro learnings 檔案：
 
-  {{.DotDir}}/{{.Feature.ID}}/retro-learnings.json
+  {{.DotDir}}/run/{{.Feature.ID}}/retro-learnings.json
 
 回顧整個 feature 的開發過程，萃取出對未來 feature 有價值的教訓。
 

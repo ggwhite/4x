@@ -103,7 +103,7 @@ The deep reviewer writes each out-of-scope candidate as a `[NEW-FEATURE] <title>
 - **Dedupes** each candidate against existing features and against already-kept candidates, using a Jaccard token-overlap similarity check.
 - **Caps** the count at `max_discovered_features` (default `3`); the rest are recorded as capped.
 - **Creates** the kept candidates as new feature YAMLs (status `not-started`, reusing the same numbering as `4x new`), appending a `feature-discovered` event per creation.
-- **Summarizes** the outcome (created / skipped-as-duplicate / capped / enrichment-failed) to `.4x/{feature-id}/discovered-features.md`.
+- **Summarizes** the outcome (created / skipped-as-duplicate / capped / enrichment-failed) to `.4x/run/{feature-id}/discovered-features.md`.
 
 The step is best-effort: any error is logged and never blocks the transition to `accepting`. It runs only on the final deep review PASS — intermediate rounds and FAIL/`needs-attention` paths never reach it. See [Configuration → Auto-Discover Features](configuration.md#auto-discover-features) for the settings.
 
@@ -226,28 +226,29 @@ Roles communicate through the `.4x/` directory, not shared context windows.
 │   └── {id}.yaml                    # Feature definition (canonical source)
 ├── learnings.json                  # Retro learnings store (accumulated across features)
 ├── templates/                      # Optional project-level prompt template overrides (4x init --dump-templates)
-└── {feature-id}/
-    ├── state.json                   # Phase, role, round, active, runner, runners, stopReason, profile
-    ├── events.jsonl                 # Audit trail
-    ├── baseline.json                # Pre-coding snapshot (HEAD, branch, dirty files)
-    ├── task-brief.md                # Designer → Coder: spec + architecture
-    ├── retro-learnings.json         # Acceptor → CLI: harvested into learnings.json
-    ├── selected-learnings.json      # Designer → CLI: relevant learning IDs to inject downstream
-    ├── acceptance-criteria.md       # Designer → Tester: testable criteria
-    ├── test-strategy.yaml           # Designer → Tester: test approach
-    ├── final-report.md              # End-of-loop summary
-    ├── logs/
-    │   ├── round-{N}-{role}.log              # Per-round per-role execution log
-    │   ├── round-{N}-deep-reviewer-{i}.log   # Per parallel sub-reviewer (when fanned out)
-    │   └── round-{N}-synthesizer.log         # Synthesizer merging the partial reports
-    └── rounds/round-{N}/
-        ├── coder-report.md            # What the Coder did
-        ├── review-report.md           # Reviewer findings + verdict
-        ├── test-report.md             # Tester results
-        ├── deep-review-partial-{i}.md # One parallel sub-reviewer's findings (when fanned out)
-        ├── deep-review-report.md      # Merged deep review (synthesizer output, or single-agent)
-        ├── verify.json                # {passed, round, role, commands[]}
-        └── escalation.json            # {needed, reason, detail}
+└── run/                            # Runtime artifacts (per-feature working directories)
+    └── {feature-id}/
+        ├── state.json                   # Phase, role, round, active, runner, runners, stopReason, profile
+        ├── events.jsonl                 # Audit trail
+        ├── baseline.json                # Pre-coding snapshot (HEAD, branch, dirty files)
+        ├── task-brief.md                # Designer → Coder: spec + architecture
+        ├── retro-learnings.json         # Acceptor → CLI: harvested into learnings.json
+        ├── selected-learnings.json      # Designer → CLI: relevant learning IDs to inject downstream
+        ├── acceptance-criteria.md       # Designer → Tester: testable criteria
+        ├── test-strategy.yaml           # Designer → Tester: test approach
+        ├── final-report.md              # End-of-loop summary
+        ├── logs/
+        │   ├── round-{N}-{role}.log              # Per-round per-role execution log
+        │   ├── round-{N}-deep-reviewer-{i}.log   # Per parallel sub-reviewer (when fanned out)
+        │   └── round-{N}-synthesizer.log         # Synthesizer merging the partial reports
+        └── rounds/round-{N}/
+            ├── coder-report.md            # What the Coder did
+            ├── review-report.md           # Reviewer findings + verdict
+            ├── test-report.md             # Tester results
+            ├── deep-review-partial-{i}.md # One parallel sub-reviewer's findings (when fanned out)
+            ├── deep-review-report.md      # Merged deep review (synthesizer output, or single-agent)
+            ├── verify.json                # {passed, round, role, commands[]}
+            └── escalation.json            # {needed, reason, detail}
 ```
 
 ### Batch Signal Files
@@ -452,7 +453,7 @@ Each hook execution appends a `type: "hook"` event to `events.jsonl`:
 }
 ```
 
-Full stdout/stderr output is written to `.4x/{feature-id}/hook-logs/{timestamp}-hook-{n}.log`.
+Full stdout/stderr output is written to `.4x/run/{feature-id}/hook-logs/{timestamp}-hook-{n}.log`.
 
 ### Hook Merging (`MergeHooks`)
 

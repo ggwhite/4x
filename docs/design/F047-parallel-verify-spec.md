@@ -63,11 +63,11 @@ type TestStrategy struct {
 **流程**：
 
 1. 從 `state.json` 讀當前 round（`--round` 可覆寫）
-2. 讀 `.4x/{featureId}/test-strategy.yaml`，解析 `verify_groups` 或 fallback `verify_commands`
+2. 讀 `.4x/run/{featureId}/test-strategy.yaml`，解析 `verify_groups` 或 fallback `verify_commands`
 3. 每個 group 起一個 goroutine，用 `sync.WaitGroup` 管理
 4. 組內命令依序執行；任一 exit code ≠ 0 → 該組標記 fail，剩餘 commands 跳過（標記 `skipped`）
 5. 某組失敗不中斷其他組——全部跑完再彙總
-6. 組裝 `VerifyEvidence`，寫入 `.4x/{featureId}/rounds/round-{N}/verify.json`
+6. 組裝 `VerifyEvidence`，寫入 `.4x/run/{featureId}/rounds/round-{N}/verify.json`
 7. stdout 印出摘要表格（group / command / exit code / duration）
 8. exit code：全 pass → 0，任一 fail → 1
 

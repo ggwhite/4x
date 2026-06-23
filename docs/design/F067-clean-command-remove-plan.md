@@ -399,7 +399,7 @@ func newCleanCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "clean [feature-id]",
 		Short: "Remove workspace artifacts for completed features",
-		Long: `Clean up .4x/{feature-id}/ directories for done or abandoned features.
+		Long: `Clean up .4x/run/{feature-id}/ directories for done or abandoned features.
 
 Removes logs, rounds, reports, and state files.
 Feature definitions (.4x/features/*.yaml) are always preserved.`,

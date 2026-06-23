@@ -236,7 +236,7 @@ func TestCheckJSON_IncludesBacklogDriftWarning(t *testing.T) {
 	run4x(dir, "init")
 	run4x(dir, "new", "Check drift")
 	featureID := "F001-check-drift"
-	checkDriftDir := filepath.Join(dir, protocol.DirName, featureID)
+	checkDriftDir := filepath.Join(dir, protocol.DirName, protocol.RunDir, featureID)
 	if err := os.MkdirAll(checkDriftDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -406,7 +406,7 @@ func TestTransition_TestingToAcceptingRequiresTesterArtifacts(t *testing.T) {
 	run4x(dir, "new", "Manual gate")
 
 	featureID := "F001-manual-gate"
-	featureDir := filepath.Join(dir, protocol.DirName, featureID)
+	featureDir := filepath.Join(dir, protocol.DirName, protocol.RunDir, featureID)
 	roundDir := filepath.Join(featureDir, protocol.RoundsDir, "round-1")
 	if err := os.MkdirAll(roundDir, 0o755); err != nil {
 		t.Fatal(err)
@@ -509,7 +509,7 @@ func TestTransition_JSON(t *testing.T) {
 	run4x(dir, "new", "Trans JSON")
 
 	featureID := "F001-trans-json"
-	featureDir := filepath.Join(dir, protocol.DirName, featureID)
+	featureDir := filepath.Join(dir, protocol.DirName, protocol.RunDir, featureID)
 	os.MkdirAll(featureDir, 0o755)
 	os.WriteFile(filepath.Join(featureDir, protocol.StateFile),
 		[]byte(`{"featureId":"F001-trans-json","phase":"init","role":"","round":0,"maxRounds":5,"active":true,"runner":"mock","createdAt":"2025-01-01T00:00:00Z","updatedAt":"2025-01-01T00:00:00Z"}`), 0o644)
@@ -538,7 +538,7 @@ func TestTransition_JSON_Error(t *testing.T) {
 	run4x(dir, "new", "Trans err")
 
 	featureID := "F001-trans-err"
-	featureDir := filepath.Join(dir, protocol.DirName, featureID)
+	featureDir := filepath.Join(dir, protocol.DirName, protocol.RunDir, featureID)
 	os.MkdirAll(featureDir, 0o755)
 	os.WriteFile(filepath.Join(featureDir, protocol.StateFile),
 		[]byte(`{"featureId":"F001-trans-err","phase":"init","role":"","round":0,"maxRounds":5,"active":true,"runner":"mock","createdAt":"2025-01-01T00:00:00Z","updatedAt":"2025-01-01T00:00:00Z"}`), 0o644)
@@ -696,7 +696,7 @@ func TestVerify_VerifyCommands_AllPass(t *testing.T) {
 
 	featureID := findFeatureID(t, dir, "verify-test")
 
-	stateDir := filepath.Join(dir, ".4x", featureID)
+	stateDir := filepath.Join(dir, ".4x", "run", featureID)
 	stateJSON := fmt.Sprintf(`{"featureId":"%s","phase":"testing","role":"tester","round":1,"maxRounds":5,"active":false}`, featureID)
 	writeTestFile(t, filepath.Join(stateDir, "state.json"), stateJSON)
 
@@ -721,7 +721,7 @@ func TestVerify_VerifyCommands_AllPass(t *testing.T) {
 		t.Errorf("expected 1 command, got %d", len(ev.Commands))
 	}
 
-	verifyPath := filepath.Join(dir, ".4x", featureID, "rounds", "round-1", "verify.json")
+	verifyPath := filepath.Join(dir, ".4x", "run", featureID, "rounds", "round-1", "verify.json")
 	if _, err := os.Stat(verifyPath); err != nil {
 		t.Errorf("verify.json not written: %v", err)
 	}
@@ -733,7 +733,7 @@ func TestVerify_VerifyGroups_Parallel(t *testing.T) {
 	run4x(dir, "new", "parallel-test")
 
 	featureID := findFeatureID(t, dir, "parallel-test")
-	stateDir := filepath.Join(dir, ".4x", featureID)
+	stateDir := filepath.Join(dir, ".4x", "run", featureID)
 	stateJSON := fmt.Sprintf(`{"featureId":"%s","phase":"testing","role":"tester","round":1,"maxRounds":5,"active":false}`, featureID)
 	writeTestFile(t, filepath.Join(stateDir, "state.json"), stateJSON)
 
@@ -771,7 +771,7 @@ func TestVerify_BothFormats_Error(t *testing.T) {
 	run4x(dir, "new", "both-test")
 
 	featureID := findFeatureID(t, dir, "both-test")
-	stateDir := filepath.Join(dir, ".4x", featureID)
+	stateDir := filepath.Join(dir, ".4x", "run", featureID)
 	stateJSON := fmt.Sprintf(`{"featureId":"%s","phase":"testing","role":"tester","round":1,"maxRounds":5,"active":false}`, featureID)
 	writeTestFile(t, filepath.Join(stateDir, "state.json"), stateJSON)
 
@@ -790,7 +790,7 @@ func TestVerify_FailedCommand_ExitCode1(t *testing.T) {
 	run4x(dir, "new", "fail-test")
 
 	featureID := findFeatureID(t, dir, "fail-test")
-	stateDir := filepath.Join(dir, ".4x", featureID)
+	stateDir := filepath.Join(dir, ".4x", "run", featureID)
 	stateJSON := fmt.Sprintf(`{"featureId":"%s","phase":"testing","role":"tester","round":1,"maxRounds":5,"active":false}`, featureID)
 	writeTestFile(t, filepath.Join(stateDir, "state.json"), stateJSON)
 

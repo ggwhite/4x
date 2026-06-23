@@ -14,10 +14,11 @@
 | `codex` | OpenAI Codex CLI | Stdin | 사용 가능 |
 | `gemini` | Google Gemini CLI | Argument | 사용 가능 |
 | `agy` | Antigravity CLI | Argument | 사용 가능 |
+| `opencode` | OpenCode CLI | Argument | 사용 가능 |
 | `copilot` | GitHub Copilot CLI | Argument | 사용 가능 (수동 설정) |
 | `cursor` | Cursor IDE | Rules 파일 | 사용 가능 (수동 설정) |
 
-`4x init`은 기본적으로 claude, codex, gemini, agy를 설정합니다. Copilot과 cursor는 `settings.json`에 수동으로 추가해야 합니다.
+`4x init`은 기본적으로 claude, codex, gemini, agy, opencode를 설정합니다. Copilot과 cursor는 `settings.json`에 수동으로 추가해야 합니다.
 
 ## 플러그인 파일
 
@@ -29,6 +30,7 @@
 | codex | `AGENTS.md` + `codex.json` | AGENTS.md |
 | gemini | `GEMINI.md` | GEMINI.md |
 | agy | `AGY.md` | AGY.md |
+| opencode | `AGENTS.md` | AGENTS.md |
 | copilot | `AGENTS.md` | AGENTS.md |
 | cursor | `.cursorrules` | .cursorrules |
 
@@ -48,7 +50,7 @@
     ├── 현재 역할에 대한 프롬프트 생성
     ├── 프롬프트와 함께 러너 서브프로세스 호출
     │     claude --dangerously-skip-permissions -p "..." --output-format stream-json --verbose
-    ├── 출력을 .4x/F001/logs/round-N-role.log에 캡처
+    ├── 출력을 .4x/run/F001/logs/round-N-role.log에 캡처
     ├── 출력 아티팩트 확인
     └── 상태 전환 후 반복
 ```

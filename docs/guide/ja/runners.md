@@ -14,10 +14,11 @@
 | `codex` | OpenAI Codex CLI | Stdin | 利用可能 |
 | `gemini` | Google Gemini CLI | Argument | 利用可能 |
 | `agy` | Antigravity CLI | Argument | 利用可能 |
+| `opencode` | OpenCode CLI | Argument | 利用可能 |
 | `copilot` | GitHub Copilot CLI | Argument | 利用可能（手動設定が必要） |
 | `cursor` | Cursor IDE | Rules file | 利用可能（手動設定が必要） |
 
-`4x init` はデフォルトで claude、codex、gemini、agy を設定します。copilot と cursor は手動で `settings.json` に追加する必要があります。
+`4x init` はデフォルトで claude、codex、gemini、agy、opencode を設定します。copilot と cursor は手動で `settings.json` に追加する必要があります。
 
 ## プラグインファイル
 
@@ -29,6 +30,7 @@
 | codex | `AGENTS.md` + `codex.json` | AGENTS.md |
 | gemini | `GEMINI.md` | GEMINI.md |
 | agy | `AGY.md` | AGY.md |
+| opencode | `AGENTS.md` | AGENTS.md |
 | copilot | `AGENTS.md` | AGENTS.md |
 | cursor | `.cursorrules` | .cursorrules |
 
@@ -48,7 +50,7 @@
     ├── 現在のロールのプロンプトを生成
     ├── プロンプト付きでランナーサブプロセスを起動
     │     claude --dangerously-skip-permissions -p "..." --output-format stream-json --verbose
-    ├── 出力を .4x/F001/logs/round-N-role.log にキャプチャ
+    ├── 出力を .4x/run/F001/logs/round-N-role.log にキャプチャ
     ├── 出力アーティファクトをチェック
     └── 状態を遷移して繰り返し
 ```

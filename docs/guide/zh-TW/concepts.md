@@ -76,7 +76,7 @@ Deep reviewer 將每個超出範圍的候選寫為 `deep-review-report.md` 的 `
 - **去重** — 每個候選與既有 feature 以及已保留的候選進行 Jaccard token-overlap 相似度比較。
 - **設上限** — 數量上限為 `max_discovered_features`（預設 `3`）；其餘記錄為已設上限。
 - **建立** — 將保留的候選建為新的 feature YAML（狀態 `not-started`，沿用 `4x new` 的編號），每次建立附加一個 `feature-discovered` 事件。
-- **摘要** — 將結果（created / skipped-as-duplicate / capped）寫入 `.4x/{feature-id}/discovered-features.md`。
+- **摘要** — 將結果（created / skipped-as-duplicate / capped）寫入 `.4x/run/{feature-id}/discovered-features.md`。
 
 此步驟為 best-effort：任何錯誤都會記錄但不會阻擋轉換到 `accepting`。它只在最終 deep review PASS 時執行——中間輪次和 FAIL/`needs-attention` 路徑永遠不會到達它。詳見[設定 → Auto-Discover Features](configuration.md#auto-discover-features)。
 
@@ -168,26 +168,27 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
 ├── batch-report.json                # 最近一次批次執行報告（統計 + 每 feature 結果）
 ├── features/
 │   └── {id}.yaml                    # Feature 定義（正式來源）
-└── {feature-id}/
-    ├── state.json                   # 階段、角色、輪次、是否活躍、runner、runners、停止原因、profile
-    ├── events.jsonl                 # 審計軌跡
-    ├── baseline.json                # 編碼前快照（HEAD、branch、dirty 檔案）
-    ├── task-brief.md                # Designer → Coder：spec + 架構
-    ├── acceptance-criteria.md       # Designer → Tester：可測試的標準
-    ├── test-strategy.yaml           # Designer → Tester：測試方法
-    ├── final-report.md              # 迴圈結束摘要
-    ├── logs/
-    │   ├── round-{N}-{role}.log              # 每輪每角色的執行日誌
-    │   ├── round-{N}-deep-reviewer-{i}.log   # 每個平行 sub-reviewer 的日誌（fan-out 時）
-    │   └── round-{N}-synthesizer.log         # synthesizer 合併 partial report 的日誌
-    └── rounds/round-{N}/
-        ├── coder-report.md            # Coder 做了什麼
-        ├── review-report.md           # Reviewer 的發現 + 裁決
-        ├── test-report.md             # Tester 的結果
-        ├── deep-review-partial-{i}.md # 單個平行 sub-reviewer 的發現（fan-out 時）
-        ├── deep-review-report.md      # 合併後的 deep review（synthesizer 輸出或單一 agent）
-        ├── verify.json                # {passed, round, role, commands[]}
-        └── escalation.json            # {needed, reason, detail}
+└── run/                            # 執行期產物（每個 feature 的工作目錄）
+    └── {feature-id}/
+        ├── state.json                   # 階段、角色、輪次、是否活躍、runner、runners、停止原因、profile
+        ├── events.jsonl                 # 審計軌跡
+        ├── baseline.json                # 編碼前快照（HEAD、branch、dirty 檔案）
+        ├── task-brief.md                # Designer → Coder：spec + 架構
+        ├── acceptance-criteria.md       # Designer → Tester：可測試的標準
+        ├── test-strategy.yaml           # Designer → Tester：測試方法
+        ├── final-report.md              # 迴圈結束摘要
+        ├── logs/
+        │   ├── round-{N}-{role}.log              # 每輪每角色的執行日誌
+        │   ├── round-{N}-deep-reviewer-{i}.log   # 每個平行 sub-reviewer 的日誌（fan-out 時）
+        │   └── round-{N}-synthesizer.log         # synthesizer 合併 partial report 的日誌
+        └── rounds/round-{N}/
+            ├── coder-report.md            # Coder 做了什麼
+            ├── review-report.md           # Reviewer 的發現 + 裁決
+            ├── test-report.md             # Tester 的結果
+            ├── deep-review-partial-{i}.md # 單個平行 sub-reviewer 的發現（fan-out 時）
+            ├── deep-review-report.md      # 合併後的 deep review（synthesizer 輸出或單一 agent）
+            ├── verify.json                # {passed, round, role, commands[]}
+            └── escalation.json            # {needed, reason, detail}
 ```
 
 ### 批次信號檔
@@ -367,7 +368,7 @@ post_{target_phase} hooks（依陣列順序）
 }
 ```
 
-完整的 stdout/stderr 輸出寫入 `.4x/{feature-id}/hook-logs/{timestamp}-hook-{n}.log`。
+完整的 stdout/stderr 輸出寫入 `.4x/run/{feature-id}/hook-logs/{timestamp}-hook-{n}.log`。
 
 ### Hook 合併（`MergeHooks`）
 

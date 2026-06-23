@@ -76,7 +76,7 @@
 - **去重**：每个候选项与现有 feature 及已保留的候选项进行 Jaccard token 重叠相似度比较。相似的被跳过。
 - **设上限**：每次运行最多创建 `max_discovered_features` 个 feature（默认 `3`）；其余记录为已封顶。
 - **创建**：被保留的候选项创建为新的 feature YAML（状态 `not-started`，复用 `4x new` 的编号方式），每次创建追加一个 `feature-discovered` 事件。
-- **汇总**：结果（已创建 / 跳过为重复 / 已封顶）写入 `.4x/{feature-id}/discovered-features.md`。
+- **汇总**：结果（已创建 / 跳过为重复 / 已封顶）写入 `.4x/run/{feature-id}/discovered-features.md`。
 
 此步骤是尽力而为的：任何错误仅记录日志，绝不阻塞向 `accepting` 的转换。仅在最终深度审查 PASS 时运行——中间轮次和 FAIL/`needs-attention` 路径不会触发。详见[配置 → 自动发现 Feature](configuration.md#auto-discover-features)。
 
@@ -168,26 +168,27 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
 ├── batch-report.json                # 上次批量运行报告（统计 + 每个 feature 结果）
 ├── features/
 │   └── {id}.yaml                    # Feature 定义（权威源）
-└── {feature-id}/
-    ├── state.json                   # Phase、role、round、active、runner、runners、stopReason、profile
-    ├── events.jsonl                 # 审计追踪
-    ├── baseline.json                # 编码前快照（HEAD、分支、脏文件）
-    ├── task-brief.md                # Designer → Coder：规格 + 架构
-    ├── acceptance-criteria.md       # Designer → Tester：可测试的标准
-    ├── test-strategy.yaml           # Designer → Tester：测试方案
-    ├── final-report.md              # 循环结束摘要
-    ├── logs/
-    │   ├── round-{N}-{role}.log              # 每轮每角色执行日志
-    │   ├── round-{N}-deep-reviewer-{i}.log   # 每个并行子审查者（扇出时）
-    │   └── round-{N}-synthesizer.log         # Synthesizer 合并部分报告
-    └── rounds/round-{N}/
-        ├── coder-report.md            # 编码者做了什么
-        ├── review-report.md           # 审查者发现 + 裁定
-        ├── test-report.md             # 测试者结果
-        ├── deep-review-partial-{i}.md # 某个并行子审查者的发现（扇出时）
-        ├── deep-review-report.md      # 合并后的深度审查（synthesizer 输出或单 agent）
-        ├── verify.json                # {passed, round, role, commands[]}
-        └── escalation.json            # {needed, reason, detail}
+└── run/                            # 运行时产物（每个 feature 的工作目录）
+    └── {feature-id}/
+        ├── state.json                   # Phase、role、round、active、runner、runners、stopReason、profile
+        ├── events.jsonl                 # 审计追踪
+        ├── baseline.json                # 编码前快照（HEAD、分支、脏文件）
+        ├── task-brief.md                # Designer → Coder：规格 + 架构
+        ├── acceptance-criteria.md       # Designer → Tester：可测试的标准
+        ├── test-strategy.yaml           # Designer → Tester：测试方案
+        ├── final-report.md              # 循环结束摘要
+        ├── logs/
+        │   ├── round-{N}-{role}.log              # 每轮每角色执行日志
+        │   ├── round-{N}-deep-reviewer-{i}.log   # 每个并行子审查者（扇出时）
+        │   └── round-{N}-synthesizer.log         # Synthesizer 合并部分报告
+        └── rounds/round-{N}/
+            ├── coder-report.md            # 编码者做了什么
+            ├── review-report.md           # 审查者发现 + 裁定
+            ├── test-report.md             # 测试者结果
+            ├── deep-review-partial-{i}.md # 某个并行子审查者的发现（扇出时）
+            ├── deep-review-report.md      # 合并后的深度审查（synthesizer 输出或单 agent）
+            ├── verify.json                # {passed, round, role, commands[]}
+            └── escalation.json            # {needed, reason, detail}
 ```
 
 ### 批量信号文件
@@ -367,7 +368,7 @@ post_{target_phase} 钩子（按数组顺序）
 }
 ```
 
-完整的 stdout/stderr 输出写入 `.4x/{feature-id}/hook-logs/{timestamp}-hook-{n}.log`。
+完整的 stdout/stderr 输出写入 `.4x/run/{feature-id}/hook-logs/{timestamp}-hook-{n}.log`。
 
 ### 钩子合并（`MergeHooks`）
 

@@ -101,7 +101,7 @@
 
 ### Acceptor 產出
 
-Acceptor 在寫 `final-report.md` 的同時，額外產出 `.4x/{feature-id}/retro-learnings.json`：
+Acceptor 在寫 `final-report.md` 的同時，額外產出 `.4x/run/{feature-id}/retro-learnings.json`：
 
 ```json
 {
@@ -124,7 +124,7 @@ Prompt 指示原則：
 
 在 `4x run` 的 accepting phase 結束後：
 
-1. 讀取 `.4x/{feature-id}/retro-learnings.json`
+1. 讀取 `.4x/run/{feature-id}/retro-learnings.json`
 2. 驗證 schema（category 是否在白名單、content 非空）
 3. 自動分配 ID（L-序號遞增）
 4. 去重：比對 content 完全相同就跳過（不做模糊比對）
@@ -134,7 +134,7 @@ Prompt 指示原則：
 
 ### Designer 選 Learnings
 
-Designer prompt template 增加段落，注入 `learnings.json` 中所有 `active` 條目。Designer LLM 從中挑出與當前 feature 相關的 ID，寫入 `.4x/{feature-id}/selected-learnings.json`：
+Designer prompt template 增加段落，注入 `learnings.json` 中所有 `active` 條目。Designer LLM 從中挑出與當前 feature 相關的 ID，寫入 `.4x/run/{feature-id}/selected-learnings.json`：
 
 ```json
 {

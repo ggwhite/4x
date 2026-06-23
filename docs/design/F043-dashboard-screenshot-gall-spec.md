@@ -119,7 +119,7 @@ type VerifyEvidence struct {
 ```
 
 Server 邏輯：
-1. 遍歷 `.4x/{feature-id}/rounds/round-*/verify.json`，收集 `screenshots` 欄位
+1. 遍歷 `.4x/run/{feature-id}/rounds/round-*/verify.json`，收集 `screenshots` 欄位
 2. 讀 settings 取得 `screenshot_dir`，替換 `{feature-id}`，掃描目錄
 3. 目錄掃描到的截圖若不在 verify.json 裡，歸入 Round 1
 4. 按 round 分組，每組內按 step 排序

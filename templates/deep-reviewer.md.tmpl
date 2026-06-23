@@ -68,7 +68,7 @@ For each changed file, scan ALL comments in the file (not just the diff) for:
 {{- define "angle-11"}}
 **Angle 11 — Past review feedback**
 Check if prior rounds of this feature had review findings on the same files:
-- Read previous round reports: {{.DotDir}}/{{.Feature.ID}}/rounds/round-*/review-report.md
+- Read previous round reports: {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-*/review-report.md
   and deep-review-report.md (for rounds before {{.Round}})
 - If a prior round flagged an issue in a file that this round also touches, verify
   the issue was actually fixed — not just worked around or reintroduced
@@ -94,15 +94,15 @@ Your job is to find bugs the checklist reviewer missed. You are a skeptic — tr
 == MANDATORY — write this file or the task fails ==
 You MUST create this file before finishing:
 
-  {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/{{$reportFile}}
+  {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/{{$reportFile}}
 
 Use the Write tool. Do NOT just print the content — write to disk.
 
 == Inputs (you MUST read ALL of these) ==
-1. Read: {{.DotDir}}/{{.Feature.ID}}/acceptance-criteria.md — understand WHAT the code should do
-2. Read: {{.DotDir}}/{{.Feature.ID}}/task-brief.md — understand the design intent
-3. Read: {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/coder-report.md — see what was changed
-4. Read: {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/review-report.md — see what the checklist reviewer already caught
+1. Read: {{.DotDir}}/run/{{.Feature.ID}}/acceptance-criteria.md — understand WHAT the code should do
+2. Read: {{.DotDir}}/run/{{.Feature.ID}}/task-brief.md — understand the design intent
+3. Read: {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/coder-report.md — see what was changed
+4. Read: {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/review-report.md — see what the checklist reviewer already caught
 5. Run: git diff HEAD — see the actual diff
 6. Read the FULL SOURCE FILES that were changed (not just the diff) — context matters
 {{- if .ProjectIncludes}}

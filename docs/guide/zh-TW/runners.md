@@ -14,10 +14,11 @@ Runner 在 `.4x/settings.json` 的 `runners` 區段中設定。CLI 以子程序�
 | `codex` | OpenAI Codex CLI | Stdin | 可用 |
 | `gemini` | Google Gemini CLI | Argument | 可用 |
 | `agy` | Antigravity CLI | Argument | 可用 |
+| `opencode` | OpenCode CLI | Argument | 可用 |
 | `copilot` | GitHub Copilot CLI | Argument | 可用（需手動設定） |
 | `cursor` | Cursor IDE | Rules file | 可用（需手動設定） |
 
-`4x init` 預設會設定 claude、codex、gemini 和 agy。Copilot 和 cursor 需要手動加入 `settings.json`。
+`4x init` 預設會設定 claude、codex、gemini、agy 和 opencode。Copilot 和 cursor 需要手動加入 `settings.json`。
 
 ## Plugin 檔案
 
@@ -29,6 +30,7 @@ Runner 在 `.4x/settings.json` 的 `runners` 區段中設定。CLI 以子程序�
 | codex | `AGENTS.md` + `codex.json` | AGENTS.md |
 | gemini | `GEMINI.md` | GEMINI.md |
 | agy | `AGY.md` | AGY.md |
+| opencode | `AGENTS.md` | AGENTS.md |
 | copilot | `AGENTS.md` | AGENTS.md |
 | cursor | `.cursorrules` | .cursorrules |
 
@@ -48,7 +50,7 @@ Runner 在 `.4x/settings.json` 的 `runners` 區段中設定。CLI 以子程序�
     ├── 為當前角色產生 prompt
     ├── 以 prompt 呼叫 runner 子程序
     │     claude --dangerously-skip-permissions -p "..." --output-format stream-json --verbose
-    ├── 擷取輸出到 .4x/F001/logs/round-N-role.log
+    ├── 擷取輸出到 .4x/run/F001/logs/round-N-role.log
     ├── 檢查輸出 artifact
     └── 轉換狀態，重複
 ```

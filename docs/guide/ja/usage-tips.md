@@ -230,7 +230,7 @@ Feature の説明は Designer の唯一の入力です -- 明確に書くほど�
 
 Review 失敗（判定 FAIL または CRITICAL 所見）は自動的に Coder に差し戻されるため、手動介入は不要です。ただし、繰り返し失敗する場合は：
 
-1. **review-report.md を確認** -- `.4x/{feature-id}/rounds/round-{N}/review-report.md`
+1. **review-report.md を確認** -- `.4x/run/{feature-id}/rounds/round-{N}/review-report.md`
 2. **coder-report.md を確認** -- Coder が問題を理解しているか
 3. **調整を検討**：
    - Feature の説明が曖昧 → 説明を書き直し、Designer から再実行
@@ -245,7 +245,7 @@ Coder または Tester が仕様と実際の不一致を発見すると、自動
 - 受け入れ基準が不合理（`criteria-wrong`）
 - 外部依存が不足（`blocker`）
 
-エスカレーションは `.4x/{feature-id}/rounds/round-{N}/escalation.json` に記録されます。Designer がエスカレーションの内容を受け取り、仕様を再作成します。
+エスカレーションは `.4x/run/{feature-id}/rounds/round-{N}/escalation.json` に記録されます。Designer がエスカレーションの内容を受け取り、仕様を再作成します。
 
 Designer でも解決できない場合（通常はコンテキスト不足）、ループは `needs-attention` で停止します。この場合は手動介入が必要です：
 

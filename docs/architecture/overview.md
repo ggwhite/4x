@@ -82,7 +82,7 @@ Plugins are responsible for everything that touches an LLM:
 
 - Constructing role prompts from templates and context files.
 - Calling the model API.
-- Writing output files to the feature's `.4x/{feature-id}/` directory.
+- Writing output files to the feature's `.4x/run/{feature-id}/` directory.
 - Reporting progress via heartbeat events.
 
 A plugin is invoked by the CLI and exits with a standard exit code (0 = success, 1 = soft failure, 2 = hard error). See [plugin-contract.md](../reference/plugin-contract.md) for the full contract.

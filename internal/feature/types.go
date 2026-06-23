@@ -126,4 +126,4 @@ type ScreenshotGroup struct {
 }
 
 // DefaultScreenshotDir 是 tester 預設截圖目錄，可用 {feature-id}、{round} 變數。
-const DefaultScreenshotDir = ".4x/e2e/{feature-id}/screenshot/"
+const DefaultScreenshotDir = ".4x/run/{feature-id}/screenshot/"

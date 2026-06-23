@@ -266,7 +266,7 @@ exit 0
 	protocol.Init(root, protocol.Config{Project: protocol.ProjectConfig{Name: "t"}})
 	ws := &protocol.Workspace{Root: root}
 
-	logDir := filepath.Join(root, ".4x", "test-feature", "logs")
+	logDir := filepath.Join(root, ".4x", "run", "test-feature", "logs")
 	if err := os.MkdirAll(logDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}

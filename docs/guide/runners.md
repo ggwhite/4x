@@ -14,10 +14,11 @@ Runners are configured in `.4x/settings.json` under the `runners` key. The CLI i
 | `codex` | OpenAI Codex CLI | Stdin | Available |
 | `gemini` | Google Gemini CLI | Argument | Available |
 | `agy` | Antigravity CLI | Argument | Available |
+| `opencode` | OpenCode CLI | Argument | Available |
 | `copilot` | GitHub Copilot CLI | Argument | Available (manual config) |
 | `cursor` | Cursor IDE | Argument | Available (manual config) |
 
-`4x init` configures claude, codex, gemini, and agy by default. Copilot and cursor require manual addition to `settings.json`.
+`4x init` configures claude, codex, gemini, agy, and opencode by default. Copilot and cursor require manual addition to `settings.json`.
 
 ## Plugin Files
 
@@ -29,6 +30,7 @@ Each runner has instruction files embedded in the `4x` binary. `4x init` deploys
 | codex | `AGENTS.md` + `codex.json` | AGENTS.md |
 | gemini | `GEMINI.md` | GEMINI.md |
 | agy | `AGY.md` | AGY.md |
+| opencode | `AGENTS.md` | AGENTS.md |
 | copilot | `AGENTS.md` | AGENTS.md |
 | cursor | `.cursorrules` | .cursorrules |
 
@@ -48,7 +50,7 @@ Use `4x sync` to re-deploy plugin files after updating the binary.
 	    ├── Generate prompt for current role
 	    ├── Invoke runner subprocess with prompt
 	    │     claude --dangerously-skip-permissions -p "..." --output-format stream-json --verbose
-	    ├── Capture output to .4x/F001/logs/round-N-role.log
+	    ├── Capture output to .4x/run/F001/logs/round-N-role.log
 	    │     (parallel deep review: round-N-deep-reviewer-{i}.log + round-N-synthesizer.log)
     │     (deep review self-heal: round-N-deep-fix-{i}.log + round-N-deep-reverify-{i}.log)
     ├── Check output artifacts

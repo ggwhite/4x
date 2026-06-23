@@ -121,7 +121,7 @@ xattr -cr /Applications/4x\ Live.app
 
 #### `POST /api/clean`
 
-프로젝트 내 **모든** 정리 가능한 기능의 `.4x/{feature-id}/` 워크스페이스 아티팩트(로그, `rounds/`, 보고서, `state.json`, `events.jsonl`)를 한 번의 호출로 제거합니다 — `4x clean`이 정리할 것과 동일한 세트: `done`/`abandoned`, 비활성, 워크스페이스 디렉토리 존재. 기능 정의(`.4x/features/*.yaml`)는 보존되므로, 정리된 기능도 최종 상태와 함께 목록에 계속 표시됩니다. 기반 프로토콜 함수에 대해서는 [워크스페이스 정리](concepts.md#workspace-cleanup)를 참조하세요.
+프로젝트 내 **모든** 정리 가능한 기능의 `.4x/run/{feature-id}/` 워크스페이스 아티팩트(로그, `rounds/`, 보고서, `state.json`, `events.jsonl`)를 한 번의 호출로 제거합니다 — `4x clean`이 정리할 것과 동일한 세트: `done`/`abandoned`, 비활성, 워크스페이스 디렉토리 존재. 기능 정의(`.4x/features/*.yaml`)는 보존되므로, 정리된 기능도 최종 상태와 함께 목록에 계속 표시됩니다. 기반 프로토콜 함수에 대해서는 [워크스페이스 정리](concepts.md#workspace-cleanup)를 참조하세요.
 
 비 `POST` 요청은 **HTTP 405**를 반환합니다. 각 기능은 독립적으로 정리됩니다; 실패(예: 경합으로 활성 상태가 된 경우)하면 해당 기능만 건너뛰고 나머지는 계속됩니다. 핸들러는 항상 HTTP 200을 반환합니다:
 

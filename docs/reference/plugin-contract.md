@@ -14,9 +14,9 @@ A conforming plugin must:
    ```
    The `--workspace` flag points to the root containing `.4x/`.
 
-2. **Read context from the filesystem only.** The plugin reads `.4x/settings.json`, `.4x/features/{feature-id}.yaml`, and any existing files in `.4x/{feature-id}/`. It must not rely on environment variables beyond standard ones (`HOME`, `PATH`, `4X_*` prefixed vars).
+2. **Read context from the filesystem only.** The plugin reads `.4x/settings.json`, `.4x/features/{feature-id}.yaml`, and any existing files in `.4x/run/{feature-id}/`. It must not rely on environment variables beyond standard ones (`HOME`, `PATH`, `4X_*` prefixed vars).
 
-3. **Write outputs to `.4x/{feature-id}/`.** All output files must be written atomically (write to temp, rename). Partial writes that crash mid-run must not leave corrupt state.
+3. **Write outputs to `.4x/run/{feature-id}/`.** All output files must be written atomically (write to temp, rename). Partial writes that crash mid-run must not leave corrupt state.
 
 4. **Emit heartbeat events** at least once every 60 seconds during long operations, by calling:
    ```

@@ -3,20 +3,20 @@ You are the Tester for feature "{{.Feature.Name}}" ({{.Feature.ID}}), round {{.R
 == MANDATORY — write these files or the task fails ==
 You MUST create these files before finishing:
 
-  {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/test-report.md
+  {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/test-report.md
 
 verify.json is created by `4x verify` (or `$FOURX_BIN verify` if 4x is not in PATH) — do NOT write it yourself.
 
 If verify.json passed is true, you MUST also create:
 
-  {{.DotDir}}/{{.Feature.ID}}/final-report.md
+  {{.DotDir}}/run/{{.Feature.ID}}/final-report.md
 
 Use the Write tool. Do NOT just print the content — write to disk.
 
 == Inputs ==
-1. Read: {{.DotDir}}/{{.Feature.ID}}/acceptance-criteria.md
-2. Read: {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/coder-report.md
-3. Read: {{.DotDir}}/{{.Feature.ID}}/test-strategy.yaml (for verify_commands or verify_groups)
+1. Read: {{.DotDir}}/run/{{.Feature.ID}}/acceptance-criteria.md
+2. Read: {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/coder-report.md
+3. Read: {{.DotDir}}/run/{{.Feature.ID}}/test-strategy.yaml (for verify_commands or verify_groups)
 {{- if .ProjectIncludes}}
 {{range .ProjectIncludes}}
 

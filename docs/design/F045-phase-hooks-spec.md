@@ -71,7 +71,7 @@ post_{target_phase} hooks（依陣列順序）
 
 ### Hook output 檔
 
-完整 stdout/stderr 寫入 `.4x/{featureId}/hook-logs/{timestamp}-{action}.log`，供 debug 用。
+完整 stdout/stderr 寫入 `.4x/run/{featureId}/hook-logs/{timestamp}-{action}.log`，供 debug 用。
 
 ## 實作位置
 

@@ -76,7 +76,7 @@ El deep reviewer escribe cada candidato fuera de alcance como un bloque `[NEW-FE
 - **Deduplica** cada candidato contra features existentes y contra candidatos ya conservados, usando una verificación de similitud por solapamiento de tokens (Jaccard).
 - **Limita** la cantidad a `max_discovered_features` (predeterminado `3`); el resto se registra como limitado.
 - **Crea** los candidatos conservados como nuevos YAMLs de feature (estado `not-started`, reutilizando la misma numeración que `4x new`), agregando un evento `feature-discovered` por cada creación.
-- **Resume** el resultado (creados / omitidos-como-duplicado / limitados) en `.4x/{feature-id}/discovered-features.md`.
+- **Resume** el resultado (creados / omitidos-como-duplicado / limitados) en `.4x/run/{feature-id}/discovered-features.md`.
 
 El paso es best-effort: cualquier error se registra y nunca bloquea la transición a `accepting`. Solo se ejecuta en el PASS final del deep review — las rondas intermedias y las rutas FAIL/`needs-attention` nunca lo alcanzan. Ver [Configuración -> Auto-descubrimiento de features](configuration.md#auto-discover-features) para la configuración.
 
@@ -168,26 +168,27 @@ Los roles se comunican a través del directorio `.4x/`, no a través de ventanas
 ├── batch-report.json                # Último reporte de ejecución batch (estadísticas + resultado por feature)
 ├── features/
 │   └── {id}.yaml                    # Definición del feature (fuente canónica)
-└── {feature-id}/
-    ├── state.json                   # Phase, role, round, active, runner, runners, stopReason, profile
-    ├── events.jsonl                 # Registro de auditoría
-    ├── baseline.json                # Instantánea pre-codificación (HEAD, branch, archivos sucios)
-    ├── task-brief.md                # Designer → Coder: spec + arquitectura
-    ├── acceptance-criteria.md       # Designer → Tester: criterios verificables
-    ├── test-strategy.yaml           # Designer → Tester: enfoque de pruebas
-    ├── final-report.md              # Resumen de fin de ciclo
-    ├── logs/
-    │   ├── round-{N}-{role}.log              # Log de ejecución por ronda por rol
-    │   ├── round-{N}-deep-reviewer-{i}.log   # Por sub-revisor paralelo (cuando se distribuye)
-    │   └── round-{N}-synthesizer.log         # Synthesizer fusionando los reportes parciales
-    └── rounds/round-{N}/
-        ├── coder-report.md            # Lo que hizo el Coder
-        ├── review-report.md           # Hallazgos del Reviewer + veredicto
-        ├── test-report.md             # Resultados del Tester
-        ├── deep-review-partial-{i}.md # Hallazgos de un sub-revisor paralelo (cuando se distribuye)
-        ├── deep-review-report.md      # Deep review fusionado (salida del synthesizer o agente único)
-        ├── verify.json                # {passed, round, role, commands[]}
-        └── escalation.json            # {needed, reason, detail}
+└── run/                            # Artefactos de ejecución (directorios de trabajo por feature)
+    └── {feature-id}/
+        ├── state.json                   # Phase, role, round, active, runner, runners, stopReason, profile
+        ├── events.jsonl                 # Registro de auditoría
+        ├── baseline.json                # Instantánea pre-codificación (HEAD, branch, archivos sucios)
+        ├── task-brief.md                # Designer → Coder: spec + arquitectura
+        ├── acceptance-criteria.md       # Designer → Tester: criterios verificables
+        ├── test-strategy.yaml           # Designer → Tester: enfoque de pruebas
+        ├── final-report.md              # Resumen de fin de ciclo
+        ├── logs/
+        │   ├── round-{N}-{role}.log              # Log de ejecución por ronda por rol
+        │   ├── round-{N}-deep-reviewer-{i}.log   # Por sub-revisor paralelo (cuando se distribuye)
+        │   └── round-{N}-synthesizer.log         # Synthesizer fusionando los reportes parciales
+        └── rounds/round-{N}/
+            ├── coder-report.md            # Lo que hizo el Coder
+            ├── review-report.md           # Hallazgos del Reviewer + veredicto
+            ├── test-report.md             # Resultados del Tester
+            ├── deep-review-partial-{i}.md # Hallazgos de un sub-revisor paralelo (cuando se distribuye)
+            ├── deep-review-report.md      # Deep review fusionado (salida del synthesizer o agente único)
+            ├── verify.json                # {passed, round, role, commands[]}
+            └── escalation.json            # {needed, reason, detail}
 ```
 
 ### Archivos señal del batch
@@ -367,7 +368,7 @@ Cada ejecución de hook agrega un evento `type: "hook"` a `events.jsonl`:
 }
 ```
 
-La salida completa de stdout/stderr se escribe en `.4x/{feature-id}/hook-logs/{timestamp}-hook-{n}.log`.
+La salida completa de stdout/stderr se escribe en `.4x/run/{feature-id}/hook-logs/{timestamp}-hook-{n}.log`.
 
 ### Fusión de hooks (`MergeHooks`)
 

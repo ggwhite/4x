@@ -387,7 +387,7 @@ func TestReadTestStrategy_WithHealthCheck(t *testing.T) {
 func TestRoundDir(t *testing.T) {
 	ws := &Workspace{Root: "/fake"}
 	got := ws.RoundDir("feat-1", 3)
-	want := "/fake/.4x/feat-1/rounds/round-3"
+	want := "/fake/.4x/run/feat-1/rounds/round-3"
 	if got != want {
 		t.Errorf("RoundDir = %s, want %s", got, want)
 	}
@@ -409,7 +409,7 @@ func TestDiscoverScreenshots(t *testing.T) {
 		Round:  2,
 		Role:   RoleTester,
 		Screenshots: []feature.Screenshot{
-			{Path: ".4x/e2e/feat-shot/screenshot/02-round-two.png", Step: "02", Description: "round two"},
+			{Path: ".4x/run/feat-shot/screenshot/02-round-two.png", Step: "02", Description: "round two"},
 		},
 	}
 	verifyData, _ := json.Marshal(verify)
@@ -417,7 +417,7 @@ func TestDiscoverScreenshots(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	shotDir := filepath.Join(ws.DotDir(), "e2e", featureID, "screenshot")
+	shotDir := filepath.Join(ws.DotDir(), "run", featureID, "screenshot")
 	if err := os.MkdirAll(shotDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -457,7 +457,7 @@ func TestDiscoverScreenshotsNoDir(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	groups, err := ws.DiscoverScreenshots(featureID, ".4x/e2e/{feature-id}/missing/")
+	groups, err := ws.DiscoverScreenshots(featureID, ".4x/run/{feature-id}/missing/")
 	if err != nil {
 		t.Fatalf("DiscoverScreenshots: %v", err)
 	}
@@ -482,7 +482,7 @@ func TestDiscoverScreenshotsMerge(t *testing.T) {
 		Round:  1,
 		Role:   RoleTester,
 		Screenshots: []feature.Screenshot{
-			{Path: "e2e/feat-merge-shot/screenshot/01-login.png", Step: "01", Description: "login"},
+			{Path: "run/feat-merge-shot/screenshot/01-login.png", Step: "01", Description: "login"},
 		},
 	}
 	verifyData, _ := json.Marshal(verify)
@@ -490,7 +490,7 @@ func TestDiscoverScreenshotsMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	shotDir := filepath.Join(ws.DotDir(), "e2e", featureID, "screenshot")
+	shotDir := filepath.Join(ws.DotDir(), "run", featureID, "screenshot")
 	if err := os.MkdirAll(shotDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -509,8 +509,8 @@ func TestDiscoverScreenshotsMerge(t *testing.T) {
 	}
 	paths := []string{groups[0].Screenshots[0].Path, groups[0].Screenshots[1].Path}
 	want := []string{
-		"e2e/feat-merge-shot/screenshot/01-login.png",
-		"e2e/feat-merge-shot/screenshot/02-run-modal.png",
+		"run/feat-merge-shot/screenshot/01-login.png",
+		"run/feat-merge-shot/screenshot/02-run-modal.png",
 	}
 	if !reflect.DeepEqual(paths, want) {
 		t.Fatalf("paths = %v, want %v", paths, want)
@@ -531,8 +531,8 @@ func TestDiscoverScreenshotsSameFilenameAcrossRounds(t *testing.T) {
 	}
 
 	for _, dir := range []string{
-		filepath.Join(ws.DotDir(), "e2e", featureID, "round-1"),
-		filepath.Join(ws.DotDir(), "e2e", featureID, "round-2"),
+		filepath.Join(ws.DotDir(), "run", featureID, "round-1"),
+		filepath.Join(ws.DotDir(), "run", featureID, "round-2"),
 	} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
@@ -542,7 +542,7 @@ func TestDiscoverScreenshotsSameFilenameAcrossRounds(t *testing.T) {
 		}
 	}
 
-	groups, err := ws.DiscoverScreenshots(featureID, ".4x/e2e/{feature-id}/round-{round}/")
+	groups, err := ws.DiscoverScreenshots(featureID, ".4x/run/{feature-id}/round-{round}/")
 	if err != nil {
 		t.Fatalf("DiscoverScreenshots: %v", err)
 	}
@@ -565,7 +565,7 @@ func TestDiscoverScreenshotsRoundPlaceholderFallbackDiscovery(t *testing.T) {
 	}
 
 	for _, round := range []int{2, 3} {
-		dir := filepath.Join(ws.DotDir(), "e2e", featureID, "round-"+strconv.Itoa(round))
+		dir := filepath.Join(ws.DotDir(), "run", featureID, "round-"+strconv.Itoa(round))
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -574,7 +574,7 @@ func TestDiscoverScreenshotsRoundPlaceholderFallbackDiscovery(t *testing.T) {
 		}
 	}
 
-	groups, err := ws.DiscoverScreenshots(featureID, ".4x/e2e/{feature-id}/round-{round}/")
+	groups, err := ws.DiscoverScreenshots(featureID, ".4x/run/{feature-id}/round-{round}/")
 	if err != nil {
 		t.Fatalf("DiscoverScreenshots: %v", err)
 	}
@@ -598,7 +598,7 @@ func TestDiscoverScreenshotsInvalidRoundsRejected(t *testing.T) {
 
 	// Create directories with invalid round numbers (0, -1, 1)
 	for _, roundStr := range []string{"round-0", "round--1", "round-1"} {
-		dir := filepath.Join(ws.DotDir(), "e2e", featureID, roundStr)
+		dir := filepath.Join(ws.DotDir(), "run", featureID, roundStr)
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -607,7 +607,7 @@ func TestDiscoverScreenshotsInvalidRoundsRejected(t *testing.T) {
 		}
 	}
 
-	groups, err := ws.DiscoverScreenshots(featureID, ".4x/e2e/{feature-id}/round-{round}/")
+	groups, err := ws.DiscoverScreenshots(featureID, ".4x/run/{feature-id}/round-{round}/")
 	if err != nil {
 		t.Fatalf("DiscoverScreenshots: %v", err)
 	}
@@ -639,7 +639,7 @@ func TestDiscoverScreenshotsRoundUnion(t *testing.T) {
 	verify := VerifyEvidence{
 		Passed: true, Round: 1, Role: RoleTester,
 		Screenshots: []feature.Screenshot{
-			{Path: "e2e/feat-round-union/round-1/01-login.png", Step: "01", Description: "login"},
+			{Path: "run/feat-round-union/round-1/01-login.png", Step: "01", Description: "login"},
 		},
 	}
 	verifyData, _ := json.Marshal(verify)
@@ -649,7 +649,7 @@ func TestDiscoverScreenshotsRoundUnion(t *testing.T) {
 
 	// round 2 與 round 3 只有截圖目錄，沒有 verify.json
 	for _, round := range []int{2, 3} {
-		dir := filepath.Join(ws.DotDir(), "e2e", featureID, "round-"+strconv.Itoa(round))
+		dir := filepath.Join(ws.DotDir(), "run", featureID, "round-"+strconv.Itoa(round))
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -658,7 +658,7 @@ func TestDiscoverScreenshotsRoundUnion(t *testing.T) {
 		}
 	}
 
-	groups, err := ws.DiscoverScreenshots(featureID, ".4x/e2e/{feature-id}/round-{round}/")
+	groups, err := ws.DiscoverScreenshots(featureID, ".4x/run/{feature-id}/round-{round}/")
 	if err != nil {
 		t.Fatalf("DiscoverScreenshots: %v", err)
 	}
@@ -895,7 +895,7 @@ func TestNormalizeScreenshotPath(t *testing.T) {
 		input string
 		want  string
 	}{
-		{".4x/e2e/feat/screenshot/01.png", "e2e/feat/screenshot/01.png"},
+		{".4x/run/feat/screenshot/01.png", "run/feat/screenshot/01.png"},
 		{"./e2e/feat/01.png", "e2e/feat/01.png"},
 		{"e2e/feat/01.png", "e2e/feat/01.png"},
 		{"  .4x/foo.png  ", "foo.png"},
@@ -921,7 +921,7 @@ func TestDiscoverScreenshots_NoRoundPlaceholder_UsesLatestRound(t *testing.T) {
 		}
 	}
 
-	shotDir := filepath.Join(ws.DotDir(), "e2e", featureID, "screenshot")
+	shotDir := filepath.Join(ws.DotDir(), "run", featureID, "screenshot")
 	if err := os.MkdirAll(shotDir, 0o755); err != nil {
 		t.Fatal(err)
 	}

@@ -121,7 +121,7 @@ xattr -cr /Applications/4x\ Live.app
 
 #### `POST /api/clean`
 
-プロジェクト内のすべてのクリーン可能な Feature の `.4x/{feature-id}/` ワークスペースアーティファクト（ログ、`rounds/`、レポート、`state.json`、`events.jsonl`）を一括削除します。対象は `4x clean` と同じセット：`done`/`abandoned`、非アクティブ、ワークスペースディレクトリが存在するもの。Feature 定義（`.4x/features/*.yaml`）は保持されるため、クリーンされた Feature は最終ステータス付きでリストに表示され続けます。
+プロジェクト内のすべてのクリーン可能な Feature の `.4x/run/{feature-id}/` ワークスペースアーティファクト（ログ、`rounds/`、レポート、`state.json`、`events.jsonl`）を一括削除します。対象は `4x clean` と同じセット：`done`/`abandoned`、非アクティブ、ワークスペースディレクトリが存在するもの。Feature 定義（`.4x/features/*.yaml`）は保持されるため、クリーンされた Feature は最終ステータス付きでリストに表示され続けます。
 
 `POST` 以外のリクエストは **HTTP 405** を返します。各 Feature は個別にクリーンされます。1つが失敗（例：レースでアクティブになった場合）してもスキップされ、残りは中断されません。ハンドラは常に HTTP 200 を返します：
 

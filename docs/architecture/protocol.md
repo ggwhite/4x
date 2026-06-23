@@ -119,10 +119,10 @@ max_rounds: 6
 
 ## 3.3 Runtime Directory Structure
 
-Each feature gets a directory at `.4x/{feature-id}/`. The CLI creates it when the feature first transitions out of `init`.
+Each feature gets a directory at `.4x/run/{feature-id}/`. The CLI creates it when the feature first transitions out of `init`.
 
 ```
-.4x/{feature-id}/
+.4x/run/{feature-id}/
 ├── state.json             # machine-readable current state
 ├── events.jsonl           # append-only event log
 ├── baseline.json          # snapshot of repo state before coding begins

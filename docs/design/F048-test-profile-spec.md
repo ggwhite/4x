@@ -148,7 +148,7 @@ type profileContent struct {
 
 ```
 loadProfiles(ws, featureID, cfg) → []profileContent
-  1. 讀 .4x/{featureId}/test-strategy.yaml
+  1. 讀 .4x/run/{featureId}/test-strategy.yaml
   2. 若 profiles 為空 → 回傳 nil
   3. 對每個 profile name → 按合併邏輯載入內容
   4. 回傳 []profileContent

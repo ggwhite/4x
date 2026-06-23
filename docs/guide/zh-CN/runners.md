@@ -14,10 +14,11 @@ Runner 在 `.4x/settings.json` 的 `runners` 键下配置。CLI 以子进程方�
 | `codex` | OpenAI Codex CLI | Stdin | 可用 |
 | `gemini` | Google Gemini CLI | Argument | 可用 |
 | `agy` | Antigravity CLI | Argument | 可用 |
+| `opencode` | OpenCode CLI | Argument | 可用 |
 | `copilot` | GitHub Copilot CLI | Argument | 可用（需手动配置） |
 | `cursor` | Cursor IDE | Rules file | 可用（需手动配置） |
 
-`4x init` 默认配置 claude、codex、gemini 和 agy。Copilot 和 cursor 需要手动添加到 `settings.json`。
+`4x init` 默认配置 claude、codex、gemini、agy 和 opencode。Copilot 和 cursor 需要手动添加到 `settings.json`。
 
 ## 插件文件
 
@@ -29,6 +30,7 @@ Runner 在 `.4x/settings.json` 的 `runners` 键下配置。CLI 以子进程方�
 | codex | `AGENTS.md` + `codex.json` | AGENTS.md |
 | gemini | `GEMINI.md` | GEMINI.md |
 | agy | `AGY.md` | AGY.md |
+| opencode | `AGENTS.md` | AGENTS.md |
 | copilot | `AGENTS.md` | AGENTS.md |
 | cursor | `.cursorrules` | .cursorrules |
 
@@ -48,7 +50,7 @@ Runner 在 `.4x/settings.json` 的 `runners` 键下配置。CLI 以子进程方�
     ├── Generate prompt for current role
     ├── Invoke runner subprocess with prompt
     │     claude --dangerously-skip-permissions -p "..." --output-format stream-json --verbose
-    ├── Capture output to .4x/F001/logs/round-N-role.log
+    ├── Capture output to .4x/run/F001/logs/round-N-role.log
     ├── Check output artifacts
     └── Transition state, repeat
 ```

@@ -577,7 +577,7 @@ func seedScreenshots(t *testing.T, ws *protocol.Workspace, featureID string) {
 		Round:  2,
 		Role:   protocol.RoleTester,
 		Screenshots: []feature.Screenshot{
-			{Path: "e2e/test-feat/screenshot/02-round-two.png", Step: "02", Description: "round two"},
+			{Path: "run/test-feat/screenshot/02-round-two.png", Step: "02", Description: "round two"},
 		},
 	}
 	verifyData, _ := json.Marshal(verify)
@@ -585,7 +585,7 @@ func seedScreenshots(t *testing.T, ws *protocol.Workspace, featureID string) {
 		t.Fatal(err)
 	}
 
-	shotDir := filepath.Join(ws.DotDir(), "e2e", featureID, "screenshot")
+	shotDir := filepath.Join(ws.DotDir(), "run", featureID, "screenshot")
 	if err := os.MkdirAll(shotDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -610,7 +610,7 @@ func seedSameNameScreenshots(t *testing.T, ws *protocol.Workspace, featureID str
 			Role:   protocol.RoleTester,
 			Screenshots: []feature.Screenshot{
 				{
-					Path:        fmt.Sprintf("e2e/%s/round-%d/01-login.png", featureID, round),
+					Path:        fmt.Sprintf("run/%s/round-%d/01-login.png", featureID, round),
 					Step:        "01",
 					Description: fmt.Sprintf("round %d", round),
 				},
@@ -623,7 +623,7 @@ func seedSameNameScreenshots(t *testing.T, ws *protocol.Workspace, featureID str
 	}
 
 	for _, round := range []int{1, 2} {
-		shotDir := filepath.Join(ws.DotDir(), "e2e", featureID, fmt.Sprintf("round-%d", round))
+		shotDir := filepath.Join(ws.DotDir(), "run", featureID, fmt.Sprintf("round-%d", round))
 		if err := os.MkdirAll(shotDir, 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -748,7 +748,7 @@ func TestServeScreenshot_SameFilenameAcrossRoundsByEncodedPath(t *testing.T) {
 	ws := setupServerWorkspace(t)
 	seedSameNameScreenshots(t, ws, "test-feat")
 
-	round1 := encodeScreenshotToken("e2e/test-feat/round-1/01-login.png")
+	round1 := encodeScreenshotToken("run/test-feat/round-1/01-login.png")
 	rec := serveRequest(t, NewMux(singleResolver(protocol.NewCachedWorkspace(ws), nil)), http.MethodGet, "/api/features/test-feat/screenshots/"+round1, "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
@@ -757,7 +757,7 @@ func TestServeScreenshot_SameFilenameAcrossRoundsByEncodedPath(t *testing.T) {
 		t.Fatalf("body = %q, want one", rec.Body.String())
 	}
 
-	round2 := encodeScreenshotToken("e2e/test-feat/round-2/01-login.png")
+	round2 := encodeScreenshotToken("run/test-feat/round-2/01-login.png")
 	rec = serveRequest(t, NewMux(singleResolver(protocol.NewCachedWorkspace(ws), nil)), http.MethodGet, "/api/features/test-feat/screenshots/"+round2, "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
@@ -1153,7 +1153,7 @@ func TestGetMergedConfig(t *testing.T) {
 
 func TestScreenshots_ServeImageDirectly(t *testing.T) {
 	ws := setupServerWorkspace(t)
-	shotDir := filepath.Join(ws.Root, ".4x", "e2e", "test-feat", "screenshot")
+	shotDir := filepath.Join(ws.Root, ".4x", "run", "test-feat", "screenshot")
 	os.MkdirAll(shotDir, 0o755)
 	pngData := []byte("\x89PNG\r\n\x1a\ntest-image-data")
 	os.WriteFile(filepath.Join(shotDir, "01-overview.png"), pngData, 0o644)

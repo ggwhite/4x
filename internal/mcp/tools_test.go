@@ -89,7 +89,7 @@ func TestStopTool(t *testing.T) {
 	dir := t.TempDir()
 	dotDir := filepath.Join(dir, ".4x")
 	featuresDir := filepath.Join(dotDir, "features")
-	featureDir := filepath.Join(dotDir, "F001-test")
+	featureDir := filepath.Join(dotDir, "run", "F001-test")
 	os.MkdirAll(featuresDir, 0o755)
 	os.MkdirAll(featureDir, 0o755)
 

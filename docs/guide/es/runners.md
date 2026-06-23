@@ -14,10 +14,11 @@ Los runners se configuran en `.4x/settings.json` bajo la clave `runners`. El CLI
 | `codex` | OpenAI Codex CLI | Stdin | Disponible |
 | `gemini` | Google Gemini CLI | Argumento | Disponible |
 | `agy` | Antigravity CLI | Argumento | Disponible |
+| `opencode` | OpenCode CLI | Argumento | Disponible |
 | `copilot` | GitHub Copilot CLI | Argumento | Disponible (config manual) |
 | `cursor` | Cursor IDE | Archivo de reglas | Disponible (config manual) |
 
-`4x init` configura claude, codex, gemini y agy de forma predeterminada. Copilot y cursor requieren adición manual a `settings.json`.
+`4x init` configura claude, codex, gemini, agy y opencode de forma predeterminada. Copilot y cursor requieren adición manual a `settings.json`.
 
 ## Archivos de plugins
 
@@ -29,6 +30,7 @@ Cada runner tiene archivos de instrucciones embebidos en el binario de `4x`. `4x
 | codex | `AGENTS.md` + `codex.json` | AGENTS.md |
 | gemini | `GEMINI.md` | GEMINI.md |
 | agy | `AGY.md` | AGY.md |
+| opencode | `AGENTS.md` | AGENTS.md |
 | copilot | `AGENTS.md` | AGENTS.md |
 | cursor | `.cursorrules` | .cursorrules |
 
@@ -48,7 +50,7 @@ Usa `4x sync` para volver a desplegar archivos de plugins después de actualizar
     ├── Generate prompt for current role
     ├── Invoke runner subprocess with prompt
     │     claude --dangerously-skip-permissions -p "..." --output-format stream-json --verbose
-    ├── Capture output to .4x/F001/logs/round-N-role.log
+    ├── Capture output to .4x/run/F001/logs/round-N-role.log
     ├── Check output artifacts
     └── Transition state, repeat
 ```

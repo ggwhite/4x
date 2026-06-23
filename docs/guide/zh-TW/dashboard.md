@@ -121,7 +121,7 @@ Overview 還包含一個批次控制面板，背後使用[批次控制 API](#bat
 
 #### `POST /api/clean`
 
-移除專案中**每個**可清理 feature 的 `.4x/{feature-id}/` workspace artifact（logs、`rounds/`、報告、`state.json`、`events.jsonl`）——與 `4x clean` 清理的集合相同：`done`/`abandoned`、非活躍、有既有 workspace 目錄。Feature 定義檔（`.4x/features/*.yaml`）保留，因此清理後的 feature 仍顯示在清單中並帶有最終狀態。
+移除專案中**每個**可清理 feature 的 `.4x/run/{feature-id}/` workspace artifact（logs、`rounds/`、報告、`state.json`、`events.jsonl`）——與 `4x clean` 清理的集合相同：`done`/`abandoned`、非活躍、有既有 workspace 目錄。Feature 定義檔（`.4x/features/*.yaml`）保留，因此清理後的 feature 仍顯示在清單中並帶有最終狀態。
 
 非 `POST` 請求回傳 **HTTP 405**。每個 feature 獨立清理；某個失敗（例如競態使其變為活躍）會跳過但不中止其餘。handler 永遠回傳 HTTP 200：
 

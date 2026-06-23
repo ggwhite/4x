@@ -483,7 +483,7 @@ type RetroLearning struct {
 	Content  string   `json:"content"`
 }
 
-// RetroFile 是 .4x/{feature-id}/retro-learnings.json 的結構
+// RetroFile 是 .4x/run/{feature-id}/retro-learnings.json 的結構
 type RetroFile struct {
 	Learnings []RetroLearning `json:"learnings"`
 }

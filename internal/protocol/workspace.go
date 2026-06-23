@@ -53,6 +53,7 @@ const (
 
 	// CandidatesFile 是 .4x/candidates.json，history miner（4x mine）掃描歷史失敗訊號後
 	// 產出的 candidate pool（候選 feature + 候選 learnings），供後續 F097 閘門決定是否升級。
+	RunDir         = "run"
 	CandidatesFile = "candidates.json"
 
 	// F097 evolve 價值閘門相關檔名（皆在 .4x/ 根，CandidatePool 格式）。
@@ -109,9 +110,9 @@ func (w *Workspace) DotDir() string {
 	return filepath.Join(w.Root, DirName)
 }
 
-// FeatureDir 回傳 .4x/{featureId}/ 的路徑
+// FeatureDir 回傳 .4x/run/{featureId}/ 的路徑
 func (w *Workspace) FeatureDir(featureID string) string {
-	return filepath.Join(w.DotDir(), featureID)
+	return filepath.Join(w.DotDir(), RunDir, featureID)
 }
 
 // RoundDir 回傳 .4x/{featureId}/rounds/round-{n}/ 的路徑

@@ -245,14 +245,14 @@ func TestCheckWorkspace_StaleState(t *testing.T) {
 	root := setupWorkspace(t)
 	writeFeature(t, root, "F003", feature.StatusInProgress)
 	ws := &protocol.Workspace{Root: root}
-	if err := os.MkdirAll(filepath.Join(root, ".4x", "F003"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, ".4x", "run", "F003"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	state := protocol.State{FeatureID: "F003", Active: true, Pid: 4242}
 	if err := ws.WriteState("F003", state); err != nil {
 		t.Fatal(err)
 	}
-	statePath := filepath.Join(root, ".4x", "F003", "state.json")
+	statePath := filepath.Join(root, ".4x", "run", "F003", "state.json")
 	before, err := os.ReadFile(statePath)
 	if err != nil {
 		t.Fatal(err)
@@ -402,7 +402,7 @@ func TestDiagnose_ReadOnly(t *testing.T) {
 	}
 	writeFeature(t, root, "F020", feature.StatusInProgress)
 	ws := &protocol.Workspace{Root: root}
-	if err := os.MkdirAll(filepath.Join(root, ".4x", "F020"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, ".4x", "run", "F020"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := ws.WriteState("F020", protocol.State{FeatureID: "F020", Active: true, Pid: 999999}); err != nil {

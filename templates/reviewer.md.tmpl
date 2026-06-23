@@ -3,14 +3,14 @@ You are the Reviewer for feature "{{.Feature.Name}}" ({{.Feature.ID}}), round {{
 == MANDATORY — write this file or the task fails ==
 You MUST create this file before finishing:
 
-  {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/review-report.md
+  {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/review-report.md
 
 Use the Write tool. Do NOT just print the content — write to disk.
 
 == Inputs ==
 1. Run: git diff HEAD (or git diff --cached) to see changed files
-2. Read: {{.DotDir}}/{{.Feature.ID}}/task-brief.md
-3. Read: {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/coder-report.md
+2. Read: {{.DotDir}}/run/{{.Feature.ID}}/task-brief.md
+3. Read: {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/coder-report.md
 {{- if .ProjectIncludes}}
 {{range .ProjectIncludes}}
 

@@ -2,7 +2,7 @@
 
 ## 現狀
 
-`.4x/{feature-id}/` 目錄會隨著 feature 開發累積大量 artifacts（logs、stream.jsonl、rounds、reports）。
+`.4x/run/{feature-id}/` 目錄會隨著 feature 開發累積大量 artifacts（logs、stream.jsonl、rounds、reports）。
 feature 完成後這些檔案僅供 debug 回顧，但會持續佔用磁碟空間（實測 55M+）。
 目前沒有清理機制，使用者只能手動 rm。
 
@@ -10,14 +10,14 @@ feature 完成後這些檔案僅供 debug 回顧，但會持續佔用磁碟空�
 
 ### CLI：`4x clean`
 
-清理已完成（`done` / `abandoned`）feature 的 `.4x/{feature-id}/` workspace 目錄。
+清理已完成（`done` / `abandoned`）feature 的 `.4x/run/{feature-id}/` workspace 目錄。
 
 **刪除的內容**：
 - `logs/`（含 `*.stream.jsonl`，佔空間最大宗）
 - `rounds/`
 - `state.json`、`events.jsonl`
 - 各種 report（`final-report.md`、`coder-report.md`、`review-report.md` 等）
-- 整個 `.4x/{feature-id}/` 目錄
+- 整個 `.4x/run/{feature-id}/` 目錄
 
 **永遠不刪**：
 - `.4x/features/*.yaml`（feature 定義）

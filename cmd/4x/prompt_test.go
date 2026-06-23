@@ -63,7 +63,7 @@ func TestLoadRoleTemplate_DesignReviewer(t *testing.T) {
 		t.Fatalf("execute template: %v", err)
 	}
 	out := b.String()
-	if !strings.Contains(out, "/tmp/project/.4x/F091-design-review-phase/design-review-report.md") {
+	if !strings.Contains(out, "/tmp/project/.4x/run/F091-design-review-phase/design-review-report.md") {
 		t.Fatalf("template should contain mandatory feature-level design review path, got:\n%s", out)
 	}
 }

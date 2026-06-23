@@ -367,7 +367,7 @@ Feature description 是设计者的唯一输入——写得越清楚，产出的
 
 Review 失败（verdict FAIL 或 CRITICAL findings）会自动送回编码者修改，不需要人工介入。但如果反复失败：
 
-1. **看 review-report.md** — 在 `.4x/{feature-id}/rounds/round-{N}/review-report.md`
+1. **看 review-report.md** — 在 `.4x/run/{feature-id}/rounds/round-{N}/review-report.md`
 2. **看 coder-report.md** — 编码者是否理解了问题
 3. **考虑调整**：
    - feature description 太模糊 → 重写 description，重跑设计者
@@ -382,7 +382,7 @@ Review 失败（verdict FAIL 或 CRITICAL findings）会自动送回编码者修
 - 验收标准不合理（`criteria-wrong`）
 - 需要调整 feature 范围（`scope-change`）
 
-Escalation 被记录在 `.4x/{feature-id}/rounds/round-{N}/escalation.json`。循环自动将 `spec-mismatch`、`criteria-wrong` 和 `scope-change` 路由回设计者。设计者收到 escalation 内容重新出 spec。
+Escalation 被记录在 `.4x/run/{feature-id}/rounds/round-{N}/escalation.json`。循环自动将 `spec-mismatch`、`criteria-wrong` 和 `scope-change` 路由回设计者。设计者收到 escalation 内容重新出 spec。
 
 注意：`blocker` escalation（如缺少外部依赖）直接转到 `needs-attention`，需要人工介入——不会送回设计者。
 

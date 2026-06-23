@@ -367,7 +367,7 @@ Nota: el ciclo se detiene automáticamente tras 3 rondas consecutivas sin progre
 
 Los fallos de review (veredicto FAIL o hallazgos CRITICAL) automáticamente envían el código de vuelta al Coder — sin intervención manual necesaria. Pero si sigue fallando:
 
-1. **Lee review-report.md** — en `.4x/{feature-id}/rounds/round-{N}/review-report.md`
+1. **Lee review-report.md** — en `.4x/run/{feature-id}/rounds/round-{N}/review-report.md`
 2. **Lee coder-report.md** — ¿entendió el Coder el problema?
 3. **Considera ajustar**:
    - Descripción del feature demasiado vaga -> reescríbela, re-ejecuta desde Designer
@@ -382,7 +382,7 @@ Cuando el Coder o Tester encuentra que la spec no coincide con la realidad, esca
 - Los criterios de aceptación son incorrectos (`criteria-wrong`)
 - El alcance del feature necesita ajuste (`scope-change`)
 
-Estas escalaciones se envían de vuelta al Designer, quien rediseña la spec. Las escalaciones se registran en `.4x/{feature-id}/rounds/round-{N}/escalation.json`.
+Estas escalaciones se envían de vuelta al Designer, quien rediseña la spec. Las escalaciones se registran en `.4x/run/{feature-id}/rounds/round-{N}/escalation.json`.
 
 Nota: las escalaciones `blocker` (ej., dependencia externa faltante) van directamente a `needs-attention` y requieren intervención manual — no se envían de vuelta al Designer.
 

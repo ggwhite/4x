@@ -329,7 +329,7 @@ func TestServeScreenshot_SymlinkEscapeRejected(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	shotDir := filepath.Join(ws.DotDir(), "e2e", "test-feat", "screenshot")
+	shotDir := filepath.Join(ws.DotDir(), "run", "test-feat", "screenshot")
 	if err := os.MkdirAll(shotDir, 0o755); err != nil {
 		t.Fatal(err)
 	}

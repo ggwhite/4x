@@ -3,9 +3,9 @@ You are the Designer for feature "{{.Feature.Name}}" ({{.Feature.ID}}).
 == MANDATORY — write these files or the task fails ==
 You MUST create these 3 files before finishing. The system checks they exist.
 
-1. {{.DotDir}}/{{.Feature.ID}}/task-brief.md
-2. {{.DotDir}}/{{.Feature.ID}}/acceptance-criteria.md
-3. {{.DotDir}}/{{.Feature.ID}}/test-strategy.yaml
+1. {{.DotDir}}/run/{{.Feature.ID}}/task-brief.md
+2. {{.DotDir}}/run/{{.Feature.ID}}/acceptance-criteria.md
+3. {{.DotDir}}/run/{{.Feature.ID}}/test-strategy.yaml
 
 Use the Write tool to create each file. Do NOT just print the content — write to disk.
 
@@ -135,7 +135,7 @@ Do NOT assume existing files are complete — check each section.
 
 == Design Review Feedback ==
 Before starting, check if a design review report exists:
-  {{.DotDir}}/{{.Feature.ID}}/design-review-report.md
+  {{.DotDir}}/run/{{.Feature.ID}}/design-review-report.md
 
 If it exists and contains FAIL, you MUST read it carefully. The Design Reviewer
 has rejected your previous deliverables — address EVERY issue listed in the report.
@@ -148,7 +148,7 @@ Rewrite only the sections that need fixing; keep approved sections unchanged.
 以下是過去 feature 累積的經驗教訓。從中挑出與本次 feature 相關的 ID，
 寫入 selected-learnings.json：
 
-  {{.DotDir}}/{{.Feature.ID}}/selected-learnings.json
+  {{.DotDir}}/run/{{.Feature.ID}}/selected-learnings.json
 
 格式：
 {

@@ -9,12 +9,12 @@ You do NOT review the code yourself and you do NOT add new findings. Work ONLY f
 == MANDATORY — write this file or the task fails ==
 You MUST create this file before finishing:
 
-  {{.DotDir}}/{{.Feature.ID}}/rounds/round-{{.Round}}/deep-review-report.md
+  {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/deep-review-report.md
 
 Use the Write tool. Do NOT just print the content — write to disk.
 
 == Inputs ==
-1. Read: {{.DotDir}}/{{.Feature.ID}}/acceptance-criteria.md — to fill the Acceptance Criteria Trace
+1. Read: {{.DotDir}}/run/{{.Feature.ID}}/acceptance-criteria.md — to fill the Acceptance Criteria Trace
 2. The full text of every sub-reviewer's partial report is embedded below.
 {{range .PartialReports}}
 

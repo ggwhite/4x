@@ -230,7 +230,7 @@ git merge + cleanup              # 머지, worktree/브랜치 정리
 
 리뷰 실패(판정 FAIL 또는 CRITICAL 발견)는 자동으로 Coder에게 수정을 보내며 수동 개입이 필요 없습니다. 하지만 반복적으로 실패하면:
 
-1. **review-report.md 확인** — `.4x/{feature-id}/rounds/round-{N}/review-report.md`
+1. **review-report.md 확인** — `.4x/run/{feature-id}/rounds/round-{N}/review-report.md`
 2. **coder-report.md 확인** — Coder가 문제를 이해했는지
 3. **조정 고려**:
    - 기능 설명이 너무 모호 → 설명을 다시 작성하고 Designer 재실행
@@ -245,7 +245,7 @@ Coder 또는 Tester가 스펙과 실제가 다름을 발견하면 자동으로 D
 - 인수 기준이 불합리 (`criteria-wrong`)
 - 외부 의존성 누락 (`blocker`)
 
-에스컬레이션은 `.4x/{feature-id}/rounds/round-{N}/escalation.json`에 기록됩니다. Designer가 에스컬레이션 내용을 받고 스펙을 다시 작성합니다.
+에스컬레이션은 `.4x/run/{feature-id}/rounds/round-{N}/escalation.json`에 기록됩니다. Designer가 에스컬레이션 내용을 받고 스펙을 다시 작성합니다.
 
 Designer도 해결할 수 없으면(보통 컨텍스트 부족) 루프가 `needs-attention`에 멈추며, 이때 수동 개입이 필요합니다:
 

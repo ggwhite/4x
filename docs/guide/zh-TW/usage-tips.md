@@ -367,7 +367,7 @@ Feature description 是 Designer 的唯一輸入——寫得越清楚，產出�
 
 Review 失敗（verdict FAIL 或 CRITICAL findings）會自動送回 Coder 修改，不需要人工介入。但如果反覆失敗：
 
-1. **看 review-report.md** — 在 `.4x/{feature-id}/rounds/round-{N}/review-report.md`
+1. **看 review-report.md** — 在 `.4x/run/{feature-id}/rounds/round-{N}/review-report.md`
 2. **看 coder-report.md** — Coder 是否理解了問題
 3. **考慮調整**：
    - feature description 太模糊 → 重寫 description，重跑 Designer
@@ -382,7 +382,7 @@ Coder 或 Tester 發現 spec 跟實際不符時，會自動 escalate 回 Designe
 - 驗收標準不合理（`criteria-wrong`）
 - 缺少外部依賴（`blocker`）
 
-Escalation 被記錄在 `.4x/{feature-id}/rounds/round-{N}/escalation.json`。Designer 會收到 escalation 內容重新出 spec。
+Escalation 被記錄在 `.4x/run/{feature-id}/rounds/round-{N}/escalation.json`。Designer 會收到 escalation 內容重新出 spec。
 
 如果 Designer 也解不了（通常是缺 context），loop 會停在 `needs-attention`，這時需要人工介入：
 

@@ -121,7 +121,7 @@ xattr -cr /Applications/4x\ Live.app
 
 #### `POST /api/clean`
 
-删除项目中**所有**可清理 feature 的 `.4x/{feature-id}/` 工作区产物（logs、`rounds/`、报告、`state.json`、`events.jsonl`）——与 `4x clean` 清理的集合相同：`done`/`abandoned`、非活跃、工作区目录存在。Feature 定义文件（`.4x/features/*.yaml`）保留，因此清理后的 feature 仍以最终状态显示在列表中。参见[工作区清理](concepts.md#workspace-cleanup)了解底层协议函数。
+删除项目中**所有**可清理 feature 的 `.4x/run/{feature-id}/` 工作区产物（logs、`rounds/`、报告、`state.json`、`events.jsonl`）——与 `4x clean` 清理的集合相同：`done`/`abandoned`、非活跃、工作区目录存在。Feature 定义文件（`.4x/features/*.yaml`）保留，因此清理后的 feature 仍以最终状态显示在列表中。参见[工作区清理](concepts.md#workspace-cleanup)了解底层协议函数。
 
 非 `POST` 请求返回 **HTTP 405**。每个 feature 独立清理；某个失败（如竞态使其变为活跃）会被跳过而不中止其余。处理器始终返回 HTTP 200：
 

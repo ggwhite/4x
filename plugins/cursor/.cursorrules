@@ -11,8 +11,8 @@ All communication happens through `.4x/` directory files. Read `docs/AGENTS.md` 
 
 1. Read `.4x/settings.json` for project config (build/test/lint commands, rules)
 2. Read `.4x/features/{feature-id}.yaml` for feature spec
-3. Read `.4x/{feature-id}/state.json` to know your current role and round
-4. Read artifacts from prior roles in `.4x/{feature-id}/`
+3. Read `.4x/run/{feature-id}/state.json` to know your current role and round
+4. Read artifacts from prior roles in `.4x/run/{feature-id}/`
 
 ### Your role
 
@@ -43,7 +43,7 @@ Run guardrail check:
 If the spec is impossible, contradictory, or you hit a blocker outside your scope, write an escalation file:
 
 ```json
-// .4x/{feature-id}/rounds/round-{n}/escalation.json
+// .4x/run/{feature-id}/rounds/round-{n}/escalation.json
 {"needed": true, "reason": "spec-mismatch", "detail": "..."}
 ```
 

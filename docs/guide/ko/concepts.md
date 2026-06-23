@@ -76,7 +76,7 @@ Deep Reviewer가 차단 이슈를 발견하면, `deep-reviewing` 단계에서 `a
 - 각 후보를 기존 기능 및 이미 유지된 후보와 Jaccard 토큰 유사도 검사로 **중복 제거**합니다.
 - `max_discovered_features`(기본값 `3`)까지 **수량 제한**하며, 나머지는 제한됨으로 기록됩니다.
 - 유지된 후보를 새 기능 YAML(상태 `not-started`, `4x new`와 동일한 번호 체계)로 **생성**하고, 생성 시마다 `feature-discovered` 이벤트를 추가합니다.
-- 결과(생성됨 / 중복으로 건너뜀 / 제한됨)를 `.4x/{feature-id}/discovered-features.md`에 **요약**합니다.
+- 결과(생성됨 / 중복으로 건너뜀 / 제한됨)를 `.4x/run/{feature-id}/discovered-features.md`에 **요약**합니다.
 
 이 단계는 최선의 노력으로 수행됩니다: 오류가 발생해도 `accepting`으로의 전환을 차단하지 않습니다. 최종 딥 리뷰 PASS에서만 실행됩니다 — 중간 라운드와 FAIL/`needs-attention` 경로에서는 실행되지 않습니다. 설정에 대해서는 [설정 → 자동 발견 기능](configuration.md#auto-discover-features)을 참조하세요.
 
@@ -168,26 +168,27 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
 ├── batch-report.json                # 마지막 배치 실행 보고서 (통계 + 기능별 결과)
 ├── features/
 │   └── {id}.yaml                    # 기능 정의 (정식 소스)
-└── {feature-id}/
-    ├── state.json                   # 단계, 역할, 라운드, 활성, 러너, runners, 중지 사유, 프로파일
-    ├── events.jsonl                 # 감사 추적
-    ├── baseline.json                # 코딩 전 스냅샷 (HEAD, 브랜치, dirty 파일)
-    ├── task-brief.md                # Designer → Coder: 스펙 + 아키텍처
-    ├── acceptance-criteria.md       # Designer → Tester: 테스트 가능한 기준
-    ├── test-strategy.yaml           # Designer → Tester: 테스트 접근법
-    ├── final-report.md              # 루프 종료 요약
-    ├── logs/
-    │   ├── round-{N}-{role}.log              # 라운드별/역할별 실행 로그
-    │   ├── round-{N}-deep-reviewer-{i}.log   # 병렬 sub-reviewer별 (팬아웃 시)
-    │   └── round-{N}-synthesizer.log         # 부분 보고서를 병합하는 synthesizer
-    └── rounds/round-{N}/
-        ├── coder-report.md            # Coder의 작업 내용
-        ├── review-report.md           # Reviewer 발견 사항 + 판정
-        ├── test-report.md             # Tester 결과
-        ├── deep-review-partial-{i}.md # 병렬 sub-reviewer 하나의 발견 사항 (팬아웃 시)
-        ├── deep-review-report.md      # 병합된 딥 리뷰 (synthesizer 출력 또는 단일 에이전트)
-        ├── verify.json                # {passed, round, role, commands[]}
-        └── escalation.json            # {needed, reason, detail}
+└── run/                            # 런타임 산출물 (feature별 작업 디렉토리)
+    └── {feature-id}/
+        ├── state.json                   # 단계, 역할, 라운드, 활성, 러너, runners, 중지 사유, 프로파일
+        ├── events.jsonl                 # 감사 추적
+        ├── baseline.json                # 코딩 전 스냅샷 (HEAD, 브랜치, dirty 파일)
+        ├── task-brief.md                # Designer → Coder: 스펙 + 아키텍처
+        ├── acceptance-criteria.md       # Designer → Tester: 테스트 가능한 기준
+        ├── test-strategy.yaml           # Designer → Tester: 테스트 접근법
+        ├── final-report.md              # 루프 종료 요약
+        ├── logs/
+        │   ├── round-{N}-{role}.log              # 라운드별/역할별 실행 로그
+        │   ├── round-{N}-deep-reviewer-{i}.log   # 병렬 sub-reviewer별 (팬아웃 시)
+        │   └── round-{N}-synthesizer.log         # 부분 보고서를 병합하는 synthesizer
+        └── rounds/round-{N}/
+            ├── coder-report.md            # Coder의 작업 내용
+            ├── review-report.md           # Reviewer 발견 사항 + 판정
+            ├── test-report.md             # Tester 결과
+            ├── deep-review-partial-{i}.md # 병렬 sub-reviewer 하나의 발견 사항 (팬아웃 시)
+            ├── deep-review-report.md      # 병합된 딥 리뷰 (synthesizer 출력 또는 단일 에이전트)
+            ├── verify.json                # {passed, round, role, commands[]}
+            └── escalation.json            # {needed, reason, detail}
 ```
 
 ### 배치 신호 파일
@@ -367,7 +368,7 @@ post_{target_phase} 훅 (배열 순서대로)
 }
 ```
 
-전체 stdout/stderr 출력은 `.4x/{feature-id}/hook-logs/{timestamp}-hook-{n}.log`에 기록됩니다.
+전체 stdout/stderr 출력은 `.4x/run/{feature-id}/hook-logs/{timestamp}-hook-{n}.log`에 기록됩니다.
 
 ### 훅 병합 (`MergeHooks`)
 

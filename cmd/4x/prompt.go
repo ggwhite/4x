@@ -441,7 +441,7 @@ func loadActiveLearnings(dotDir string) []learning.Entry {
 // 取完整內容，只保留 status==active 且 category 屬於該 role 白名單的條目，並硬限制最多
 // MaxSelectedPerRole 條。任何失敗只回傳 nil（warn），不影響 prompt 產生。
 func loadSelectedLearnings(dotDir, featureID string, role protocol.Role) []learning.Entry {
-	selPath := filepath.Join(dotDir, featureID, protocol.SelectedLearningsFile)
+	selPath := filepath.Join(dotDir, protocol.RunDir, featureID, protocol.SelectedLearningsFile)
 	data, err := os.ReadFile(selPath)
 	if err != nil {
 		return nil

@@ -367,7 +367,7 @@ Note: the loop auto-stops after 3 consecutive rounds with no progress (it won't 
 
 Review failures (verdict FAIL or CRITICAL findings) automatically send code back to the Coder — no manual intervention needed. But if it keeps failing:
 
-1. **Read review-report.md** — at `.4x/{feature-id}/rounds/round-{N}/review-report.md`
+1. **Read review-report.md** — at `.4x/run/{feature-id}/rounds/round-{N}/review-report.md`
 2. **Read coder-report.md** — did the Coder understand the issue?
 3. **Consider adjusting**:
    - Feature description too vague → rewrite it, re-run from Designer
@@ -382,7 +382,7 @@ When the Coder or Tester finds that the spec doesn't match reality, they automat
 - Acceptance criteria are unreasonable (`criteria-wrong`)
 - Feature scope needs adjustment (`scope-change`)
 
-These escalations are sent back to the Designer, who re-designs the spec. Escalations are recorded in `.4x/{feature-id}/rounds/round-{N}/escalation.json`.
+These escalations are sent back to the Designer, who re-designs the spec. Escalations are recorded in `.4x/run/{feature-id}/rounds/round-{N}/escalation.json`.
 
 Note: `blocker` escalations (e.g., missing external dependency) go directly to `needs-attention` and require manual intervention — they are not sent back to the Designer.
 

@@ -131,7 +131,7 @@ If the feature's phase changes during the merge (a runner or background reconcil
 
 #### `POST /api/clean`
 
-Removes the `.4x/{feature-id}/` workspace artifacts (logs, `rounds/`, reports, `state.json`, `events.jsonl`) for **every** cleanable feature in the project in one call — the same set `4x clean` would clean: `done`/`abandoned`, not active, with an existing workspace directory. Feature definitions (`.4x/features/*.yaml`) are preserved, so cleaned features still show in listings with their final status. See [Workspace Cleanup](concepts.md#workspace-cleanup) for the underlying protocol functions.
+Removes the `.4x/run/{feature-id}/` workspace artifacts (logs, `rounds/`, reports, `state.json`, `events.jsonl`) for **every** cleanable feature in the project in one call — the same set `4x clean` would clean: `done`/`abandoned`, not active, with an existing workspace directory. Feature definitions (`.4x/features/*.yaml`) are preserved, so cleaned features still show in listings with their final status. See [Workspace Cleanup](concepts.md#workspace-cleanup) for the underlying protocol functions.
 
 Non-`POST` requests return **HTTP 405**. Each feature is cleaned independently; one that fails (e.g. a race makes it active) is skipped without aborting the rest. The handler always returns HTTP 200 with:
 

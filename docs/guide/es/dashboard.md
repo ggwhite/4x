@@ -121,7 +121,7 @@ Si la fase del feature cambia durante el merge (un runner o reconciliador en seg
 
 #### `POST /api/clean`
 
-Elimina los artefactos del workspace `.4x/{feature-id}/` (logs, `rounds/`, reportes, `state.json`, `events.jsonl`) de **cada** feature limpiable del proyecto en una sola llamada — el mismo conjunto que limpiaría `4x clean`: `done`/`abandoned`, no activo, con directorio de workspace existente. Las definiciones de features (`.4x/features/*.yaml`) se preservan, por lo que los features limpiados siguen apareciendo en listados con su estado final. Ver [Limpieza del workspace](concepts.md#limpieza-del-workspace) para las funciones del protocolo subyacente.
+Elimina los artefactos del workspace `.4x/run/{feature-id}/` (logs, `rounds/`, reportes, `state.json`, `events.jsonl`) de **cada** feature limpiable del proyecto en una sola llamada — el mismo conjunto que limpiaría `4x clean`: `done`/`abandoned`, no activo, con directorio de workspace existente. Las definiciones de features (`.4x/features/*.yaml`) se preservan, por lo que los features limpiados siguen apareciendo en listados con su estado final. Ver [Limpieza del workspace](concepts.md#limpieza-del-workspace) para las funciones del protocolo subyacente.
 
 Las solicitudes que no son `POST` retornan **HTTP 405**. Cada feature se limpia independientemente; uno que falle (ej. una condición de carrera lo hizo activo) se omite sin abortar el resto. El handler siempre retorna HTTP 200 con:
 
