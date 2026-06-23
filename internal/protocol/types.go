@@ -548,6 +548,11 @@ func SupportedRunners() []RunnerPreset {
 			Args:    []string{"--yolo", "-p", "{prompt}"},
 			Tiers:   map[string]string{"opus": "auto", "sonnet": "auto"},
 		}},
+		{Name: "opencode", Config: RunnerConfig{
+			Command: "opencode",
+			Args:    []string{"run", "--dangerously-skip-permissions", "{prompt}"},
+			Tiers:   map[string]string{"opus": "anthropic/claude-opus-4-6", "sonnet": "anthropic/claude-sonnet-4-6"},
+		}},
 		{Name: "cursor", Config: RunnerConfig{
 			Command: "agent",
 			Args:    []string{"-p", "{prompt}"},
