@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.1] - 2026-06-23
+
+### Features
+
+- **OpenCode runner** — 新增 OpenCode CLI 作為 supported runner，支援 75+ LLM provider，一個 runner 即可切換不同家的 model
+
+### Internal
+
+- **Feature working directory restructure** — 將 feature runtime artifacts 從 `.4x/{id}/` 移至 `.4x/run/{id}/`，分離 config 與執行期檔案，保持 `.4x/` 目錄整潔
+
+### Docs
+
+- **macOS Gatekeeper & Windows SmartScreen** — 新增安裝後解除系統安全封鎖的操作說明
+
 ## [0.2.0] - 2026-06-22
 
 ### Features
