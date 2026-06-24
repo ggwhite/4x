@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.4] - 2026-06-24
+
+### Features
+
+- **MCP server full coverage** — 補齊所有 CLI 子指令的 MCP tool 對應（approve、reject、gate、evolve、mine、clean、config 等），dashboard 與 MCP client 可操作完整功能
+
+### Fixes
+
+- **Dashboard done 不 commit learnings** — Dashboard 按 Done 按鈕走的 API 路徑遺漏了 `commitLearnings` 呼叫，learnings.json 變更永遠不會被 commit
+- **Batch plan 排入 abandoned feature** — CLI `4x batch plan` 只排除 done 狀態，abandoned feature 仍被排入計畫（server 端已正確排除）
+- **CLI status 顯示 stale active** — `4x status` 未呼叫 `ReconcileActive`，已死的 runner 仍顯示為 active
+- **Transition 讀不到 user config** — `4x transition` 用 `ReadConfig` 只讀專案設定，user config 的 hooks 不會生效，改為 `LoadMergedConfig`
+- **Batch failure 原因未顯示** — Dashboard batch 失敗時未顯示具體錯誤原因
+- **Homebrew formula 命名** — Ruby class 不能以數字開頭，formula 改名為 `fourx`
+- **Verify.json 訊息混淆** — 區分 verify.json missing 與 verify failed 的 escalation 訊息
+
+### Internal
+
+- **Dedupe CLI vs server** — 抽取 `Workspace.WriteBatchStop()`、刪除 `transitionDone` dead code，統一 CLI 與 server 共用邏輯
+
 ## [0.2.3] - 2026-06-24
 
 ### Features
