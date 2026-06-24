@@ -4,17 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
 	web "github.com/ggwhite/4x/dashboard/web"
-	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/logging"
 	"github.com/ggwhite/4x/internal/protocol"
@@ -482,7 +478,6 @@ type doneRequest struct {
 	ID string `json:"id"`
 }
 
-
 func handlePostDone(ws *protocol.CachedWorkspace, w http.ResponseWriter, r *http.Request) {
 	var req doneRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -641,5 +636,3 @@ func readIfExists(path string) string {
 func validFeatureID(id string) bool {
 	return id != "" && !strings.ContainsAny(id, "/\\") && !strings.Contains(id, "..")
 }
-
-

@@ -10,8 +10,49 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 )
+
+type taskInfo struct {
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Status      string   `json:"status"`
+	Phase       string   `json:"phase"`
+	SubPhase    string   `json:"subPhase,omitempty"`
+	Role        string   `json:"role"`
+	Round       int      `json:"round"`
+	Active      bool     `json:"active"`
+	Pid         int      `json:"pid,omitempty"`
+	Runner      string   `json:"runner"`
+	Runners     []string `json:"runners,omitempty"`
+	StopReason  string   `json:"stopReason,omitempty"`
+	StopMessage string   `json:"stopMessage,omitempty"`
+	Priority    *int     `json:"priority,omitempty"`
+	Profile     string   `json:"profile,omitempty"`
+	HasSpec     bool     `json:"hasSpec,omitempty"`
+	HasPlan     bool     `json:"hasPlan,omitempty"`
+	Depends     []string `json:"depends,omitempty"`
+	CreatedAt   string   `json:"createdAt,omitempty"`
+	UpdatedAt   string   `json:"updatedAt,omitempty"`
+	Warnings    []string `json:"warnings,omitempty"`
+}
+
+type overviewInfo struct {
+	ID          string            `json:"id"`
+	Name        string            `json:"name"`
+	Description string            `json:"description"`
+	Status      string            `json:"status"`
+	Priority    *int              `json:"priority,omitempty"`
+	Repos       []string          `json:"repos,omitempty"`
+	Subtasks    []feature.Subtask `json:"subtasks,omitempty"`
+	Rules       []string          `json:"rules,omitempty"`
+	Depends     []string          `json:"depends,omitempty"`
+	Spec        string            `json:"spec"`
+	Plan        string            `json:"plan"`
+	SpecSource  string            `json:"specSource"`
+	PlanSource  string            `json:"planSource"`
+}
 
 func handleTasks(ws *protocol.CachedWorkspace, w http.ResponseWriter) {
 	features, err := ws.ListFeatures()
