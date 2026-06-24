@@ -173,18 +173,19 @@ func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 	}
 
 	reviewOK := reviewPassed(ws, featureID, round, protocol.ReviewReport)
-	verifyOK := verifyPassed(ws, featureID, round)
+	vs := checkVerify(ws, featureID, round)
 
 	if !reviewOK {
 		return parallelTransition(ws, featureID, s, protocol.PhaseAmending, protocol.RoleCoder)
 	}
-	// verify.json 缺失（tester 跑不了 `4x verify`）但 test-report verdict 是 PASS
-	// → needs-attention 讓人介入，而非靜默 amending 形成無限迴圈
-	if !verifyOK {
+	if vs != verifyOK {
 		testReportOK := reviewPassed(ws, featureID, round, protocol.TestReport)
 		if testReportOK {
-			return parallelNeedsAttention(ws, featureID, s,
-				"verify.json missing but test-report verdict is PASS — tester likely could not run `4x verify`")
+			msg := "verify.json missing but test-report verdict is PASS — tester likely could not run `4x verify`"
+			if vs == verifyFailed {
+				msg = "verify.json passed=false but test-report verdict is PASS — review the failing verify commands"
+			}
+			return parallelNeedsAttention(ws, featureID, s, msg)
 		}
 		return parallelTransition(ws, featureID, s, protocol.PhaseAmending, protocol.RoleCoder)
 	}

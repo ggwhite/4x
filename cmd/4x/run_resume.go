@@ -68,7 +68,7 @@ func smartResumePhase(ws *protocol.Workspace, featureID string, round int, cfg p
 	if !verifyEvidenceComplete(filepath.Join(roundDir, protocol.VerifyFile)) {
 		return protocol.PhaseTesting, protocol.RoleTester, ""
 	}
-	if !verifyPassed(ws, featureID, round) {
+	if checkVerify(ws, featureID, round) != verifyOK {
 		return protocol.PhaseAmending, protocol.RoleCoder, ""
 	}
 

@@ -70,10 +70,13 @@ func nextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) 
 		if result.Pass {
 			return protocol.PhaseDeepReviewing, protocol.RoleDeepReviewer, ""
 		}
-		if !verifyPassed(ws, featureID, s.Round) {
+		if vs := checkVerify(ws, featureID, s.Round); vs != verifyOK {
 			if reviewPassed(ws, featureID, s.Round, protocol.TestReport) {
-				return protocol.PhaseNeedsAttention, "",
-					"verify.json missing but test-report verdict is PASS — tester likely could not run `4x verify`"
+				msg := "verify.json missing but test-report verdict is PASS — tester likely could not run `4x verify`"
+				if vs == verifyFailed {
+					msg = "verify.json passed=false but test-report verdict is PASS — review the failing verify commands"
+				}
+				return protocol.PhaseNeedsAttention, "", msg
 			}
 			return protocol.PhaseAmending, protocol.RoleCoder, ""
 		}

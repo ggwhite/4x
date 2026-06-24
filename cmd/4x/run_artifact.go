@@ -75,18 +75,29 @@ func reviewFailCount(ws *protocol.Workspace, featureID string, round int) int {
 	return result.CriticalCount + result.WarningCount
 }
 
-// verifyPassed 檢查 verify.json 的 passed 欄位，用於 guard 失敗時判斷是測試未通過還是 artifact 缺失
-func verifyPassed(ws *protocol.Workspace, featureID string, round int) bool {
+type verifyStatus int
+
+const (
+	verifyMissing verifyStatus = iota
+	verifyFailed
+	verifyOK
+)
+
+// checkVerify 檢查 verify.json 狀態：missing（檔案不存在或無法解析）、failed（passed=false）、ok（passed=true）
+func checkVerify(ws *protocol.Workspace, featureID string, round int) verifyStatus {
 	roundDir := ws.RoundDir(featureID, round)
 	data, err := os.ReadFile(filepath.Join(roundDir, protocol.VerifyFile))
 	if err != nil {
-		return false
+		return verifyMissing
 	}
 	var ve protocol.VerifyEvidence
 	if err := json.Unmarshal(data, &ve); err != nil {
-		return false
+		return verifyMissing
 	}
-	return ve.Passed
+	if !ve.Passed {
+		return verifyFailed
+	}
+	return verifyOK
 }
 
 // cleanStaleArtifact 只清除當前 phase 的「半成品」output artifact。
