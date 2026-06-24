@@ -679,6 +679,7 @@ function replanBatch() {
 function stopBatch() {
   fetch(apiBase() + '/api/batch/stop', { method: 'POST' }).then(async res => {
     if (!res.ok) { showToast(t('batch.stopFailed').replace('{error}', await res.text())); return; }
+    showToast(t('batch.stopOk'));
     load();
   });
 }

@@ -179,6 +179,7 @@
   "batch.conflictTitle": "{id}에서 merge 충돌",
   "batch.startFailed": "배치 시작 실패: {error}",
   "batch.stopFailed": "배치 중지 실패: {error}",
+  "batch.stopOk": "중지 신호 전송 완료 — 현재 feature 완료 후 배치가 종료됩니다",
   "batch.continueFailed": "배치 계속 실패: {error}",
   "batch.lastReport": "지난 배치 보고서",
   "batch.outcome.completed": "완료",

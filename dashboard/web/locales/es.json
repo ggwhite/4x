@@ -179,6 +179,7 @@
   "batch.conflictTitle": "Conflicto de merge en {id}",
   "batch.startFailed": "Error al iniciar lote: {error}",
   "batch.stopFailed": "Error al detener lote: {error}",
+  "batch.stopOk": "Señal de parada enviada — el lote finalizará tras completar el feature actual",
   "batch.continueFailed": "Error al continuar lote: {error}",
   "batch.lastReport": "Último informe de lote",
   "batch.outcome.completed": "Completado",

@@ -179,6 +179,7 @@
   "batch.conflictTitle": "{id} 发生 merge 冲突",
   "batch.startFailed": "启动批次失败：{error}",
   "batch.stopFailed": "停止批次失败：{error}",
+  "batch.stopOk": "已发送停止信号，批次将在当前 feature 完成后结束",
   "batch.continueFailed": "继续批次失败：{error}",
   "batch.lastReport": "上次批次报告",
   "batch.outcome.completed": "已完成",

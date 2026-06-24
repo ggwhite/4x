@@ -179,6 +179,7 @@
   "batch.conflictTitle": "Merge conflict on {id}",
   "batch.startFailed": "Start batch failed: {error}",
   "batch.stopFailed": "Stop batch failed: {error}",
+  "batch.stopOk": "Stop signal sent — batch will end after current feature completes",
   "batch.continueFailed": "Continue batch failed: {error}",
   "batch.lastReport": "Last batch report",
   "batch.outcome.completed": "Completed",

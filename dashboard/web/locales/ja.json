@@ -179,6 +179,7 @@
   "batch.conflictTitle": "{id} で merge コンフリクト",
   "batch.startFailed": "バッチ開始に失敗しました：{error}",
   "batch.stopFailed": "バッチ停止に失敗しました：{error}",
+  "batch.stopOk": "停止信号を送信しました — 現在の feature 完了後にバッチが終了します",
   "batch.continueFailed": "バッチ続行に失敗しました：{error}",
   "batch.lastReport": "前回のバッチレポート",
   "batch.outcome.completed": "完了",
