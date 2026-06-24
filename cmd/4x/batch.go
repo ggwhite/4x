@@ -381,7 +381,7 @@ func newBatchRunCmd() *cobra.Command {
 				if f.Name != "" {
 					name = f.Name
 				}
-				return autoMergeFeature(ws, cfg, st, featureID, name)
+				return autoMergeFeature(ws, cfg, featureID, name)
 			}
 
 			slog.Info("batch operation", "action", "run", "features", len(plan.Schedule), "runner", runnerName)

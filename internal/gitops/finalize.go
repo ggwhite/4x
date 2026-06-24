@@ -1,0 +1,53 @@
+package gitops
+
+import (
+	"fmt"
+
+	"github.com/ggwhite/4x/internal/learning"
+	"github.com/ggwhite/4x/internal/protocol"
+	"github.com/ggwhite/4x/internal/state"
+)
+
+// MergeAndFinalize 承載 CLI（cmd/4x/done.go autoMergeFeature）與 server
+// （internal/server/server.go handlePostDone）原本各自實作的 merge+done 編排，是兩端共用的
+// 唯一真實來源：ops.Merge → merge 成功時重讀最新 state 確認仍為 pending-review → state.FinalizeDone
+// → learning.CommitIfDirty。
+//
+// 重讀 state 是為了保留 server 的防 stale 覆寫不變式：merge 可能耗時數秒，期間 runner 或
+// ensureInactive 可能改過 state.json，若用 merge 前的 stale 值 finalize 會覆蓋其他欄位更新。
+// CLI 單程序下沒有並行 writer，重讀為 no-op，安全。
+//
+// 結果以回傳值的組合表達，讓 CLI 與 server 各自決定後續：
+//   - (MergeResult{Conflict:true}, nil)     → merge 衝突，未 finalize，呼叫端維持 pending-review
+//   - (MergeResult{Error:!=""}, nil)         → 非衝突 merge 錯誤，未 finalize，呼叫端警告並維持 pending-review
+//   - (MergeResult{StateChanged:true}, nil)  → merge 後 phase 已非 pending-review，未 finalize（server 回 409）
+//   - (result, err) err!=nil                 → 重讀 state 或 finalize 真正失敗（fatal，server 回 500）
+//   - (MergeResult{FinalState:done}, nil)    → 成功 finalize 為 done，Skipped 表非 worktree 模式
+//
+// 並行鎖（server 的 mergeMu）由呼叫端負責包住本函式；CLI 單程序無需鎖，本函式不持鎖。
+func MergeAndFinalize(root string, ws *protocol.Workspace, cfg protocol.Config, featureID, featureName string) (MergeResult, error) {
+	ops := New(root, ws, cfg)
+	result := ops.Merge(featureID, featureName)
+	if result.Conflict || result.Error != "" {
+		return result, nil
+	}
+
+	fresh, err := ws.ReadState(featureID)
+	if err != nil {
+		return result, fmt.Errorf("failed to re-read state: %w", err)
+	}
+	if fresh.Phase != protocol.PhasePendingReview {
+		result.StateChanged = true
+		result.FinalState = fresh
+		return result, nil
+	}
+
+	finalState, err := state.FinalizeDone(ws, featureID, fresh)
+	if err != nil {
+		return result, err
+	}
+	result.FinalState = finalState
+
+	learning.CommitIfDirty(root, ws.DotDir())
+	return result, nil
+}

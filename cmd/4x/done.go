@@ -7,7 +7,6 @@ import (
 
 	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/guard"
-	"github.com/ggwhite/4x/internal/learning"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/state"
 	"github.com/spf13/cobra"
@@ -82,7 +81,7 @@ func markDone(ws *protocol.Workspace, featureID string, approveSelfMod, jsonOutp
 		name = f.Name
 	}
 
-	result := autoMergeFeature(ws, cfg, s, featureID, name)
+	result := autoMergeFeature(ws, cfg, featureID, name)
 	if result.Conflict {
 		if jsonOutput {
 			return printJSON(doneResult{FeatureID: featureID, Phase: string(protocol.PhasePendingReview), Conflict: true})
@@ -125,22 +124,20 @@ type doneResult struct {
 	Conflict  bool   `json:"conflict"`
 }
 
-// autoMergeFeature 對 pending-review 的 feature 執行 merge，成功（含 skipped）時 finalizeDone 標記 done，
-// 回傳 MergeResult 供呼叫端決定後續（衝突→暫停、錯誤→警告續跑、成功→done）。不印任何訊息。
+// autoMergeFeature 對 pending-review 的 feature 執行 merge 並標記 done，委派共用編排
+// gitops.MergeAndFinalize（ops.Merge → re-read state → state.FinalizeDone → CommitIfDirty）。
+// batch 與 done 共用此 helper，不重寫第二份 merge+finalize 流程。回傳 MergeResult 供呼叫端決定後續
+// （衝突→暫停、錯誤→警告續跑、成功→done）。不印任何訊息。
 //
-// 衝突（result.Conflict）與非衝突錯誤（result.Error != ""）時保持 pending-review、不 finalize；
-// 其餘情況（含非 worktree 模式的 Skipped）視為成功並 finalizeDone。若 finalizeDone 失敗，
-// 將錯誤編入 result.Error（不另改 MergeResult 結構），讓呼叫端走錯誤分支處理而非靜默忽略。
-// merge 邏輯只走 ops.Merge + finalizeDone 一處，batch 與 done 共用此 helper，不重寫第二份流程。
-func autoMergeFeature(ws *protocol.Workspace, cfg protocol.Config, s protocol.State, featureID, featureName string) gitops.MergeResult {
-	ops := gitops.New(ws.Root, ws, cfg)
-	result := ops.Merge(featureID, featureName)
-	if !result.Conflict && result.Error == "" {
-		if err := finalizeDone(ws, featureID, s); err != nil {
-			result.Error = fmt.Sprintf("finalize state failed: %v", err)
-		} else {
-			learning.CommitIfDirty(ws.Root, ws.DotDir())
-		}
+// 真正 fatal 的 finalize/re-read 失敗（MergeAndFinalize 回傳的 error）與 merge 期間 state 已被改動
+// （StateChanged）皆編入 result.Error，讓呼叫端走錯誤分支（保持 pending-review、保留 worktree）
+// 而非靜默成功；CLI 單程序下 StateChanged 理論上不會發生。
+func autoMergeFeature(ws *protocol.Workspace, cfg protocol.Config, featureID, featureName string) gitops.MergeResult {
+	result, err := gitops.MergeAndFinalize(ws.Root, ws, cfg, featureID, featureName)
+	if err != nil {
+		result.Error = fmt.Sprintf("finalize state failed: %v", err)
+	} else if result.StateChanged {
+		result.Error = fmt.Sprintf("state changed during merge (phase=%s)", result.FinalState.Phase)
 	}
 	return result
 }
@@ -166,23 +163,9 @@ func approveSelfModState(ws *protocol.Workspace, featureID string, s *protocol.S
 	})
 }
 
+// finalizeDone 委派共用的 state.FinalizeDone 收尾序列。merge.go 在解決衝突後續跑時共用此 wrapper，
+// 不再各自重寫 Transition+WriteState+AppendEvent。
 func finalizeDone(ws *protocol.Workspace, featureID string, s protocol.State) error {
-	newState, err := state.Transition(s, protocol.PhaseDone, "")
-	if err != nil {
-		return err
-	}
-	newState.Active = false
-	newState.StopReason = "done"
-
-	if err := ws.WriteState(featureID, newState); err != nil {
-		return err
-	}
-
-	logSyncErr(ws.SyncFeatureStatus(featureID, protocol.PhaseDone), featureID, protocol.PhaseDone)
-
-	return ws.AppendEvent(featureID, protocol.Event{
-		Type:  "transition",
-		Phase: protocol.PhaseDone,
-		Round: newState.Round,
-	})
+	_, err := state.FinalizeDone(ws, featureID, s)
+	return err
 }

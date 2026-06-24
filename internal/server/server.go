@@ -12,7 +12,6 @@ import (
 
 	web "github.com/ggwhite/4x/dashboard/web"
 	"github.com/ggwhite/4x/internal/gitops"
-	"github.com/ggwhite/4x/internal/learning"
 	"github.com/ggwhite/4x/internal/logging"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/state"
@@ -513,46 +512,37 @@ func handlePostDone(ws *protocol.CachedWorkspace, w http.ResponseWriter, r *http
 	}
 
 	cfg, _ := ws.LoadMergedConfig()
-	ops := gitops.New(ws.Root, ws.Workspace, cfg)
 
+	// mergeMu 包住整個共用編排（merge → re-read → finalize → commit），序列化同一專案的 merge；
+	// 共用函式本身不持鎖，鎖留在 server 呼叫端（CLI 單程序不需鎖）。傳底層 *Workspace，
+	// 不繞過 CachedWorkspace 讀取側 cache（共用函式僅走未被 cache 覆寫的寫入側方法）。
 	mergeLock := mergeMu.get(ws.Root)
 	mergeLock.Lock()
-	result := ops.Merge(req.ID, name)
+	result, err := gitops.MergeAndFinalize(ws.Root, ws.Workspace, cfg, req.ID, name)
 	mergeLock.Unlock()
+	if err != nil {
+		// 真正 fatal 的 re-read / finalize 失敗維持 HTTP 500。SyncFeatureStatus 失敗已在
+		// state.FinalizeDone 內降為 non-fatal，不會走到這裡。
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if result.Conflict {
+	switch {
+	case result.Conflict:
 		filesJSON, _ := json.Marshal(result.Files)
 		fmt.Fprintf(w, `{"status":"pending-review","merge_conflict":true,"conflicts":%s}`, filesJSON)
-	} else if result.Error != "" {
+	case result.StateChanged:
+		w.WriteHeader(http.StatusConflict)
+		statusJSON, _ := json.Marshal(string(result.FinalState.Phase))
+		fmt.Fprintf(w, `{"status":%s,"error":"state changed during merge"}`, statusJSON)
+	case result.Error != "":
 		errJSON, _ := json.Marshal(result.Error)
 		fmt.Fprintf(w, `{"status":"pending-review","merge_error":%s}`, errJSON)
-	} else {
-		// merge 可能耗時數秒，期間 runner 或 ensureInactive 可能改過 state。
-		// 重新讀取最新 state，避免用 merge 前的 stale 值覆蓋其他欄位更新。
-		fresh, err := ws.ReadState(req.ID)
-		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, "failed to re-read state: "+err.Error())
-			return
-		}
-		if fresh.Phase != protocol.PhasePendingReview {
-			w.WriteHeader(http.StatusConflict)
-			statusJSON, _ := json.Marshal(string(fresh.Phase))
-			fmt.Fprintf(w, `{"status":%s,"error":"state changed during merge"}`, statusJSON)
-			return
-		}
-
-		if _, err := transitionDone(ws, req.ID, fresh); err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		learning.CommitIfDirty(ws.Root, ws.DotDir())
-
-		if result.Skipped {
-			fmt.Fprint(w, `{"status":"done","merged":false}`)
-		} else {
-			fmt.Fprint(w, `{"status":"done","merged":true}`)
-		}
+	case result.Skipped:
+		fmt.Fprint(w, `{"status":"done","merged":false}`)
+	default:
+		fmt.Fprint(w, `{"status":"done","merged":true}`)
 	}
 }
 
@@ -597,33 +587,11 @@ func writeJSONError(w http.ResponseWriter, code int, msg string) {
 	w.Write(payload)
 }
 
+// transitionDone 委派共用的 state.FinalizeDone 收尾序列，傳底層 *Workspace（cws.Workspace），
+// 不繞過 CachedWorkspace 讀取側 cache（FinalizeDone 僅走未被 cache 覆寫的 WriteState /
+// SyncFeatureStatus / AppendEvent）。PhaseDone 的 role 與 CLI 一致用空字串。
 func transitionDone(ws *protocol.CachedWorkspace, featureID string, s protocol.State) (protocol.State, error) {
-	// PhaseDone 的 role 與 CLI finalizeDone（cmd/4x/done.go）一致用空字串，
-	// 使 server 與 CLI 寫出的 state.json Role 欄位相同。
-	newState, err := state.Transition(s, protocol.PhaseDone, "")
-	if err != nil {
-		return protocol.State{}, err
-	}
-	newState.Active = false
-	newState.StopReason = "done"
-
-	if err := ws.WriteState(featureID, newState); err != nil {
-		return protocol.State{}, err
-	}
-
-	if err := ws.SyncFeatureStatus(featureID, protocol.PhaseDone); err != nil {
-		return protocol.State{}, fmt.Errorf("failed to sync feature status: %w", err)
-	}
-
-	if err := ws.AppendEvent(featureID, protocol.Event{
-		Type:  "transition",
-		Phase: protocol.PhaseDone,
-		Round: newState.Round,
-	}); err != nil {
-		return protocol.State{}, err
-	}
-
-	return newState, nil
+	return state.FinalizeDone(ws.Workspace, featureID, s)
 }
 
 func readIfExists(path string) string {

@@ -23,12 +23,18 @@ type Ops interface {
 }
 
 // MergeResult 描述 Merge 操作的結果。
+//
+// StateChanged 與 FinalState 由 MergeAndFinalize 在 merge 後填入：StateChanged 表 merge 期間
+// state.json 的 phase 已非 pending-review（未 finalize），FinalState 為成功 finalize 後寫入的最新 state
+// （或 StateChanged 時偵測到的當下 state）。Merge 本身不設定這兩個欄位。
 type MergeResult struct {
 	Skipped      bool
 	Conflict     bool
 	Error        string
 	Files        []string
 	ConflictRepo string
+	StateChanged bool
+	FinalState   protocol.State
 }
 
 // New 根據 workspace config 建立對應的 Ops 實作。
