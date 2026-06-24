@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -9,7 +10,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/ggwhite/4x/internal/feature"
+	feat "github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/learning"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/state"
@@ -105,7 +106,7 @@ func newPromptCmd() *cobra.Command {
 }
 
 type promptData struct {
-	Feature          feature.Feature
+	Feature          feat.Feature
 	Project          protocol.ProjectConfig
 	Role             protocol.Role
 	Round            int
@@ -221,7 +222,7 @@ func roleInstructions(cfg protocol.Config, r protocol.Role) []string {
 
 // loadPlanningDocs 解析 feature 的 spec 與 plan 設計文件並串接，供 prompt 注入。
 // 解析優先序統一走 protocol.ResolveDesignDoc；找不到的文件跳過，不報錯。
-func loadPlanningDocs(root string, feature feature.Feature, designDocDirs []string) string {
+func loadPlanningDocs(root string, feature feat.Feature, designDocDirs []string) string {
 	var parts []string
 	for _, docType := range []string{"spec", "plan"} {
 		doc := protocol.ResolveDesignDoc(root, feature, docType, designDocDirs...)
@@ -493,4 +494,224 @@ func loadSelectedLearnings(dotDir, featureID string, role protocol.Role) []learn
 // selectedLearningsPayload 是 selected-learnings.json 的結構。
 type selectedLearningsPayload struct {
 	Selected []string `json:"selected"`
+}
+
+// promptOption 在 promptData 組好、模板 render 前對其做最後調整，
+// 供平行 deep review 注入 ReviewerIndex / AssignedAngles / PartialReports 等額外欄位。
+type promptOption func(*promptData)
+
+// deepReviewPartialName 回傳平行 deep review 中第 index 個 sub-reviewer 的 partial report
+// 檔名（deep-review-partial-<index>.md，index 為 1-based）。
+func deepReviewPartialName(index int) string {
+	return fmt.Sprintf("deep-review-partial-%d.md", index)
+}
+
+// deepPartialComplete 判斷單一 deep-review-partial 檔是否已完整寫出。
+// 完整判準：檔案存在、去空白後非空，且含 partial 模板的結尾段落標記 `## Statistics`
+// （sub-reviewer 半截輸出時通常缺此段，避免半成品被誤判為完整而漏跑）。
+func deepPartialComplete(path string) bool {
+	data, err := os.ReadFile(path)
+	if err != nil || len(bytes.TrimSpace(data)) == 0 {
+		return false
+	}
+	return strings.Contains(string(data), "## Statistics")
+}
+
+// missingDeepPartials 回傳 1..want 中尚未完整的 partial index 清單（升冪）。
+// resume 時用來判斷哪些 sub-reviewer 需補跑；首次執行時所有 index 皆缺，回傳完整清單。
+func missingDeepPartials(roundDir string, want int) []int {
+	var missing []int
+	for i := 1; i <= want; i++ {
+		if !deepPartialComplete(filepath.Join(roundDir, deepReviewPartialName(i))) {
+			missing = append(missing, i)
+		}
+	}
+	return missing
+}
+
+// withParallelDeepReviewer 把第 index/count 個 sub-reviewer 的 angle 指派與 partial report
+// 檔名注入 promptData，讓 deep-reviewer 模板只 render 被分配的 angle 並輸出到 partial report。
+func withParallelDeepReviewer(index, count int, angles []int, partialName string) promptOption {
+	return func(d *promptData) {
+		d.ReviewerIndex = index
+		d.ReviewerCount = count
+		d.AssignedAngles = angles
+		d.PartialReportName = partialName
+	}
+}
+
+// withSynthesizerReports 把所有 sub-reviewer 的 partial report 完整內文注入 promptData，
+// 供 synthesizer 模板內嵌合併（不是只給路徑）。
+func withSynthesizerReports(reports []includeContent) promptOption {
+	return func(d *promptData) {
+		d.ReviewerCount = len(reports)
+		d.PartialReports = reports
+	}
+}
+
+// harvestLearnings 讀取 Acceptor 產出的 retro-learnings.json，追加到 .4x/learnings.json。
+// learnings 屬 nice-to-have，任何錯誤只 warn，絕不影響 state transition。
+func harvestLearnings(ws *protocol.Workspace, featureID string) {
+	retroPath := filepath.Join(ws.FeatureDir(featureID), protocol.RetroLearningsFile)
+	learnings, err := learning.ParseRetroFile(retroPath)
+	if err != nil {
+		slog.Warn("skip learnings harvest", "feature", featureID, "error", err)
+		return
+	}
+	if len(learnings) == 0 {
+		return
+	}
+
+	storePath := filepath.Join(ws.DotDir(), protocol.LearningsFile)
+	store, err := learning.LoadStore(storePath)
+	if err != nil {
+		slog.Warn("load learnings store failed", "error", err)
+		return
+	}
+
+	store.MarkStale(learning.DefaultStaleDays)
+	added := store.Harvest(featureID, learnings)
+	if added == 0 {
+		return
+	}
+
+	if err := store.Save(storePath); err != nil {
+		slog.Warn("save learnings store failed", "error", err)
+		return
+	}
+
+	active := len(store.ActiveEntries())
+	slog.Info("harvested learnings", "feature", featureID, "added", added, "total_active", active)
+	if active > learning.MaxActiveEntries {
+		slog.Warn("learnings store exceeds capacity, consider running '4x learn prune'",
+			"active", active, "limit", learning.MaxActiveEntries)
+	}
+}
+
+// updateLearningsUsage 在第一個非 Designer phase 時呼叫一次：讀 selected-learnings.json，
+// 更新被選中 learning 的 last_used 與 used_count。任何失敗只 warn，不影響 state transition。
+func updateLearningsUsage(ws *protocol.Workspace, featureID string) {
+	selPath := filepath.Join(ws.FeatureDir(featureID), protocol.SelectedLearningsFile)
+	data, err := os.ReadFile(selPath)
+	if err != nil {
+		return
+	}
+
+	var payload selectedLearningsPayload
+	if err := json.Unmarshal(data, &payload); err != nil || len(payload.Selected) == 0 {
+		return
+	}
+
+	storePath := filepath.Join(ws.DotDir(), protocol.LearningsFile)
+	store, err := learning.LoadStore(storePath)
+	if err != nil {
+		slog.Warn("load learnings store for usage update failed", "error", err)
+		return
+	}
+
+	store.UpdateUsage(payload.Selected)
+	if err := store.Save(storePath); err != nil {
+		slog.Warn("save learnings store after usage update failed", "error", err)
+	}
+}
+
+func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature feat.Feature, cfg protocol.Config, role protocol.Role, round, iteration int, opts ...promptOption) (string, error) {
+	tmpl, err := loadRoleTemplate(runnerWs.DotDir(), role)
+	if err != nil {
+		return "", fmt.Errorf("no template for role %s: %w", role, err)
+	}
+	locale, localeName := resolveLocale()
+	var roleInc []string
+	if rc, ok := cfg.Roles[string(role)]; ok {
+		roleInc = rc.Includes
+	}
+	var repoMap map[string]string
+	if len(cfg.Workspace.Repos) > 0 {
+		if runnerWs.Root != ws.Root {
+			// worktree 模式：組合目錄下 repo 子目錄以 name 命名，使用相對路徑讓 coder 在正確邊界內作業
+			featureRepos := make(map[string]bool, len(feature.Repos))
+			for _, r := range feature.Repos {
+				featureRepos[r] = true
+			}
+			repoMap = make(map[string]string, len(cfg.Workspace.Repos))
+			for name := range cfg.Workspace.Repos {
+				if len(feature.Repos) > 0 && !featureRepos[name] {
+					continue
+				}
+				repoMap[name] = name
+			}
+		} else {
+			repoMap = protocol.ResolveFeatureRepoPaths(feature, cfg, ws.Root)
+		}
+	}
+	data := promptData{
+		Feature:             feature,
+		Project:             cfg.Project,
+		Role:                role,
+		Round:               round,
+		Iteration:           iteration,
+		Config:              cfg,
+		DotDir:              runnerWs.DotDir(),
+		Locale:              locale,
+		LocaleName:          localeName,
+		RoleInstructions:    roleInstructions(cfg, role),
+		ProjectIncludes:     append(loadIncludes(ws.Root, cfg.Project.Includes), discoverConventionFiles(ws.Root, cfg.Project.Includes)...),
+		RoleIncludes:        loadIncludes(ws.Root, roleInc),
+		PlanningDoc:         loadPlanningDocs(ws.Root, feature, cfg.DesignDocDirs),
+		RepoMap:             repoMap,
+		ProfileInstructions: loadProfiles(ws, feature.ID, cfg),
+	}
+	// 兩者皆從主 workspace（ws.DotDir()）讀取，而非 runnerWs.DotDir()：
+	//   - learnings.json 由 CLI 在主 workspace 管理，本來就不會 sync 到 worktree。
+	//   - selected-learnings.json 由 Designer 寫在 worktree，但會由 syncFeatureFromWorktree
+	//     帶回主 workspace，因此後續 role 一律從主 workspace 讀取最新選擇。
+	briefPath := filepath.Join(ws.FeatureDir(feature.ID), protocol.TaskBrief)
+	skippedDesigner := false
+	if _, err := os.Stat(briefPath); err != nil {
+		skippedDesigner = true
+	}
+	if role == protocol.RoleDesigner {
+		data.Learnings = loadActiveLearnings(ws.DotDir())
+	} else if skippedDesigner && round == 1 && role == protocol.RoleCoder {
+		data.Learnings = loadActiveLearnings(ws.DotDir())
+	} else {
+		data.SelectedLearnings = loadSelectedLearnings(ws.DotDir(), feature.ID, role)
+	}
+	data.SkippedDesigner = skippedDesigner
+	for _, opt := range opts {
+		opt(&data)
+	}
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
+// promptResult 是 prefetch goroutine 透過 channel 回傳的生成結果。
+type promptResult struct {
+	prompt string
+	err    error
+}
+
+// promptPrefetch 保存一個已在背景啟動的 prompt 預生成任務；以 role+round 為 key，
+// 消費端 mismatch 時丟棄並退回同步生成，確保不會用錯 prompt。
+type promptPrefetch struct {
+	role  protocol.Role
+	round int
+	ch    chan promptResult
+}
+
+// prefetchablePhase 回報某 phase 是否會在主迴圈頂端走同步 generatePrompt（line 530），
+// 只有這些 phase 值得預生成 prompt。reviewing 僅在非平行模式下才走頂端路徑
+// （平行 runReviewTestParallel 自行呼叫 generatePrompt，不經頂端）。
+func prefetchablePhase(phase protocol.Phase, cfg protocol.Config) bool {
+	switch phase {
+	case protocol.PhaseDesignReviewing, protocol.PhaseCoding, protocol.PhaseAmending, protocol.PhaseTesting, protocol.PhaseAccepting:
+		return true
+	case protocol.PhaseReviewing:
+		return !cfg.ParallelReviewTest
+	default:
+		return false
+	}
 }
