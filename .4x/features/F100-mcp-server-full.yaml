@@ -1,0 +1,38 @@
+id: F100-mcp-server-full
+name: 'F100: MCP server full coverage'
+description: |-
+    ## 現狀
+
+    MCP server（F023）只覆蓋 6 個核心指令（status/new/run/stop/check/transition），後續新增的 16+ 個 CLI 指令完全沒有 MCP tool，導致 MCP client 只能操作最基本的 loop，無法 done/verify/approve/reject/batch/mine/learn 等。
+
+    ## 需求
+
+    1. 盤點所有 CLI 指令，篩選出適合透過 MCP 暴露的指令（排除 init/live/sync/prompt 等不適合的）
+    2. 對缺少 --json 輸出的指令補上 JSON 支援
+    3. 在 internal/mcp/ 新增對應的 input struct、handler、server 註冊
+    4. 每個新 tool 都要有測試（沿用現有 mock exec pattern）
+
+    ## 約束
+
+    - 維持現有 thin-wrapper pattern（handler 呼叫 CLI --json，不直接操作 internal package）
+    - stop 的 signal file 模式是例外，其他新 tool 不需要特殊處理
+    - 不改動既有 6 個 tool 的行為
+    - 不加 MCP resources/prompts，只加 tools
+status: done
+priority: 1
+subtasks:
+    - id: json-audit
+      name: 盤點所有指令的 --json 支援狀況並補齊缺漏
+      status: ""
+    - id: mcp-core
+      name: 新增 MCP tools — done/verify/approve/reject/mine/subtask
+      status: ""
+    - id: mcp-mgmt
+      name: 新增 MCP tools — batch/clean/doctor/learn/evolve
+      status: ""
+    - id: mcp-ops
+      name: 新增 MCP tools — config/gate/merge/notify
+      status: ""
+    - id: mcp-tests
+      name: 補齊所有新 tool 的單元測試
+      status: ""

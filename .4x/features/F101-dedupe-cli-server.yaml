@@ -1,0 +1,29 @@
+id: F101-dedupe-cli-server
+name: 'F101: dedupe CLI vs server shared logic'
+description: |-
+    現狀：CLI（cmd/4x/）和 server（internal/server/）對同一件事各寫一份 function，例如 finalizeDone vs transitionDone。當其中一邊加新邏輯（如 commitLearnings），另一邊不會同步更新，造成行為分歧。
+
+    需求：
+    - 盤點所有 CLI vs server 重複的邏輯對
+    - 把共用邏輯下沉到 internal/ package
+    - CLI 和 server 都呼叫同一份實作
+    - 確保 error handling 語意一致
+
+    約束：
+    - 不改變對外行為（API response、CLI output）
+    - 不引入新的外部依賴
+status: not-started
+priority: 2
+subtasks:
+    - id: S1
+      name: 盤點重複邏輯
+      status: ""
+    - id: S2
+      name: 抽取 shared finalizeDone
+      status: ""
+    - id: S3
+      name: 統一 merge+done 流程
+      status: ""
+    - id: S4
+      name: 驗證 CLI 與 server 行為一致
+      status: ""

@@ -47,3 +47,6 @@ coverage.out
 .threat-model-state/
 VULN-FINDINGS.json
 VULN-FINDINGS.md
+
+# Codegraph index
+.codegraph/
