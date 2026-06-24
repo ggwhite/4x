@@ -96,7 +96,12 @@ func newPromptCmd() *cobra.Command {
 				return err
 			}
 
-			return tmpl.Execute(os.Stdout, data)
+			var buf bytes.Buffer
+			if err := tmpl.Execute(&buf, data); err != nil {
+				return err
+			}
+			_, err = os.Stdout.WriteString(compactBlankLines(buf.String()))
+			return err
 		},
 	}
 
@@ -222,7 +227,6 @@ func roleInstructions(cfg protocol.Config, r protocol.Role) []string {
 
 // loadPlanningDocs 解析 feature 的 spec 與 plan 設計文件並串接，供 prompt 注入。
 // 解析優先序統一走 protocol.ResolveDesignDoc；找不到的文件跳過，不報錯。
-// 連續空行壓成單一空行，減少 token 消耗但不改變 Markdown 語意。
 func loadPlanningDocs(root string, feature feat.Feature, designDocDirs []string) string {
 	var parts []string
 	for _, docType := range []string{"spec", "plan"} {
@@ -231,7 +235,7 @@ func loadPlanningDocs(root string, feature feat.Feature, designDocDirs []string)
 			parts = append(parts, doc.Content)
 		}
 	}
-	return compactBlankLines(strings.Join(parts, "\n\n---\n\n"))
+	return strings.Join(parts, "\n\n---\n\n")
 }
 
 // compactBlankLines 把連續多個空行壓成一個，保留 Markdown 段落分隔語意。
@@ -705,7 +709,7 @@ func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, featur
 	if err := tmpl.Execute(&buf, data); err != nil {
 		return "", err
 	}
-	return buf.String(), nil
+	return compactBlankLines(buf.String()), nil
 }
 
 // promptResult 是 prefetch goroutine 透過 channel 回傳的生成結果。
