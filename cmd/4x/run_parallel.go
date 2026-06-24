@@ -28,10 +28,7 @@ func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 	// reviewer 依 reviewing phase、tester 依其 canonical testing phase 各自解析 runner/model，
 	// 平行模式下兩者可用不同 runner（共用 worktree）。
 	resolveErr := func(what string, err error) (bool, error) {
-		s.Active = false
-		s.StopReason = "model-error"
-		s.StopMessage = fmt.Sprintf("%s resolution failed: %v", what, err)
-		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+		stopState(ws, featureID, s, "model-error", fmt.Sprintf("%s resolution failed: %v", what, err))
 		return false, fmt.Errorf("%s resolution failed: %w", what, err)
 	}
 
@@ -110,17 +107,11 @@ func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 	for _, o := range outcomes {
 		if o.err != nil {
 			if ctx.Err() == context.Canceled {
-				s.Active = false
-				s.StopReason = "interrupted"
-				s.StopMessage = fmt.Sprintf("%s interrupted by signal (round %d)", o.role, round)
-				logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+				stopState(ws, featureID, s, "interrupted", fmt.Sprintf("%s interrupted by signal (round %d)", o.role, round))
 				return false, ctx.Err()
 			}
 			s.Phase = protocol.PhaseNeedsAttention
-			s.Active = false
-			s.StopReason = "runner-error"
-			s.StopMessage = fmt.Sprintf("%s runner failed (round %d): %v", o.role, round, o.err)
-			logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+			stopState(ws, featureID, s, "runner-error", fmt.Sprintf("%s runner failed (round %d): %v", o.role, round, o.err))
 			ws.AppendEvent(featureID, protocol.Event{
 				Type: "run-end", Phase: protocol.PhaseReviewing, Role: o.role, Round: round,
 				Status: "error", Detail: o.err.Error(), Runner: o.runnerName, Model: o.model,
@@ -138,20 +129,14 @@ func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 
 	for _, o := range outcomes {
 		if runner.IsHardError(o.result) {
-			s.Active = false
-			s.StopReason = "hard-error"
-			s.StopMessage = fmt.Sprintf("%s runner returned hard error (exit 2) during parallel review (round %d)", o.role, round)
-			logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+			stopState(ws, featureID, s, "hard-error", fmt.Sprintf("%s runner returned hard error (exit 2) during parallel review (round %d)", o.role, round))
 			return false, fmt.Errorf("runner returned hard error (exit 2)")
 		}
 	}
 	for _, o := range outcomes {
 		if runner.IsSoftFail(o.result) {
 			s.Phase = protocol.PhaseBlocked
-			s.Active = false
-			s.StopReason = "soft-fail"
-			s.StopMessage = fmt.Sprintf("%s runner returned soft-fail (exit %d) during parallel review (round %d)", o.role, runner.ExitSoftFail, round)
-			logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+			stopState(ws, featureID, s, "soft-fail", fmt.Sprintf("%s runner returned soft-fail (exit %d) during parallel review (round %d)", o.role, runner.ExitSoftFail, round))
 			logSyncErr(ws.SyncFeatureStatus(featureID, protocol.PhaseBlocked), featureID, protocol.PhaseBlocked)
 			return false, nil
 		}

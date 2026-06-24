@@ -54,6 +54,15 @@ func logStateWriteErr(err error, featureID string, phase protocol.Phase) {
 	}
 }
 
+// stopState 設定 state 的停止欄位並寫入磁碟，統一處理散布在多處的 stop-state boilerplate。
+// 呼叫者仍需自行 return（因回傳型別不同）。
+func stopState(ws *protocol.Workspace, featureID string, s *protocol.State, reason, message string) {
+	s.Active = false
+	s.StopReason = reason
+	s.StopMessage = message
+	logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+}
+
 // logSyncErr 在終止／失敗／收尾路徑記錄 SyncFeatureStatus 失敗，語意同 logStateWriteErr。
 // feature_list.json 狀態同步失敗只影響 dashboard 顯示、不阻斷流程，故僅記錄不回傳。
 func logSyncErr(err error, featureID string, phase protocol.Phase) {
@@ -776,10 +785,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 						return fmt.Errorf("health check transition: %w", transErr)
 					}
 					s = newState
-					s.Active = false
-					s.StopReason = "health-check-failed"
-					s.StopMessage = err.Error()
-					logStateWriteErr(ws.WriteState(featureID, s), featureID, s.Phase)
+					stopState(ws, featureID, &s, "health-check-failed", err.Error())
 					logSyncErr(ws.SyncFeatureStatus(featureID, s.Phase), featureID, s.Phase)
 					slog.Info("run stopped", "feature", featureID, "reason", "health-check-failed", "round", s.Round)
 					fmt.Printf("  health check failed, escalated to needs-attention\n")
@@ -801,20 +807,14 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		runnerManual, modelManual := protocol.EffectiveManual(runOverrides, phase, manualRunner)
 		phaseRunner, err := protocol.ResolvePhaseRunner(cfg, feature, pc, phase, runnerManual)
 		if err != nil {
-			s.Active = false
-			s.StopReason = "runner-error"
-			s.StopMessage = fmt.Sprintf("runner resolution for %s failed: %v", phase, err)
-			logStateWriteErr(ws.WriteState(featureID, s), featureID, s.Phase)
+			stopState(ws, featureID, &s, "runner-error", fmt.Sprintf("runner resolution for %s failed: %v", phase, err))
 			return fmt.Errorf("runner resolution failed: %w", err)
 		}
 		// ResolvePhaseModel 的最後一個參數是手動指定的 model tier（per-phase 臨時覆寫或全域），
 		// 不是 runner 名稱；無覆寫時為空字串，沿用 F090 既有解析。
 		model, err := protocol.ResolvePhaseModel(cfg, feature, pc, phase, role, phaseRunner, modelManual)
 		if err != nil {
-			s.Active = false
-			s.StopReason = "model-error"
-			s.StopMessage = fmt.Sprintf("model resolution for %s failed: %v", role, err)
-			logStateWriteErr(ws.WriteState(featureID, s), featureID, s.Phase)
+			stopState(ws, featureID, &s, "model-error", fmt.Sprintf("model resolution for %s failed: %v", role, err))
 			return fmt.Errorf("model resolution failed: %w", err)
 		}
 
@@ -882,17 +882,11 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		}
 		if err != nil {
 			if ctx.Err() == context.Canceled {
-				s.Active = false
-				s.StopReason = "interrupted"
-				s.StopMessage = fmt.Sprintf("%s (%s) interrupted by signal (round %d)", role, phase, s.Round)
-				logStateWriteErr(ws.WriteState(featureID, s), featureID, s.Phase)
+				stopState(ws, featureID, &s, "interrupted", fmt.Sprintf("%s (%s) interrupted by signal (round %d)", role, phase, s.Round))
 				return ctx.Err()
 			}
 			s.Phase = protocol.PhaseNeedsAttention
-			s.Active = false
-			s.StopReason = "runner-error"
-			s.StopMessage = fmt.Sprintf("%s runner failed during %s (round %d): %v", role, phase, s.Round, err)
-			logStateWriteErr(ws.WriteState(featureID, s), featureID, s.Phase)
+			stopState(ws, featureID, &s, "runner-error", fmt.Sprintf("%s runner failed during %s (round %d): %v", role, phase, s.Round, err))
 			ws.AppendEvent(featureID, protocol.Event{
 				Type: "run-end", Phase: phase, Role: role, Round: s.Round,
 				Status: "error", Detail: err.Error(),
@@ -908,19 +902,13 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		})
 
 		if runner.IsHardError(result) {
-			s.Active = false
-			s.StopReason = "hard-error"
-			s.StopMessage = fmt.Sprintf("%s runner returned hard error (exit 2) during %s (round %d)", role, phase, s.Round)
-			logStateWriteErr(ws.WriteState(featureID, s), featureID, s.Phase)
+			stopState(ws, featureID, &s, "hard-error", fmt.Sprintf("%s runner returned hard error (exit 2) during %s (round %d)", role, phase, s.Round))
 			return fmt.Errorf("runner returned hard error (exit 2)")
 		}
 
 		if runner.IsSoftFail(result) {
 			s.Phase = protocol.PhaseBlocked
-			s.Active = false
-			s.StopReason = "soft-fail"
-			s.StopMessage = fmt.Sprintf("%s runner returned soft-fail (exit %d) during %s (round %d)", role, runner.ExitSoftFail, phase, s.Round)
-			logStateWriteErr(ws.WriteState(featureID, s), featureID, s.Phase)
+			stopState(ws, featureID, &s, "soft-fail", fmt.Sprintf("%s runner returned soft-fail (exit %d) during %s (round %d)", role, runner.ExitSoftFail, phase, s.Round))
 			logSyncErr(ws.SyncFeatureStatus(featureID, protocol.PhaseBlocked), featureID, protocol.PhaseBlocked)
 			return nil
 		}

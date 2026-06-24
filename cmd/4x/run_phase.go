@@ -1,10 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	feat "github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/guard"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/state"
@@ -124,4 +126,30 @@ func successorPhase(p protocol.Phase) (protocol.Phase, protocol.Role) {
 	default:
 		return p, state.PhaseToRole(p)
 	}
+}
+
+func dryRunLoop(ws *protocol.Workspace, feature feat.Feature, cfg protocol.Config, s protocol.State) error {
+	phases := []struct {
+		phase protocol.Phase
+		role  protocol.Role
+	}{
+		{protocol.PhaseDesigning, protocol.RoleDesigner},
+		{protocol.PhaseCoding, protocol.RoleCoder},
+		{protocol.PhaseReviewing, protocol.RoleReviewer},
+		{protocol.PhaseTesting, protocol.RoleTester},
+		{protocol.PhaseDeepReviewing, protocol.RoleDeepReviewer},
+		{protocol.PhaseAccepting, protocol.RoleAcceptor},
+	}
+
+	for _, p := range phases {
+		fmt.Printf("=== %s (%s) ===\n", p.phase, p.role)
+		prompt, err := generatePrompt(ws, ws, feature, cfg, p.role, 1, 0)
+		if err != nil {
+			fmt.Printf("  (error: %v)\n\n", err)
+			continue
+		}
+		fmt.Println(prompt)
+		fmt.Println()
+	}
+	return nil
 }

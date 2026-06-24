@@ -132,6 +132,10 @@ func handleLogSSE(ws *protocol.CachedWorkspace, featureID string, w http.Respons
 	// 完整歷史內容由 REST /api/logs/ endpoint 提供。
 	const maxInitialTail int64 = 64 * 1024
 
+	// logDirCache 快取 findActiveLogs 的 ReadDir 結果，依目錄 mtime 失效，
+	// 每個 SSE 連線獨立一份，免除每秒 ReadDir+stat 的 I/O 開銷。
+	var logDirCache activeLogCache
+
 	// carryBufs 保留各 log 檔尾不完整的 UTF-8 殘段，與 offsets 平行、跨 tick 持續保留。
 	// 固定切分會把橫跨 read chunk / tick 邊界的多位元組字元切兩半，各自 json.Marshal
 	// 會被替換成不可逆的 U+FFFD；故只 emit 完整 rune，殘段留待後續 bytes 補齊再送。
@@ -211,7 +215,7 @@ func handleLogSSE(ws *protocol.CachedWorkspace, featureID string, w http.Respons
 			if pinnedFile != "" && pinnedFile != "." {
 				files = []string{pinnedFile}
 			} else {
-				files = findActiveLogs(logsDir)
+				files = findActiveLogs(logsDir, &logDirCache)
 			}
 			for _, current := range files {
 				tailFile(current)
@@ -226,11 +230,30 @@ func handleLogSSE(ws *protocol.CachedWorkspace, featureID string, w http.Respons
 // 之間的寫入時間差，又不至於把上一個 phase 的舊 log 拉進來。
 const activeLogWindow = 15 * time.Second
 
+// activeLogCache 快取 findActiveLogs 的 ReadDir 結果，以目錄 mtime 作為失效依據。
+// log 檔案只在 phase 轉換時新增或刪除，因此目錄 mtime 未變時可直接回傳 cached 結果，
+// 省去每秒一次的 ReadDir + per-entry stat 開銷。
+type activeLogCache struct {
+	dirMtime time.Time
+	result   []string
+}
+
 // findActiveLogs 回傳目前正在寫入 / 最近活躍的 log 檔名清單（依 logSortKey 排序）。
 // 以最新 log 的 mtime 為基準，回傳所有 mtime 落在 activeLogWindow 內的 .log，
 // 讓平行 sub-reviewer（或 reviewer+tester）等多個同時寫入的 log 都能被 SSE 一起 tail，
 // 而非只追到 mtime 最新的單一檔（修復 ParallelReviewTest 只看得到一個 log 的問題）。
-func findActiveLogs(dir string) []string {
+//
+// cache 參數由呼叫端持有（每個 SSE 連線一份），當目錄 mtime 未變時直接回傳快取結果，
+// 避免 SSE hot loop 每秒執行 ReadDir+stat。
+func findActiveLogs(dir string, cache *activeLogCache) []string {
+	dirInfo, err := os.Stat(dir)
+	if err != nil {
+		return nil
+	}
+	if cache != nil && dirInfo.ModTime().Equal(cache.dirMtime) && cache.result != nil {
+		return cache.result
+	}
+
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil
@@ -255,6 +278,10 @@ func findActiveLogs(dir string) []string {
 		}
 	}
 	if len(logs) == 0 {
+		if cache != nil {
+			cache.dirMtime = dirInfo.ModTime()
+			cache.result = nil
+		}
 		return nil
 	}
 	cutoff := latest.Add(-activeLogWindow)
@@ -267,6 +294,10 @@ func findActiveLogs(dir string) []string {
 	sort.Slice(active, func(i, j int) bool {
 		return logSortKey(active[i]) < logSortKey(active[j])
 	})
+	if cache != nil {
+		cache.dirMtime = dirInfo.ModTime()
+		cache.result = active
+	}
 	return active
 }
 

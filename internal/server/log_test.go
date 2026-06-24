@@ -57,7 +57,7 @@ func TestFindActiveLogs_MultipleConcurrent(t *testing.T) {
 	write("round-1-coder.log", 5*time.Minute)
 	write("notes.txt", 0)
 
-	got := findActiveLogs(dir)
+	got := findActiveLogs(dir, nil)
 	if len(got) != 2 {
 		t.Fatalf("got %v, want 2 active logs", got)
 	}
@@ -68,7 +68,7 @@ func TestFindActiveLogs_MultipleConcurrent(t *testing.T) {
 }
 
 func TestFindActiveLogs_EmptyDir(t *testing.T) {
-	if got := findActiveLogs(t.TempDir()); got != nil {
+	if got := findActiveLogs(t.TempDir(), nil); got != nil {
 		t.Errorf("got %v, want nil for empty dir", got)
 	}
 }

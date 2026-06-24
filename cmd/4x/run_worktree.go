@@ -9,36 +9,9 @@ import (
 	"sync"
 	"time"
 
-	feat "github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/protocol"
 )
-
-func dryRunLoop(ws *protocol.Workspace, feature feat.Feature, cfg protocol.Config, s protocol.State) error {
-	phases := []struct {
-		phase protocol.Phase
-		role  protocol.Role
-	}{
-		{protocol.PhaseDesigning, protocol.RoleDesigner},
-		{protocol.PhaseCoding, protocol.RoleCoder},
-		{protocol.PhaseReviewing, protocol.RoleReviewer},
-		{protocol.PhaseTesting, protocol.RoleTester},
-		{protocol.PhaseDeepReviewing, protocol.RoleDeepReviewer},
-		{protocol.PhaseAccepting, protocol.RoleAcceptor},
-	}
-
-	for _, p := range phases {
-		fmt.Printf("=== %s (%s) ===\n", p.phase, p.role)
-		prompt, err := generatePrompt(ws, ws, feature, cfg, p.role, 1, 0)
-		if err != nil {
-			fmt.Printf("  (error: %v)\n\n", err)
-			continue
-		}
-		fmt.Println(prompt)
-		fmt.Println()
-	}
-	return nil
-}
 
 // syncFeatureToWorktree 將主 workspace 的 feature 目錄複製到 worktree，
 // 確保 runner 能讀到最新的 protocol 檔案（task-brief、上一輪 report 等）

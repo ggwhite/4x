@@ -34,10 +34,7 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 	// active profile 用於解析 mini-coder 的 coder model 與 deep-reviewing phase 的 runner 覆寫。
 	_, pc, err := protocol.ResolveProfile(cfg, feature, s.Profile)
 	if err != nil {
-		s.Active = false
-		s.StopReason = "profile-error"
-		s.StopMessage = fmt.Sprintf("deep-reviewer profile resolution failed: %v", err)
-		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+		stopState(ws, featureID, s, "profile-error", fmt.Sprintf("deep-reviewer profile resolution failed: %v", err))
 		return false, fmt.Errorf("resolve profile: %w", err)
 	}
 
@@ -46,20 +43,14 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 	deepRunnerManual, _ := protocol.EffectiveManual(runOverrides, protocol.PhaseDeepReviewing, manualRunner)
 	deepRunner, err := protocol.ResolvePhaseRunner(cfg, feature, pc, protocol.PhaseDeepReviewing, deepRunnerManual)
 	if err != nil {
-		s.Active = false
-		s.StopReason = "runner-error"
-		s.StopMessage = fmt.Sprintf("deep-reviewer runner resolution failed: %v", err)
-		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+		stopState(ws, featureID, s, "runner-error", fmt.Sprintf("deep-reviewer runner resolution failed: %v", err))
 		return false, fmt.Errorf("deep runner resolution failed: %w", err)
 	}
 
 	// 1. 解析 deep_model（deep_model 掛在 reviewer role 上）；未設定時 fallback 到 DefaultDeepTier。
 	deepModel, err := protocol.ResolveDeepModel(cfg, deepRunner, protocol.RoleReviewer)
 	if err != nil {
-		s.Active = false
-		s.StopReason = "model-error"
-		s.StopMessage = fmt.Sprintf("deep-reviewer model resolution failed: %v", err)
-		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+		stopState(ws, featureID, s, "model-error", fmt.Sprintf("deep-reviewer model resolution failed: %v", err))
 		return false, fmt.Errorf("deep model resolution failed: %w", err)
 	}
 	if deepModel == "" {
@@ -132,18 +123,12 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 	_, coderModelManual := protocol.EffectiveManual(runOverrides, protocol.PhaseCoding, manualRunner)
 	coderModel, err := protocol.ResolvePhaseModel(cfg, feature, pc, protocol.PhaseCoding, protocol.RoleCoder, deepRunner, coderModelManual)
 	if err != nil {
-		s.Active = false
-		s.StopReason = "model-error"
-		s.StopMessage = fmt.Sprintf("coder model resolution failed: %v", err)
-		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+		stopState(ws, featureID, s, "model-error", fmt.Sprintf("coder model resolution failed: %v", err))
 		return false, fmt.Errorf("coder model resolution failed: %w", err)
 	}
 	reviewModel, err := protocol.ResolveModel(cfg, deepRunner, protocol.RoleReviewer)
 	if err != nil {
-		s.Active = false
-		s.StopReason = "model-error"
-		s.StopMessage = fmt.Sprintf("reviewer model resolution failed: %v", err)
-		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+		stopState(ws, featureID, s, "model-error", fmt.Sprintf("reviewer model resolution failed: %v", err))
 		return false, fmt.Errorf("reviewer model resolution failed: %w", err)
 	}
 
@@ -176,10 +161,7 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 			writeDeepReviewFailReport(ws, featureID, round, "scope-exceed", reason)
 			writeDeepEscalation(ws, featureID, round, "scope-change", "mini-coder scope-exceed: "+reason)
 			s.Phase = protocol.PhaseNeedsAttention
-			s.Active = false
-			s.StopReason = "scope-exceed"
-			s.StopMessage = "deep-fix scope exceeded: " + reason
-			logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+			stopState(ws, featureID, s, "scope-exceed", "deep-fix scope exceeded: " + reason)
 			logSyncErr(ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention), featureID, protocol.PhaseNeedsAttention)
 			ws.AppendEvent(featureID, protocol.Event{
 				Type: "guard-fail", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleMiniCoder,
@@ -213,10 +195,7 @@ func runDeepReviewPhase(ctx context.Context, ws *protocol.Workspace, runnerWs *p
 	writeDeepEscalation(ws, featureID, round, "blocker",
 		fmt.Sprintf("deep-review self-heal exhausted after %d iterations", maxFix))
 	s.Phase = protocol.PhaseNeedsAttention
-	s.Active = false
-	s.StopReason = "self-heal-exhausted"
-	s.StopMessage = fmt.Sprintf("deep-review self-heal exhausted after %d iterations", maxFix)
-	logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+	stopState(ws, featureID, s, "self-heal-exhausted", fmt.Sprintf("deep-review self-heal exhausted after %d iterations", maxFix))
 	logSyncErr(ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention), featureID, protocol.PhaseNeedsAttention)
 	ws.AppendEvent(featureID, protocol.Event{
 		Type: "escalation", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleDeepReviewer,
@@ -304,17 +283,11 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 		if o.err != nil {
 			cleanup()
 			if ctx.Err() == context.Canceled {
-				s.Active = false
-				s.StopReason = "interrupted"
-				s.StopMessage = fmt.Sprintf("deep-reviewer interrupted by signal (round %d)", round)
-				logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+				stopState(ws, featureID, s, "interrupted", fmt.Sprintf("deep-reviewer interrupted by signal (round %d)", round))
 				return false, ctx.Err()
 			}
 			s.Phase = protocol.PhaseNeedsAttention
-			s.Active = false
-			s.StopReason = "runner-error"
-			s.StopMessage = fmt.Sprintf("deep-reviewer runner failed (round %d): %v", round, o.err)
-			logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+			stopState(ws, featureID, s, "runner-error", fmt.Sprintf("deep-reviewer runner failed (round %d): %v", round, o.err))
 			ws.AppendEvent(featureID, protocol.Event{
 				Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleDeepReviewer, Round: round,
 				Status: "error", Detail: o.err.Error(), Runner: runnerName, Model: deepModel,
@@ -331,10 +304,7 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 	for _, o := range outcomes {
 		if runner.IsHardError(o.result) {
 			cleanup()
-			s.Active = false
-			s.StopReason = "hard-error"
-			s.StopMessage = fmt.Sprintf("deep-reviewer runner returned hard error (exit 2) (round %d)", round)
-			logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+			stopState(ws, featureID, s, "hard-error", fmt.Sprintf("deep-reviewer runner returned hard error (exit 2) (round %d)", round))
 			return false, fmt.Errorf("runner returned hard error (exit 2)")
 		}
 	}
@@ -342,10 +312,7 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 		if runner.IsSoftFail(o.result) {
 			cleanup()
 			s.Phase = protocol.PhaseNeedsAttention
-			s.Active = false
-			s.StopReason = "deep-reviewer-soft-fail"
-			s.StopMessage = fmt.Sprintf("deep-reviewer runner returned soft-fail (exit %d) (round %d)", runner.ExitSoftFail, round)
-			logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+			stopState(ws, featureID, s, "deep-reviewer-soft-fail", fmt.Sprintf("deep-reviewer runner returned soft-fail (exit %d) (round %d)", runner.ExitSoftFail, round))
 			logSyncErr(ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention), featureID, protocol.PhaseNeedsAttention)
 			return false, nil
 		}
@@ -392,17 +359,11 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 	if synthErr != nil {
 		cleanup()
 		if ctx.Err() == context.Canceled {
-			s.Active = false
-			s.StopReason = "interrupted"
-			s.StopMessage = fmt.Sprintf("deep-review synthesizer interrupted by signal (round %d)", round)
-			logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+			stopState(ws, featureID, s, "interrupted", fmt.Sprintf("deep-review synthesizer interrupted by signal (round %d)", round))
 			return false, ctx.Err()
 		}
 		s.Phase = protocol.PhaseNeedsAttention
-		s.Active = false
-		s.StopReason = "runner-error"
-		s.StopMessage = fmt.Sprintf("deep-review synthesizer runner failed (round %d): %v", round, synthErr)
-		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+		stopState(ws, featureID, s, "runner-error", fmt.Sprintf("deep-review synthesizer runner failed (round %d): %v", round, synthErr))
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleSynthesizer, Round: round,
 			Status: "error", Detail: synthErr.Error(), Runner: runnerName, Model: synthModel,
@@ -415,19 +376,13 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 	})
 	if runner.IsHardError(synthRes) {
 		cleanup()
-		s.Active = false
-		s.StopReason = "hard-error"
-		s.StopMessage = fmt.Sprintf("deep-review synthesizer returned hard error (exit 2) (round %d)", round)
-		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+		stopState(ws, featureID, s, "hard-error", fmt.Sprintf("deep-review synthesizer returned hard error (exit 2) (round %d)", round))
 		return false, fmt.Errorf("runner returned hard error (exit 2)")
 	}
 	if runner.IsSoftFail(synthRes) {
 		cleanup()
 		s.Phase = protocol.PhaseNeedsAttention
-		s.Active = false
-		s.StopReason = "synthesizer-soft-fail"
-		s.StopMessage = fmt.Sprintf("deep-review synthesizer returned soft-fail (exit %d) (round %d)", runner.ExitSoftFail, round)
-		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+		stopState(ws, featureID, s, "synthesizer-soft-fail", fmt.Sprintf("deep-review synthesizer returned soft-fail (exit %d) (round %d)", runner.ExitSoftFail, round))
 		logSyncErr(ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention), featureID, protocol.PhaseNeedsAttention)
 		return false, nil
 	}
@@ -488,17 +443,11 @@ func runDeepSubRole(ctx context.Context, ws *protocol.Workspace, runnerWs *proto
 
 	if runErr != nil {
 		if ctx.Err() == context.Canceled {
-			s.Active = false
-			s.StopReason = "interrupted"
-			s.StopMessage = fmt.Sprintf("deep-reviewing (%s) interrupted by signal (round %d)", role, round)
-			logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+			stopState(ws, featureID, s, "interrupted", fmt.Sprintf("deep-reviewing (%s) interrupted by signal (round %d)", role, round))
 			return false, ctx.Err()
 		}
 		s.Phase = protocol.PhaseNeedsAttention
-		s.Active = false
-		s.StopReason = "runner-error"
-		s.StopMessage = fmt.Sprintf("deep-reviewing (%s) runner failed (round %d): %v", role, round, runErr)
-		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+		stopState(ws, featureID, s, "runner-error", fmt.Sprintf("deep-reviewing (%s) runner failed (round %d): %v", role, round, runErr))
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: role, Round: round,
 			Status: "error", Detail: runErr.Error(), Runner: runnerName, Model: model,
@@ -512,18 +461,12 @@ func runDeepSubRole(ctx context.Context, ws *protocol.Workspace, runnerWs *proto
 	})
 
 	if runner.IsHardError(result) {
-		s.Active = false
-		s.StopReason = "hard-error"
-		s.StopMessage = fmt.Sprintf("deep-reviewing (%s) runner returned hard error (exit 2) (round %d)", role, round)
-		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+		stopState(ws, featureID, s, "hard-error", fmt.Sprintf("deep-reviewing (%s) runner returned hard error (exit 2) (round %d)", role, round))
 		return false, fmt.Errorf("runner returned hard error (exit 2)")
 	}
 	if runner.IsSoftFail(result) {
 		s.Phase = protocol.PhaseBlocked
-		s.Active = false
-		s.StopReason = "soft-fail"
-		s.StopMessage = fmt.Sprintf("deep-reviewing (%s) runner returned soft-fail (exit %d) (round %d)", role, runner.ExitSoftFail, round)
-		logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+		stopState(ws, featureID, s, "soft-fail", fmt.Sprintf("deep-reviewing (%s) runner returned soft-fail (exit %d) (round %d)", role, runner.ExitSoftFail, round))
 		logSyncErr(ws.SyncFeatureStatus(featureID, protocol.PhaseBlocked), featureID, protocol.PhaseBlocked)
 		return false, nil
 	}
@@ -538,11 +481,8 @@ func deepGuardCheck(ws *protocol.Workspace, featureID string, s *protocol.State,
 		return true, nil
 	}
 	s.Phase = protocol.PhaseNeedsAttention
-	s.Active = false
 	guardMsg := strings.Join(guardResult.Errors, "; ")
-	s.StopReason = "guard-fail"
-	s.StopMessage = guardMsg
-	logStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+	stopState(ws, featureID, s, "guard-fail", guardMsg)
 	logSyncErr(ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention), featureID, protocol.PhaseNeedsAttention)
 	ws.AppendEvent(featureID, protocol.Event{
 		Type: "guard-fail", Phase: protocol.PhaseDeepReviewing, Role: role,

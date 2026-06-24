@@ -16,7 +16,7 @@ import (
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
-var userConfigMu sync.Mutex
+var userConfigMu sync.RWMutex
 
 // handleGetSettings 讀取 .4x/settings.json 原始內容並回傳，保留所有欄位（含 Config struct 未定義的）。
 func handleGetSettings(ws *protocol.CachedWorkspace, w http.ResponseWriter) {
@@ -56,17 +56,14 @@ func handlePutSettings(ws *protocol.CachedWorkspace, w http.ResponseWriter, r *h
 		return
 	}
 
-	// 重新格式化以確保一致的縮排
-	var raw json.RawMessage
-	if err := json.Unmarshal(body, &raw); err != nil {
-		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
-		return
-	}
-	result, err := json.MarshalIndent(raw, "", "  ")
-	if err != nil {
+	// 直接用 json.Indent 格式化原始 body，省掉第二次 Unmarshal→MarshalIndent roundtrip，
+	// 同時保留 Config struct 未定義的欄位（前端送什麼就寫什麼）。
+	var indented bytes.Buffer
+	if err := json.Indent(&indented, body, "", "  "); err != nil {
 		http.Error(w, "marshal error: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	result := indented.Bytes()
 	newData := append(result, '\n')
 
 	settingsLock := settingsMu.get(ws.Root)
@@ -124,9 +121,9 @@ func reloadProcessManager(ws *protocol.CachedWorkspace, pm *ProcessManager) {
 
 // handleGetUserConfig 讀取 ~/.4x/settings.json 回傳 user config
 func handleGetUserConfig(w http.ResponseWriter) {
-	userConfigMu.Lock()
+	userConfigMu.RLock()
 	cfg, err := protocol.ReadUserConfig()
-	userConfigMu.Unlock()
+	userConfigMu.RUnlock()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -189,9 +186,9 @@ func handleGetMergedConfig(ws *protocol.CachedWorkspace, w http.ResponseWriter) 
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	userConfigMu.Lock()
+	userConfigMu.RLock()
 	userCfg, _ := protocol.ReadUserConfig()
-	userConfigMu.Unlock()
+	userConfigMu.RUnlock()
 	merged := protocol.MergeConfig(userCfg, projectCfg)
 
 	data, err := json.MarshalIndent(merged, "", "  ")
