@@ -15,6 +15,7 @@ import (
 // outcome 由呼叫端依結束原因傳入（completed / stopped / interrupted / crashed），
 // runningFeature 與 panicMsg 僅 interrupted / crashed 時有意義，其餘傳空字串即可。
 func BuildBatchReport(ws *protocol.Workspace, plan *BatchPlan, statusMap map[string]feature.Status,
+	failReasons map[string]string,
 	runner string, startedAt, finishedAt time.Time, outcome, runningFeature, panicMsg string) protocol.BatchReport {
 
 	report := protocol.BatchReport{
@@ -43,6 +44,11 @@ func BuildBatchReport(ws *protocol.Workspace, plan *BatchPlan, statusMap map[str
 			fr.StopReason = st.StopReason
 			if !st.CreatedAt.IsZero() && !st.UpdatedAt.IsZero() {
 				fr.DurationMs = st.UpdatedAt.Sub(st.CreatedAt).Milliseconds()
+			}
+		}
+		if fr.StopReason == "" {
+			if reason, ok := failReasons[id]; ok {
+				fr.StopReason = reason
 			}
 		}
 		report.Features = append(report.Features, fr)

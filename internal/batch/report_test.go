@@ -38,7 +38,7 @@ func TestBuildBatchReportCounts(t *testing.T) {
 
 	started := time.Unix(1000, 0)
 	finished := time.Unix(1005, 0)
-	r := BuildBatchReport(ws, plan, statusMap, "claude", started, finished, protocol.BatchOutcomeStopped, "F004", "")
+	r := BuildBatchReport(ws, plan, statusMap, nil, "claude", started, finished, protocol.BatchOutcomeStopped, "F004", "")
 
 	if r.Total != 4 || r.Completed != 2 || r.Failed != 1 || r.Remaining != 1 {
 		t.Fatalf("unexpected counts: total=%d completed=%d failed=%d remaining=%d", r.Total, r.Completed, r.Failed, r.Remaining)
@@ -67,7 +67,7 @@ func TestBuildBatchReportFeatureDuration(t *testing.T) {
 
 	plan := &BatchPlan{Schedule: []ScheduleEntry{{FeatureID: "F001"}}}
 	statusMap := map[string]feature.Status{"F001": feature.StatusNeedsAttention}
-	r := BuildBatchReport(ws, plan, statusMap, "claude", time.Unix(0, 0), time.Unix(1, 0), protocol.BatchOutcomeCompleted, "", "")
+	r := BuildBatchReport(ws, plan, statusMap, nil, "claude", time.Unix(0, 0), time.Unix(1, 0), protocol.BatchOutcomeCompleted, "", "")
 
 	fr := r.Features[0]
 	if fr.Rounds != 3 || fr.StopReason != "max-rounds" {
@@ -96,7 +96,7 @@ func ExampleBuildBatchReport() {
 
 	started := time.Unix(0, 0)
 	finished := time.Unix(12, 0)
-	r := BuildBatchReport(ws, plan, statusMap, "claude", started, finished, protocol.BatchOutcomeCompleted, "", "")
+	r := BuildBatchReport(ws, plan, statusMap, nil, "claude", started, finished, protocol.BatchOutcomeCompleted, "", "")
 
 	fmt.Printf("outcome=%s total=%d completed=%d failed=%d remaining=%d durationMs=%d\n",
 		r.Outcome, r.Total, r.Completed, r.Failed, r.Remaining, r.DurationMs)

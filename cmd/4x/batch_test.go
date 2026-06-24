@@ -227,7 +227,7 @@ func TestBatchReport_S2InterruptedSnapshot(t *testing.T) {
 		statusMap: maps.Clone(statusMap),
 		outcome:   protocol.BatchOutcomeCompleted,
 	}
-	progress.update(statusMap)
+	progress.update(statusMap, nil)
 	progress.setRunning("feat-b")
 
 	// 直接呼叫 production 的 signal goroutine 收尾函式（outcome 覆寫為 interrupted）。

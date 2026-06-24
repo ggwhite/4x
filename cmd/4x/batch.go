@@ -416,6 +416,7 @@ type batchProgress struct {
 	mu             sync.Mutex
 	startedAt      time.Time
 	statusMap      map[string]feat.Status
+	failReasons    map[string]string
 	runningFeature string
 	outcome        string
 }
@@ -432,7 +433,7 @@ func (p *batchProgress) setRunning(id string) {
 
 // update 在一個 feature 收尾後刷新進度：清空 runningFeature、複製最新 statusMap。
 // 完成數不在此追蹤——報告的 Completed 由 BuildBatchReport 從 statusMap 重新統計。
-func (p *batchProgress) update(statusMap map[string]feat.Status) {
+func (p *batchProgress) update(statusMap map[string]feat.Status, failReasons map[string]string) {
 	if p == nil {
 		return
 	}
@@ -440,6 +441,7 @@ func (p *batchProgress) update(statusMap map[string]feat.Status) {
 	defer p.mu.Unlock()
 	p.runningFeature = ""
 	p.statusMap = maps.Clone(statusMap)
+	p.failReasons = maps.Clone(failReasons)
 }
 
 // markStopped 把 outcome 標記為 stopped（stop-file / 衝突暫停等 graceful 提前結束）。
@@ -453,10 +455,10 @@ func (p *batchProgress) markStopped() {
 }
 
 // snapshot 在鎖保護下回傳目前進度（statusMap 為複本），供 finishBatchReport 建報告。
-func (p *batchProgress) snapshot() (startedAt time.Time, runningFeature, outcome string, statusMap map[string]feat.Status) {
+func (p *batchProgress) snapshot() (startedAt time.Time, runningFeature, outcome string, statusMap map[string]feat.Status, failReasons map[string]string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return p.startedAt, p.runningFeature, p.outcome, maps.Clone(p.statusMap)
+	return p.startedAt, p.runningFeature, p.outcome, maps.Clone(p.statusMap), maps.Clone(p.failReasons)
 }
 
 // finishBatchReport 取進度快照、建報告並原子寫出，是 S1/S2/S3 三個結束觸發點與其測試共用的收尾。
@@ -465,7 +467,7 @@ func (p *batchProgress) snapshot() (startedAt time.Time, runningFeature, outcome
 // （best-effort），不掩蓋呼叫端後續的 os.Exit／re-panic。回傳組好的報告供測試斷言。
 func finishBatchReport(ws *protocol.Workspace, plan *batch.BatchPlan, runnerName string,
 	progress *batchProgress, outcomeOverride, panicMsg string) protocol.BatchReport {
-	startedAt, running, outcome, sm := progress.snapshot()
+	startedAt, running, outcome, sm, fr := progress.snapshot()
 	if outcomeOverride != "" {
 		outcome = outcomeOverride
 	} else {
@@ -473,7 +475,7 @@ func finishBatchReport(ws *protocol.Workspace, plan *batch.BatchPlan, runnerName
 		// feature。snapshot 的 running 可能因末位 feature 走 error-continue 路徑殘留，須清空。
 		running = ""
 	}
-	report := batch.BuildBatchReport(ws, plan, sm, runnerName, startedAt, time.Now(), outcome, running, panicMsg)
+	report := batch.BuildBatchReport(ws, plan, sm, fr, runnerName, startedAt, time.Now(), outcome, running, panicMsg)
 	if err := ws.WriteBatchReport(report); err != nil {
 		slog.Warn("failed to write batch report", "outcome", outcome, "error", err)
 	}
@@ -502,6 +504,7 @@ func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap m
 	// W12：追蹤每個 feature 跑出失敗狀態（needs-attention/blocked）的次數，
 	// 達 maxFeatureFailures 後從 selection 跳過。loggedSkip 確保 skip 訊息只印一次。
 	failedFeatures := map[string]int{}
+	failReasons := map[string]string{}
 	loggedSkip := map[string]bool{}
 
 	for {
@@ -550,15 +553,19 @@ func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap m
 
 		feature, err := ws.LoadFeature(next)
 		if err != nil {
-			fmt.Printf("  error loading feature: %v\n", err)
+			reason := fmt.Sprintf("error loading feature: %v", err)
+			fmt.Printf("  %s\n", reason)
 			statusMap[next] = feat.StatusBlocked
+			failReasons[next] = reason
 			failedFeatures[next]++
 			continue
 		}
 
 		if err := ws.InitFeatureDir(next); err != nil {
-			fmt.Printf("  init feature dir failed: %v\n", err)
+			reason := fmt.Sprintf("init feature dir failed: %v", err)
+			fmt.Printf("  %s\n", reason)
 			statusMap[next] = feat.StatusBlocked
+			failReasons[next] = reason
 			failedFeatures[next]++
 			continue
 		}
@@ -566,8 +573,10 @@ func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap m
 		// W4：套用 4x run 啟動前的 dependency gate；未完成則跳過並標記 blocked。
 		depResult := guard.CheckDependencies(ws, next)
 		if !depResult.Pass {
-			fmt.Printf("  dependency check failed: %s\n", strings.Join(depResult.Errors, "; "))
+			reason := "dependency check failed: " + strings.Join(depResult.Errors, "; ")
+			fmt.Printf("  %s\n", reason)
 			statusMap[next] = feat.StatusBlocked
+			failReasons[next] = reason
 			failedFeatures[next]++
 			continue
 		}
@@ -596,7 +605,7 @@ func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap m
 				fmt.Printf("  skipping %s: already running (pid %d)\n", next, existing.Pid)
 				statusMap[next] = feat.StatusInProgress
 				failedFeatures[next]++
-				progress.update(statusMap)
+				progress.update(statusMap, failReasons)
 				continue
 			}
 			s = existing
@@ -608,7 +617,7 @@ func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap m
 			fmt.Printf("  %s already done — skipping\n", next)
 			statusMap[next] = feat.StatusDone
 			completed++
-			progress.update(statusMap)
+			progress.update(statusMap, failReasons)
 			continue
 		}
 
@@ -658,7 +667,7 @@ func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap m
 				fmt.Printf("  worktree: %s\n", gitops.Dir(ws.Root, next))
 				fmt.Printf("  resolve conflicts, then run '4x merge %s' and re-run '4x batch run' to continue.\n", next)
 				progress.markStopped()
-				progress.update(statusMap)
+				progress.update(statusMap, failReasons)
 				return completed
 			case result.Error != "":
 				// M3：非衝突錯誤 → 警告後嘗試下一個 feature；feature 仍算 ready-for-review（batchCompleted）。
@@ -675,7 +684,7 @@ func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap m
 			completed++
 		}
 
-		progress.update(statusMap)
+		progress.update(statusMap, failReasons)
 	}
 
 	return completed
