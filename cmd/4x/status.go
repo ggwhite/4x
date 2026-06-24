@@ -105,6 +105,7 @@ func showAllFeatures(ws *protocol.Workspace, pendingOnly bool) error {
 		var updatedAt time.Time
 		s, err := ws.ReadState(f.ID)
 		if err == nil {
+			_ = ws.ReconcileActive(f.ID, &s)
 			phase = string(s.Phase)
 			round = fmt.Sprintf("%d/%d", s.Round, s.MaxRounds)
 			active = s.Active

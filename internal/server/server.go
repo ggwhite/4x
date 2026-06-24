@@ -14,7 +14,6 @@ import (
 	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/logging"
 	"github.com/ggwhite/4x/internal/protocol"
-	"github.com/ggwhite/4x/internal/state"
 )
 
 // settingsMu / mergeMu 為 per-project 鎖：以專案 root 為 key 取得對應 mutex，
@@ -585,13 +584,6 @@ func writeJSONError(w http.ResponseWriter, code int, msg string) {
 	w.WriteHeader(code)
 	payload, _ := json.Marshal(map[string]string{"error": msg})
 	w.Write(payload)
-}
-
-// transitionDone 委派共用的 state.FinalizeDone 收尾序列，傳底層 *Workspace（cws.Workspace），
-// 不繞過 CachedWorkspace 讀取側 cache（FinalizeDone 僅走未被 cache 覆寫的 WriteState /
-// SyncFeatureStatus / AppendEvent）。PhaseDone 的 role 與 CLI 一致用空字串。
-func transitionDone(ws *protocol.CachedWorkspace, featureID string, s protocol.State) (protocol.State, error) {
-	return state.FinalizeDone(ws.Workspace, featureID, s)
 }
 
 func readIfExists(path string) string {

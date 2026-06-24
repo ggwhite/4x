@@ -758,6 +758,11 @@ func (w *Workspace) ClearBatchPID() error {
 	return nil
 }
 
+// WriteBatchStop 寫出 batch-stop 信號檔，讓執行中的 batch 在當前 feature 完成後 graceful 停止。
+func (w *Workspace) WriteBatchStop() error {
+	return os.WriteFile(filepath.Join(w.DotDir(), BatchStopFile), []byte("stop"), 0o644)
+}
+
 // ReadConfig 讀取 .4x/settings.json
 func ReadConfig(dotDir string) (Config, error) {
 	data, err := os.ReadFile(filepath.Join(dotDir, ConfigFile))

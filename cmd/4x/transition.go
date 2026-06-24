@@ -73,7 +73,7 @@ func newTransitionCmd() *cobra.Command {
 				}
 			}
 
-			cfg, cfgErr := ws.ReadConfig()
+			cfg, cfgErr := ws.LoadMergedConfig()
 			if cfgErr != nil {
 				cfg = protocol.Config{}
 			}

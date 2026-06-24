@@ -62,7 +62,7 @@ func newBatchPlanCmd() *cobra.Command {
 
 			var pending []feat.Feature
 			for _, f := range features {
-				if f.Status != feat.StatusDone {
+				if f.Status != feat.StatusDone && f.Status != feat.StatusAbandoned {
 					pending = append(pending, f)
 				}
 			}
@@ -705,8 +705,7 @@ func newBatchStopCmd() *cobra.Command {
 				return err
 			}
 
-			stopFile := filepath.Join(ws.DotDir(), protocol.BatchStopFile)
-			if err := os.WriteFile(stopFile, []byte("stop"), 0o644); err != nil {
+			if err := ws.WriteBatchStop(); err != nil {
 				return err
 			}
 			slog.Info("batch operation", "action", "stop")

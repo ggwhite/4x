@@ -7,8 +7,8 @@
       "category": "design",
       "content": "task-brief 限制某檔案「只加某常量」時，會逼 Coder 在該檔旁另造局部 helper 而非抽共用 method，造成邏輯重複；設計階段若已知有可重用原語，應在 scope 內明確允許重構或預先抽出 exported helper。",
       "created_at": "2026-06-22T15:08:29.037309+08:00",
-      "last_used": "2026-06-22T18:37:42.346702+08:00",
-      "used_count": 5,
+      "last_used": "2026-06-24T21:02:34.437805+08:00",
+      "used_count": 6,
       "status": "active"
     },
     {
@@ -47,8 +47,8 @@
       "category": "testing",
       "content": "AC 若在 Verification Method 明寫某 package 的整合測試（如 internal/gitops 建 worktree 測 DetectChangedFiles），Coder 必須在該 package 同目錄補測；用其他層的 fake 單元測試代替不算達標。",
       "created_at": "2026-06-22T17:02:55.599908+08:00",
-      "last_used": "2026-06-22T18:37:42.346702+08:00",
-      "used_count": 1,
+      "last_used": "2026-06-24T21:02:34.437805+08:00",
+      "used_count": 2,
       "status": "active"
     },
     {
@@ -57,8 +57,8 @@
       "category": "review",
       "content": "孤立單元測試綠燈不等於端到端生效：AC-3 對 MergeConfig 單測通過，但 merged config 從未流到消費點（guard 用 ReadConfig 而非 LoadMergedConfig），驗收應追到資料真正被消費的呼叫鏈。",
       "created_at": "2026-06-22T17:02:55.599908+08:00",
-      "last_used": "2026-06-24T20:02:22.033156+08:00",
-      "used_count": 4,
+      "last_used": "2026-06-24T21:02:34.437805+08:00",
+      "used_count": 5,
       "status": "active"
     },
     {
@@ -87,8 +87,8 @@
       "category": "design",
       "content": "task-brief 應主動標出 spec 與 plan 程式碼骨架的矛盾並裁決（如 draft 是 Status 非 Phase、reject 後用 abandoned 非 done），避免 Coder 照抄錯誤骨架。",
       "created_at": "2026-06-22T17:56:03.049721+08:00",
-      "last_used": "2026-06-24T20:02:22.033156+08:00",
-      "used_count": 4,
+      "last_used": "2026-06-24T21:02:34.437805+08:00",
+      "used_count": 5,
       "status": "active"
     },
     {
@@ -137,8 +137,8 @@
       "category": "code-quality",
       "content": "同一套 Jaccard 去重邏輯在 PreVeto/PostVeto/DedupeDiscovered 各特化一份時，互為二次確認的兩處（PreVeto 與 PostVeto 規則4）應共用同一 helper，避免門檻語意未來悄悄分歧。",
       "created_at": "2026-06-22T18:59:50.866254+08:00",
-      "last_used": "0001-01-01T00:00:00Z",
-      "used_count": 0,
+      "last_used": "2026-06-24T21:02:34.437805+08:00",
+      "used_count": 1,
       "status": "active"
     },
     {
@@ -177,8 +177,8 @@
       "category": "code-quality",
       "content": "當新命令重用既有命令的編排流程（如 mine 的掃描+去重+冪等 merge），把 orchestration glue 抽成共用純函式再讓多個 entry 共用，不要整段複製到 runEvolve/runEvolveDryRun，避免冪等不變式散落多處日後漂移。",
       "created_at": "2026-06-22T20:26:15.186565+08:00",
-      "last_used": "0001-01-01T00:00:00Z",
-      "used_count": 0,
+      "last_used": "2026-06-24T21:02:34.437805+08:00",
+      "used_count": 1,
       "status": "active"
     },
     {
@@ -227,6 +227,46 @@
       "category": "design",
       "content": "task-brief 在開頭明列「設計裁決」覆寫 feature 描述中的矛盾（如 notify 無 CLI 指令、batch run 阻塞不適合 MCP），能讓 Coder 不重造輪子、不誤實作 out-of-scope 項目。",
       "created_at": "2026-06-24T20:37:27.5517+08:00",
+      "last_used": "2026-06-24T21:02:34.437805+08:00",
+      "used_count": 1,
+      "status": "active"
+    },
+    {
+      "id": "L024",
+      "source_feature": "F101-dedupe-cli-server",
+      "category": "tooling",
+      "content": "make lint 只跑 go vet 不檢查格式，gofmt 違規會漏過驗證鏈進 commit；應把 `gofmt -l`（非空即失敗）加進 lint 或 CI 守門。",
+      "created_at": "2026-06-24T21:32:14.561822+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L025",
+      "source_feature": "F101-dedupe-cli-server",
+      "category": "code-quality",
+      "content": "下沉重構移除某函式的 production 呼叫者後，若該函式只為某測試存活，應一併刪除並讓測試直接呼叫下沉後的共用函式，避免遺留 dead-code wrapper。",
+      "created_at": "2026-06-24T21:32:14.561822+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L026",
+      "source_feature": "F101-dedupe-cli-server",
+      "category": "code-quality",
+      "content": "重構改變呼叫路徑時，要同步搜尋並更新描述舊路徑的註解（含括號內實作提示），否則正是此 feature 想消除的『邏輯漂移』縮影。",
+      "created_at": "2026-06-24T21:32:14.561822+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L027",
+      "source_feature": "F101-dedupe-cli-server",
+      "category": "design",
+      "content": "當 feature 兩個要求（如『語意一致』vs『對外行為不變』）在某 edge 互相牴觸時，Designer 應在 task-brief 先做明確裁決並列出唯一刻意的對外行為變更，供 Reviewer/Acceptor 對焦而非各自猜測。",
+      "created_at": "2026-06-24T21:32:14.561822+08:00",
       "last_used": "0001-01-01T00:00:00Z",
       "used_count": 0,
       "status": "active"

@@ -199,20 +199,19 @@ func TestEventsSSE_ScannerErrorRetries(t *testing.T) {
 	}
 }
 
-// --- AC-7: transitionDone role 與 CLI 對齊（空字串）---
+// --- AC-7: FinalizeDone role 與 CLI 對齊（空字串）---
 
-// TestTransitionDone_RoleEmptyMatchesCLI 驗證 server transitionDone 對 PhaseDone 寫出的
-// Role 為空字串，與 CLI finalizeDone（state.Transition(s, PhaseDone, "")）一致。
-func TestTransitionDone_RoleEmptyMatchesCLI(t *testing.T) {
+// TestFinalizeDone_RoleEmptyMatchesCLI 驗證 state.FinalizeDone 對 PhaseDone 寫出的
+// Role 為空字串，CLI 與 server 共用同一函式。
+func TestFinalizeDone_RoleEmptyMatchesCLI(t *testing.T) {
 	ws := setupServerWorkspace(t)
 	makePendingReview(t, ws, "test-feat")
-	cws := protocol.NewCachedWorkspace(ws)
 
-	s, err := cws.ReadState("test-feat")
+	s, err := ws.ReadState("test-feat")
 	if err != nil {
 		t.Fatal(err)
 	}
-	newState, err := transitionDone(cws, "test-feat", s)
+	newState, err := state.FinalizeDone(ws, "test-feat", s)
 	if err != nil {
 		t.Fatal(err)
 	}

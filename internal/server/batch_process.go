@@ -115,8 +115,7 @@ func (bm *BatchManager) wait(done chan struct{}) {
 
 // Stop 寫出 .4x/batch-stop 信號檔（graceful）：batch 跑完當前 feature 後自行 break，不直接 SIGKILL。
 func (bm *BatchManager) Stop() error {
-	stopFile := filepath.Join(bm.ws.DotDir(), protocol.BatchStopFile)
-	return os.WriteFile(stopFile, []byte("stop"), 0o644)
+	return bm.ws.WriteBatchStop()
 }
 
 // Adopt 在 server 啟動時呼叫，據 .4x/batch-pid 認領前一個 server 啟動、現以孤兒身份存活的
