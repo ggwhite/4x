@@ -42,6 +42,7 @@ func Check(ws *protocol.Workspace, featureID string, detector ScopeDetector) Che
 	checkSelfMod(ws, featureID, detector, &r)
 	checkDependencies(ws, featureID, &r)
 	checkBacklogDrift(ws, featureID, &r)
+	checkSymlinks(ws, featureID, &r)
 
 	return r
 }
@@ -353,4 +354,70 @@ func detectChangedRepos(root string) []string {
 		repos = append(repos, r)
 	}
 	return repos
+}
+
+// checkSymlinks 掃描 feature 變更中是否包含 symlink。
+// coder 使用 git add . 時容易把 node_modules symlink 等意外加入，此檢查在 guardrail
+// 階段攔截：掃 uncommitted diff + untracked 的 Lstat，以及已 staged/committed 的
+// git ls-files -s mode 120000。
+func checkSymlinks(ws *protocol.Workspace, featureID string, r *CheckResult) {
+	root := gitops.ScopeRoot(ws.Root, featureID)
+	seen := make(map[string]bool)
+	var symlinks []string
+
+	add := func(path string) {
+		if !seen[path] {
+			seen[path] = true
+			symlinks = append(symlinks, path)
+		}
+	}
+
+	scanLstat := func(out []byte) {
+		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			if line == "" {
+				continue
+			}
+			info, err := os.Lstat(filepath.Join(root, line))
+			if err != nil {
+				continue
+			}
+			if info.Mode()&os.ModeSymlink != 0 {
+				add(line)
+			}
+		}
+	}
+
+	diffCmd := exec.Command("git", "diff", "--name-only", "HEAD")
+	diffCmd.Dir = root
+	if out, err := diffCmd.Output(); err == nil {
+		scanLstat(out)
+	}
+
+	untrackedCmd := exec.Command("git", "ls-files", "--others", "--exclude-standard")
+	untrackedCmd.Dir = root
+	if out, err := untrackedCmd.Output(); err == nil {
+		scanLstat(out)
+	}
+
+	lsCmd := exec.Command("git", "ls-files", "-s")
+	lsCmd.Dir = root
+	if out, err := lsCmd.Output(); err == nil {
+		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			if strings.HasPrefix(line, "120000 ") {
+				parts := strings.SplitN(line, "\t", 2)
+				if len(parts) == 2 {
+					add(parts[1])
+				}
+			}
+		}
+	}
+
+	if len(symlinks) > 0 {
+		detail := strings.Join(symlinks, ", ")
+		if len(detail) > 200 {
+			detail = fmt.Sprintf("%s ... (%d total)", detail[:200], len(symlinks))
+		}
+		r.Warns = append(r.Warns, fmt.Sprintf(
+			"symlinks detected in git: %s — verify these are intentional, not accidental (e.g. node_modules)", detail))
+	}
 }
