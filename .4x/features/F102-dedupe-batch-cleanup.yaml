@@ -1,0 +1,37 @@
+id: F102-dedupe-batch-cleanup
+name: 'F102: dedupe batch plan/stop + cleanup dead code'
+description: |-
+    盤點發現的 CLI vs server 重複邏輯與 dead code（源自 F101 審查）：
+
+    重複邏輯：
+    1. batch stop 寫檔：CLI batch.go:708 vs server batch_process.go:117，應抽成 Workspace 方法
+    2. batch plan 產生：CLI batch.go:60-94 vs server batch_handlers.go:184-221，核心流程相同但 CLI 漏排除 abandoned feature（semantic bug）
+
+    Dead code：
+    3. server.go transitionDone 無呼叫端，應刪除
+
+    行為不對稱：
+    4. transition.go:76 用 ReadConfig() 而非 LoadMergedConfig()，看不到 user config
+    5. CLI status 不呼叫 ReconcileActive，可能看到 stale active 狀態
+
+    約束：
+    - 不改變對外行為（API response、CLI output）
+    - 不引入新外部依賴
+status: not-started
+priority: 2
+subtasks:
+    - id: S1
+      name: 抽取 batch stop 寫檔為 shared method
+      status: ""
+    - id: S2
+      name: 統一 batch plan 流程並修 abandoned 過濾 bug
+      status: ""
+    - id: S3
+      name: 刪除 transitionDone dead code
+      status: ""
+    - id: S4
+      name: 修 transition.go 改用 LoadMergedConfig
+      status: ""
+    - id: S5
+      name: CLI status 加 ReconcileActive
+      status: ""
