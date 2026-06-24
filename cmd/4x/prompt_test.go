@@ -386,3 +386,26 @@ func writeTestFileHelper(t *testing.T, path, content string) {
 		t.Fatal(err)
 	}
 }
+
+func TestCompactBlankLines(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"no blanks", "a\nb\nc", "a\nb\nc"},
+		{"single blank preserved", "a\n\nb", "a\n\nb"},
+		{"triple blank compressed", "a\n\n\n\nb", "a\n\nb"},
+		{"mixed", "# H1\n\n\n\ntext\n\n\n\n## H2\n\nlist", "# H1\n\ntext\n\n## H2\n\nlist"},
+		{"trailing blanks", "a\n\n\n", "a\n"},
+		{"empty", "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := compactBlankLines(tt.in)
+			if got != tt.want {
+				t.Errorf("compactBlankLines(%q)\n got %q\nwant %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}

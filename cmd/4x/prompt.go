@@ -222,6 +222,7 @@ func roleInstructions(cfg protocol.Config, r protocol.Role) []string {
 
 // loadPlanningDocs 解析 feature 的 spec 與 plan 設計文件並串接，供 prompt 注入。
 // 解析優先序統一走 protocol.ResolveDesignDoc；找不到的文件跳過，不報錯。
+// 連續空行壓成單一空行，減少 token 消耗但不改變 Markdown 語意。
 func loadPlanningDocs(root string, feature feat.Feature, designDocDirs []string) string {
 	var parts []string
 	for _, docType := range []string{"spec", "plan"} {
@@ -230,7 +231,26 @@ func loadPlanningDocs(root string, feature feat.Feature, designDocDirs []string)
 			parts = append(parts, doc.Content)
 		}
 	}
-	return strings.Join(parts, "\n\n---\n\n")
+	return compactBlankLines(strings.Join(parts, "\n\n---\n\n"))
+}
+
+// compactBlankLines 把連續多個空行壓成一個，保留 Markdown 段落分隔語意。
+func compactBlankLines(s string) string {
+	lines := strings.Split(s, "\n")
+	var out []string
+	blank := false
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			if !blank {
+				out = append(out, "")
+				blank = true
+			}
+			continue
+		}
+		blank = false
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n")
 }
 
 // loadIncludes 讀取指定路徑的檔案內容，路徑相對於 root 解析
