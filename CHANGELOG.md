@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.3] - 2026-06-24
+
+### Features
+
+- **Symlink guardrail warning** — `4x check` 偵測到 scope 內含 symlink 時發出警告，Coder plugin 新增禁止 `git add .` 規則避免意外加入非預期檔案
+- **Batch stop toast** — Dashboard 發送 batch stop signal 後顯示 toast 通知
+
+### Fixes
+
+- **Runner PATH precedence** — 修正 `4x live` 啟動的 agent 可能吃到系統安裝的舊版 `4x` 的問題，exe 目錄改為 prepend 到 PATH 最前面
+
+### Internal
+
+- **Server/run module split** — 拆分 run.go 和 server.go 為更聚焦的模組
+- **Dashboard constants dedup** — 合併重複的 dashboard 常量，移除無用的 settings 程式碼
+
 ## [0.2.2] - 2026-06-23
 
 ### Features
