@@ -40,12 +40,12 @@ func resolveCommand(command string, env []string) string {
 func enrichedEnv() []string {
 	env := os.Environ()
 
-	var extraPaths []string
+	var prependPaths, extraPaths []string
 	pathSep := ":"
 	pathKey := "PATH="
 
 	if exe, err := os.Executable(); err == nil {
-		extraPaths = append(extraPaths, filepath.Dir(exe))
+		prependPaths = append(prependPaths, filepath.Dir(exe))
 		env = append(env, "FOURX_BIN="+exe)
 	}
 
@@ -93,12 +93,21 @@ func enrichedEnv() []string {
 			for _, p := range parts {
 				seen[p] = true
 			}
-			for _, p := range extraPaths {
+			// exe 目錄放最前面，確保 agent 呼叫 4x 時拿到同版本 binary
+			var newParts []string
+			for _, p := range prependPaths {
 				if p != "" && !seen[p] {
-					parts = append(parts, p)
+					newParts = append(newParts, p)
+					seen[p] = true
 				}
 			}
-			env[i] = pathKey + strings.Join(parts, pathSep)
+			newParts = append(newParts, parts...)
+			for _, p := range extraPaths {
+				if p != "" && !seen[p] {
+					newParts = append(newParts, p)
+				}
+			}
+			env[i] = pathKey + strings.Join(newParts, pathSep)
 			return env
 		}
 	}
