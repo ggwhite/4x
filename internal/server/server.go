@@ -12,6 +12,7 @@ import (
 
 	web "github.com/ggwhite/4x/dashboard/web"
 	"github.com/ggwhite/4x/internal/gitops"
+	"github.com/ggwhite/4x/internal/learning"
 	"github.com/ggwhite/4x/internal/logging"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/state"
@@ -545,6 +546,7 @@ func handlePostDone(ws *protocol.CachedWorkspace, w http.ResponseWriter, r *http
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		learning.CommitIfDirty(ws.Root, ws.DotDir())
 
 		if result.Skipped {
 			fmt.Fprint(w, `{"status":"done","merged":false}`)

@@ -57,8 +57,8 @@
       "category": "review",
       "content": "孤立單元測試綠燈不等於端到端生效：AC-3 對 MergeConfig 單測通過，但 merged config 從未流到消費點（guard 用 ReadConfig 而非 LoadMergedConfig），驗收應追到資料真正被消費的呼叫鏈。",
       "created_at": "2026-06-22T17:02:55.599908+08:00",
-      "last_used": "2026-06-22T18:37:42.346702+08:00",
-      "used_count": 2,
+      "last_used": "2026-06-24T20:02:22.033156+08:00",
+      "used_count": 4,
       "status": "active"
     },
     {
@@ -87,8 +87,8 @@
       "category": "design",
       "content": "task-brief 應主動標出 spec 與 plan 程式碼骨架的矛盾並裁決（如 draft 是 Status 非 Phase、reject 後用 abandoned 非 done），避免 Coder 照抄錯誤骨架。",
       "created_at": "2026-06-22T17:56:03.049721+08:00",
-      "last_used": "2026-06-22T19:30:37.62636+08:00",
-      "used_count": 2,
+      "last_used": "2026-06-24T20:02:22.033156+08:00",
+      "used_count": 4,
       "status": "active"
     },
     {
@@ -97,8 +97,8 @@
       "category": "code-quality",
       "content": "新增 cobra subcommand 一律一檔一指令，即使 task-brief 寫「一檔含兩個 command」也要遵循 codebase 既有慣例，否則 review 必被打回。",
       "created_at": "2026-06-22T17:56:03.049721+08:00",
-      "last_used": "2026-06-22T18:37:42.346702+08:00",
-      "used_count": 1,
+      "last_used": "2026-06-24T20:02:22.033156+08:00",
+      "used_count": 3,
       "status": "active"
     },
     {
@@ -147,8 +147,8 @@
       "category": "design",
       "content": "讀檔回空 pool 不報錯的 API（LoadCandidates）在編排命令中會把「前置步驟沒跑」遮蔽成「靜默成功 exit 0」；對手動操作的子命令應對缺前置輸入給明確 error。",
       "created_at": "2026-06-22T18:59:50.866254+08:00",
-      "last_used": "2026-06-22T19:30:37.62636+08:00",
-      "used_count": 1,
+      "last_used": "2026-06-24T20:02:22.033156+08:00",
+      "used_count": 3,
       "status": "active"
     },
     {
@@ -167,8 +167,8 @@
       "category": "process",
       "content": "當 plan 基於過時假設（假設依賴 feature 未實作）而現況已 merge，task-brief 應在開頭明列「設計裁決」覆寫 plan 並指定重用既有型別，避免 coder 重造輪子。",
       "created_at": "2026-06-22T18:59:50.866254+08:00",
-      "last_used": "2026-06-22T19:30:37.62636+08:00",
-      "used_count": 1,
+      "last_used": "2026-06-24T20:02:22.033156+08:00",
+      "used_count": 3,
       "status": "active"
     },
     {
@@ -197,6 +197,36 @@
       "category": "design",
       "content": "report 的統計欄位（如 deduped）要明確定義來源語意，不要把不同階段的丟棄數（本輪 mine 去重 vs pool-wide PreVeto）相加塞進同一數字，避免多輪累積後誤導使用者。",
       "created_at": "2026-06-22T20:26:15.186565+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L021",
+      "source_feature": "F100-mcp-server-full",
+      "category": "code-quality",
+      "content": "新增指令的 --json 非互動路徑時，若已有對應的互動/文字路徑（如 clean 的 cleanAll），必須對齊其 partial-failure 不變式（skip-and-continue、回報已完成項），不要直接 return error 丟棄已累積結果。",
+      "created_at": "2026-06-24T20:37:27.5517+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L022",
+      "source_feature": "F100-mcp-server-full",
+      "category": "review",
+      "content": "純格式違規（gofmt struct tag 對齊）這類零風險阻擋項，Coder 在送 review 前應先跑 gofmt -l 對 feature diff 檔自檢，避免浪費一整輪 review/amend 循環。",
+      "created_at": "2026-06-24T20:37:27.5517+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L023",
+      "source_feature": "F100-mcp-server-full",
+      "category": "design",
+      "content": "task-brief 在開頭明列「設計裁決」覆寫 feature 描述中的矛盾（如 notify 無 CLI 指令、batch run 阻塞不適合 MCP），能讓 Coder 不重造輪子、不誤實作 out-of-scope 項目。",
+      "created_at": "2026-06-24T20:37:27.5517+08:00",
       "last_used": "0001-01-01T00:00:00Z",
       "used_count": 0,
       "status": "active"
