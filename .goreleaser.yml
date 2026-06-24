@@ -35,7 +35,8 @@ changelog:
   disable: true
 
 brews:
-  - repository:
+  - name: fourx
+    repository:
       owner: ggwhite
       name: homebrew-tap
     homepage: "https://github.com/ggwhite/4x"

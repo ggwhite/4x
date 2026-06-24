@@ -85,7 +85,37 @@ Ask the user before pushing: "要 push 了，確認？"
 git push && git push --tags
 ```
 
-After push, tell the user: "Tag 已推送，CI 會自動跑 goreleaser 發布 release + 更新 homebrew。" and provide a link to the Actions page: `https://github.com/ggwhite/4x/actions`
+After push, tell the user: "Tag 已推送，CI 會自動跑 goreleaser 發布 release + 更新 homebrew（`brew upgrade fourx`）。" and provide a link to the Actions page: `https://github.com/ggwhite/4x/actions`
+
+### 9. Verify Homebrew formula
+
+Wait for CI to finish (check the Actions link), then verify the tap repo was updated correctly:
+
+```bash
+brew update
+brew info fourx 2>&1 | head -3
+```
+
+Confirm the version matches the release. If it doesn't, check the CI "Push Homebrew formula" step logs.
+
+### 10. Update local binary
+
+Ask the user: "要順便更新本機的 4x 嗎？"
+
+Option A — from homebrew (if step 9 confirmed version is correct):
+```bash
+brew upgrade fourx
+```
+
+Option B — from source (faster, doesn't wait for homebrew):
+```bash
+go build -o /opt/homebrew/bin/4x ./cmd/4x
+```
+
+Verify:
+```bash
+4x --version
+```
 
 ## Important rules
 
