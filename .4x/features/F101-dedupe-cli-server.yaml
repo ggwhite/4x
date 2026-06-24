@@ -12,7 +12,7 @@ description: |-
     約束：
     - 不改變對外行為（API response、CLI output）
     - 不引入新的外部依賴
-status: not-started
+status: done
 priority: 2
 subtasks:
     - id: S1
