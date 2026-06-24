@@ -272,13 +272,6 @@ function renderGSRunners() {
 
 let _supportedRunners = [];
 
-async function loadSupportedRunners() {
-  try {
-    const resp = await fetch(apiBase() + '/api/supported-runners');
-    if (resp.ok) _supportedRunners = await resp.json();
-  } catch {}
-}
-
 function populateAddRunnerSelect() {
   const sel = document.getElementById('gs-add-runner-select');
   if (!sel) return;
@@ -981,7 +974,6 @@ async function saveProfile() {
     _projectSettings = await resp.json();
     closeProfileEditor();
     renderProfilesTab();
-    renderDefaultsUI();
     showToast(t('projectSettings.profileSaved'));
   } catch(err) {
     showToast(t('toast.connectionError').replace('{error}', err.message));
@@ -1002,173 +994,7 @@ async function deleteProfile(name) {
     }
     _projectSettings = await resp.json();
     renderProfilesTab();
-    renderDefaultsUI();
     showToast(t('projectSettings.profileDeleted'));
-  } catch(err) {
-    showToast(t('toast.connectionError').replace('{error}', err.message));
-  }
-}
-
-// ROLE_EXTRA_FIELDS 定義各 role 除了通用欄位外，UI 要額外顯示哪些 RoleConfig 欄位。
-// deep_model 對 reviewer/deep-reviewer 有意義；screenshot_dir 對 tester 有意義。
-// instructions/includes 為所有 role 共用，於下方無條件渲染。
-const ROLE_EXTRA_FIELDS = {
-  'reviewer': ['deep_model'],
-  'deep-reviewer': ['deep_model'],
-  'tester': ['screenshot_dir'],
-};
-
-// roleTextRow — 產生單一文字欄位列（label + input），id 形如 role-{field}-{role}
-function roleTextRow(role, field, labelKey, value) {
-  return `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
-      <span style="font-size:12px;color:var(--text-3)">${esc(t(labelKey))}</span>
-      <input id="role-${field}-${escAttr(role)}" type="text" value="${escAttr(value || '')}"
-        style="padding:4px;border:1px solid var(--border);border-radius:3px;width:160px">
-    </div>`;
-}
-
-// renderRolesConfig — 顯示各角色的 model、延伸欄位（deep_model/screenshot_dir）與
-// 共用的 instructions/includes（逗號分隔）。儲存時保留 UI 未涵蓋的進階欄位（見 saveRoleConfig）。
-function renderRolesConfig() {
-  const container = document.getElementById('settings-roles-section');
-  if (!container) return;
-
-  const roles = (_projectSettings && _projectSettings.roles) || {};
-  const roleNames = ['designer', 'coder', 'reviewer', 'tester', 'acceptor', 'design-reviewer', 'deep-reviewer'];
-
-  let html = '<div class="space-y-2">';
-  roleNames.forEach(role => {
-    const roleConfig = roles[role] || {};
-    html += `<div style="padding:8px;border:1px solid var(--border);border-radius:4px">
-      <strong style="font-size:13px;color:var(--text-1)">${esc(role)}</strong>`;
-    html += roleTextRow(role, 'model', 'field.model', roleConfig.model);
-    (ROLE_EXTRA_FIELDS[role] || []).forEach(field => {
-      if (field === 'deep_model') html += roleTextRow(role, 'deep_model', 'field.deepModel', roleConfig.deep_model);
-      if (field === 'screenshot_dir') html += roleTextRow(role, 'screenshot_dir', 'field.screenshotDir', roleConfig.screenshot_dir);
-    });
-    html += roleTextRow(role, 'instructions', 'field.instructions', (roleConfig.instructions || []).join(', '));
-    html += roleTextRow(role, 'includes', 'field.includes', (roleConfig.includes || []).join(', '));
-    html += `<button onclick="saveRoleConfig('${escAttr(role)}')" style="margin-top:8px;padding:4px 8px;background:var(--accent);color:white;border:none;border-radius:3px;cursor:pointer">${esc(t('projectSettings.save'))}</button>
-    </div>`;
-  });
-  html += '</div>';
-  container.innerHTML = html;
-}
-
-// csvToList — 把逗號分隔字串轉成去空白、去空項的陣列
-function csvToList(raw) {
-  return (raw || '').split(',').map(s => s.trim()).filter(Boolean);
-}
-
-// saveRoleConfig — 保存單一 role config。
-// 以現有 roleConfig 為基底再覆寫 UI 欄位，避免 PUT 全量替換時把 UI 未顯示的進階欄位
-// （max_fix_rounds、parallel_reviewers、angles_per_reviewer）清掉。
-async function saveRoleConfig(role) {
-  const existing = (_projectSettings && _projectSettings.roles && _projectSettings.roles[role]) || {};
-  const payload = { ...existing };
-
-  const readField = (field) => {
-    const el = document.getElementById(`role-${field}-${role}`);
-    return el ? el.value.trim() : null;
-  };
-
-  const setStr = (field, key) => {
-    const v = readField(field);
-    if (v === null) return;
-    if (v) payload[key] = v; else delete payload[key];
-  };
-  const setList = (field, key) => {
-    const el = document.getElementById(`role-${field}-${role}`);
-    if (!el) return;
-    const list = csvToList(el.value);
-    if (list.length) payload[key] = list; else delete payload[key];
-  };
-
-  setStr('model', 'model');
-  if (ROLE_EXTRA_FIELDS[role] && ROLE_EXTRA_FIELDS[role].includes('deep_model')) setStr('deep_model', 'deep_model');
-  if (ROLE_EXTRA_FIELDS[role] && ROLE_EXTRA_FIELDS[role].includes('screenshot_dir')) setStr('screenshot_dir', 'screenshot_dir');
-  setList('instructions', 'instructions');
-  setList('includes', 'includes');
-
-  try {
-    const resp = await fetch(apiBase() + `/api/settings/roles/${encodeURIComponent(role)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!resp.ok) {
-      showToast(t('projectSettings.saveFailed').replace('{error}', await resp.text()));
-      return;
-    }
-    _projectSettings = await resp.json();
-    renderRolesConfig();
-    showToast(t('projectSettings.roleSaved').replace('{role}', role));
-  } catch(err) {
-    showToast(t('toast.connectionError').replace('{error}', err.message));
-  }
-}
-
-// renderDefaultsUI — 顯示 default_runner 和 default_profile 設定
-function renderDefaultsUI() {
-  const container = document.getElementById('settings-defaults-section');
-  if (!container) return;
-
-  const profileNames = Object.keys((_projectSettings && _projectSettings.profiles) || {});
-  const supportedRunnerNames = _supportedRunners.map(runner => runner.name);
-  const defaultRunner = _projectSettings && _projectSettings.default_runner ? _projectSettings.default_runner : '';
-  const defaultProfile = _projectSettings && _projectSettings.default_profile ? _projectSettings.default_profile : '';
-  
-  let html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
-  
-  // Default Runner
-  html += `<div style="padding:8px;border:1px solid var(--border);border-radius:4px">
-    <label style="display:block;margin-bottom:6px">${esc(t('projectSettings.defaultRunner'))}</label>
-    <select id="defaults-runner" style="width:100%;padding:4px;border:1px solid var(--border);border-radius:3px">
-      <option value=""${defaultRunner ? '' : ' selected'}>${esc(t('projectSettings.none'))}</option>`;
-  supportedRunnerNames.forEach(runner => {
-    html += `<option value="${escAttr(runner)}"${defaultRunner === runner ? ' selected' : ''}>${esc(runner)}</option>`;
-  });
-  html += `</select>
-  </div>`;
-
-  // Default Profile
-  html += `<div style="padding:8px;border:1px solid var(--border);border-radius:4px">
-    <label style="display:block;margin-bottom:6px">${esc(t('projectSettings.defaultProfile'))}</label>
-    <select id="defaults-profile" style="width:100%;padding:4px;border:1px solid var(--border);border-radius:3px">
-      <option value=""${defaultProfile ? '' : ' selected'}>${esc(t('projectSettings.none'))}</option>`;
-  profileNames.forEach(name => {
-    html += `<option value="${escAttr(name)}"${defaultProfile === name ? ' selected' : ''}>${esc(name)}</option>`;
-  });
-  html += `</select>
-  </div>`;
-
-  html += '</div>';
-  html += `<button onclick="saveDefaults()" style="margin-top:12px;padding:8px 12px;background:var(--accent);color:white;border:none;border-radius:3px;cursor:pointer">${esc(t('projectSettings.saveDefaults'))}</button>`;
-  container.innerHTML = html;
-}
-
-// saveDefaults — 保存預設值
-async function saveDefaults() {
-  const runnerSelect = document.getElementById('defaults-runner');
-  const profileSelect = document.getElementById('defaults-profile');
-  
-  const payload = {};
-  if (runnerSelect) payload.default_runner = runnerSelect.value.trim();
-  if (profileSelect) payload.default_profile = profileSelect.value.trim();
-
-  try {
-    const resp = await fetch(apiBase() + '/api/settings', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!resp.ok) {
-      showToast(t('projectSettings.saveFailed').replace('{error}', await resp.text()));
-      return;
-    }
-    _projectSettings = await resp.json();
-    renderDefaultsUI();
-    showToast(t('projectSettings.defaultsSaved'));
   } catch(err) {
     showToast(t('toast.connectionError').replace('{error}', err.message));
   }

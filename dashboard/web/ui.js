@@ -1,3 +1,6 @@
+const SR_COLORS = {'scope-change':'#f59e0b','runner-error':'#ef4444','hard-error':'#ef4444','soft-fail':'#f59e0b','interrupted':'#a78bfa','escalation':'#f59e0b','model-error':'#ef4444','guard-fail':'#ef4444','no-progress':'#f59e0b','missing-artifact':'#ef4444','health-check-failed':'#ef4444','scope-exceed':'#f59e0b','self-heal-exhausted':'#f59e0b'};
+const PRIO_LABELS = {0:{l:'P0',c:'#f87171',bg:'rgba(248,113,113,.15)'},1:{l:'P1',c:'#fb923c',bg:'rgba(251,146,60,.12)'},2:{l:'P2',c:'#facc15',bg:'rgba(250,204,21,.10)'},3:{l:'P3',c:'#60a5fa',bg:'rgba(96,165,250,.10)'},4:{l:'P4',c:'#a1a1aa',bg:'rgba(161,161,170,.10)'},5:{l:'P5',c:'#71717a',bg:'rgba(113,113,122,.08)'}};
+
 function renderTabs() {
   const el = document.getElementById('tabs');
   el.innerHTML = openTabs.map(tab => {
@@ -624,7 +627,6 @@ function renderBatchPanel(status) {
 
   let queueHtml = '';
   if (status && status.queue && status.queue.length) {
-    const PL={0:{l:'P0',c:'#f87171',bg:'rgba(248,113,113,.15)'},1:{l:'P1',c:'#fb923c',bg:'rgba(251,146,60,.12)'},2:{l:'P2',c:'#facc15',bg:'rgba(250,204,21,.10)'},3:{l:'P3',c:'#60a5fa',bg:'rgba(96,165,250,.10)'}};
     const completed = status.queue.filter(q => q.state === 'done' || q.state === 'error');
     const active = status.queue.filter(q => q.state !== 'done' && q.state !== 'error');
     let waitNum = 0;
@@ -634,7 +636,7 @@ function renderBatchPanel(status) {
       else if (q.state === 'error') { icon = '⚠'; cls = 'error'; }
       else if (q.state === 'running') { icon = '▶'; cls = 'running'; }
       else { waitNum++; icon = '#' + waitNum; cls = 'waiting'; }
-      const pri = q.priority != null && PL[q.priority] ? `<span style="font-size:9px;padding:1px 5px;border-radius:4px;background:${PL[q.priority].bg};color:${PL[q.priority].c};font-weight:600">${PL[q.priority].l}</span>` : '';
+      const pri = q.priority != null && PRIO_LABELS[q.priority] ? `<span style="font-size:9px;padding:1px 5px;border-radius:4px;background:${PRIO_LABELS[q.priority].bg};color:${PRIO_LABELS[q.priority].c};font-weight:600">${PRIO_LABELS[q.priority].l}</span>` : '';
       return `<div class="batch-q-item batch-q-${cls}"><span class="batch-q-icon">${icon}</span>${pri}<span class="batch-q-id">${esc(q.featureId)}</span><span class="batch-q-name">${esc(q.name || '')}</span></div>`;
     };
     queueHtml = active.map(renderItem).join('') + (completed.length ? `<div class="batch-q-divider"></div>` + completed.map(renderItem).join('') : '');
@@ -719,7 +721,7 @@ ${renderDag(tasks)}
 <div class="grid grid-cols-2 gap-4 mb-8">
 <div class="dash-card"><div class="text-[10px] font-bold dash-muted uppercase tracking-wider mb-4">${t('dashboard.status')}</div><div class="flex items-center gap-6"><div class="relative w-28 h-28 flex-shrink-0"><div class="w-28 h-28 rounded-full" style="background:${donut}"></div><div class="absolute inset-3 rounded-full dash-donut-center flex items-center justify-center flex-col"><span class="text-xl font-bold">${total}</span><span class="text-[10px] dash-muted">${t('dashboard.total')}</span></div></div><div class="space-y-2 text-xs"><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>${t('sidebar.running')}<span class="ml-auto dash-sub font-bold">${g.running.length}</span></div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>${t('sidebar.review')}<span class="ml-auto dash-sub font-bold">${g.review.length}</span></div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>${t('sidebar.pending')}<span class="ml-auto dash-sub font-bold">${g.pending.length}</span></div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span>${t('sidebar.todo')}<span class="ml-auto dash-sub font-bold">${g.todo.length}</span></div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>${t('sidebar.done')}<span class="ml-auto dash-sub font-bold">${g.done.length}</span></div></div></div></div>
 <div class="dash-card"><div class="text-[10px] font-bold dash-muted uppercase tracking-wider mb-4">${t('dashboard.roundsDist')}</div><div class="space-y-3">${Object.entries(buckets).map(([l,c])=>{const p=maxB?(c/maxB)*100:0;const co={'1':'#10b981','2':'#3b82f6','3-4':'#f59e0b','5+':'#ef4444'};return `<div class="flex items-center gap-3"><span class="text-xs dash-muted w-8 text-right">${l}R</span><div class="flex-1 h-5 dash-bar-bg rounded overflow-hidden"><div class="h-full rounded" style="width:${p}%;background:${co[l]}"></div></div><span class="text-xs font-bold w-6 text-right" style="color:var(--text-1)">${c}</span></div>`;}).join('')}</div>${doneTasks.length>0?`<div class="text-[10px] dash-muted mt-3">${t('dashboard.avgRounds').replace('{avg}', (doneTasks.reduce((s,d)=>s+d.round,0)/doneTasks.length).toFixed(1))}</div>`:''}</div></div>
-${recent.length>0?`<div class="dash-card"><div class="text-[10px] font-bold dash-muted uppercase tracking-wider mb-4">${t('dashboard.recentCompletions')}</div><div class="space-y-2">${recent.map(f=>{const PL={0:{l:'P0',c:'#f87171',bg:'rgba(248,113,113,.15)'},1:{l:'P1',c:'#fb923c',bg:'rgba(251,146,60,.12)'},2:{l:'P2',c:'#facc15',bg:'rgba(250,204,21,.10)'},3:{l:'P3',c:'#60a5fa',bg:'rgba(96,165,250,.10)'}};const pt=f.priority!=null&&PL[f.priority]?`<span style="font-size:9px;padding:1px 5px;border-radius:4px;background:${PL[f.priority].bg};color:${PL[f.priority].c};font-weight:600">${PL[f.priority].l}</span>`:'';const dur=f.createdAt&&f.updatedAt?formatDuration(f.createdAt,f.updatedAt):'';return `<div class="flex items-center gap-2 py-1.5 cursor-pointer rounded px-2 -mx-2 transition-colors" onmouseenter="this.style.background='var(--bg-hover)'" onmouseleave="this.style.background=''" onclick="openFeatureDetail('${f.id}')"><span class="text-emerald-500/60 text-xs">✓</span>${pt}<span class="text-xs font-semibold text-emerald-400/80">${f.id}</span><span class="text-xs dash-sub truncate flex-1">${esc(f.name)}</span>${runnerTags(f.runners)}${dur?`<span class="text-[10px] dash-muted">⏱ ${dur}</span>`:''}${f.round?`<span class="text-[10px] dash-muted">${f.round}R</span>`:''}</div>`;}).join('')}</div></div>`:''}
+${recent.length>0?`<div class="dash-card"><div class="text-[10px] font-bold dash-muted uppercase tracking-wider mb-4">${t('dashboard.recentCompletions')}</div><div class="space-y-2">${recent.map(f=>{const pt=f.priority!=null&&PRIO_LABELS[f.priority]?`<span style="font-size:9px;padding:1px 5px;border-radius:4px;background:${PRIO_LABELS[f.priority].bg};color:${PRIO_LABELS[f.priority].c};font-weight:600">${PRIO_LABELS[f.priority].l}</span>`:'';const dur=f.createdAt&&f.updatedAt?formatDuration(f.createdAt,f.updatedAt):'';return `<div class="flex items-center gap-2 py-1.5 cursor-pointer rounded px-2 -mx-2 transition-colors" onmouseenter="this.style.background='var(--bg-hover)'" onmouseleave="this.style.background=''" onclick="openFeatureDetail('${f.id}')"><span class="text-emerald-500/60 text-xs">✓</span>${pt}<span class="text-xs font-semibold text-emerald-400/80">${f.id}</span><span class="text-xs dash-sub truncate flex-1">${esc(f.name)}</span>${runnerTags(f.runners)}${dur?`<span class="text-[10px] dash-muted">⏱ ${dur}</span>`:''}${f.round?`<span class="text-[10px] dash-muted">${f.round}R</span>`:''}</div>`;}).join('')}</div></div>`:''}
 ${g.running.length>0?`<div class="rounded-xl border border-emerald-500/20 bg-emerald-950/20 p-5 mt-4"><div class="text-[10px] font-bold text-emerald-500/70 uppercase tracking-wider mb-4">${t('dashboard.currentlyRunning')}</div><div class="space-y-2">${g.running.map(f=>`<div class="flex items-center gap-3 py-1.5 cursor-pointer hover:bg-emerald-900/20 rounded px-2 -mx-2 transition-colors" onclick="openFeatureDetail('${f.id}')"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span><span class="text-xs font-semibold text-emerald-400">${f.id}</span><span class="text-xs dash-sub truncate flex-1">${esc(f.name)}</span><span class="text-[10px] text-emerald-400/70">${f.phase||''}</span>${f.round?`<span class="text-[10px] dash-muted">R${f.round}</span>`:''}</div>`).join('')}</div></div>`:''}
 ${g.review.length>0?`<div class="rounded-xl border border-amber-500/20 bg-amber-950/20 p-5 mt-4"><div class="text-[10px] font-bold text-amber-500/70 uppercase tracking-wider mb-4">${t('dashboard.pendingReview')}</div><div class="space-y-2">${g.review.map(f=>`<div class="flex items-center gap-3 py-1.5 cursor-pointer hover:bg-amber-900/20 rounded px-2 -mx-2 transition-colors" onclick="openFeatureDetail('${f.id}')"><span class="text-amber-400 text-xs">⏳</span><span class="text-xs font-semibold text-amber-400">${f.id}</span><span class="text-xs dash-sub truncate flex-1">${esc(f.name)}</span>${f.round?`<span class="text-[10px] dash-muted">${f.round}R</span>`:''}<button class="px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/30 rounded hover:bg-amber-500/20 transition-colors" onclick="event.stopPropagation();markDone('${f.id}')">${t('status.done')}</button></div>`).join('')}</div></div>`:''}`;
 }
@@ -783,8 +785,7 @@ function renderTaskItem(task) {
     pi = `<div class="flex items-center gap-1.5 mt-1.5"><span class="text-[11px] text-zinc-600">${parts}</span></div>`;
   }
   if (!isActive && task.stopReason && task.stopReason !== 'pending-review' && task.stopReason !== 'done') {
-    const srColors = {'scope-change':'#f59e0b','runner-error':'#ef4444','hard-error':'#ef4444','soft-fail':'#f59e0b','interrupted':'#a78bfa','escalation':'#f59e0b','model-error':'#ef4444','guard-fail':'#ef4444','no-progress':'#f59e0b','missing-artifact':'#ef4444','health-check-failed':'#ef4444','scope-exceed':'#f59e0b','self-heal-exhausted':'#f59e0b'};
-    const srColor = srColors[task.stopReason] || '#a1a1aa';
+    const srColor = SR_COLORS[task.stopReason] || '#a1a1aa';
     pi += `<div class="flex items-center gap-1 mt-1"><span style="font-size:9px;padding:1px 5px;border-radius:4px;background:${srColor}18;color:${srColor};font-weight:600">⚠ ${task.stopReason}</span></div>`;
   }
   const badge = phaseBadge(task.phase, task.round);
@@ -799,7 +800,6 @@ function renderTaskItem(task) {
   }
   const rt = runnerTags(task.runners);
   const rtLine = rt ? `<div class="flex gap-1 mt-1">${rt}</div>` : '';
-  const PRIO_LABELS = {0:{l:'P0',c:'#f87171',bg:'rgba(248,113,113,.15)'},1:{l:'P1',c:'#fb923c',bg:'rgba(251,146,60,.12)'},2:{l:'P2',c:'#facc15',bg:'rgba(250,204,21,.10)'},3:{l:'P3',c:'#60a5fa',bg:'rgba(96,165,250,.10)'},4:{l:'P4',c:'#a1a1aa',bg:'rgba(161,161,170,.10)'},5:{l:'P5',c:'#71717a',bg:'rgba(113,113,122,.08)'}};
   const prioTag = task.priority != null && PRIO_LABELS[task.priority] ? `<span style="font-size:9px;padding:1px 5px;border-radius:4px;background:${PRIO_LABELS[task.priority].bg};color:${PRIO_LABELS[task.priority].c};font-weight:600">${PRIO_LABELS[task.priority].l}</span>` : '';
   const profileTag = task.profile ? `<span style="font-size:9px;padding:1px 5px;border-radius:4px;background:rgba(45,212,191,.12);color:#2dd4bf;font-weight:600">${esc(task.profile)}</span>` : '';
   let docTags = '';
@@ -960,8 +960,7 @@ function updateDetailHeader(task) {
   const existingAlert = document.getElementById('h-stop-alert');
   if (existingAlert) existingAlert.remove();
   if (!isRunning && task.stopReason && task.stopReason !== 'pending-review' && task.stopReason !== 'done') {
-    const srColors = {'scope-change':'#f59e0b','runner-error':'#ef4444','hard-error':'#ef4444','soft-fail':'#f59e0b','interrupted':'#a78bfa','escalation':'#f59e0b','model-error':'#ef4444','guard-fail':'#ef4444','no-progress':'#f59e0b','missing-artifact':'#ef4444','health-check-failed':'#ef4444','scope-exceed':'#f59e0b','self-heal-exhausted':'#f59e0b'};
-    const c = srColors[task.stopReason] || '#ef4444';
+    const c = SR_COLORS[task.stopReason] || '#ef4444';
     const msg = task.stopMessage || task.stopReason;
     const alert = document.createElement('div');
     alert.id = 'h-stop-alert';
@@ -1013,8 +1012,7 @@ async function loadDetail(task) {
   const existingAlert = document.getElementById('h-stop-alert');
   if (existingAlert) existingAlert.remove();
   if (!isRunning && task.stopReason && task.stopReason !== 'pending-review' && task.stopReason !== 'done') {
-    const srColors = {'scope-change':'#f59e0b','runner-error':'#ef4444','hard-error':'#ef4444','soft-fail':'#f59e0b','interrupted':'#a78bfa','escalation':'#f59e0b','model-error':'#ef4444','guard-fail':'#ef4444','no-progress':'#f59e0b','missing-artifact':'#ef4444','health-check-failed':'#ef4444','scope-exceed':'#f59e0b','self-heal-exhausted':'#f59e0b'};
-    const c = srColors[task.stopReason] || '#ef4444';
+    const c = SR_COLORS[task.stopReason] || '#ef4444';
     const msg = task.stopMessage || task.stopReason;
     const alert = document.createElement('div');
     alert.id = 'h-stop-alert';
