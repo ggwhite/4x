@@ -19,11 +19,12 @@ func newMineCmd() *cobra.Command {
 	var minOccurrences int
 	var output string
 	var dryRun bool
+	var jsonOutput bool
 
 	cmd := &cobra.Command{
 		Use:   "mine",
 		Short: "掃描 .4x/ 歷史失敗訊號，產出 candidate pool",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: withJsonError(&jsonOutput, func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
 			if err != nil {
 				return err
@@ -81,9 +82,17 @@ func newMineCmd() *cobra.Command {
 				}
 			}
 
+			if jsonOutput {
+				return printJSON(struct {
+					Candidates int    `json:"candidates"`
+					Output     string `json:"output"`
+					DryRun     bool   `json:"dryRun"`
+				}{len(pool.Candidates), output, dryRun})
+			}
+
 			printMineSummary(cmd, pool, len(escalations), len(stuck), len(failCands), len(all)-len(kept), output, dryRun)
 			return nil
-		},
+		}),
 	}
 
 	cmd.Flags().IntVar(&minOccurrences, "min-occurrences", protocol.DefaultFailPatternThreshold,
@@ -92,6 +101,7 @@ func newMineCmd() *cobra.Command {
 		"candidate pool 輸出路徑（預設 .4x/candidates.json）")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false,
 		"只印摘要不寫檔")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 
 	return cmd
 }

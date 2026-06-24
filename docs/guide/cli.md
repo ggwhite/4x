@@ -600,3 +600,53 @@ Start the Model Context Protocol (MCP) server.
 ```
 
 Starts the 4x MCP stdio server to expose 4x CLI commands as MCP tools to LLM clients (e.g., Claude Code, Cursor).
+
+Each tool is a thin wrapper that invokes the matching `4x` subcommand with `--json` and returns the parsed result. The following tools are exposed:
+
+**Core loop**
+
+| Tool | CLI command |
+|---|---|
+| `4x_status` | `status [feature-id]` |
+| `4x_new` | `new` |
+| `4x_run` | `run` |
+| `4x_stop` | `stop` |
+| `4x_check` | `check` |
+| `4x_transition` | `transition` |
+
+**Lifecycle**
+
+| Tool | CLI command |
+|---|---|
+| `4x_done` | `done` |
+| `4x_verify` | `verify` |
+| `4x_approve` | `approve` |
+| `4x_reject` | `reject` |
+| `4x_subtask` | `subtask` |
+| `4x_merge` | `merge` |
+| `4x_mine` | `mine` |
+
+**Batch & maintenance**
+
+| Tool | CLI command |
+|---|---|
+| `4x_batch_next` | `batch next` |
+| `4x_batch_stop` | `batch stop` |
+| `4x_clean` | `clean` |
+| `4x_doctor` | `doctor` |
+| `4x_learn_list` | `learn list` |
+| `4x_learn_prune` | `learn prune` |
+| `4x_learn_promote` | `learn promote` |
+| `4x_learn_remove` | `learn remove` |
+| `4x_evolve` | `evolve` |
+
+**Config & gate**
+
+| Tool | CLI command |
+|---|---|
+| `4x_config_get` | `config get` |
+| `4x_config_set` | `config set` |
+| `4x_config_list` | `config list` |
+| `4x_gate` | `gate --pre` / `gate --post` |
+
+Orchestration and interactive commands (`init`, `sync`, `live`, `prompt`, `event`, `batch run`, `batch plan`) are intentionally not exposed as MCP tools.

@@ -28,11 +28,12 @@ func newLearnCmd() *cobra.Command {
 
 func newLearnListCmd() *cobra.Command {
 	var category string
+	var jsonOutput bool
 
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List all learnings",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: withJsonError(&jsonOutput, func(cmd *cobra.Command, args []string) error {
 			storePath, err := findLearningsPath()
 			if err != nil {
 				return err
@@ -40,6 +41,21 @@ func newLearnListCmd() *cobra.Command {
 			store, err := learning.LoadStore(storePath)
 			if err != nil {
 				return err
+			}
+
+			if jsonOutput {
+				entries := []learning.Entry{}
+				for _, e := range store.Entries {
+					if category != "" && string(e.Category) != category {
+						continue
+					}
+					entries = append(entries, e)
+				}
+				return printJSON(struct {
+					Entries []learning.Entry `json:"entries"`
+					Active  int              `json:"active"`
+					Total   int              `json:"total"`
+				}{entries, len(store.ActiveEntries()), len(store.Entries)})
 			}
 
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
@@ -60,19 +76,21 @@ func newLearnListCmd() *cobra.Command {
 			active := len(store.ActiveEntries())
 			fmt.Printf("\n%d entries (%d active)\n", len(store.Entries), active)
 			return nil
-		},
+		}),
 	}
 	cmd.Flags().StringVar(&category, "category", "", "filter by category")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 	return cmd
 }
 
 func newLearnPruneCmd() *cobra.Command {
 	var dryRun bool
+	var jsonOutput bool
 
 	cmd := &cobra.Command{
 		Use:   "prune",
 		Short: "Remove all stale learnings",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: withJsonError(&jsonOutput, func(cmd *cobra.Command, args []string) error {
 			storePath, err := findLearningsPath()
 			if err != nil {
 				return err
@@ -84,42 +102,56 @@ func newLearnPruneCmd() *cobra.Command {
 
 			store.MarkStale(learning.DefaultStaleDays)
 
-			var staleIDs []string
+			staleIDs := []string{}
 			for _, e := range store.Entries {
 				if e.Status == learning.StatusStale {
 					staleIDs = append(staleIDs, e.ID)
-					fmt.Printf("  %s (%s) %s\n", e.ID, e.Category, e.Content)
+					if !jsonOutput {
+						fmt.Printf("  %s (%s) %s\n", e.ID, e.Category, e.Content)
+					}
 				}
+			}
+
+			removed := 0
+			if !dryRun && len(staleIDs) > 0 {
+				removed = store.Prune()
+				if err := store.Save(storePath); err != nil {
+					return err
+				}
+			}
+
+			if jsonOutput {
+				return printJSON(struct {
+					Removed  int      `json:"removed"`
+					DryRun   bool     `json:"dryRun"`
+					StaleIDs []string `json:"staleIds"`
+				}{removed, dryRun, staleIDs})
 			}
 
 			if len(staleIDs) == 0 {
 				fmt.Println("No stale learnings found.")
 				return nil
 			}
-
 			if dryRun {
 				fmt.Printf("\n%d stale entries would be removed (dry-run)\n", len(staleIDs))
 				return nil
 			}
-
-			removed := store.Prune()
-			if err := store.Save(storePath); err != nil {
-				return err
-			}
 			fmt.Printf("\nRemoved %d stale entries.\n", removed)
 			return nil
-		},
+		}),
 	}
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "preview without removing")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 	return cmd
 }
 
 func newLearnPromoteCmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonOutput bool
+	cmd := &cobra.Command{
 		Use:   "promote <id>",
 		Short: "Mark a learning as promoted (upgraded to template/instructions)",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: withJsonError(&jsonOutput, func(cmd *cobra.Command, args []string) error {
 			storePath, err := findLearningsPath()
 			if err != nil {
 				return err
@@ -134,18 +166,27 @@ func newLearnPromoteCmd() *cobra.Command {
 			if err := store.Save(storePath); err != nil {
 				return err
 			}
+			if jsonOutput {
+				return printJSON(struct {
+					ID       string `json:"id"`
+					Promoted bool   `json:"promoted"`
+				}{args[0], true})
+			}
 			fmt.Printf("Promoted %s\n", args[0])
 			return nil
-		},
+		}),
 	}
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
+	return cmd
 }
 
 func newLearnRemoveCmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonOutput bool
+	cmd := &cobra.Command{
 		Use:   "remove <id>",
 		Short: "Remove a learning entry",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: withJsonError(&jsonOutput, func(cmd *cobra.Command, args []string) error {
 			storePath, err := findLearningsPath()
 			if err != nil {
 				return err
@@ -160,10 +201,18 @@ func newLearnRemoveCmd() *cobra.Command {
 			if err := store.Save(storePath); err != nil {
 				return err
 			}
+			if jsonOutput {
+				return printJSON(struct {
+					ID      string `json:"id"`
+					Removed bool   `json:"removed"`
+				}{args[0], true})
+			}
 			fmt.Printf("Removed %s\n", args[0])
 			return nil
-		},
+		}),
 	}
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
+	return cmd
 }
 
 // findLearningsPath 從 cwd 往上找 .4x/，回傳 learnings.json 的完整路徑。

@@ -21,6 +21,17 @@ func jsonError(msg string) error {
 	return nil
 }
 
+// printJSON 把 v 以縮排 JSON 印到 stdout（單一物件、結尾換行、不夾雜其他文字），
+// 供各 command 的 --json 成功路徑共用，確保 MCP 端 parseJSONOutput 取得乾淨 JSON。
+func printJSON(v any) error {
+	data, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(data))
+	return nil
+}
+
 // withJsonError 包裝 cobra RunE，在最外層統一處理 jsonOutput 的 error 格式化。
 // 當 inner function 回傳非 nil error 且 jsonFlag 為 true 時，改以 JSON 結構輸出錯誤
 // （沿用 jsonError，含 os.Exit(1) 以維持 exit code 1 與乾淨的 JSON-only 輸出）；

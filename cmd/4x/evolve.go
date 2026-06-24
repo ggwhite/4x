@@ -30,6 +30,7 @@ type evolveOpts struct {
 	runnerName     string
 	timeout        int
 	maxRounds      int
+	jsonOutput     bool
 }
 
 // evolveDeps 是 runEvolve 的可注入相依，讓 LLM 子程序與 runLoop 在測試中可用 fake 取代，
@@ -53,7 +54,7 @@ func newEvolveCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "evolve",
 		Short: "跑一輪自我進化 pipeline：mine → gate → enrich → enqueue（可選 auto-run）",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: withJsonError(&opts.jsonOutput, func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
 			if err != nil {
 				return err
@@ -81,7 +82,7 @@ func newEvolveCmd() *cobra.Command {
 				return err
 			}
 			return runEvolve(ctx, ws, cfg, opts, deps)
-		},
+		}),
 	}
 	cmd.Flags().BoolVar(&opts.autoRun, "auto-run", false, "對本輪排入的 feature 立刻跑 meta-loop（受 F098 self-mod guard 保護）")
 	cmd.Flags().BoolVar(&opts.dryRun, "dry-run", false, "只讀分析：印出 mine/dedupe 摘要，不寫任何檔、不 spawn runner、不建 feature")
@@ -90,6 +91,7 @@ func newEvolveCmd() *cobra.Command {
 	cmd.Flags().StringVar(&opts.runnerName, "runner", "", "gate / enrich / auto-run 用的 runner plugin（預設 evolution.gate_runner 或專案 default）")
 	cmd.Flags().IntVar(&opts.timeout, "timeout", 3600, "LLM 子程序逾時秒數")
 	cmd.Flags().IntVar(&opts.maxRounds, "max-rounds", 5, "auto-run 時每個 feature 的最大輪數")
+	cmd.Flags().BoolVar(&opts.jsonOutput, "json", false, "output as JSON")
 	return cmd
 }
 
@@ -195,7 +197,7 @@ func runEvolve(ctx context.Context, ws *protocol.Workspace, cfg protocol.Config,
 	dot := ws.DotDir()
 
 	if opts.dryRun {
-		if opts.autoRun {
+		if opts.autoRun && !opts.jsonOutput {
 			fmt.Println("warning: --auto-run ignored in --dry-run mode")
 		}
 		return runEvolveDryRun(ws, resolved, opts)
@@ -216,6 +218,16 @@ func runEvolve(ctx context.Context, ws *protocol.Workspace, cfg protocol.Config,
 		}
 		if werr := writeEvolveReport(dot, result); werr != nil {
 			return werr
+		}
+		if opts.jsonOutput {
+			return printJSON(struct {
+				Round    int  `json:"round"`
+				Mined    int  `json:"mined"`
+				Gated    int  `json:"gated"`
+				Accepted int  `json:"accepted"`
+				Enqueued int  `json:"enqueued"`
+				Halted   bool `json:"halted"`
+			}{estate.Round, 0, 0, 0, 0, true})
 		}
 		fmt.Printf("evolve halted: %d consecutive idle round(s) >= max_idle_rounds %d. Use --force to override.\n",
 			estate.ConsecutiveNoAccept, resolved.MaxIdleRounds)
@@ -311,6 +323,16 @@ func runEvolve(ctx context.Context, ws *protocol.Workspace, cfg protocol.Config,
 		return err
 	}
 
+	if opts.jsonOutput {
+		return printJSON(struct {
+			Round    int `json:"round"`
+			Mined    int `json:"mined"`
+			Gated    int `json:"gated"`
+			Accepted int `json:"accepted"`
+			Enqueued int `json:"enqueued"`
+		}{round, len(all), len(gateInput), len(accepted), len(enqueued)})
+	}
+
 	fmt.Printf("evolve round %d: mined %d → gate %d → accepted %d → enqueued %d (auto-ran %d)\n",
 		round, len(all), len(gateInput), len(accepted), len(enqueued), len(autoRan))
 	return nil
@@ -335,6 +357,15 @@ func runEvolveDryRun(ws *protocol.Workspace, resolved evolution.ResolvedEvolutio
 	merged = append(merged, existingPool.Candidates...)
 	merged = append(merged, keptNew...)
 	gateInput, _ := evolution.PreVeto(merged, existing, resolved.DedupThreshold)
+
+	if opts.jsonOutput {
+		return printJSON(struct {
+			DryRun       bool `json:"dryRun"`
+			Scanned      int  `json:"scanned"`
+			New          int  `json:"new"`
+			WouldEnqueue int  `json:"wouldEnqueue"`
+		}{true, len(all), len(keptNew), len(gateInput)})
+	}
 
 	fmt.Printf("dry-run: scanned %d candidate(s), %d new after dedupe, %d would be sent to gate\n",
 		len(all), len(keptNew), len(gateInput))

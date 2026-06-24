@@ -20,7 +20,7 @@ func TestMarkDone_SelfModBlocksAutoMerge(t *testing.T) {
 		SelfModPaths:   []string{"internal/state/machine.go"},
 	})
 
-	err := markDone(ws, "feat-sm", false)
+	err := markDone(ws, "feat-sm", false, false)
 	if err == nil {
 		t.Fatal("markDone should return error when self-mod approval is required")
 	}
@@ -48,7 +48,7 @@ func TestMarkDone_SelfModApproveSetsApproved(t *testing.T) {
 	})
 
 	// 帶 approve 旗標：approve 關卡放行並落地 SelfModApproved（後續 merge 由既有邏輯處理）。
-	_ = markDone(ws, "feat-sm2", true)
+	_ = markDone(ws, "feat-sm2", true, false)
 
 	final, _ := ws.ReadState("feat-sm2")
 	if !final.SelfModApproved {

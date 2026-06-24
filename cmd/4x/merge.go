@@ -13,12 +13,13 @@ import (
 
 func newMergeCmd() *cobra.Command {
 	var approveSelfMod bool
+	var jsonOutput bool
 	cmd := &cobra.Command{
 		Use:   "merge <feature-id>",
 		Short: "Complete merge after resolving conflicts",
 		Long:  "Use after '4x done' reported a merge conflict and you resolved it in the worktree.",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: withJsonError(&jsonOutput, func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
 			if err != nil {
 				return err
@@ -42,6 +43,9 @@ func newMergeCmd() *cobra.Command {
 			}
 
 			if guard.SelfModNeedsApproval(s, approveSelfMod) {
+				if jsonOutput {
+					return fmt.Errorf("feature %s requires --approve-self-mod to complete", featureID)
+				}
 				printSelfModApprovalRequired(featureID, s.SelfModPaths)
 				return nil
 			}
@@ -76,6 +80,9 @@ func newMergeCmd() *cobra.Command {
 
 			result := ops.Merge(featureID, name)
 			if result.Conflict {
+				if jsonOutput {
+					return printJSON(doneResult{FeatureID: featureID, Conflict: true})
+				}
 				fmt.Println("Merge still has conflicts:")
 				for _, file := range result.Files {
 					fmt.Printf("  conflict: %s\n", file)
@@ -93,14 +100,20 @@ func newMergeCmd() *cobra.Command {
 				if err := finalizeDone(ws, featureID, s); err != nil {
 					return err
 				}
-				fmt.Printf("Feature %s marked as done.\n", featureID)
+				if !jsonOutput {
+					fmt.Printf("Feature %s marked as done.\n", featureID)
+				}
 			}
 
+			if jsonOutput {
+				return printJSON(doneResult{FeatureID: featureID, Merged: true})
+			}
 			fmt.Printf("Merged and cleaned up branch %s.\n", gitops.Branch(featureID))
 			return nil
-		},
+		}),
 	}
 	cmd.Flags().BoolVar(&approveSelfMod, "approve-self-mod", false,
 		"approve self-modification of protected paths so the feature can be merged")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 	return cmd
 }

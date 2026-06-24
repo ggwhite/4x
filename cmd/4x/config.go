@@ -25,10 +25,11 @@ func newConfigCmd() *cobra.Command {
 }
 
 func newConfigListCmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonOutput bool
+	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "Show all user configuration",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: withJsonError(&jsonOutput, func(cmd *cobra.Command, args []string) error {
 			cfg, err := protocol.ReadUserConfig()
 			if err != nil {
 				return err
@@ -37,97 +38,121 @@ func newConfigListCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if jsonOutput {
+				fmt.Println(string(data))
+				return nil
+			}
 			path, _ := protocol.UserConfigPath()
 			fmt.Printf("# %s\n", path)
 			fmt.Print(string(data))
 			return nil
-		},
+		}),
 	}
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
+	return cmd
 }
 
 func newConfigGetCmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonOutput bool
+	cmd := &cobra.Command{
 		Use:   "get <key>",
 		Short: "Get a configuration value",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: withJsonError(&jsonOutput, func(cmd *cobra.Command, args []string) error {
 			cfg, err := protocol.ReadUserConfig()
 			if err != nil {
 				return err
 			}
 
 			key := args[0]
-			parts := strings.Split(key, ".")
-
-			switch {
-			case len(parts) == 1:
-				switch key {
-				case "locale":
-					printOrDefault(cfg.Locale, "en")
-				case "theme":
-					printOrDefault(cfg.Theme, "")
-				case "default_runner":
-					printOrDefault(cfg.DefaultRunner, "")
-				default:
-					return fmt.Errorf("unknown config key: %s", key)
-				}
-
-			case len(parts) == 3 && parts[0] == "runner":
-				runnerName, field := parts[1], parts[2]
-				rc, ok := cfg.Runners[runnerName]
-				if !ok {
-					fmt.Println("(not set)")
-					return nil
-				}
-				switch field {
-				case "command":
-					printOrDefault(rc.Command, "")
-				case "model":
-					printOrDefault(rc.Model, "")
-				case "tty":
-					fmt.Println(protocol.BoolVal(rc.Tty))
-				case "stdin":
-					fmt.Println(protocol.BoolVal(rc.Stdin))
-				case "quiet":
-					fmt.Println(protocol.BoolVal(rc.Quiet))
-				default:
-					return fmt.Errorf("unknown runner field: %s", field)
-				}
-
-			case len(parts) == 3 && parts[0] == "role":
-				roleName, field := parts[1], parts[2]
-				rc, ok := cfg.Roles[roleName]
-				if !ok {
-					fmt.Println("(not set)")
-					return nil
-				}
-				switch field {
-				case "model":
-					printOrDefault(rc.Model, "")
-				case "deep_model":
-					printOrDefault(rc.DeepModel, "")
-				case "parallel_reviewers":
-					printIntOrDefault(rc.ParallelReviewers, 1)
-				case "angles_per_reviewer":
-					printIntOrDefault(rc.AnglesPerReviewer, 0)
-				default:
-					return fmt.Errorf("unknown role field: %s", field)
-				}
-
-			default:
-				return fmt.Errorf("unknown config key: %s", key)
+			value, err := configValue(cfg, key)
+			if err != nil {
+				return err
 			}
+
+			if jsonOutput {
+				return printJSON(struct {
+					Key   string `json:"key"`
+					Value string `json:"value"`
+				}{key, value})
+			}
+			fmt.Println(value)
 			return nil
-		},
+		}),
+	}
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
+	return cmd
+}
+
+// configValue 把 user config 的某個 key 解析成可顯示字串（與文字模式輸出一致），
+// 未設定者回傳 "(not set...)" 形式。未知 key／field 回 error。
+func configValue(cfg protocol.UserConfig, key string) (string, error) {
+	parts := strings.Split(key, ".")
+	switch {
+	case len(parts) == 1:
+		switch key {
+		case "locale":
+			return valOrDefault(cfg.Locale, "en"), nil
+		case "theme":
+			return valOrDefault(cfg.Theme, ""), nil
+		case "default_runner":
+			return valOrDefault(cfg.DefaultRunner, ""), nil
+		default:
+			return "", fmt.Errorf("unknown config key: %s", key)
+		}
+
+	case len(parts) == 3 && parts[0] == "runner":
+		runnerName, field := parts[1], parts[2]
+		rc, ok := cfg.Runners[runnerName]
+		if !ok {
+			return "(not set)", nil
+		}
+		switch field {
+		case "command":
+			return valOrDefault(rc.Command, ""), nil
+		case "model":
+			return valOrDefault(rc.Model, ""), nil
+		case "tty":
+			return fmt.Sprintf("%v", protocol.BoolVal(rc.Tty)), nil
+		case "stdin":
+			return fmt.Sprintf("%v", protocol.BoolVal(rc.Stdin)), nil
+		case "quiet":
+			return fmt.Sprintf("%v", protocol.BoolVal(rc.Quiet)), nil
+		default:
+			return "", fmt.Errorf("unknown runner field: %s", field)
+		}
+
+	case len(parts) == 3 && parts[0] == "role":
+		roleName, field := parts[1], parts[2]
+		rc, ok := cfg.Roles[roleName]
+		if !ok {
+			return "(not set)", nil
+		}
+		switch field {
+		case "model":
+			return valOrDefault(rc.Model, ""), nil
+		case "deep_model":
+			return valOrDefault(rc.DeepModel, ""), nil
+		case "parallel_reviewers":
+			return intValOrDefault(rc.ParallelReviewers, 1), nil
+		case "angles_per_reviewer":
+			return intValOrDefault(rc.AnglesPerReviewer, 0), nil
+		default:
+			return "", fmt.Errorf("unknown role field: %s", field)
+		}
+
+	default:
+		return "", fmt.Errorf("unknown config key: %s", key)
 	}
 }
 
 func newConfigSetCmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonOutput bool
+	cmd := &cobra.Command{
 		Use:   "set <key> <value>",
 		Short: "Set a configuration value",
 		Args:  cobra.ExactArgs(2),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: withJsonError(&jsonOutput, func(cmd *cobra.Command, args []string) error {
 			cfg, err := protocol.ReadUserConfig()
 			if err != nil {
 				return err
@@ -212,29 +237,36 @@ func newConfigSetCmd() *cobra.Command {
 				return err
 			}
 			path, _ := protocol.UserConfigPath()
+			if jsonOutput {
+				return printJSON(struct {
+					Key   string `json:"key"`
+					Value string `json:"value"`
+					Path  string `json:"path"`
+				}{key, value, path})
+			}
 			fmt.Printf("Set %s = %s in %s\n", key, value, path)
 			return nil
-		},
+		}),
 	}
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
+	return cmd
 }
 
-// printIntOrDefault 印出整數設定值；val <= 0 視為未設定，顯示預設值。
-func printIntOrDefault(val, def int) {
+// intValOrDefault 回傳整數設定值的顯示字串；val <= 0 視為未設定，顯示預設值提示。
+func intValOrDefault(val, def int) string {
 	if val <= 0 {
-		fmt.Printf("(not set, default: %d)\n", def)
-	} else {
-		fmt.Println(val)
+		return fmt.Sprintf("(not set, default: %d)", def)
 	}
+	return fmt.Sprintf("%d", val)
 }
 
-func printOrDefault(val, def string) {
+// valOrDefault 回傳字串設定值的顯示字串；空字串視為未設定，顯示預設值提示（無預設則 "(not set)"）。
+func valOrDefault(val, def string) string {
 	if val == "" {
 		if def != "" {
-			fmt.Printf("(not set, default: %s)\n", def)
-		} else {
-			fmt.Println("(not set)")
+			return fmt.Sprintf("(not set, default: %s)", def)
 		}
-	} else {
-		fmt.Println(val)
+		return "(not set)"
 	}
+	return val
 }

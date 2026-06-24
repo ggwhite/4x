@@ -227,7 +227,7 @@ func TestMarkDone_ConfigLoadFailsAborts(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := markDone(ws, "feat-cfg", false)
+	err := markDone(ws, "feat-cfg", false, false)
 	if err == nil {
 		t.Fatal("markDone should return error when config load fails")
 	}

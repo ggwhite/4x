@@ -16,11 +16,12 @@ import (
 
 func newDoneCmd() *cobra.Command {
 	var approveSelfMod bool
+	var jsonOutput bool
 	cmd := &cobra.Command{
 		Use:   "done <feature-id>",
 		Short: "Mark a pending-review feature as done",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: withJsonError(&jsonOutput, func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
 			if err != nil {
 				return err
@@ -35,17 +36,19 @@ func newDoneCmd() *cobra.Command {
 				return err
 			}
 
-			return markDone(ws, featureID, approveSelfMod)
-		},
+			return markDone(ws, featureID, approveSelfMod, jsonOutput)
+		}),
 	}
 	cmd.Flags().BoolVar(&approveSelfMod, "approve-self-mod", false,
 		"approve self-modification of protected paths so the feature can be merged")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 	return cmd
 }
 
 // markDone 將 pending-review 的 feature 推進到 done。
 // approveSelfMod 為 true 時核可受保護路徑變更（self-mod guard），允許繞過人工 approve 關卡完成 merge。
-func markDone(ws *protocol.Workspace, featureID string, approveSelfMod bool) error {
+// jsonOutput 為 true 時，成功／衝突路徑只印單一 JSON object（不夾雜文字），供 MCP 端解析。
+func markDone(ws *protocol.Workspace, featureID string, approveSelfMod, jsonOutput bool) error {
 	s, err := ws.ReadState(featureID)
 	if err != nil {
 		return fmt.Errorf("cannot read state for %s: %w", featureID, err)
@@ -56,7 +59,9 @@ func markDone(ws *protocol.Workspace, featureID string, approveSelfMod bool) err
 	}
 
 	if guard.SelfModNeedsApproval(s, approveSelfMod) {
-		printSelfModApprovalRequired(featureID, s.SelfModPaths)
+		if !jsonOutput {
+			printSelfModApprovalRequired(featureID, s.SelfModPaths)
+		}
 		return fmt.Errorf("feature %s requires --approve-self-mod to complete", featureID)
 	}
 	if approveSelfMod && s.SelfModTouched && !s.SelfModApproved {
@@ -80,6 +85,9 @@ func markDone(ws *protocol.Workspace, featureID string, approveSelfMod bool) err
 
 	result := autoMergeFeature(ws, cfg, s, featureID, name)
 	if result.Conflict {
+		if jsonOutput {
+			return printJSON(doneResult{FeatureID: featureID, Phase: string(protocol.PhasePendingReview), Conflict: true})
+		}
 		fmt.Println("Merge conflict — feature remains pending-review:")
 		for _, file := range result.Files {
 			fmt.Printf("  conflict: %s\n", file)
@@ -93,15 +101,29 @@ func markDone(ws *protocol.Workspace, featureID string, approveSelfMod bool) err
 	}
 	if result.Error != "" {
 		slog.Error("merge failed", "feature", featureID, "error", result.Error)
+		if jsonOutput {
+			return printJSON(doneResult{FeatureID: featureID, Phase: string(protocol.PhasePendingReview)})
+		}
 		fmt.Printf("Worktree preserved at: %s\n", gitops.Dir(ws.Root, featureID))
 		return nil
 	}
 
+	if jsonOutput {
+		return printJSON(doneResult{FeatureID: featureID, Phase: string(protocol.PhaseDone), Merged: !result.Skipped})
+	}
 	fmt.Printf("Feature %s marked as done.\n", featureID)
 	if !result.Skipped {
 		fmt.Printf("Merged and cleaned up branch %s.\n", gitops.Branch(featureID))
 	}
 	return nil
+}
+
+// doneResult 是 `4x done` 與 `4x merge` 在 --json 下的成功／衝突輸出結構。
+type doneResult struct {
+	FeatureID string `json:"featureId"`
+	Phase     string `json:"phase,omitempty"`
+	Merged    bool   `json:"merged"`
+	Conflict  bool   `json:"conflict"`
 }
 
 // autoMergeFeature 對 pending-review 的 feature 執行 merge，成功（含 skipped）時 finalizeDone 標記 done，

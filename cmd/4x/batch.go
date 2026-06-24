@@ -691,10 +691,11 @@ func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap m
 }
 
 func newBatchStopCmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonOutput bool
+	cmd := &cobra.Command{
 		Use:   "stop",
 		Short: "Signal batch to stop after current feature completes",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: withJsonError(&jsonOutput, func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
 			if err != nil {
 				return err
@@ -709,10 +710,17 @@ func newBatchStopCmd() *cobra.Command {
 				return err
 			}
 			slog.Info("batch operation", "action", "stop")
+			if jsonOutput {
+				return printJSON(struct {
+					Stopped bool `json:"stopped"`
+				}{true})
+			}
 			fmt.Println("Stop signal sent — batch will finish current feature then exit.")
 			return nil
-		},
+		}),
 	}
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
+	return cmd
 }
 
 func batchCompleted(s feat.Status) bool {

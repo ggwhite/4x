@@ -10,6 +10,7 @@ import (
 
 func newSubtaskCmd() *cobra.Command {
 	var status string
+	var jsonOutput bool
 
 	cmd := &cobra.Command{
 		Use:   "subtask <featureId> <subtaskId>",
@@ -20,7 +21,7 @@ Examples:
   4x subtask F043-dashboard-screenshot-gall protocol-screenshot-type --status done
   4x subtask F043-dashboard-screenshot-gall settings-screenshot-dir --status in-progress`,
 		Args: cobra.ExactArgs(2),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: withJsonError(&jsonOutput, func(cmd *cobra.Command, args []string) error {
 			subtaskID := args[1]
 
 			cwd, err := os.Getwd()
@@ -67,13 +68,21 @@ Examples:
 				return fmt.Errorf("failed to save feature: %w", err)
 			}
 
+			if jsonOutput {
+				return printJSON(struct {
+					FeatureID string `json:"featureId"`
+					SubtaskID string `json:"subtaskId"`
+					Status    string `json:"status"`
+				}{featureID, subtaskID, status})
+			}
 			fmt.Printf("Subtask %s → %s\n", subtaskID, status)
 			return nil
-		},
+		}),
 	}
 
 	cmd.Flags().StringVar(&status, "status", "", "new status (done, in-progress, blocked, not-started)")
 	cmd.MarkFlagRequired("status")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 
 	return cmd
 }

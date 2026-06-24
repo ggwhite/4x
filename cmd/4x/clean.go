@@ -14,7 +14,7 @@ import (
 // workspace artifacts（logs、rounds、reports、state.json、events.jsonl）。
 // feature 定義 .4x/features/*.yaml 永遠保留；無參數清全部，帶 feature-id 只清指定者。
 func newCleanCmd() *cobra.Command {
-	var dryRun, force bool
+	var dryRun, force, jsonOutput bool
 
 	cmd := &cobra.Command{
 		Use:   "clean [feature-id]",
@@ -24,7 +24,7 @@ func newCleanCmd() *cobra.Command {
 Removes logs, rounds, reports, and state files.
 Feature definitions (.4x/features/*.yaml) are always preserved.`,
 		Args: cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: withJsonError(&jsonOutput, func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
 			if err != nil {
 				return err
@@ -34,15 +34,90 @@ Feature definitions (.4x/features/*.yaml) are always preserved.`,
 				return err
 			}
 
+			target := ""
 			if len(args) == 1 {
-				return cleanSingle(ws, args[0], dryRun, force)
+				target = args[0]
+			}
+
+			// --json 下不可互動（無 stdin）：未帶 --force 視為非破壞性 dry-run（列 candidates 不刪除）。
+			if jsonOutput {
+				return cleanJSON(ws, target, dryRun, force)
+			}
+
+			if target != "" {
+				return cleanSingle(ws, target, dryRun, force)
 			}
 			return cleanAll(ws, dryRun, force)
-		},
+		}),
 	}
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "List cleanable features without deleting")
 	cmd.Flags().BoolVar(&force, "force", false, "Skip confirmation prompt")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON (non-interactive; requires --force to delete)")
 	return cmd
+}
+
+// cleanCandidate 是 clean --json 輸出中單一可清理 feature 的精簡資訊。
+type cleanCandidate struct {
+	FeatureID string `json:"featureId"`
+	Size      int64  `json:"size"`
+}
+
+// cleanResult 是 clean --json 的輸出結構：cleaned 為實際刪除者、candidates 為本次考量的所有可清理 feature。
+type cleanResult struct {
+	Cleaned    []string         `json:"cleaned"`
+	FreedBytes int64            `json:"freedBytes"`
+	DryRun     bool             `json:"dryRun"`
+	Candidates []cleanCandidate `json:"candidates"`
+}
+
+// cleanJSON 以非互動方式執行 clean 並輸出單一 JSON object。
+// target 為空代表清全部、非空則限定單一 feature。未帶 --force（或帶 --dry-run）時視為 dry-run：
+// 只列出 candidates、不刪除；帶 --force 才真正刪除並回報 cleaned／freedBytes。
+func cleanJSON(ws *protocol.Workspace, target string, dryRun, force bool) error {
+	candidates, err := ws.CleanableFeatures()
+	if err != nil {
+		return err
+	}
+
+	if target != "" {
+		featureID, err := ws.ResolveFeatureID(target)
+		if err != nil {
+			return err
+		}
+		var filtered []protocol.CleanCandidate
+		for _, c := range candidates {
+			if c.FeatureID == featureID {
+				filtered = append(filtered, c)
+				break
+			}
+		}
+		if len(filtered) == 0 {
+			return fmt.Errorf("feature %s is not cleanable (must be done/abandoned with workspace)", featureID)
+		}
+		candidates = filtered
+	}
+
+	result := cleanResult{
+		Cleaned:    []string{},
+		DryRun:     dryRun || !force,
+		Candidates: []cleanCandidate{},
+	}
+	for _, c := range candidates {
+		result.Candidates = append(result.Candidates, cleanCandidate{FeatureID: c.FeatureID, Size: c.Size})
+	}
+
+	if !result.DryRun {
+		for _, c := range candidates {
+			freed, err := ws.CleanFeature(c.FeatureID)
+			if err != nil {
+				return fmt.Errorf("clean %s: %w", c.FeatureID, err)
+			}
+			result.Cleaned = append(result.Cleaned, c.FeatureID)
+			result.FreedBytes += freed
+		}
+	}
+
+	return printJSON(result)
 }
 
 func cleanSingle(ws *protocol.Workspace, prefix string, dryRun, force bool) error {
