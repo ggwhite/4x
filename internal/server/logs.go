@@ -27,15 +27,16 @@ type roleTiming struct {
 }
 
 var roleOrder = map[string]int{
-	"designer":      0,
-	"coder":         1,
-	"reviewer":      2,
-	"tester":        3,
-	"deep-reviewer": 4,
-	"synthesizer":   5,
-	"deep-fix":      6,
-	"deep-reverify": 7,
-	"acceptor":      8,
+	"designer":        0,
+	"design-reviewer": 1,
+	"coder":           2,
+	"reviewer":        3,
+	"tester":          4,
+	"deep-reviewer":   5,
+	"synthesizer":     6,
+	"deep-fix":        7,
+	"deep-reverify":   8,
+	"acceptor":        9,
 }
 
 // handleLogs 處理 /api/logs/<featureId> 列表或 /api/logs/<featureId>/<filename> 內容

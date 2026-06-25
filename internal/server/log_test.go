@@ -38,6 +38,37 @@ func TestLogSortKey_DeepReviewGrouping(t *testing.T) {
 	}
 }
 
+func TestLogSortKey_DesignReviewerOrder(t *testing.T) {
+	names := []string{
+		"round-2-acceptor.log",
+		"round-2-design-reviewer.log",
+		"round-2-deep-reviewer-1.log",
+		"round-2-deep-reviewer-2.log",
+		"round-2-deep-reviewer-3.log",
+		"round-2-synthesizer.log",
+	}
+	want := []string{
+		"round-2-design-reviewer.log",
+		"round-2-deep-reviewer-1.log",
+		"round-2-deep-reviewer-2.log",
+		"round-2-deep-reviewer-3.log",
+		"round-2-synthesizer.log",
+		"round-2-acceptor.log",
+	}
+	for i := 0; i < len(names); i++ {
+		for j := i + 1; j < len(names); j++ {
+			if logSortKey(names[j]) < logSortKey(names[i]) {
+				names[i], names[j] = names[j], names[i]
+			}
+		}
+	}
+	for i := range want {
+		if names[i] != want[i] {
+			t.Fatalf("sorted[%d] = %q, want %q (full=%v)", i, names[i], want[i], names)
+		}
+	}
+}
+
 func TestFindActiveLogs_MultipleConcurrent(t *testing.T) {
 	dir := t.TempDir()
 	now := time.Now()
