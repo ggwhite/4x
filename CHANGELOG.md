@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.5] - 2026-06-25
+
+### Features
+
+- **Plan 精簡注入** — Coder prompt 只注入 plan 的架構段落與 Task 標題，去掉詳細 step checkbox（每 feature 省 ~30KB）；Designer 跳過時自動給全文
+- **Artifact 內嵌** — Task-brief 和 amending 的 review/test feedback 直接嵌入 coder prompt，省掉 2-3 次 Read tool call
+- **CONDITIONAL PASS 容忍 warning** — Review verdict 為 CONDITIONAL PASS 且無 critical issue 時不再觸發 amending，減少不必要的重跑
+
+### Fixes
+
+- **Convention file 重複注入** — `project.includes` 明確列出的檔案（如 CLAUDE.md）在 runner 自動讀取時仍被注入，現在正確跳過
+- **空行壓縮** — Prompt 最終輸出統一壓縮連續空行，避免 template 條件區塊產生的多餘空行浪費 token
+
+### Internal
+
+- **Coder template 強化** — 新增 Edit over Write、不重複 Read 的約束規則
+- **Coder instructions 前置檢查** — 加入 docs-sync 和 error handling 提醒，減少 reviewer FAIL 觸發的 amending
+
 ## [0.2.4] - 2026-06-24
 
 ### Features
