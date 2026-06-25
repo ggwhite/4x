@@ -70,6 +70,13 @@ func newPromptCmd() *cobra.Command {
 				roleInc = rc.Includes
 			}
 
+			briefPath := filepath.Join(ws.FeatureDir(featureID), protocol.TaskBrief)
+			hasBrief := true
+			if _, err := os.Stat(briefPath); err != nil {
+				hasBrief = false
+			}
+			condensePlan := r != protocol.RoleDesigner && r != protocol.RoleDesignReviewer && hasBrief
+
 			data := promptData{
 				Feature:             feature,
 				Project:             cfg.Project,
@@ -82,7 +89,7 @@ func newPromptCmd() *cobra.Command {
 				RoleInstructions:    roleInstructions(cfg, r),
 				ProjectIncludes:     append(loadIncludes(ws.Root, cfg.Project.Includes, runnerAutoReads[runner]...), discoverConventionFiles(ws.Root, runner, cfg.Project.Includes)...),
 				RoleIncludes:        loadIncludes(ws.Root, roleInc),
-				PlanningDoc:         loadPlanningDocs(ws.Root, feature, cfg.DesignDocDirs, r != protocol.RoleDesigner && r != protocol.RoleDesignReviewer),
+				PlanningDoc:         loadPlanningDocs(ws.Root, feature, cfg.DesignDocDirs, condensePlan),
 				ProfileInstructions: loadProfiles(ws, featureID, cfg),
 			}
 
@@ -741,7 +748,6 @@ func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, featur
 		RoleInstructions:    roleInstructions(cfg, role),
 		ProjectIncludes:     append(loadIncludes(ws.Root, cfg.Project.Includes, runnerAutoReads[runner]...), discoverConventionFiles(ws.Root, runner, cfg.Project.Includes)...),
 		RoleIncludes:        loadIncludes(ws.Root, roleInc),
-		PlanningDoc:         loadPlanningDocs(ws.Root, feature, cfg.DesignDocDirs, role != protocol.RoleDesigner && role != protocol.RoleDesignReviewer),
 		RepoMap:             repoMap,
 		ProfileInstructions: loadProfiles(ws, feature.ID, cfg),
 	}
@@ -754,6 +760,10 @@ func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, featur
 	if _, err := os.Stat(briefPath); err != nil {
 		skippedDesigner = true
 	}
+	// 有 task-brief 時 coder 的 plan 可精簡（task-brief 已涵蓋實作細節）；
+	// 跳過 designer（無 task-brief）時 coder 需要完整 plan 作為唯一需求來源。
+	condensePlan := role != protocol.RoleDesigner && role != protocol.RoleDesignReviewer && !skippedDesigner
+	data.PlanningDoc = loadPlanningDocs(ws.Root, feature, cfg.DesignDocDirs, condensePlan)
 	if role == protocol.RoleDesigner {
 		data.Learnings = loadActiveLearnings(ws.DotDir())
 	} else if skippedDesigner && round == 1 && role == protocol.RoleCoder {
