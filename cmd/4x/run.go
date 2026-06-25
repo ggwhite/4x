@@ -838,7 +838,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 		}
 		pending = nil // 已消費或不匹配，一律清掉避免下一輪誤用
 		if !gotPrefetch {
-			p, gerr := generatePrompt(ws, runnerWs, feature, cfg, role, s.Round, 0)
+			p, gerr := generatePrompt(ws, runnerWs, feature, cfg, role, s.Round, 0, phaseRunner)
 			if gerr != nil {
 				p = fmt.Sprintf("You are the %s for feature %s, round %d. Read .4x/%s/ for context.", role, featureID, s.Round, featureID)
 			}
@@ -1031,7 +1031,7 @@ func runLoop(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Wor
 				ch := make(chan promptResult, 1)
 				pending = &promptPrefetch{role: nextRole, round: s.Round, ch: ch}
 				go func(role protocol.Role, round int) {
-					p, gerr := generatePrompt(ws, runnerWs, feature, cfg, role, round, 0)
+					p, gerr := generatePrompt(ws, runnerWs, feature, cfg, role, round, 0, manualRunner)
 					ch <- promptResult{prompt: p, err: gerr}
 				}(nextRole, s.Round)
 			}

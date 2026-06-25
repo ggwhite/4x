@@ -74,7 +74,7 @@ func TestRunLoop_PrefetchConsistency(t *testing.T) {
 		if phase == protocol.PhaseDesigning || phase == protocol.PhaseDesignReviewing {
 			round = 0
 		}
-		want, err := generatePrompt(ws, ws, feature, cfg, role, round, 0)
+		want, err := generatePrompt(ws, ws, feature, cfg, role, round, 0, "")
 		if err != nil {
 			t.Fatalf("generatePrompt(%s) failed: %v", role, err)
 		}

@@ -70,7 +70,7 @@ func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 			Type: "phase-start", Phase: protocol.PhaseReviewing, Role: role, Round: round,
 			Runner: runnerName, Model: model,
 		})
-		prompt, err := generatePrompt(ws, runnerWs, feature, cfg, role, round, 0)
+		prompt, err := generatePrompt(ws, runnerWs, feature, cfg, role, round, 0, runnerName)
 		if err != nil {
 			prompt = fmt.Sprintf("You are the %s for feature %s, round %d. Read .4x/%s/ for context.", role, featureID, round, featureID)
 		}

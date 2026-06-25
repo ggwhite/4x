@@ -22,6 +22,7 @@ import (
 func newPromptCmd() *cobra.Command {
 	var role string
 	var round int
+	var runner string
 
 	cmd := &cobra.Command{
 		Use:   "prompt <feature-id>",
@@ -79,7 +80,7 @@ func newPromptCmd() *cobra.Command {
 				Locale:              locale,
 				LocaleName:          localeName,
 				RoleInstructions:    roleInstructions(cfg, r),
-				ProjectIncludes:     append(loadIncludes(ws.Root, cfg.Project.Includes), discoverConventionFiles(ws.Root, cfg.Project.Includes)...),
+				ProjectIncludes:     append(loadIncludes(ws.Root, cfg.Project.Includes), discoverConventionFiles(ws.Root, runner, cfg.Project.Includes)...),
 				RoleIncludes:        loadIncludes(ws.Root, roleInc),
 				PlanningDoc:         loadPlanningDocs(ws.Root, feature, cfg.DesignDocDirs),
 				ProfileInstructions: loadProfiles(ws, featureID, cfg),
@@ -107,6 +108,7 @@ func newPromptCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&role, "role", "", "role (designer/coder/reviewer/tester)")
 	cmd.Flags().IntVar(&round, "round", 0, "round number")
+	cmd.Flags().StringVar(&runner, "runner", "", "runner name (skip auto-read convention files)")
 	return cmd
 }
 
@@ -275,9 +277,19 @@ func loadIncludes(root string, paths []string) []includeContent {
 	return result
 }
 
+// runnerAutoReads 列出各 runner CLI 會自動讀取的慣例檔，4x prompt 不需重複注入。
+var runnerAutoReads = map[string][]string{
+	"claude":  {"CLAUDE.md"},
+	"codex":   {"AGENTS.md"},
+	"gemini":  {"GEMINI.md"},
+	"copilot": {"AGENTS.md"},
+	"cursor":  {".cursorrules", "CURSORRULES"},
+	"opencode": {"AGENTS.md"},
+}
+
 // discoverConventionFiles 探測專案根目錄下的 agent 慣例檔案（CLAUDE.md、AGENTS.md 等），
-// 排除已在 explicit includes 中列出的檔案，避免重複注入
-func discoverConventionFiles(root string, explicitIncludes []string) []includeContent {
+// 排除已在 explicit includes 中列出的檔案與當前 runner 會自動讀取的檔案，避免重複注入。
+func discoverConventionFiles(root, runner string, explicitIncludes []string) []includeContent {
 	conventionFiles := []string{
 		"CLAUDE.md",
 		"AGENTS.md",
@@ -287,14 +299,17 @@ func discoverConventionFiles(root string, explicitIncludes []string) []includeCo
 		".cursorrules",
 	}
 
-	explicit := make(map[string]bool, len(explicitIncludes))
+	skip := make(map[string]bool, len(explicitIncludes))
 	for _, p := range explicitIncludes {
-		explicit[p] = true
+		skip[p] = true
+	}
+	for _, p := range runnerAutoReads[runner] {
+		skip[p] = true
 	}
 
 	var result []includeContent
 	for _, name := range conventionFiles {
-		if explicit[name] {
+		if skip[name] {
 			continue
 		}
 		abs := filepath.Join(root, name)
@@ -639,7 +654,7 @@ func updateLearningsUsage(ws *protocol.Workspace, featureID string) {
 	}
 }
 
-func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature feat.Feature, cfg protocol.Config, role protocol.Role, round, iteration int, opts ...promptOption) (string, error) {
+func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature feat.Feature, cfg protocol.Config, role protocol.Role, round, iteration int, runner string, opts ...promptOption) (string, error) {
 	tmpl, err := loadRoleTemplate(runnerWs.DotDir(), role)
 	if err != nil {
 		return "", fmt.Errorf("no template for role %s: %w", role, err)
@@ -679,7 +694,7 @@ func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, featur
 		Locale:              locale,
 		LocaleName:          localeName,
 		RoleInstructions:    roleInstructions(cfg, role),
-		ProjectIncludes:     append(loadIncludes(ws.Root, cfg.Project.Includes), discoverConventionFiles(ws.Root, cfg.Project.Includes)...),
+		ProjectIncludes:     append(loadIncludes(ws.Root, cfg.Project.Includes), discoverConventionFiles(ws.Root, runner, cfg.Project.Includes)...),
 		RoleIncludes:        loadIncludes(ws.Root, roleInc),
 		PlanningDoc:         loadPlanningDocs(ws.Root, feature, cfg.DesignDocDirs),
 		RepoMap:             repoMap,

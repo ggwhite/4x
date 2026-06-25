@@ -262,7 +262,7 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 					Type: "phase-start", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleDeepReviewer, Round: round,
 					Runner: runnerName, Model: deepModel,
 				})
-				prompt, perr := generatePrompt(ws, runnerWs, feature, cfg, protocol.RoleDeepReviewer, round, 0,
+				prompt, perr := generatePrompt(ws, runnerWs, feature, cfg, protocol.RoleDeepReviewer, round, 0, runnerName,
 					withParallelDeepReviewer(idx, len(groups), angles, partialName))
 				if perr != nil {
 					prompt = fmt.Sprintf("You are deep sub-reviewer %d for feature %s, round %d. Read .4x/%s/ for context.", idx, featureID, round, featureID)
@@ -347,7 +347,7 @@ func runDeepReviewParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 		Type: "phase-start", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleSynthesizer, Round: round,
 		Runner: runnerName, Model: synthModel,
 	})
-	synthPrompt, perr := generatePrompt(ws, runnerWs, feature, cfg, protocol.RoleSynthesizer, round, 0,
+	synthPrompt, perr := generatePrompt(ws, runnerWs, feature, cfg, protocol.RoleSynthesizer, round, 0, runnerName,
 		withSynthesizerReports(partials))
 	if perr != nil {
 		synthPrompt = fmt.Sprintf("You are the deep review synthesizer for feature %s, round %d. Read .4x/%s/ for context.", featureID, round, featureID)
@@ -409,7 +409,7 @@ func runDeepSubRole(ctx context.Context, ws *protocol.Workspace, runnerWs *proto
 		Runner: runnerName, Model: model,
 	})
 
-	prompt, err := generatePrompt(ws, runnerWs, feature, cfg, role, round, iteration)
+	prompt, err := generatePrompt(ws, runnerWs, feature, cfg, role, round, iteration, runnerName)
 	if err != nil {
 		prompt = fmt.Sprintf("You are the %s for feature %s, round %d. Read .4x/%s/ for context.", role, featureID, round, featureID)
 	}
