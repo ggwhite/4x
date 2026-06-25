@@ -387,6 +387,94 @@ func writeTestFileHelper(t *testing.T, path, content string) {
 	}
 }
 
+func TestCondensePlan(t *testing.T) {
+	plan := `# Feature Plan
+
+**Goal:** Build something great.
+
+## Global Constraints
+
+- No LLM in CLI
+- Follow gofmt
+
+## File Structure
+
+| File | Action |
+|---|---|
+| foo.go | Create |
+
+### Task 1: Setup config
+
+**Files:**
+- Create: internal/config.go
+
+**Interfaces:**
+- Produces: Config struct
+
+- [ ] Step 1: Create the config struct
+- [ ] Step 2: Add validation
+- [ ] Step 3: Write tests
+
+### Task 2: Implement handler
+
+**Files:**
+- Modify: cmd/server.go
+
+- [ ] Step 1: Add route
+- [ ] Step 2: Parse request
+
+## Self-Review
+
+Check everything.
+`
+	got := condensePlan(plan)
+
+	// 保留架構段落
+	if !strings.Contains(got, "## Global Constraints") {
+		t.Error("should keep Global Constraints")
+	}
+	if !strings.Contains(got, "## File Structure") {
+		t.Error("should keep File Structure")
+	}
+
+	// 保留 Task 標題和描述
+	if !strings.Contains(got, "### Task 1: Setup config") {
+		t.Error("should keep Task 1 header")
+	}
+	if !strings.Contains(got, "### Task 2: Implement handler") {
+		t.Error("should keep Task 2 header")
+	}
+	if !strings.Contains(got, "Produces: Config struct") {
+		t.Error("should keep Interfaces content")
+	}
+
+	// 去掉詳細步驟
+	if strings.Contains(got, "- [ ] Step 1") {
+		t.Error("should strip step checkboxes")
+	}
+	if strings.Contains(got, "- [ ] Step 2") {
+		t.Error("should strip step checkboxes")
+	}
+
+	// 保留 Task 後面的非 Task 段落
+	if !strings.Contains(got, "## Self-Review") {
+		t.Error("should keep non-task sections after tasks")
+	}
+
+	// 壓縮比：去掉了 6 個 step 行，content 應明顯更短
+	if len(got) >= len(plan) {
+		t.Errorf("condensed (%d) should be shorter than original (%d)", len(got), len(plan))
+	}
+}
+
+func TestCondensePlan_NoTasks(t *testing.T) {
+	plan := "# Plan\n\nJust a simple plan with no tasks.\n"
+	got := condensePlan(plan)
+	if got != plan {
+		t.Errorf("plan without tasks should be unchanged\ngot:  %q\nwant: %q", got, plan)
+	}
+}
+
 func TestCompactBlankLines(t *testing.T) {
 	tests := []struct {
 		name string

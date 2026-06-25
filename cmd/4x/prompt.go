@@ -80,9 +80,9 @@ func newPromptCmd() *cobra.Command {
 				Locale:              locale,
 				LocaleName:          localeName,
 				RoleInstructions:    roleInstructions(cfg, r),
-				ProjectIncludes:     append(loadIncludes(ws.Root, cfg.Project.Includes), discoverConventionFiles(ws.Root, runner, cfg.Project.Includes)...),
+				ProjectIncludes:     append(loadIncludes(ws.Root, cfg.Project.Includes, runnerAutoReads[runner]...), discoverConventionFiles(ws.Root, runner, cfg.Project.Includes)...),
 				RoleIncludes:        loadIncludes(ws.Root, roleInc),
-				PlanningDoc:         loadPlanningDocs(ws.Root, feature, cfg.DesignDocDirs),
+				PlanningDoc:         loadPlanningDocs(ws.Root, feature, cfg.DesignDocDirs, r != protocol.RoleDesigner && r != protocol.RoleDesignReviewer),
 				ProfileInstructions: loadProfiles(ws, featureID, cfg),
 			}
 
@@ -228,16 +228,53 @@ func roleInstructions(cfg protocol.Config, r protocol.Role) []string {
 }
 
 // loadPlanningDocs 解析 feature 的 spec 與 plan 設計文件並串接，供 prompt 注入。
-// 解析優先序統一走 protocol.ResolveDesignDoc；找不到的文件跳過，不報錯。
-func loadPlanningDocs(root string, feature feat.Feature, designDocDirs []string) string {
+// condense 為 true 時對 plan 做精簡：保留架構決策與 Task 標題，去掉詳細步驟和 code block，
+// 適用於 coder role（已有 task-brief 提供實作細節，plan 僅作交叉驗證用）。
+func loadPlanningDocs(root string, feature feat.Feature, designDocDirs []string, condense bool) string {
 	var parts []string
 	for _, docType := range []string{"spec", "plan"} {
 		doc := protocol.ResolveDesignDoc(root, feature, docType, designDocDirs...)
 		if doc.Content != "" {
-			parts = append(parts, doc.Content)
+			content := doc.Content
+			if condense && docType == "plan" {
+				content = condensePlan(content)
+			}
+			parts = append(parts, content)
 		}
 	}
 	return strings.Join(parts, "\n\n---\n\n")
+}
+
+// condensePlan 精簡 plan 文件：保留 Task 前的架構段落（Goal、Constraints、File Structure），
+// 每個 Task 只保留標題與描述區（Files、Interfaces），去掉 `- [ ] Step` 詳細步驟與 code block。
+func condensePlan(content string) string {
+	lines := strings.Split(content, "\n")
+	var out []string
+	inTask := false
+	skipRest := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "### Task ") {
+			inTask = true
+			skipRest = false
+			out = append(out, line)
+			continue
+		}
+		if inTask && strings.HasPrefix(trimmed, "- [ ]") {
+			skipRest = true
+			continue
+		}
+		if skipRest {
+			if strings.HasPrefix(trimmed, "### Task ") || strings.HasPrefix(trimmed, "## ") {
+				skipRest = false
+				inTask = strings.HasPrefix(trimmed, "### Task ")
+				out = append(out, line)
+			}
+			continue
+		}
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n")
 }
 
 // compactBlankLines 把連續多個空行壓成一個，保留 Markdown 段落分隔語意。
@@ -259,10 +296,18 @@ func compactBlankLines(s string) string {
 	return strings.Join(out, "\n")
 }
 
-// loadIncludes 讀取指定路徑的檔案內容，路徑相對於 root 解析
-func loadIncludes(root string, paths []string) []includeContent {
+// loadIncludes 讀取指定路徑的檔案內容，路徑相對於 root 解析。
+// skip 列出要跳過的檔名（basename），用於避免載入 runner 會自動讀取的慣例檔。
+func loadIncludes(root string, paths []string, skip ...string) []includeContent {
+	skipSet := make(map[string]bool, len(skip))
+	for _, s := range skip {
+		skipSet[s] = true
+	}
 	var result []includeContent
 	for _, p := range paths {
+		if skipSet[filepath.Base(p)] {
+			continue
+		}
 		abs := p
 		if !filepath.IsAbs(p) {
 			abs = filepath.Join(root, p)
@@ -694,9 +739,9 @@ func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, featur
 		Locale:              locale,
 		LocaleName:          localeName,
 		RoleInstructions:    roleInstructions(cfg, role),
-		ProjectIncludes:     append(loadIncludes(ws.Root, cfg.Project.Includes), discoverConventionFiles(ws.Root, runner, cfg.Project.Includes)...),
+		ProjectIncludes:     append(loadIncludes(ws.Root, cfg.Project.Includes, runnerAutoReads[runner]...), discoverConventionFiles(ws.Root, runner, cfg.Project.Includes)...),
 		RoleIncludes:        loadIncludes(ws.Root, roleInc),
-		PlanningDoc:         loadPlanningDocs(ws.Root, feature, cfg.DesignDocDirs),
+		PlanningDoc:         loadPlanningDocs(ws.Root, feature, cfg.DesignDocDirs, role != protocol.RoleDesigner && role != protocol.RoleDesignReviewer),
 		RepoMap:             repoMap,
 		ProfileInstructions: loadProfiles(ws, feature.ID, cfg),
 	}
