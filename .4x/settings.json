@@ -120,7 +120,9 @@
     "coder": {
       "model": "opus",
       "instructions": [
-        "每次改動後跑 go build ./cmd/4x && go vet ./... && go test -race ./...，改到 locale 或 docs 時加跑 make check-i18n && make check-docs",
+        "每次改動後跑 go build ./cmd/4x && go vet ./... && go test -race ./...，改到 locale 或 docs 時加跑 make check-i18n && make check-docs-sync",
+        "寫 coder-report 前必須跑 make check-docs-sync && make check-i18n 並修復所有 NEEDS_UPDATE——這是 reviewer 最常 FAIL 的原因",
+        "Go error handling 不可省略——os.MkdirAll、os.WriteFile、json.Marshal 等回傳的 error 必須處理，不能用 _ 忽略",
         "新增 Cobra subcommand 時在 cmd/4x/main.go 註冊",
         "internal/ 下新 package 要確認不會 circular dependency",
         "embed 檔案只能在同層或子目錄，不能用 ../",

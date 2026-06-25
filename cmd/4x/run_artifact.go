@@ -21,7 +21,9 @@ func reviewPassedAtPath(path string) bool {
 		return false
 	}
 	result := parseReviewVerdict(string(data))
-	return result.Passed && result.CriticalCount == 0 && result.WarningCount == 0
+	// CONDITIONAL PASS（有 warning 但無 critical）視為通過，不觸發 amending。
+	// Warning 級別的問題不值得整輪 coder→reviewer→tester 重跑。
+	return result.Passed && result.CriticalCount == 0
 }
 
 // parseReviewVerdict 從 review-report.md 擷取 verdict 與 critical/warning issue 計數
