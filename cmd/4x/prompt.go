@@ -98,6 +98,24 @@ func newPromptCmd() *cobra.Command {
 			} else {
 				data.SelectedLearnings = loadSelectedLearnings(ws.DotDir(), featureID, r)
 			}
+			data.SkippedDesigner = !hasBrief
+			if r == protocol.RoleCoder || r == protocol.RoleMiniCoder {
+				if hasBrief {
+					briefPath := filepath.Join(ws.FeatureDir(featureID), protocol.TaskBrief)
+					if b, err := os.ReadFile(briefPath); err == nil {
+						data.TaskBrief = string(b)
+					}
+				}
+				if round > 1 {
+					prevRound := ws.RoundDir(featureID, round-1)
+					if b, err := os.ReadFile(filepath.Join(prevRound, protocol.ReviewReport)); err == nil {
+						data.PrevReviewReport = string(b)
+					}
+					if b, err := os.ReadFile(filepath.Join(prevRound, protocol.TestReport)); err == nil {
+						data.PrevTestReport = string(b)
+					}
+				}
+			}
 
 			tmpl, err := loadRoleTemplate(ws.DotDir(), r)
 			if err != nil {
@@ -142,6 +160,12 @@ type promptData struct {
 	SelectedLearnings []learning.Entry
 	// SkippedDesigner 為 true 代表 profile 跳過了 designer phase，template 應從 feature YAML 讀需求。
 	SkippedDesigner bool
+	// TaskBrief 是 task-brief.md 的完整內容，直接內嵌到 prompt 省掉 agent 的 Read tool call。
+	TaskBrief string
+	// PrevReviewReport 是上一輪 review-report.md 的完整內容（amending 時使用）。
+	PrevReviewReport string
+	// PrevTestReport 是上一輪 test-report.md 的完整內容（amending 時使用，可能不存在）。
+	PrevTestReport string
 	// 以下欄位僅平行 deep review 模式使用：
 	// ReviewerIndex/ReviewerCount 標示本 sub-reviewer 是第幾個、共幾個；
 	// AssignedAngles 為本 sub-reviewer 負責的 angle 編號清單（為空代表 fallback 單 agent 跑全部）；
@@ -772,6 +796,22 @@ func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, featur
 		data.SelectedLearnings = loadSelectedLearnings(ws.DotDir(), feature.ID, role)
 	}
 	data.SkippedDesigner = skippedDesigner
+	if role == protocol.RoleCoder || role == protocol.RoleMiniCoder {
+		if !skippedDesigner {
+			if b, err := os.ReadFile(briefPath); err == nil {
+				data.TaskBrief = string(b)
+			}
+		}
+		if round > 1 {
+			prevRound := ws.RoundDir(feature.ID, round-1)
+			if b, err := os.ReadFile(filepath.Join(prevRound, protocol.ReviewReport)); err == nil {
+				data.PrevReviewReport = string(b)
+			}
+			if b, err := os.ReadFile(filepath.Join(prevRound, protocol.TestReport)); err == nil {
+				data.PrevTestReport = string(b)
+			}
+		}
+	}
 	for _, opt := range opts {
 		opt(&data)
 	}

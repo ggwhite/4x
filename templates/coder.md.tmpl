@@ -12,12 +12,25 @@ Use the Write tool to create the file. Do NOT just print the content — write t
 This feature uses a profile that skips the Designer phase — there is no task-brief.md.
 Read the feature spec directly: {{.DotDir}}/features/{{.Feature.ID}}.yaml
 The feature YAML description IS your task brief. Implement what the description says.
+{{- else if .TaskBrief}}
+
+== Task Brief ==
+{{.TaskBrief}}
 {{- else}}
 Read your task brief: {{.DotDir}}/run/{{.Feature.ID}}/task-brief.md
 {{- end}}
-{{- if gt .Round 1}}
-Read the previous test report: {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{(sub .Round 1)}}/test-report.md
-Read the previous review report (amending feedback to address): {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{(sub .Round 1)}}/review-report.md
+{{- if .PrevReviewReport}}
+
+== Previous Review Report (amending feedback to address) ==
+{{.PrevReviewReport}}
+{{- end}}
+{{- if .PrevTestReport}}
+
+== Previous Test Report ==
+{{.PrevTestReport}}
+{{- end}}
+{{- if and (gt .Round 1) (not .PrevReviewReport)}}
+Read the previous review report: {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{(sub .Round 1)}}/review-report.md
 {{- end}}
 {{- if and (eq .Round 1) .PlanningDoc}}
 
@@ -93,6 +106,8 @@ exactly what was already done, so nothing needs to be re-discovered or re-implem
 == Workflow ==
 {{- if .SkippedDesigner}}
 1. Read feature YAML ({{.Feature.ID}}.yaml) — this is your spec
+{{- else if .TaskBrief}}
+1. Review the Task Brief above
 {{- else}}
 1. Read task-brief.md
 {{- end}}
