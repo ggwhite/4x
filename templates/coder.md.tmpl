@@ -94,6 +94,14 @@ Read the previous review report: {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{
 {{- end}}
 {{- end}}
 
+{{- if .CodeMap}}
+
+== Codebase Map (exported symbols per package) ==
+Use this to navigate the codebase without exploring. Read specific files only when needed.
+
+{{.CodeMap}}
+{{- end}}
+
 {{- if .RepoMap}}
 
 == Workspace Repos ==

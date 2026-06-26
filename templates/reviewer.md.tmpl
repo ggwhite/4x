@@ -46,6 +46,11 @@ Use the Write tool. Do NOT just print the content — write to disk.
 - {{.}}
 {{- end}}
 {{- end}}
+{{- if .CodeMap}}
+
+== Codebase Map (exported symbols per package) ==
+{{.CodeMap}}
+{{- end}}
 {{- if .RoleIncludes}}
 {{range .RoleIncludes}}
 
