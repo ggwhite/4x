@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -109,6 +110,9 @@ type promptData struct {
 	PrevReviewReport string
 	// PrevTestReport 是上一輪 test-report.md 的完整內容（amending 時使用，可能不存在）。
 	PrevTestReport string
+	// PrevDiff 是前幾輪 coder 從 baseline 到目前的 git diff（amending 時使用），
+	// 讓 coder 不用重新探索就知道已經改了什麼。超過 maxDiffLines 行時截斷。
+	PrevDiff string
 	// 以下欄位僅平行 deep review 模式使用：
 	// ReviewerIndex/ReviewerCount 標示本 sub-reviewer 是第幾個、共幾個；
 	// AssignedAngles 為本 sub-reviewer 負責的 angle 編號清單（為空代表 fallback 單 agent 跑全部）；
@@ -751,6 +755,7 @@ func generatePrompt(rc *runContext, role protocol.Role, round, iteration int, ru
 			if b, err := os.ReadFile(filepath.Join(prevRound, protocol.TestReport)); err == nil {
 				data.PrevTestReport = string(b)
 			}
+			data.PrevDiff = baselineDiff(ws, feature.ID)
 		}
 	}
 	for _, opt := range opts {
@@ -775,6 +780,39 @@ type promptPrefetch struct {
 	role  protocol.Role
 	round int
 	ch    chan promptResult
+}
+
+const maxDiffLines = 200
+
+// baselineDiff 從 baseline.json 讀取起始 commit，用 git diff 算出 coder 歷來的變更。
+// 超過 maxDiffLines 行時截斷並附註。失敗回空字串（靜默降級）。
+func baselineDiff(ws *protocol.Workspace, featureID string) string {
+	blPath := filepath.Join(ws.FeatureDir(featureID), protocol.BaselineFile)
+	blData, err := os.ReadFile(blPath)
+	if err != nil {
+		return ""
+	}
+	var bl protocol.Baseline
+	if err := json.Unmarshal(blData, &bl); err != nil || len(bl.Repos) == 0 {
+		return ""
+	}
+	head := bl.Repos[0].Head
+	if head == "" {
+		return ""
+	}
+
+	diff, err := exec.Command("git", "-C", ws.Root, "diff", head+"..HEAD",
+		"--stat", "--patch", "--", ".", ":(exclude).4x").CombinedOutput()
+	if err != nil || len(diff) == 0 {
+		return ""
+	}
+
+	lines := strings.Split(string(diff), "\n")
+	if len(lines) <= maxDiffLines {
+		return string(diff)
+	}
+	return strings.Join(lines[:maxDiffLines], "\n") +
+		fmt.Sprintf("\n\n... (truncated, showing %d of %d lines) ...\n", maxDiffLines, len(lines))
 }
 
 // prefetchablePhase 回報某 phase 是否會在主迴圈頂端走同步 generatePrompt（line 530），

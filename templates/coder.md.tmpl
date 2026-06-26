@@ -29,6 +29,14 @@ Read your task brief: {{.DotDir}}/run/{{.Feature.ID}}/task-brief.md
 == Previous Test Report ==
 {{.PrevTestReport}}
 {{- end}}
+{{- if .PrevDiff}}
+
+== Your Changes So Far (from baseline) ==
+Below is the diff of all your prior changes. Use this to understand what's already done
+without re-reading those files — focus on fixing the issues from the review report.
+
+{{.PrevDiff}}
+{{- end}}
 {{- if and (gt .Round 1) (not .PrevReviewReport)}}
 Read the previous review report: {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{(sub .Round 1)}}/review-report.md
 {{- end}}
