@@ -64,8 +64,8 @@
         { "phase": "design-reviewing" },
         { "phase": "coding" },
         { "phase": "reviewing" },
-        { "phase": "deep-reviewing" },
         { "phase": "testing" },
+        { "phase": "deep-reviewing" },
         { "phase": "accepting" }
       ]
     },
