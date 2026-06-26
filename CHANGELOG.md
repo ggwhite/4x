@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.6] - 2026-06-26
+
+### Token Optimization
+
+本版聚焦降低 4x 每次 run 的 token 消耗。full profile 單輪約 ~500K tokens，
+優化後 lite + codebase map 可降至 ~210K（-58%）。
+
+| 情境 | Token 估算 | vs 原始 |
+|---|---|---|
+| full（原始） | ~500K | 100% |
+| full + codebase map | ~430K | 86% |
+| **lite + codebase map** | **~210K** | **42%** |
+| quick | ~140K | 28% |
+
+### Features
+
+- **Built-in lite profile** — `--profile lite`（designing → coding → testing），跳過所有 review 層，token 約 full 的 40%。適合中等風險功能
+- **Token usage 顯示** — 每個 phase 結束顯示 token 數與耗時，run 結束顯示總計。Event 新增 `tokens_used` / `duration_ms` 欄位供 dashboard 使用
+- **Amending baseline diff** — Amending 時 coder prompt 自動帶入從 baseline 到目前的 git diff（上限 200 行），不用重新探索上輪改了什麼
+- **Codebase map 注入** — 自動掃描 Go 專案的 exported symbol，產出每 package 一行的精簡索引（~20 行），注入 coder/designer/reviewer/tester prompt。Agent 不用花 token 探索目錄結構
+- **Configurable feature ID** — 支援自訂 feature ID 前綴與位數
+
+### Refactoring
+
+- **runContext 重構** — 從 run.go 抽出 `runContext` struct 收納 8-10 個重複傳遞的參數，主迴圈從 475 行縮減為 ~30 行的 method call 序列
+- **server.go 路由簡化** — 引入 `wsRoute`/`pmRoute`/`bmRoute` helper，380 行重複的 handler 註冊收斂為簡潔的 route 宣告
+- **prompt.go 去重** — CLI command 改為呼叫 `generatePrompt` 而非重複建構 promptData
+- **batch/evolve/deep-review** — 抽出 helper 函式降低巢狀與重複
+
+### Fixes
+
+- **Worktree scope** — worktree 模式跳過非 feature repo 避免 false scope violations
+- **Dashboard sort** — Design-reviewer log 排序修正
+
 ## [0.2.5] - 2026-06-25
 
 ### Features
