@@ -101,8 +101,11 @@ func (pc ProfileConfig) HasPhase(phase Phase) bool {
 	return false
 }
 
-// DefaultProfiles 回傳內建三組 pipeline profile，作為 auto-select 與 fallback 用。
-// full 跑完整 7 phase；normal 省略 designing、design-reviewing 與 deep-reviewing；quick 只跑 coding 與 reviewing。
+// DefaultProfiles 回傳內建 pipeline profile，作為 auto-select 與 fallback 用。
+//   - full：完整 7 phase，適合高風險功能（金流、結算、核心協議）
+//   - lite：designing → coding → testing，有設計有驗證但省略所有 review 層，token 約 full 的 40%
+//   - normal：coding → reviewing → testing → accepting，已知要做什麼時跳過設計階段
+//   - quick：coding → reviewing，最精簡的 code + review
 func DefaultProfiles() map[string]ProfileConfig {
 	return map[string]ProfileConfig{
 		"full": {Phases: []PhaseSpec{
@@ -113,6 +116,11 @@ func DefaultProfiles() map[string]ProfileConfig {
 			{Phase: string(PhaseDeepReviewing)},
 			{Phase: string(PhaseTesting)},
 			{Phase: string(PhaseAccepting)},
+		}},
+		"lite": {Phases: []PhaseSpec{
+			{Phase: string(PhaseDesigning)},
+			{Phase: string(PhaseCoding)},
+			{Phase: string(PhaseTesting)},
 		}},
 		"normal": {Phases: []PhaseSpec{
 			{Phase: string(PhaseCoding)},
