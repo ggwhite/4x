@@ -143,6 +143,10 @@ type Event struct {
 	// Notify 為前端統一判斷通知等級的提示，值域 NotifySuccess / NotifyError / NotifyWarning，
 	// 空字串代表不通知。新增欄位向下相容（omitempty），不改既有 event 的 Status 語意。
 	Notify string `json:"notify,omitempty"`
+	// TokensUsed 記錄本次 runner invocation 使用的 token 數量（從 runner log 解析），
+	// 0 表示該 runner 未回報或解析失敗。僅 run-end event 填寫。
+	TokensUsed int   `json:"tokens_used,omitempty"`
+	DurationMs int64 `json:"duration_ms,omitempty"`
 }
 
 // 通知等級常量，供 server 端標注 Event.Notify 及前端判斷顯示樣式，避免散落字串。

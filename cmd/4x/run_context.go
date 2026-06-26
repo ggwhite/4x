@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -31,6 +34,7 @@ type runContext struct {
 	commitStrategy string
 	manualRunner   string
 	runOverrides   map[protocol.Phase]protocol.PhaseSpec
+	totalTokens    int
 }
 
 func (rc *runContext) featureID() string {
@@ -166,14 +170,23 @@ func (rc *runContext) loop(ctx context.Context, s protocol.State) error {
 		}
 		rc.syncFromWorktree(featureID, s.Round)
 
+		tokens := parseTokensFromLog(logPath)
+		rc.totalTokens += tokens
+		if tokens > 0 {
+			fmt.Printf("  → %s tokens, %s\n", formatTokens(tokens), invokeDur.Truncate(time.Second))
+		} else {
+			fmt.Printf("  → %s\n", invokeDur.Truncate(time.Second))
+		}
+
 		if runErr != nil {
 			return rc.handleRunnerError(ctx, &s, phase, role, phaseRunner, model, runErr)
 		}
 
 		rc.ws.AppendEvent(featureID, protocol.Event{
 			Type: "run-end", Phase: phase, Role: role, Round: s.Round,
-			Status: fmt.Sprintf("exit-%d", result.ExitCode),
-			Runner: phaseRunner, Model: model,
+			Status:     fmt.Sprintf("exit-%d", result.ExitCode),
+			Runner:     phaseRunner, Model: model,
+			TokensUsed: tokens, DurationMs: invokeDur.Milliseconds(),
 		})
 
 		if err := rc.handleExitResult(result, &s, phase, role, phaseRunner); err != nil {
@@ -605,12 +618,14 @@ func (rc *runContext) finalize(s protocol.State) error {
 		s.StopReason = "pending-review"
 		logStateWriteErr(rc.ws.WriteState(featureID, s), featureID, s.Phase)
 		logSyncErr(rc.ws.SyncFeatureStatus(featureID, protocol.PhasePendingReview), featureID, protocol.PhasePendingReview)
+		rc.printRunSummary(featureID, s.Round)
 		fmt.Printf("\nFeature %s ready for review (%d rounds). Run '4x done %s' to complete.\n", featureID, s.Round, featureID)
 	case protocol.PhaseDone:
 		s.Active = false
 		s.StopReason = "done"
 		logStateWriteErr(rc.ws.WriteState(featureID, s), featureID, s.Phase)
 		logSyncErr(rc.ws.SyncFeatureStatus(featureID, protocol.PhaseDone), featureID, protocol.PhaseDone)
+		rc.printRunSummary(featureID, s.Round)
 		fmt.Printf("\nFeature %s complete (%d rounds)\n", featureID, s.Round)
 	case protocol.PhaseNeedsAttention, protocol.PhaseBlocked:
 		if s.Active {
@@ -625,4 +640,69 @@ func (rc *runContext) finalize(s protocol.State) error {
 		}
 	}
 	return nil
+}
+
+func (rc *runContext) printRunSummary(featureID string, rounds int) {
+	if rc.totalTokens > 0 {
+		fmt.Printf("\n── %s: %d rounds, %s tokens total ──\n", featureID, rounds, formatTokens(rc.totalTokens))
+	}
+}
+
+// parseTokensFromLog 從 runner log 尾端解析 token 使用量。
+// 支援 Claude Code 格式：「tokens used\n73,204」。找不到回 0。
+func parseTokensFromLog(logPath string) int {
+	f, err := os.Open(logPath)
+	if err != nil {
+		return 0
+	}
+	defer f.Close()
+
+	info, err := f.Stat()
+	if err != nil || info.Size() == 0 {
+		return 0
+	}
+
+	readSize := int64(4096)
+	if info.Size() < readSize {
+		readSize = info.Size()
+	}
+	if _, err := f.Seek(-readSize, io.SeekEnd); err != nil {
+		return 0
+	}
+
+	var lines []string
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "tokens used" && i+1 < len(lines) {
+			raw := strings.ReplaceAll(strings.TrimSpace(lines[i+1]), ",", "")
+			if n, err := strconv.Atoi(raw); err == nil {
+				return n
+			}
+		}
+	}
+	return 0
+}
+
+// formatTokens 把 token 數量格式化為帶千分位逗號的字串（如 73204 → "73,204"）。
+func formatTokens(n int) string {
+	s := strconv.Itoa(n)
+	if len(s) <= 3 {
+		return s
+	}
+	var b strings.Builder
+	start := len(s) % 3
+	if start > 0 {
+		b.WriteString(s[:start])
+	}
+	for i := start; i < len(s); i += 3 {
+		if b.Len() > 0 {
+			b.WriteByte(',')
+		}
+		b.WriteString(s[i : i+3])
+	}
+	return b.String()
 }
