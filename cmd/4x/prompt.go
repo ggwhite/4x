@@ -63,70 +63,13 @@ func newPromptCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("load config: %w", err)
 			}
-			locale, localeName := resolveLocale()
 
-			var roleInc []string
-			if rc, ok := cfg.Roles[string(r)]; ok {
-				roleInc = rc.Includes
-			}
-
-			briefPath := filepath.Join(ws.FeatureDir(featureID), protocol.TaskBrief)
-			hasBrief := true
-			if _, err := os.Stat(briefPath); err != nil {
-				hasBrief = false
-			}
-			condensePlan := r != protocol.RoleDesigner && r != protocol.RoleDesignReviewer && hasBrief
-
-			data := promptData{
-				Feature:             feature,
-				Project:             cfg.Project,
-				Role:                r,
-				Round:               round,
-				Config:              cfg,
-				DotDir:              ws.DotDir(),
-				Locale:              locale,
-				LocaleName:          localeName,
-				RoleInstructions:    roleInstructions(cfg, r),
-				ProjectIncludes:     append(loadIncludes(ws.Root, cfg.Project.Includes, runnerAutoReads[runner]...), discoverConventionFiles(ws.Root, runner, cfg.Project.Includes)...),
-				RoleIncludes:        loadIncludes(ws.Root, roleInc),
-				PlanningDoc:         loadPlanningDocs(ws.Root, feature, cfg.DesignDocDirs, condensePlan),
-				ProfileInstructions: loadProfiles(ws, featureID, cfg),
-			}
-
-			if r == protocol.RoleDesigner {
-				data.Learnings = loadActiveLearnings(ws.DotDir())
-			} else {
-				data.SelectedLearnings = loadSelectedLearnings(ws.DotDir(), featureID, r)
-			}
-			data.SkippedDesigner = !hasBrief
-			if r == protocol.RoleCoder || r == protocol.RoleMiniCoder {
-				if hasBrief {
-					briefPath := filepath.Join(ws.FeatureDir(featureID), protocol.TaskBrief)
-					if b, err := os.ReadFile(briefPath); err == nil {
-						data.TaskBrief = string(b)
-					}
-				}
-				if round > 1 {
-					prevRound := ws.RoundDir(featureID, round-1)
-					if b, err := os.ReadFile(filepath.Join(prevRound, protocol.ReviewReport)); err == nil {
-						data.PrevReviewReport = string(b)
-					}
-					if b, err := os.ReadFile(filepath.Join(prevRound, protocol.TestReport)); err == nil {
-						data.PrevTestReport = string(b)
-					}
-				}
-			}
-
-			tmpl, err := loadRoleTemplate(ws.DotDir(), r)
+			rc := &runContext{ws: ws, runnerWs: ws, feature: feature, cfg: cfg}
+			prompt, err := generatePrompt(rc, r, round, 0, runner)
 			if err != nil {
 				return err
 			}
-
-			var buf bytes.Buffer
-			if err := tmpl.Execute(&buf, data); err != nil {
-				return err
-			}
-			_, err = os.Stdout.WriteString(compactBlankLines(buf.String()))
+			_, err = os.Stdout.WriteString(prompt)
 			return err
 		},
 	}
@@ -730,20 +673,24 @@ func updateLearningsUsage(ws *protocol.Workspace, featureID string) {
 	}
 }
 
-func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, feature feat.Feature, cfg protocol.Config, role protocol.Role, round, iteration int, runner string, opts ...promptOption) (string, error) {
+func generatePrompt(rc *runContext, role protocol.Role, round, iteration int, runnerName string, opts ...promptOption) (string, error) {
+	ws := rc.ws
+	runnerWs := rc.runnerWs
+	feature := rc.feature
+	cfg := rc.cfg
+
 	tmpl, err := loadRoleTemplate(runnerWs.DotDir(), role)
 	if err != nil {
 		return "", fmt.Errorf("no template for role %s: %w", role, err)
 	}
 	locale, localeName := resolveLocale()
 	var roleInc []string
-	if rc, ok := cfg.Roles[string(role)]; ok {
-		roleInc = rc.Includes
+	if roleCfg, ok := cfg.Roles[string(role)]; ok {
+		roleInc = roleCfg.Includes
 	}
 	var repoMap map[string]string
 	if len(cfg.Workspace.Repos) > 0 {
 		if runnerWs.Root != ws.Root {
-			// worktree 模式：組合目錄下 repo 子目錄以 name 命名，使用相對路徑讓 coder 在正確邊界內作業
 			featureRepos := make(map[string]bool, len(feature.Repos))
 			for _, r := range feature.Repos {
 				featureRepos[r] = true
@@ -770,22 +717,16 @@ func generatePrompt(ws *protocol.Workspace, runnerWs *protocol.Workspace, featur
 		Locale:              locale,
 		LocaleName:          localeName,
 		RoleInstructions:    roleInstructions(cfg, role),
-		ProjectIncludes:     append(loadIncludes(ws.Root, cfg.Project.Includes, runnerAutoReads[runner]...), discoverConventionFiles(ws.Root, runner, cfg.Project.Includes)...),
+		ProjectIncludes:     append(loadIncludes(ws.Root, cfg.Project.Includes, runnerAutoReads[runnerName]...), discoverConventionFiles(ws.Root, runnerName, cfg.Project.Includes)...),
 		RoleIncludes:        loadIncludes(ws.Root, roleInc),
 		RepoMap:             repoMap,
 		ProfileInstructions: loadProfiles(ws, feature.ID, cfg),
 	}
-	// 兩者皆從主 workspace（ws.DotDir()）讀取，而非 runnerWs.DotDir()：
-	//   - learnings.json 由 CLI 在主 workspace 管理，本來就不會 sync 到 worktree。
-	//   - selected-learnings.json 由 Designer 寫在 worktree，但會由 syncFeatureFromWorktree
-	//     帶回主 workspace，因此後續 role 一律從主 workspace 讀取最新選擇。
 	briefPath := filepath.Join(ws.FeatureDir(feature.ID), protocol.TaskBrief)
 	skippedDesigner := false
 	if _, err := os.Stat(briefPath); err != nil {
 		skippedDesigner = true
 	}
-	// 有 task-brief 時 coder 的 plan 可精簡（task-brief 已涵蓋實作細節）；
-	// 跳過 designer（無 task-brief）時 coder 需要完整 plan 作為唯一需求來源。
 	condensePlan := role != protocol.RoleDesigner && role != protocol.RoleDesignReviewer && !skippedDesigner
 	data.PlanningDoc = loadPlanningDocs(ws.Root, feature, cfg.DesignDocDirs, condensePlan)
 	if role == protocol.RoleDesigner {

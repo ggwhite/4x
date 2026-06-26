@@ -9,8 +9,6 @@ import (
 	"strings"
 	"sync"
 
-	feat "github.com/ggwhite/4x/internal/feature"
-	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/guard"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/runner"
@@ -21,18 +19,24 @@ import (
 // worktree），兩者完成後合併判定。回傳 (cont, err)：cont 為 true 表示主迴圈應 continue
 // 接手後續 phase（deep-reviewing 或 amending）；cont 為 false 且 err 為 nil 表示已落入
 // 終止狀態（blocked / needs-attention），主迴圈應 break；err 非 nil 表示 hard error 直接中止。
-func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs *protocol.Workspace, feature feat.Feature, cfg protocol.Config, s *protocol.State, ops gitops.Ops, newRunner func(runnerName string, logPath string, model string) runner.Runner, pc protocol.ProfileConfig, manualRunner string, runOverrides map[protocol.Phase]protocol.PhaseSpec) (bool, error) {
+func runReviewTestParallel(ctx context.Context, rc *runContext, s *protocol.State, pc protocol.ProfileConfig) (bool, error) {
+	ws := rc.ws
+	runnerWs := rc.runnerWs
+	feature := rc.feature
+	cfg := rc.cfg
+	ops := rc.ops
+	newRunner := rc.newRunner
+	manualRunner := rc.manualRunner
+	runOverrides := rc.runOverrides
+
 	featureID := feature.ID
 	round := s.Round
 
-	// reviewer 依 reviewing phase、tester 依其 canonical testing phase 各自解析 runner/model，
-	// 平行模式下兩者可用不同 runner（共用 worktree）。
 	resolveErr := func(what string, err error) (bool, error) {
 		stopState(ws, featureID, s, "model-error", fmt.Sprintf("%s resolution failed: %v", what, err))
 		return false, fmt.Errorf("%s resolution failed: %w", what, err)
 	}
 
-	// reviewing / testing phase 各自套用 per-phase 臨時覆寫（疊在全域 manualRunner 之上）。
 	reviewRunnerManual, reviewModelManual := protocol.EffectiveManual(runOverrides, protocol.PhaseReviewing, manualRunner)
 	testRunnerManual, testModelManual := protocol.EffectiveManual(runOverrides, protocol.PhaseTesting, manualRunner)
 
@@ -70,7 +74,7 @@ func runReviewTestParallel(ctx context.Context, ws *protocol.Workspace, runnerWs
 			Type: "phase-start", Phase: protocol.PhaseReviewing, Role: role, Round: round,
 			Runner: runnerName, Model: model,
 		})
-		prompt, err := generatePrompt(ws, runnerWs, feature, cfg, role, round, 0, runnerName)
+		prompt, err := generatePrompt(rc, role, round, 0, runnerName)
 		if err != nil {
 			prompt = fmt.Sprintf("You are the %s for feature %s, round %d. Read .4x/%s/ for context.", role, featureID, round, featureID)
 		}

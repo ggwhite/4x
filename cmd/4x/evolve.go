@@ -190,6 +190,45 @@ func makeEvolveRunFeature(ws *protocol.Workspace, cfg protocol.Config, runnerNam
 	}
 }
 
+// mineResult 彙整 mine+dedupe pipeline 的產出，避免呼叫端追蹤一堆零散變數。
+type mineResult struct {
+	all       []protocol.Candidate
+	keptNew   []protocol.Candidate
+	merged    []protocol.Candidate
+	gateInput []protocol.Candidate
+	deduped   int
+	learnings []protocol.CandidateLearning
+	existing  []feat.Feature
+}
+
+// mineAndDedupe 執行 mine 掃描 → dedupe → merge pool → PreVeto，回傳各階段產物。
+// runEvolve 與 runEvolveDryRun 共用此函式，消除重複邏輯。
+func mineAndDedupe(ws *protocol.Workspace, resolved evolution.ResolvedEvolution, minOccurrences int) (mineResult, error) {
+	existing, err := ws.ListFeatures()
+	if err != nil {
+		return mineResult{}, err
+	}
+	existingPool, err := protocol.LoadCandidates(filepath.Join(ws.DotDir(), protocol.CandidatesFile))
+	if err != nil {
+		return mineResult{}, err
+	}
+	all, learnings := scanEvolveCandidates(ws, existing, minOccurrences)
+	keptNew := protocol.DedupeCandidates(all, existing, existingPool.Candidates)
+	merged := make([]protocol.Candidate, 0, len(existingPool.Candidates)+len(keptNew))
+	merged = append(merged, existingPool.Candidates...)
+	merged = append(merged, keptNew...)
+	gateInput, preDropped := evolution.PreVeto(merged, existing, resolved.DedupThreshold)
+	return mineResult{
+		all:       all,
+		keptNew:   keptNew,
+		merged:    merged,
+		gateInput: gateInput,
+		deduped:   (len(all) - len(keptNew)) + len(preDropped),
+		learnings: learnings,
+		existing:  existing,
+	}, nil
+}
+
 // runEvolve 執行一輪 evolve pipeline。dry-run 只讀分析；否則先檢查 anti-spin halt，
 // 再依序 mine → gate（pre/role/post）→ enrich → enqueue →（可選）auto-run，最後寫 report 與 state。
 func runEvolve(ctx context.Context, ws *protocol.Workspace, cfg protocol.Config, opts evolveOpts, deps evolveDeps) error {
@@ -209,110 +248,46 @@ func runEvolve(ctx context.Context, ws *protocol.Workspace, cfg protocol.Config,
 		return err
 	}
 
-	// anti-spin：達門檻且未 --force → 早退，不 mine/gate，report 標 Halted，exit 0。
 	if estate.ShouldHalt(resolved.MaxIdleRounds) && !opts.force {
-		result := evolution.EvolveRoundResult{
-			Round:               estate.Round,
-			Halted:              true,
-			ConsecutiveNoAccept: estate.ConsecutiveNoAccept,
-		}
-		if werr := writeEvolveReport(dot, result); werr != nil {
-			return werr
-		}
-		if opts.jsonOutput {
-			return printJSON(struct {
-				Round    int  `json:"round"`
-				Mined    int  `json:"mined"`
-				Gated    int  `json:"gated"`
-				Accepted int  `json:"accepted"`
-				Enqueued int  `json:"enqueued"`
-				Halted   bool `json:"halted"`
-			}{estate.Round, 0, 0, 0, 0, true})
-		}
-		fmt.Printf("evolve halted: %d consecutive idle round(s) >= max_idle_rounds %d. Use --force to override.\n",
-			estate.ConsecutiveNoAccept, resolved.MaxIdleRounds)
-		return nil
+		return reportHalt(dot, estate, resolved.MaxIdleRounds, opts)
 	}
 
 	round := estate.Round + 1
 
-	// 1. mine：掃描歷史失敗訊號，去重後合併入 candidate pool 並存檔。
-	// feature 清單一次讀取，掃描器與去重、gate 皆共用同一份。
-	existing, err := ws.ListFeatures()
+	mr, err := mineAndDedupe(ws, resolved, opts.minOccurrences)
 	if err != nil {
 		return err
 	}
-	existingPool, err := protocol.LoadCandidates(filepath.Join(dot, protocol.CandidatesFile))
-	if err != nil {
-		return err
-	}
-	all, learnings := scanEvolveCandidates(ws, existing, opts.minOccurrences)
-	keptNew := protocol.DedupeCandidates(all, existing, existingPool.Candidates)
-	merged := make([]protocol.Candidate, 0, len(existingPool.Candidates)+len(keptNew))
-	merged = append(merged, existingPool.Candidates...)
-	merged = append(merged, keptNew...)
-	pool := protocol.CandidatePool{Version: 1, GeneratedAt: time.Now(), Candidates: merged, Learnings: learnings}
+	pool := protocol.CandidatePool{Version: 1, GeneratedAt: time.Now(), Candidates: mr.merged, Learnings: mr.learnings}
 	if err := pool.Save(filepath.Join(dot, protocol.CandidatesFile)); err != nil {
 		return fmt.Errorf("save candidates: %w", err)
 	}
-
-	// 2. gate pre：對既有 feature 與彼此去重，倖存者寫 gate-input.json。
-	gateInput, preDropped := evolution.PreVeto(merged, existing, resolved.DedupThreshold)
-	if err := (protocol.CandidatePool{Version: 1, Candidates: gateInput}).Save(filepath.Join(dot, protocol.GateInputFile)); err != nil {
+	if err := (protocol.CandidatePool{Version: 1, Candidates: mr.gateInput}).Save(filepath.Join(dot, protocol.GateInputFile)); err != nil {
 		return fmt.Errorf("save gate-input: %w", err)
 	}
-	deduped := (len(all) - len(keptNew)) + len(preDropped)
 
-	// 3. gate role：runner 子程序讀 gate-input.json，寫 gate-verdicts.json。空輸入則略過 LLM。
-	var verdicts []evolution.Verdict
-	if len(gateInput) > 0 {
-		prompt, perr := buildGatePrompt(ws, cfg)
-		if perr != nil {
-			return perr
-		}
-		if _, rerr := deps.gateRunner.Run(ctx, prompt); rerr != nil {
-			return fmt.Errorf("gate runner: %w", rerr)
-		}
-		verdicts, perr = evolution.ParseVerdicts(filepath.Join(dot, protocol.GateVerdictsFile))
-		if perr != nil {
-			return fmt.Errorf("gate role produced no parseable verdicts: %w", perr)
-		}
+	accepted, rejected, err := evolveGate(ctx, ws, cfg, deps, mr.gateInput, mr.existing, resolved)
+	if err != nil {
+		return err
 	}
 
-	// 4. gate post：套用不可翻硬否決與 convergence cap，通過者寫 accepted-candidates.json。
-	accepted, rejected := evolution.PostVeto(gateInput, verdicts, existing, resolved)
-	if err := (protocol.CandidatePool{Version: 1, Candidates: accepted}).Save(filepath.Join(dot, protocol.AcceptedCandidatesFile)); err != nil {
-		return fmt.Errorf("save accepted-candidates: %w", err)
-	}
-
-	// 5+6. enrich + enqueue：每個 accepted 物化成 not-started feature（enrich 失敗則 bare fallback）。
 	idf := feat.ResolveIDFormat(cfg.FeatureIDPrefix, cfg.FeatureIDDigits)
 	enqueued := enqueueAccepted(ctx, ws, accepted, deps.enrichRunner, idf)
 
-	// 7. auto-run（可選）：對每個排入的 feature 跑 meta-loop，受 F098 self-mod guard 標記。
 	var autoRan []evolution.AutoRunResult
 	if opts.autoRun && deps.runFeature != nil {
 		autoRan = autoRunEnqueued(ctx, ws, enqueued, deps.runFeature)
 	}
 
-	// 8. anti-spin 計數更新 + 持久化。
-	if len(accepted) == 0 {
-		estate.ConsecutiveNoAccept++
-	} else {
-		estate.ConsecutiveNoAccept = 0
-	}
-	estate.Version = 1
-	estate.Round = round
-	estate.LastRunAt = time.Now()
+	updateAntiSpin(&estate, round, len(accepted))
 	if err := estate.Save(statePath); err != nil {
 		return fmt.Errorf("save evolve-state: %w", err)
 	}
 
-	// 9. 寫 report。
 	result := evolution.EvolveRoundResult{
 		Round:               round,
-		Mined:               gateInput,
-		Deduped:             deduped,
+		Mined:               mr.gateInput,
+		Deduped:             mr.deduped,
 		Accepted:            accepted,
 		Rejected:            rejected,
 		Enqueued:            enqueued,
@@ -331,33 +306,84 @@ func runEvolve(ctx context.Context, ws *protocol.Workspace, cfg protocol.Config,
 			Gated    int `json:"gated"`
 			Accepted int `json:"accepted"`
 			Enqueued int `json:"enqueued"`
-		}{round, len(all), len(gateInput), len(accepted), len(enqueued)})
+		}{round, len(mr.all), len(mr.gateInput), len(accepted), len(enqueued)})
 	}
 
 	fmt.Printf("evolve round %d: mined %d → gate %d → accepted %d → enqueued %d (auto-ran %d)\n",
-		round, len(all), len(gateInput), len(accepted), len(enqueued), len(autoRan))
+		round, len(mr.all), len(mr.gateInput), len(accepted), len(enqueued), len(autoRan))
 	return nil
+}
+
+// reportHalt 處理 anti-spin 早退：寫 report 標 Halted，印訊息後 exit 0。
+func reportHalt(dot string, estate evolution.EvolveState, maxIdleRounds int, opts evolveOpts) error {
+	result := evolution.EvolveRoundResult{
+		Round:               estate.Round,
+		Halted:              true,
+		ConsecutiveNoAccept: estate.ConsecutiveNoAccept,
+	}
+	if werr := writeEvolveReport(dot, result); werr != nil {
+		return werr
+	}
+	if opts.jsonOutput {
+		return printJSON(struct {
+			Round    int  `json:"round"`
+			Mined    int  `json:"mined"`
+			Gated    int  `json:"gated"`
+			Accepted int  `json:"accepted"`
+			Enqueued int  `json:"enqueued"`
+			Halted   bool `json:"halted"`
+		}{estate.Round, 0, 0, 0, 0, true})
+	}
+	fmt.Printf("evolve halted: %d consecutive idle round(s) >= max_idle_rounds %d. Use --force to override.\n",
+		estate.ConsecutiveNoAccept, maxIdleRounds)
+	return nil
+}
+
+// evolveGate 執行 gate role（LLM 子程序）與 PostVeto，回傳 accepted/rejected candidates。
+// gateInput 為空時略過 LLM 呼叫。
+func evolveGate(ctx context.Context, ws *protocol.Workspace, cfg protocol.Config, deps evolveDeps, gateInput []protocol.Candidate, existing []feat.Feature, resolved evolution.ResolvedEvolution) (accepted []protocol.Candidate, rejected []evolution.Rejection, err error) {
+	dot := ws.DotDir()
+	var verdicts []evolution.Verdict
+	if len(gateInput) > 0 {
+		prompt, perr := buildGatePrompt(ws, cfg)
+		if perr != nil {
+			return nil, nil, perr
+		}
+		if _, rerr := deps.gateRunner.Run(ctx, prompt); rerr != nil {
+			return nil, nil, fmt.Errorf("gate runner: %w", rerr)
+		}
+		verdicts, perr = evolution.ParseVerdicts(filepath.Join(dot, protocol.GateVerdictsFile))
+		if perr != nil {
+			return nil, nil, fmt.Errorf("gate role produced no parseable verdicts: %w", perr)
+		}
+	}
+
+	accepted, rejected = evolution.PostVeto(gateInput, verdicts, existing, resolved)
+	if serr := (protocol.CandidatePool{Version: 1, Candidates: accepted}).Save(filepath.Join(dot, protocol.AcceptedCandidatesFile)); serr != nil {
+		return nil, nil, fmt.Errorf("save accepted-candidates: %w", serr)
+	}
+	return accepted, rejected, nil
+}
+
+// updateAntiSpin 更新 evolve state 的 anti-spin 計數與 round 紀錄。
+func updateAntiSpin(estate *evolution.EvolveState, round, acceptedCount int) {
+	if acceptedCount == 0 {
+		estate.ConsecutiveNoAccept++
+	} else {
+		estate.ConsecutiveNoAccept = 0
+	}
+	estate.Version = 1
+	estate.Round = round
+	estate.LastRunAt = time.Now()
 }
 
 // runEvolveDryRun 只讀分析：mine 掃描 + dedupe + PreVeto 皆在記憶體，印摘要到 stdout，
 // 不寫任何 .4x/ 檔、不 spawn runner、不建 feature。
 func runEvolveDryRun(ws *protocol.Workspace, resolved evolution.ResolvedEvolution, opts evolveOpts) error {
-	dot := ws.DotDir()
-	// feature 清單一次讀取，掃描器與去重、PreVeto 皆共用同一份。
-	existing, err := ws.ListFeatures()
+	mr, err := mineAndDedupe(ws, resolved, opts.minOccurrences)
 	if err != nil {
 		return err
 	}
-	existingPool, err := protocol.LoadCandidates(filepath.Join(dot, protocol.CandidatesFile))
-	if err != nil {
-		return err
-	}
-	all, _ := scanEvolveCandidates(ws, existing, opts.minOccurrences)
-	keptNew := protocol.DedupeCandidates(all, existing, existingPool.Candidates)
-	merged := make([]protocol.Candidate, 0, len(existingPool.Candidates)+len(keptNew))
-	merged = append(merged, existingPool.Candidates...)
-	merged = append(merged, keptNew...)
-	gateInput, _ := evolution.PreVeto(merged, existing, resolved.DedupThreshold)
 
 	if opts.jsonOutput {
 		return printJSON(struct {
@@ -365,11 +391,11 @@ func runEvolveDryRun(ws *protocol.Workspace, resolved evolution.ResolvedEvolutio
 			Scanned      int  `json:"scanned"`
 			New          int  `json:"new"`
 			WouldEnqueue int  `json:"wouldEnqueue"`
-		}{true, len(all), len(keptNew), len(gateInput)})
+		}{true, len(mr.all), len(mr.keptNew), len(mr.gateInput)})
 	}
 
 	fmt.Printf("dry-run: scanned %d candidate(s), %d new after dedupe, %d would be sent to gate\n",
-		len(all), len(keptNew), len(gateInput))
+		len(mr.all), len(mr.keptNew), len(mr.gateInput))
 	fmt.Println("dry-run: nothing written, no runner spawned, no feature created.")
 	return nil
 }

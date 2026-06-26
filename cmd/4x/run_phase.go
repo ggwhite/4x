@@ -132,6 +132,7 @@ func successorPhase(p protocol.Phase) (protocol.Phase, protocol.Role) {
 }
 
 func dryRunLoop(ws *protocol.Workspace, feature feat.Feature, cfg protocol.Config, s protocol.State) error {
+	rc := &runContext{ws: ws, runnerWs: ws, feature: feature, cfg: cfg}
 	phases := []struct {
 		phase protocol.Phase
 		role  protocol.Role
@@ -146,7 +147,7 @@ func dryRunLoop(ws *protocol.Workspace, feature feat.Feature, cfg protocol.Confi
 
 	for _, p := range phases {
 		fmt.Printf("=== %s (%s) ===\n", p.phase, p.role)
-		prompt, err := generatePrompt(ws, ws, feature, cfg, p.role, 1, 0, "")
+		prompt, err := generatePrompt(rc, p.role, 1, 0, "")
 		if err != nil {
 			fmt.Printf("  (error: %v)\n\n", err)
 			continue
