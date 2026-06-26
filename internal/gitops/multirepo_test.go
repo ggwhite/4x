@@ -437,6 +437,68 @@ func TestMultiRepo_MergeBranchMissingInSomeRepos(t *testing.T) {
 	}
 }
 
+// worktree 模式下，主工作區非 feature repo 的 dirty files 不應被回報為 changed，
+// 否則 guard.checkScope 會誤判 scope violation。
+func TestMultiRepo_DetectChangedRepos_WortkreeSkipsNonFeatureRepos(t *testing.T) {
+	root, _, ops := setupMultiWorkspace(t)
+
+	// 只對 core 建 worktree（模擬 feature.Repos = ["core"]）
+	wtPath, err := ops.SetupWorktree("feat-scope", []string{"core"})
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+
+	// 在主工作區的 gate 加入 dirty file（模擬使用者其他未提交的修改）
+	os.WriteFile(filepath.Join(root, "gate", "dirty.txt"), []byte("dirty"), 0o644)
+	exec.Command("git", "-C", filepath.Join(root, "gate"), "add", "dirty.txt").Run()
+
+	// 在 worktree 的 core 加入變更（模擬 Coder 的工作）
+	os.WriteFile(filepath.Join(wtPath, "core", "new.go"), []byte("package core\n"), 0o644)
+
+	changed := ops.DetectChangedRepos("feat-scope")
+
+	hasCore := false
+	hasGate := false
+	for _, r := range changed {
+		if r == "core" {
+			hasCore = true
+		}
+		if r == "gate" {
+			hasGate = true
+		}
+	}
+	if !hasCore {
+		t.Error("core should be detected as changed (has worktree changes)")
+	}
+	if hasGate {
+		t.Error("gate must NOT be detected — no worktree for it, main workspace dirty files should be ignored")
+	}
+}
+
+// worktree 模式下，DetectChangedFiles 同理不應包含非 feature repo 的變更。
+func TestMultiRepo_DetectChangedFiles_WorktreeSkipsNonFeatureRepos(t *testing.T) {
+	root, _, ops := setupMultiWorkspace(t)
+
+	wtPath, err := ops.SetupWorktree("feat-scope2", []string{"core"})
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+
+	os.WriteFile(filepath.Join(root, "gate", "dirty.txt"), []byte("dirty"), 0o644)
+	os.WriteFile(filepath.Join(wtPath, "core", "new.go"), []byte("package core\n"), 0o644)
+
+	files := ops.DetectChangedFiles("feat-scope2")
+
+	for _, f := range files {
+		if len(f.Path) >= 5 && f.Path[:5] == "gate/" {
+			t.Errorf("gate file should not appear in DetectChangedFiles, got %q", f.Path)
+		}
+	}
+	if len(files) == 0 {
+		t.Error("expected at least core changes")
+	}
+}
+
 func TestMultiRepo_CaptureBaseline_AllReposWhenEmpty(t *testing.T) {
 	_, ws, ops := setupMultiWorkspace(t)
 	if err := ws.InitFeatureDir("feat-base3"); err != nil {

@@ -286,16 +286,22 @@ func resolveWorktreeParent(wtDir string) string {
 // DetectChangedRepos 找出 feature 範圍內哪些 repo 有 uncommitted 變更。
 // worktree 隔離模式下每個 repo 的工作目錄是 <worktreeRoot>/<name>（與 SetupWorktree
 // 的佈局一致），而非 main workspace 下的 rc.Path；故先確認該 worktree 子目錄確為 linked
-// worktree 再在其中執行 git 指令，否則回退到 main 的 rc.Path 維持非 worktree 情境的既有行為。
-// tracked 變更（git diff HEAD）與 untracked 新檔（git ls-files --others）任一非空即視為變更，
-// 後者是 git diff HEAD 涵蓋不到、會被靜默繞過的缺口。
+// worktree 再在其中執行 git 指令。
+// worktree 目錄存在時，沒有 linked worktree 的 repo 代表不在此 feature 的工作範圍內，
+// 跳過不檢查——否則會掃到主工作區的無關 dirty files 而誤判 scope violation。
+// 非 worktree 情境則回退到 main 的 rc.Path 維持既有行為。
 func (m *multiRepo) DetectChangedRepos(featureID string) []string {
 	wtDir := Dir(m.root, featureID)
+	_, wtErr := os.Stat(wtDir)
+	wtActive := wtErr == nil
 	var changed []string
 	for name, rc := range m.cfg.Workspace.Repos {
 		repoPath := filepath.Join(m.root, rc.Path)
-		if wtRepoDir := filepath.Join(wtDir, name); isLinkedWorktree(wtRepoDir) {
+		wtRepoDir := filepath.Join(wtDir, name)
+		if isLinkedWorktree(wtRepoDir) {
 			repoPath = wtRepoDir
+		} else if wtActive {
+			continue
 		}
 		diff := gitOutput(repoPath, "diff", "--name-only", "HEAD")
 		untracked := gitOutput(repoPath, "ls-files", "--others", "--exclude-standard")
@@ -308,14 +314,20 @@ func (m *multiRepo) DetectChangedRepos(featureID string) []string {
 
 // DetectChangedFiles 回傳 feature 範圍內各 repo 的檔案層變更清單，路徑以 "<repo 名稱>/" 為前綴。
 // worktree 隔離模式下每個 repo 的工作目錄是 <worktreeRoot>/<name>（與 DetectChangedRepos 一致），
-// 否則回退 main 的 rc.Path。供 self-mod guard 做受保護路徑前綴比對與 diff-budget。
+// worktree 目錄存在時跳過沒有 linked worktree 的 repo，避免掃到主工作區的無關變更。
+// 非 worktree 情境回退 main 的 rc.Path。供 self-mod guard 做受保護路徑前綴比對與 diff-budget。
 func (m *multiRepo) DetectChangedFiles(featureID string) []protocol.ChangedFile {
 	wtDir := Dir(m.root, featureID)
+	_, wtErr := os.Stat(wtDir)
+	wtActive := wtErr == nil
 	var files []protocol.ChangedFile
 	for name, rc := range m.cfg.Workspace.Repos {
 		repoPath := filepath.Join(m.root, rc.Path)
-		if wtRepoDir := filepath.Join(wtDir, name); isLinkedWorktree(wtRepoDir) {
+		wtRepoDir := filepath.Join(wtDir, name)
+		if isLinkedWorktree(wtRepoDir) {
 			repoPath = wtRepoDir
+		} else if wtActive {
+			continue
 		}
 		files = append(files, changedFilesIn(repoPath, name+"/")...)
 	}
