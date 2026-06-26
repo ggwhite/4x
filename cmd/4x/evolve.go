@@ -286,7 +286,8 @@ func runEvolve(ctx context.Context, ws *protocol.Workspace, cfg protocol.Config,
 	}
 
 	// 5+6. enrich + enqueue：每個 accepted 物化成 not-started feature（enrich 失敗則 bare fallback）。
-	enqueued := enqueueAccepted(ctx, ws, accepted, deps.enrichRunner)
+	idf := feat.ResolveIDFormat(cfg.FeatureIDPrefix, cfg.FeatureIDDigits)
+	enqueued := enqueueAccepted(ctx, ws, accepted, deps.enrichRunner, idf)
 
 	// 7. auto-run（可選）：對每個排入的 feature 跑 meta-loop，受 F098 self-mod guard 標記。
 	var autoRan []evolution.AutoRunResult
@@ -375,7 +376,7 @@ func runEvolveDryRun(ws *protocol.Workspace, resolved evolution.ResolvedEvolutio
 
 // enqueueAccepted 把每個 accepted candidate 物化成 not-started feature 並存檔。
 // enrichRunner 非 nil 時先經 LLM 補強；補強失敗或 discarded 則退回 bare candidate（裁決 3）。
-func enqueueAccepted(ctx context.Context, ws *protocol.Workspace, accepted []protocol.Candidate, enrichRunner runner.Runner) []evolution.EnqueuedFeature {
+func enqueueAccepted(ctx context.Context, ws *protocol.Workspace, accepted []protocol.Candidate, enrichRunner runner.Runner, idf feat.IDFormat) []evolution.EnqueuedFeature {
 	var enricher *enrich.Enricher
 	if enrichRunner != nil {
 		// autoApprove=true → enrich 成功時 status 即 not-started（裁決 2：閘門即核准）。
@@ -384,13 +385,13 @@ func enqueueAccepted(ctx context.Context, ws *protocol.Workspace, accepted []pro
 
 	var enqueued []evolution.EnqueuedFeature
 	for _, c := range accepted {
-		next, nerr := feat.NextNumber(ws)
+		next, nerr := feat.NextNumber(ws, idf)
 		if nerr != nil {
 			slog.Warn("evolve: next feature number failed", "title", c.Title, "error", nerr)
 			continue
 		}
-		id := feat.GenerateFeatureID(next, c.Title)
-		name := fmt.Sprintf("F%03d: %s", next, c.Title)
+		id := feat.GenerateFeatureID(next, c.Title, idf)
+		name := idf.FormatDisplayName(next, c.Title)
 
 		var f feat.Feature
 		enriched := false

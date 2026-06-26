@@ -405,8 +405,8 @@ func TestPostNew(t *testing.T) {
 	if err := json.NewDecoder(rec.Body).Decode(&result); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if result.Name != "My New Feature" {
-		t.Errorf("Name = %q, want My New Feature", result.Name)
+	if result.Name != "F001: My New Feature" {
+		t.Errorf("Name = %q, want 'F001: My New Feature'", result.Name)
 	}
 	if _, err := ws.LoadFeature(result.ID); err != nil {
 		t.Errorf("LoadFeature(%q) failed: %v", result.ID, err)

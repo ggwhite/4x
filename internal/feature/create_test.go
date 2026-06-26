@@ -11,8 +11,8 @@ func TestCreate_BasicFields(t *testing.T) {
 	if f.ID != "F001-my-feature" {
 		t.Errorf("ID = %q, want F001-my-feature", f.ID)
 	}
-	if f.Name != "My Feature" {
-		t.Errorf("Name = %q, want 'My Feature'", f.Name)
+	if f.Name != "F001: My Feature" {
+		t.Errorf("Name = %q, want 'F001: My Feature'", f.Name)
 	}
 	if f.Description != "My Feature" {
 		t.Errorf("Description should default to Name, got %q", f.Description)

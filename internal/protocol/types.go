@@ -338,6 +338,10 @@ type Config struct {
 	// EnrichAutoApprove 控制 enrich 後的 feature 狀態：true → not-started（全自動），
 	// false → draft（需人工 approve）。僅在 EnrichDiscoveredFeatures 開啟時有意義。預設 false。
 	EnrichAutoApprove bool `json:"enrich_auto_approve,omitempty"`
+	// FeatureIDPrefix 設定 feature ID 的前綴字串（如 "F"、"ws-"），預設 "F"。
+	FeatureIDPrefix string `json:"feature_id_prefix,omitempty"`
+	// FeatureIDDigits 設定 feature ID 流水號的最小位數（零補齊），預設 3。
+	FeatureIDDigits int `json:"feature_id_digits,omitempty"`
 	// DesignDocDirs 指定設計文件（spec/plan）的額外搜尋目錄，優先於預設 docs/design/。
 	// 例如 ["docs/feature"] 會讓 ResolveDesignDoc 先找 docs/feature/{id}-spec.md。
 	DesignDocDirs []string `json:"design_doc_dirs,omitempty"`

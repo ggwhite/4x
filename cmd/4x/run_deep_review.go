@@ -566,15 +566,17 @@ func autoDiscoverFeatures(ctx context.Context, ws *protocol.Workspace, feature f
 		enricher = enrich.New(ws, r, cfg.EnrichAutoApprove)
 	}
 
+	idf := feat.ResolveIDFormat(cfg.FeatureIDPrefix, cfg.FeatureIDDigits)
+
 	var createdList []discoveredCreated
 	var enrichFailed []protocol.DiscoveredFeature
 	for _, d := range kept {
-		next, nerr := feat.NextNumber(ws)
+		next, nerr := feat.NextNumber(ws, idf)
 		if nerr != nil {
 			slog.Warn("auto-discover: next feature number failed", "feature", feature.ID, "title", d.Title, "error", nerr)
 			continue
 		}
-		id := feat.GenerateFeatureID(next, d.Title)
+		id := feat.GenerateFeatureID(next, d.Title, idf)
 
 		var f feat.Feature
 		if enricher != nil {
@@ -591,11 +593,11 @@ func autoDiscoverFeatures(ctx context.Context, ws *protocol.Workspace, feature f
 			}
 			f = result.Feature
 			f.ID = id
-			f.Name = fmt.Sprintf("F%03d: %s", next, d.Title)
+			f.Name = idf.FormatDisplayName(next, d.Title)
 		} else {
 			f = feat.Feature{
 				ID:          id,
-				Name:        fmt.Sprintf("F%03d: %s", next, d.Title),
+				Name:        idf.FormatDisplayName(next, d.Title),
 				Description: d.Description,
 				Status:      feat.StatusNotStarted,
 			}

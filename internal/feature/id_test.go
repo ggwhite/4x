@@ -47,6 +47,8 @@ func (m *mockStore) InitFeatureDir(id string) error { m.dirs = append(m.dirs, id
 
 func (m *mockStore) ResolveFeatureID(prefix string) (string, error) { return prefix, nil }
 
+var defaultIDF = ResolveIDFormat("", 0)
+
 func TestGenerateFeatureID(t *testing.T) {
 	tests := []struct {
 		num  int
@@ -63,9 +65,30 @@ func TestGenerateFeatureID(t *testing.T) {
 		{1, "abcdefghijklmnopqrstuvwxyz", "F001-abcdefghijklmnopqrstuvw"},
 	}
 	for _, tt := range tests {
-		got := GenerateFeatureID(tt.num, tt.name)
+		got := GenerateFeatureID(tt.num, tt.name, defaultIDF)
 		if got != tt.want {
 			t.Errorf("GenerateFeatureID(%d, %q) = %q, want %q", tt.num, tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestGenerateFeatureIDCustomPrefix(t *testing.T) {
+	tests := []struct {
+		idf  IDFormat
+		num  int
+		name string
+		want string
+	}{
+		{ResolveIDFormat("ws-", 3), 1, "login page", "ws-001-login-page"},
+		{ResolveIDFormat("ws-", 3), 42, "Auth Refactor", "ws-042-auth-refactor"},
+		{ResolveIDFormat("TASK", 4), 7, "fix bug", "TASK0007-fix-bug"},
+		{ResolveIDFormat("T-", 2), 99, "deploy", "T-99-deploy"},
+	}
+	for _, tt := range tests {
+		got := GenerateFeatureID(tt.num, tt.name, tt.idf)
+		if got != tt.want {
+			t.Errorf("GenerateFeatureID(%d, %q, prefix=%q digits=%d) = %q, want %q",
+				tt.num, tt.name, tt.idf.Prefix, tt.idf.Digits, got, tt.want)
 		}
 	}
 }
@@ -84,9 +107,29 @@ func TestGenerateFeatureIDFromSlug(t *testing.T) {
 		{43, "f043-dashboard-screenshot-gall", "F043-dashboard-screenshot-gall"},
 	}
 	for _, tt := range tests {
-		got := GenerateFeatureIDFromSlug(tt.num, tt.slug)
+		got := GenerateFeatureIDFromSlug(tt.num, tt.slug, defaultIDF)
 		if got != tt.want {
 			t.Errorf("GenerateFeatureIDFromSlug(%d, %q) = %q, want %q", tt.num, tt.slug, got, tt.want)
+		}
+	}
+}
+
+func TestGenerateFeatureIDFromSlugCustomPrefix(t *testing.T) {
+	idf := ResolveIDFormat("ws-", 3)
+	tests := []struct {
+		num  int
+		slug string
+		want string
+	}{
+		{1, "my-custom-id", "ws-001-my-custom-id"},
+		{10, "ws-010-already-prefixed", "ws-010-already-prefixed"},
+		{10, "WS-010-case-insensitive", "ws-010-case-insensitive"},
+	}
+	for _, tt := range tests {
+		got := GenerateFeatureIDFromSlug(tt.num, tt.slug, idf)
+		if got != tt.want {
+			t.Errorf("GenerateFeatureIDFromSlug(%d, %q, prefix=%q) = %q, want %q",
+				tt.num, tt.slug, idf.Prefix, got, tt.want)
 		}
 	}
 }
@@ -94,7 +137,7 @@ func TestGenerateFeatureIDFromSlug(t *testing.T) {
 func TestNextNumber(t *testing.T) {
 	store := newMockStore()
 
-	n, err := NextNumber(store)
+	n, err := NextNumber(store, defaultIDF)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +146,7 @@ func TestNextNumber(t *testing.T) {
 	}
 
 	store.features["F003-test"] = Feature{ID: "F003-test", Name: "test"}
-	n, err = NextNumber(store)
+	n, err = NextNumber(store, defaultIDF)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,12 +155,37 @@ func TestNextNumber(t *testing.T) {
 	}
 
 	store.features["F1000-four-digit"] = Feature{ID: "F1000-four-digit", Name: "four-digit"}
-	n, err = NextNumber(store)
+	n, err = NextNumber(store, defaultIDF)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if n != 1001 {
 		t.Errorf("got %d, want 1001", n)
+	}
+}
+
+func TestNextNumberCustomPrefix(t *testing.T) {
+	idf := ResolveIDFormat("ws-", 3)
+	store := newMockStore()
+
+	n, err := NextNumber(store, idf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Errorf("got %d, want 1", n)
+	}
+
+	store.features["ws-005-login"] = Feature{ID: "ws-005-login", Name: "login"}
+	// F-prefix features 不應被 ws- prefix 掃到
+	store.features["F001-unrelated"] = Feature{ID: "F001-unrelated", Name: "unrelated"}
+
+	n, err = NextNumber(store, idf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 6 {
+		t.Errorf("got %d, want 6", n)
 	}
 }
 
@@ -128,7 +196,7 @@ func TestNextNumberListError(t *testing.T) {
 	store := newMockStore()
 	store.listErr = sentinel
 
-	n, err := NextNumber(store)
+	n, err := NextNumber(store, defaultIDF)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -137,5 +205,42 @@ func TestNextNumberListError(t *testing.T) {
 	}
 	if n == 1 {
 		t.Errorf("got %d, want non-1 on error (must not silent fallback to 1)", n)
+	}
+}
+
+func TestResolveIDFormat(t *testing.T) {
+	idf := ResolveIDFormat("", 0)
+	if idf.Prefix != DefaultIDPrefix {
+		t.Errorf("default prefix = %q, want %q", idf.Prefix, DefaultIDPrefix)
+	}
+	if idf.Digits != DefaultIDDigits {
+		t.Errorf("default digits = %d, want %d", idf.Digits, DefaultIDDigits)
+	}
+
+	idf = ResolveIDFormat("ws-", 4)
+	if idf.Prefix != "ws-" {
+		t.Errorf("prefix = %q, want %q", idf.Prefix, "ws-")
+	}
+	if idf.Digits != 4 {
+		t.Errorf("digits = %d, want 4", idf.Digits)
+	}
+}
+
+func TestFormatDisplayName(t *testing.T) {
+	tests := []struct {
+		idf  IDFormat
+		num  int
+		name string
+		want string
+	}{
+		{defaultIDF, 1, "My Feature", "F001: My Feature"},
+		{ResolveIDFormat("ws-", 3), 42, "Login Page", "ws-042: Login Page"},
+		{ResolveIDFormat("TASK", 4), 7, "Fix Bug", "TASK0007: Fix Bug"},
+	}
+	for _, tt := range tests {
+		got := tt.idf.FormatDisplayName(tt.num, tt.name)
+		if got != tt.want {
+			t.Errorf("FormatDisplayName(%d, %q) = %q, want %q", tt.num, tt.name, got, tt.want)
+		}
 	}
 }

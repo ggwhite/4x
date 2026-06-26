@@ -71,8 +71,15 @@ Examples:
 				parsedSubtasks = append(parsedSubtasks, st)
 			}
 
-			// 傳「原始 name」給 Create，使 ID 由原始 name 產生並沿用既有截斷規則
-			// （若傳 display name，"F001: " 前綴會被併入 slug 產生 F001-f001-... 的重複前綴）。
+			cfg, cerr := ws.ReadConfig()
+			if cerr != nil {
+				if jsonOutput {
+					return jsonError(cerr.Error())
+				}
+				return cerr
+			}
+			idf := feature.ResolveIDFormat(cfg.FeatureIDPrefix, cfg.FeatureIDDigits)
+
 			opts := feature.CreateOpts{
 				Name:        name,
 				Description: description,
@@ -82,6 +89,7 @@ Examples:
 				Depends:     depends,
 				Repos:       repos,
 				Profile:     profileName,
+				IDFormat:    idf,
 			}
 			if cmd.Flags().Changed("priority") {
 				opts.Priority = &priority
@@ -89,16 +97,6 @@ Examples:
 
 			f, err := feature.Create(ws, opts)
 			if err != nil {
-				if jsonOutput {
-					return jsonError(err.Error())
-				}
-				return err
-			}
-
-			var num int
-			fmt.Sscanf(f.ID, "F%d-", &num)
-			f.Name = fmt.Sprintf("F%03d: %s", num, name)
-			if err := ws.SaveFeature(f); err != nil {
 				if jsonOutput {
 					return jsonError(err.Error())
 				}

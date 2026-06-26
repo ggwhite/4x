@@ -190,8 +190,9 @@ func handlePostNew(ws *protocol.CachedWorkspace, w http.ResponseWriter, r *http.
 		return
 	}
 
-	// 與 CLI 共用 feature.Create；*protocol.CachedWorkspace 隱式滿足 feature.Store。
-	// 只傳 name(+description) 的舊 request 維持向下相容（其餘欄位為零值）。
+	cfg, _ := ws.ReadConfig()
+	idf := feature.ResolveIDFormat(cfg.FeatureIDPrefix, cfg.FeatureIDDigits)
+
 	f, err := feature.Create(ws, feature.CreateOpts{
 		Name:        req.Name,
 		Description: req.Description,
@@ -200,6 +201,7 @@ func handlePostNew(ws *protocol.CachedWorkspace, w http.ResponseWriter, r *http.
 		Rules:       req.Rules,
 		Depends:     req.Depends,
 		Priority:    req.Priority,
+		IDFormat:    idf,
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
