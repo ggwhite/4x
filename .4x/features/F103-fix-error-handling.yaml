@@ -23,7 +23,7 @@ description: |-
     - 不改 function signature（不影響 caller）
     - cleanup 類的 `_ =`（如 defer f.Close()）不動
     - server handler 內的 error 用 slog.Warn 記錄即可，不需要 return
-status: not-started
+status: done
 priority: 3
 profile: quick
 rules:
