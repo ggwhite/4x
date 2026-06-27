@@ -26,7 +26,7 @@ description: |-
     - 測試檔放與被測程式同目錄
     - 用 Go 標準 testing package
     - 必須通過 go test -race
-status: not-started
+status: done
 priority: 3
 profile: quick
 subtasks:
