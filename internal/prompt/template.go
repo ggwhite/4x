@@ -42,6 +42,7 @@ var roleTemplateFiles = map[protocol.Role]string{
 	protocol.RoleSynthesizer:    "synthesizer.md.tmpl",
 	protocol.RoleGate:           "gate.md.tmpl",
 	protocol.RoleConsolidator:   "consolidate.md.tmpl",
+	protocol.RoleRoundSummarizer: "round-summarizer.md.tmpl",
 }
 
 // LoadRoleTemplate 載入指定 role 的 prompt template。

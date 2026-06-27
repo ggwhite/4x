@@ -52,6 +52,9 @@ const (
 	RoleGate Role = "gate"
 	// RoleConsolidator 是 learnings consolidator role，在 harvest 後判斷語意重複的 learnings 並合併/移除。
 	RoleConsolidator Role = "consolidator"
+	// RoleRoundSummarizer 是 round summarizer role，在進入 accepting 前將舊輪次的 review/test report
+	// 壓縮為 rounds-summary.md，供 Acceptor 取代讀取所有輪次全文。
+	RoleRoundSummarizer Role = "round-summarizer"
 )
 
 // SubPhase 表示 deep-reviewing phase 內的子步驟，僅在 phase==deep-reviewing 時有意義；

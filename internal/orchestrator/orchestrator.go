@@ -190,6 +190,10 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 		r.clearStaleEscalation(phase, &s)
 		r.clearStaleFinalReport(phase, &s)
 
+		if phase == protocol.PhaseAccepting && s.Round >= 3 {
+			r.runRoundSummarizer(ctx, s)
+		}
+
 		if stop, err := r.runHealthCheck(ctx, &s); err != nil {
 			return nil, err
 		} else if stop {
@@ -772,6 +776,56 @@ func (r *Runner) runConsolidate(ctx context.Context, s protocol.State) {
 	}
 	if merged+removed > 0 {
 		slog.Info("learnings consolidated", "merged", merged, "removed", removed)
+	}
+}
+
+// runRoundSummarizer 在進入 accepting phase 且 round ≥ 3 時呼叫 AI 壓縮舊輪次 report。
+// 產出 rounds-summary.md，供 Acceptor 取代讀取所有輪次全文。
+// 屬 nice-to-have，任何錯誤只 warn 不影響 accepting 執行。
+func (r *Runner) runRoundSummarizer(ctx context.Context, s protocol.State) {
+	featureID := r.featureID()
+	summaryPath := filepath.Join(r.Ws.FeatureDir(featureID), protocol.RoundsSummaryFile)
+	if _, err := os.Stat(summaryPath); err == nil {
+		return // 已存在，避免重跑
+	}
+
+	tmpl, err := prompt.LoadRoleTemplate(r.Ws.DotDir(), protocol.RoleRoundSummarizer)
+	if err != nil {
+		slog.Warn("load round-summarizer template failed", "error", err)
+		return
+	}
+	locale, localeName := prompt.ResolveLocale()
+	var b strings.Builder
+	data := prompt.Data{
+		Role:       protocol.RoleRoundSummarizer,
+		Config:     r.Cfg,
+		DotDir:     r.RunnerWs.DotDir(),
+		Feature:    r.Feature,
+		Round:      s.Round,
+		Locale:     locale,
+		LocaleName: localeName,
+	}
+	if err := tmpl.Execute(&b, data); err != nil {
+		slog.Warn("render round-summarizer prompt failed", "error", err)
+		return
+	}
+
+	runnerName := r.Cfg.Default
+	rcfg, ok := r.Cfg.Runners[runnerName]
+	if !ok {
+		slog.Warn("round-summarizer: default runner not found", "runner", runnerName)
+		return
+	}
+	logPath := filepath.Join(r.Ws.FeatureDir(featureID), "round-summarizer.log")
+	model := ""
+	if m, merr := protocol.ResolveModel(r.Cfg, runnerName, protocol.RoleReviewer); merr == nil {
+		model = m
+	}
+	cr := runner.NewRunner(r.RunnerWs, runnerName, rcfg, 120*time.Second, logPath, model)
+
+	slog.Info("running round summarizer", "feature", featureID, "round", s.Round)
+	if _, rerr := cr.Run(ctx, b.String()); rerr != nil {
+		slog.Warn("round-summarizer runner failed", "error", rerr)
 	}
 }
 

@@ -175,7 +175,7 @@
     "acceptor": {
       "model": "sonnet",
       "instructions": [
-        "必須讀取所有 round 的 review-report、test-report、deep-review-report，不只最後一輪",
+        "round ≥ 3 時讀 rounds-summary.md（若存在）+ 最後兩輪全文；round < 3 時只讀最終輪全文",
         "All Issues Raised 表格要列出每個 issue 的來源 role、round、severity、是否已修",
         "對 OPEN 的 issue 要誠實標註，不可隱藏未解決的問題"
       ]

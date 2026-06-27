@@ -17,14 +17,20 @@ Use the Write tool. Do NOT just print the content — write to disk.
 1. Read: {{.DotDir}}/run/{{.Feature.ID}}/task-brief.md — the original design intent
 2. Read: {{.DotDir}}/run/{{.Feature.ID}}/acceptance-criteria.md — what must be true
 {{- end}}
+{{- if ge .Round 3}}
+3. Read: {{.DotDir}}/run/{{.Feature.ID}}/rounds-summary.md — compressed summary of rounds 1–{{sub .Round 2}} (issues raised, resolution status, key decisions)
+4. Read the LAST TWO rounds in full:
+   - {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{sub .Round 1}}/ — review-report.md, test-report.md, deep-review-report.md (if present)
+   - {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/ — review-report.md, test-report.md, deep-review-report.md (if present)
+{{- else}}
 3. Read the FINAL round's reports under {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/:
    - review-report.md — checklist reviewer findings
    - test-report.md — test results and pass/fail per AC
    - deep-review-report.md — adversarial review findings (if present)
-4. Read any escalation.json across rounds (if present) — unresolved blockers raised mid-loop
-5. Run: git log --oneline -30 — see what commits were made
-You do NOT need to read every round's report in full — earlier issues that were fixed in
-a later round are already reflected in the final round. Surface only what is still OPEN.
+{{- end}}
+- Read any escalation.json across rounds (if present) — unresolved blockers raised mid-loop
+- Run: git log --oneline -30 — see what commits were made
+Surface only issues that are still OPEN. Issues fixed in a later round do not need re-listing.
 {{- if .ProjectIncludes}}
 {{range .ProjectIncludes}}
 

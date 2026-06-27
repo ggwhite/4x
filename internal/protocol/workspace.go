@@ -65,6 +65,10 @@ const (
 	ConsolidateInputFile  = "consolidate-input.json"  // .4x/consolidate-input.json，供 consolidate runner 讀
 	ConsolidateResultFile = "consolidate-result.json" // .4x/consolidate-result.json，consolidate runner 產出
 
+	// RoundsSummaryFile 是舊輪次摘要，在 round ≥ 3 進入 accepting 前由 round-summarizer 產出。
+	// Acceptor 讀此檔取代讀取所有輪次全文，節省 context。
+	RoundsSummaryFile = "rounds-summary.md"
+
 	// DeepReviewAnglesFile 是 deep review 角度選擇結果的 artifact，記錄本次選了哪些角度及原因。
 	DeepReviewAnglesFile = "deep-review-angles.json"
 )
