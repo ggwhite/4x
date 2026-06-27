@@ -188,7 +188,7 @@
       "model": "opus",
       "output_format": "stream-json",
       "tiers": {
-        "opus": "claude-opus-4-6[1m]",
+        "opus": "claude-opus-4-6",
         "sonnet": "sonnet"
       }
     }
