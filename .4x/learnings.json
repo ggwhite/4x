@@ -35,7 +35,7 @@
       "id": "L004",
       "source_feature": "F095-history-miner",
       "category": "testing",
-      "content": "對「重跑/idempotency」類命令，必須在 AC 與測試中明確涵蓋「對未變動輸入重跑結果穩定」案例；本次此情境直到 deep-review 才被發現為 CRITICAL，應在 designer 階段就列為驗收項。",
+      "content": "對「重跑/idempotency」類命令，AC 與測試必須明確涵蓋「對未變動輸入重跑結果穩定」案例，且避免用固定 slice 的 fake 掩蓋真實非決定性來源（如 map iteration order）",
       "created_at": "2026-06-22T15:08:29.037309+08:00",
       "last_used": "2026-06-22T19:30:37.62636+08:00",
       "used_count": 6,
@@ -72,20 +72,10 @@
       "status": "active"
     },
     {
-      "id": "L008",
-      "source_feature": "F098-self-mod-scope-guard",
-      "category": "testing",
-      "content": "宣稱 idempotent 的 AC 要避免用固定 slice 的 fake 掩蓋真實非決定性來源（如 multi-repo map iteration）；測試應覆蓋會產生順序變動的實際 detector。",
-      "created_at": "2026-06-22T17:02:55.599908+08:00",
-      "last_used": "0001-01-01T00:00:00Z",
-      "used_count": 0,
-      "status": "active"
-    },
-    {
       "id": "L009",
       "source_feature": "F096-discovered-feature-enrichment",
       "category": "design",
-      "content": "task-brief 應主動標出 spec 與 plan 程式碼骨架的矛盾並裁決（如 draft 是 Status 非 Phase、reject 後用 abandoned 非 done），避免 Coder 照抄錯誤骨架。",
+      "content": "task-brief 應主動標出 spec、plan 與現況程式碼的矛盾並裁決（如型別名不一致、過時假設、out-of-scope 項目），在開頭明列「設計裁決」覆寫 plan，避免 Coder 照抄錯誤骨架或重造輪子",
       "created_at": "2026-06-22T17:56:03.049721+08:00",
       "last_used": "2026-06-24T21:02:34.437805+08:00",
       "used_count": 5,
@@ -162,16 +152,6 @@
       "status": "active"
     },
     {
-      "id": "L017",
-      "source_feature": "F097-evolution-value-gate",
-      "category": "process",
-      "content": "當 plan 基於過時假設（假設依賴 feature 未實作）而現況已 merge，task-brief 應在開頭明列「設計裁決」覆寫 plan 並指定重用既有型別，避免 coder 重造輪子。",
-      "created_at": "2026-06-22T18:59:50.866254+08:00",
-      "last_used": "2026-06-24T20:02:22.033156+08:00",
-      "used_count": 3,
-      "status": "active"
-    },
-    {
       "id": "L018",
       "source_feature": "F099-evolve-driver",
       "category": "code-quality",
@@ -212,40 +192,10 @@
       "status": "active"
     },
     {
-      "id": "L022",
-      "source_feature": "F100-mcp-server-full",
-      "category": "review",
-      "content": "純格式違規（gofmt struct tag 對齊）這類零風險阻擋項，Coder 在送 review 前應先跑 gofmt -l 對 feature diff 檔自檢，避免浪費一整輪 review/amend 循環。",
-      "created_at": "2026-06-24T20:37:27.5517+08:00",
-      "last_used": "2026-06-27T10:34:48.628252+08:00",
-      "used_count": 1,
-      "status": "active"
-    },
-    {
-      "id": "L023",
-      "source_feature": "F100-mcp-server-full",
-      "category": "design",
-      "content": "task-brief 在開頭明列「設計裁決」覆寫 feature 描述中的矛盾（如 notify 無 CLI 指令、batch run 阻塞不適合 MCP），能讓 Coder 不重造輪子、不誤實作 out-of-scope 項目。",
-      "created_at": "2026-06-24T20:37:27.5517+08:00",
-      "last_used": "2026-06-24T21:02:34.437805+08:00",
-      "used_count": 1,
-      "status": "active"
-    },
-    {
-      "id": "L024",
-      "source_feature": "F101-dedupe-cli-server",
-      "category": "tooling",
-      "content": "make lint 只跑 go vet 不檢查格式，gofmt 違規會漏過驗證鏈進 commit；應把 `gofmt -l`（非空即失敗）加進 lint 或 CI 守門。",
-      "created_at": "2026-06-24T21:32:14.561822+08:00",
-      "last_used": "0001-01-01T00:00:00Z",
-      "used_count": 0,
-      "status": "active"
-    },
-    {
       "id": "L025",
       "source_feature": "F101-dedupe-cli-server",
       "category": "code-quality",
-      "content": "下沉重構移除某函式的 production 呼叫者後，若該函式只為某測試存活，應一併刪除並讓測試直接呼叫下沉後的共用函式，避免遺留 dead-code wrapper。",
+      "content": "重構下沉移除某函式的 production 呼叫者後，應確認剩餘呼叫端是否存在；若該函式只為某測試或特殊場景存活，應一併刪除，不留 dead-code wrapper",
       "created_at": "2026-06-24T21:32:14.561822+08:00",
       "last_used": "2026-06-27T15:03:56.318065+08:00",
       "used_count": 2,
@@ -275,7 +225,7 @@
       "id": "L028",
       "source_feature": "F103-fix-error-handling",
       "category": "code-quality",
-      "content": "新增縮排程式碼時，直接用 gofmt -w 整理後再 commit，可避免 Reviewer FAIL 並省去 Round 2 的額外 amending 成本",
+      "content": "Coder 送 review 前必須跑 gofmt -w 整理格式（make lint 只跑 go vet 不檢查格式），在同一 commit 內提交，避免 Reviewer FAIL 並省去額外 amending 成本",
       "created_at": "2026-06-27T10:23:04.125803+08:00",
       "last_used": "2026-06-27T15:03:56.318065+08:00",
       "used_count": 3,
@@ -315,18 +265,8 @@
       "id": "L032",
       "source_feature": "F104-split-workspace",
       "category": "process",
-      "content": "God Object 拆分是低風險重構，一輪即通過——此類 feature 適合用 lite profile 減少不必要的 review 輪次",
+      "content": "God Object 拆分（大型 cmd 層下沉至 internal/）是低風險重構，一輪即通過；此類 feature 適合用 lite profile 減少不必要的 review 輪次",
       "created_at": "2026-06-27T10:40:05.18341+08:00",
-      "last_used": "2026-06-27T15:03:56.318065+08:00",
-      "used_count": 2,
-      "status": "active"
-    },
-    {
-      "id": "L033",
-      "source_feature": "F105-extract-prompt-pkg",
-      "category": "code-quality",
-      "content": "重構下沉後，若有為特殊呼叫場景（如 gate）準備的 helper，必須確認有實際呼叫端再保留；否則應一併刪除，不留 dead-code wrapper",
-      "created_at": "2026-06-27T11:21:09.088922+08:00",
       "last_used": "2026-06-27T15:03:56.318065+08:00",
       "used_count": 2,
       "status": "active"
@@ -352,41 +292,11 @@
       "status": "active"
     },
     {
-      "id": "L036",
-      "source_feature": "F106-extract-orchestrator",
-      "category": "process",
-      "content": "God Object 拆分（大型 cmd 層下沉至 internal/）是低風險重構，架構清晰且測試全過；此類 feature 適合用 lite profile（無 deep-review 輪次）以節省成本",
-      "created_at": "2026-06-27T17:07:38.975643+08:00",
-      "last_used": "0001-01-01T00:00:00Z",
-      "used_count": 0,
-      "status": "active"
-    },
-    {
-      "id": "L037",
-      "source_feature": "F106-extract-orchestrator",
-      "category": "code-quality",
-      "content": "搬遷後必須在同一個 commit 內跑 gofmt -w 並提交，不可依賴「之後補」——Round 1 因此 FAIL，額外多了一輪修復成本",
-      "created_at": "2026-06-27T17:07:38.975643+08:00",
-      "last_used": "0001-01-01T00:00:00Z",
-      "used_count": 0,
-      "status": "active"
-    },
-    {
       "id": "L038",
       "source_feature": "F106-extract-orchestrator",
       "category": "testing",
       "content": "搬遷函式時必須同步搬遷對應測試至新 package 目錄，task-brief 若有明確 Step 描述測試搬遷清單，Coder 必須在同一 round 完成，而非留至下一輪",
       "created_at": "2026-06-27T17:07:38.975643+08:00",
-      "last_used": "0001-01-01T00:00:00Z",
-      "used_count": 0,
-      "status": "active"
-    },
-    {
-      "id": "L039",
-      "source_feature": "F107-add-internal-tests",
-      "category": "testing",
-      "content": "新增測試前先對目標檔案跑 gofmt -l，確保格式合規，避免僅因格式問題觸發額外 round。",
-      "created_at": "2026-06-27T17:43:56.973238+08:00",
       "last_used": "0001-01-01T00:00:00Z",
       "used_count": 0,
       "status": "active"
@@ -437,6 +347,36 @@
       "category": "process",
       "content": "程式碼改動 protocol types 或新增 test 檔案後，commit 前應執行 make check-docs-sync 並在同一 PR 更新對應 docs/guide/ 文件，避免文件欠債累積。",
       "created_at": "2026-06-27T20:28:17.951101+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L045",
+      "source_feature": "F109-selective-deep-review",
+      "category": "code-quality",
+      "content": "Template 中用同一個 bool flag（$parallel）同時控制「平行模式」與「有角度限縮」時，加入第三個 else if 分支處理「非平行但有篩選」情境，避免標頭文字與 body 內容不一致",
+      "created_at": "2026-06-27T20:59:43.062868+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L046",
+      "source_feature": "F109-selective-deep-review",
+      "category": "review",
+      "content": "Reviewer 的 CONDITIONAL PASS 條件若未在同 round 修正，Acceptor 應標記 needs-attention 並列出 open issue，不可因 AC 全數通過而直接 ready-for-review",
+      "created_at": "2026-06-27T20:59:43.062868+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L047",
+      "source_feature": "F109-selective-deep-review",
+      "category": "design",
+      "content": "設計 fallback 邏輯時（如無匹配 mapping 則跑全部角度），要同步確認 template 標頭文字能正確反映三種情境：平行限縮、非平行限縮、全部角度",
+      "created_at": "2026-06-27T20:59:43.062868+08:00",
       "last_used": "0001-01-01T00:00:00Z",
       "used_count": 0,
       "status": "active"
