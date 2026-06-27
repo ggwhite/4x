@@ -19,7 +19,7 @@ description: |-
     - 不改 state machine 轉換規則
     - 所有現有測試必須通過
     - 分步搬遷，每步可獨立編譯通過
-status: not-started
+status: done
 priority: 1
 profile: normal
 rules:
