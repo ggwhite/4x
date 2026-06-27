@@ -410,6 +410,36 @@
       "last_used": "0001-01-01T00:00:00Z",
       "used_count": 0,
       "status": "active"
+    },
+    {
+      "id": "L042",
+      "source_feature": "F108-ac-evidence-mapping",
+      "category": "testing",
+      "content": "新增 guard 邏輯時，既有測試的 VerifyEvidence fixture 應同步補上新增欄位（如 ACResults），以避免測試場景意外觸發額外錯誤路徑，降低後續維護疑慮。",
+      "created_at": "2026-06-27T20:28:17.951101+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L043",
+      "source_feature": "F108-ac-evidence-mapping",
+      "category": "code-quality",
+      "content": "錯誤訊息設計應避免前綴與 ID 重疊（如 'AC AC-2 has no evidence'），直接用 ID 本身加描述詞（如 'AC-2: no evidence'）更清晰。",
+      "created_at": "2026-06-27T20:28:17.951101+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L044",
+      "source_feature": "F108-ac-evidence-mapping",
+      "category": "process",
+      "content": "程式碼改動 protocol types 或新增 test 檔案後，commit 前應執行 make check-docs-sync 並在同一 PR 更新對應 docs/guide/ 文件，避免文件欠債累積。",
+      "created_at": "2026-06-27T20:28:17.951101+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
     }
   ]
 }
