@@ -1,6 +1,10 @@
 package protocol
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+	"strings"
+)
 
 const defaultTier = "sonnet"
 
@@ -120,4 +124,133 @@ func ResolveDeepModel(cfg Config, runnerName string, role Role) (string, error) 
 		return "", nil
 	}
 	return ResolveTierModel(cfg, runnerName, rc.DeepModel)
+}
+
+// DefaultAngleMapping 回傳預設的 diff 路徑到 deep review angle 的映射表。
+// key 為路徑前綴；以 "*" 開頭的 key 為後綴匹配（如 "*_test.go"）。
+func DefaultAngleMapping() map[string][]int {
+	return map[string][]int{
+		"internal/state/":    {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11},
+		"internal/protocol/": {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11},
+		"internal/guard/":    {1, 2, 3, 5, 6, 7, 8, 9, 10, 11},
+		"internal/server/":   {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11},
+		"internal/":          {1, 2, 3, 5, 6, 7, 8, 9, 10, 11},
+		"cmd/":               {1, 2, 3, 5, 6, 7, 8, 9, 10, 11},
+		"templates/":         {1, 2, 8, 10},
+		"plugins/":           {1, 2, 8, 10},
+		"docs/":              {8, 10},
+		"dashboard/":         {1, 2, 3, 5, 6, 7, 8, 10},
+		"*_test.go":          {1, 5, 6, 8},
+	}
+}
+
+// ResolveAngleMapping 從 config 讀取 deep-reviewer 的 angle mapping；
+// 未設定時回傳 DefaultAngleMapping。
+func ResolveAngleMapping(cfg Config) map[string][]int {
+	if rc, ok := cfg.Roles[string(RoleDeepReviewer)]; ok && len(rc.AngleMapping) > 0 {
+		return rc.AngleMapping
+	}
+	return DefaultAngleMapping()
+}
+
+// SelectDeepReviewAngles 根據變更檔案路徑和 mapping 表選出應執行的 deep review angle。
+// 每個檔案匹配最長前綴（或後綴規則），取該規則的 angle 清單；
+// 所有檔案的 angle 取聯集並升冪排序。無任何檔案匹配時回傳全部 1..DeepReviewAngleCount。
+func SelectDeepReviewAngles(mapping map[string][]int, files []ChangedFile) ([]int, []AngleMatch) {
+	seen := make(map[int]bool)
+	var matches []AngleMatch
+
+	for _, f := range files {
+		rule, angles := matchAngleRule(mapping, f.Path)
+		if rule == "" {
+			continue
+		}
+		matches = append(matches, AngleMatch{File: f.Path, Rule: rule, Angles: angles})
+		for _, a := range angles {
+			seen[a] = true
+		}
+	}
+
+	if len(seen) == 0 {
+		all := make([]int, DeepReviewAngleCount)
+		for i := range all {
+			all[i] = i + 1
+		}
+		return all, nil
+	}
+
+	selected := make([]int, 0, len(seen))
+	for a := range seen {
+		selected = append(selected, a)
+	}
+	sort.Ints(selected)
+	return selected, matches
+}
+
+// matchAngleRule 對單一檔案路徑找出最匹配的 mapping 規則。
+// 前綴規則取最長匹配；後綴規則（key 以 "*" 開頭）取最長匹配；前綴優先於後綴。
+func matchAngleRule(mapping map[string][]int, path string) (string, []int) {
+	bestPrefix := ""
+	var bestPrefixAngles []int
+	bestSuffix := ""
+	var bestSuffixAngles []int
+
+	for pattern, angles := range mapping {
+		if strings.HasPrefix(pattern, "*") {
+			suffix := pattern[1:]
+			if strings.HasSuffix(path, suffix) && len(suffix) > len(bestSuffix) {
+				bestSuffix = suffix
+				bestSuffixAngles = angles
+			}
+		} else {
+			if strings.HasPrefix(path, pattern) && len(pattern) > len(bestPrefix) {
+				bestPrefix = pattern
+				bestPrefixAngles = angles
+			}
+		}
+	}
+
+	if bestPrefix != "" {
+		return bestPrefix, bestPrefixAngles
+	}
+	if bestSuffix != "" {
+		return "*" + bestSuffix, bestSuffixAngles
+	}
+	return "", nil
+}
+
+// AllAngles 回傳完整的 1..DeepReviewAngleCount angle 清單。
+func AllAngles() []int {
+	all := make([]int, DeepReviewAngleCount)
+	for i := range all {
+		all[i] = i + 1
+	}
+	return all
+}
+
+// GroupSelectedAngles 把指定的 angle 清單切分給 parallelReviewers 個 sub-reviewer，
+// 回傳每個 sub-reviewer 負責的 angle 編號清單。
+// parallelReviewers <= 1 或 angles 為空時回傳 nil（走 fallback 單 agent）。
+func GroupSelectedAngles(parallelReviewers, anglesPerReviewer int, angles []int) [][]int {
+	if parallelReviewers <= 1 || len(angles) == 0 {
+		return nil
+	}
+	size := anglesPerReviewer
+	if size <= 0 {
+		size = (len(angles) + parallelReviewers - 1) / parallelReviewers
+	}
+	if size <= 0 {
+		size = 1
+	}
+	var groups [][]int
+	for i := 0; i < len(angles); i += size {
+		end := i + size
+		if end > len(angles) {
+			end = len(angles)
+		}
+		group := make([]int, end-i)
+		copy(group, angles[i:end])
+		groups = append(groups, group)
+	}
+	return groups
 }

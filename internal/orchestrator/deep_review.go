@@ -123,17 +123,28 @@ func (r *Runner) deepReviewRun(ctx context.Context, s *protocol.State, dp deepRe
 	if err := r.Ws.WriteState(featureID, *s); err != nil {
 		return false, fmt.Errorf("write state (deep-reviewer): %w", err)
 	}
-	groups := protocol.GroupReviewAngles(
+
+	selectedAngles, selection := r.selectDeepReviewAngles()
+	writeAngleSelection(r.Ws, featureID, round, selection)
+
+	angleCount := len(selectedAngles)
+	fmt.Printf("[round %d] deep-reviewing — selected %d/%d angles\n", round, angleCount, protocol.DeepReviewAngleCount)
+
+	groups := protocol.GroupSelectedAngles(
 		protocol.ResolveParallelReviewers(r.Cfg, protocol.RoleDeepReviewer),
 		protocol.ResolveAnglesPerReviewer(r.Cfg, protocol.RoleDeepReviewer),
-		protocol.DeepReviewAngleCount)
+		selectedAngles)
 	if len(groups) > 1 {
 		if ok, err := r.runDeepReviewParallel(ctx, s, dp.deepRunner, dp.deepModel, groups, round); !ok || err != nil {
 			return ok, err
 		}
 	} else {
+		var opts []prompt.Option
+		if angleCount < protocol.DeepReviewAngleCount {
+			opts = append(opts, prompt.WithSelectedAngles(selectedAngles))
+		}
 		if ok, err := r.runDeepSubRole(ctx, s,
-			protocol.RoleDeepReviewer, dp.deepRunner, dp.deepModel, runner.LogFileName(round, string(protocol.RoleDeepReviewer)), round, 0); !ok || err != nil {
+			protocol.RoleDeepReviewer, dp.deepRunner, dp.deepModel, runner.LogFileName(round, string(protocol.RoleDeepReviewer)), round, 0, opts...); !ok || err != nil {
 			return ok, err
 		}
 		if ok, err := deepGuardCheck(r.Ws, featureID, s, r.Ops, protocol.RoleDeepReviewer); !ok || err != nil {
@@ -145,6 +156,43 @@ func (r *Runner) deepReviewRun(ctx context.Context, s *protocol.State, dp deepRe
 		return parallelNeedsAttention(r.Ws, featureID, s, "missing-artifact: "+protocol.DeepReviewReport)
 	}
 	return true, nil
+}
+
+// selectDeepReviewAngles 依 diff 影響的檔案路徑選出應執行的 deep review 角度。
+// ForceAllAngles（CLI flag）或 Feature.DeepReviewAllAngles（YAML）為 true 時回傳全部角度。
+func (r *Runner) selectDeepReviewAngles() ([]int, protocol.AngleSelection) {
+	forceAll := r.ForceAllAngles || r.Feature.DeepReviewAllAngles
+	if forceAll {
+		return protocol.AllAngles(), protocol.AngleSelection{
+			SelectedAngles: protocol.AllAngles(),
+			TotalAngles:    protocol.DeepReviewAngleCount,
+			ForceAll:       true,
+		}
+	}
+
+	mapping := protocol.ResolveAngleMapping(r.Cfg)
+	files := r.Ops.DetectChangedFiles(r.featureID())
+	selected, matches := protocol.SelectDeepReviewAngles(mapping, files)
+
+	return selected, protocol.AngleSelection{
+		SelectedAngles: selected,
+		TotalAngles:    protocol.DeepReviewAngleCount,
+		ForceAll:       false,
+		Matches:        matches,
+	}
+}
+
+// writeAngleSelection 把角度選擇結果寫入 round artifact。
+func writeAngleSelection(ws *protocol.Workspace, featureID string, round int, sel protocol.AngleSelection) {
+	data, err := json.MarshalIndent(sel, "", "  ")
+	if err != nil {
+		slog.Warn("marshal angle selection failed", "feature", featureID, "error", err)
+		return
+	}
+	path := filepath.Join(ws.RoundDir(featureID, round), protocol.DeepReviewAnglesFile)
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		slog.Warn("write angle selection failed", "feature", featureID, "error", err)
+	}
 }
 
 // deepReviewSelfHeal 在 deep review FAIL 時跑內部自癒循環（mini-coder + re-verifier），
@@ -451,7 +499,8 @@ func (r *Runner) runSynthesizer(ctx context.Context, s *protocol.State, runnerNa
 //
 // 回傳 (ok, err)：ok 為 true 表示 runner 正常結束，caller 可繼續；ok 為 false 且 err 為 nil
 // 表示已寫入終止狀態（needs-attention / blocked）；err 非 nil 表示 hard error 或 cancel。
-func (r *Runner) runDeepSubRole(ctx context.Context, s *protocol.State, role protocol.Role, runnerName, model, logName string, round, iteration int) (bool, error) {
+// opts 為可選的 prompt Option，用於注入角度選擇等參數。
+func (r *Runner) runDeepSubRole(ctx context.Context, s *protocol.State, role protocol.Role, runnerName, model, logName string, round, iteration int, opts ...prompt.Option) (bool, error) {
 	ws := r.Ws
 	featureID := r.featureID()
 
@@ -460,7 +509,7 @@ func (r *Runner) runDeepSubRole(ctx context.Context, s *protocol.State, role pro
 		Runner: runnerName, Model: model,
 	})
 
-	promptText, err := prompt.Generate(r.promptCtx(), role, round, iteration, runnerName)
+	promptText, err := prompt.Generate(r.promptCtx(), role, round, iteration, runnerName, opts...)
 	if err != nil {
 		promptText = fmt.Sprintf("You are the %s for feature %s, round %d. Read .4x/%s/ for context.", role, featureID, round, featureID)
 	}

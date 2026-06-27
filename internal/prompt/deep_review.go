@@ -46,6 +46,15 @@ func WithParallelDeepReviewer(index, count int, angles []int, partialName string
 	}
 }
 
+// WithSelectedAngles 把選中的 angle 編號注入 Data，讓 deep-reviewer 模板只 render 被選中的角度。
+// 與 WithParallelDeepReviewer 不同，此 Option 不設定平行 metadata（ReviewerCount/ReviewerIndex），
+// 適用於單 agent deep review 僅想限縮角度的場景。
+func WithSelectedAngles(angles []int) Option {
+	return func(d *Data) {
+		d.AssignedAngles = angles
+	}
+}
+
 // WithSynthesizerReports 把所有 sub-reviewer 的 partial report 完整內文注入 Data，
 // 供 synthesizer 模板內嵌合併。
 func WithSynthesizerReports(reports []IncludeContent) Option {

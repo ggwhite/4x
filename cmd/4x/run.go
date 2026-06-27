@@ -83,7 +83,7 @@ func resolveRunParams(featureID string, runnerFlag string, maxRounds int, timeou
 }
 
 // launchBackgroundJSON 在 --json 模式下背景啟動 run 子程序並回傳 JSON 結果
-func launchBackgroundJSON(ws *protocol.Workspace, featureID, runnerName, profileFlag string, phaseOverrides []string, maxRounds, timeout int, dryRun bool) error {
+func launchBackgroundJSON(ws *protocol.Workspace, featureID, runnerName, profileFlag string, phaseOverrides []string, maxRounds, timeout int, dryRun, allAngles bool) error {
 	bgArgs := []string{"run", featureID}
 	if runnerName != "" {
 		bgArgs = append(bgArgs, "--runner", runnerName)
@@ -102,6 +102,9 @@ func launchBackgroundJSON(ws *protocol.Workspace, featureID, runnerName, profile
 	}
 	if dryRun {
 		bgArgs = append(bgArgs, "--dry-run")
+	}
+	if allAngles {
+		bgArgs = append(bgArgs, "--all-angles")
 	}
 	if err := ws.InitFeatureDir(featureID); err != nil {
 		return err
@@ -132,6 +135,7 @@ func newRunCmd() *cobra.Command {
 	var profileFlag string
 	var phaseOverrides []string
 	var noNotify bool
+	var allAngles bool
 
 	cmd := &cobra.Command{
 		Use:   "run <feature-id>",
@@ -145,7 +149,7 @@ func newRunCmd() *cobra.Command {
 			ws, feature, cfg, featureID := p.ws, p.feature, p.cfg, p.feature.ID
 
 			if jsonOutput {
-				return launchBackgroundJSON(ws, featureID, p.runnerName, profileFlag, phaseOverrides, p.maxRounds, p.timeout, dryRun)
+				return launchBackgroundJSON(ws, featureID, p.runnerName, profileFlag, phaseOverrides, p.maxRounds, p.timeout, dryRun, allAngles)
 			}
 
 			if err := orchestrator.CheckDependencies(ws, featureID); err != nil {
@@ -203,6 +207,7 @@ func newRunCmd() *cobra.Command {
 					return runner.NewRunner(runnerWs, rn, cfg.Runners[rn], time.Duration(p.timeout)*time.Second, logPath, model)
 				},
 				CommitStrategy: commitStrategy, ManualRunner: p.manualRunner, RunOverrides: p.runOverrides,
+				ForceAllAngles: allAngles,
 			})
 			result, loopErr := r.RunLoop(ctx, s)
 
@@ -218,6 +223,7 @@ func newRunCmd() *cobra.Command {
 	cmd.Flags().StringVar(&profileFlag, "profile", "", "pipeline profile (full/normal/quick or custom); overrides priority-based auto-select")
 	cmd.Flags().StringArrayVar(&phaseOverrides, "phase-override", nil, "temporary per-phase runner/model override for this run only, format <phase>:<runner>:<model> (repeatable)")
 	cmd.Flags().BoolVar(&noNotify, "no-notify", false, "disable OS notification on run completion (overrides config)")
+	cmd.Flags().BoolVar(&allAngles, "all-angles", false, "force deep review to run all 11 angles (ignore angle mapping)")
 	return cmd
 }
 

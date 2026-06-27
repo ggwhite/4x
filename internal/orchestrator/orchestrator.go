@@ -35,6 +35,8 @@ type Config struct {
 	CommitStrategy string
 	ManualRunner   string
 	RunOverrides   map[protocol.Phase]protocol.PhaseSpec
+	// ForceAllAngles 為 true 時強制 deep review 跑全部角度，忽略 angle mapping 篩選。
+	ForceAllAngles bool
 }
 
 // Result 收納 run loop 的執行結果，供 CLI 層印出摘要

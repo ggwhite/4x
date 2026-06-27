@@ -85,6 +85,7 @@ Run the Design-Code-Review-Test loop for a feature.
 | `--profile` | auto | Pipeline profile (`full`/`normal`/`quick` or custom); overrides `default_profile`/priority auto-select |
 | `--phase-override` | none | Temporary per-phase runner/model override for this run only, format `<phase>:<runner>:<model>` (repeatable); not written back to settings or the feature YAML |
 | `--no-notify` | `false` | Disable the OS notification on run completion (overrides the `notifications` config) |
+| `--all-angles` | `false` | Force deep review to run all 11 angles, ignoring the diff-based angle mapping |
 
 When the run ends (success, failure, or interruption), 4x sends a native OS notification (`osascript` on macOS, `notify-send` on Linux, PowerShell balloon on Windows). Pass `--no-notify` to suppress it, or set `"notifications": false` in `settings.json`. Missing notification tooling is silently ignored.
 
@@ -107,6 +108,8 @@ When entering the `testing` phase (after `pre_testing` hooks, before the Tester 
 When `auto_discover_features` is enabled in `settings.json`, a final deep review **PASS** parses the `[NEW-FEATURE]` markers in `deep-review-report.md` and auto-creates feature YAMLs for the out-of-scope issues the deep reviewer flagged (deduplicated and capped). See [Configuration → Auto-Discover Features](configuration.md#auto-discover-features) and [Concepts → Auto-Discovered Features](concepts.md#auto-discovered-features) for details.
 
 If the feature is in `blocked` or `needs-attention` phase, automatically recovers to the appropriate resume phase based on the current role.
+
+Before running deep review, 4x selects which of the 11 review angles to run based on the diff-affected file paths. The `angle_mapping` in `roles.deep-reviewer` maps path prefixes (and `*`-prefixed suffix patterns like `*_test.go`) to angle numbers; only matched angles are dispatched. When no file matches any rule, all 11 angles run as a safety fallback. The selection is recorded in `deep-review-angles.json` in the round directory. To force all angles: pass `--all-angles` to `4x run`, or set `deep_review_all_angles: true` in the feature YAML. See [Configuration → Angle Mapping](configuration.md#angle-mapping) for the default mapping and customization.
 
 If a run crashes mid `deep-reviewing`, recovery is incremental rather than restarting the whole (expensive) deep review. `SmartResumePhase` (in `internal/orchestrator`) inspects the on-disk artifacts and restores the matching `subPhase`: any missing/incomplete `deep-review-partial-{i}.md` resumes at `reviewing` and only the missing sub-reviewers are re-spawned (`MissingDeepPartials`), reusing each index's original angle group; all partials present but an incomplete report resumes at `synthesizing` (sub-reviewers skipped, only the synthesizer re-runs); a complete-but-FAILed report routes to `amending` as before. A partial counts as complete only when it carries the `## Statistics` sentinel section (`DeepPartialComplete`). See [Concepts → Deep Review SubPhase & Crash Recovery](concepts.md#deep-review-subphase--crash-recovery).
 

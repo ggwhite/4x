@@ -300,3 +300,195 @@ func TestGroupReviewAngles(t *testing.T) {
 		assertFullCoverage(t, got, 11)
 	})
 }
+
+func TestSelectDeepReviewAngles(t *testing.T) {
+	mapping := map[string][]int{
+		"internal/state/": {1, 2, 3, 4},
+		"internal/":       {1, 2, 3},
+		"docs/":           {8, 10},
+		"*_test.go":       {1, 5, 6},
+	}
+
+	t.Run("prefix match uses longest prefix", func(t *testing.T) {
+		files := []ChangedFile{{Path: "internal/state/machine.go", Lines: 10}}
+		angles, matches := SelectDeepReviewAngles(mapping, files)
+		if len(angles) != 4 || angles[0] != 1 || angles[3] != 4 {
+			t.Errorf("got %v, want [1 2 3 4]", angles)
+		}
+		if len(matches) != 1 || matches[0].Rule != "internal/state/" {
+			t.Errorf("got matches %v, want rule=internal/state/", matches)
+		}
+	})
+
+	t.Run("shorter prefix fallback", func(t *testing.T) {
+		files := []ChangedFile{{Path: "internal/guard/check.go", Lines: 5}}
+		angles, _ := SelectDeepReviewAngles(mapping, files)
+		if len(angles) != 3 || angles[0] != 1 || angles[2] != 3 {
+			t.Errorf("got %v, want [1 2 3]", angles)
+		}
+	})
+
+	t.Run("suffix match", func(t *testing.T) {
+		files := []ChangedFile{{Path: "pkg/foo_test.go", Lines: 20}}
+		angles, matches := SelectDeepReviewAngles(mapping, files)
+		if len(angles) != 3 || angles[0] != 1 || angles[1] != 5 || angles[2] != 6 {
+			t.Errorf("got %v, want [1 5 6]", angles)
+		}
+		if len(matches) != 1 || matches[0].Rule != "*_test.go" {
+			t.Errorf("got matches %v, want rule=*_test.go", matches)
+		}
+	})
+
+	t.Run("prefix takes precedence over suffix", func(t *testing.T) {
+		files := []ChangedFile{{Path: "internal/guard/check_test.go", Lines: 10}}
+		angles, matches := SelectDeepReviewAngles(mapping, files)
+		if len(angles) != 3 || angles[0] != 1 || angles[2] != 3 {
+			t.Errorf("got %v, want [1 2 3] (prefix internal/ should win)", angles)
+		}
+		if len(matches) != 1 || matches[0].Rule != "internal/" {
+			t.Errorf("got matches %v, want rule=internal/", matches)
+		}
+	})
+
+	t.Run("union across multiple files", func(t *testing.T) {
+		files := []ChangedFile{
+			{Path: "docs/guide/cli.md", Lines: 5},
+			{Path: "internal/state/machine.go", Lines: 10},
+		}
+		angles, _ := SelectDeepReviewAngles(mapping, files)
+		expected := map[int]bool{1: true, 2: true, 3: true, 4: true, 8: true, 10: true}
+		if len(angles) != len(expected) {
+			t.Errorf("got %v, want union with %d angles", angles, len(expected))
+		}
+		for _, a := range angles {
+			if !expected[a] {
+				t.Errorf("unexpected angle %d in %v", a, angles)
+			}
+		}
+	})
+
+	t.Run("no match returns all angles", func(t *testing.T) {
+		files := []ChangedFile{{Path: "unknown/path.go", Lines: 10}}
+		angles, matches := SelectDeepReviewAngles(mapping, files)
+		if len(angles) != DeepReviewAngleCount {
+			t.Errorf("got %d angles, want %d (all)", len(angles), DeepReviewAngleCount)
+		}
+		if matches != nil {
+			t.Errorf("got matches %v, want nil", matches)
+		}
+	})
+
+	t.Run("empty files returns all angles", func(t *testing.T) {
+		angles, _ := SelectDeepReviewAngles(mapping, nil)
+		if len(angles) != DeepReviewAngleCount {
+			t.Errorf("got %d angles, want %d", len(angles), DeepReviewAngleCount)
+		}
+	})
+}
+
+func TestGroupSelectedAngles(t *testing.T) {
+	t.Run("nil when parallelReviewers <= 1", func(t *testing.T) {
+		if got := GroupSelectedAngles(1, 0, []int{1, 2, 3}); got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("nil when angles empty", func(t *testing.T) {
+		if got := GroupSelectedAngles(3, 0, nil); got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("splits selected angles evenly", func(t *testing.T) {
+		got := GroupSelectedAngles(3, 0, []int{1, 3, 5, 7, 8, 10})
+		want := [][]int{{1, 3}, {5, 7}, {8, 10}}
+		if len(got) != len(want) {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+		for i := range want {
+			if len(got[i]) != len(want[i]) {
+				t.Fatalf("group %d = %v, want %v", i, got[i], want[i])
+			}
+			for j := range want[i] {
+				if got[i][j] != want[i][j] {
+					t.Fatalf("group %d = %v, want %v", i, got[i], want[i])
+				}
+			}
+		}
+	})
+
+	t.Run("last group can be smaller", func(t *testing.T) {
+		got := GroupSelectedAngles(3, 0, []int{1, 2, 5, 8, 10})
+		if len(got) != 3 {
+			t.Fatalf("got %d groups, want 3: %v", len(got), got)
+		}
+		total := 0
+		for _, g := range got {
+			total += len(g)
+		}
+		if total != 5 {
+			t.Fatalf("total angles %d, want 5", total)
+		}
+	})
+
+	t.Run("explicit anglesPerReviewer", func(t *testing.T) {
+		got := GroupSelectedAngles(2, 2, []int{1, 3, 5, 8, 10})
+		if len(got) != 3 {
+			t.Fatalf("got %d groups, want 3: %v", len(got), got)
+		}
+		if len(got[0]) != 2 || len(got[1]) != 2 || len(got[2]) != 1 {
+			t.Fatalf("group sizes wrong: %v", got)
+		}
+	})
+}
+
+func TestDefaultAngleMapping(t *testing.T) {
+	m := DefaultAngleMapping()
+	if len(m) == 0 {
+		t.Fatal("default mapping should not be empty")
+	}
+	for key, angles := range m {
+		if len(angles) == 0 {
+			t.Errorf("mapping %q has empty angles", key)
+		}
+		for _, a := range angles {
+			if a < 1 || a > DeepReviewAngleCount {
+				t.Errorf("mapping %q has angle %d out of range", key, a)
+			}
+		}
+	}
+}
+
+func TestResolveAngleMapping(t *testing.T) {
+	t.Run("uses config when set", func(t *testing.T) {
+		cfg := Config{
+			Roles: map[string]RoleConfig{
+				"deep-reviewer": {AngleMapping: map[string][]int{"custom/": {1, 2}}},
+			},
+		}
+		m := ResolveAngleMapping(cfg)
+		if _, ok := m["custom/"]; !ok {
+			t.Error("should use config mapping")
+		}
+	})
+
+	t.Run("falls back to default", func(t *testing.T) {
+		cfg := Config{}
+		m := ResolveAngleMapping(cfg)
+		if _, ok := m["internal/state/"]; !ok {
+			t.Error("should fall back to default mapping")
+		}
+	})
+}
+
+func TestAllAngles(t *testing.T) {
+	all := AllAngles()
+	if len(all) != DeepReviewAngleCount {
+		t.Fatalf("got %d, want %d", len(all), DeepReviewAngleCount)
+	}
+	for i, a := range all {
+		if a != i+1 {
+			t.Errorf("angle[%d] = %d, want %d", i, a, i+1)
+		}
+	}
+}

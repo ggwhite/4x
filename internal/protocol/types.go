@@ -411,6 +411,21 @@ type ChangedFile struct {
 	Lines int
 }
 
+// AngleSelection 是 deep review 角度選擇結果，序列化為 deep-review-angles.json 供 resume 與稽核。
+type AngleSelection struct {
+	SelectedAngles []int        `json:"selected_angles"`
+	TotalAngles    int          `json:"total_angles"`
+	ForceAll       bool         `json:"force_all"`
+	Matches        []AngleMatch `json:"matches"`
+}
+
+// AngleMatch 描述單一變更檔案匹配到的 mapping 規則與其貢獻的 angle 編號。
+type AngleMatch struct {
+	File   string `json:"file"`
+	Rule   string `json:"rule"`
+	Angles []int  `json:"angles"`
+}
+
 // NotificationsEnabled 回報合併後設定是否啟用 OS 通知。
 // Notifications 為 nil（使用者未設定）時預設啟用，回傳 true。
 func NotificationsEnabled(cfg Config) bool {
@@ -506,6 +521,11 @@ type RoleConfig struct {
 	// AnglesPerReviewer 設定每個 sub-reviewer 負責的 review angle 數量，僅對 deep-reviewer
 	// role 有意義；未設定時由 ResolveAnglesPerReviewer 回 0，改用 ceil(總 angle/N) 平均分配。
 	AnglesPerReviewer int `json:"angles_per_reviewer,omitempty"`
+	// AngleMapping 定義 diff 檔案路徑前綴到 deep review angle 編號的映射，僅對 deep-reviewer
+	// role 有意義。key 為路徑前綴（如 "internal/state/"）；以 "*" 開頭的 key 為後綴匹配
+	// （如 "*_test.go"）。value 為該路徑應啟動的 angle 編號清單（1-based）。
+	// 未設定時由 DefaultAngleMapping 提供預設映射。
+	AngleMapping map[string][]int `json:"angle_mapping,omitempty"`
 }
 
 // UserConfig 是 ~/.4x/settings.json 的使用者層級設定

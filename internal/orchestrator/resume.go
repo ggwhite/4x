@@ -79,12 +79,21 @@ func SmartResumePhase(ws *protocol.Workspace, featureID string, round int, cfg p
 	return protocol.PhaseAccepting, protocol.RoleAcceptor, ""
 }
 
-// DeepResumeSubPhase 在 deep-review report 不完整時，依磁碟上的 partial 檔推斷 crash 中斷的子步驟
+// DeepResumeSubPhase 在 deep-review report 不完整時，依磁碟上的 partial 檔推斷 crash 中斷的子步驟。
+// 優先讀取 deep-review-angles.json 取得上次選中的角度數；找不到時 fallback 到 DeepReviewAngleCount。
 func DeepResumeSubPhase(ws *protocol.Workspace, featureID string, round int, cfg protocol.Config) protocol.SubPhase {
-	want := len(protocol.GroupReviewAngles(
+	totalAngles := protocol.DeepReviewAngleCount
+	anglesPath := filepath.Join(ws.RoundDir(featureID, round), protocol.DeepReviewAnglesFile)
+	if data, err := os.ReadFile(anglesPath); err == nil {
+		var sel protocol.AngleSelection
+		if json.Unmarshal(data, &sel) == nil && len(sel.SelectedAngles) > 0 {
+			totalAngles = len(sel.SelectedAngles)
+		}
+	}
+	want := len(protocol.GroupSelectedAngles(
 		protocol.ResolveParallelReviewers(cfg, protocol.RoleDeepReviewer),
 		protocol.ResolveAnglesPerReviewer(cfg, protocol.RoleDeepReviewer),
-		protocol.DeepReviewAngleCount))
+		make([]int, totalAngles)))
 	if want <= 1 {
 		return protocol.SubPhaseReviewing
 	}

@@ -98,6 +98,7 @@ Non-transient failures (compilation errors, assertion failures, panics), exit 0,
 | `screenshot_dir` | Directory path for tester screenshots |
 | `parallel_reviewers` | Number of parallel sub-reviewers for deep review (deep-reviewer only; <=1 falls back to single-agent mode) |
 | `angles_per_reviewer` | Review angles per sub-reviewer (deep-reviewer only; 0 means auto-distribute evenly) |
+| `angle_mapping` | Map of path patterns → angle numbers for selective deep review (deep-reviewer only). Keys are path prefixes; keys starting with `*` are suffix patterns (e.g. `*_test.go`). When unset, a built-in default mapping is used. See [Concepts → Selective Deep Review Angles](concepts.md#selective-deep-review-angles). |
 
 ### Other Config Fields
 

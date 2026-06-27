@@ -73,6 +73,18 @@ Angles are split evenly and without overlap: with the default `parallel_reviewer
 
 When `parallel_reviewers` is unset or `≤ 1`, the loop falls back to the original single-agent flow: one deep reviewer renders all 11 angles and writes `deep-review-report.md` directly, with no partial reports or synthesizer.
 
+### Selective Deep Review Angles
+
+Before dispatching the deep review, 4x analyzes the diff-affected file paths and selects which of the 11 angles to run. The `angle_mapping` field in `roles.deep-reviewer` maps path prefixes (e.g. `internal/state/`) and suffix patterns (e.g. `*_test.go`) to angle numbers. For each changed file the longest matching prefix wins (prefix rules take precedence over suffix rules); the union of all matched angles becomes the selected set. When no file matches any rule, all 11 angles run as a safety fallback.
+
+The selection is recorded in `deep-review-angles.json` in the round directory, including which files matched which rules and which angles each contributed. This artifact is also used by crash recovery to determine the correct partial count.
+
+To force all 11 angles regardless of the mapping:
+- Pass `--all-angles` to `4x run`
+- Set `deep_review_all_angles: true` in the feature YAML
+
+The `angle_mapping` can be customized in `settings.json` under `roles.deep-reviewer`; when not set, a built-in default covers the standard project layout (`internal/state/`, `internal/protocol/`, `cmd/`, `docs/`, `templates/`, `dashboard/`, `*_test.go`).
+
 ### Deep Review SubPhase & Crash Recovery
 
 The `deep-reviewing` phase runs several internal steps (sub-reviewer → synthesizer → mini-coder → re-verifier), but they are **not** state-machine phases. To make the live progress and crash recovery aware of *which* step is running, `State` carries a `subPhase` field (`internal/protocol/types.go`) that is only meaningful while `phase == deep-reviewing`:
@@ -310,6 +322,7 @@ depends: []
 spec: ""     # optional explicit path to the design spec (overrides docs/design/ lookup)
 plan: ""     # optional explicit path to the implementation plan
 hooks: {}    # optional phase hooks (same format as settings.json)
+deep_review_all_angles: false  # force deep review to run all 11 angles (ignores angle_mapping)
 ```
 
 `status` mirrors `state.json` phase for quick listing. Valid values: `not-started`, `in-progress`, `ready-for-review`, `needs-attention`, `blocked`, `done`, `abandoned`. `abandoned` features are treated as completed (won't block dependencies) but display with strikethrough in the dashboard. `depends` lists feature IDs that must be done (or abandoned) before this feature can run. `repos` lists the repository names (from `workspace.repos`) that this feature touches; empty means all repos in scope.

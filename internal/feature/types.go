@@ -65,7 +65,9 @@ type Feature struct {
 	Plan           string                   `yaml:"plan,omitempty" json:"-"`
 	Hooks          map[string][]HookEntry   `yaml:"hooks,omitempty" json:"hooks,omitempty"`
 	PhaseOverrides map[string]PhaseOverride `yaml:"phase_overrides,omitempty" json:"phaseOverrides,omitempty"`
-	Warnings       []string                 `yaml:"-" json:"warnings,omitempty"`
+	// DeepReviewAllAngles 為 true 時強制 deep review 跑全部 11 個角度，忽略 angle mapping 的篩選。
+	DeepReviewAllAngles bool `yaml:"deep_review_all_angles,omitempty" json:"deepReviewAllAngles,omitempty"`
+	Warnings            []string `yaml:"-" json:"warnings,omitempty"`
 }
 
 // Subtask 是 feature 內的子任務

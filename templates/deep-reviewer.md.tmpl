@@ -78,9 +78,9 @@ Check if prior rounds of this feature had review findings on the same files:
 {{- define "angle-body"}}
 {{- if eq .N 1}}{{template "angle-1" .D}}{{else if eq .N 2}}{{template "angle-2" .D}}{{else if eq .N 3}}{{template "angle-3" .D}}{{else if eq .N 4}}{{template "angle-4" .D}}{{else if eq .N 5}}{{template "angle-5" .D}}{{else if eq .N 6}}{{template "angle-6" .D}}{{else if eq .N 7}}{{template "angle-7" .D}}{{else if eq .N 8}}{{template "angle-8" .D}}{{else if eq .N 9}}{{template "angle-9" .D}}{{else if eq .N 10}}{{template "angle-10" .D}}{{else if eq .N 11}}{{template "angle-11" .D}}{{end}}
 {{- end}}
-{{- $parallel := gt (len .AssignedAngles) 0 -}}
+{{- $parallel := gt .ReviewerCount 0 -}}
 {{- $angles := .AssignedAngles -}}
-{{- if not $parallel}}{{$angles = seq 11}}{{end -}}
+{{- if not (gt (len .AssignedAngles) 0)}}{{$angles = seq 11}}{{end -}}
 {{- $reportFile := "deep-review-report.md" -}}
 {{- if $parallel}}{{$reportFile = .PartialReportName}}{{end -}}
 You are the Deep Reviewer (adversarial) for feature "{{.Feature.Name}}" ({{.Feature.ID}}), round {{.Round}}.

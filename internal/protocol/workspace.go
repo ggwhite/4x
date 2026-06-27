@@ -64,6 +64,9 @@ const (
 	SelectedLearningsFile = "selected-learnings.json" // .4x/{feature-id}/selected-learnings.json，Designer 選出
 	ConsolidateInputFile  = "consolidate-input.json"  // .4x/consolidate-input.json，供 consolidate runner 讀
 	ConsolidateResultFile = "consolidate-result.json" // .4x/consolidate-result.json，consolidate runner 產出
+
+	// DeepReviewAnglesFile 是 deep review 角度選擇結果的 artifact，記錄本次選了哪些角度及原因。
+	DeepReviewAnglesFile = "deep-review-angles.json"
 )
 
 // Workspace 管理 .4x/ 目錄的讀寫
