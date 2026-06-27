@@ -15,7 +15,7 @@ description: |-
     - 不改 deep review 的 11 個角度定義本身
     - 不改 synthesizer 行為（只是收到的 partial report 變少）
     - mapping 表可設定，不寫死在程式碼裡
-status: not-started
+status: done
 priority: 3
 profile: standard
 rules:
