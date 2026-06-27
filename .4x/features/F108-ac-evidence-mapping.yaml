@@ -14,7 +14,7 @@ description: |-
     - 向後相容：舊格式 verify.json 仍可被讀取，只是不通過 per-AC 檢查
     - 不改 state machine 轉換規則本身
     - 不改 acceptance-criteria.md 的格式（AC id 由 tester 從中解析）
-status: not-started
+status: done
 priority: 2
 profile: standard
 rules:
