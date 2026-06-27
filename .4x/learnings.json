@@ -320,6 +320,36 @@
       "last_used": "0001-01-01T00:00:00Z",
       "used_count": 0,
       "status": "active"
+    },
+    {
+      "id": "L033",
+      "source_feature": "F105-extract-prompt-pkg",
+      "category": "code-quality",
+      "content": "重構下沉後，若有為特殊呼叫場景（如 gate）準備的 helper，必須確認有實際呼叫端再保留；否則應一併刪除，不留 dead-code wrapper",
+      "created_at": "2026-06-27T11:21:09.088922+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L034",
+      "source_feature": "F105-extract-prompt-pkg",
+      "category": "review",
+      "content": "CONDITIONAL PASS 的修正項目（如移除 dead code）應在同輪 Coder 階段處理完畢後再交 Reviewer，避免 open warning 進入 Acceptor",
+      "created_at": "2026-06-27T11:21:09.088922+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L035",
+      "source_feature": "F105-extract-prompt-pkg",
+      "category": "testing",
+      "content": "大型搬遷（900+ 行）搬完後需執行 go test -race 驗證 prompt 輸出未改變，不能只靠 build 成功判斷正確性",
+      "created_at": "2026-06-27T11:21:09.088922+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
     }
   ]
 }
