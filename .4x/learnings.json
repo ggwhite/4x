@@ -270,6 +270,36 @@
       "last_used": "0001-01-01T00:00:00Z",
       "used_count": 0,
       "status": "active"
+    },
+    {
+      "id": "L028",
+      "source_feature": "F103-fix-error-handling",
+      "category": "code-quality",
+      "content": "新增縮排程式碼時，直接用 gofmt -w 整理後再 commit，可避免 Reviewer FAIL 並省去 Round 2 的額外 amending 成本",
+      "created_at": "2026-06-27T10:23:04.125803+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L029",
+      "source_feature": "F103-fix-error-handling",
+      "category": "design",
+      "content": "Feature spec 的「已知位置」清單若不完整，Coder 會照規格範圍作業，殘留問題需後續 feature 補；Designer 應於 spec 加入 grep 掃全庫的步驟，確保已知清單完整",
+      "created_at": "2026-06-27T10:23:04.125803+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L030",
+      "source_feature": "F103-fix-error-handling",
+      "category": "review",
+      "content": "INFO 等級的 pre-existing 問題應在 review-report 明確標示為「範圍外、不阻擋」，避免 Acceptor 誤判為 OPEN blocking issue",
+      "created_at": "2026-06-27T10:23:04.125803+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
     }
   ]
 }
