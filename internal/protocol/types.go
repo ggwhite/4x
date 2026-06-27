@@ -171,6 +171,13 @@ type BaselineRepo struct {
 	DirtyFiles []string `json:"dirtyFiles"`
 }
 
+// ACEvidence 是單一 acceptance criterion 的驗證結果
+type ACEvidence struct {
+	ID       string   `json:"id"`
+	Passed   bool     `json:"passed"`
+	Evidence []string `json:"evidence"`
+}
+
 // VerifyEvidence 是 rounds/round-N/verify.json 的結構
 type VerifyEvidence struct {
 	Passed      bool                 `json:"passed"`
@@ -178,6 +185,7 @@ type VerifyEvidence struct {
 	Role        Role                 `json:"role"`
 	Commands    []VerifyCommand      `json:"commands"`
 	Screenshots []feature.Screenshot `json:"screenshots,omitempty"`
+	ACResults   []ACEvidence         `json:"ac_results,omitempty"`
 }
 
 // VerifyCommand 是單一 verify command 的結果

@@ -75,13 +75,39 @@ interrupted mid-testing. If it exists, read it:
 Do NOT assume an existing file means testing is done — check which AC items have results.
 
 == Workflow (strict order) ==
-1. Read acceptance criteria — list every AC item
+1. Read acceptance criteria — list every AC item (note each AC-N id)
 2. Create test-report.md with header and empty results table
 3. Run: ${FOURX_BIN:-4x} verify {{.Feature.ID}}
 4. Read the generated verify.json for command results
 5. For each AC item, collect evidence and update test-report.md immediately
-6. Update the Summary and Verdict sections
-7. If verify.json passed is true, write final-report.md
+6. Update verify.json: add `ac_results` array mapping each AC to its evidence (see format below)
+7. Update the Summary and Verdict sections
+8. If verify.json passed is true, write final-report.md
+
+== Per-AC Evidence Mapping (REQUIRED) ==
+After running `4x verify`, you MUST update verify.json to include `ac_results`.
+Read the existing verify.json, add the `ac_results` field, and write it back.
+
+Every AC item from acceptance-criteria.md must appear in `ac_results` with:
+- `id`: the AC identifier (e.g. "AC-1", "AC-2")
+- `passed`: true/false
+- `evidence`: array of strings describing how this AC was verified
+
+Example ac_results entry in verify.json:
+```json
+{
+  "passed": true,
+  "round": 1,
+  "role": "tester",
+  "commands": [...],
+  "ac_results": [
+    {"id": "AC-1", "passed": true, "evidence": ["make test passed with 0 failures"]},
+    {"id": "AC-2", "passed": true, "evidence": ["verified output matches expected format", "edge case handled correctly"]}
+  ]
+}
+```
+
+The guard will block testing → accepting if any AC has no evidence.
 
 == test-report.md format ==
 # Test Report — Round {{.Round}}

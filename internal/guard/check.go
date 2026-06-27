@@ -221,7 +221,24 @@ func checkTestingToAccepting(ws *protocol.Workspace, featureID string, round int
 		}
 	}
 
+	checkACEvidence(evidence, r)
 	checkSelfModTestGate(ws, featureID, r)
+}
+
+// checkACEvidence 檢查 verify.json 的 per-AC evidence mapping：每個 AC 都必須有 evidence。
+// ac_results 為空時阻擋（舊格式 verify.json 不通過此檢查）。
+func checkACEvidence(evidence protocol.VerifyEvidence, r *CheckResult) {
+	if len(evidence.ACResults) == 0 {
+		r.Pass = false
+		r.Errors = append(r.Errors, "verify.json missing ac_results: every acceptance criterion must have evidence")
+		return
+	}
+	for _, ac := range evidence.ACResults {
+		if len(ac.Evidence) == 0 {
+			r.Pass = false
+			r.Errors = append(r.Errors, fmt.Sprintf("AC %s has no evidence", ac.ID))
+		}
+	}
 }
 
 // checkSelfModTestGate 在 testing → accepting 閘門加上 self-mod test-gate：

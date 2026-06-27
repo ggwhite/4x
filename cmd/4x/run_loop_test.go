@@ -115,7 +115,8 @@ func (m *mockRunner) Run(_ context.Context, prompt string) (*runner.Result, erro
 		}
 
 	case protocol.PhaseTesting:
-		ve := protocol.VerifyEvidence{Passed: outcome.testPassed, Round: s.Round}
+		ve := protocol.VerifyEvidence{Passed: outcome.testPassed, Round: s.Round,
+			ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: outcome.testPassed, Evidence: []string{"mock test"}}}}
 		data, _ := json.Marshal(ve)
 		os.WriteFile(filepath.Join(roundDir, protocol.VerifyFile), data, 0o644)
 		os.WriteFile(filepath.Join(roundDir, protocol.TestReport), []byte("# Test"), 0o644)
@@ -1764,7 +1765,8 @@ func (m *roleMockRunner) Run(_ context.Context, _ string) (*runner.Result, error
 	case "reviewer":
 		os.WriteFile(filepath.Join(roundDir, protocol.ReviewReport), []byte("## Verdict\nPASS\n"), 0o644)
 	case "tester":
-		ve := protocol.VerifyEvidence{Passed: true, Round: round}
+		ve := protocol.VerifyEvidence{Passed: true, Round: round,
+			ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: true, Evidence: []string{"mock test"}}}}
 		data, _ := json.Marshal(ve)
 		os.WriteFile(filepath.Join(roundDir, protocol.VerifyFile), data, 0o644)
 		os.WriteFile(filepath.Join(roundDir, protocol.TestReport), []byte("# Test"), 0o644)

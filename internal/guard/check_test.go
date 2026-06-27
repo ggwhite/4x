@@ -133,7 +133,8 @@ func TestCheckTestingToAccepting_AllArtifactsPresent(t *testing.T) {
 	roundDir := ws.RoundDir("feat-1", 1)
 	featureDir := ws.FeatureDir("feat-1")
 
-	data, _ := json.Marshal(protocol.VerifyEvidence{Passed: true, Round: 1})
+	data, _ := json.Marshal(protocol.VerifyEvidence{Passed: true, Round: 1,
+		ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: true, Evidence: []string{"ok"}}}})
 	writeFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))
 	writeFile(t, filepath.Join(roundDir, protocol.TestReport), "# Test")
 	writeFile(t, filepath.Join(featureDir, protocol.FinalReport), "# Final")
