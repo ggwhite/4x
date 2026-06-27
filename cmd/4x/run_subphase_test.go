@@ -3,6 +3,7 @@ package main
 import (
 	"testing"
 
+	"github.com/ggwhite/4x/internal/prompt"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -26,7 +27,7 @@ func TestDeepPartialComplete(t *testing.T) {
 
 	// 不存在的檔案 → 不完整。
 	missing := ws.RoundDir(fid, 1) + "/deep-review-partial-9.md"
-	if deepPartialComplete(missing) {
+	if prompt.DeepPartialComplete(missing) {
 		t.Error("nonexistent partial reported complete")
 	}
 
@@ -44,7 +45,7 @@ func TestDeepPartialComplete(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			writeRoundFile(t, ws, fid, 1, "deep-review-partial-1.md", tt.content)
 			path := ws.RoundDir(fid, 1) + "/deep-review-partial-1.md"
-			if got := deepPartialComplete(path); got != tt.want {
+			if got := prompt.DeepPartialComplete(path); got != tt.want {
 				t.Errorf("deepPartialComplete = %v, want %v", got, tt.want)
 			}
 		})
@@ -69,9 +70,9 @@ func TestMissingDeepPartials(t *testing.T) {
 			ws := &protocol.Workspace{Root: t.TempDir()}
 			const fid = "F-miss"
 			for _, idx := range tt.present {
-				writeRoundFile(t, ws, fid, 1, deepReviewPartialName(idx), completePartial)
+				writeRoundFile(t, ws, fid, 1, prompt.DeepReviewPartialName(idx), completePartial)
 			}
-			got := missingDeepPartials(ws.RoundDir(fid, 1), tt.want)
+			got := prompt.MissingDeepPartials(ws.RoundDir(fid, 1), tt.want)
 			if len(got) != len(tt.wantIdx) {
 				t.Fatalf("missing = %v, want %v", got, tt.wantIdx)
 			}
@@ -90,7 +91,7 @@ func TestDeepResumeSubPhase(t *testing.T) {
 	t.Run("missing partial → reviewing", func(t *testing.T) {
 		ws := &protocol.Workspace{Root: t.TempDir()}
 		const fid = "F-sub"
-		writeRoundFile(t, ws, fid, 1, deepReviewPartialName(1), completePartial)
+		writeRoundFile(t, ws, fid, 1, prompt.DeepReviewPartialName(1), completePartial)
 		// partial 2、3 缺。
 		if got := deepResumeSubPhase(ws, fid, 1, parallelCfg(3)); got != protocol.SubPhaseReviewing {
 			t.Errorf("subPhase = %q, want reviewing", got)
@@ -101,7 +102,7 @@ func TestDeepResumeSubPhase(t *testing.T) {
 		ws := &protocol.Workspace{Root: t.TempDir()}
 		const fid = "F-sub"
 		for i := 1; i <= 3; i++ {
-			writeRoundFile(t, ws, fid, 1, deepReviewPartialName(i), completePartial)
+			writeRoundFile(t, ws, fid, 1, prompt.DeepReviewPartialName(i), completePartial)
 		}
 		if got := deepResumeSubPhase(ws, fid, 1, parallelCfg(3)); got != protocol.SubPhaseSynthesizing {
 			t.Errorf("subPhase = %q, want synthesizing", got)
@@ -133,7 +134,7 @@ func TestSmartResume_DeepSubPhase(t *testing.T) {
 		ws := &protocol.Workspace{Root: t.TempDir()}
 		const fid = "F-srsub"
 		seedToDeepReview(t, ws, fid)
-		writeRoundFile(t, ws, fid, 1, deepReviewPartialName(1), completePartial)
+		writeRoundFile(t, ws, fid, 1, prompt.DeepReviewPartialName(1), completePartial)
 		phase, role, sub := smartResumePhase(ws, fid, 1, parallelCfg(3))
 		if phase != protocol.PhaseDeepReviewing || role != protocol.RoleDeepReviewer || sub != protocol.SubPhaseReviewing {
 			t.Errorf("got (%s, %s, %s), want (deep-reviewing, deep-reviewer, reviewing)", phase, role, sub)
@@ -145,7 +146,7 @@ func TestSmartResume_DeepSubPhase(t *testing.T) {
 		const fid = "F-srsub"
 		seedToDeepReview(t, ws, fid)
 		for i := 1; i <= 3; i++ {
-			writeRoundFile(t, ws, fid, 1, deepReviewPartialName(i), completePartial)
+			writeRoundFile(t, ws, fid, 1, prompt.DeepReviewPartialName(i), completePartial)
 		}
 		phase, role, sub := smartResumePhase(ws, fid, 1, parallelCfg(3))
 		if phase != protocol.PhaseDeepReviewing || role != protocol.RoleSynthesizer || sub != protocol.SubPhaseSynthesizing {

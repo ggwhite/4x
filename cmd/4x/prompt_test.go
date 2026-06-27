@@ -8,6 +8,7 @@ import (
 
 	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/learning"
+	"github.com/ggwhite/4x/internal/prompt"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -26,7 +27,7 @@ func TestLoadProfiles_BuiltinUnit(t *testing.T) {
 	writeTestFileHelper(t, stratPath, "profiles:\n  - unit\nverify_commands:\n  - \"echo ok\"\n")
 
 	cfg := protocol.Config{}
-	profiles := loadProfiles(ws, featureID, cfg)
+	profiles := prompt.LoadProfiles(ws, featureID, cfg)
 	if len(profiles) != 1 {
 		t.Fatalf("expected 1 profile, got %d", len(profiles))
 	}
@@ -39,7 +40,7 @@ func TestLoadProfiles_BuiltinUnit(t *testing.T) {
 }
 
 func TestLoadRoleTemplate_Gate(t *testing.T) {
-	tmpl, err := loadRoleTemplate("", protocol.RoleGate)
+	tmpl, err := prompt.LoadRoleTemplate("", protocol.RoleGate)
 	if err != nil {
 		t.Fatalf("load gate template: %v", err)
 	}
@@ -49,12 +50,12 @@ func TestLoadRoleTemplate_Gate(t *testing.T) {
 }
 
 func TestLoadRoleTemplate_DesignReviewer(t *testing.T) {
-	tmpl, err := loadRoleTemplate("", protocol.RoleDesignReviewer)
+	tmpl, err := prompt.LoadRoleTemplate("", protocol.RoleDesignReviewer)
 	if err != nil {
 		t.Fatalf("load design-reviewer template: %v", err)
 	}
 	var b strings.Builder
-	err = tmpl.Execute(&b, promptData{
+	err = tmpl.Execute(&b, prompt.Data{
 		Feature: feature.Feature{ID: "F091-design-review-phase", Name: "Design Review Phase"},
 		DotDir:  "/tmp/project/.4x",
 		Round:   0,
@@ -83,13 +84,13 @@ func TestLoadRoleTemplate_ProjectOverride(t *testing.T) {
 	customContent := `CUSTOM DESIGNER PROMPT for {{.Feature.ID}}`
 	writeTestFileHelper(t, filepath.Join(tmplDir, "designer.md.tmpl"), customContent)
 
-	tmpl, err := loadRoleTemplate(dotDir, protocol.RoleDesigner)
+	tmpl, err := prompt.LoadRoleTemplate(dotDir, protocol.RoleDesigner)
 	if err != nil {
 		t.Fatalf("load template: %v", err)
 	}
 
 	var b strings.Builder
-	err = tmpl.Execute(&b, promptData{
+	err = tmpl.Execute(&b, prompt.Data{
 		Feature: feature.Feature{ID: "F089-test", Name: "Test"},
 		DotDir:  dotDir,
 	})
@@ -109,14 +110,13 @@ func TestLoadRoleTemplate_FallbackBuiltin(t *testing.T) {
 	ws := &protocol.Workspace{Root: root}
 	dotDir := ws.DotDir()
 
-	// 不建 .4x/templates/ 目錄，應 fallback 內建
-	tmpl, err := loadRoleTemplate(dotDir, protocol.RoleDesigner)
+	tmpl, err := prompt.LoadRoleTemplate(dotDir, protocol.RoleDesigner)
 	if err != nil {
 		t.Fatalf("load template: %v", err)
 	}
 
 	var b strings.Builder
-	err = tmpl.Execute(&b, promptData{
+	err = tmpl.Execute(&b, prompt.Data{
 		Feature: feature.Feature{ID: "F089-test", Name: "Test"},
 		DotDir:  dotDir,
 	})
@@ -129,12 +129,12 @@ func TestLoadRoleTemplate_FallbackBuiltin(t *testing.T) {
 }
 
 func TestPromptData_DesignerWithLearnings(t *testing.T) {
-	tmpl, err := loadRoleTemplate("", protocol.RoleDesigner)
+	tmpl, err := prompt.LoadRoleTemplate("", protocol.RoleDesigner)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	data := promptData{
+	data := prompt.Data{
 		Feature: feature.Feature{ID: "F089-test", Name: "Test Feature"},
 		DotDir:  "/tmp/.4x",
 		Learnings: []learning.Entry{
@@ -160,12 +160,12 @@ func TestPromptData_DesignerWithLearnings(t *testing.T) {
 }
 
 func TestPromptData_DesignerWithoutLearnings(t *testing.T) {
-	tmpl, err := loadRoleTemplate("", protocol.RoleDesigner)
+	tmpl, err := prompt.LoadRoleTemplate("", protocol.RoleDesigner)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	data := promptData{
+	data := prompt.Data{
 		Feature: feature.Feature{ID: "F089-test", Name: "Test"},
 		DotDir:  "/tmp/.4x",
 	}
@@ -203,20 +203,17 @@ func TestLoadSelectedLearnings_FiltersByCategory(t *testing.T) {
 	sel := `{"selected": ["L001", "L002", "L003"]}`
 	writeTestFileHelper(t, filepath.Join(ws.FeatureDir(featureID), protocol.SelectedLearningsFile), sel)
 
-	// Coder：code-quality（L001）有；process（L003）無；testing（L002）不在 coder 白名單
-	entries := loadSelectedLearnings(ws.DotDir(), featureID, protocol.RoleCoder)
+	entries := prompt.LoadSelectedLearnings(ws.DotDir(), featureID, protocol.RoleCoder)
 	if len(entries) != 1 || entries[0].ID != "L001" {
 		t.Fatalf("expected [L001] for coder, got %v", entries)
 	}
 
-	// Tester：testing（L002）有
-	entries = loadSelectedLearnings(ws.DotDir(), featureID, protocol.RoleTester)
+	entries = prompt.LoadSelectedLearnings(ws.DotDir(), featureID, protocol.RoleTester)
 	if len(entries) != 1 || entries[0].ID != "L002" {
 		t.Fatalf("expected [L002] for tester, got %v", entries)
 	}
 
-	// Acceptor：process（L003）有
-	entries = loadSelectedLearnings(ws.DotDir(), featureID, protocol.RoleAcceptor)
+	entries = prompt.LoadSelectedLearnings(ws.DotDir(), featureID, protocol.RoleAcceptor)
 	if len(entries) != 1 || entries[0].ID != "L003" {
 		t.Fatalf("expected [L003] for acceptor, got %v", entries)
 	}
@@ -229,7 +226,7 @@ func TestLoadSelectedLearnings_NoFile(t *testing.T) {
 	}
 	ws := &protocol.Workspace{Root: root}
 
-	entries := loadSelectedLearnings(ws.DotDir(), "F042-test", protocol.RoleCoder)
+	entries := prompt.LoadSelectedLearnings(ws.DotDir(), "F042-test", protocol.RoleCoder)
 	if entries != nil {
 		t.Errorf("expected nil when no selected-learnings.json, got %v", entries)
 	}
@@ -255,7 +252,7 @@ func TestLoadSelectedLearnings_SkipsNonActive(t *testing.T) {
 	}
 	writeTestFileHelper(t, filepath.Join(ws.FeatureDir(featureID), protocol.SelectedLearningsFile), `{"selected":["L001","L002"]}`)
 
-	entries := loadSelectedLearnings(ws.DotDir(), featureID, protocol.RoleCoder)
+	entries := prompt.LoadSelectedLearnings(ws.DotDir(), featureID, protocol.RoleCoder)
 	if len(entries) != 1 || entries[0].ID != "L002" {
 		t.Fatalf("expected only active L002, got %v", entries)
 	}
@@ -271,7 +268,7 @@ func TestLoadProfiles_NoProfiles_ReturnsNil(t *testing.T) {
 	stratPath := filepath.Join(ws.FeatureDir(featureID), protocol.TestStratFile)
 	writeTestFileHelper(t, stratPath, "verify_commands:\n  - \"echo ok\"\n")
 
-	profiles := loadProfiles(ws, featureID, protocol.Config{})
+	profiles := prompt.LoadProfiles(ws, featureID, protocol.Config{})
 	if profiles != nil {
 		t.Errorf("expected nil, got %v", profiles)
 	}
@@ -292,7 +289,7 @@ func TestLoadProfiles_SettingsOverride(t *testing.T) {
 			"unit": {Content: "custom unit instructions"},
 		},
 	}
-	profiles := loadProfiles(ws, featureID, cfg)
+	profiles := prompt.LoadProfiles(ws, featureID, cfg)
 	if len(profiles) != 1 {
 		t.Fatalf("expected 1 profile, got %d", len(profiles))
 	}
@@ -319,7 +316,7 @@ func TestLoadProfiles_SettingsInclude(t *testing.T) {
 			"custom": {Include: "my-profile.md"},
 		},
 	}
-	profiles := loadProfiles(ws, featureID, cfg)
+	profiles := prompt.LoadProfiles(ws, featureID, cfg)
 	if len(profiles) != 1 {
 		t.Fatalf("expected 1 profile, got %d", len(profiles))
 	}
@@ -338,7 +335,7 @@ func TestLoadProfiles_UnknownProfile_ReturnsEmpty(t *testing.T) {
 	stratPath := filepath.Join(ws.FeatureDir(featureID), protocol.TestStratFile)
 	writeTestFileHelper(t, stratPath, "profiles:\n  - nonexistent\nverify_commands:\n  - \"echo ok\"\n")
 
-	profiles := loadProfiles(ws, featureID, protocol.Config{})
+	profiles := prompt.LoadProfiles(ws, featureID, protocol.Config{})
 	if len(profiles) != 0 {
 		t.Errorf("expected 0 profiles for unknown name, got %d", len(profiles))
 	}
@@ -354,7 +351,7 @@ func TestLoadProfiles_MultipleProfiles(t *testing.T) {
 	stratPath := filepath.Join(ws.FeatureDir(featureID), protocol.TestStratFile)
 	writeTestFileHelper(t, stratPath, "profiles:\n  - unit\n  - web\nverify_commands:\n  - \"echo ok\"\n")
 
-	profiles := loadProfiles(ws, featureID, protocol.Config{})
+	profiles := prompt.LoadProfiles(ws, featureID, protocol.Config{})
 	if len(profiles) != 2 {
 		t.Fatalf("expected 2 profiles, got %d", len(profiles))
 	}
@@ -370,7 +367,7 @@ func TestLoadProfiles_NoStrategyFile_ReturnsNil(t *testing.T) {
 	featureID := "test-feat"
 	ws.InitFeatureDir(featureID)
 
-	profiles := loadProfiles(ws, featureID, protocol.Config{})
+	profiles := prompt.LoadProfiles(ws, featureID, protocol.Config{})
 	if profiles != nil {
 		t.Errorf("expected nil when no test-strategy.yaml, got %v", profiles)
 	}
@@ -427,17 +424,14 @@ func TestCondensePlan(t *testing.T) {
 
 Check everything.
 `
-	got := condensePlan(plan)
+	got := prompt.CondensePlan(plan)
 
-	// 保留架構段落
 	if !strings.Contains(got, "## Global Constraints") {
 		t.Error("should keep Global Constraints")
 	}
 	if !strings.Contains(got, "## File Structure") {
 		t.Error("should keep File Structure")
 	}
-
-	// 保留 Task 標題和描述
 	if !strings.Contains(got, "### Task 1: Setup config") {
 		t.Error("should keep Task 1 header")
 	}
@@ -447,21 +441,15 @@ Check everything.
 	if !strings.Contains(got, "Produces: Config struct") {
 		t.Error("should keep Interfaces content")
 	}
-
-	// 去掉詳細步驟
 	if strings.Contains(got, "- [ ] Step 1") {
 		t.Error("should strip step checkboxes")
 	}
 	if strings.Contains(got, "- [ ] Step 2") {
 		t.Error("should strip step checkboxes")
 	}
-
-	// 保留 Task 後面的非 Task 段落
 	if !strings.Contains(got, "## Self-Review") {
 		t.Error("should keep non-task sections after tasks")
 	}
-
-	// 壓縮比：去掉了 6 個 step 行，content 應明顯更短
 	if len(got) >= len(plan) {
 		t.Errorf("condensed (%d) should be shorter than original (%d)", len(got), len(plan))
 	}
@@ -469,7 +457,7 @@ Check everything.
 
 func TestCondensePlan_NoTasks(t *testing.T) {
 	plan := "# Plan\n\nJust a simple plan with no tasks.\n"
-	got := condensePlan(plan)
+	got := prompt.CondensePlan(plan)
 	if got != plan {
 		t.Errorf("plan without tasks should be unchanged\ngot:  %q\nwant: %q", got, plan)
 	}
@@ -490,7 +478,7 @@ func TestCompactBlankLines(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := compactBlankLines(tt.in)
+			got := prompt.CompactBlankLines(tt.in)
 			if got != tt.want {
 				t.Errorf("compactBlankLines(%q)\n got %q\nwant %q", tt.in, got, tt.want)
 			}

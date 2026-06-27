@@ -16,6 +16,7 @@ import (
 	feat "github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/guard"
+	"github.com/ggwhite/4x/internal/prompt"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/runner"
 	"github.com/spf13/cobra"
@@ -490,13 +491,13 @@ func scanEvolveCandidates(ws *protocol.Workspace, features []feat.Feature, minOc
 // buildGatePrompt 直接 render gate.md.tmpl（gate 不綁特定 feature），不經 run loop 的 generatePrompt。
 // template 為靜態文字 + locale 前綴，故只需帶 Locale/LocaleName 與 Config/DotDir。
 func buildGatePrompt(ws *protocol.Workspace, cfg protocol.Config) (string, error) {
-	tmpl, err := loadRoleTemplate(ws.DotDir(), protocol.RoleGate)
+	tmpl, err := prompt.LoadRoleTemplate(ws.DotDir(), protocol.RoleGate)
 	if err != nil {
 		return "", err
 	}
-	locale, localeName := resolveLocale()
+	locale, localeName := prompt.ResolveLocale()
 	var b strings.Builder
-	data := promptData{
+	data := prompt.Data{
 		Role:       protocol.RoleGate,
 		Config:     cfg,
 		DotDir:     ws.DotDir(),

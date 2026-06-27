@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/ggwhite/4x/internal/gitops"
+	"github.com/ggwhite/4x/internal/prompt"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -107,7 +108,7 @@ func deepResumeSubPhase(ws *protocol.Workspace, featureID string, round int, cfg
 	if want <= 1 {
 		return protocol.SubPhaseReviewing
 	}
-	if len(missingDeepPartials(ws.RoundDir(featureID, round), want)) > 0 {
+	if len(prompt.MissingDeepPartials(ws.RoundDir(featureID, round), want)) > 0 {
 		return protocol.SubPhaseReviewing
 	}
 	return protocol.SubPhaseSynthesizing

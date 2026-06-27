@@ -14,6 +14,7 @@ import (
 	feat "github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/guard"
+	"github.com/ggwhite/4x/internal/prompt"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/runner"
 	"github.com/ggwhite/4x/internal/state"
@@ -295,7 +296,7 @@ func (rc *runContext) runDeepReviewParallel(ctx context.Context, s *protocol.Sta
 		}
 	}
 
-	missing := missingDeepPartials(rc.runnerWs.RoundDir(featureID, round), len(groups))
+	missing := prompt.MissingDeepPartials(rc.runnerWs.RoundDir(featureID, round), len(groups))
 
 	outcomes := make([]parallelOutcome, len(missing))
 	if len(missing) > 0 {
@@ -307,19 +308,19 @@ func (rc *runContext) runDeepReviewParallel(ctx context.Context, s *protocol.Sta
 			go func(slot, idx int) {
 				defer wg.Done()
 				angles := groups[idx-1]
-				partialName := deepReviewPartialName(idx)
+				partialName := prompt.DeepReviewPartialName(idx)
 				ws.AppendEvent(featureID, protocol.Event{
 					Type: "phase-start", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleDeepReviewer, Round: round,
 					Runner: runnerName, Model: deepModel,
 				})
-				prompt, perr := generatePrompt(rc, protocol.RoleDeepReviewer, round, 0, runnerName,
-					withParallelDeepReviewer(idx, len(groups), angles, partialName))
+				promptText, perr := prompt.Generate(promptCtxFromRun(rc), protocol.RoleDeepReviewer, round, 0, runnerName,
+					prompt.WithParallelDeepReviewer(idx, len(groups), angles, partialName))
 				if perr != nil {
-					prompt = fmt.Sprintf("You are deep sub-reviewer %d for feature %s, round %d. Read .4x/%s/ for context.", idx, featureID, round, featureID)
+					promptText = fmt.Sprintf("You are deep sub-reviewer %d for feature %s, round %d. Read .4x/%s/ for context.", idx, featureID, round, featureID)
 				}
 				logPath := filepath.Join(runner.LogDir(ws, featureID), runner.DeepReviewerLogFileName(round, idx))
 				r := rc.newRunner(runnerName, logPath, deepModel)
-				res, runErr := r.Run(ctx, prompt)
+				res, runErr := r.Run(ctx, promptText)
 				outcomes[slot] = parallelOutcome{index: idx, result: res, err: runErr}
 			}(slot, idx)
 		}
@@ -364,15 +365,15 @@ func (rc *runContext) runDeepReviewParallel(ctx context.Context, s *protocol.Sta
 		return false, nil
 	}
 
-	var partials []includeContent
+	var partials []prompt.IncludeContent
 	for i := 1; i <= len(groups); i++ {
-		name := deepReviewPartialName(i)
+		name := prompt.DeepReviewPartialName(i)
 		data, rerr := os.ReadFile(filepath.Join(rc.runnerWs.RoundDir(featureID, round), name))
 		if rerr != nil {
 			cleanup()
 			return parallelNeedsAttention(ws, featureID, s, "missing-artifact: "+name)
 		}
-		partials = append(partials, includeContent{Path: name, Content: string(data)})
+		partials = append(partials, prompt.IncludeContent{Path: name, Content: string(data)})
 	}
 
 	ok, err := rc.runSynthesizer(ctx, s, runnerName, deepModel, partials, round)
@@ -389,7 +390,7 @@ func (rc *runContext) runDeepReviewParallel(ctx context.Context, s *protocol.Sta
 }
 
 // runSynthesizer spawn synthesizer 把所有 partial report 合併成單一 deep-review-report.md。
-func (rc *runContext) runSynthesizer(ctx context.Context, s *protocol.State, runnerName, deepModel string, partials []includeContent, round int) (bool, error) {
+func (rc *runContext) runSynthesizer(ctx context.Context, s *protocol.State, runnerName, deepModel string, partials []prompt.IncludeContent, round int) (bool, error) {
 	ws := rc.ws
 	featureID := rc.featureID()
 
@@ -407,8 +408,8 @@ func (rc *runContext) runSynthesizer(ctx context.Context, s *protocol.State, run
 		Type: "phase-start", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleSynthesizer, Round: round,
 		Runner: runnerName, Model: synthModel,
 	})
-	synthPrompt, perr := generatePrompt(rc, protocol.RoleSynthesizer, round, 0, runnerName,
-		withSynthesizerReports(partials))
+	synthPrompt, perr := prompt.Generate(promptCtxFromRun(rc), protocol.RoleSynthesizer, round, 0, runnerName,
+		prompt.WithSynthesizerReports(partials))
 	if perr != nil {
 		synthPrompt = fmt.Sprintf("You are the deep review synthesizer for feature %s, round %d. Read .4x/%s/ for context.", featureID, round, featureID)
 	}
@@ -461,9 +462,9 @@ func (rc *runContext) runDeepSubRole(ctx context.Context, s *protocol.State, rol
 		Runner: runnerName, Model: model,
 	})
 
-	prompt, err := generatePrompt(rc, role, round, iteration, runnerName)
+	promptText, err := prompt.Generate(promptCtxFromRun(rc), role, round, iteration, runnerName)
 	if err != nil {
-		prompt = fmt.Sprintf("You are the %s for feature %s, round %d. Read .4x/%s/ for context.", role, featureID, round, featureID)
+		promptText = fmt.Sprintf("You are the %s for feature %s, round %d. Read .4x/%s/ for context.", role, featureID, round, featureID)
 	}
 	logPath := filepath.Join(runner.LogDir(ws, featureID), logName)
 	r := rc.newRunner(runnerName, logPath, model)
@@ -482,7 +483,7 @@ func (rc *runContext) runDeepSubRole(ctx context.Context, s *protocol.State, rol
 		fmt.Printf("[round %d] deep-reviewing (%s) — invoking %s\n", round, role, runnerName)
 	}
 
-	result, runErr := r.Run(ctx, prompt)
+	result, runErr := r.Run(ctx, promptText)
 
 	if stopSync != nil {
 		stopSync()

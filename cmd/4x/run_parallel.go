@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/ggwhite/4x/internal/guard"
+	"github.com/ggwhite/4x/internal/prompt"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/runner"
 	"github.com/ggwhite/4x/internal/state"
@@ -74,13 +75,13 @@ func runReviewTestParallel(ctx context.Context, rc *runContext, s *protocol.Stat
 			Type: "phase-start", Phase: protocol.PhaseReviewing, Role: role, Round: round,
 			Runner: runnerName, Model: model,
 		})
-		prompt, err := generatePrompt(rc, role, round, 0, runnerName)
+		promptText, err := prompt.Generate(promptCtxFromRun(rc), role, round, 0, runnerName)
 		if err != nil {
-			prompt = fmt.Sprintf("You are the %s for feature %s, round %d. Read .4x/%s/ for context.", role, featureID, round, featureID)
+			promptText = fmt.Sprintf("You are the %s for feature %s, round %d. Read .4x/%s/ for context.", role, featureID, round, featureID)
 		}
 		logPath := filepath.Join(runner.LogDir(ws, featureID), runner.LogFileName(round, string(role)))
 		r := newRunner(runnerName, logPath, model)
-		res, runErr := r.Run(ctx, prompt)
+		res, runErr := r.Run(ctx, promptText)
 		return runOutcome{role: role, runnerName: runnerName, model: model, result: res, err: runErr}
 	}
 

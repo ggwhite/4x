@@ -17,6 +17,7 @@ import (
 	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/guard"
 	"github.com/ggwhite/4x/internal/health"
+	"github.com/ggwhite/4x/internal/prompt"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/runner"
 	"github.com/ggwhite/4x/internal/state"
@@ -71,7 +72,7 @@ func (rc *runContext) loop(ctx context.Context, s protocol.State) error {
 	var commitWG sync.WaitGroup
 	defer commitWG.Wait()
 
-	var pending *promptPrefetch
+	var pending *prompt.Prefetch
 	var learningsUsageUpdated bool
 
 	for s.Active {
@@ -90,7 +91,7 @@ func (rc *runContext) loop(ctx context.Context, s protocol.State) error {
 		}
 
 		if !learningsUsageUpdated && phase != protocol.PhaseDesigning && phase != protocol.PhaseDesignReviewing {
-			updateLearningsUsage(rc.ws, featureID)
+			prompt.UpdateLearningsUsage(rc.ws, featureID)
 			learningsUsageUpdated = true
 		}
 
@@ -477,26 +478,26 @@ func (rc *runContext) resolveRunnerAndModel(phase protocol.Phase, role protocol.
 	return phaseRunner, model, nil
 }
 
-func (rc *runContext) resolvePrompt(pending **promptPrefetch, role protocol.Role, s *protocol.State, phaseRunner string) string {
+func (rc *runContext) resolvePrompt(pending **prompt.Prefetch, role protocol.Role, s *protocol.State, phaseRunner string) string {
 	featureID := rc.featureID()
-	var prompt string
+	var promptText string
 	gotPrefetch := false
-	if *pending != nil && (*pending).role == role && (*pending).round == s.Round {
-		res := <-(*pending).ch
-		if res.err == nil {
-			prompt = res.prompt
+	if *pending != nil && (*pending).Role == role && (*pending).Round == s.Round {
+		res := <-(*pending).Ch
+		if res.Err == nil {
+			promptText = res.Prompt
 			gotPrefetch = true
 		}
 	}
 	*pending = nil
 	if !gotPrefetch {
-		p, gerr := generatePrompt(rc, role, s.Round, 0, phaseRunner)
+		p, gerr := prompt.Generate(promptCtxFromRun(rc), role, s.Round, 0, phaseRunner)
 		if gerr != nil {
 			p = fmt.Sprintf("You are the %s for feature %s, round %d. Read .4x/%s/ for context.", role, featureID, s.Round, featureID)
 		}
-		prompt = p
+		promptText = p
 	}
-	return prompt
+	return promptText
 }
 
 func (rc *runContext) syncToWorktree(featureID string, round int) {
@@ -601,16 +602,16 @@ func (rc *runContext) executeTransitionHooks(ctx context.Context, s *protocol.St
 	return executePhaseHooks(ctx, rc.ws, featureID, s, hooks[timing], targetPhase, timing, hookLogDir)
 }
 
-func (rc *runContext) prefetchPrompt(s protocol.State, pc protocol.ProfileConfig) *promptPrefetch {
+func (rc *runContext) prefetchPrompt(s protocol.State, pc protocol.ProfileConfig) *prompt.Prefetch {
 	nextRole := state.PhaseToRole(s.Phase)
-	if !prefetchablePhase(s.Phase, rc.cfg) || nextRole == "" || !pc.EnablesRole(nextRole) {
+	if !prompt.PrefetchablePhase(s.Phase, rc.cfg) || nextRole == "" || !pc.EnablesRole(nextRole) {
 		return nil
 	}
-	ch := make(chan promptResult, 1)
-	pf := &promptPrefetch{role: nextRole, round: s.Round, ch: ch}
+	ch := make(chan prompt.Result, 1)
+	pf := &prompt.Prefetch{Role: nextRole, Round: s.Round, Ch: ch}
 	go func(role protocol.Role, round int) {
-		p, gerr := generatePrompt(rc, role, round, 0, rc.manualRunner)
-		ch <- promptResult{prompt: p, err: gerr}
+		p, gerr := prompt.Generate(promptCtxFromRun(rc), role, round, 0, rc.manualRunner)
+		ch <- prompt.Result{Prompt: p, Err: gerr}
 	}(nextRole, s.Round)
 	return pf
 }
@@ -619,7 +620,7 @@ func (rc *runContext) finalize(s protocol.State) error {
 	featureID := rc.featureID()
 	switch s.Phase {
 	case protocol.PhasePendingReview:
-		harvestLearnings(rc.ws, featureID)
+		prompt.HarvestLearnings(rc.ws, featureID)
 		s.Active = false
 		s.StopReason = "pending-review"
 		logStateWriteErr(rc.ws.WriteState(featureID, s), featureID, s.Phase)

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ggwhite/4x/internal/feature"
+	"github.com/ggwhite/4x/internal/prompt"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/runner"
 )
@@ -35,8 +36,8 @@ func TestPrefetchablePhase(t *testing.T) {
 		{protocol.PhaseNeedsAttention, serial, false},
 	}
 	for _, c := range cases {
-		if got := prefetchablePhase(c.phase, c.cfg); got != c.want {
-			t.Errorf("prefetchablePhase(%s, parallel=%v) = %v, want %v", c.phase, c.cfg.ParallelReviewTest, got, c.want)
+		if got := prompt.PrefetchablePhase(c.phase, c.cfg); got != c.want {
+			t.Errorf("prompt.PrefetchablePhase(%s, parallel=%v) = %v, want %v", c.phase, c.cfg.ParallelReviewTest, got, c.want)
 		}
 	}
 }
@@ -74,10 +75,10 @@ func TestRunLoop_PrefetchConsistency(t *testing.T) {
 		if phase == protocol.PhaseDesigning || phase == protocol.PhaseDesignReviewing {
 			round = 0
 		}
-		rc := &runContext{ws: ws, runnerWs: ws, feature: feature, cfg: cfg}
-		want, err := generatePrompt(rc, role, round, 0, "")
+		pctx := &prompt.Context{Ws: ws, RunnerWs: ws, Feature: feature, Cfg: cfg}
+		want, err := prompt.Generate(pctx, role, round, 0, "")
 		if err != nil {
-			t.Fatalf("generatePrompt(%s) failed: %v", role, err)
+			t.Fatalf("prompt.Generate(%s) failed: %v", role, err)
 		}
 		if mock.prompts[i] != want {
 			t.Errorf("phase[%d]=%s role=%s prompt mismatch\n got: %.80q\nwant: %.80q",

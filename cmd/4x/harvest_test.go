@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/ggwhite/4x/internal/learning"
+	"github.com/ggwhite/4x/internal/prompt"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -31,7 +32,7 @@ func TestHarvestLearnings_Success(t *testing.T) {
 	retroPath := filepath.Join(ws.FeatureDir(featureID), protocol.RetroLearningsFile)
 	writeTestFileHelper(t, retroPath, string(data))
 
-	harvestLearnings(ws, featureID)
+	prompt.HarvestLearnings(ws, featureID)
 
 	storePath := filepath.Join(ws.DotDir(), protocol.LearningsFile)
 	store, err := learning.LoadStore(storePath)
@@ -54,8 +55,7 @@ func TestHarvestLearnings_NoRetroFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// 不寫 retro-learnings.json，不應 panic 也不應建立 learnings.json
-	harvestLearnings(ws, featureID)
+	prompt.HarvestLearnings(ws, featureID)
 
 	storePath := filepath.Join(ws.DotDir(), protocol.LearningsFile)
 	if _, err := os.Stat(storePath); !os.IsNotExist(err) {
@@ -77,7 +77,7 @@ func TestHarvestLearnings_EmptyLearnings(t *testing.T) {
 	retroPath := filepath.Join(ws.FeatureDir(featureID), protocol.RetroLearningsFile)
 	writeTestFileHelper(t, retroPath, `{"learnings":[]}`)
 
-	harvestLearnings(ws, featureID)
+	prompt.HarvestLearnings(ws, featureID)
 
 	storePath := filepath.Join(ws.DotDir(), protocol.LearningsFile)
 	if _, err := os.Stat(storePath); !os.IsNotExist(err) {

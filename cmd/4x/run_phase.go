@@ -8,6 +8,7 @@ import (
 
 	feat "github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/guard"
+	"github.com/ggwhite/4x/internal/prompt"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/state"
 )
@@ -147,12 +148,12 @@ func dryRunLoop(ws *protocol.Workspace, feature feat.Feature, cfg protocol.Confi
 
 	for _, p := range phases {
 		fmt.Printf("=== %s (%s) ===\n", p.phase, p.role)
-		prompt, err := generatePrompt(rc, p.role, 1, 0, "")
+		promptText, err := prompt.Generate(promptCtxFromRun(rc), p.role, 1, 0, "")
 		if err != nil {
 			fmt.Printf("  (error: %v)\n\n", err)
 			continue
 		}
-		fmt.Println(prompt)
+		fmt.Println(promptText)
 		fmt.Println()
 	}
 	return nil
