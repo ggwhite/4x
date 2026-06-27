@@ -27,7 +27,10 @@
       "State machine 合法轉換定義在 internal/state/machine.go，不可繞過",
       "docs/ 是權威設計規格；實作與規格衝突時以規格為準",
       "測試用 Go 標準 testing package，測試檔放與被測程式同目錄",
-      "新增 public function 必須有繁體中文 GoDoc 註解"
+      "新增 public function 必須有繁體中文 GoDoc 註解",
+      "探索既有程式碼結構必須先用工具：codegraph_explore MCP（查 symbol-level，精確定位）或 graphify（看模組耦合、呼叫鏈、God node）。worktree 內沒有 codegraph 索引，需指定主工作區路徑：`codegraph explore \"query\" -p /Users/white/github/4x`；graphify 同理：`graphify query \"問題\" --graph /Users/white/github/4x/graphify-out/graph.json`。禁止跳過直接 grep + Read",
+      "找檔案、定位 symbol 時先用 codegraph_explore MCP；MCP 不可用或找不到時，改用 Explore agent（subagent_type: Explore），不可直接 find + Read 迴圈代替",
+      "4x session context 啟動時已很重（task-brief + artifacts），禁止用 fork 做分析任務——fork 繼承全部 context 且後續輪數少，啟動成本高於收益。改用 codegraph / Explore agent 替代"
     ],
     "includes": [
       "CLAUDE.md"
@@ -164,6 +167,7 @@
       "model": "sonnet",
       "screenshot_dir": ".4x/run/{feature-id}/e2e/screenshots/round-{round}/",
       "instructions": [
+        "若 test-strategy.yaml 不存在（Designer 被跳過），先參考其他 feature 的格式（find .4x/run -name test-strategy.yaml | head -3），手動建立後再執行驗證",
         "verify.json 必須每項 AC 都有對應的 pass/fail 結果",
         "涉及 Dashboard UI 的 feature 必須用 Playwright 截圖驗證——test-strategy.yaml 的 web: true 即觸發",
         "Playwright 測試流程：(1) 在 /tmp 建立隔離 workspace（4x init）(2) 用隨機 port 啟動獨立 4x live instance (3) 執行 Playwright 測試 (4) 截圖存到 screenshot_dir (5) kill server + 清理 workspace",

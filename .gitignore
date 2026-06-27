@@ -52,3 +52,6 @@ VULN-FINDINGS.md
 
 # Codegraph index
 .codegraph/
+
+# Graphify knowledge graph
+graphify-out/
