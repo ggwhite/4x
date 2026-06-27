@@ -300,6 +300,26 @@
       "last_used": "0001-01-01T00:00:00Z",
       "used_count": 0,
       "status": "active"
+    },
+    {
+      "id": "L031",
+      "source_feature": "F104-split-workspace",
+      "category": "code-quality",
+      "content": "純拆檔重構的 feature spec 應明確限制 scope（只改指定檔案），避免 Coder 順手改到 README 等不相關檔案",
+      "created_at": "2026-06-27T10:40:05.18341+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L032",
+      "source_feature": "F104-split-workspace",
+      "category": "process",
+      "content": "God Object 拆分是低風險重構，一輪即通過——此類 feature 適合用 lite profile 減少不必要的 review 輪次",
+      "created_at": "2026-06-27T10:40:05.18341+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
     }
   ]
 }
