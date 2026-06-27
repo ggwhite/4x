@@ -1,0 +1,26 @@
+id: F109-selective-deep-review
+name: 'F109: selective deep review angles'
+description: |-
+    ## 現狀
+    deep review 每次跑全部 11 個角度，不論 diff 大小和影響範圍。小改動也要付全額 deep review 成本。
+
+    ## 需求
+    - 建立 diff-to-angles mapping：根據 diff 影響的檔案路徑決定要跑哪些 deep review 角度
+    - 預設 mapping 表覆蓋主要模組區域：internal/state、internal/protocol、internal/guard、cmd/4x/run*、templates/*、docs/*、tests only、dashboard
+    - deep review template 接收 selected angles 參數，只跑被選中的角度
+    - run artifact 記錄本次選了哪些角度及原因
+    - 使用者可透過 feature YAML 或 CLI flag 強制跑全部角度（override）
+
+    ## 約束
+    - 不改 deep review 的 11 個角度定義本身
+    - 不改 synthesizer 行為（只是收到的 partial report 變少）
+    - mapping 表可設定，不寫死在程式碼裡
+status: not-started
+priority: 3
+profile: standard
+rules:
+    - 不改 deep review 角度定義
+    - 不改 synthesizer 行為
+    - mapping 表可設定
+depends:
+    - F108-ac-evidence-mapping

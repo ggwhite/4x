@@ -1,0 +1,23 @@
+id: F108-ac-evidence-mapping
+name: 'F108: AC evidence mapping'
+description: |-
+    ## 現狀
+    verify.json 只記錄整體 pass/fail 和 evidence 列表，沒有把 evidence 對應到個別 acceptance criteria。4x check 無法驗證每個 AC 都有被覆蓋。
+
+    ## 需求
+    - verify.json schema 加入 per-AC evidence mapping：每個 AC 有 id、passed、evidence 陣列
+    - tester role template 引導 tester 產出 per-AC 結構
+    - internal/guard 在 testing → accepting 轉換時檢查：所有 AC 都有 evidence，無 evidence 的 AC 阻擋通過
+    - 4x check 輸出顯示哪些 AC 缺 evidence
+
+    ## 約束
+    - 向後相容：舊格式 verify.json 仍可被讀取，只是不通過 per-AC 檢查
+    - 不改 state machine 轉換規則本身
+    - 不改 acceptance-criteria.md 的格式（AC id 由 tester 從中解析）
+status: not-started
+priority: 2
+profile: standard
+rules:
+    - 不改 state machine 轉換規則
+    - 舊格式 verify.json 向後相容
+    - 不改 acceptance-criteria.md 格式
