@@ -153,6 +153,7 @@
       "model": "sonnet",
       "deep_model": "opus",
       "instructions": [
+        "驗證 symbol 是否存在、caller 是否正確、interface 是否被實作，必須用 codegraph_explore MCP，禁止 grep -rn symbol 搜尋迴圈",
         "重點檢查：是否繞過 state machine、是否在 CLI 層呼叫 LLM、是否破壞 .4x/ protocol",
         "確認新增的 public function 有繁體中文 GoDoc",
         "檢查 error handling — Go 的 error 不能被忽略",
