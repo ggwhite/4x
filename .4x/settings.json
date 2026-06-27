@@ -19,7 +19,7 @@
     ],
     "rules": [
       "CLI 層嚴禁呼叫 LLM — 所有 AI 互動由 plugin 負責",
-      "Go 1.22+，遵循 gofmt，go vet 不能有 warning",
+      "Go 1.26+，遵循 gofmt，go vet 不能有 warning",
       "每個 subcommand 一個檔案 cmd/4x/{cmd}.go",
       "內部 package 放 internal/，不 export 給外部",
       "Plugin 指令檔用 //go:embed 打包進 binary，4x init 時部署",
