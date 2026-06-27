@@ -150,8 +150,9 @@ type Event struct {
 	Notify string `json:"notify,omitempty"`
 	// TokensUsed 記錄本次 runner invocation 使用的 token 數量（從 runner log 解析），
 	// 0 表示該 runner 未回報或解析失敗。僅 run-end event 填寫。
-	TokensUsed int   `json:"tokens_used,omitempty"`
-	DurationMs int64 `json:"duration_ms,omitempty"`
+	TokensUsed int     `json:"tokens_used,omitempty"`
+	CostUSD    float64 `json:"cost_usd,omitempty"`
+	DurationMs int64   `json:"duration_ms,omitempty"`
 }
 
 // 通知等級常量，供 server 端標注 Event.Notify 及前端判斷顯示樣式，避免散落字串。

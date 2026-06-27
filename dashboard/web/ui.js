@@ -1043,7 +1043,12 @@ function renderMsgCard(m) {
   const modelLabel = (m.model || 'Auto').replace(/^./, c => c.toUpperCase());
   const dur = m.duration > 0 ? `<span class="text-[10px] text-zinc-600 flex-shrink-0">${fmtSec(m.duration)}</span>` : '';
   const modelTag = `<span class="text-[10px] text-zinc-600 flex-shrink-0">${esc(modelLabel)}</span>`;
-  header.innerHTML = `<span class="text-xs font-semibold flex-shrink-0" style="color:${r.color}">${emoji} ${r.name}</span><span class="text-xs text-zinc-600 flex-shrink-0">${m.label}${m.round?' · Round '+m.round:''}</span>${previewText}${modelTag}${dur}<span class="msg-chevron text-zinc-600 text-xs ml-auto flex-shrink-0">▶</span>`;
+  const costTag = m.costUsd > 0
+    ? `<span class="text-[10px] text-zinc-600 flex-shrink-0">$${m.costUsd.toFixed(4)}</span>`
+    : m.tokensUsed > 0
+      ? `<span class="text-[10px] text-zinc-600 flex-shrink-0">${fmtTokens(m.tokensUsed)}</span>`
+      : '';
+  header.innerHTML = `<span class="text-xs font-semibold flex-shrink-0" style="color:${r.color}">${emoji} ${r.name}</span><span class="text-xs text-zinc-600 flex-shrink-0">${m.label}${m.round?' · Round '+m.round:''}</span>${previewText}${modelTag}${dur}${costTag}<span class="msg-chevron text-zinc-600 text-xs ml-auto flex-shrink-0">▶</span>`;
   const body = document.createElement('div');
   body.className = 'msg-body collapsed md-body px-4 py-3 overflow-y-auto';
   body.style.color = 'var(--text-2)';

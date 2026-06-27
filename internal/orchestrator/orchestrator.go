@@ -269,7 +269,7 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 			Type: "run-end", Phase: phase, Role: role, Round: s.Round,
 			Status: fmt.Sprintf("exit-%d", result.ExitCode),
 			Runner: phaseRunner, Model: model,
-			TokensUsed: tokens, DurationMs: invokeDur.Milliseconds(),
+			TokensUsed: tokens, CostUSD: stats.CostUSD, DurationMs: invokeDur.Milliseconds(),
 		})
 
 		if err := r.handleExitResult(result, &s, phase, role, phaseRunner); err != nil {

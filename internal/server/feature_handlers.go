@@ -150,13 +150,15 @@ func handleOverview(ws *protocol.CachedWorkspace, featureID string, w http.Respo
 }
 
 type messageInfo struct {
-	Role     string `json:"role"`
-	Label    string `json:"label"`
-	Content  string `json:"content"`
-	File     string `json:"file"`
-	Round    int    `json:"round,omitempty"`
-	Duration int    `json:"duration,omitempty"` // seconds
-	Model    string `json:"model,omitempty"`
+	Role       string  `json:"role"`
+	Label      string  `json:"label"`
+	Content    string  `json:"content"`
+	File       string  `json:"file"`
+	Round      int     `json:"round,omitempty"`
+	Duration   int     `json:"duration,omitempty"` // seconds
+	Model      string  `json:"model,omitempty"`
+	TokensUsed int     `json:"tokensUsed,omitempty"`
+	CostUSD    float64 `json:"costUsd,omitempty"`
 }
 
 func handleMessages(ws *protocol.CachedWorkspace, featureID string, w http.ResponseWriter) {
@@ -174,8 +176,11 @@ func handleMessages(ws *protocol.CachedWorkspace, featureID string, w http.Respo
 				File:    name,
 			}
 			if i == 0 {
-				mi.Duration = phases[durationKey{"designer", 0}].duration
-				mi.Model = phases[durationKey{"designer", 0}].model
+				p := phases[durationKey{"designer", 0}]
+				mi.Duration = p.duration
+				mi.Model = p.model
+				mi.TokensUsed = p.tokensUsed
+				mi.CostUSD = p.costUSD
 			}
 			messages = append(messages, mi)
 		}
@@ -183,13 +188,16 @@ func handleMessages(ws *protocol.CachedWorkspace, featureID string, w http.Respo
 
 	drr := readIfExists(filepath.Join(dir, protocol.DesignReviewReport))
 	if drr != "" {
+		dp := phases[durationKey{"design-reviewer", 0}]
 		messages = append(messages, messageInfo{
-			Role:     "design-reviewer",
-			Label:    protocol.DesignReviewReport,
-			Content:  drr,
-			File:     protocol.DesignReviewReport,
-			Duration: phases[durationKey{"design-reviewer", 0}].duration,
-			Model:    phases[durationKey{"design-reviewer", 0}].model,
+			Role:       "design-reviewer",
+			Label:      protocol.DesignReviewReport,
+			Content:    drr,
+			File:       protocol.DesignReviewReport,
+			Duration:   dp.duration,
+			Model:      dp.model,
+			TokensUsed: dp.tokensUsed,
+			CostUSD:    dp.costUSD,
 		})
 	}
 
@@ -216,14 +224,17 @@ func handleMessages(ws *protocol.CachedWorkspace, featureID string, w http.Respo
 		} {
 			content := readIfExists(filepath.Join(roundPath, f.name))
 			if content != "" {
+				rp := phases[durationKey{f.role, roundNum}]
 				messages = append(messages, messageInfo{
-					Role:     f.role,
-					Label:    f.name,
-					Content:  content,
-					File:     filepath.Join(entry.Name(), f.name),
-					Round:    roundNum,
-					Duration: phases[durationKey{f.role, roundNum}].duration,
-					Model:    phases[durationKey{f.role, roundNum}].model,
+					Role:       f.role,
+					Label:      f.name,
+					Content:    content,
+					File:       filepath.Join(entry.Name(), f.name),
+					Round:      roundNum,
+					Duration:   rp.duration,
+					Model:      rp.model,
+					TokensUsed: rp.tokensUsed,
+					CostUSD:    rp.costUSD,
 				})
 			}
 		}
@@ -255,8 +266,10 @@ type durationKey struct {
 }
 
 type phaseInfo struct {
-	duration int
-	model    string
+	duration   int
+	model      string
+	tokensUsed int
+	costUSD    float64
 }
 
 func buildPhaseInfo(ws *protocol.CachedWorkspace, featureID string) map[durationKey]phaseInfo {
@@ -268,11 +281,13 @@ func buildPhaseInfo(ws *protocol.CachedWorkspace, featureID string) map[duration
 	}
 
 	type eventEntry struct {
-		Ts    string `json:"ts"`
-		Type  string `json:"type"`
-		Role  string `json:"role"`
-		Round int    `json:"round"`
-		Model string `json:"model"`
+		Ts         string  `json:"ts"`
+		Type       string  `json:"type"`
+		Role       string  `json:"role"`
+		Round      int     `json:"round"`
+		Model      string  `json:"model"`
+		TokensUsed int     `json:"tokens_used"`
+		CostUSD    float64 `json:"cost_usd"`
 	}
 
 	starts := make(map[durationKey]time.Time)
@@ -302,6 +317,12 @@ func buildPhaseInfo(ws *protocol.CachedWorkspace, featureID string) map[duration
 					info.duration = int(t.Sub(start).Seconds())
 					if e.Model != "" {
 						info.model = e.Model
+					}
+					if e.TokensUsed > 0 {
+						info.tokensUsed = e.TokensUsed
+					}
+					if e.CostUSD > 0 {
+						info.costUSD = e.CostUSD
 					}
 					result[key] = info
 				}
