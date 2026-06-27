@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/ggwhite/4x/internal/feature"
+	"github.com/ggwhite/4x/internal/orchestrator"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/runner"
 	"github.com/ggwhite/4x/internal/state"
@@ -157,7 +158,7 @@ func TestWorktreeExitHints(t *testing.T) {
 
 	// 非完成狀態 → worktree 保留提示。
 	for _, ph := range []protocol.Phase{protocol.PhaseNeedsAttention, protocol.PhaseBlocked} {
-		lines := worktreeExitHints(wt, "feat-x", ph, "per-round")
+		lines := orchestrator.WorktreeExitHints(wt, "feat-x", ph, "per-round")
 		joined := strings.Join(lines, "\n")
 		if !strings.Contains(joined, wt) {
 			t.Errorf("phase %s: hints should contain worktree path %q, got: %q", ph, wt, joined)
@@ -168,13 +169,13 @@ func TestWorktreeExitHints(t *testing.T) {
 	}
 
 	// done → merge 指令。
-	done := strings.Join(worktreeExitHints(wt, "feat-x", protocol.PhaseDone, "per-round"), "\n")
+	done := strings.Join(orchestrator.WorktreeExitHints(wt, "feat-x", protocol.PhaseDone, "per-round"), "\n")
 	if !strings.Contains(done, "to merge") || !strings.Contains(done, wt) {
 		t.Errorf("done hints should contain merge instructions with path, got: %q", done)
 	}
 
 	// 非 worktree 模式（空路徑）→ nil。
-	if got := worktreeExitHints("", "feat-x", protocol.PhaseNeedsAttention, "per-round"); got != nil {
+	if got := orchestrator.WorktreeExitHints("", "feat-x", protocol.PhaseNeedsAttention, "per-round"); got != nil {
 		t.Errorf("empty wtPath should yield nil hints, got: %v", got)
 	}
 }
@@ -186,9 +187,9 @@ func TestStartBackgroundRun(t *testing.T) {
 	logPath := filepath.Join(dir, "run.log")
 
 	// 用 sh 模擬會早期失敗並對 stderr 輸出的子程序。
-	proc, err := startBackgroundRun("/bin/sh", []string{"-c", "echo early-failure >&2; exit 1"}, dir, logPath)
+	proc, err := orchestrator.StartBackgroundRun("/bin/sh", []string{"-c", "echo early-failure >&2; exit 1"}, dir, logPath)
 	if err != nil {
-		t.Fatalf("startBackgroundRun: %v", err)
+		t.Fatalf("StartBackgroundRun: %v", err)
 	}
 	if proc == nil || proc.Pid <= 0 {
 		t.Fatalf("expected a valid process, got %+v", proc)

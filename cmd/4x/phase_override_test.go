@@ -3,6 +3,7 @@ package main
 import (
 	"testing"
 
+	"github.com/ggwhite/4x/internal/orchestrator"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -12,7 +13,7 @@ func TestParsePhaseOverrides_Success(t *testing.T) {
 		"testing::opus",       // 只覆寫 model tier
 		"coding:codex:sonnet", // 兩者都覆寫
 	}
-	got, err := parsePhaseOverrides(raw)
+	got, err := orchestrator.ParsePhaseOverrides(raw)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -31,7 +32,7 @@ func TestParsePhaseOverrides_Success(t *testing.T) {
 }
 
 func TestParsePhaseOverrides_Empty(t *testing.T) {
-	got, err := parsePhaseOverrides(nil)
+	got, err := orchestrator.ParsePhaseOverrides(nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -52,7 +53,7 @@ func TestParsePhaseOverrides_Errors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if _, err := parsePhaseOverrides(tt.raw); err == nil {
+			if _, err := orchestrator.ParsePhaseOverrides(tt.raw); err == nil {
 				t.Errorf("expected error for %q", tt.raw)
 			}
 		})

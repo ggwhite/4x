@@ -9,6 +9,7 @@ import (
 
 	"github.com/ggwhite/4x/internal/batch"
 	"github.com/ggwhite/4x/internal/feature"
+	"github.com/ggwhite/4x/internal/orchestrator"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/runner"
 )
@@ -171,7 +172,7 @@ func TestNextPhaseAfter_DesigningRequiresCriteria(t *testing.T) {
 
 	s := protocol.State{FeatureID: "feat-d", Phase: protocol.PhaseDesigning}
 
-	next, _, reason := nextPhaseAfter(ws, "feat-d", s)
+	next, _, reason := orchestrator.NextPhaseAfter(ws, "feat-d", s)
 	if next != protocol.PhaseNeedsAttention {
 		t.Errorf("with only task-brief: next = %s, want needs-attention", next)
 	}
@@ -180,7 +181,7 @@ func TestNextPhaseAfter_DesigningRequiresCriteria(t *testing.T) {
 	}
 
 	os.WriteFile(filepath.Join(featureDir, protocol.Criteria), []byte("# criteria"), 0o644)
-	next2, role2, _ := nextPhaseAfter(ws, "feat-d", s)
+	next2, role2, _ := orchestrator.NextPhaseAfter(ws, "feat-d", s)
 	if next2 != protocol.PhaseDesignReviewing || role2 != protocol.RoleDesignReviewer {
 		t.Errorf("with both artifacts: next=%s role=%s, want design-reviewing/design-reviewer", next2, role2)
 	}
@@ -191,13 +192,13 @@ func TestNextPhaseAfter_DesignReviewingVerdict(t *testing.T) {
 	s := protocol.State{FeatureID: "feat-dr", Phase: protocol.PhaseDesignReviewing, Round: 0}
 
 	writeFeatureFile(t, ws, "feat-dr", protocol.DesignReviewReport, "# Design Review\n\n## Verdict\nPASS\n")
-	next, role, reason := nextPhaseAfter(ws, "feat-dr", s)
+	next, role, reason := orchestrator.NextPhaseAfter(ws, "feat-dr", s)
 	if next != protocol.PhaseCoding || role != protocol.RoleCoder || reason != "" {
 		t.Fatalf("PASS: got next=%s role=%s reason=%q, want coding/coder", next, role, reason)
 	}
 
 	writeFeatureFile(t, ws, "feat-dr", protocol.DesignReviewReport, "# Design Review\n\n## Verdict\nFAIL\n")
-	next, role, reason = nextPhaseAfter(ws, "feat-dr", s)
+	next, role, reason = orchestrator.NextPhaseAfter(ws, "feat-dr", s)
 	if next != protocol.PhaseDesigning || role != protocol.RoleDesigner || reason != "" {
 		t.Fatalf("FAIL: got next=%s role=%s reason=%q, want designing/designer", next, role, reason)
 	}
@@ -216,11 +217,11 @@ func TestStartLiveSync_StopDrainsThenFinalSync(t *testing.T) {
 	os.MkdirAll(roundDir, 0o755)
 	os.WriteFile(filepath.Join(roundDir, protocol.CoderReport), []byte("# coder"), 0o644)
 
-	stop := startLiveSync(wtWs, mainWs, "feat-sync", round)
+	stop := orchestrator.StartLiveSync(wtWs, mainWs, "feat-sync", round)
 	os.WriteFile(filepath.Join(wtWs.FeatureDir("feat-sync"), protocol.TaskBrief), []byte("# brief"), 0o644)
 	stop() // 必須阻塞到背景 goroutine 完全結束
 
-	if err := syncFeatureFromWorktree(wtWs, mainWs, "feat-sync", round); err != nil {
+	if err := orchestrator.SyncFeatureFromWorktree(wtWs, mainWs, "feat-sync", round); err != nil {
 		t.Fatalf("final sync: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(mainWs.RoundDir("feat-sync", round), protocol.CoderReport)); err != nil {

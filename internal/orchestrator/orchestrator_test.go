@@ -1,4 +1,4 @@
-package main
+package orchestrator
 
 import (
 	"os"
@@ -34,7 +34,7 @@ func TestParseRunStatsFromLog(t *testing.T) {
 			if err := os.WriteFile(p, []byte(tt.content), 0o644); err != nil {
 				t.Fatal(err)
 			}
-			got := parseRunStatsFromLog(p)
+			got := ParseRunStatsFromLog(p)
 			if got.Tokens != tt.wantTok {
 				t.Errorf("Tokens = %d, want %d", got.Tokens, tt.wantTok)
 			}
@@ -45,9 +45,9 @@ func TestParseRunStatsFromLog(t *testing.T) {
 	}
 
 	t.Run("missing file", func(t *testing.T) {
-		got := parseRunStatsFromLog(filepath.Join(dir, "nonexistent.log"))
+		got := ParseRunStatsFromLog(filepath.Join(dir, "nonexistent.log"))
 		if got.Tokens != 0 || got.CostUSD != 0 {
-			t.Errorf("parseRunStatsFromLog(missing) = %+v, want zero", got)
+			t.Errorf("ParseRunStatsFromLog(missing) = %+v, want zero", got)
 		}
 	})
 }
@@ -64,9 +64,9 @@ func TestFormatTokens(t *testing.T) {
 		{1234567, "1,234,567"},
 	}
 	for _, tt := range tests {
-		got := formatTokens(tt.n)
+		got := FormatTokens(tt.n)
 		if got != tt.want {
-			t.Errorf("formatTokens(%d) = %q, want %q", tt.n, got, tt.want)
+			t.Errorf("FormatTokens(%d) = %q, want %q", tt.n, got, tt.want)
 		}
 	}
 }

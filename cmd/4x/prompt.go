@@ -55,7 +55,7 @@ func newPromptCmd() *cobra.Command {
 				return fmt.Errorf("load config: %w", err)
 			}
 
-			pctx := promptCtxFromRun(&runContext{ws: ws, runnerWs: ws, feature: feature, cfg: cfg})
+			pctx := &prompt.Context{Ws: ws, RunnerWs: ws, Feature: feature, Cfg: cfg}
 			p, err := prompt.Generate(pctx, r, round, 0, runner)
 			if err != nil {
 				return err
@@ -70,15 +70,3 @@ func newPromptCmd() *cobra.Command {
 	cmd.Flags().StringVar(&runner, "runner", "", "runner name (skip auto-read convention files)")
 	return cmd
 }
-
-// promptCtxFromRun 從 runContext 組裝 prompt.Context。
-func promptCtxFromRun(rc *runContext) *prompt.Context {
-	return &prompt.Context{
-		Ws:       rc.ws,
-		RunnerWs: rc.runnerWs,
-		Feature:  rc.feature,
-		Cfg:      rc.cfg,
-	}
-}
-
-

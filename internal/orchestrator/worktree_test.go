@@ -1,4 +1,4 @@
-package main
+package orchestrator
 
 import (
 	"os"
@@ -8,9 +8,6 @@ import (
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
-// TestSyncFeatureFromWorktree_Learnings 驗證 F089 修復：worktree 模式下 Designer 寫的
-// selected-learnings.json 與 Acceptor 寫的 retro-learnings.json 屬 feature 層 runner artifact，
-// 必須由 syncFeatureFromWorktree 帶回主 workspace，否則後續 role 的注入與 harvest 會靜默失效。
 func TestSyncFeatureFromWorktree_Learnings(t *testing.T) {
 	featureID := "feat-learnings-sync"
 	wt := &protocol.Workspace{Root: t.TempDir()}
@@ -29,8 +26,8 @@ func TestSyncFeatureFromWorktree_Learnings(t *testing.T) {
 		t.Fatalf("write retro-learnings: %v", err)
 	}
 
-	if err := syncFeatureFromWorktree(wt, main, featureID, 1); err != nil {
-		t.Fatalf("syncFeatureFromWorktree: %v", err)
+	if err := SyncFeatureFromWorktree(wt, main, featureID, 1); err != nil {
+		t.Fatalf("SyncFeatureFromWorktree: %v", err)
 	}
 
 	dstDir := main.FeatureDir(featureID)
@@ -50,8 +47,6 @@ func TestSyncFeatureFromWorktree_Learnings(t *testing.T) {
 	}
 }
 
-// TestSyncFeatureToWorktree_SelectedLearnings 驗證 resume 重建 worktree 時，主 workspace 既有的
-// selected-learnings.json 會被帶入 worktree，避免 Designer 先前的選擇遺失。
 func TestSyncFeatureToWorktree_SelectedLearnings(t *testing.T) {
 	featureID := "feat-learnings-push"
 	main := &protocol.Workspace{Root: t.TempDir()}
@@ -66,7 +61,7 @@ func TestSyncFeatureToWorktree_SelectedLearnings(t *testing.T) {
 		t.Fatalf("write selected-learnings: %v", err)
 	}
 
-	syncFeatureToWorktree(main, wt, featureID, 0)
+	SyncFeatureToWorktree(main, wt, featureID, 0)
 
 	got, err := os.ReadFile(filepath.Join(wt.FeatureDir(featureID), protocol.SelectedLearningsFile))
 	if err != nil {

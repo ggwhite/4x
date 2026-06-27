@@ -12,6 +12,7 @@ import (
 
 	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/gitops"
+	"github.com/ggwhite/4x/internal/orchestrator"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/runner"
 )
@@ -762,7 +763,7 @@ func TestParseReviewVerdict(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := parseReviewVerdict(tt.content)
+			got := orchestrator.ParseReviewVerdict(tt.content)
 			if got.Passed != tt.wantPassed {
 				t.Errorf("Passed = %v, want %v", got.Passed, tt.wantPassed)
 			}
@@ -1387,7 +1388,7 @@ func TestRunLoop_DeepReviewSelfHealExhausted(t *testing.T) {
 	}
 
 	// deep-review-report.md 必須維持 FAIL。
-	if reviewPassed(ws, "feat-deep-exhaust", 1, protocol.DeepReviewReport) {
+	if orchestrator.ReviewPassed(ws, "feat-deep-exhaust", 1, protocol.DeepReviewReport) {
 		t.Error("deep-review-report should remain FAIL after exhaustion")
 	}
 }
@@ -1458,10 +1459,10 @@ func TestRunLoop_DeepReviewMiniCoderScopeExceed(t *testing.T) {
 	}
 
 	// deep-review-report 應被改寫為 FAIL，且 escalation.json 應存在。
-	if reviewPassed(ws, "feat-deep-scope", 1, protocol.DeepReviewReport) {
+	if orchestrator.ReviewPassed(ws, "feat-deep-scope", 1, protocol.DeepReviewReport) {
 		t.Error("deep-review-report should be FAIL after scope-exceed")
 	}
-	esc := readEscalation(ws, "feat-deep-scope", 1)
+	esc := orchestrator.ReadEscalation(ws, "feat-deep-scope", 1)
 	if !esc.Needed || esc.Reason != "scope-change" {
 		t.Errorf("escalation = %+v, want needed scope-change", esc)
 	}
@@ -1477,7 +1478,7 @@ func (m *mockOps) Commit(_, _, _ string) error                        { return n
 func (m *mockOps) Merge(_, _ string) gitops.MergeResult               { return gitops.MergeResult{} }
 func (m *mockOps) Cleanup(_ string) error                             { return nil }
 func (m *mockOps) DetectChangedRepos(_ string) []string               { return m.changedRepos }
-func (m *mockOps) DetectChangedFiles(_ string) []protocol.ChangedFile  { return nil }
+func (m *mockOps) DetectChangedFiles(_ string) []protocol.ChangedFile { return nil }
 func (m *mockOps) CaptureBaseline(_ string, _ []string) error         { return nil }
 func (m *mockOps) IsMultiRepo() bool                                  { return false }
 
@@ -1958,7 +1959,7 @@ func TestParseReviewVerdict_Warning(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := parseReviewVerdict(tt.content)
+			got := orchestrator.ParseReviewVerdict(tt.content)
 			if got.Passed != tt.wantPassed {
 				t.Errorf("Passed = %v, want %v", got.Passed, tt.wantPassed)
 			}

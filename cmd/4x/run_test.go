@@ -2,6 +2,8 @@ package main
 
 import (
 	"testing"
+
+	"github.com/ggwhite/4x/internal/orchestrator"
 )
 
 func TestParseReviewVerdict_Pass(t *testing.T) {
@@ -68,7 +70,7 @@ func TestParseReviewVerdict_Pass(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := parseReviewVerdict(tt.content)
+			result := orchestrator.ParseReviewVerdict(tt.content)
 			if result.Passed != tt.passed {
 				t.Errorf("Passed = %v, want %v", result.Passed, tt.passed)
 			}
@@ -84,7 +86,7 @@ func TestParseReviewVerdict_CriticalWarningCount(t *testing.T) {
 ## Verdict
 FAIL
 `
-	result := parseReviewVerdict(content)
+	result := orchestrator.ParseReviewVerdict(content)
 	if result.CriticalCount != 1 {
 		t.Errorf("CriticalCount = %d, want 1", result.CriticalCount)
 	}
@@ -102,7 +104,7 @@ func TestParseReviewVerdict_PassWithWarnings(t *testing.T) {
 ## Verdict
 PASS
 `
-	result := parseReviewVerdict(content)
+	result := orchestrator.ParseReviewVerdict(content)
 	if !result.Passed {
 		t.Error("Passed = false, want true")
 	}

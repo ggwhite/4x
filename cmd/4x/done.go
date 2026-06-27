@@ -142,7 +142,6 @@ func autoMergeFeature(ws *protocol.Workspace, cfg protocol.Config, featureID, fe
 	return result
 }
 
-
 // printSelfModApprovalRequired 印出受保護路徑變更需人工 approve 的訊息，列出觸及路徑與重跑指示。
 func printSelfModApprovalRequired(featureID string, paths []string) {
 	fmt.Printf("Feature %s 觸及受保護路徑（self-mod guard），需人工 approve 才能 merge：\n", featureID)

@@ -140,7 +140,7 @@ func TestBatchReport_S1StoppedByStopFile(t *testing.T) {
 }
 
 // F082：batch 啟動前的 alive guard — 若 feature 已被存活 process 執行中
-//（Active=true 且 PID 存活），跳過不啟動，避免並行跑同一 feature；batch graceful
+// （Active=true 且 PID 存活），跳過不啟動，避免並行跑同一 feature；batch graceful
 // skip，不終止整個排程。
 func TestRunBatchSchedule_SkipsAliveFeature(t *testing.T) {
 	ws := setupLoopWorkspace(t, "feat-alive")

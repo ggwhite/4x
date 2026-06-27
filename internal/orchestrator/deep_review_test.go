@@ -1,4 +1,4 @@
-package main
+package orchestrator
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 	"github.com/ggwhite/4x/internal/runner"
 )
 
-// mockEnrichRunner 把固定 log 內容寫進 temp file，模擬 enrichment 的 LLM runner 輸出。
 type mockEnrichRunner struct {
 	logContent string
 }
@@ -44,7 +43,6 @@ func writeDeepReviewReport(t *testing.T, ws *protocol.Workspace, featureID strin
 	}
 }
 
-// discoveredOther 回傳 features 中第一個 ID 不等於 seed 的 feature，nil 表示沒有新建。
 func discoveredOther(t *testing.T, ws *protocol.Workspace, seedID string) *feat.Feature {
 	t.Helper()
 	features, err := ws.ListFeatures()
@@ -80,7 +78,7 @@ func TestAutoDiscover_EnrichDisabled(t *testing.T) {
 	cfg := protocol.Config{AutoDiscoverFeatures: true, EnrichDiscoveredFeatures: false}
 	writeDeepReviewReport(t, ws, seed.ID, 1, "[NEW-FEATURE] Thin Feature\nSome description")
 
-	autoDiscoverFeatures(context.Background(), ws, seed, cfg, 1,nil)
+	AutoDiscoverFeatures(context.Background(), ws, seed, cfg, 1, nil)
 
 	found := discoveredOther(t, ws, seed.ID)
 	if found == nil {
@@ -107,7 +105,7 @@ func TestAutoDiscover_EnrichEnabled_DraftMode(t *testing.T) {
 	writeDeepReviewReport(t, ws, seed.ID, 1, "[NEW-FEATURE] Rich Feature\nNeeds enrichment")
 
 	r := &mockEnrichRunner{logContent: validEnrichLogForTest}
-	autoDiscoverFeatures(context.Background(), ws, seed, cfg, 1,r)
+	AutoDiscoverFeatures(context.Background(), ws, seed, cfg, 1, r)
 
 	found := discoveredOther(t, ws, seed.ID)
 	if found == nil {
@@ -134,7 +132,7 @@ func TestAutoDiscover_EnrichEnabled_AutoApprove(t *testing.T) {
 	writeDeepReviewReport(t, ws, seed.ID, 1, "[NEW-FEATURE] Rich Feature\nNeeds enrichment")
 
 	r := &mockEnrichRunner{logContent: validEnrichLogForTest}
-	autoDiscoverFeatures(context.Background(), ws, seed, cfg, 1,r)
+	AutoDiscoverFeatures(context.Background(), ws, seed, cfg, 1, r)
 
 	found := discoveredOther(t, ws, seed.ID)
 	if found == nil {
@@ -161,7 +159,7 @@ func TestAutoDiscover_EnrichFailed_Discarded(t *testing.T) {
 	writeDeepReviewReport(t, ws, seed.ID, 1, "[NEW-FEATURE] Bad Feature\nVague description")
 
 	r := &mockEnrichRunner{logContent: "[ENRICHMENT-RESULT]\n{\"subtasks\":[],\"priority\":0}\n[/ENRICHMENT-RESULT]"}
-	autoDiscoverFeatures(context.Background(), ws, seed, cfg, 1,r)
+	AutoDiscoverFeatures(context.Background(), ws, seed, cfg, 1, r)
 
 	if found := discoveredOther(t, ws, seed.ID); found != nil {
 		t.Errorf("expected 0 discovered features (enrich failed), got %s", found.ID)
