@@ -13,7 +13,7 @@ description: |-
     - 不改 prompt 輸出內容（template render 結果不變）
     - 不改 cmd/4x/ 其他檔案對 prompt 函式的呼叫介面（或同步更新 caller）
     - 所有現有測試必須通過
-status: not-started
+status: done
 priority: 2
 profile: standard
 rules:
