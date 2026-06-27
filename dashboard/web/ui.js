@@ -1481,7 +1481,7 @@ async function openRunModal(fid) {
     // 內建 full/normal/quick 永遠可選（即使 profiles 區段為空）。
     ['full','normal','quick'].forEach(n => { if (!names.includes(n)) names.push(n); });
     const featProfile = (lastTasks.find(t => t.id === fid) || {}).profile;
-    const def = s.default_profile || featProfile || names[0];
+    const def = featProfile || s.default_profile || names[0];
     names.forEach(n => { const o = document.createElement('option'); o.value = n; o.textContent = cap(n); if (n === def) o.selected = true; sel.appendChild(o); });
   } catch { _runMergedConfig = null; sel.innerHTML = '<option value="full">Full</option>'; }
   document.getElementById('run-modal').classList.add('open');
