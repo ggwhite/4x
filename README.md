@@ -50,6 +50,7 @@ Choosing 4x means trading speed and cost for structure and correctness. Be hones
 - **File-based protocol makes it LLM-agnostic.** Switch between Claude, Gemini, Codex, or mix them per role. No vendor lock-in, no SDK dependency.
 - **Crash-resistant state.** Everything lives in `.4x/` files. Session dies, machine reboots — `4x run` picks up exactly where it stopped.
 - **Human stays in the loop.** The `pending-review` gate ensures a human always reviews AI work before it's marked done. The AI proposes, you dispose.
+- **Tames large-scale refactoring.** Changes too big for a single AI session — splitting god objects, extracting packages, migrating APIs — can be broken into dependent features with appropriate profiles. 4x handles the sequencing, review, and verification across multiple phases that would overwhelm a single context window.
 - **Batch mode scales.** Dependency-aware scheduling lets you queue dozens of features overnight and review them in the morning.
 
 ### Weaknesses
