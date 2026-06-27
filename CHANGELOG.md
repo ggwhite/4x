@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-06-27
+
+### Features
+
+- **AC evidence mapping** — `verify.json` 新增 `ac_results` 欄位，每個 acceptance criterion 必須有對應 evidence；`4x check` 阻擋缺 evidence 的通過
+- **Selective deep review** — Deep review 根據 diff 影響的檔案路徑自動選擇相關角度（而非每次跑全部 11 個），減少小 diff 的 token 浪費。支援 feature YAML 或 CLI flag 強制全角度
+- **Auto-consolidate learnings** — Feature 完成後若 active learnings 超過 30 條，自動呼叫 AI 判斷語意重複並合併/移除，避免 prompt bloat
+- **Cost per phase** — Dashboard 顯示每個 phase 的 token 消耗與耗時
+
+### Refactoring
+
+- **Extract orchestrator** — `cmd/4x/run.go` 的 run loop 下沉至 `internal/orchestrator/`，拆為 orchestrator / phase / deep_review / parallel / artifact / resume / worktree / hook 八個檔案
+- **Extract prompt package** — Prompt 組裝邏輯從 `cmd/4x/` 下沉至 `internal/prompt/`，900+ 行搬遷
+- **Split workspace** — `internal/protocol/workspace.go` 拆為 workspace / workspace_state / workspace_config / workspace_feature / workspace_batch / workspace_screenshot 六個檔案
+- **Internal tests** — 補齊 `internal/` 各 package 的測試覆蓋
+
+### Fixes
+
+- **Error handling** — 修正多處 `_ = err` 靜默吞錯的問題，改為 log 或回傳
+- **Feature profile priority** — Dashboard run dialog 正確優先使用 feature YAML 的 profile 而非 default_profile
+- **Phase order** — 修正 testing 與 deep-reviewing 的順序
+
+### Internal
+
+- **Profile config** — 重新設計 profile 系統，pin claude opus 至 4.6[1m]，review/test/accept 改用 sonnet 降低成本
+- **Learnings consolidation** — 手動合併 6 條語意重複的 learnings（44 → 38）
+
 ## [0.2.6] - 2026-06-26
 
 ### Token Optimization
