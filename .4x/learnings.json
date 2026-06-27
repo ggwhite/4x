@@ -217,8 +217,8 @@
       "category": "review",
       "content": "純格式違規（gofmt struct tag 對齊）這類零風險阻擋項，Coder 在送 review 前應先跑 gofmt -l 對 feature diff 檔自檢，避免浪費一整輪 review/amend 循環。",
       "created_at": "2026-06-24T20:37:27.5517+08:00",
-      "last_used": "0001-01-01T00:00:00Z",
-      "used_count": 0,
+      "last_used": "2026-06-27T10:34:48.628252+08:00",
+      "used_count": 1,
       "status": "active"
     },
     {
@@ -277,8 +277,8 @@
       "category": "code-quality",
       "content": "新增縮排程式碼時，直接用 gofmt -w 整理後再 commit，可避免 Reviewer FAIL 並省去 Round 2 的額外 amending 成本",
       "created_at": "2026-06-27T10:23:04.125803+08:00",
-      "last_used": "0001-01-01T00:00:00Z",
-      "used_count": 0,
+      "last_used": "2026-06-27T10:34:48.628252+08:00",
+      "used_count": 1,
       "status": "active"
     },
     {
