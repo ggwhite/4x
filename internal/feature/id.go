@@ -34,9 +34,10 @@ func ResolveIDFormat(prefix string, digits int) IDFormat {
 	return IDFormat{Prefix: prefix, Digits: digits}
 }
 
-// numRe 回傳用於從 feature ID 萃取流水號的 regex，例如 prefix="F" → `^F(\d+)-`。
+// numRe 回傳用於從 feature ID 萃取流水號的 regex，例如 prefix="F" → `^F(\d+)(?:-|$)`。
+// 用 (?:-|$) 相容無 slug 的舊格式（如 ws-094）與有 slug 的新格式（如 ws-094-name）。
 func (f IDFormat) numRe() *regexp.Regexp {
-	return regexp.MustCompile(`^` + regexp.QuoteMeta(f.Prefix) + `(\d+)-`)
+	return regexp.MustCompile(`^` + regexp.QuoteMeta(f.Prefix) + `(\d+)(?:-|$)`)
 }
 
 // prefixRe 回傳用於偵測並剝除使用者輸入中重複前綴的 regex（case-insensitive）。

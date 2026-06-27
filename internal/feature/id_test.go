@@ -187,6 +187,18 @@ func TestNextNumberCustomPrefix(t *testing.T) {
 	if n != 6 {
 		t.Errorf("got %d, want 6", n)
 	}
+
+	// 舊格式（無 slug）：ws-094 應被正確掃到
+	store2 := newMockStore()
+	store2.features["ws-094"] = Feature{ID: "ws-094", Name: "legacy"}
+	store2.features["ws-093"] = Feature{ID: "ws-093", Name: "legacy2"}
+	n, err = NextNumber(store2, idf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 95 {
+		t.Errorf("legacy no-slug: got %d, want 95", n)
+	}
 }
 
 // TestNextNumberListError 驗證 ListFeatures 失敗時 NextNumber 將 error 往外傳，
