@@ -215,8 +215,11 @@ PASS / FAIL — brief overall assessment
 **Confidence**: NN/100 — justification for the score
 **Suggested fix**: How to fix it
 ## Discovered Issues
+<!-- MANDATORY section — always present, even if empty. Write "None" if nothing found. -->
 [NEW-FEATURE] <簡短標題>
 <一到數行描述：問題現狀、建議方向>
+
+(or "None" if no out-of-scope issues found)
 ## Statistics
 - Total candidates evaluated: N
 - Dropped (below threshold / false-positive): N
@@ -224,15 +227,20 @@ PASS / FAIL — brief overall assessment
 ## Verdict
 PASS / FAIL
 
-== Discovered Issues (out-of-scope feature candidates) ==
+== Discovered Issues (out-of-scope feature candidates) — MANDATORY ==
 在 report 的 `## Discovered Issues` section 列出你發現但**超出本 feature scope**、值得另開
-feature 追蹤的 issue（bug / 技術債 / 缺口）。每個 issue 用以下「固定格式」，一個 block 一個
-issue；沒有就留 None：
+feature 追蹤的 issue（bug / 技術債 / 缺口）。**這個 section 必須出現在 report 裡，即使空了也要寫「None」。**
+每個 issue 用以下「固定格式」，一個 block 一個 issue：
 
 [NEW-FEATURE] <簡短標題>
 <一到數行描述：問題現狀、建議方向>
 
 不要把屬於本 feature scope 的問題放這裡（那些走 Issues section）。
+沒有發現任何超出 scope 的 issue 時，寫：
+```
+## Discovered Issues
+None
+```
 
 {{end}}
 == Severity (derived from confidence) ==
@@ -244,6 +252,9 @@ issue；沒有就留 None：
 Write {{$reportFile}} incrementally — create the file with the header and AC trace table first,
 then append each issue as you find it. Do not accumulate all findings in memory and write once
 at the end.
+
+After writing all Issues, always write the `## Discovered Issues` section before `## Statistics`.
+If you found no out-of-scope candidates, write `None` under the heading — never omit the section.
 
 Before starting, check if {{$reportFile}} already exists. A previous session may have been
 interrupted mid-review. If it exists, read it:
