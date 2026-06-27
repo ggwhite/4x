@@ -50,6 +50,7 @@
 - **基於檔案的協定使其與 LLM 無關。** 可在 Claude、Gemini、Codex 之間切換，或按角色混搭使用。沒有供應商鎖定，沒有 SDK 依賴。
 - **抗崩潰的狀態。** 所有東西都存在 `.4x/` 檔案裡。Session 中斷、機器重開 — `4x run` 會從中斷處精確接續。
 - **人類始終在迴圈中。** `pending-review` 閘門確保人類在標記完成前一定會審查 AI 的工作。AI 提案，你決定。
+- **駕馭大規模重構。** 單一 AI session 無法處理的大型改動 — 拆分 God Object、抽取 package、遷移 API — 可以拆成有依賴關係的多個 feature，各自指定合適的 profile。4x 負責排程、review 和跨階段驗證，不會超出單一 context window 的極限。
 - **批次模式可擴展。** 依賴感知的排程讓你可以把幾十個 feature 排進夜間執行，早上再來 review。
 
 ### 劣勢

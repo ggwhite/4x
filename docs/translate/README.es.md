@@ -50,6 +50,7 @@ Elegir 4x significa intercambiar velocidad y costo por estructura y corrección.
 - **El protocolo basado en archivos lo hace agnóstico al LLM.** Cambia entre Claude, Gemini, Codex, o mézclalos por rol. Sin dependencia de proveedor, sin dependencia de SDK.
 - **Estado resistente a fallos.** Todo vive en archivos `.4x/`. La sesión muere, la máquina se reinicia — `4x run` continúa exactamente donde se detuvo.
 - **El humano permanece en el ciclo.** La compuerta `pending-review` asegura que un humano siempre revise el trabajo de la IA antes de marcarlo como terminado. La IA propone, tú dispones.
+- **Domina refactorizaciones a gran escala.** Cambios demasiado grandes para una sola sesión de IA — dividir God Objects, extraer paquetes, migrar APIs — pueden dividirse en features dependientes con perfiles apropiados. 4x gestiona la secuenciación, revisión y verificación entre múltiples fases sin desbordar una sola ventana de contexto.
 - **El modo batch escala.** La programación con reconocimiento de dependencias te permite encolar docenas de features durante la noche y revisarlos por la mañana.
 
 ### Debilidades
