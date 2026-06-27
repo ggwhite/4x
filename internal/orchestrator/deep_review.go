@@ -269,6 +269,7 @@ func (r *Runner) deepReviewSelfHeal(ctx context.Context, s *protocol.State, dp d
 		}
 	}
 
+	AutoDiscoverFeatures(ctx, r.Ws, r.Feature, r.Cfg, round, r.newEnrichRunner(dp.deepRunner, round))
 	writeDeepEscalation(r.Ws, featureID, round, "blocker",
 		fmt.Sprintf("deep-review self-heal exhausted after %d iterations", maxFix))
 	s.Phase = protocol.PhaseNeedsAttention
