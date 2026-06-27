@@ -19,7 +19,7 @@ description: |-
     - 不改任何 public API（method signature、struct 欄位）
     - 不改 package 歸屬（全部留在 protocol package）
     - 所有現有測試必須通過
-status: in-progress
+status: done
 priority: 2
 profile: standard
 rules:
