@@ -12,6 +12,8 @@ vendor/
 .4x/batch-*
 .4x/batch.*
 .4x/coder-report.md
+.4x/consolidate-*.json
+.4x/consolidate.log
 !.4x/settings.json
 !.4x/features/
 

@@ -343,6 +343,11 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 	if err := r.finalize(s); err != nil {
 		return nil, err
 	}
+
+	if (s.Phase == protocol.PhasePendingReview || s.Phase == protocol.PhaseDone) && prompt.NeedConsolidate(r.Ws) {
+		r.runConsolidate(ctx, s)
+	}
+
 	return &Result{TotalTokens: r.totalTokens, TotalCostUSD: r.totalCostUSD}, nil
 }
 
@@ -708,6 +713,64 @@ func (r *Runner) finalize(s protocol.State) error {
 		}
 	}
 	return nil
+}
+
+// runConsolidate 在 harvest 後呼叫 AI 整理語意重複的 learnings。
+// 屬 nice-to-have，任何錯誤只 warn 不影響 feature 結果。
+func (r *Runner) runConsolidate(ctx context.Context, s protocol.State) {
+	if err := prompt.PrepareConsolidateInput(r.Ws); err != nil {
+		slog.Warn("prepare consolidate input failed", "error", err)
+		return
+	}
+
+	tmpl, err := prompt.LoadRoleTemplate(r.Ws.DotDir(), protocol.RoleConsolidator)
+	if err != nil {
+		slog.Warn("load consolidate template failed", "error", err)
+		return
+	}
+	locale, localeName := prompt.ResolveLocale()
+	var b strings.Builder
+	data := prompt.Data{
+		Role:       protocol.RoleConsolidator,
+		Config:     r.Cfg,
+		DotDir:     r.Ws.DotDir(),
+		Locale:     locale,
+		LocaleName: localeName,
+	}
+	if err := tmpl.Execute(&b, data); err != nil {
+		slog.Warn("render consolidate prompt failed", "error", err)
+		return
+	}
+
+	runnerName := r.Cfg.Default
+	rcfg, ok := r.Cfg.Runners[runnerName]
+	if !ok {
+		slog.Warn("consolidate: default runner not found", "runner", runnerName)
+		return
+	}
+	logPath := filepath.Join(r.Ws.DotDir(), "consolidate.log")
+	model := ""
+	if m, merr := protocol.ResolveModel(r.Cfg, runnerName, protocol.RoleReviewer); merr == nil {
+		model = m
+	}
+	cr := runner.NewRunner(r.Ws, runnerName, rcfg, 120*time.Second, logPath, model)
+
+	os.Remove(filepath.Join(r.Ws.DotDir(), protocol.ConsolidateResultFile))
+
+	slog.Info("running learnings consolidation")
+	if _, rerr := cr.Run(ctx, b.String()); rerr != nil {
+		slog.Warn("consolidate runner failed", "error", rerr)
+		return
+	}
+
+	merged, removed, aerr := prompt.ApplyConsolidateResult(r.Ws)
+	if aerr != nil {
+		slog.Warn("apply consolidate result failed", "error", aerr)
+		return
+	}
+	if merged+removed > 0 {
+		slog.Info("learnings consolidated", "merged", merged, "removed", removed)
+	}
 }
 
 // StopState 設定 state 的停止欄位並寫入磁碟，統一處理散布在多處的 stop-state boilerplate。

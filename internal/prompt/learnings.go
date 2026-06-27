@@ -118,6 +118,86 @@ func HarvestLearnings(ws *protocol.Workspace, featureID string) {
 	}
 }
 
+// NeedConsolidate 檢查 active learnings 是否超過 consolidate 門檻。
+func NeedConsolidate(ws *protocol.Workspace) bool {
+	storePath := filepath.Join(ws.DotDir(), protocol.LearningsFile)
+	store, err := learning.LoadStore(storePath)
+	if err != nil {
+		return false
+	}
+	return len(store.ActiveEntries()) >= learning.ConsolidateThreshold
+}
+
+// PrepareConsolidateInput 將 active learnings 寫入 .4x/consolidate-input.json，供 consolidate runner 讀取。
+func PrepareConsolidateInput(ws *protocol.Workspace) error {
+	storePath := filepath.Join(ws.DotDir(), protocol.LearningsFile)
+	store, err := learning.LoadStore(storePath)
+	if err != nil {
+		return err
+	}
+
+	type inputEntry struct {
+		ID            string            `json:"id"`
+		SourceFeature string            `json:"source_feature"`
+		Category      learning.Category `json:"category"`
+		Content       string            `json:"content"`
+		UsedCount     int               `json:"used_count"`
+	}
+
+	active := store.ActiveEntries()
+	entries := make([]inputEntry, len(active))
+	for i, e := range active {
+		entries[i] = inputEntry{
+			ID:            e.ID,
+			SourceFeature: e.SourceFeature,
+			Category:      e.Category,
+			Content:       e.Content,
+			UsedCount:     e.UsedCount,
+		}
+	}
+
+	data, err := json.MarshalIndent(entries, "", "  ")
+	if err != nil {
+		return err
+	}
+	inputPath := filepath.Join(ws.DotDir(), protocol.ConsolidateInputFile)
+	return os.WriteFile(inputPath, data, 0o644)
+}
+
+// ApplyConsolidateResult 讀取 .4x/consolidate-result.json 並套用到 learnings store。
+func ApplyConsolidateResult(ws *protocol.Workspace) (int, int, error) {
+	resultPath := filepath.Join(ws.DotDir(), protocol.ConsolidateResultFile)
+	data, err := os.ReadFile(resultPath)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	var result learning.ConsolidateResult
+	if err := json.Unmarshal(data, &result); err != nil {
+		return 0, 0, err
+	}
+	if len(result.Actions) == 0 {
+		return 0, 0, nil
+	}
+
+	storePath := filepath.Join(ws.DotDir(), protocol.LearningsFile)
+	store, err := learning.LoadStore(storePath)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	merged, removed := store.ApplyConsolidation(result.Actions)
+	if merged+removed == 0 {
+		return 0, 0, nil
+	}
+
+	store.Prune()
+	if err := store.Save(storePath); err != nil {
+		return 0, 0, err
+	}
+	return merged, removed, nil
+}
+
 // UpdateLearningsUsage 在第一個非 Designer phase 時呼叫一次：讀 selected-learnings.json，
 // 更新被選中 learning 的 last_used 與 used_count。任何失敗只 warn，不影響 state transition。
 func UpdateLearningsUsage(ws *protocol.Workspace, featureID string) {
@@ -144,4 +224,3 @@ func UpdateLearningsUsage(ws *protocol.Workspace, featureID string) {
 		slog.Warn("save learnings store after usage update failed", "error", err)
 	}
 }
-

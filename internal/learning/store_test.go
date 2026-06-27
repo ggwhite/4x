@@ -194,6 +194,80 @@ func TestCategoriesForRole(t *testing.T) {
 	}
 }
 
+func TestApplyConsolidation_MergeAndRemove(t *testing.T) {
+	s := Store{Version: 1, Entries: []Entry{
+		{ID: "L001", Category: CategoryCodeQuality, Content: "gofmt before commit", Status: StatusActive, UsedCount: 3},
+		{ID: "L002", Category: CategoryCodeQuality, Content: "run gofmt -w before committing", Status: StatusActive, UsedCount: 1},
+		{ID: "L003", Category: CategoryTesting, Content: "obsolete advice", Status: StatusActive, UsedCount: 0},
+		{ID: "L004", Category: CategoryDesign, Content: "keep this one", Status: StatusActive, UsedCount: 5},
+	}}
+
+	actions := []ConsolidateAction{
+		{ID: "L002", Action: "merge", MergeID: "L001", Content: "always run gofmt -w before commit to avoid review FAIL", Reason: "both about gofmt"},
+		{ID: "L003", Action: "remove", Reason: "now enforced by CI"},
+	}
+
+	merged, removed := s.ApplyConsolidation(actions)
+	if merged != 1 {
+		t.Errorf("expected 1 merged, got %d", merged)
+	}
+	if removed != 1 {
+		t.Errorf("expected 1 removed, got %d", removed)
+	}
+
+	if len(s.Entries) != 3 {
+		t.Fatalf("expected 3 entries after remove, got %d", len(s.Entries))
+	}
+	if s.Entries[0].Content != "always run gofmt -w before commit to avoid review FAIL" {
+		t.Errorf("L001 content not updated: %s", s.Entries[0].Content)
+	}
+	if s.Entries[0].UsedCount != 3 {
+		t.Errorf("L001 used_count should stay 3, got %d", s.Entries[0].UsedCount)
+	}
+	if s.Entries[1].Status != StatusStale {
+		t.Errorf("L002 should be stale after merge, got %s", s.Entries[1].Status)
+	}
+
+	for _, e := range s.Entries {
+		if e.ID == "L003" {
+			t.Error("L003 should have been removed")
+		}
+	}
+	if s.Entries[2].ID != "L004" {
+		t.Errorf("L004 should be intact, got %s", s.Entries[2].ID)
+	}
+}
+
+func TestApplyConsolidation_EmptyActions(t *testing.T) {
+	s := Store{Version: 1, Entries: []Entry{
+		{ID: "L001", Status: StatusActive, Content: "a"},
+	}}
+	merged, removed := s.ApplyConsolidation(nil)
+	if merged != 0 || removed != 0 {
+		t.Errorf("expected 0/0, got %d/%d", merged, removed)
+	}
+	if len(s.Entries) != 1 {
+		t.Errorf("entries should be unchanged")
+	}
+}
+
+func TestApplyConsolidation_InvalidIDs(t *testing.T) {
+	s := Store{Version: 1, Entries: []Entry{
+		{ID: "L001", Status: StatusActive, Content: "a"},
+	}}
+	actions := []ConsolidateAction{
+		{ID: "L999", Action: "merge", MergeID: "L001", Reason: "bad source"},
+		{ID: "L998", Action: "remove", Reason: "nonexistent"},
+	}
+	merged, removed := s.ApplyConsolidation(actions)
+	if merged != 0 || removed != 0 {
+		t.Errorf("expected 0/0 for invalid IDs, got %d/%d", merged, removed)
+	}
+	if len(s.Entries) != 1 {
+		t.Errorf("entries should be unchanged")
+	}
+}
+
 func TestParseRetroFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "retro-learnings.json")
 	if err := os.WriteFile(path, []byte(`{"learnings":[{"category":"testing","content":"x"}]}`), 0o644); err != nil {

@@ -60,7 +60,23 @@ const (
 	MaxActiveEntries = 100
 	// MaxSelectedPerRole 是單一 role prompt 注入 learnings 的硬上限。
 	MaxSelectedPerRole = 10
+	// ConsolidateThreshold 是觸發 AI consolidate 的 active 條目門檻。
+	ConsolidateThreshold = 30
 )
+
+// ConsolidateAction 是 AI 對單一 learning 的處理決策。
+type ConsolidateAction struct {
+	ID      string `json:"id"`
+	Action  string `json:"action"`
+	MergeID string `json:"merge_into,omitempty"`
+	Content string `json:"merged_content,omitempty"`
+	Reason  string `json:"reason"`
+}
+
+// ConsolidateResult 是 consolidate runner 的輸出結構。
+type ConsolidateResult struct {
+	Actions []ConsolidateAction `json:"actions"`
+}
 
 // Entry 是 learnings.json 中的一個條目，含完整 metadata。
 type Entry struct {
@@ -261,6 +277,53 @@ func (s *Store) UpdateUsage(ids []string) {
 			s.Entries[i].UsedCount++
 		}
 	}
+}
+
+// ApplyConsolidation 套用 AI consolidate 的結果：merge 把被合併條目標記為 stale 並更新目標條目的 content，
+// remove 直接移除條目。回傳 (merged, removed) 數量。
+func (s *Store) ApplyConsolidation(actions []ConsolidateAction) (int, int) {
+	entryIdx := make(map[string]int, len(s.Entries))
+	for i, e := range s.Entries {
+		entryIdx[e.ID] = i
+	}
+
+	merged, removed := 0, 0
+	removeSet := make(map[string]bool)
+
+	for _, a := range actions {
+		switch a.Action {
+		case "merge":
+			srcIdx, srcOK := entryIdx[a.ID]
+			dstIdx, dstOK := entryIdx[a.MergeID]
+			if !srcOK || !dstOK {
+				continue
+			}
+			s.Entries[srcIdx].Status = StatusStale
+			if a.Content != "" {
+				s.Entries[dstIdx].Content = a.Content
+			}
+			if s.Entries[srcIdx].UsedCount > s.Entries[dstIdx].UsedCount {
+				s.Entries[dstIdx].UsedCount = s.Entries[srcIdx].UsedCount
+			}
+			merged++
+		case "remove":
+			if _, ok := entryIdx[a.ID]; ok {
+				removeSet[a.ID] = true
+				removed++
+			}
+		}
+	}
+
+	if len(removeSet) > 0 {
+		var kept []Entry
+		for _, e := range s.Entries {
+			if !removeSet[e.ID] {
+				kept = append(kept, e)
+			}
+		}
+		s.Entries = kept
+	}
+	return merged, removed
 }
 
 // ParseRetroFile 讀取 Acceptor 產出的 retro-learnings.json，回傳其中的 learnings 列表。

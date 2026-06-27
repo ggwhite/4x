@@ -50,6 +50,8 @@ const (
 	// RoleGate 是 F097 evolve 價值閘門 role，判斷 candidate feature 是否值得進 backlog 並強制寫
 	// why_not_hack。不對應任何 state machine phase，由 evolve driver（F099）在 CLI veto 之間執行。
 	RoleGate Role = "gate"
+	// RoleConsolidator 是 learnings consolidator role，在 harvest 後判斷語意重複的 learnings 並合併/移除。
+	RoleConsolidator Role = "consolidator"
 )
 
 // SubPhase 表示 deep-reviewing phase 內的子步驟，僅在 phase==deep-reviewing 時有意義；

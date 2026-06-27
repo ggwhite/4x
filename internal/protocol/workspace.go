@@ -62,6 +62,8 @@ const (
 	LearningsFile         = "learnings.json"          // .4x/learnings.json，跨 feature 累積的 learnings 庫
 	RetroLearningsFile    = "retro-learnings.json"    // .4x/{feature-id}/retro-learnings.json，Acceptor 產出
 	SelectedLearningsFile = "selected-learnings.json" // .4x/{feature-id}/selected-learnings.json，Designer 選出
+	ConsolidateInputFile  = "consolidate-input.json"  // .4x/consolidate-input.json，供 consolidate runner 讀
+	ConsolidateResultFile = "consolidate-result.json" // .4x/consolidate-result.json，consolidate runner 產出
 )
 
 // Workspace 管理 .4x/ 目錄的讀寫
@@ -111,6 +113,11 @@ run/
 gate-input.json
 gate-verdicts.json
 evolve-state.json
+
+# Learnings consolidation intermediate files
+consolidate-input.json
+consolidate-result.json
+consolidate.log
 `
 	return os.WriteFile(filepath.Join(dotDir, ".gitignore"), []byte(content), 0o644)
 }
