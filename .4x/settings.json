@@ -99,6 +99,15 @@
         { "phase": "coding" },
         { "phase": "accepting", "model": "sonnet" }
       ]
+    },
+    "dashboard": {
+      "phases": [
+        { "phase": "coding" },
+        { "phase": "reviewing" },
+        { "phase": "testing", "model": "opus" },
+        { "phase": "deep-reviewing" },
+        { "phase": "accepting" }
+      ]
     }
   },
   "roles": {
