@@ -380,6 +380,36 @@
       "last_used": "0001-01-01T00:00:00Z",
       "used_count": 0,
       "status": "active"
+    },
+    {
+      "id": "L039",
+      "source_feature": "F107-add-internal-tests",
+      "category": "testing",
+      "content": "新增測試前先對目標檔案跑 gofmt -l，確保格式合規，避免僅因格式問題觸發額外 round。",
+      "created_at": "2026-06-27T17:43:56.973238+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L040",
+      "source_feature": "F107-add-internal-tests",
+      "category": "testing",
+      "content": "MCP SDK 對 jsonschema struct tag 格式敏感（panic），遇到此類 SDK 限制應以 t.Skip 標記並在 coder-report 說明，不可為了通過測試而修改 production code。",
+      "created_at": "2026-06-27T17:43:56.973238+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L041",
+      "source_feature": "F107-add-internal-tests",
+      "category": "process",
+      "content": "interface-only 或僅含編譯期斷言的檔案無需強制補測試；coder-report 應明確說明跳過的理由，避免 reviewer 誤判為遺漏。",
+      "created_at": "2026-06-27T17:43:56.973238+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
     }
   ]
 }
