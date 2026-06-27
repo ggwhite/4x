@@ -1,0 +1,32 @@
+id: F103-fix-error-handling
+name: 'F103: fix error handling'
+description: |-
+    ## 現狀
+    專案中約 15 處用 `_ =` 吞掉 error，包含狀態寫入、model 解析、server 啟動等關鍵操作，失敗時完全靜默。
+
+    ## 需求
+    - 逐一修復所有 `_ =` 吞 error 的地方，改為正確的 error handling（log、return error、或至少 slog.Warn）
+    - cleanup 類操作（如 defer close）可保留 `_ =`，但需確認是刻意的
+
+    ## 已知位置
+    - cmd/4x/transition.go:168-169 — WriteState / SyncFeatureStatus
+    - cmd/4x/batch.go:303,342,593,618 — PID、plan、state、conflict 寫入
+    - cmd/4x/run_deep_review.go:85 — ResolveTierModel
+    - cmd/4x/live.go:119 — cmd.Start()
+    - internal/protocol/workspace.go:414 — git auto-commit
+    - internal/protocol/pipeline.go:74 — ResolveTierModel
+    - internal/server/batch_process.go — 6 處
+    - internal/server/process.go — 2 處
+    - cmd/4x/batch.go:376 — bare panic(r)
+
+    ## 約束
+    - 不改 function signature（不影響 caller）
+    - cleanup 類的 `_ =`（如 defer f.Close()）不動
+    - server handler 內的 error 用 slog.Warn 記錄即可，不需要 return
+status: not-started
+priority: 3
+profile: quick
+rules:
+    - 不改 function signature
+    - cleanup 類 _ = 不動（如 defer close）
+    - server handler 內用 slog.Warn 記錄

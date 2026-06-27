@@ -1,0 +1,23 @@
+id: F105-extract-prompt-pkg
+name: 'F105: extract prompt package'
+description: |-
+    ## 現狀
+    cmd/4x/prompt.go 有 914 行，包含 prompt 組裝、template 載入、learnings 處理、code map 生成等業務邏輯，全部塞在 CLI 層。promptData struct 有 28 個欄位，不同 role 用不同子集但全部拍平在一起。
+
+    ## 需求
+    - 將 prompt.go 的業務邏輯搬到 internal/prompt package
+    - cmd/4x/prompt.go 只保留薄的 adapter：從 Cobra flag 收集參數 → 呼叫 internal/prompt
+    - promptData struct 搬到 internal/prompt，可考慮按 role 拆成子 struct
+
+    ## 約束
+    - 不改 prompt 輸出內容（template render 結果不變）
+    - 不改 cmd/4x/ 其他檔案對 prompt 函式的呼叫介面（或同步更新 caller）
+    - 所有現有測試必須通過
+status: not-started
+priority: 2
+profile: standard
+rules:
+    - prompt 輸出結果不變
+    - 所有現有測試必須通過
+depends:
+    - F104-split-workspace

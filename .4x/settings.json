@@ -33,6 +33,7 @@
       "CLAUDE.md"
     ]
   },
+  "default_runner": "claude",
   "isolation": "worktree",
   "parallel_review_test": true,
   "auto_discover_features": true,
@@ -173,8 +174,13 @@
   },
   "runners": {
     "claude": {
+      "command": "claude",
+      "args": ["--dangerously-skip-permissions", "-p", "{prompt}", "--output-format", "stream-json", "--verbose"],
+      "model": "opus",
+      "output_format": "stream-json",
       "tiers": {
-        "opus": "claude-opus-4-6[1m]"
+        "opus": "claude-opus-4-6[1m]",
+        "sonnet": "sonnet"
       }
     }
   }

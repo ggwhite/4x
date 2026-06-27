@@ -1,0 +1,31 @@
+id: F106-extract-orchestrator
+name: 'F106: extract orchestrator'
+description: |-
+    ## 現狀
+    cmd/4x/run_*.go 家族合計 2877 行非測試碼（run.go、run_context.go、run_deep_review.go、run_parallel.go、run_phase.go、run_artifact.go、run_worktree.go、run_resume.go），每個檔案直接依賴 6-7 個 internal package。newRunCmd() 346 行、loop() 222 行。這些是 run loop 的編排邏輯，不該在 CLI 層。
+
+    ## 需求
+    - 引入 internal/orchestrator package，將 run loop 編排邏輯下沉
+    - cmd/4x/run*.go 只保留 Cobra command 定義、flag parsing、呼叫 orchestrator
+    - 具體搬遷：
+      - loop() 主迴圈 → orchestrator.RunLoop()
+      - deep review 編排（self-heal、parallel review）→ orchestrator.DeepReview()
+      - parallel review+test → orchestrator.ParallelReviewTest()
+      - phase 切換邏輯 → orchestrator 內部
+    - newRunCmd() 拆成 flag 定義、初始化、validation 獨立函式
+
+    ## 約束
+    - 不改使用者面向的 CLI 行為（flag、輸出格式）
+    - 不改 state machine 轉換規則
+    - 所有現有測試必須通過
+    - 分步搬遷，每步可獨立編譯通過
+status: not-started
+priority: 1
+profile: normal
+rules:
+    - 不改 CLI 行為
+    - 不改 state machine 轉換規則
+    - 分步搬遷，每步可獨立編譯
+depends:
+    - F104-split-workspace
+    - F105-extract-prompt-pkg

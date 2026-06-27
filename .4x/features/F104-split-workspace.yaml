@@ -1,0 +1,28 @@
+id: F104-split-workspace
+name: 'F104: split workspace'
+description: |-
+    ## 現狀
+    internal/protocol/workspace.go 是 1157 行的 God Object（39 methods），混合了路徑建構、Feature CRUD、State 讀寫、Batch 狀態管理、Config 讀寫、Screenshot 發現、Stop signal、低階 I/O。Read/Write/Clear 三組 boilerplate 重複 14 次 os.IsNotExist 檢查。
+
+    ## 需求
+    - 將 workspace.go 按職責拆成多個檔案，保持在同一個 protocol package 內
+    - 建議拆法：
+      - workspace.go — Workspace struct + 路徑建構方法（DotDir、FeatureDir、RoundDir 等）
+      - workspace_feature.go — Feature CRUD（LoadFeature、SaveFeature、ListFeatures）
+      - workspace_state.go — State 讀寫（ReadState、WriteState、ReconcileActive）
+      - workspace_batch.go — Batch 狀態管理（WriteBatchPID、ReadBatchPID、ClearBatch* 等）
+      - workspace_config.go — Config 讀寫（ReadConfig、LoadMergedConfig）
+      - workspace_screenshot.go — Screenshot 發現（DiscoverScreenshots 等）
+    - 抽出泛型 helper readJSON[T]/writeJSON[T]/clearFile 消除 boilerplate
+
+    ## 約束
+    - 不改任何 public API（method signature、struct 欄位）
+    - 不改 package 歸屬（全部留在 protocol package）
+    - 所有現有測試必須通過
+status: not-started
+priority: 2
+profile: standard
+rules:
+    - 不改 public API
+    - 不改 package 歸屬
+    - 所有現有測試必須通過
