@@ -1,6 +1,10 @@
 package protocol
 
-import "github.com/ggwhite/4x/internal/feature"
+import (
+	"log/slog"
+
+	"github.com/ggwhite/4x/internal/feature"
+)
 
 // ResolvedPhase 描述 pipeline 中某個啟用 phase 解析後的最終結果：
 // 合併所有覆寫層級（per-phase 臨時覆寫 > --runner > feature YAML > profile > roles > default）
@@ -71,7 +75,11 @@ func ResolvePipeline(cfg Config, f feature.Feature, profileName string, manualRu
 			// 故傳 runnerName 而非套用 modelManual，確保 preview 與實際執行的 deep model 結果相同。
 			model, err = ResolveDeepModel(cfg, runnerName, RoleReviewer)
 			if err == nil && model == "" {
-				model, _ = ResolveTierModel(cfg, runnerName, DefaultDeepTier)
+				var tierErr error
+				model, tierErr = ResolveTierModel(cfg, runnerName, DefaultDeepTier)
+				if tierErr != nil {
+					slog.Warn("deep tier model resolution failed, falling back", "runner", runnerName, "error", tierErr)
+				}
 			}
 		} else {
 			model, err = ResolvePhaseModel(cfg, f, pc, phase, role, runnerName, modelManual)

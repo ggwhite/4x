@@ -98,7 +98,9 @@ func (pm *ProcessManager) Start(featureID, runner string, maxRounds int, profile
 
 	id, err := newRunID()
 	if err != nil {
-		_ = cmd.Process.Kill()
+		if kerr := cmd.Process.Kill(); kerr != nil {
+			slog.Warn("failed to kill subprocess after run ID error", "feature", featureID, "error", kerr)
+		}
 		return nil, err
 	}
 	info := &RunInfo{
@@ -154,11 +156,13 @@ func (pm *ProcessManager) pipeOutput(featureID string, r io.Reader, eventType st
 		if line == "" {
 			continue
 		}
-		_ = pm.ws.AppendEvent(featureID, protocol.Event{
+		if err := pm.ws.AppendEvent(featureID, protocol.Event{
 			Type:   eventType,
 			Detail: line,
 			Round:  0,
-		})
+		}); err != nil {
+			slog.Warn("failed to append event", "feature", featureID, "type", eventType, "error", err)
+		}
 	}
 }
 
@@ -244,7 +248,9 @@ func (pm *ProcessManager) Shutdown() {
 	pm.mu.Unlock()
 
 	for _, info := range runs {
-		_ = terminateRun(info)
+		if err := terminateRun(info); err != nil {
+			slog.Warn("failed to terminate run during shutdown", "id", info.ID, "feature", info.FeatureID, "error", err)
+		}
 	}
 }
 

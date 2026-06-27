@@ -411,7 +411,9 @@ func (w *Workspace) autoCommitFeatureYAML(featureID string, status feature.Statu
 		return
 	}
 	msg := fmt.Sprintf("chore(%s): %s", featureID, status)
-	_ = exec.Command("git", "-C", w.Root, "commit", "-m", msg, "--", absPath).Run()
+	if err := exec.Command("git", "-C", w.Root, "commit", "-m", msg, "--", absPath).Run(); err != nil {
+		slog.Warn("git auto-commit failed", "feature", featureID, "path", absPath, "error", err)
+	}
 }
 
 // InitFeatureDir 建立 feature 的運行時目錄

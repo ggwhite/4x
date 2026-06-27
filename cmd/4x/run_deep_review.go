@@ -82,7 +82,11 @@ func (rc *runContext) deepReviewSetup(s *protocol.State) (deepReviewParams, bool
 		return deepReviewParams{}, false, fmt.Errorf("deep model resolution failed: %w", err)
 	}
 	if deepModel == "" {
-		deepModel, _ = protocol.ResolveTierModel(rc.cfg, deepRunner, protocol.DefaultDeepTier)
+		var tierErr error
+		deepModel, tierErr = protocol.ResolveTierModel(rc.cfg, deepRunner, protocol.DefaultDeepTier)
+		if tierErr != nil {
+			slog.Warn("deep-reviewer tier model resolution failed, falling back", "runner", deepRunner, "error", tierErr)
+		}
 	}
 	if deepModel == "" {
 		newState, err := state.Transition(*s, protocol.PhaseAccepting, protocol.RoleAcceptor)

@@ -165,8 +165,12 @@ func executePhaseHooks(ctx context.Context, ws *protocol.Workspace, featureID st
 		if s.StopReason == "" {
 			s.StopReason = timing + "-hook-fail"
 		}
-		_ = ws.WriteState(featureID, *s)
-		_ = ws.SyncFeatureStatus(featureID, s.Phase)
+		if werr := ws.WriteState(featureID, *s); werr != nil {
+			slog.Warn("failed to write state during hook error recovery", "feature", featureID, "error", werr)
+		}
+		if serr := ws.SyncFeatureStatus(featureID, s.Phase); serr != nil {
+			slog.Warn("failed to sync feature status during hook error recovery", "feature", featureID, "error", serr)
+		}
 		return fmt.Errorf("%s hook failed: %w", action, err)
 	}
 	return nil

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"syscall"
@@ -300,7 +301,9 @@ func newBatchRunCmd() *cobra.Command {
 				return err
 			}
 
-			_ = ws.WriteBatchPID(os.Getpid())
+			if err := ws.WriteBatchPID(os.Getpid()); err != nil {
+				slog.Warn("failed to write batch PID", "error", err)
+			}
 			defer func() { _ = ws.ClearBatchPID() }()
 
 			cfg, err := ws.LoadMergedConfig()
@@ -339,7 +342,9 @@ func newBatchRunCmd() *cobra.Command {
 			}
 
 			if planData, je := json.MarshalIndent(plan, "", "  "); je == nil {
-				_ = os.WriteFile(filepath.Join(ws.DotDir(), "batch-plan.json"), planData, 0o644)
+				if we := os.WriteFile(filepath.Join(ws.DotDir(), "batch-plan.json"), planData, 0o644); we != nil {
+					slog.Warn("failed to write batch plan", "error", we)
+				}
 			}
 
 			statusMap := make(map[string]feat.Status)
@@ -373,6 +378,7 @@ func newBatchRunCmd() *cobra.Command {
 			defer func() {
 				if r := recover(); r != nil {
 					finishBatchReport(ws, plan, runnerName, progress, protocol.BatchOutcomeCrashed, fmt.Sprint(r))
+					slog.Error("batch panic", "error", r, "stack", string(debug.Stack()))
 					panic(r)
 				}
 			}()
@@ -590,7 +596,9 @@ func prepareFeatureState(ws *protocol.Workspace, featureID string, maxRounds int
 	}
 
 	s.Pid = os.Getpid()
-	_ = ws.WriteState(featureID, s)
+	if err := ws.WriteState(featureID, s); err != nil {
+		slog.Warn("failed to write state during batch prep", "feature", featureID, "error", err)
+	}
 
 	return &featurePrep{feature: feature, state: s}, nil
 }
@@ -615,13 +623,15 @@ func handleAutoMerge(ws *protocol.Workspace, featureID string, feature feat.Feat
 	switch {
 	case result.Conflict:
 		slog.Error("auto-merge conflict", "feature", featureID, "files", result.Files, "repo", result.ConflictRepo)
-		_ = ws.WriteBatchConflict(protocol.BatchConflict{
+		if err := ws.WriteBatchConflict(protocol.BatchConflict{
 			FeatureID:    featureID,
 			FeatureName:  feature.Name,
 			ConflictRepo: result.ConflictRepo,
 			Files:        result.Files,
 			DetectedAt:   time.Now().UTC(),
-		})
+		}); err != nil {
+			slog.Warn("failed to write batch conflict", "feature", featureID, "error", err)
+		}
 		fmt.Printf("\n⏸ auto-merge conflict on %s — pausing batch (%d done):\n", featureID, completed)
 		for _, file := range result.Files {
 			fmt.Printf("  conflict: %s\n", file)

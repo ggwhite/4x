@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -104,7 +105,9 @@ func (bm *BatchManager) pipeOutput(r io.Reader) {
 func (bm *BatchManager) wait(done chan struct{}) {
 	cmd := bm.cmd
 	if cmd != nil {
-		_ = cmd.Wait()
+		if err := cmd.Wait(); err != nil {
+			slog.Warn("batch subprocess exited with error", "error", err)
+		}
 	}
 	bm.mu.Lock()
 	bm.running = false
@@ -124,8 +127,9 @@ func (bm *BatchManager) Stop() error {
 func (bm *BatchManager) Adopt() {
 	pid, err := bm.ws.ReadBatchPID()
 	if err != nil || pid <= 0 || !protocol.ProcessAlive(pid) {
-		// 無 PID 檔、解析失敗或程序已死：清掉 stale 檔，running 維持 false。
-		_ = bm.ws.ClearBatchPID()
+		if cerr := bm.ws.ClearBatchPID(); cerr != nil {
+			slog.Warn("failed to clear stale batch PID", "error", cerr)
+		}
 		return
 	}
 
@@ -149,7 +153,9 @@ func (bm *BatchManager) watchAdopted(pid int) {
 		bm.running = false
 		bm.adoptedPid = 0
 		bm.mu.Unlock()
-		_ = bm.ws.ClearBatchPID()
+		if err := bm.ws.ClearBatchPID(); err != nil {
+			slog.Warn("failed to clear batch PID after adopted process exit", "error", err)
+		}
 		return
 	}
 }
@@ -176,7 +182,9 @@ func (bm *BatchManager) Shutdown() error {
 	bm.running = false
 	bm.adoptedPid = 0
 	bm.mu.Unlock()
-	_ = bm.ws.ClearBatchPID()
+	if cerr := bm.ws.ClearBatchPID(); cerr != nil {
+		slog.Warn("failed to clear batch PID during shutdown", "error", cerr)
+	}
 	return err
 }
 

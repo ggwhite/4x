@@ -116,7 +116,9 @@ func openBrowser(url string) {
 	default:
 		cmd = exec.Command("xdg-open", url)
 	}
-	_ = cmd.Start()
+	if err := cmd.Start(); err != nil {
+		slog.Warn("failed to open browser", "url", url, "error", err)
+	}
 }
 
 func launchNativeApp(port int) {
