@@ -35,6 +35,7 @@ type runContext struct {
 	manualRunner   string
 	runOverrides   map[protocol.Phase]protocol.PhaseSpec
 	totalTokens    int
+	totalCostUSD   float64
 }
 
 func (rc *runContext) featureID() string {
@@ -170,13 +171,18 @@ func (rc *runContext) loop(ctx context.Context, s protocol.State) error {
 		}
 		rc.syncFromWorktree(featureID, s.Round)
 
-		tokens := parseTokensFromLog(logPath)
-		rc.totalTokens += tokens
-		if tokens > 0 {
-			fmt.Printf("  → %s tokens, %s\n", formatTokens(tokens), invokeDur.Truncate(time.Second))
-		} else {
+		stats := parseRunStatsFromLog(logPath)
+		rc.totalTokens += stats.Tokens
+		rc.totalCostUSD += stats.CostUSD
+		switch {
+		case stats.CostUSD > 0:
+			fmt.Printf("  → $%.4f, %s\n", stats.CostUSD, invokeDur.Truncate(time.Second))
+		case stats.Tokens > 0:
+			fmt.Printf("  → %s tokens, %s\n", formatTokens(stats.Tokens), invokeDur.Truncate(time.Second))
+		default:
 			fmt.Printf("  → %s\n", invokeDur.Truncate(time.Second))
 		}
+		tokens := stats.Tokens
 
 		if runErr != nil {
 			return rc.handleRunnerError(ctx, &s, phase, role, phaseRunner, model, runErr)
@@ -643,23 +649,34 @@ func (rc *runContext) finalize(s protocol.State) error {
 }
 
 func (rc *runContext) printRunSummary(featureID string, rounds int) {
-	if rc.totalTokens > 0 {
+	switch {
+	case rc.totalCostUSD > 0:
+		fmt.Printf("\n── %s: %d rounds, $%.4f total ──\n", featureID, rounds, rc.totalCostUSD)
+	case rc.totalTokens > 0:
 		fmt.Printf("\n── %s: %d rounds, %s tokens total ──\n", featureID, rounds, formatTokens(rc.totalTokens))
 	}
 }
 
-// parseTokensFromLog 從 runner log 尾端解析 token 使用量。
-// 支援 Claude Code 格式：「tokens used\n73,204」。找不到回 0。
-func parseTokensFromLog(logPath string) int {
+// runStats 是從 runner log 解析出的執行統計
+type runStats struct {
+	Tokens  int
+	CostUSD float64
+}
+
+// parseRunStatsFromLog 從 runner log 尾端解析 token 使用量與成本。
+// 支援兩種格式：
+//   - stream-json: [result] success (325.5s, $2.2826)
+//   - 傳統 Claude Code: tokens used\n73,204
+func parseRunStatsFromLog(logPath string) runStats {
 	f, err := os.Open(logPath)
 	if err != nil {
-		return 0
+		return runStats{}
 	}
 	defer f.Close()
 
 	info, err := f.Stat()
 	if err != nil || info.Size() == 0 {
-		return 0
+		return runStats{}
 	}
 
 	readSize := int64(4096)
@@ -667,7 +684,7 @@ func parseTokensFromLog(logPath string) int {
 		readSize = info.Size()
 	}
 	if _, err := f.Seek(-readSize, io.SeekEnd); err != nil {
-		return 0
+		return runStats{}
 	}
 
 	var lines []string
@@ -676,15 +693,30 @@ func parseTokensFromLog(logPath string) int {
 		lines = append(lines, scanner.Text())
 	}
 
+	var stats runStats
 	for i, line := range lines {
-		if strings.TrimSpace(line) == "tokens used" && i+1 < len(lines) {
+		trimmed := strings.TrimSpace(line)
+
+		// stream-json: [result] success (325.5s, $2.2826)
+		if strings.HasPrefix(trimmed, "[result] ") {
+			if idx := strings.Index(trimmed, "$"); idx >= 0 {
+				costStr := trimmed[idx+1:]
+				costStr = strings.TrimRight(costStr, ")")
+				if c, err := strconv.ParseFloat(costStr, 64); err == nil {
+					stats.CostUSD = c
+				}
+			}
+		}
+
+		// 傳統 Claude Code: tokens used\n73,204
+		if trimmed == "tokens used" && i+1 < len(lines) {
 			raw := strings.ReplaceAll(strings.TrimSpace(lines[i+1]), ",", "")
 			if n, err := strconv.Atoi(raw); err == nil {
-				return n
+				stats.Tokens = n
 			}
 		}
 	}
-	return 0
+	return stats
 }
 
 // formatTokens 把 token 數量格式化為帶千分位逗號的字串（如 73204 → "73,204"）。
