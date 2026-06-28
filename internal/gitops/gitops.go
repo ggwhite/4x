@@ -227,7 +227,7 @@ func syncDotDirContents(mainRoot, dotDir string) {
 		os.MkdirAll(dstPlugins, 0o755)
 		for _, e := range entries {
 			if !e.IsDir() {
-				copyFileIfExists(filepath.Join(srcPlugins, e.Name()), filepath.Join(dstPlugins, e.Name()))
+				copyFileIfExists(filepath.Join(srcPlugins, e.Name()), filepath.Join(dstPlugins, e.Name())) //nolint:errcheck // best-effort 複製 plugin 檔，缺檔可接受
 			}
 		}
 	}

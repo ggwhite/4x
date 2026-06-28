@@ -54,10 +54,6 @@ func selectProfileInteractive(_ io.Reader, _ io.Writer, cfg protocol.Config, fea
 	if len(options) == 0 {
 		return "", nil
 	}
-	def := cfg.DefaultProfile
-	if def == "" {
-		def = "full"
-	}
 
 	defaults := protocol.DefaultProfiles()
 	lookupProfile := func(name string) protocol.ProfileConfig {

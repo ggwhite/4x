@@ -121,7 +121,7 @@ func (m *monoRepo) Merge(featureID, featureName string) MergeResult {
 		}
 	}
 
-	m.Cleanup(featureID)
+	m.Cleanup(featureID) //nolint:errcheck // best-effort worktree 清理，失敗不影響 merge 結果
 	return MergeResult{}
 }
 

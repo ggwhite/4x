@@ -16,28 +16,37 @@ import (
 // SyncFeatureToWorktree 將主 workspace 的 feature 目錄複製到 worktree，
 // 確保 runner 能讀到最新的 protocol 檔案（task-brief、上一輪 report 等）
 func SyncFeatureToWorktree(main, wt *protocol.Workspace, featureID string, round int) {
+	warn := func(err error, dst string) {
+		if err != nil {
+			slog.Warn("sync feature to worktree", "feature", featureID, "dst", dst, "err", err)
+		}
+	}
+
 	srcDir := main.FeatureDir(featureID)
 	dstDir := wt.FeatureDir(featureID)
-	os.MkdirAll(dstDir, 0o755)
+	warn(os.MkdirAll(dstDir, 0o755), dstDir)
 
 	srcYAML := filepath.Join(main.DotDir(), protocol.FeaturesDir, featureID+".yaml")
 	dstFeaturesDir := filepath.Join(wt.DotDir(), protocol.FeaturesDir)
-	os.MkdirAll(dstFeaturesDir, 0o755)
-	gitops.CopyFileIfExists(srcYAML, filepath.Join(dstFeaturesDir, featureID+".yaml"))
+	warn(os.MkdirAll(dstFeaturesDir, 0o755), dstFeaturesDir)
+	dstYAML := filepath.Join(dstFeaturesDir, featureID+".yaml")
+	warn(gitops.CopyFileIfExists(srcYAML, dstYAML), dstYAML)
 
 	// 帶入 SelectedLearningsFile，讓 resume 重建 worktree 時 Designer 先前的選擇不致遺失。
 	for _, name := range []string{protocol.StateFile, protocol.TaskBrief, protocol.Criteria, protocol.TestStratFile, protocol.DesignReviewReport, protocol.SelectedLearningsFile} {
-		gitops.CopyFileIfExists(filepath.Join(srcDir, name), filepath.Join(dstDir, name))
+		dst := filepath.Join(dstDir, name)
+		warn(gitops.CopyFileIfExists(filepath.Join(srcDir, name), dst), dst)
 	}
 
 	if round > 0 {
 		srcRound := main.RoundDir(featureID, round)
 		dstRound := wt.RoundDir(featureID, round)
-		os.MkdirAll(dstRound, 0o755)
+		warn(os.MkdirAll(dstRound, 0o755), dstRound)
 		entries, _ := os.ReadDir(srcRound)
 		for _, e := range entries {
 			if !e.IsDir() {
-				gitops.CopyFileIfExists(filepath.Join(srcRound, e.Name()), filepath.Join(dstRound, e.Name()))
+				dst := filepath.Join(dstRound, e.Name())
+				warn(gitops.CopyFileIfExists(filepath.Join(srcRound, e.Name()), dst), dst)
 			}
 		}
 	}

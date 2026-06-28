@@ -1,0 +1,61 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - ineffassign
+    - staticcheck
+    - unused
+
+  settings:
+    errcheck:
+      exclude-functions:
+        # defer close 是 Go 慣例，close error 通常不可操作
+        - (io.Closer).Close
+        - (*os.File).Close
+        - (*os.File).Seek
+        - (*os.File).WriteString
+        # git best-effort 操作（conflict resolution、reset 等）
+        - (*os/exec.Cmd).Run
+        - (*os/exec.Cmd).Wait
+        # 清理路徑——失敗無法補救，最佳嘗試即可
+        - os.Remove
+        - os.RemoveAll
+        # best-effort 檔案/目錄寫入（plugin 安裝、worktree 同步、.bak 備份），失敗會在下游浮現
+        - os.MkdirAll
+        - os.WriteFile
+        # CLI tabwriter flush 與 cobra flag 設定——runtime 不會失敗
+        - (*text/tabwriter.Writer).Flush
+        - (*github.com/spf13/cobra.Command).MarkFlagRequired
+        # HTTP response 寫入——client 已斷時 error 是預期的
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (io.Writer).Write
+        - (net/http.ResponseWriter).Write
+        - (*encoding/json.Encoder).Encode
+        # streaming copy / walk——error 在 caller 已無法補救
+        - io.Copy
+        - path/filepath.Walk
+        # server shutdown
+        - (*net/http.Server).Close
+        # event log 是 fire-and-forget
+        - (github.com/ggwhite/4x/internal/protocol.Workspace).AppendEvent
+        - (*github.com/ggwhite/4x/internal/protocol.Workspace).AppendEvent
+
+  exclusions:
+    rules:
+      # test 檔放寬 errcheck（defer cleanup、setup helper 常見省略）
+      - path: "_test\\.go$"
+        linters:
+          - errcheck
+          - unused
+      # reliability_test 的 staticcheck false positive
+      - path: "internal/server/reliability_test\\.go$"
+        linters:
+          - staticcheck
+      # QF 系列是 code style 建議，不是錯誤
+      - linters:
+          - staticcheck
+        text: "^QF"

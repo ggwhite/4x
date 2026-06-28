@@ -208,7 +208,9 @@ func handleMessages(ws *protocol.CachedWorkspace, featureID string, w http.Respo
 			continue
 		}
 		roundNum := 0
-		fmt.Sscanf(entry.Name(), "round-%d", &roundNum)
+		if _, err := fmt.Sscanf(entry.Name(), "round-%d", &roundNum); err != nil {
+			continue
+		}
 		roundPath := filepath.Join(roundsDir, entry.Name())
 
 		for _, f := range []struct {

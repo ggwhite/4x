@@ -107,7 +107,7 @@ func (m *multiRepo) copyWorkspaceFiles(wtDir string) {
 		if e.IsDir() {
 			continue
 		}
-		copyFileIfExists(filepath.Join(m.root, name), filepath.Join(wtDir, name))
+		copyFileIfExists(filepath.Join(m.root, name), filepath.Join(wtDir, name)) //nolint:errcheck // best-effort 複製 dot 檔，缺檔可接受
 	}
 }
 
@@ -205,7 +205,7 @@ func (m *multiRepo) Merge(featureID, featureName string) MergeResult {
 		merged = append(merged, rh)
 	}
 
-	m.Cleanup(featureID)
+	m.Cleanup(featureID) //nolint:errcheck // best-effort worktree 清理，失敗不影響 merge 結果
 	return MergeResult{}
 }
 

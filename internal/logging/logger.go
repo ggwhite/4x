@@ -132,7 +132,7 @@ type multiHandler struct {
 
 func (m *multiHandler) Enabled(_ context.Context, level slog.Level) bool {
 	for _, h := range m.handlers {
-		if h.Enabled(nil, level) {
+		if h.Enabled(context.TODO(), level) {
 			return true
 		}
 	}
