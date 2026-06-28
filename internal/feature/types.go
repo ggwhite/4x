@@ -48,11 +48,11 @@ type PhaseOverride struct {
 
 // Feature 是 features/*.yaml 的結構
 type Feature struct {
-	ID             string                   `yaml:"id" json:"id"`
-	Name           string                   `yaml:"name" json:"name"`
-	Description    string                   `yaml:"description" json:"description"`
-	Status         Status                   `yaml:"status" json:"status"`
-	Priority       *int                     `yaml:"priority,omitempty" json:"priority,omitempty"`
+	ID          string `yaml:"id" json:"id"`
+	Name        string `yaml:"name" json:"name"`
+	Description string `yaml:"description" json:"description"`
+	Status      Status `yaml:"status" json:"status"`
+	Priority    *int   `yaml:"priority,omitempty" json:"priority,omitempty"`
 	// Profile 宣告此 feature 要用哪個 pipeline profile 跑，供 batch per-feature 套用不同 profile。
 	// optional：空值時走既有 fallback（default_profile → priority auto-select）；
 	// 非空時必須存在於 settings profiles 或 DefaultProfiles，否則 ResolveProfile 報錯。
@@ -66,7 +66,7 @@ type Feature struct {
 	Hooks          map[string][]HookEntry   `yaml:"hooks,omitempty" json:"hooks,omitempty"`
 	PhaseOverrides map[string]PhaseOverride `yaml:"phase_overrides,omitempty" json:"phaseOverrides,omitempty"`
 	// DeepReviewAllAngles 為 true 時強制 deep review 跑全部 11 個角度，忽略 angle mapping 的篩選。
-	DeepReviewAllAngles bool `yaml:"deep_review_all_angles,omitempty" json:"deepReviewAllAngles,omitempty"`
+	DeepReviewAllAngles bool     `yaml:"deep_review_all_angles,omitempty" json:"deepReviewAllAngles,omitempty"`
 	Warnings            []string `yaml:"-" json:"warnings,omitempty"`
 }
 

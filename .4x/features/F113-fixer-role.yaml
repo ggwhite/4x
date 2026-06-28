@@ -1,0 +1,45 @@
+id: F113-fixer-role
+name: 'fixer role'
+description: |-
+    目前 deep-reviewer 找出的 warning/issue 沒有對應的自動修復角色，只能 needs-attention 讓 user 手動介入或等下一輪 amending 重跑整個 coder。
+
+    需求：
+    - 新增 fixing phase，排在 deep-reviewing 之後、accepting 之前
+    - Fixer 角色：讀 deep-review-report.md，apply 所有可直接修補的 issue（格式、小邏輯、命名）
+    - 修完後跑 make build && make test && make lint，全過才繼續 accepting
+    - 若 issue 超出 fixer 能力（需要架構重設計、spec 不清）→ 寫 escalation.json，退回 amending
+    - 新增 fixer.md.tmpl（role 契約）
+    - 更新 profiles：full、dashboard 在 deep-reviewing 後插入 fixing phase
+    - 更新 state machine：deep-reviewing → fixing，fixing → accepting，fixing → amending
+    - protocol/types.go 新增 PhaseFixing 常量
+    - 新增 fixer role 的 plugin template（plugins/claude-code/fixer.md.tmpl 或 templates/fixer.md.tmpl）
+
+    約束：
+    - Fixer 不可修改 acceptance-criteria.md 或 test-strategy.yaml
+    - Fixer 不可新增功能，只修 reviewer 明確指出的問題
+    - CLI 層不呼叫 LLM
+    - 不改動 standard/quick/code-only profile（這些沒有 deep-reviewing）
+status: not-started
+priority: 2
+profile: full
+subtasks:
+    - id: s1
+      name: state-machine
+      status: ""
+      description: 新增 PhaseFixing 常量 + deep-reviewing→fixing、fixing→accepting、fixing→amending 轉換
+    - id: s2
+      name: template
+      status: ""
+      description: 新增 fixer.md.tmpl role 契約
+    - id: s3
+      name: phase-logic
+      status: ""
+      description: orchestrator/phase.go 新增 PhaseFixing case
+    - id: s4
+      name: profiles
+      status: ""
+      description: full、dashboard profile 插入 fixing phase
+    - id: s5
+      name: tests
+      status: ""
+      description: 補 fixer 相關 run loop 測試

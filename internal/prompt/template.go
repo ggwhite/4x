@@ -30,18 +30,18 @@ var tmplFuncs = template.FuncMap{
 }
 
 var roleTemplateFiles = map[protocol.Role]string{
-	protocol.RoleDesigner:       "designer.md.tmpl",
-	protocol.RoleDesignReviewer: "design-reviewer.md.tmpl",
-	protocol.RoleCoder:          "coder.md.tmpl",
-	protocol.RoleReviewer:       "reviewer.md.tmpl",
-	protocol.RoleDeepReviewer:   "deep-reviewer.md.tmpl",
-	protocol.RoleTester:         "tester.md.tmpl",
-	protocol.RoleAcceptor:       "acceptor.md.tmpl",
-	protocol.RoleMiniCoder:      "mini-coder.md.tmpl",
-	protocol.RoleReVerifier:     "re-verifier.md.tmpl",
-	protocol.RoleSynthesizer:    "synthesizer.md.tmpl",
-	protocol.RoleGate:           "gate.md.tmpl",
-	protocol.RoleConsolidator:   "consolidate.md.tmpl",
+	protocol.RoleDesigner:        "designer.md.tmpl",
+	protocol.RoleDesignReviewer:  "design-reviewer.md.tmpl",
+	protocol.RoleCoder:           "coder.md.tmpl",
+	protocol.RoleReviewer:        "reviewer.md.tmpl",
+	protocol.RoleDeepReviewer:    "deep-reviewer.md.tmpl",
+	protocol.RoleTester:          "tester.md.tmpl",
+	protocol.RoleAcceptor:        "acceptor.md.tmpl",
+	protocol.RoleMiniCoder:       "mini-coder.md.tmpl",
+	protocol.RoleReVerifier:      "re-verifier.md.tmpl",
+	protocol.RoleSynthesizer:     "synthesizer.md.tmpl",
+	protocol.RoleGate:            "gate.md.tmpl",
+	protocol.RoleConsolidator:    "consolidate.md.tmpl",
 	protocol.RoleRoundSummarizer: "round-summarizer.md.tmpl",
 }
 

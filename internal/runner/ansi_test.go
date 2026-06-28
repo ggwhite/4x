@@ -8,8 +8,8 @@ import (
 
 // errWriter 模擬 inner writer 寫入失敗（如磁碟滿、檔案被關）。
 type errWriter struct {
-	err   error
-	wrote int // 成功前累計寫入次數（用於只在第 N 次失敗的情境）
+	err    error
+	wrote  int // 成功前累計寫入次數（用於只在第 N 次失敗的情境）
 	failAt int
 }
 

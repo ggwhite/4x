@@ -225,4 +225,3 @@ func RoleInstructions(cfg protocol.Config, r protocol.Role) []string {
 	}
 	return nil
 }
-

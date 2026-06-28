@@ -368,7 +368,7 @@ const (
 	stEscape
 	stCSI
 	stOSC
-	stOscEsc // OSC 裡遇到 ESC，等 backslash 組成 ST
+	stOscEsc  // OSC 裡遇到 ESC，等 backslash 組成 ST
 	stCharset // charset designation（ESC ( / ESC )），等吃掉 final byte
 )
 

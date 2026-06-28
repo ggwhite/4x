@@ -280,9 +280,9 @@ func handlePatchSettings(ws *protocol.CachedWorkspace, w http.ResponseWriter, r 
 				// nested object merge
 				if projMap, ok := val.(map[string]interface{}); ok {
 					projJSON, err := json.Marshal(projMap)
-				if err != nil {
-					return clientErr("marshal project config: " + err.Error())
-				}
+					if err != nil {
+						return clientErr("marshal project config: " + err.Error())
+					}
 					var projCfg protocol.ProjectConfig
 					if err := json.Unmarshal(projJSON, &projCfg); err != nil {
 						return clientErr("invalid project config: " + err.Error())

@@ -1,4 +1,4 @@
-.PHONY: build install test clean check-docs check-docs-sync check-i18n package-macos
+.PHONY: build install test clean lint check-docs check-docs-sync check-i18n package-macos
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
@@ -16,6 +16,8 @@ clean:
 
 lint:
 	go vet ./...
+	@test -z "$$(git ls-files '*.go' | xargs gofmt -l)" || (echo "gofmt: 以下檔案格式不符，請執行 gofmt -w ." && git ls-files '*.go' | xargs gofmt -l && exit 1)
+	@if command -v golangci-lint > /dev/null 2>&1; then golangci-lint run ./...; else echo "golangci-lint not installed, skipping"; fi
 
 check-docs:
 	@bash scripts/check-docs.sh

@@ -169,4 +169,3 @@ func (m *multiHandler) WithGroup(name string) slog.Handler {
 	}
 	return &multiHandler{handlers: handlers}
 }
-

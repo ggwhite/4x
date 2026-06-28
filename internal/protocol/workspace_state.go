@@ -124,4 +124,3 @@ func (w *Workspace) WorktreePath(featureID string) string {
 	}
 	return latest
 }
-
