@@ -77,6 +77,11 @@ Do NOT assume an existing file means testing is done — check which AC items ha
 == Workflow (strict order) ==
 1. Read acceptance criteria — list every AC item (note each AC-N id)
 2. Create test-report.md with header and empty results table
+If test-strategy.yaml does not exist (Designer was skipped), `4x verify` will automatically
+fall back to the project's build/test/lint commands from settings.json. The fallback also
+auto-generates ac_results entries (one per command), so you do NOT need to manually create
+test-strategy.yaml or update ac_results for the fallback commands.
+
 3. Run: ${FOURX_BIN:-4x} verify {{.Feature.ID}}
 4. Read the generated verify.json for command results
 5. For each AC item, collect evidence and update test-report.md immediately

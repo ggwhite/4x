@@ -22,6 +22,19 @@ type Group struct {
 	Commands []string
 }
 
+// FallbackGroups 在 test-strategy.yaml 不存在時，從 settings.json 的 Build/Test/Lint 指令
+// 組合出單一 fallback group，讓 verify 仍可執行。
+func FallbackGroups(cfg protocol.ProjectConfig) ([]Group, error) {
+	var commands []string
+	commands = append(commands, cfg.Build...)
+	commands = append(commands, cfg.Test...)
+	commands = append(commands, cfg.Lint...)
+	if len(commands) == 0 {
+		return nil, fmt.Errorf("settings.json has no build/test/lint commands for fallback")
+	}
+	return []Group{{Name: "fallback", Commands: commands}}, nil
+}
+
 // ResolveGroups 從 TestStrategy 解析出 verify groups。
 // verify_groups 存在時依 group 名稱排序後回傳（確保輸出順序穩定可測）；
 // 否則 fallback 到 verify_commands 作為單一 default group，commands 維持原序。

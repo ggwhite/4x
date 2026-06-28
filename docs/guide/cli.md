@@ -184,6 +184,25 @@ Reject a `draft` feature produced by enriched auto-discover, transitioning it `d
 
 ---
 
+## `4x retry <feature-id>`
+
+Recover a feature stuck in `needs-attention` or `blocked` by transitioning it back to a working phase, then immediately launching `4x run`. Equivalent to `4x transition --to <phase> <id> && 4x run <id>`.
+
+Default target phase is `accepting` (re-run the Acceptor after the human fixes issues). Use `--to` to target a different phase.
+
+```
+4x retry F042-some-feature
+4x retry F042-some-feature --to amending
+```
+
+| Flag | Description |
+|------|-------------|
+| `--to <phase>` | Target phase to recover to (default: `accepting`) |
+
+Errors if the feature is not currently in `needs-attention` or `blocked`.
+
+---
+
 ## `4x gate`
 
 Apply the F097 evolve **value gate** veto layers to mined candidate features. Pure CLI deterministic veto — it does not call an LLM. The `gate` LLM role runs between the two phases (orchestrated by the evolve driver) to produce `gate-verdicts.json`.
@@ -293,6 +312,8 @@ Exit code: `0` when there is no FAIL (WARN does not affect the exit code), `1` w
 Run the verify commands from the feature's `test-strategy.yaml` and write the results to `rounds/round-{N}/verify.json`.
 
 Commands can be organised into groups via `verify_groups`: groups run in parallel, while commands within a group run sequentially. If a command in a group fails, the remaining commands in that group are skipped, but other groups keep running. When only `verify_commands` is defined, it falls back to a single sequential `default` group. Declaring both is an error.
+
+**Fallback**: when `test-strategy.yaml` does not exist (e.g. Designer was skipped by the profile), verify automatically falls back to the project's `build`/`test`/`lint` commands from `settings.json`, grouped under a single `"fallback"` group. The fallback path also auto-generates `ac_results` entries (one per non-skipped command), so the `testing → accepting` guard passes without manual intervention.
 
 Parallel execution is handled entirely by the CLI — no LLM involved. The Tester role calls this command instead of running verify commands itself; humans can also run it standalone for debugging.
 

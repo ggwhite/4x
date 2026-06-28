@@ -11,7 +11,6 @@ import (
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/verify"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 )
 
 // newVerifyCmd 建立 `4x verify <feature-id>` subcommand。
@@ -52,30 +51,57 @@ func newVerifyCmd() *cobra.Command {
 				round = state.Round
 			}
 
-			stratPath := filepath.Join(ws.FeatureDir(featureID), protocol.TestStratFile)
-			data, err := os.ReadFile(stratPath)
-			if err != nil {
-				return fmt.Errorf("cannot read %s: %w", protocol.TestStratFile, err)
-			}
-			var ts protocol.TestStrategy
-			if err := yaml.Unmarshal(data, &ts); err != nil {
-				return fmt.Errorf("invalid %s: %w", protocol.TestStratFile, err)
-			}
-
-			groups, err := verify.ResolveGroups(ts)
+			ts, err := ws.ReadTestStrategy(featureID)
 			if err != nil {
 				return err
+			}
+
+			isFallback := len(ts.Verify) == 0 && len(ts.VerifyGroups) == 0
+			var groups []verify.Group
+			if isFallback {
+				cfg, err := ws.ReadConfig()
+				if err != nil {
+					return err
+				}
+				groups, err = verify.FallbackGroups(cfg.Project)
+				if err != nil {
+					return err
+				}
+			} else {
+				groups, err = verify.ResolveGroups(ts)
+				if err != nil {
+					return err
+				}
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
 
 			if !jsonOut {
-				fmt.Fprintf(os.Stderr, "Running %d verify group(s)...\n", len(groups))
+				if isFallback {
+					fmt.Fprintf(os.Stderr, "No test-strategy.yaml found, falling back to settings.json commands...\n")
+				} else {
+					fmt.Fprintf(os.Stderr, "Running %d verify group(s)...\n", len(groups))
+				}
 			}
 			evidence := verify.RunGroups(ctx, groups, ws.Root)
 			evidence.Round = round
 			evidence.Role = protocol.RoleTester
+
+			if isFallback {
+				var acResults []protocol.ACEvidence
+				for _, cmd := range evidence.Commands {
+					if cmd.Skipped {
+						continue
+					}
+					acResults = append(acResults, protocol.ACEvidence{
+						ID:       fmt.Sprintf("verify:%s", cmd.Command),
+						Passed:   cmd.ExitCode == 0,
+						Evidence: []string{cmd.Summary},
+					})
+				}
+				evidence.ACResults = acResults
+			}
 
 			roundDir := ws.RoundDir(featureID, round)
 			if err := os.MkdirAll(roundDir, 0o755); err != nil {
