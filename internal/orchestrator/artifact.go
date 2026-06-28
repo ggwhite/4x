@@ -125,6 +125,11 @@ func CheckVerify(ws *protocol.Workspace, featureID string, round int) VerifyStat
 	if !ve.Passed {
 		return VerifyFailed
 	}
+	for _, ac := range ve.ACResults {
+		if !ac.Passed {
+			return VerifyFailed
+		}
+	}
 	return VerifyOK
 }
 
