@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.1] - 2026-06-28
+
+### Features
+
+- **Coder 讀取驗收標準** — Coder prompt 新增 `== Acceptance Criteria & Test Strategy ==` 區塊，明確要求在寫程式前讀取 `acceptance-criteria.md` 與 `test-strategy.yaml`，避免跳過驗收標準
+- **訊息 tab token 用量** — 訊息 tab 顯示每個 role 的 token 用量與金額，方便追蹤成本
+- **Deep-review 自癒路徑** — deep-review FAIL 時也觸發 auto-discover，確保自癒機制在所有耗盡路徑都有效
+- **Auto-summarize amend rounds** — 進入 accepting 前自動摘要過去的 amend rounds，減少 context 長度
+
+### Fixes
+
+- **舊格式 feature ID 相容** — numRe 相容無 slug 的舊格式 feature ID（如 ws-094）
+- **Deep-reviewer Discovered Issues** — 強制寫出 `## Discovered Issues` section，避免欄位缺漏
+- **Reviewer symbol 驗證** — reviewer 驗證 symbol 時改用 `codegraph_explore`，禁止 grep 避免誤判
+
+### Internal
+
+- **Codegraph 工具規則** — 加入 codegraph/graphify 工具規則與 PreToolUse hook
+- **Opus runner tier** — 移除 [1m] context suffix，避免 runner tier 辨識問題
+
 ## [0.3.0] - 2026-06-27
 
 ### Features
