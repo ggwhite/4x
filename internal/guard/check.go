@@ -225,7 +225,7 @@ func checkTestingToAccepting(ws *protocol.Workspace, featureID string, round int
 	checkSelfModTestGate(ws, featureID, r)
 }
 
-// checkACEvidence 檢查 verify.json 的 per-AC evidence mapping：每個 AC 都必須有 evidence。
+// checkACEvidence 檢查 verify.json 的 per-AC evidence mapping：每個 AC 都必須 passed 且有 evidence。
 // ac_results 為空時阻擋（舊格式 verify.json 不通過此檢查）。
 func checkACEvidence(evidence protocol.VerifyEvidence, r *CheckResult) {
 	if len(evidence.ACResults) == 0 {
@@ -234,6 +234,10 @@ func checkACEvidence(evidence protocol.VerifyEvidence, r *CheckResult) {
 		return
 	}
 	for _, ac := range evidence.ACResults {
+		if !ac.Passed {
+			r.Pass = false
+			r.Errors = append(r.Errors, fmt.Sprintf("AC %s failed", ac.ID))
+		}
 		if len(ac.Evidence) == 0 {
 			r.Pass = false
 			r.Errors = append(r.Errors, fmt.Sprintf("AC %s has no evidence", ac.ID))

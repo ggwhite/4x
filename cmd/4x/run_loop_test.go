@@ -121,7 +121,7 @@ func (m *mockRunner) Run(_ context.Context, prompt string) (*runner.Result, erro
 		os.WriteFile(filepath.Join(roundDir, protocol.VerifyFile), data, 0o644)
 		os.WriteFile(filepath.Join(roundDir, protocol.TestReport), []byte("# Test"), 0o644)
 		if outcome.testPassed && !outcome.omitFinalReport {
-			os.WriteFile(filepath.Join(featureDir, protocol.FinalReport), []byte("# Final"), 0o644)
+			os.WriteFile(filepath.Join(featureDir, protocol.FinalReport), []byte("# Final\n\n## Status\nready-for-review\n"), 0o644)
 		}
 		if outcome.escalation {
 			reason := outcome.escalationReason
@@ -1770,7 +1770,7 @@ func (m *roleMockRunner) Run(_ context.Context, _ string) (*runner.Result, error
 		data, _ := json.Marshal(ve)
 		os.WriteFile(filepath.Join(roundDir, protocol.VerifyFile), data, 0o644)
 		os.WriteFile(filepath.Join(roundDir, protocol.TestReport), []byte("# Test"), 0o644)
-		os.WriteFile(filepath.Join(featureDir, protocol.FinalReport), []byte("# Final"), 0o644)
+		os.WriteFile(filepath.Join(featureDir, protocol.FinalReport), []byte("# Final\n\n## Status\nready-for-review\n"), 0o644)
 	}
 	return &runner.Result{ExitCode: 0}, nil
 }
@@ -1910,7 +1910,7 @@ func (m *noVerifyMockRunner) Run(_ context.Context, _ string) (*runner.Result, e
 	case "tester":
 		// 不寫 verify.json — 模擬 worktree 裡 4x verify 無法執行
 		os.WriteFile(filepath.Join(roundDir, protocol.TestReport), []byte("## Verdict\nPASS\n"), 0o644)
-		os.WriteFile(filepath.Join(featureDir, protocol.FinalReport), []byte("# Final"), 0o644)
+		os.WriteFile(filepath.Join(featureDir, protocol.FinalReport), []byte("# Final\n\n## Status\nready-for-review\n"), 0o644)
 	}
 	return &runner.Result{ExitCode: 0}, nil
 }

@@ -86,6 +86,31 @@ func ReviewFailCount(ws *protocol.Workspace, featureID string, round int) int {
 	return result.CriticalCount + result.WarningCount
 }
 
+// FinalReportPassed 讀取 final-report.md 並檢查 ## Status 段落是否為 ready-for-review。
+// 檔案不存在或 Status 為 needs-attention 時回傳 false。
+func FinalReportPassed(path string) bool {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	lines := strings.Split(string(data), "\n")
+	inStatus := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "## Status") {
+			inStatus = true
+			continue
+		}
+		if inStatus && trimmed != "" {
+			return strings.HasPrefix(strings.ToLower(trimmed), "ready-for-review")
+		}
+		if inStatus && strings.HasPrefix(trimmed, "## ") {
+			break
+		}
+	}
+	return false
+}
+
 // CheckVerify 檢查 verify.json 狀態：VerifyMissing（檔案不存在或無法解析）、VerifyFailed（passed=false）、VerifyOK（passed=true）
 func CheckVerify(ws *protocol.Workspace, featureID string, round int) VerifyStatus {
 	roundDir := ws.RoundDir(featureID, round)

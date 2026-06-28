@@ -95,6 +95,9 @@ func NextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) 
 		if _, err := os.Stat(report); err != nil {
 			return protocol.PhaseNeedsAttention, "", "missing-artifact: " + protocol.FinalReport
 		}
+		if !FinalReportPassed(report) {
+			return protocol.PhaseNeedsAttention, "", "final-report: needs-attention"
+		}
 		return protocol.PhasePendingReview, "", ""
 
 	default:
