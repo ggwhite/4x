@@ -45,6 +45,13 @@ Read the previous review report: {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{
 == Planning Document (design context) ==
 {{.PlanningDoc}}
 {{- end}}
+{{- if not .SkippedDesigner}}
+
+== Acceptance Criteria & Test Strategy ==
+You MUST read both files before writing any code:
+- {{.DotDir}}/run/{{.Feature.ID}}/acceptance-criteria.md — defines what "done" looks like; your implementation must satisfy every criterion
+- {{.DotDir}}/run/{{.Feature.ID}}/test-strategy.yaml — defines the exact verify commands to run; do NOT substitute or skip them
+{{- end}}
 {{- if .Project.Setup}}
 
 == Dev Environment Setup ==
@@ -123,9 +130,9 @@ exactly what was already done, so nothing needs to be re-discovered or re-implem
 {{- if .SkippedDesigner}}
 1. Read feature YAML ({{.Feature.ID}}.yaml) — this is your spec
 {{- else if .TaskBrief}}
-1. Review the Task Brief above
+1. Review the Task Brief above, then read acceptance-criteria.md and test-strategy.yaml (paths listed in "Acceptance Criteria & Test Strategy" above)
 {{- else}}
-1. Read task-brief.md
+1. Read task-brief.md, then read acceptance-criteria.md and test-strategy.yaml (paths listed in "Acceptance Criteria & Test Strategy" above)
 {{- end}}
 2. Check for prior progress — a previous session may have been interrupted:
    - Run: git log --oneline -20 — commits are the source of truth for what code is already done
