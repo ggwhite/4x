@@ -20,13 +20,14 @@ Use the Write tool. Do NOT just print the content — write to disk.
 {{- if ge .Round 3}}
 3. Read: {{.DotDir}}/run/{{.Feature.ID}}/rounds-summary.md — compressed summary of rounds 1–{{sub .Round 2}} (issues raised, resolution status, key decisions)
 4. Read the LAST TWO rounds in full:
-   - {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{sub .Round 1}}/ — review-report.md, test-report.md, deep-review-report.md (if present)
-   - {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/ — review-report.md, test-report.md, deep-review-report.md (if present)
+   - {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{sub .Round 1}}/ — review-report.md (if present), test-report.md (if present), deep-review-report.md (if present)
+   - {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/ — review-report.md (if present), test-report.md (if present), deep-review-report.md (if present)
 {{- else}}
 3. Read the FINAL round's reports under {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/:
-   - review-report.md — checklist reviewer findings
-   - test-report.md — test results and pass/fail per AC
-   - deep-review-report.md — adversarial review findings (if present)
+   - review-report.md (if present) — checklist reviewer findings; absent when reviewer was skipped by profile
+   - test-report.md (if present) — test results and pass/fail per AC; absent when tester was skipped by profile
+   - deep-review-report.md (if present) — adversarial review findings
+   If a report is absent, fall back to git log and coder-report.md for context.
 {{- end}}
 - Read any escalation.json across rounds (if present) — unresolved blockers raised mid-loop
 - Run: git log --oneline -30 — see what commits were made
