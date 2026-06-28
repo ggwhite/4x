@@ -85,8 +85,8 @@ func changedFilesIn(dir, pathPrefix string) []protocol.ChangedFile {
 			if len(parts) < 3 {
 				continue
 			}
-			added := parseNumstatCount(parts[0])
-			deleted := parseNumstatCount(parts[1])
+			added := ParseNumstatCount(parts[0])
+			deleted := ParseNumstatCount(parts[1])
 			files = append(files, protocol.ChangedFile{Path: pathPrefix + parts[2], Lines: added + deleted})
 		}
 	}
@@ -98,7 +98,7 @@ func changedFilesIn(dir, pathPrefix string) []protocol.ChangedFile {
 			if line == "" {
 				continue
 			}
-			lines := countFileLines(filepath.Join(dir, line))
+			lines := CountFileLines(filepath.Join(dir, line))
 			files = append(files, protocol.ChangedFile{Path: pathPrefix + line, Lines: lines})
 		}
 	}
@@ -106,8 +106,8 @@ func changedFilesIn(dir, pathPrefix string) []protocol.ChangedFile {
 	return files
 }
 
-// parseNumstatCount 解析 numstat 的 added/deleted 欄位，binary 檔的 "-" 視為 0。
-func parseNumstatCount(s string) int {
+// ParseNumstatCount 解析 numstat 的 added/deleted 欄位，binary 檔的 "-" 視為 0。
+func ParseNumstatCount(s string) int {
 	if s == "-" {
 		return 0
 	}
@@ -121,9 +121,9 @@ func parseNumstatCount(s string) int {
 	return n
 }
 
-// countFileLines 回傳檔案的行數（以 '\n' 計），讀檔失敗回 0。
+// CountFileLines 回傳檔案的行數（以 '\n' 計），讀檔失敗回 0。
 // 末行無換行時補計 1 行，使單行無換行的檔案計為 1 而非 0。
-func countFileLines(path string) int {
+func CountFileLines(path string) int {
 	data, err := os.ReadFile(path)
 	if err != nil || len(data) == 0 {
 		return 0

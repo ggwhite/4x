@@ -2,7 +2,6 @@ package guard
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -164,7 +163,7 @@ func detectChangedFilesLocal(root string) []protocol.ChangedFile {
 			}
 			files = append(files, protocol.ChangedFile{
 				Path:  parts[2],
-				Lines: numstatCount(parts[0]) + numstatCount(parts[1]),
+				Lines: gitops.ParseNumstatCount(parts[0]) + gitops.ParseNumstatCount(parts[1]),
 			})
 		}
 	}
@@ -176,37 +175,9 @@ func detectChangedFilesLocal(root string) []protocol.ChangedFile {
 			if line == "" {
 				continue
 			}
-			files = append(files, protocol.ChangedFile{Path: line, Lines: fileLineCount(filepath.Join(root, line))})
+			files = append(files, protocol.ChangedFile{Path: line, Lines: gitops.CountFileLines(filepath.Join(root, line))})
 		}
 	}
 
 	return files
-}
-
-// numstatCount 解析 numstat 的 added/deleted 欄位，binary 檔的 "-" 視為 0。
-func numstatCount(s string) int {
-	if s == "-" {
-		return 0
-	}
-	n := 0
-	for _, c := range s {
-		if c < '0' || c > '9' {
-			return 0
-		}
-		n = n*10 + int(c-'0')
-	}
-	return n
-}
-
-// fileLineCount 回傳檔案行數（以 '\n' 計，末行無換行補 1），讀檔失敗回 0。
-func fileLineCount(path string) int {
-	data, err := os.ReadFile(path)
-	if err != nil || len(data) == 0 {
-		return 0
-	}
-	lines := strings.Count(string(data), "\n")
-	if data[len(data)-1] != '\n' {
-		lines++
-	}
-	return lines
 }
