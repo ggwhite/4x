@@ -717,6 +717,8 @@ func (r *Runner) finalize(s protocol.State) error {
 			}
 			LogStateWriteErr(r.Ws.WriteState(featureID, s), featureID, s.Phase)
 		}
+	default:
+		// 其他 phase 非終態，finalize 不處理
 	}
 	return nil
 }

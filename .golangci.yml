@@ -1,5 +1,8 @@
 version: "2"
 
+run:
+  issues-exit-code: 1  # issues 一律 exit 1，不受 severity 影響
+
 linters:
   default: none
   enable:
@@ -7,8 +10,17 @@ linters:
     - ineffassign
     - staticcheck
     - unused
+    - nolintlint
+    - exhaustive
+    - bodyclose
 
   settings:
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+      allow-unused: false
+    exhaustive:
+      default-signifies-exhaustive: true
     errcheck:
       exclude-functions:
         # defer close 是 Go 慣例，close error 通常不可操作
@@ -51,6 +63,8 @@ linters:
         linters:
           - errcheck
           - unused
+          - exhaustive
+          - bodyclose
       # reliability_test 的 staticcheck false positive
       - path: "internal/server/reliability_test\\.go$"
         linters:

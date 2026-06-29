@@ -365,5 +365,7 @@ func printRunSummary(featureID string, finalState protocol.State, result *orches
 		fmt.Printf("\nFeature %s ready for review (%d rounds). Run '4x done %s' to complete.\n", featureID, finalState.Round, featureID)
 	case protocol.PhaseDone:
 		fmt.Printf("\nFeature %s complete (%d rounds)\n", featureID, finalState.Round)
+	default:
+		// 其他 phase 不印額外提示
 	}
 }

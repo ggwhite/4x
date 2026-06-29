@@ -156,6 +156,8 @@ func CleanStaleArtifact(ws *protocol.Workspace, featureID string, phase protocol
 		RemoveIfIncomplete(filepath.Join(roundDir, protocol.DeepReviewReport), ReviewReportComplete)
 	case protocol.PhaseAccepting:
 		RemoveIfIncomplete(filepath.Join(ws.FeatureDir(featureID), protocol.FinalReport), NonEmptyFile)
+	default:
+		// 其他 phase 無 output artifact 需清除
 	}
 }
 
