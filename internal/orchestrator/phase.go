@@ -79,7 +79,7 @@ func NextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) 
 			}
 			return protocol.PhaseAmending, protocol.RoleCoder, ""
 		}
-		if result.AllRetryable() && !guardFeedbackExists(ws, featureID, s.Round) {
+		if result.AllRetryable() && !guardFeedbackExists(ws, featureID, s.Round) && s.GuardRetries < state.MaxGuardRetries {
 			writeGuardFeedback(ws, featureID, s.Round, result.Errors)
 			return protocol.PhaseTesting, protocol.RoleTester, ""
 		}

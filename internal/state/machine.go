@@ -130,6 +130,10 @@ func PhaseToRole(p protocol.Phase) protocol.Role {
 	}
 }
 
+// MaxGuardRetries 是跨 round 的 guard retry 上限。
+// 超過時不再自動重試，直接進 needs-attention。
+const MaxGuardRetries = 2
+
 // ShouldStop 檢查是否觸發停止條件。
 //
 // MaxRounds<=0 代表「不設 max rounds 上限」（未指定上限的語意）：此時跳過

@@ -132,6 +132,8 @@ type State struct {
 	SelfModPaths []string `json:"selfModPaths,omitempty"`
 	// SelfModApproved 表示人工已透過 --approve-self-mod 核可此 feature 的受保護路徑變更，允許 merge。
 	SelfModApproved bool `json:"selfModApproved,omitempty"`
+	// GuardRetries 記錄全域 guard retry 次數（跨 round 累計），超過上限時停止重試。
+	GuardRetries int `json:"guardRetries,omitempty"`
 }
 
 // Event 是 events.jsonl 的一行

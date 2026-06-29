@@ -112,6 +112,31 @@ func TestNextPhaseAfter_TestingGuardRetrySucceeds(t *testing.T) {
 	}
 }
 
+func TestNextPhaseAfter_TestingGuardRetryGlobalCap(t *testing.T) {
+	ws := setupPhaseWorkspace(t, "feat-1")
+	roundDir := ws.RoundDir("feat-1", 1)
+	featureDir := ws.FeatureDir("feat-1")
+
+	writePhaseFile(t, filepath.Join(featureDir, protocol.TestStratFile),
+		"manual_checks:\n  - id: mc-1\n    description: test\n    steps:\n      - curl localhost\n")
+
+	data, _ := json.Marshal(protocol.VerifyEvidence{
+		Passed:    true,
+		Round:     1,
+		ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: true, Evidence: []string{"ok"}}},
+	})
+	writePhaseFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))
+	writePhaseFile(t, filepath.Join(roundDir, protocol.TestReport), "# Test\n## Verdict\nPASS")
+	writePhaseFile(t, filepath.Join(featureDir, protocol.FinalReport), "# Final\n## Verdict\nPASS")
+
+	// GuardRetries already at max → should NOT retry, go straight to needs-attention
+	s := protocol.State{Phase: protocol.PhaseTesting, Round: 1, GuardRetries: 2}
+	next, _, _ := NextPhaseAfter(ws, "feat-1", s)
+	if next != protocol.PhaseNeedsAttention {
+		t.Fatalf("expected NeedsAttention when GuardRetries >= MaxGuardRetries, got %s", next)
+	}
+}
+
 func TestNextPhaseAfter_TestingNonRetryableGoesToNeedsAttention(t *testing.T) {
 	ws := setupPhaseWorkspace(t, "feat-1")
 	roundDir := ws.RoundDir("feat-1", 1)
