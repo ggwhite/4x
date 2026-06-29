@@ -2,6 +2,7 @@ package prompt
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -48,6 +49,8 @@ type Data struct {
 	SkippedDesigner bool
 	// TaskBrief 是 task-brief.md 的完整內容，直接內嵌到 prompt 省掉 agent 的 Read tool call。
 	TaskBrief string
+	// GuardFeedback 是 guard retry 時的錯誤訊息，供 tester 知道上次哪裡沒做到位。
+	GuardFeedback []string
 	// PrevReviewReport 是上一輪 review-report.md 的完整內容（amending 時使用）。
 	PrevReviewReport string
 	// PrevTestReport 是上一輪 test-report.md 的完整內容（amending 時使用，可能不存在）。
@@ -176,6 +179,9 @@ func Generate(ctx *Context, role protocol.Role, round, iteration int, runnerName
 			data.PrevDiff = BaselineDiff(ws, feature.ID)
 		}
 	}
+	if role == protocol.RoleTester {
+		data.GuardFeedback = readGuardFeedback(ws, feature.ID, round)
+	}
 	for _, opt := range opts {
 		opt(&data)
 	}
@@ -224,4 +230,19 @@ func RoleInstructions(cfg protocol.Config, r protocol.Role) []string {
 		return rc.Instructions
 	}
 	return nil
+}
+
+func readGuardFeedback(ws *protocol.Workspace, featureID string, round int) []string {
+	path := filepath.Join(ws.RoundDir(featureID, round), protocol.GuardFeedback)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var fb struct {
+		Errors []string `json:"errors"`
+	}
+	if json.Unmarshal(data, &fb) != nil {
+		return nil
+	}
+	return fb.Errors
 }

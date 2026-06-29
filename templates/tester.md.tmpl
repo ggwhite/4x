@@ -62,6 +62,23 @@ Use the Write tool. Do NOT just print the content — write to disk.
 {{- end}}
 {{- end}}
 
+{{- if .GuardFeedback}}
+
+== ⚠ GUARD RETRY — Your previous attempt was REJECTED ==
+The guard blocked your previous testing attempt because of these errors:
+{{- range .GuardFeedback}}
+- {{.}}
+{{- end}}
+
+You MUST fix ALL of the above issues in this attempt. This is your LAST chance —
+if the guard blocks again, the feature will go to needs-attention and require human intervention.
+
+Key reminders:
+- Execute manual_checks by running actual commands, not reading code
+- Every AC must have evidence from actual execution output
+- Do NOT repeat the same approach that failed — read the errors above carefully
+{{- end}}
+
 == Incremental Writing & Resume ==
 Write test-report.md incrementally — create the file with the header and empty results table
 first, then update it after each AC item is tested. Do not wait until all items are done.

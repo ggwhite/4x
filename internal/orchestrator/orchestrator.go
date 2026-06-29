@@ -314,6 +314,9 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 		if next == protocol.PhaseAmending {
 			ApplyAmendingProgress(r.Ws, featureID, &newState, s.Round)
 		}
+		if next == protocol.PhaseTesting && phase == protocol.PhaseTesting {
+			cleanupTesterRetry(r.Ws, featureID, s.Round)
+		}
 
 		s = newState
 		if stopReason != "" {

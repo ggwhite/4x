@@ -1,6 +1,7 @@
 package orchestrator
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -78,6 +79,10 @@ func NextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) 
 			}
 			return protocol.PhaseAmending, protocol.RoleCoder, ""
 		}
+		if result.AllRetryable() && !guardFeedbackExists(ws, featureID, s.Round) {
+			writeGuardFeedback(ws, featureID, s.Round, result.Errors)
+			return protocol.PhaseTesting, protocol.RoleTester, ""
+		}
 		return protocol.PhaseNeedsAttention, "", strings.Join(result.Errors, "; ")
 
 	case protocol.PhaseDeepReviewing:
@@ -150,4 +155,39 @@ func IsTerminalPhase(phase protocol.Phase) bool {
 		phase == protocol.PhaseBlocked ||
 		phase == protocol.PhaseNeedsAttention ||
 		phase == protocol.PhaseAbandoned
+}
+
+// guardFeedbackPath 回傳 guard-feedback.json 的完整路徑。
+func guardFeedbackPath(ws *protocol.Workspace, featureID string, round int) string {
+	return filepath.Join(ws.RoundDir(featureID, round), protocol.GuardFeedback)
+}
+
+// guardFeedbackExists 檢查是否已有 guard-feedback（代表已重試過一次）。
+func guardFeedbackExists(ws *protocol.Workspace, featureID string, round int) bool {
+	_, err := os.Stat(guardFeedbackPath(ws, featureID, round))
+	return err == nil
+}
+
+type guardFeedbackData struct {
+	Errors []string `json:"errors"`
+}
+
+// writeGuardFeedback 將 guard 錯誤寫入 guard-feedback.json，供重試時的 role 讀取。
+func writeGuardFeedback(ws *protocol.Workspace, featureID string, round int, errors []string) {
+	data, _ := json.Marshal(guardFeedbackData{Errors: errors})
+	_ = os.MkdirAll(ws.RoundDir(featureID, round), 0o755)
+	_ = os.WriteFile(guardFeedbackPath(ws, featureID, round), data, 0o644)
+}
+
+// ReadGuardFeedback 讀取 guard-feedback.json，不存在時回傳 nil。供 prompt 注入用。
+func ReadGuardFeedback(ws *protocol.Workspace, featureID string, round int) []string {
+	data, err := os.ReadFile(guardFeedbackPath(ws, featureID, round))
+	if err != nil {
+		return nil
+	}
+	var fb guardFeedbackData
+	if json.Unmarshal(data, &fb) != nil {
+		return nil
+	}
+	return fb.Errors
 }

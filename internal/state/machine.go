@@ -15,7 +15,7 @@ var transitions = map[protocol.Phase][]protocol.Phase{
 	protocol.PhaseCoding:          {protocol.PhaseReviewing, protocol.PhaseDesigning},
 	protocol.PhaseReviewing:       {protocol.PhaseTesting, protocol.PhaseAmending},
 	protocol.PhaseAmending:        {protocol.PhaseReviewing, protocol.PhaseDesigning},
-	protocol.PhaseTesting:         {protocol.PhaseDeepReviewing, protocol.PhaseAmending, protocol.PhaseDesigning},
+	protocol.PhaseTesting:         {protocol.PhaseDeepReviewing, protocol.PhaseAmending, protocol.PhaseDesigning, protocol.PhaseTesting},
 	protocol.PhaseDeepReviewing:   {protocol.PhaseFixing, protocol.PhaseAccepting, protocol.PhaseAmending},
 	protocol.PhaseFixing:          {protocol.PhaseAccepting, protocol.PhaseAmending},
 	protocol.PhaseAccepting:       {protocol.PhasePendingReview},

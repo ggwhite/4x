@@ -218,9 +218,10 @@ init → designing → design-reviewing → coding → reviewing → testing →
 | `coding` / `amending` | `escalation.json` with `spec-mismatch`, `criteria-wrong`, or `scope-change` | → `designing` |
 | `reviewing` | Review not passed (requires explicit `PASS` or `CONDITIONAL PASS` verdict AND zero `[CRITICAL]`/`[WARNING]` issues in the report) | → `amending` |
 | `testing` | `verify.json` not passed or artifacts missing | → `amending` |
+| `testing` | Guard gate retryable errors only (e.g., missing `manual_check_results` or AC evidence) | Auto-retry tester once with `guard-feedback.json`; second failure → `needs-attention` |
 | `deep-reviewing` | Deep review FAILs | self-heal in place (mini-coder + re-verifier), up to `max_fix_rounds`; PASS → `fixing`, otherwise → `needs-attention` |
 | `fixing` | `escalation.json` with `blocker` | → `needs-attention`; `fixer-report.md` present → `accepting` |
-| any (non-designer) | Guard check finds scope violation, baseline drift, or missing required file | → `needs-attention` |
+| any (non-designer) | Guard check finds scope violation, baseline drift, or missing required file | → `needs-attention` (except retryable testing errors, which auto-retry once) |
 
 ---
 
@@ -262,7 +263,8 @@ Roles communicate through the `.4x/` directory, not shared context windows.
             ├── test-report.md             # Tester results
             ├── deep-review-partial-{i}.md # One parallel sub-reviewer's findings (when fanned out)
             ├── deep-review-report.md      # Merged deep review (synthesizer output, or single-agent)
-            ├── verify.json                # {passed, round, role, commands[]}
+            ├── verify.json                # {passed, round, role, commands[], ac_results[], manual_check_results[]}
+            ├── guard-feedback.json        # Guard retry errors (written on retryable guard failure)
             └── escalation.json            # {needed, reason, detail}
 ```
 
@@ -377,7 +379,7 @@ Deterministic checks enforced by the CLI — not dependent on AI judgment.
 | **Scope** | In monorepo mode: compares `git diff --name-only HEAD` top-level directories against feature's declared repos. In multi-repo mode: uses `gitops.Ops.DetectChangedRepos()` across all workspace repos |
 | **Dependencies** | Blocks `4x run` if depended features are not done |
 | **Backlog drift** | Warns when `.4x/features/*.yaml` and external mirrors are out of sync |
-| **Testing → Accepting gate** | Requires `verify.json` (passed=true), `test-report.md`, `final-report.md` |
+| **Testing → Accepting gate** | Requires `verify.json` (passed=true), `test-report.md`, `final-report.md`. If `test-strategy.yaml` defines `manual_checks`, each must have a corresponding `manual_check_results` entry with non-empty evidence |
 | **Self-mod guard** | Layered on top of Scope (does not replace it): flags file-level changes to protected paths (default `internal/state/`, `internal/guard/`, `internal/protocol/`), blocks the round when the per-round protected diff exceeds the budget, requires accompanying tests before accepting, and blocks auto-merge until manually approved |
 
 Run manually with `4x check <feature-id>`.
@@ -557,6 +559,28 @@ verify_commands:
 ```
 
 `profiles` is `omitempty` — a `test-strategy.yaml` without it behaves exactly as before (no injection).
+
+### Manual checks
+
+For AC items that need runtime verification beyond build/test/lint, the Designer can add `manual_checks` to `test-strategy.yaml` (`TestStrategy.ManualChecks` in `internal/protocol/types.go`):
+
+```yaml
+manual_checks:
+  - id: mc-1
+    ac_ref: AC-3
+    description: "驗證 routing 正確分流"
+    steps:
+      - "啟動 server: go run ./cmd/gate --port 8080"
+      - "curl http://localhost:8080/health → 確認 200"
+  - id: mc-2
+    ac_ref: AC-5
+    description: "驗證 graceful shutdown"
+    steps:
+      - "啟動 server 並送 SIGTERM"
+      - "確認 exit code 為 0"
+```
+
+The Tester must execute each step and record actual output as evidence in `verify.json` under `manual_check_results` (`VerifyEvidence.ManualCheckResults`). The guard blocks `testing → accepting` if any manual check has no result or empty evidence. If the failure is retryable, the tester gets one automatic retry with guard errors injected via `guard-feedback.json`; a second failure escalates to `needs-attention`.
 
 ### Built-in profiles
 

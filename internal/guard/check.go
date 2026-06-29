@@ -18,12 +18,20 @@ type CheckResult struct {
 	Pass   bool     `json:"pass"`
 	Errors []string `json:"errors"`
 	Warns  []string `json:"warnings"`
+	// RetryableErrors 計數可透過重跑同一 role 修正的錯誤數。
+	// 當 RetryableErrors == len(Errors) 且 > 0 時，所有錯誤都可重試修復。
+	RetryableErrors int `json:"retryableErrors,omitempty"`
 	// SelfModTouched 表示本輪變更觸及受保護路徑（self-mod guard）。
 	SelfModTouched bool `json:"selfModTouched,omitempty"`
 	// SelfModPaths 是觸及的受保護檔案路徑。
 	SelfModPaths []string `json:"selfModPaths,omitempty"`
 	// SelfModDiffLines 是受保護路徑變更的總行數（diff-budget 依此判斷）。
 	SelfModDiffLines int `json:"selfModDiffLines,omitempty"`
+}
+
+// AllRetryable 回傳 true 如果所有錯誤都可透過重跑同一 role 修正。
+func (r CheckResult) AllRetryable() bool {
+	return !r.Pass && r.RetryableErrors > 0 && r.RetryableErrors == len(r.Errors)
 }
 
 // ScopeDetector 偵測哪些 repo 有 uncommitted changes，由 gitops.Ops 實作。
@@ -232,16 +240,19 @@ func checkACEvidence(evidence protocol.VerifyEvidence, r *CheckResult) {
 	if len(evidence.ACResults) == 0 {
 		r.Pass = false
 		r.Errors = append(r.Errors, "verify.json missing ac_results: every acceptance criterion must have evidence")
+		r.RetryableErrors++
 		return
 	}
 	for _, ac := range evidence.ACResults {
 		if !ac.Passed {
 			r.Pass = false
 			r.Errors = append(r.Errors, fmt.Sprintf("AC %s failed", ac.ID))
+			r.RetryableErrors++
 		}
 		if len(ac.Evidence) == 0 {
 			r.Pass = false
 			r.Errors = append(r.Errors, fmt.Sprintf("AC %s has no evidence", ac.ID))
+			r.RetryableErrors++
 		}
 	}
 }
@@ -263,16 +274,19 @@ func checkManualChecks(ws *protocol.Workspace, featureID string, evidence protoc
 			r.Pass = false
 			r.Errors = append(r.Errors, fmt.Sprintf(
 				"manual_check %q has no result in verify.json — tester must execute it, not skip", mc.ID))
+			r.RetryableErrors++
 			continue
 		}
 		if len(mr.Evidence) == 0 {
 			r.Pass = false
 			r.Errors = append(r.Errors, fmt.Sprintf(
 				"manual_check %q has empty evidence — tester must record actual execution output", mc.ID))
+			r.RetryableErrors++
 		}
 		if !mr.Passed {
 			r.Pass = false
 			r.Errors = append(r.Errors, fmt.Sprintf("manual_check %q failed", mc.ID))
+			r.RetryableErrors++
 		}
 	}
 }

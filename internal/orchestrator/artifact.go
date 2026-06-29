@@ -211,6 +211,15 @@ func NonEmptyFile(path string) bool {
 	return len(bytes.TrimSpace(data)) > 0
 }
 
+// cleanupTesterRetry 在 guard retry（PhaseTesting → PhaseTesting）前清理舊 tester artifacts，
+// 強制 tester 從頭執行，避免 resume 邏輯跳過需要重新驗證的 AC items。
+func cleanupTesterRetry(ws *protocol.Workspace, featureID string, round int) {
+	roundDir := ws.RoundDir(featureID, round)
+	os.Remove(filepath.Join(roundDir, protocol.TestReport))
+	os.Remove(filepath.Join(roundDir, protocol.VerifyFile))
+	os.Remove(filepath.Join(ws.FeatureDir(featureID), protocol.FinalReport))
+}
+
 // ReportHasVerdict 判斷 review-report 內容是否含可解析的 `## Verdict` 區段
 func ReportHasVerdict(content string) bool {
 	lines := strings.Split(content, "\n")

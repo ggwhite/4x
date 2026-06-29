@@ -38,6 +38,7 @@ const (
 	FixerReport        = "fixer-report.md"
 	TestReport         = "test-report.md"
 	VerifyFile         = "verify.json"
+	GuardFeedback      = "guard-feedback.json"
 	EscalationFile     = "escalation.json"
 	StopFile           = "stop"
 	BatchStopFile      = "batch-stop"

@@ -339,6 +339,27 @@ func TestCheckTestingToAccepting_ManualCheckEmptyEvidence(t *testing.T) {
 	}
 }
 
+func TestCheckResult_AllRetryable(t *testing.T) {
+	t.Run("all retryable", func(t *testing.T) {
+		r := CheckResult{Pass: false, Errors: []string{"a", "b"}, RetryableErrors: 2}
+		if !r.AllRetryable() {
+			t.Fatal("expected AllRetryable true when all errors are retryable")
+		}
+	})
+	t.Run("mixed", func(t *testing.T) {
+		r := CheckResult{Pass: false, Errors: []string{"a", "b"}, RetryableErrors: 1}
+		if r.AllRetryable() {
+			t.Fatal("expected AllRetryable false when not all errors are retryable")
+		}
+	})
+	t.Run("passing", func(t *testing.T) {
+		r := CheckResult{Pass: true}
+		if r.AllRetryable() {
+			t.Fatal("expected AllRetryable false when pass is true")
+		}
+	})
+}
+
 func TestCheckBaseline_Missing(t *testing.T) {
 	ws := setupGuardWorkspace(t, "feat-1")
 	writeState(t, ws, "feat-1", protocol.State{Phase: protocol.PhaseInit})
