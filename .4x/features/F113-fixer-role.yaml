@@ -1,5 +1,5 @@
 id: F113-fixer-role
-name: 'fixer role'
+name: fixer role
 description: |-
     目前 deep-reviewer 找出的 warning/issue 沒有對應的自動修復角色，只能 needs-attention 讓 user 手動介入或等下一輪 amending 重跑整個 coder。
 
@@ -19,7 +19,7 @@ description: |-
     - Fixer 不可新增功能，只修 reviewer 明確指出的問題
     - CLI 層不呼叫 LLM
     - 不改動 standard/quick/code-only profile（這些沒有 deep-reviewing）
-status: not-started
+status: done
 priority: 2
 profile: full
 subtasks:
