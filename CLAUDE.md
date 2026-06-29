@@ -7,7 +7,7 @@
 ```bash
 make build          # 編譯 CLI 至 bin/4x
 make test           # go test ./...
-make lint           # go vet ./...
+make lint           # go vet + gofmt + golangci-lint
 ```
 
 ## Architecture
@@ -68,7 +68,7 @@ any → blocked / needs-attention
 每次改動後至少跑：
 
 ```bash
-go build ./cmd/4x && go vet ./... && go test -race ./...
+make build && make test && make lint
 ```
 
 ## Plugin Development
