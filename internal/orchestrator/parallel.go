@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/ggwhite/4x/internal/guard"
 	"github.com/ggwhite/4x/internal/prompt"
@@ -68,6 +69,8 @@ func RunReviewTestParallel(ctx context.Context, r *Runner, s *protocol.State, pc
 		model      string
 		result     *runner.Result
 		err        error
+		durationMs int64
+		stats      RunStats
 	}
 
 	runRole := func(role protocol.Role, runnerName, model string) runOutcome {
@@ -81,8 +84,11 @@ func RunReviewTestParallel(ctx context.Context, r *Runner, s *protocol.State, pc
 		}
 		logPath := filepath.Join(runner.LogDir(ws, featureID), runner.LogFileName(round, string(role)))
 		rn := newRunner(runnerName, logPath, model)
+		invokeStart := time.Now()
 		res, runErr := rn.Run(ctx, promptText)
-		return runOutcome{role: role, runnerName: runnerName, model: model, result: res, err: runErr}
+		durationMs := time.Since(invokeStart).Milliseconds()
+		stats := ParseRunStatsFromLog(logPath)
+		return runOutcome{role: role, runnerName: runnerName, model: model, result: res, err: runErr, durationMs: durationMs, stats: stats}
 	}
 
 	var stopSync func()
@@ -128,6 +134,7 @@ func RunReviewTestParallel(ctx context.Context, r *Runner, s *protocol.State, pc
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "run-end", Phase: protocol.PhaseReviewing, Role: o.role, Round: round,
 			Status: fmt.Sprintf("exit-%d", o.result.ExitCode), Runner: o.runnerName, Model: o.model,
+			TokensUsed: o.stats.Tokens, CostUSD: o.stats.CostUSD, DurationMs: o.durationMs,
 		})
 	}
 

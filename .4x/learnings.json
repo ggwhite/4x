@@ -7,8 +7,8 @@
       "category": "design",
       "content": "task-brief 限制某檔案「只加某常量」時，會逼 Coder 在該檔旁另造局部 helper 而非抽共用 method，造成邏輯重複；設計階段若已知有可重用原語，應在 scope 內明確允許重構或預先抽出 exported helper。",
       "created_at": "2026-06-22T15:08:29.037309+08:00",
-      "last_used": "2026-06-29T00:41:17.218498+08:00",
-      "used_count": 9,
+      "last_used": "2026-06-29T09:13:33.439443+08:00",
+      "used_count": 11,
       "status": "active"
     },
     {
@@ -77,8 +77,8 @@
       "category": "design",
       "content": "task-brief 應主動標出 spec、plan 與現況程式碼的矛盾並裁決（如型別名不一致、過時假設、out-of-scope 項目），在開頭明列「設計裁決」覆寫 plan，避免 Coder 照抄錯誤骨架或重造輪子",
       "created_at": "2026-06-22T17:56:03.049721+08:00",
-      "last_used": "2026-06-24T21:02:34.437805+08:00",
-      "used_count": 5,
+      "last_used": "2026-06-29T09:13:33.439443+08:00",
+      "used_count": 7,
       "status": "active"
     },
     {
@@ -87,8 +87,8 @@
       "category": "code-quality",
       "content": "新增 cobra subcommand 一律一檔一指令，即使 task-brief 寫「一檔含兩個 command」也要遵循 codebase 既有慣例，否則 review 必被打回。",
       "created_at": "2026-06-22T17:56:03.049721+08:00",
-      "last_used": "2026-06-24T20:02:22.033156+08:00",
-      "used_count": 3,
+      "last_used": "2026-06-29T09:13:33.439443+08:00",
+      "used_count": 5,
       "status": "active"
     },
     {
@@ -227,8 +227,8 @@
       "category": "code-quality",
       "content": "Coder 送 review 前必須跑 gofmt -w 整理格式（make lint 只跑 go vet 不檢查格式），在同一 commit 內提交，避免 Reviewer FAIL 並省去額外 amending 成本",
       "created_at": "2026-06-27T10:23:04.125803+08:00",
-      "last_used": "2026-06-27T15:03:56.318065+08:00",
-      "used_count": 3,
+      "last_used": "2026-06-29T09:13:33.439443+08:00",
+      "used_count": 5,
       "status": "active"
     },
     {
@@ -347,8 +347,8 @@
       "category": "process",
       "content": "程式碼改動 protocol types 或新增 test 檔案後，commit 前應執行 make check-docs-sync 並在同一 PR 更新對應 docs/guide/ 文件，避免文件欠債累積。",
       "created_at": "2026-06-27T20:28:17.951101+08:00",
-      "last_used": "0001-01-01T00:00:00Z",
-      "used_count": 0,
+      "last_used": "2026-06-29T09:13:33.439443+08:00",
+      "used_count": 2,
       "status": "active"
     },
     {
@@ -407,8 +407,8 @@
       "category": "code-quality",
       "content": "修改 template 檔（如 acceptor.md.tmpl）時，必須對照 main branch 的最新版本確認既有的「(if present)」守衛與 fallback 引導文字未被誤刪",
       "created_at": "2026-06-29T01:04:22.697082+08:00",
-      "last_used": "0001-01-01T00:00:00Z",
-      "used_count": 0,
+      "last_used": "2026-06-29T09:13:33.439443+08:00",
+      "used_count": 2,
       "status": "active"
     },
     {
@@ -417,8 +417,8 @@
       "category": "process",
       "content": "Coder 開始前應先執行 `make check-docs`，確認 pre-existing 的文件缺漏（如 `4x retry`）不會在本 feature 的 CI 驗證中攔截，避免留給後續 round 修復",
       "created_at": "2026-06-29T01:04:22.697082+08:00",
-      "last_used": "0001-01-01T00:00:00Z",
-      "used_count": 0,
+      "last_used": "2026-06-29T09:13:33.439443+08:00",
+      "used_count": 2,
       "status": "active"
     },
     {
