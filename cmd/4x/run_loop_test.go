@@ -114,6 +114,17 @@ func (m *mockRunner) Run(_ context.Context, prompt string) (*runner.Result, erro
 			os.WriteFile(filepath.Join(roundDir, protocol.DeepReviewReport), []byte(report), 0o644)
 		}
 
+	case protocol.PhaseFixing:
+		os.WriteFile(filepath.Join(roundDir, protocol.FixerReport), []byte("# Fixer Report"), 0o644)
+		if outcome.escalation {
+			reason := outcome.escalationReason
+			if reason == "" {
+				reason = "blocker"
+			}
+			data, _ := json.Marshal(protocol.Escalation{Needed: true, Reason: reason})
+			os.WriteFile(filepath.Join(roundDir, protocol.EscalationFile), data, 0o644)
+		}
+
 	case protocol.PhaseTesting:
 		ve := protocol.VerifyEvidence{Passed: outcome.testPassed, Round: s.Round,
 			ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: outcome.testPassed, Evidence: []string{"mock test"}}}}
@@ -1235,6 +1246,7 @@ func TestRunLoop_DeepReviewExecuted(t *testing.T) {
 		{reviewVerdict: "PASS"}, // reviewing
 		{testPassed: true},      // testing
 		{reviewVerdict: "PASS"}, // deep-reviewing
+		{},                      // fixing
 		{},                      // accepting
 	}}
 
@@ -1249,7 +1261,7 @@ func TestRunLoop_DeepReviewExecuted(t *testing.T) {
 
 	wantPhases := []protocol.Phase{
 		protocol.PhaseDesigning, protocol.PhaseDesignReviewing, protocol.PhaseCoding, protocol.PhaseReviewing,
-		protocol.PhaseTesting, protocol.PhaseDeepReviewing, protocol.PhaseAccepting,
+		protocol.PhaseTesting, protocol.PhaseDeepReviewing, protocol.PhaseFixing, protocol.PhaseAccepting,
 	}
 	if len(mock.phases) != len(wantPhases) {
 		t.Fatalf("ran %d phases, want %d: %v", len(mock.phases), len(wantPhases), mock.phases)
@@ -1287,6 +1299,7 @@ func TestRunLoop_DeepReviewSelfHeal(t *testing.T) {
 		{reviewVerdict: "FAIL"}, // deep-reviewer FAIL → self-heal
 		{},                      // mini-coder (writes coder-report)
 		{reviewVerdict: "PASS"}, // re-verifier → deep-review-report PASS
+		{},                      // fixer
 		{},                      // acceptor
 	}}
 
@@ -1305,7 +1318,7 @@ func TestRunLoop_DeepReviewSelfHeal(t *testing.T) {
 	wantRoles := []protocol.Role{
 		protocol.RoleDesigner, protocol.RoleDesignReviewer, protocol.RoleCoder, protocol.RoleReviewer,
 		protocol.RoleTester, protocol.RoleDeepReviewer, protocol.RoleMiniCoder,
-		protocol.RoleReVerifier, protocol.RoleAcceptor,
+		protocol.RoleReVerifier, protocol.RoleFixer, protocol.RoleAcceptor,
 	}
 	if len(mock.roles) != len(wantRoles) {
 		t.Fatalf("ran %d roles, want %d: %v", len(mock.roles), len(wantRoles), mock.roles)

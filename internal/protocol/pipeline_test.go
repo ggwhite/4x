@@ -36,7 +36,7 @@ func TestResolvePipeline_PhaseCounts(t *testing.T) {
 		profile string
 		want    int
 	}{
-		{"full", 7},
+		{"full", 8},
 		{"normal", 4},
 		{"quick", 2},
 	}

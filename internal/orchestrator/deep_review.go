@@ -51,7 +51,7 @@ func (r *Runner) runDeepReviewPhase(ctx context.Context, s *protocol.State) (boo
 
 	if ReviewPassed(r.Ws, r.featureID(), s.Round, protocol.DeepReviewReport) {
 		AutoDiscoverFeatures(ctx, r.Ws, r.Feature, r.Cfg, s.Round, r.newEnrichRunner(dp.deepRunner, s.Round))
-		return deepTransitionAccepting(r.Ws, r.featureID(), s)
+		return deepTransitionAccepting(r.Ws, r.featureID(), s, dp.pc)
 	}
 
 	return r.deepReviewSelfHeal(ctx, s, dp)
@@ -265,7 +265,7 @@ func (r *Runner) deepReviewSelfHeal(ctx context.Context, s *protocol.State, dp d
 
 		if ReviewPassed(r.Ws, featureID, round, protocol.DeepReviewReport) {
 			AutoDiscoverFeatures(ctx, r.Ws, r.Feature, r.Cfg, round, r.newEnrichRunner(dp.deepRunner, round))
-			return deepTransitionAccepting(r.Ws, featureID, s)
+			return deepTransitionAccepting(r.Ws, featureID, s, dp.pc)
 		}
 	}
 
@@ -592,17 +592,24 @@ func deepGuardCheck(ws *protocol.Workspace, featureID string, s *protocol.State,
 	return false, nil
 }
 
-// deepTransitionAccepting 把 state 從 deep-reviewing 推進到 accepting 並寫回，
-// 供自癒循環在 deep review PASS 時放行。
-func deepTransitionAccepting(ws *protocol.Workspace, featureID string, s *protocol.State) (bool, error) {
-	newState, err := state.Transition(*s, protocol.PhaseAccepting, protocol.RoleAcceptor)
+// deepTransitionAccepting 把 state 從 deep-reviewing 推進到下一個 phase 並寫回，
+// 供自癒循環在 deep review PASS 時放行。若 profile 啟用 fixing phase 則轉到 fixing，
+// 否則轉到 accepting（保持未啟用 fixing 的 profile 行為不變）。
+func deepTransitionAccepting(ws *protocol.Workspace, featureID string, s *protocol.State, pc protocol.ProfileConfig) (bool, error) {
+	targetPhase := protocol.PhaseAccepting
+	targetRole := protocol.RoleAcceptor
+	if pc.EnablesPhase(protocol.PhaseFixing) {
+		targetPhase = protocol.PhaseFixing
+		targetRole = protocol.RoleFixer
+	}
+	newState, err := state.Transition(*s, targetPhase, targetRole)
 	if err != nil {
-		return false, fmt.Errorf("deep-review→accepting transition: %w", err)
+		return false, fmt.Errorf("deep-review→%s transition: %w", targetPhase, err)
 	}
 	*s = newState
 	s.SubPhase = ""
 	if err := ws.WriteState(featureID, *s); err != nil {
-		return false, fmt.Errorf("write state (accepting): %w", err)
+		return false, fmt.Errorf("write state (%s): %w", targetPhase, err)
 	}
 	LogSyncErr(ws.SyncFeatureStatus(featureID, s.Phase), featureID, s.Phase)
 	ws.AppendEvent(featureID, protocol.Event{

@@ -116,6 +116,7 @@ Configure in `.4x/settings.json`:
     "coder": { "model": "sonnet" },
     "reviewer": { "model": "sonnet", "deep_model": "opus" },
     "tester": { "model": "sonnet" },
+    "fixer": { "model": "sonnet" },
     "deep-reviewer": { "parallel_reviewers": 3 }
   }
 }

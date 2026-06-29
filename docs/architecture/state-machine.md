@@ -15,6 +15,7 @@
 | `reviewing` | Reviewer role is active. |
 | `testing` | Tester role is active. |
 | `amending` | Coder is amending based on Reviewer or Tester feedback. |
+| `fixing` | Fixer role is active, fixing WARNING/INFO issues from deep review. |
 | `accepting` | Final human or automated acceptance check. |
 | `done` | Feature complete. |
 | `blocked` | Cannot proceed without external input. |
@@ -32,17 +33,24 @@
 | `reviewing` | `testing` | Reviewer verdict: pass |
 | `reviewing` | `amending` | Reviewer verdict: fail |
 | `amending` | `reviewing` | Coder amendment complete |
-| `testing` | `accepting` | Tester verdict: pass |
+| `testing` | `deep-reviewing` | Tester verdict: pass |
 | `testing` | `amending` | Tester verdict: fail |
+| `deep-reviewing` | `fixing` | Deep review verdict: pass |
+| `deep-reviewing` | `accepting` | Deep review verdict: pass (fixing phase not in profile) |
+| `deep-reviewing` | `amending` | Deep review self-heal exhausted |
+| `fixing` | `accepting` | Fixer outputs verified present |
+| `fixing` | `amending` | Fixer escalation |
 | `accepting` | `done` | Acceptance check passes |
 | `any` | `blocked` | Escalation with `blocker` reason |
 | `any` | `needs-attention` | Escalation with any other reason |
 | `blocked` | `designing` | Human resolves blocker, restarts |
 | `blocked` | `design-reviewing` | Human resolves blocker, restarts at design review |
 | `blocked` | `coding` | Human resolves blocker, restarts at coding |
+| `blocked` | `fixing` | Human resolves blocker, restarts at fixing |
 | `needs-attention` | `designing` | Human intervenes, restarts |
 | `needs-attention` | `design-reviewing` | Human intervenes, restarts at design review |
 | `needs-attention` | `coding` | Human intervenes, restarts at coding |
+| `needs-attention` | `fixing` | Human intervenes, restarts at fixing |
 
 The CLI rejects any transition not in this table.
 

@@ -78,6 +78,7 @@ var canonicalRoles = []protocol.Role{
 	protocol.RoleCoder,
 	protocol.RoleReviewer,
 	protocol.RoleTester,
+	protocol.RoleFixer,
 	protocol.RoleAcceptor,
 }
 

@@ -37,6 +37,7 @@ var roleTemplateFiles = map[protocol.Role]string{
 	protocol.RoleDeepReviewer:    "deep-reviewer.md.tmpl",
 	protocol.RoleTester:          "tester.md.tmpl",
 	protocol.RoleAcceptor:        "acceptor.md.tmpl",
+	protocol.RoleFixer:           "fixer.md.tmpl",
 	protocol.RoleMiniCoder:       "mini-coder.md.tmpl",
 	protocol.RoleReVerifier:      "re-verifier.md.tmpl",
 	protocol.RoleSynthesizer:     "synthesizer.md.tmpl",

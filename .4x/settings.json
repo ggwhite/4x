@@ -70,6 +70,7 @@
         { "phase": "reviewing" },
         { "phase": "testing" },
         { "phase": "deep-reviewing" },
+        { "phase": "fixing" },
         { "phase": "accepting" }
       ]
     },
@@ -109,6 +110,7 @@
         { "phase": "reviewing" },
         { "phase": "testing" },
         { "phase": "deep-reviewing" },
+        { "phase": "fixing" },
         { "phase": "accepting" }
       ]
     }

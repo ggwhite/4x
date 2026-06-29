@@ -18,6 +18,7 @@ const (
 	PhaseCoding          Phase = "coding"
 	PhaseReviewing       Phase = "reviewing"
 	PhaseDeepReviewing   Phase = "deep-reviewing"
+	PhaseFixing          Phase = "fixing"
 	PhaseTesting         Phase = "testing"
 	PhaseAmending        Phase = "amending"
 	PhaseAccepting       Phase = "accepting"
@@ -39,6 +40,7 @@ const (
 	RoleDeepReviewer   Role = "deep-reviewer"
 	RoleTester         Role = "tester"
 	RoleAcceptor       Role = "acceptor"
+	RoleFixer          Role = "fixer"
 	// RoleMiniCoder 與 RoleReVerifier 是 deep-reviewing phase 內自癒循環的子 role，
 	// 不對應任何 state machine phase（全程維持 deep-reviewing），僅用於 prompt template
 	// 與 event/log 辨識。

@@ -130,9 +130,9 @@ type multiHandler struct {
 	handlers []slog.Handler
 }
 
-func (m *multiHandler) Enabled(_ context.Context, level slog.Level) bool {
+func (m *multiHandler) Enabled(ctx context.Context, level slog.Level) bool {
 	for _, h := range m.handlers {
-		if h.Enabled(context.TODO(), level) {
+		if h.Enabled(ctx, level) {
 			return true
 		}
 	}

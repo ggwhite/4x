@@ -35,6 +35,7 @@ const (
 	ReviewReport       = "review-report.md"
 	DeepReviewReport   = "deep-review-report.md"
 	CoderReport        = "coder-report.md"
+	FixerReport        = "fixer-report.md"
 	TestReport         = "test-report.md"
 	VerifyFile         = "verify.json"
 	EscalationFile     = "escalation.json"

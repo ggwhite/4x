@@ -223,6 +223,7 @@ func handleMessages(ws *protocol.CachedWorkspace, featureID string, w http.Respo
 			{"deep-review-report.md", "deep-reviewer"},
 			{"web-test-report.md", "tester"},
 			{"gate-test-report.md", "tester"},
+			{"fixer-report.md", "fixer"},
 		} {
 			content := readIfExists(filepath.Join(roundPath, f.name))
 			if content != "" {

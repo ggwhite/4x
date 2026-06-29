@@ -59,7 +59,7 @@ The **Project Settings** modal complements the raw Form/JSON editors with three 
 
 ## Dependency DAG
 
-The overview renders a dependency graph of all features as inline SVG — no external charting library (d3, mermaid, chart.js) is loaded. Features are laid out in layers by dependency depth; edges run from each feature to the features it depends on. Node color follows phase status: green = done, blue = running (active run or an in-progress phase such as coding/reviewing/testing), gray = todo, red = blocked / needs-attention. Clicking a node opens that feature's detail, the same path as clicking a feature card. The graph is rebuilt from the cached `/api/tasks` data on every polling cycle, so colors update live as features advance.
+The overview renders a dependency graph of all features as inline SVG — no external charting library (d3, mermaid, chart.js) is loaded. Features are laid out in layers by dependency depth; edges run from each feature to the features it depends on. Node color follows phase status: green = done, blue = running (active run or an in-progress phase such as coding/reviewing/testing/fixing), gray = todo, red = blocked / needs-attention. Clicking a node opens that feature's detail, the same path as clicking a feature card. The graph is rebuilt from the cached `/api/tasks` data on every polling cycle, so colors update live as features advance.
 
 ## Batch Panel
 

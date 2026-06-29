@@ -16,11 +16,12 @@ var transitions = map[protocol.Phase][]protocol.Phase{
 	protocol.PhaseReviewing:       {protocol.PhaseTesting, protocol.PhaseAmending},
 	protocol.PhaseAmending:        {protocol.PhaseReviewing, protocol.PhaseDesigning},
 	protocol.PhaseTesting:         {protocol.PhaseDeepReviewing, protocol.PhaseAmending, protocol.PhaseDesigning},
-	protocol.PhaseDeepReviewing:   {protocol.PhaseAccepting, protocol.PhaseAmending},
+	protocol.PhaseDeepReviewing:   {protocol.PhaseFixing, protocol.PhaseAccepting, protocol.PhaseAmending},
+	protocol.PhaseFixing:          {protocol.PhaseAccepting, protocol.PhaseAmending},
 	protocol.PhaseAccepting:       {protocol.PhasePendingReview},
 	protocol.PhasePendingReview:   {protocol.PhaseDone},
-	protocol.PhaseBlocked:         {protocol.PhaseDesigning, protocol.PhaseDesignReviewing, protocol.PhaseCoding, protocol.PhaseReviewing, protocol.PhaseTesting, protocol.PhaseDeepReviewing, protocol.PhaseAmending, protocol.PhaseAccepting},
-	protocol.PhaseNeedsAttention:  {protocol.PhaseDesigning, protocol.PhaseDesignReviewing, protocol.PhaseCoding, protocol.PhaseReviewing, protocol.PhaseTesting, protocol.PhaseDeepReviewing, protocol.PhaseAmending, protocol.PhaseAccepting},
+	protocol.PhaseBlocked:         {protocol.PhaseDesigning, protocol.PhaseDesignReviewing, protocol.PhaseCoding, protocol.PhaseReviewing, protocol.PhaseTesting, protocol.PhaseDeepReviewing, protocol.PhaseFixing, protocol.PhaseAmending, protocol.PhaseAccepting},
+	protocol.PhaseNeedsAttention:  {protocol.PhaseDesigning, protocol.PhaseDesignReviewing, protocol.PhaseCoding, protocol.PhaseReviewing, protocol.PhaseTesting, protocol.PhaseDeepReviewing, protocol.PhaseFixing, protocol.PhaseAmending, protocol.PhaseAccepting},
 }
 
 // CanTransition 檢查從 from 到 to 是否合法。
@@ -74,7 +75,7 @@ func Transition(s protocol.State, to protocol.Phase, role protocol.Role) (protoc
 func isRecoverablePhase(p protocol.Phase) bool {
 	switch p {
 	case protocol.PhaseDesigning, protocol.PhaseDesignReviewing, protocol.PhaseCoding, protocol.PhaseReviewing,
-		protocol.PhaseTesting, protocol.PhaseDeepReviewing, protocol.PhaseAmending,
+		protocol.PhaseTesting, protocol.PhaseDeepReviewing, protocol.PhaseFixing, protocol.PhaseAmending,
 		protocol.PhaseAccepting:
 		return true
 	default:
@@ -112,6 +113,8 @@ func PhaseToRole(p protocol.Phase) protocol.Role {
 		return protocol.RoleDesigner
 	case protocol.PhaseDesignReviewing:
 		return protocol.RoleDesignReviewer
+	case protocol.PhaseFixing:
+		return protocol.RoleFixer
 	case protocol.PhaseAccepting:
 		return protocol.RoleAcceptor
 	case protocol.PhaseCoding, protocol.PhaseAmending:

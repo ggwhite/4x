@@ -210,6 +210,7 @@ func TestDefaultProfiles_DesignReviewPhase(t *testing.T) {
 		PhaseCoding,
 		PhaseReviewing,
 		PhaseDeepReviewing,
+		PhaseFixing,
 		PhaseTesting,
 		PhaseAccepting,
 	}

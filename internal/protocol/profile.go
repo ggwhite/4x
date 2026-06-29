@@ -15,6 +15,7 @@ var profileSelectablePhases = map[Phase]bool{
 	PhaseCoding:          true,
 	PhaseReviewing:       true,
 	PhaseDeepReviewing:   true,
+	PhaseFixing:          true,
 	PhaseTesting:         true,
 	PhaseAccepting:       true,
 }
@@ -28,6 +29,7 @@ var roleToPhaseMap = map[Role]Phase{
 	RoleReviewer:       PhaseReviewing,
 	RoleDeepReviewer:   PhaseDeepReviewing,
 	RoleTester:         PhaseTesting,
+	RoleFixer:          PhaseFixing,
 	RoleAcceptor:       PhaseAccepting,
 }
 
@@ -39,6 +41,7 @@ var phaseToRoleMap = map[Phase]Role{
 	PhaseReviewing:       RoleReviewer,
 	PhaseDeepReviewing:   RoleDeepReviewer,
 	PhaseTesting:         RoleTester,
+	PhaseFixing:          RoleFixer,
 	PhaseAccepting:       RoleAcceptor,
 }
 
@@ -52,7 +55,7 @@ func IsSelectablePhase(phase Phase) bool {
 func SelectablePhases() []Phase {
 	return []Phase{
 		PhaseDesigning, PhaseDesignReviewing, PhaseCoding, PhaseReviewing,
-		PhaseTesting, PhaseDeepReviewing, PhaseAccepting,
+		PhaseTesting, PhaseDeepReviewing, PhaseFixing, PhaseAccepting,
 	}
 }
 
@@ -102,7 +105,7 @@ func (pc ProfileConfig) HasPhase(phase Phase) bool {
 }
 
 // DefaultProfiles 回傳內建 pipeline profile，作為 auto-select 與 fallback 用。
-//   - full：完整 7 phase，適合高風險功能（金流、結算、核心協議）
+//   - full：完整 8 phase，適合高風險功能（金流、結算、核心協議）
 //   - lite：designing → coding → testing，有設計有驗證但省略所有 review 層，token 約 full 的 40%
 //   - normal：coding → reviewing → testing → accepting，已知要做什麼時跳過設計階段
 //   - quick：coding → reviewing，最精簡的 code + review
@@ -114,6 +117,7 @@ func DefaultProfiles() map[string]ProfileConfig {
 			{Phase: string(PhaseCoding)},
 			{Phase: string(PhaseReviewing)},
 			{Phase: string(PhaseDeepReviewing)},
+			{Phase: string(PhaseFixing)},
 			{Phase: string(PhaseTesting)},
 			{Phase: string(PhaseAccepting)},
 		}},

@@ -25,6 +25,7 @@ The prompt tells you which role you are. Follow the role contract exactly:
 | Coder | task-brief, review/test reports | source code, coder-report.md | modify acceptance criteria or tests |
 | Reviewer | diff, task-brief, coder-report | review-report.md (with PASS/FAIL verdict) | modify source code |
 | Tester | acceptance-criteria, test-strategy | verify.json, test-report.md, final-report.md | modify source code or test assertions |
+| Fixer | deep-review-report.md | source code, fixer-report.md | modify acceptance-criteria.md or test-strategy.yaml, add new features |
 
 ### After your work
 

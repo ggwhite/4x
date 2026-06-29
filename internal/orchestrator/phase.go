@@ -86,9 +86,22 @@ func NextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) 
 			return protocol.PhaseNeedsAttention, "", "missing-artifact: " + protocol.DeepReviewReport
 		}
 		if ReviewPassed(ws, featureID, s.Round, protocol.DeepReviewReport) {
-			return protocol.PhaseAccepting, protocol.RoleAcceptor, ""
+			return protocol.PhaseFixing, protocol.RoleFixer, ""
 		}
 		return protocol.PhaseNeedsAttention, "", "deep-review self-heal exhausted"
+
+	case protocol.PhaseFixing:
+		if esc := ReadEscalation(ws, featureID, s.Round); esc.Needed {
+			if IsDesignerEscalation(esc.Reason) {
+				return protocol.PhaseDesigning, protocol.RoleDesigner, ""
+			}
+			return protocol.PhaseNeedsAttention, "", esc.Reason
+		}
+		report := filepath.Join(ws.RoundDir(featureID, s.Round), protocol.FixerReport)
+		if _, err := os.Stat(report); err != nil {
+			return protocol.PhaseNeedsAttention, "", "missing-artifact: " + protocol.FixerReport
+		}
+		return protocol.PhaseAccepting, protocol.RoleAcceptor, ""
 
 	case protocol.PhaseAccepting:
 		report := filepath.Join(ws.FeatureDir(featureID), protocol.FinalReport)
@@ -120,6 +133,8 @@ func SuccessorPhase(p protocol.Phase) (protocol.Phase, protocol.Role) {
 	case protocol.PhaseTesting:
 		return protocol.PhaseDeepReviewing, protocol.RoleDeepReviewer
 	case protocol.PhaseDeepReviewing:
+		return protocol.PhaseFixing, protocol.RoleFixer
+	case protocol.PhaseFixing:
 		return protocol.PhaseAccepting, protocol.RoleAcceptor
 	case protocol.PhaseAccepting:
 		return protocol.PhasePendingReview, ""

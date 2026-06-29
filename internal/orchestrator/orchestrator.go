@@ -483,7 +483,7 @@ func (r *Runner) checkShouldStop(s *protocol.State) bool {
 }
 
 func (r *Runner) clearStaleEscalation(phase protocol.Phase, s *protocol.State) {
-	if phase == protocol.PhaseCoding || phase == protocol.PhaseAmending {
+	if phase == protocol.PhaseCoding || phase == protocol.PhaseAmending || phase == protocol.PhaseFixing {
 		os.Remove(filepath.Join(r.Ws.RoundDir(r.featureID(), s.Round), protocol.EscalationFile))
 	}
 }

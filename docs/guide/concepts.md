@@ -18,6 +18,7 @@ Two additional roles operate later in the loop:
 | Role | Phase | Responsibility |
 |---|---|---|
 | **Deep Reviewer** | `deep-reviewing` | Adversarial review — finds the worst-case bugs across the full diff |
+| **Fixer** | `fixing` | Fixes WARNING/INFO issues from deep-review-report.md without triggering a full amending round |
 | **Acceptor** | `accepting` | Aggregates remaining open issues into `final-report.md` for human review |
 
 The Acceptor uses its own dedicated model configuration (`roles.acceptor.model`) — distinct from the Designer. It reads the final round's review/test/deep-review reports plus any escalations to surface still-open issues, rather than re-reading every round's reports in full.
@@ -28,11 +29,11 @@ A **pipeline profile** is a list of **phases**, and per phase it can override th
 
 | Profile | Phases |
 |---|---|
-| `full` | designing, coding, reviewing, deep-reviewing, testing, accepting |
+| `full` | designing, coding, reviewing, deep-reviewing, fixing, testing, accepting |
 | `normal` | coding, reviewing, testing, accepting |
 | `quick` | coding, reviewing |
 
-Profile phases may only be chosen from the selectable whitelist (`designing`, `coding`, `reviewing`, `deep-reviewing`, `testing`, `accepting`); `coding` is always required. A phase not in the active profile is skipped — the loop transitions along the same valid state edges without invoking that runner.
+Profile phases may only be chosen from the selectable whitelist (`designing`, `coding`, `reviewing`, `deep-reviewing`, `fixing`, `testing`, `accepting`); `coding` is always required. A phase not in the active profile is skipped — the loop transitions along the same valid state edges without invoking that runner.
 
 **Selection** (high→low): `--profile` wins; then the feature YAML's `profile` field (a named profile that must exist in `profiles` or the built-ins, else an error — lets `4x batch run` apply a different profile per feature); then `default_profile`; then priority-based auto-select when a `profiles` section exists (highest priority → `full`, then `normal`, then `quick`), else `full`. On an interactive terminal 4x prompts with a numbered menu (default `default_profile`) when none of the higher-priority sources resolve it.
 
@@ -177,7 +178,7 @@ Escalation is written to `escalation.json`. The loop automatically routes `spec-
 ## State Machine
 
 ```
-init → designing → design-reviewing → coding → reviewing → testing → deep-reviewing → accepting → pending-review → done
+init → designing → design-reviewing → coding → reviewing → testing → deep-reviewing → fixing → accepting → pending-review → done
                               ↓          ↑          ↓           ↓            ↓
                               └──────────┴── amending ←─────────┴────────────┘
                                          ↑      ↓
@@ -195,11 +196,12 @@ init → designing → design-reviewing → coding → reviewing → testing →
 | `reviewing` | `testing`, `amending` |
 | `amending` | `reviewing`, `designing` |
 | `testing` | `deep-reviewing`, `amending`, `designing` |
-| `deep-reviewing` | `accepting`, `amending` |
+| `deep-reviewing` | `fixing`, `accepting`, `amending` |
+| `fixing` | `accepting`, `amending` |
 | `accepting` | `pending-review` |
 | `pending-review` | `done` |
-| `blocked` | `designing`, `design-reviewing`, `coding`, `testing` |
-| `needs-attention` | `designing`, `design-reviewing`, `coding`, `testing` |
+| `blocked` | `designing`, `design-reviewing`, `coding`, `fixing`, `testing` |
+| `needs-attention` | `designing`, `design-reviewing`, `coding`, `fixing`, `testing` |
 | any | `blocked`, `needs-attention`, `done`, `abandoned` |
 
 ### Round Counter
@@ -216,7 +218,8 @@ init → designing → design-reviewing → coding → reviewing → testing →
 | `coding` / `amending` | `escalation.json` with `spec-mismatch`, `criteria-wrong`, or `scope-change` | → `designing` |
 | `reviewing` | Review not passed (requires explicit `PASS` or `CONDITIONAL PASS` verdict AND zero `[CRITICAL]`/`[WARNING]` issues in the report) | → `amending` |
 | `testing` | `verify.json` not passed or artifacts missing | → `amending` |
-| `deep-reviewing` | Deep review FAILs | self-heal in place (mini-coder + re-verifier), up to `max_fix_rounds`; PASS → `accepting`, otherwise → `needs-attention` |
+| `deep-reviewing` | Deep review FAILs | self-heal in place (mini-coder + re-verifier), up to `max_fix_rounds`; PASS → `fixing`, otherwise → `needs-attention` |
+| `fixing` | `escalation.json` with `blocker` | → `needs-attention`; `fixer-report.md` present → `accepting` |
 | any (non-designer) | Guard check finds scope violation, baseline drift, or missing required file | → `needs-attention` |
 
 ---
