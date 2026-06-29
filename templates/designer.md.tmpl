@@ -125,6 +125,31 @@ verify_groups:
 
 Rules: use verify_groups OR verify_commands, not both. Groups run in parallel; commands within each group run sequentially.
 
+For AC items that need runtime verification beyond build/test/lint, add manual_checks.
+These force the Tester to actually execute steps and record output — not just read code.
+The guard blocks if any manual_check has no result in verify.json.
+
+manual_checks:
+  - id: mc-1
+    ac_ref: AC-3
+    description: "驗證 routing 正確分流"
+    steps:
+      - "啟動 server: go run ./cmd/gate --port 8080"
+      - "curl http://localhost:8080/health → 確認 200"
+      - "curl -H 'X-Rid: 1' http://localhost:8080/route → 確認分流"
+  - id: mc-2
+    ac_ref: AC-5
+    description: "驗證 graceful shutdown"
+    steps:
+      - "啟動 server 並送 SIGTERM"
+      - "確認 in-flight request 正常完成"
+      - "確認 exit code 為 0"
+
+Rules for manual_checks:
+- Each step should be a concrete command or observable action, not "check the code"
+- Use when the AC requires observing actual runtime behavior
+- build/test/lint failures should be caught by verify_commands, not manual_checks
+
 == Incremental Writing & Resume ==
 Write task-brief.md incrementally as you analyze — do not wait until the end.
 After analyzing each major area (goal, tasks, scope), write that section to disk immediately.

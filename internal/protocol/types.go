@@ -188,12 +188,20 @@ type ACEvidence struct {
 
 // VerifyEvidence 是 rounds/round-N/verify.json 的結構
 type VerifyEvidence struct {
-	Passed      bool                 `json:"passed"`
-	Round       int                  `json:"round"`
-	Role        Role                 `json:"role"`
-	Commands    []VerifyCommand      `json:"commands"`
-	Screenshots []feature.Screenshot `json:"screenshots,omitempty"`
-	ACResults   []ACEvidence         `json:"ac_results,omitempty"`
+	Passed             bool                 `json:"passed"`
+	Round              int                  `json:"round"`
+	Role               Role                 `json:"role"`
+	Commands           []VerifyCommand      `json:"commands"`
+	Screenshots        []feature.Screenshot `json:"screenshots,omitempty"`
+	ACResults          []ACEvidence         `json:"ac_results,omitempty"`
+	ManualCheckResults []ManualCheckResult  `json:"manual_check_results,omitempty"`
+}
+
+// ManualCheckResult 是 Tester 對單一 ManualCheck 的執行結果。
+type ManualCheckResult struct {
+	ID       string   `json:"id"`
+	Passed   bool     `json:"passed"`
+	Evidence []string `json:"evidence"`
 }
 
 // VerifyCommand 是單一 verify command 的結果
@@ -230,6 +238,18 @@ type TestStrategy struct {
 	// Profiles 標記本 feature 適用的測試 profile（如 unit/web/api/e2e），
 	// Tester prompt 會依此自動注入對應的測試方法論；為空時行為與舊版一致。
 	Profiles []string `yaml:"profiles,omitempty" json:"profiles,omitempty"`
+	// ManualChecks 定義 Tester 必須實際執行（非讀 code）的驗證步驟。
+	// Guard 會驗證 verify.json 含有對應的 manual_check_results。
+	ManualChecks []ManualCheck `yaml:"manual_checks,omitempty" json:"manual_checks,omitempty"`
+}
+
+// ManualCheck 是 Designer 在 test-strategy.yaml 定義的手動驗證步驟。
+// Tester 必須逐步執行 Steps 並記錄實際輸出，不能只讀 code 判定。
+type ManualCheck struct {
+	ID          string   `yaml:"id" json:"id"`
+	ACRef       string   `yaml:"ac_ref,omitempty" json:"ac_ref,omitempty"`
+	Description string   `yaml:"description" json:"description"`
+	Steps       []string `yaml:"steps" json:"steps"`
 }
 
 // TestProfileOverride 允許專案在 settings.json 覆寫或新增 test profile。

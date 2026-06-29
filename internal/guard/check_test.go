@@ -246,6 +246,99 @@ func TestCheckTestingToAccepting_VerifyFailed(t *testing.T) {
 	}
 }
 
+func TestCheckTestingToAccepting_ManualChecksPass(t *testing.T) {
+	ws := setupGuardWorkspace(t, "feat-1")
+	roundDir := ws.RoundDir("feat-1", 1)
+	featureDir := ws.FeatureDir("feat-1")
+
+	writeFile(t, filepath.Join(featureDir, protocol.TestStratFile),
+		"manual_checks:\n  - id: mc-1\n    description: test routing\n    steps:\n      - curl localhost\n")
+
+	data, _ := json.Marshal(protocol.VerifyEvidence{
+		Passed:    true,
+		Round:     1,
+		ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: true, Evidence: []string{"ok"}}},
+		ManualCheckResults: []protocol.ManualCheckResult{
+			{ID: "mc-1", Passed: true, Evidence: []string{"curl returned 200"}},
+		},
+	})
+	writeFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))
+	writeFile(t, filepath.Join(roundDir, protocol.TestReport), "# Test")
+	writeFile(t, filepath.Join(featureDir, protocol.FinalReport), "# Final")
+
+	result := CheckTestingToAccepting(ws, "feat-1", 1)
+	if !result.Pass {
+		t.Fatalf("manual checks with results should pass, got errors: %v", result.Errors)
+	}
+}
+
+func TestCheckTestingToAccepting_ManualCheckMissingResult(t *testing.T) {
+	ws := setupGuardWorkspace(t, "feat-1")
+	roundDir := ws.RoundDir("feat-1", 1)
+	featureDir := ws.FeatureDir("feat-1")
+
+	writeFile(t, filepath.Join(featureDir, protocol.TestStratFile),
+		"manual_checks:\n  - id: mc-1\n    description: test routing\n    steps:\n      - curl localhost\n")
+
+	data, _ := json.Marshal(protocol.VerifyEvidence{
+		Passed:    true,
+		Round:     1,
+		ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: true, Evidence: []string{"ok"}}},
+	})
+	writeFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))
+	writeFile(t, filepath.Join(roundDir, protocol.TestReport), "# Test")
+	writeFile(t, filepath.Join(featureDir, protocol.FinalReport), "# Final")
+
+	result := CheckTestingToAccepting(ws, "feat-1", 1)
+	if result.Pass {
+		t.Fatal("manual check without result should fail")
+	}
+	found := false
+	for _, e := range result.Errors {
+		if strings.Contains(e, "mc-1") && strings.Contains(e, "no result") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected error about missing mc-1 result, got %v", result.Errors)
+	}
+}
+
+func TestCheckTestingToAccepting_ManualCheckEmptyEvidence(t *testing.T) {
+	ws := setupGuardWorkspace(t, "feat-1")
+	roundDir := ws.RoundDir("feat-1", 1)
+	featureDir := ws.FeatureDir("feat-1")
+
+	writeFile(t, filepath.Join(featureDir, protocol.TestStratFile),
+		"manual_checks:\n  - id: mc-1\n    description: test routing\n    steps:\n      - curl localhost\n")
+
+	data, _ := json.Marshal(protocol.VerifyEvidence{
+		Passed:    true,
+		Round:     1,
+		ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: true, Evidence: []string{"ok"}}},
+		ManualCheckResults: []protocol.ManualCheckResult{
+			{ID: "mc-1", Passed: true, Evidence: []string{}},
+		},
+	})
+	writeFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))
+	writeFile(t, filepath.Join(roundDir, protocol.TestReport), "# Test")
+	writeFile(t, filepath.Join(featureDir, protocol.FinalReport), "# Final")
+
+	result := CheckTestingToAccepting(ws, "feat-1", 1)
+	if result.Pass {
+		t.Fatal("manual check with empty evidence should fail")
+	}
+	found := false
+	for _, e := range result.Errors {
+		if strings.Contains(e, "mc-1") && strings.Contains(e, "empty evidence") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected error about empty evidence, got %v", result.Errors)
+	}
+}
+
 func TestCheckBaseline_Missing(t *testing.T) {
 	ws := setupGuardWorkspace(t, "feat-1")
 	writeState(t, ws, "feat-1", protocol.State{Phase: protocol.PhaseInit})

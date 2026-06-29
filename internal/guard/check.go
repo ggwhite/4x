@@ -222,6 +222,7 @@ func checkTestingToAccepting(ws *protocol.Workspace, featureID string, round int
 	}
 
 	checkACEvidence(evidence, r)
+	checkManualChecks(ws, featureID, evidence, r)
 	checkSelfModTestGate(ws, featureID, r)
 }
 
@@ -241,6 +242,37 @@ func checkACEvidence(evidence protocol.VerifyEvidence, r *CheckResult) {
 		if len(ac.Evidence) == 0 {
 			r.Pass = false
 			r.Errors = append(r.Errors, fmt.Sprintf("AC %s has no evidence", ac.ID))
+		}
+	}
+}
+
+// checkManualChecks 驗證 test-strategy.yaml 的 manual_checks 全部有對應的執行結果。
+// manual_checks 為空（或 test-strategy 不存在）時靜默通過。
+func checkManualChecks(ws *protocol.Workspace, featureID string, evidence protocol.VerifyEvidence, r *CheckResult) {
+	ts, err := ws.ReadTestStrategy(featureID)
+	if err != nil || len(ts.ManualChecks) == 0 {
+		return
+	}
+	resultMap := make(map[string]protocol.ManualCheckResult, len(evidence.ManualCheckResults))
+	for _, mr := range evidence.ManualCheckResults {
+		resultMap[mr.ID] = mr
+	}
+	for _, mc := range ts.ManualChecks {
+		mr, ok := resultMap[mc.ID]
+		if !ok {
+			r.Pass = false
+			r.Errors = append(r.Errors, fmt.Sprintf(
+				"manual_check %q has no result in verify.json — tester must execute it, not skip", mc.ID))
+			continue
+		}
+		if len(mr.Evidence) == 0 {
+			r.Pass = false
+			r.Errors = append(r.Errors, fmt.Sprintf(
+				"manual_check %q has empty evidence — tester must record actual execution output", mc.ID))
+		}
+		if !mr.Passed {
+			r.Pass = false
+			r.Errors = append(r.Errors, fmt.Sprintf("manual_check %q failed", mc.ID))
 		}
 	}
 }

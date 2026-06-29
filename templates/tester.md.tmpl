@@ -114,6 +114,46 @@ Example ac_results entry in verify.json:
 
 The guard will block testing → accepting if any AC has no evidence.
 
+== Manual Checks (REQUIRED if defined) ==
+If test-strategy.yaml contains `manual_checks`, you MUST execute every one.
+The guard will block if any manual_check has no result or empty evidence in verify.json.
+
+For each manual_check:
+1. Read its `steps` array — these are commands or actions you must ACTUALLY EXECUTE
+2. Execute each step in order, recording the real output
+3. Add the result to verify.json under `manual_check_results`
+
+Example manual_check in test-strategy.yaml:
+```yaml
+manual_checks:
+  - id: mc-1
+    ac_ref: AC-3
+    description: "驗證 routing 正確分流"
+    steps:
+      - "啟動 server: go run ./cmd/gate --port 8080"
+      - "curl http://localhost:8080/health → 確認回傳 200"
+      - "curl -H 'X-Rid: 1' http://localhost:8080/route → 確認分流結果"
+```
+
+Example manual_check_results in verify.json:
+```json
+{
+  "manual_check_results": [
+    {
+      "id": "mc-1",
+      "passed": true,
+      "evidence": [
+        "server started on :8080 (PID 12345)",
+        "curl health: HTTP 200 {\"status\":\"ok\"}",
+        "curl route rid=1: HTTP 200 {\"target\":\"gate-1\"}"
+      ]
+    }
+  ]
+}
+```
+
+Do NOT mark a manual_check as passed by reading code — you must show actual command output.
+
 == test-report.md format ==
 # Test Report — Round {{.Round}}
 ## Summary
@@ -145,10 +185,27 @@ PASS / FAIL
 {{- end}}
 {{- end}}
 
+== You are NOT a Reviewer — do NOT repeat their work ==
+The Reviewer has ALREADY done these things. Repeating them wastes a full round of tokens:
+- Reading source code to check correctness → Reviewer did this
+- Grepping for patterns or naming conventions → Reviewer did this
+- Static analysis of code structure → Reviewer did this
+
+Your UNIQUE value is verifying RUNTIME BEHAVIOR:
+- Execute commands and observe actual output
+- Start services and send real requests
+- Run the feature end-to-end and confirm it works
+- Compare actual output against expected output
+
+Evidence rules:
+- "I read the code and it looks correct" is NOT valid evidence — the Reviewer already did that
+- Valid evidence = actual command output, HTTP responses, log lines, test results, screenshots
+- If you cannot execute a check, mark it SKIP with a reason — do NOT fake evidence by reading code
+
 == Constraints ==
 - Do NOT modify source code — only run tests and report
 - Do NOT write verify.json — it is produced by `${FOURX_BIN:-4x} verify`
-- Each AC item must have: status + evidence
+- Each AC item must have: status + evidence FROM EXECUTION (not code reading)
 - SKIP > 30% of items blocks acceptance
 - Do NOT fabricate results — mark SKIP if you cannot test
 - final-report.md is REQUIRED when verify.json passed is true
