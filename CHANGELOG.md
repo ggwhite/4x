@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.3] - 2026-06-30
+
+### Features
+
+- **manual_checks 強制機制** — Designer 可在 `test-strategy.yaml` 定義 `manual_checks`（id/description/steps），Guard 驗證 Tester 必須實際執行並在 `verify.json` 提供 `manual_check_results` 與 evidence，讀 code 判定不再算數
+- **Guard retry 自癒** — Tester guard 失敗若為 retryable（manual_checks 沒執行、AC evidence 為空），自動帶 `guard-feedback.json` 重跑一次，不再直接進 needs-attention 等人介入
+- **Tester 反模式提示** — Tester template 新增「你不是 Reviewer」區塊，明確列出 Reviewer 已做的事、定義合格 evidence 必須來自實際執行
+
+### Fixes
+
+- **Guard retry 防循環** — 三層防線避免無限重試：同 round 最多 1 次、跨 round 累計上限 2 次（`MaxGuardRetries`）、加上既有 maxRounds / ConsecutiveNoProgress
+
 ## [0.3.2] - 2026-06-29
 
 ### Features
