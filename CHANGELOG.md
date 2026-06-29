@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.2] - 2026-06-29
+
+### Features
+
+- **Fixer role（F113）** — 在 deep-reviewing 與 accepting 之間新增 fixing phase，Fixer 角色自動修補 deep-reviewer 指出的可改問題，減少人工介入
+- **4x retry 指令** — 新增 `4x retry` 指令，讓 `needs-attention` / `blocked` 狀態的 feature 能直接重跑，無需手動重置
+- **Verify fallback（F112）** — `4x verify` 在無 `test-strategy.yaml` 時改用 `settings.json` 的指令做 fallback，避免驗證空跑
+- **Golangci-lint 整合** — `make lint` 新增 gofmt 檢查與 golangci-lint（nolintlint / exhaustive / bodyclose / govulncheck），並補齊既有 lint 問題
+
+### Fixes
+
+- **並行 role cost 顯示** — Dashboard 並行跑的 Reviewer / Tester 現在正確顯示金額與執行時間（`run-end` 事件補上 `cost_usd` 和 `duration_ms`）
+- **Acceptor needs-attention** — 修正 Tester `ac_results.passed` 與 Acceptor needs-attention 未被 CLI 驗證的問題
+- **CheckVerify 一致性** — `CheckVerify` 加入 `ac_results` 一致性檢查，避免謊報自動落 needs-attention
+- **Acceptor 模板守衛** — acceptor 模板對 review/test-report 加 `if present` 守衛，避免缺檔時報錯
+
 ## [0.3.1] - 2026-06-28
 
 ### Features
