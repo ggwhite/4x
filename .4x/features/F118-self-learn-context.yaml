@@ -1,7 +1,7 @@
 id: F118-self-learn-context
 name: 'F118: learn context snapshot'
 description: 4x learn context 產生 .4x/learnings-context.md snapshot（按 category 分組的 active learnings markdown），HarvestLearnings 和 consolidation 後自動刷新。CLAUDE.md template 加 @ include。
-status: in-progress
+status: ready-for-review
 profile: standard
 depends:
     - F115-self-learn-ops-cat
