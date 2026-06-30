@@ -470,6 +470,36 @@
       "last_used": "0001-01-01T00:00:00Z",
       "used_count": 0,
       "status": "active"
+    },
+    {
+      "id": "L059",
+      "source_feature": "F115-self-learn-ops-cat",
+      "category": "code-quality",
+      "content": "新增 category 常量時，集合大小應改用 len(ValidCategories()) 而非硬編碼數字，避免未來新增 category 時遺漏更新",
+      "created_at": "2026-06-30T12:01:09.853085+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L060",
+      "source_feature": "F115-self-learn-ops-cat",
+      "category": "testing",
+      "content": "role-to-category mapping 的測試應同時驗證正反兩面：目標 role 含有 ops，以及不該含的 role（designer/reviewer）也明確不含，才能防止誤加",
+      "created_at": "2026-06-30T12:01:09.853085+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L061",
+      "source_feature": "F115-self-learn-ops-cat",
+      "category": "process",
+      "content": "若發現既有 roleCategoryMap 缺少某個 role（如 fixer），應在同一 feature 順手補齊，而非另開 feature，減少技術債累積",
+      "created_at": "2026-06-30T12:01:09.853085+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
     }
   ]
 }
