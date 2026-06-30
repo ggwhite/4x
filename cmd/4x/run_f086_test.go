@@ -139,6 +139,8 @@ func (r *failingParallelRunner) Run(_ context.Context, _ string) (*runner.Result
 		os.WriteFile(filepath.Join(featureDir, protocol.DesignReviewReport), []byte("## Verdict\nPASS\n"), 0o644)
 	case "coder":
 		os.WriteFile(filepath.Join(roundDir, protocol.CoderReport), []byte("# Coder Report"), 0o644)
+		bgData, _ := json.Marshal(protocol.VerifyEvidence{Passed: true, Round: st.Round, Role: protocol.RoleCoder})
+		os.WriteFile(filepath.Join(roundDir, protocol.BuildGateFile), bgData, 0o644)
 	case "reviewer":
 		report := "# Review Report\n\n### [CRITICAL] Issue — file.go\n\n## Verdict\nFAIL\n"
 		os.WriteFile(filepath.Join(roundDir, protocol.ReviewReport), []byte(report), 0o644)

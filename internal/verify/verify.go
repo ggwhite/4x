@@ -35,6 +35,19 @@ func FallbackGroups(cfg protocol.ProjectConfig) ([]Group, error) {
 	return []Group{{Name: "fallback", Commands: commands}}, nil
 }
 
+// BuildGateGroups 從 settings.json 的 Build + Lint 指令組合出單一 build-gate group。
+// Build 指令在前、Lint 在後，復用 runGroup 的「前一個失敗就 skip 後續」語意。
+// 不含 Test 指令——test 是 Tester 的職責。
+func BuildGateGroups(cfg protocol.ProjectConfig) ([]Group, error) {
+	var commands []string
+	commands = append(commands, cfg.Build...)
+	commands = append(commands, cfg.Lint...)
+	if len(commands) == 0 {
+		return nil, fmt.Errorf("settings.json has no build/lint commands for build-gate")
+	}
+	return []Group{{Name: "build-gate", Commands: commands}}, nil
+}
+
 // ResolveGroups 從 TestStrategy 解析出 verify groups。
 // verify_groups 存在時依 group 名稱排序後回傳（確保輸出順序穩定可測）；
 // 否則 fallback 到 verify_commands 作為單一 default group，commands 維持原序。

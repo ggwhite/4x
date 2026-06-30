@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ggwhite/4x/internal/feature"
@@ -34,6 +35,73 @@ func writePhaseFile(t *testing.T, path, content string) {
 	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestNextPhaseAfter_CodingNoBuildGate(t *testing.T) {
+	ws := setupPhaseWorkspace(t, "F999-nobg")
+	s := protocol.State{Phase: protocol.PhaseCoding, Round: 1}
+	roundDir := ws.RoundDir("F999-nobg", 1)
+	os.MkdirAll(roundDir, 0o755)
+	writePhaseFile(t, filepath.Join(roundDir, protocol.CoderReport), "# Report")
+
+	next, _, reason := NextPhaseAfter(ws, "F999-nobg", s)
+	if next != protocol.PhaseNeedsAttention {
+		t.Fatalf("expected NeedsAttention, got %s", next)
+	}
+	if !strings.Contains(reason, "build-gate") {
+		t.Fatalf("expected reason about build-gate, got: %s", reason)
+	}
+}
+
+func TestNextPhaseAfter_CodingBuildGateFailed(t *testing.T) {
+	ws := setupPhaseWorkspace(t, "F999-bgfail")
+	s := protocol.State{Phase: protocol.PhaseCoding, Round: 1}
+	roundDir := ws.RoundDir("F999-bgfail", 1)
+	os.MkdirAll(roundDir, 0o755)
+	writePhaseFile(t, filepath.Join(roundDir, protocol.CoderReport), "# Report")
+	ev := protocol.VerifyEvidence{Passed: false, Round: 1, Role: protocol.RoleCoder}
+	data, _ := json.MarshalIndent(ev, "", "  ")
+	writePhaseFile(t, filepath.Join(roundDir, protocol.BuildGateFile), string(data))
+
+	next, _, reason := NextPhaseAfter(ws, "F999-bgfail", s)
+	if next != protocol.PhaseNeedsAttention {
+		t.Fatalf("expected NeedsAttention, got %s", next)
+	}
+	if !strings.Contains(reason, "build-gate") {
+		t.Fatalf("expected reason about build-gate, got: %s", reason)
+	}
+}
+
+func TestNextPhaseAfter_CodingBuildGatePassed(t *testing.T) {
+	ws := setupPhaseWorkspace(t, "F999-bgok")
+	s := protocol.State{Phase: protocol.PhaseCoding, Round: 1}
+	roundDir := ws.RoundDir("F999-bgok", 1)
+	os.MkdirAll(roundDir, 0o755)
+	writePhaseFile(t, filepath.Join(roundDir, protocol.CoderReport), "# Report")
+	ev := protocol.VerifyEvidence{Passed: true, Round: 1, Role: protocol.RoleCoder}
+	data, _ := json.MarshalIndent(ev, "", "  ")
+	writePhaseFile(t, filepath.Join(roundDir, protocol.BuildGateFile), string(data))
+
+	next, _, _ := NextPhaseAfter(ws, "F999-bgok", s)
+	if next != protocol.PhaseReviewing {
+		t.Fatalf("expected PhaseReviewing, got %s", next)
+	}
+}
+
+func TestNextPhaseAfter_AmendingBuildGatePassed(t *testing.T) {
+	ws := setupPhaseWorkspace(t, "F999-amendbg")
+	s := protocol.State{Phase: protocol.PhaseAmending, Round: 1}
+	roundDir := ws.RoundDir("F999-amendbg", 1)
+	os.MkdirAll(roundDir, 0o755)
+	writePhaseFile(t, filepath.Join(roundDir, protocol.CoderReport), "# Report")
+	ev := protocol.VerifyEvidence{Passed: true, Round: 1, Role: protocol.RoleCoder}
+	data, _ := json.MarshalIndent(ev, "", "  ")
+	writePhaseFile(t, filepath.Join(roundDir, protocol.BuildGateFile), string(data))
+
+	next, _, _ := NextPhaseAfter(ws, "F999-amendbg", s)
+	if next != protocol.PhaseReviewing {
+		t.Fatalf("expected PhaseReviewing, got %s", next)
 	}
 }
 

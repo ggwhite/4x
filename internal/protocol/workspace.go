@@ -38,6 +38,7 @@ const (
 	FixerReport        = "fixer-report.md"
 	TestReport         = "test-report.md"
 	VerifyFile         = "verify.json"
+	BuildGateFile      = "build-gate.json"
 	GuardFeedback      = "guard-feedback.json"
 	EscalationFile     = "escalation.json"
 	StopFile           = "stop"

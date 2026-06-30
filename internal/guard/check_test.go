@@ -658,3 +658,143 @@ func TestCheck_IncludesDependencyCheck(t *testing.T) {
 		t.Errorf("expected dependency error in Check(), got errors: %v", result.Errors)
 	}
 }
+
+func TestCheckBuildGate_SkipsNonCodingPhase(t *testing.T) {
+	ws := setupGuardWorkspace(t, "F999-skip")
+	writeState(t, ws, "F999-skip", protocol.State{Phase: protocol.PhaseReviewing, Round: 1})
+	r := Check(ws, "F999-skip", nil)
+	bgPath := filepath.Join(ws.RoundDir("F999-skip", 1), protocol.BuildGateFile)
+	if _, err := os.Stat(bgPath); err == nil {
+		t.Fatal("build-gate.json should not exist for reviewing phase")
+	}
+	_ = r
+}
+
+func TestCheckBuildGate_NoBuildLintCommands(t *testing.T) {
+	ws := setupGuardWorkspace(t, "F999-nobuild")
+	writeState(t, ws, "F999-nobuild", protocol.State{Phase: protocol.PhaseCoding, Round: 1})
+	dir := ws.FeatureDir("F999-nobuild")
+	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief")
+	writeFile(t, filepath.Join(dir, protocol.Criteria), "# Criteria")
+	r := Check(ws, "F999-nobuild", nil)
+	if !r.Pass {
+		t.Fatalf("expected pass (no build/lint is a warn, not error), got errors: %v", r.Errors)
+	}
+	found := false
+	for _, w := range r.Warns {
+		if strings.Contains(w, "build-gate") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("expected a build-gate warning about no commands")
+	}
+}
+
+func TestCheckBuildGate_CodingPhaseSuccess(t *testing.T) {
+	ws := setupGuardWorkspace(t, "F999-bgpass")
+	cfg := protocol.Config{
+		Project: protocol.ProjectConfig{
+			Name:  "test",
+			Build: []string{"echo build-ok"},
+			Lint:  []string{"echo lint-ok"},
+		},
+	}
+	cfgData, _ := json.MarshalIndent(cfg, "", "  ")
+	writeFile(t, filepath.Join(ws.Root, ".4x", "settings.json"), string(cfgData))
+
+	writeState(t, ws, "F999-bgpass", protocol.State{Phase: protocol.PhaseCoding, Round: 1})
+	dir := ws.FeatureDir("F999-bgpass")
+	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief")
+	writeFile(t, filepath.Join(dir, protocol.Criteria), "# Criteria")
+	os.MkdirAll(ws.RoundDir("F999-bgpass", 1), 0o755)
+
+	r := Check(ws, "F999-bgpass", nil)
+	if !r.Pass {
+		t.Fatalf("expected pass, got errors: %v", r.Errors)
+	}
+	bgPath := filepath.Join(ws.RoundDir("F999-bgpass", 1), protocol.BuildGateFile)
+	data, err := os.ReadFile(bgPath)
+	if err != nil {
+		t.Fatalf("build-gate.json not written: %v", err)
+	}
+	var ev protocol.VerifyEvidence
+	if err := json.Unmarshal(data, &ev); err != nil {
+		t.Fatalf("invalid build-gate.json: %v", err)
+	}
+	if !ev.Passed {
+		t.Fatal("expected build-gate passed=true")
+	}
+}
+
+func TestCheckBuildGate_CodingPhaseFail(t *testing.T) {
+	ws := setupGuardWorkspace(t, "F999-bgfail")
+	cfg := protocol.Config{
+		Project: protocol.ProjectConfig{
+			Name:  "test",
+			Build: []string{"false"},
+			Lint:  []string{"echo lint-ok"},
+		},
+	}
+	cfgData, _ := json.MarshalIndent(cfg, "", "  ")
+	writeFile(t, filepath.Join(ws.Root, ".4x", "settings.json"), string(cfgData))
+
+	writeState(t, ws, "F999-bgfail", protocol.State{Phase: protocol.PhaseCoding, Round: 1})
+	dir := ws.FeatureDir("F999-bgfail")
+	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief")
+	writeFile(t, filepath.Join(dir, protocol.Criteria), "# Criteria")
+	os.MkdirAll(ws.RoundDir("F999-bgfail", 1), 0o755)
+
+	r := Check(ws, "F999-bgfail", nil)
+	if r.Pass {
+		t.Fatal("expected fail when build command fails")
+	}
+	found := false
+	for _, e := range r.Errors {
+		if strings.Contains(e, "build-gate") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected error mentioning build-gate, got: %v", r.Errors)
+	}
+	bgPath := filepath.Join(ws.RoundDir("F999-bgfail", 1), protocol.BuildGateFile)
+	data, _ := os.ReadFile(bgPath)
+	var ev protocol.VerifyEvidence
+	json.Unmarshal(data, &ev)
+	if ev.Passed {
+		t.Fatal("expected build-gate passed=false")
+	}
+	for _, cmd := range ev.Commands {
+		if cmd.Command == "echo lint-ok" && !cmd.Skipped {
+			t.Fatal("lint should be skipped when build fails")
+		}
+	}
+}
+
+func TestCheckBuildGate_AmendingPhase(t *testing.T) {
+	ws := setupGuardWorkspace(t, "F999-amend")
+	cfg := protocol.Config{
+		Project: protocol.ProjectConfig{
+			Name:  "test",
+			Build: []string{"echo build-ok"},
+		},
+	}
+	cfgData, _ := json.MarshalIndent(cfg, "", "  ")
+	writeFile(t, filepath.Join(ws.Root, ".4x", "settings.json"), string(cfgData))
+
+	writeState(t, ws, "F999-amend", protocol.State{Phase: protocol.PhaseAmending, Round: 1})
+	dir := ws.FeatureDir("F999-amend")
+	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief")
+	writeFile(t, filepath.Join(dir, protocol.Criteria), "# Criteria")
+	os.MkdirAll(ws.RoundDir("F999-amend", 1), 0o755)
+
+	r := Check(ws, "F999-amend", nil)
+	if !r.Pass {
+		t.Fatalf("expected pass for amending phase, got errors: %v", r.Errors)
+	}
+	bgPath := filepath.Join(ws.RoundDir("F999-amend", 1), protocol.BuildGateFile)
+	if _, err := os.Stat(bgPath); err != nil {
+		t.Fatal("build-gate.json should be written for amending phase")
+	}
+}

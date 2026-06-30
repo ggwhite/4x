@@ -163,6 +163,59 @@ func TestFallbackGroups_CommandOrder(t *testing.T) {
 	}
 }
 
+func TestBuildGateGroups_Basic(t *testing.T) {
+	cfg := protocol.ProjectConfig{
+		Build: []string{"make build"},
+		Lint:  []string{"go vet ./...", "gofmt -l ."},
+	}
+	groups, err := BuildGateGroups(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(groups) != 1 {
+		t.Fatalf("expected 1 group, got %d", len(groups))
+	}
+	if groups[0].Name != "build-gate" {
+		t.Fatalf("expected group name 'build-gate', got %q", groups[0].Name)
+	}
+	if len(groups[0].Commands) != 3 {
+		t.Fatalf("expected 3 commands (build first, then lint), got %d", len(groups[0].Commands))
+	}
+	if groups[0].Commands[0] != "make build" {
+		t.Fatalf("expected first command 'make build', got %q", groups[0].Commands[0])
+	}
+}
+
+func TestBuildGateGroups_Empty(t *testing.T) {
+	cfg := protocol.ProjectConfig{}
+	_, err := BuildGateGroups(cfg)
+	if err == nil {
+		t.Fatal("expected error for empty build+lint")
+	}
+}
+
+func TestBuildGateGroups_BuildOnly(t *testing.T) {
+	cfg := protocol.ProjectConfig{Build: []string{"go build ./..."}}
+	groups, err := BuildGateGroups(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(groups[0].Commands) != 1 {
+		t.Fatalf("expected 1 command, got %d", len(groups[0].Commands))
+	}
+}
+
+func TestBuildGateGroups_LintOnly(t *testing.T) {
+	cfg := protocol.ProjectConfig{Lint: []string{"go vet ./..."}}
+	groups, err := BuildGateGroups(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(groups[0].Commands) != 1 {
+		t.Fatalf("expected 1 command, got %d", len(groups[0].Commands))
+	}
+}
+
 func TestRunGroups_AllPass(t *testing.T) {
 	groups := []Group{
 		{Name: "a", Commands: []string{"echo hello"}},

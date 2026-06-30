@@ -74,6 +74,8 @@ func (m *mockRunner) Run(_ context.Context, prompt string) (*runner.Result, erro
 
 	case protocol.PhaseCoding, protocol.PhaseAmending:
 		os.WriteFile(filepath.Join(roundDir, protocol.CoderReport), []byte("# Coder Report"), 0o644)
+		bgData, _ := json.Marshal(protocol.VerifyEvidence{Passed: true, Round: s.Round, Role: protocol.RoleCoder})
+		os.WriteFile(filepath.Join(roundDir, protocol.BuildGateFile), bgData, 0o644)
 		if outcome.escalation {
 			reason := outcome.escalationReason
 			if reason == "" {
@@ -1775,6 +1777,8 @@ func (m *roleMockRunner) Run(_ context.Context, _ string) (*runner.Result, error
 		os.WriteFile(filepath.Join(featureDir, protocol.DesignReviewReport), []byte("## Verdict\nPASS\n"), 0o644)
 	case "coder":
 		os.WriteFile(filepath.Join(roundDir, protocol.CoderReport), []byte("# Coder Report"), 0o644)
+		bgData, _ := json.Marshal(protocol.VerifyEvidence{Passed: true, Round: round, Role: protocol.RoleCoder})
+		os.WriteFile(filepath.Join(roundDir, protocol.BuildGateFile), bgData, 0o644)
 	case "reviewer":
 		os.WriteFile(filepath.Join(roundDir, protocol.ReviewReport), []byte("## Verdict\nPASS\n"), 0o644)
 	case "tester":
@@ -1918,6 +1922,8 @@ func (m *noVerifyMockRunner) Run(_ context.Context, _ string) (*runner.Result, e
 		os.WriteFile(filepath.Join(featureDir, protocol.DesignReviewReport), []byte("## Verdict\nPASS\n"), 0o644)
 	case "coder":
 		os.WriteFile(filepath.Join(roundDir, protocol.CoderReport), []byte("# Coder Report"), 0o644)
+		bgData, _ := json.Marshal(protocol.VerifyEvidence{Passed: true, Round: round, Role: protocol.RoleCoder})
+		os.WriteFile(filepath.Join(roundDir, protocol.BuildGateFile), bgData, 0o644)
 	case "reviewer":
 		os.WriteFile(filepath.Join(roundDir, protocol.ReviewReport), []byte("## Verdict\nPASS\n"), 0o644)
 	case "tester":

@@ -1,16 +1,19 @@
 package guard
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	feat "github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/protocol"
+	"github.com/ggwhite/4x/internal/verify"
 )
 
 // CheckResult 是 `4x check` 的結果
@@ -51,6 +54,7 @@ func Check(ws *protocol.Workspace, featureID string, detector ScopeDetector) Che
 	checkDependencies(ws, featureID, &r)
 	checkBacklogDrift(ws, featureID, &r)
 	checkSymlinks(ws, featureID, &r)
+	checkBuildGate(ws, featureID, &r)
 
 	return r
 }
@@ -421,6 +425,64 @@ func detectChangedRepos(root string) []string {
 		repos = append(repos, r)
 	}
 	return repos
+}
+
+// checkBuildGate 在 coding/amending phase 時執行 settings.json 的 build + lint 指令，
+// 結果寫入 build-gate.json。非 coding/amending phase 時不執行。
+func checkBuildGate(ws *protocol.Workspace, featureID string, r *CheckResult) {
+	state, err := ws.ReadState(featureID)
+	if err != nil {
+		return
+	}
+	if state.Phase != protocol.PhaseCoding && state.Phase != protocol.PhaseAmending {
+		return
+	}
+
+	cfg, err := ws.ReadConfig()
+	if err != nil {
+		r.Warns = append(r.Warns, fmt.Sprintf("build-gate: cannot read settings.json: %v", err))
+		return
+	}
+	groups, err := verify.BuildGateGroups(cfg.Project)
+	if err != nil {
+		r.Warns = append(r.Warns, fmt.Sprintf("build-gate: %v", err))
+		return
+	}
+
+	roundDir := ws.RoundDir(featureID, state.Round)
+	if err := os.MkdirAll(roundDir, 0o755); err != nil {
+		r.Warns = append(r.Warns, fmt.Sprintf("build-gate: cannot create round dir: %v", err))
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+
+	evidence := verify.RunGroups(ctx, groups, ws.Root)
+	evidence.Round = state.Round
+	evidence.Role = protocol.RoleCoder
+
+	data, err := json.MarshalIndent(evidence, "", "  ")
+	if err != nil {
+		r.Warns = append(r.Warns, fmt.Sprintf("build-gate: marshal error: %v", err))
+		return
+	}
+	outPath := filepath.Join(roundDir, protocol.BuildGateFile)
+	if err := os.WriteFile(outPath, data, 0o644); err != nil {
+		r.Warns = append(r.Warns, fmt.Sprintf("build-gate: write error: %v", err))
+		return
+	}
+
+	if !evidence.Passed {
+		r.Pass = false
+		var failedCmds []string
+		for _, cmd := range evidence.Commands {
+			if cmd.ExitCode != 0 && !cmd.Skipped {
+				failedCmds = append(failedCmds, fmt.Sprintf("%s (exit %d): %s", cmd.Command, cmd.ExitCode, cmd.Summary))
+			}
+		}
+		r.Errors = append(r.Errors, fmt.Sprintf("build-gate failed: %s", strings.Join(failedCmds, "; ")))
+	}
 }
 
 // checkSymlinks 掃描 feature 變更中是否包含 symlink。

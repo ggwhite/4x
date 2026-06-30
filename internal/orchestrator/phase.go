@@ -46,6 +46,18 @@ func NextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) 
 		if _, err := os.Stat(report); err != nil {
 			return protocol.PhaseNeedsAttention, "", "missing-artifact: " + protocol.CoderReport
 		}
+		bgPath := filepath.Join(ws.RoundDir(featureID, s.Round), protocol.BuildGateFile)
+		bgData, err := os.ReadFile(bgPath)
+		if err != nil {
+			return protocol.PhaseNeedsAttention, "", "build-gate.json missing: coder did not run 4x check with build/lint"
+		}
+		var bgEvidence protocol.VerifyEvidence
+		if err := json.Unmarshal(bgData, &bgEvidence); err != nil {
+			return protocol.PhaseNeedsAttention, "", "build-gate.json invalid: " + err.Error()
+		}
+		if !bgEvidence.Passed {
+			return protocol.PhaseNeedsAttention, "", "build-gate failed: build/lint did not pass"
+		}
 		return protocol.PhaseReviewing, protocol.RoleReviewer, ""
 
 	case protocol.PhaseReviewing:

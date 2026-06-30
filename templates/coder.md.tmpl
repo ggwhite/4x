@@ -141,8 +141,12 @@ exactly what was already done, so nothing needs to be re-discovered or re-implem
    - If commits exist, review them to understand what's done; implement only what remains
    - If coder-report.md exists but is incomplete, continue from where it stopped
 3. Implement remaining changes — commit after each meaningful step (see Commit Policy above)
-4. Run verify commands
-5. Write or update coder-report.md with: changed files, build/test results, summary
+4. Run guardrail check: ${FOURX_BIN:-4x} check {{.Feature.ID}}
+   - `4x check` now runs build + lint automatically in coding phase
+   - If it fails, read the error output, fix the issues, and re-run until it passes
+   - Do NOT write coder-report.md until `4x check` passes
+5. Run verify commands
+6. Write or update coder-report.md with: changed files, build/test results, summary
 
 == coder-report.md format ==
 # Coder Report — Round {{.Round}}

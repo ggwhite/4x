@@ -216,6 +216,7 @@ init → designing → design-reviewing → coding → reviewing → testing →
 |---|---|---|
 | `designing` | `task-brief.md` or `acceptance-criteria.md` missing | → `needs-attention` |
 | `coding` / `amending` | `escalation.json` with `spec-mismatch`, `criteria-wrong`, or `scope-change` | → `designing` |
+| `coding` / `amending` | `build-gate.json` missing or `passed=false` | → `needs-attention` (orchestrator safety net; normally the Coder agent self-fixes via `4x check` loop) |
 | `reviewing` | Review not passed (requires explicit `PASS` or `CONDITIONAL PASS` verdict AND zero `[CRITICAL]`/`[WARNING]` issues in the report) | → `amending` |
 | `testing` | `verify.json` not passed or artifacts missing | → `amending` |
 | `testing` | Guard gate retryable errors only (e.g., missing `manual_check_results` or AC evidence) | Auto-retry tester once with `guard-feedback.json`; second failure → `needs-attention` |
@@ -264,6 +265,7 @@ Roles communicate through the `.4x/` directory, not shared context windows.
             ├── deep-review-partial-{i}.md # One parallel sub-reviewer's findings (when fanned out)
             ├── deep-review-report.md      # Merged deep review (synthesizer output, or single-agent)
             ├── verify.json                # {passed, round, role, commands[], ac_results[], manual_check_results[]}
+            ├── build-gate.json            # Build+lint gate results (written by 4x check in coding/amending phase)
             ├── guard-feedback.json        # Guard retry errors (written on retryable guard failure)
             └── escalation.json            # {needed, reason, detail}
 ```
@@ -379,6 +381,7 @@ Deterministic checks enforced by the CLI — not dependent on AI judgment.
 | **Scope** | In monorepo mode: compares `git diff --name-only HEAD` top-level directories against feature's declared repos. In multi-repo mode: uses `gitops.Ops.DetectChangedRepos()` across all workspace repos |
 | **Dependencies** | Blocks `4x run` if depended features are not done |
 | **Backlog drift** | Warns when `.4x/features/*.yaml` and external mirrors are out of sync |
+| **Build gate** | In coding/amending phase: runs `settings.json` build + lint commands, writes `build-gate.json`. Failure blocks the round; the Coder agent should fix and re-run `4x check` |
 | **Testing → Accepting gate** | Requires `verify.json` (passed=true), `test-report.md`, `final-report.md`. If `test-strategy.yaml` defines `manual_checks`, each must have a corresponding `manual_check_results` entry with non-empty evidence |
 | **Self-mod guard** | Layered on top of Scope (does not replace it): flags file-level changes to protected paths (default `internal/state/`, `internal/guard/`, `internal/protocol/`), blocks the round when the per-round protected diff exceeds the budget, requires accompanying tests before accepting, and blocks auto-merge until manually approved |
 
