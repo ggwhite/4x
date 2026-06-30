@@ -500,6 +500,36 @@
       "last_used": "0001-01-01T00:00:00Z",
       "used_count": 0,
       "status": "active"
+    },
+    {
+      "id": "L062",
+      "source_feature": "F118-self-learn-context",
+      "category": "code-quality",
+      "content": "best-effort plugin 安裝函數（ensureXxx）中的 os.WriteFile 錯誤應改為 slog.Warn，而非靜默忽略，以確保失敗可被觀察與診斷。",
+      "created_at": "2026-06-30T12:52:40.447294+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L063",
+      "source_feature": "F118-self-learn-context",
+      "category": "process",
+      "content": "自動刷新附帶操作（如 GenerateLearningsContext）應在主流程成功路徑上呼叫，失敗只 warn 不 fatal，這樣才不會因次要功能阻塞核心操作。",
+      "created_at": "2026-06-30T12:52:40.447294+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L064",
+      "source_feature": "F118-self-learn-context",
+      "category": "testing",
+      "content": "CLI 整合測試應同時覆蓋 --json 旗標輸出格式，避免 JSON schema 改動後無測試保護。",
+      "created_at": "2026-06-30T12:52:40.447294+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
     }
   ]
 }
