@@ -422,6 +422,46 @@ func TestJaccardSimilarity(t *testing.T) {
 	}
 }
 
+func TestFindSimilar_ExactMatch(t *testing.T) {
+	s := Store{Version: 1, Entries: []Entry{
+		{ID: "L001", Category: CategoryDesign, Content: "always check error returns", Status: StatusActive},
+	}}
+	got := s.FindSimilar("always check error returns")
+	if got == nil || got.ID != "L001" {
+		t.Errorf("expected L001, got %v", got)
+	}
+}
+
+func TestFindSimilar_NormalizedMatch(t *testing.T) {
+	s := Store{Version: 1, Entries: []Entry{
+		{ID: "L001", Category: CategoryDesign, Content: "Always Check Error Returns", Status: StatusActive},
+	}}
+	got := s.FindSimilar("always check error returns")
+	if got == nil || got.ID != "L001" {
+		t.Errorf("expected L001, got %v", got)
+	}
+}
+
+func TestFindSimilar_JaccardMatch(t *testing.T) {
+	s := Store{Version: 1, Entries: []Entry{
+		{ID: "L001", Category: CategoryCodeQuality, Content: "always run gofmt and go vet before commit", Status: StatusActive},
+	}}
+	got := s.FindSimilar("run gofmt and go vet before every commit")
+	if got == nil || got.ID != "L001" {
+		t.Errorf("expected L001, got %v", got)
+	}
+}
+
+func TestFindSimilar_NoMatch(t *testing.T) {
+	s := Store{Version: 1, Entries: []Entry{
+		{ID: "L001", Category: CategoryDesign, Content: "always check error returns", Status: StatusActive},
+	}}
+	got := s.FindSimilar("test database migrations with real schema")
+	if got != nil {
+		t.Errorf("expected nil, got %v", got)
+	}
+}
+
 func TestParseRoleLearningsFile_NotExist(t *testing.T) {
 	_, _, err := ParseRoleLearningsFile(filepath.Join(t.TempDir(), "nope.json"))
 	if err == nil {
