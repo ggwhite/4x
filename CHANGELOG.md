@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.4] - 2026-06-30
+
+### Features
+
+- **AC verify type 標記（F120）** — Designer 在 acceptance-criteria.md 標記每條 AC 的驗證類型（unit-test / integration / inspection / skip），Guard 依標記 enforce Tester evidence 品質；無 ac_verify_map 時維持原有行為
+- **Learning effectiveness tracking（F119）** — 新增 `ActivatedAt` 欄位、`Ineffective` 標記、`MarkIneffective()` proxy 指標偵測無效 learning；CLI 支援 `learn list --ineffective`
+- **learn add CLI（F116）** — 新增 `4x learn add --category --content` 指令與 MCP `4x_learn_add` tool，含 `FindSimilar()` fuzzy 重複偵測
+- **Candidate learnings（F117）** — 跨 feature 重複出現的 learning 自動從 candidate 升級為 active；`learn list` 預設顯示 candidate
+- **Learn context snapshot（F118）** — `4x learn context` 產生 `learnings-context.md` 摘要，harvest 後自動重新產生
+- **ops category（F115）** — learning 新增 `ops` category，涵蓋環境、工具、帳號等操作知識
+- **Coder build gate（F114）** — Coder 完成後 Guard 驗證 build 通過才放行
+- **force-done 指令** — `4x force-done --reason` 強制跳過 pipeline 將 feature 標記 done
+- **Guide i18n 同步** — 新增 `check-guide-i18n` 腳本，同步所有語系的 CLI guide 翻譯
+
+### Fixes
+
+- **Guard backward compat** — 無 ac_verify_map 時只做基礎檢查（passed + evidence 非空），不強制 execution pattern，不破壞既有 feature
+- **Guard YAML error 處理** — test-strategy.yaml 解析失敗改為 warning 繼續檢查，不再 early return 跳過所有 AC 驗證
+- **executionPattern 正則** — PASS/FAIL 加 word boundary 避免 BYPASS/COMPASS 等誤匹配
+- **Guard ReadTestStrategy 單次讀取** — checkACEvidence 和 checkManualChecks 共用同一次讀取結果
+- **ActiveEntries 過濾 Ineffective** — 標記為 ineffective 的 learning 不再注入 role prompt
+- **hasCategoryContinuation** — 只計 active/candidate entries、跳過空 SourceFeature、要求 entries 比 target 更新
+- **HarvestLearnings context 重新產生** — ineffective 標記變更時也觸發 learnings-context.md 更新
+- **learn list --ineffective 可組合** — --ineffective 和 --status 現在可同時使用
+- **force-done 修正** — 直接 transition 到 Done（universal target）修正從大多數 phase 失敗的問題；加入 self-mod guard 檢查；PendingReview 分支也記錄 reason
+
 ## [0.3.3] - 2026-06-30
 
 ### Features
