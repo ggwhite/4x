@@ -446,6 +446,8 @@ Manage retro learnings — development lessons accumulated across features in `.
 The Acceptor of each feature writes a `retro-learnings.json`; the CLI harvests it into `.4x/learnings.json`. On the next feature, the Designer picks relevant entries into `selected-learnings.json`, and the CLI injects them (filtered by category) into each role's prompt. learnings are managed entirely by the CLI — runners never write `learnings.json` directly, and any learnings failure only warns without blocking state transitions.
 
 ```
+4x learn add --category <cat> --content <text>  # add a learning manually (standalone sessions)
+4x learn add --category ops --content "..." --json  # JSON output: {"id":"L0xx","added":true}
 4x learn list                     # list all learnings (id/category/status/used/content)
 4x learn list --category=testing  # filter by category
 4x learn prune                    # mark stale (>90 days unused) entries and remove them
@@ -454,7 +456,9 @@ The Acceptor of each feature writes a `retro-learnings.json`; the CLI harvests i
 4x learn remove <id>              # remove a learning entry
 ```
 
-- Categories: `design`, `code-quality`, `testing`, `review`, `tooling`, `process`
+`learn add` checks for similar existing entries (exact, normalized, and Jaccard similarity). If a fuzzy duplicate is found, it reports the existing ID and does not write.
+
+- Categories: `design`, `code-quality`, `testing`, `review`, `tooling`, `process`, `ops`
 - Status: `active` (injectable), `stale` (>90 days unused, auto-marked on read), `promoted` (upgraded to template/instructions)
 - A soft cap of 100 active entries triggers a warning suggesting `4x learn prune` — entries are never auto-deleted
 
@@ -658,6 +662,7 @@ Each tool is a thin wrapper that invokes the matching `4x` subcommand with `--js
 | `4x_batch_stop` | `batch stop` |
 | `4x_clean` | `clean` |
 | `4x_doctor` | `doctor` |
+| `4x_learn_add` | `learn add` |
 | `4x_learn_list` | `learn list` |
 | `4x_learn_prune` | `learn prune` |
 | `4x_learn_promote` | `learn promote` |

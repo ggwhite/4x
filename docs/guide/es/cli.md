@@ -441,6 +441,8 @@ Gestionar los aprendizajes retro — lecciones de desarrollo acumuladas a travé
 El Acceptor de cada feature escribe un `retro-learnings.json`; el CLI lo cosecha en `.4x/learnings.json`. En el siguiente feature, el Designer selecciona las entradas relevantes en `selected-learnings.json`, y el CLI las inyecta (filtradas por categoría) en el prompt de cada rol. Los learnings son gestionados enteramente por el CLI — los runners nunca escriben `learnings.json` directamente, y cualquier fallo de learnings solo advierte sin bloquear las transiciones de estado.
 
 ```
+4x learn add --category <cat> --content <text>  # agregar learning manualmente (sesiones standalone)
+4x learn add --category ops --content "..." --json  # salida JSON: {"id":"L0xx","added":true}
 4x learn list                     # listar todos los learnings (id/categoría/estado/usado/contenido)
 4x learn list --category=testing  # filtrar por categoría
 4x learn prune                    # marcar entradas obsoletas (>90 días sin uso) y eliminarlas
@@ -449,7 +451,9 @@ El Acceptor de cada feature escribe un `retro-learnings.json`; el CLI lo cosecha
 4x learn remove <id>              # eliminar una entrada de learning
 ```
 
-- Categorías: `design`, `code-quality`, `testing`, `review`, `tooling`, `process`
+`learn add` verifica si hay entradas similares existentes (coincidencia exacta, normalizada y similitud Jaccard). Si se encuentra un duplicado aproximado, reporta el ID existente y no escribe.
+
+- Categorías: `design`, `code-quality`, `testing`, `review`, `tooling`, `process`, `ops`
 - Estado: `active` (inyectable), `stale` (>90 días sin uso, marcado automáticamente al leer), `promoted` (actualizado a plantilla/instrucciones)
 - Un límite flexible de 100 entradas activas activa una advertencia que sugiere `4x learn prune` — las entradas nunca se eliminan automáticamente
 
