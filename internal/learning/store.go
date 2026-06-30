@@ -159,6 +159,29 @@ func (s *Store) Save(path string) error {
 	return os.Rename(tmpName, path)
 }
 
+// FindSimilar 在 store 既有條目中以三層比對（exact → normalized → Jaccard ≥ 0.7）
+// 搜尋與 content 相似的條目，回傳第一個命中的 Entry 指標，未命中回傳 nil。
+func (s *Store) FindSimilar(content string) *Entry {
+	for i := range s.Entries {
+		if s.Entries[i].Content == content {
+			return &s.Entries[i]
+		}
+	}
+	norm := normalizeContent(content)
+	for i := range s.Entries {
+		if normalizeContent(s.Entries[i].Content) == norm {
+			return &s.Entries[i]
+		}
+	}
+	tokens := tokenize(content)
+	for i := range s.Entries {
+		if JaccardSimilarity(tokens, tokenize(s.Entries[i].Content)) >= FuzzyDupThreshold {
+			return &s.Entries[i]
+		}
+	}
+	return nil
+}
+
 // Harvest 把 learnings 追加到 store，回傳實際新增數量。
 // sourceRole 標記產出來源角色（"acceptor"、"coder"、"reviewer" 等），空字串表示未知。
 // 三層去重：(1) content 完全比對 (2) 正規化比對（大小寫/空白/標點）(3) 詞集 Jaccard ≥ 0.7。
