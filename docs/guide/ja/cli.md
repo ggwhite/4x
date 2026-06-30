@@ -441,6 +441,8 @@ Feature が `pending-review` または `done` フェーズにあり、`.worktree
 各 Feature の Acceptor が `retro-learnings.json` を書き込み、CLI がそれを `.4x/learnings.json` に収集します。次の Feature では Designer が関連エントリを `selected-learnings.json` に選択し、CLI がカテゴリでフィルタリングして各ロールのプロンプトに注入します。Learnings は完全に CLI が管理します。Runner が `learnings.json` を直接書き込むことはなく、learnings の失敗は警告のみで状態遷移をブロックしません。
 
 ```
+4x learn add --category <cat> --content <text>  # learning を手動追加（standalone session 用）
+4x learn add --category ops --content "..." --json  # JSON 出力：{"id":"L0xx","added":true}
 4x learn list                     # 全 learning を一覧（id/category/status/used/content）
 4x learn list --category=testing  # カテゴリでフィルタ
 4x learn prune                    # 古い（90日以上未使用）エントリにマークして削除
@@ -449,7 +451,9 @@ Feature が `pending-review` または `done` フェーズにあり、`.worktree
 4x learn remove <id>              # learning エントリを削除
 ```
 
-- カテゴリ：`design`、`code-quality`、`testing`、`review`、`tooling`、`process`
+`learn add` は既存エントリとの類似チェック（完全一致・正規化・Jaccard 類似度）を行います。ファジー重複が見つかった場合、既存 ID を報告して書き込みません。
+
+- カテゴリ：`design`、`code-quality`、`testing`、`review`、`tooling`、`process`、`ops`
 - ステータス：`active`（注入可能）、`stale`（90日以上未使用、読み取り時に自動マーク）、`promoted`（テンプレート/指示として昇格済み）
 - アクティブエントリが 100 件を超えると `4x learn prune` を促す警告が表示されます（エントリは自動削除されません）
 

@@ -159,6 +159,12 @@ type LearnListInput struct {
 	Category string `json:"category,omitempty" jsonschema:"description=Filter by learning category"`
 }
 
+// LearnAddInput 為 4x_learn_add 工具的輸入參數。
+type LearnAddInput struct {
+	Category string `json:"category" jsonschema:"description=Learning category (design/code-quality/testing/review/tooling/process/ops),required"`
+	Content  string `json:"content" jsonschema:"description=Learning content text,required"`
+}
+
 // LearnPruneInput 為 4x_learn_prune 工具的輸入參數。
 type LearnPruneInput struct {
 	DryRun bool `json:"dryRun,omitempty" jsonschema:"description=Preview stale entries without removing"`
@@ -298,6 +304,11 @@ func (h *Handlers) LearnList(ctx context.Context, input LearnListInput) (json.Ra
 	}
 	args = append(args, "--json")
 	return h.Exec(ctx, args...)
+}
+
+// LearnAdd 新增一條 learning。
+func (h *Handlers) LearnAdd(ctx context.Context, input LearnAddInput) (json.RawMessage, error) {
+	return h.Exec(ctx, "learn", "add", "--category", input.Category, "--content", input.Content, "--json")
 }
 
 // LearnPrune 移除過期的 learnings。

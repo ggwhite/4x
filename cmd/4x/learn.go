@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/ggwhite/4x/internal/learning"
@@ -19,12 +20,89 @@ func newLearnCmd() *cobra.Command {
 		Short: "Manage retro learnings",
 	}
 	cmd.AddCommand(
+		newLearnAddCmd(),
 		newLearnListCmd(),
 		newLearnPruneCmd(),
 		newLearnPromoteCmd(),
 		newLearnRemoveCmd(),
 		newLearnContextCmd(),
 	)
+	return cmd
+}
+
+// newLearnAddCmd 建立 `4x learn add` 子命令，讓 standalone session 直接寫入 learning。
+func newLearnAddCmd() *cobra.Command {
+	var category string
+	var content string
+	var jsonOutput bool
+
+	cmd := &cobra.Command{
+		Use:   "add",
+		Short: "Add a new learning entry",
+		RunE: withJsonError(&jsonOutput, func(cmd *cobra.Command, args []string) error {
+			if content == "" {
+				return fmt.Errorf("--content is required")
+			}
+			cat := learning.Category(category)
+			if !learning.IsValidCategory(cat) {
+				valid := learning.ValidCategories()
+				names := make([]string, len(valid))
+				for i, c := range valid {
+					names[i] = string(c)
+				}
+				return fmt.Errorf("invalid category %q, valid categories: %s", category, strings.Join(names, ", "))
+			}
+
+			storePath, err := findLearningsPath()
+			if err != nil {
+				return err
+			}
+			store, err := learning.LoadStore(storePath)
+			if err != nil {
+				return err
+			}
+
+			if existing := store.FindSimilar(content); existing != nil {
+				if jsonOutput {
+					return printJSON(struct {
+						Error string `json:"error"`
+						ID    string `json:"id"`
+						Added bool   `json:"added"`
+					}{
+						Error: fmt.Sprintf("similar learning already exists: %s", existing.ID),
+						ID:    existing.ID,
+						Added: false,
+					})
+				}
+				return fmt.Errorf("similar learning already exists: %s", existing.ID)
+			}
+
+			added := store.Harvest("manual", "user", []learning.RetroLearning{
+				{Category: cat, Content: content},
+			})
+			if added == 0 {
+				return fmt.Errorf("failed to add learning")
+			}
+			if err := store.Save(storePath); err != nil {
+				return err
+			}
+
+			newEntry := store.Entries[len(store.Entries)-1]
+			if jsonOutput {
+				return printJSON(struct {
+					ID    string `json:"id"`
+					Added bool   `json:"added"`
+				}{newEntry.ID, true})
+			}
+			fmt.Printf("Added %s\n", newEntry.ID)
+			return nil
+		}),
+	}
+	cmd.Flags().StringVar(&category, "category", "", "learning category (required)")
+	cmd.Flags().StringVar(&content, "content", "", "learning content (required)")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
+	_ = cmd.MarkFlagRequired("category")
+	_ = cmd.MarkFlagRequired("content")
 	return cmd
 }
 

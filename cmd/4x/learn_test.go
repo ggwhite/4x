@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -98,6 +99,131 @@ func TestLearnPrune(t *testing.T) {
 	reloaded, _ := learning.LoadStore(storePath)
 	if len(reloaded.Entries) != 1 {
 		t.Errorf("expected 1 entry, got %d", len(reloaded.Entries))
+	}
+}
+
+func TestLearnAdd_Success(t *testing.T) {
+	root := t.TempDir()
+	if err := protocol.Init(root, protocol.Config{}); err != nil {
+		t.Fatal(err)
+	}
+	storePath := filepath.Join(root, protocol.DirName, protocol.LearningsFile)
+	store := learning.Store{Version: 1}
+	if err := store.Save(storePath); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Chdir(root)
+	cmd := newLearnAddCmd()
+	cmd.SetArgs([]string{"--category", "ops", "--content", "always set GOWORK=off in worktree"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	loaded, err := learning.LoadStore(storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(loaded.Entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(loaded.Entries))
+	}
+	e := loaded.Entries[0]
+	if e.SourceFeature != "manual" {
+		t.Errorf("expected sourceFeature=manual, got %q", e.SourceFeature)
+	}
+	if e.SourceRole != "user" {
+		t.Errorf("expected sourceRole=user, got %q", e.SourceRole)
+	}
+	if e.Category != learning.CategoryOps {
+		t.Errorf("expected category=ops, got %q", e.Category)
+	}
+}
+
+func TestLearnAdd_InvalidCategory(t *testing.T) {
+	root := t.TempDir()
+	if err := protocol.Init(root, protocol.Config{}); err != nil {
+		t.Fatal(err)
+	}
+	storePath := filepath.Join(root, protocol.DirName, protocol.LearningsFile)
+	store := learning.Store{Version: 1}
+	if err := store.Save(storePath); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Chdir(root)
+	cmd := newLearnAddCmd()
+	cmd.SetArgs([]string{"--category", "bogus", "--content", "test content"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for invalid category")
+	}
+	if got := err.Error(); !strings.Contains(got, "invalid category") {
+		t.Errorf("expected 'invalid category' in error, got %q", got)
+	}
+}
+
+func TestLearnAdd_FuzzyDuplicate(t *testing.T) {
+	root := t.TempDir()
+	if err := protocol.Init(root, protocol.Config{}); err != nil {
+		t.Fatal(err)
+	}
+	storePath := filepath.Join(root, protocol.DirName, protocol.LearningsFile)
+	store := learning.Store{Version: 1, Entries: []learning.Entry{
+		{ID: "L001", Category: learning.CategoryOps, Content: "always set GOWORK=off in worktree", Status: learning.StatusActive, CreatedAt: time.Now()},
+	}}
+	if err := store.Save(storePath); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Chdir(root)
+	cmd := newLearnAddCmd()
+	cmd.SetArgs([]string{"--category", "ops", "--content", "always set GOWORK=off in worktree"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for duplicate")
+	}
+	if got := err.Error(); !strings.Contains(got, "similar learning already exists: L001") {
+		t.Errorf("expected 'similar learning already exists: L001', got %q", got)
+	}
+
+	loaded, _ := learning.LoadStore(storePath)
+	if len(loaded.Entries) != 1 {
+		t.Errorf("expected store unchanged with 1 entry, got %d", len(loaded.Entries))
+	}
+}
+
+func TestLearnAdd_JSON(t *testing.T) {
+	root := t.TempDir()
+	if err := protocol.Init(root, protocol.Config{}); err != nil {
+		t.Fatal(err)
+	}
+	storePath := filepath.Join(root, protocol.DirName, protocol.LearningsFile)
+	store := learning.Store{Version: 1}
+	if err := store.Save(storePath); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Chdir(root)
+	out := captureStdout(t, func() {
+		cmd := newLearnAddCmd()
+		cmd.SetArgs([]string{"--category", "ops", "--content", "test json output", "--json"})
+		if err := cmd.Execute(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	var result struct {
+		ID    string `json:"id"`
+		Added bool   `json:"added"`
+	}
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
+		t.Fatalf("failed to parse JSON output %q: %v", out, err)
+	}
+	if !result.Added {
+		t.Error("expected added=true")
+	}
+	if result.ID == "" {
+		t.Error("expected non-empty ID")
 	}
 }
 

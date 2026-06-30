@@ -441,6 +441,8 @@ pending-review 기능을 완료로 표시합니다. 기능에 worktree(`.worktre
 각 기능의 Acceptor가 `retro-learnings.json`을 작성하면, CLI가 이를 `.4x/learnings.json`에 수집합니다. 다음 기능에서 Designer가 관련 항목을 `selected-learnings.json`으로 선택하고, CLI가 이를 각 역할의 프롬프트에 주입합니다(카테고리별 필터링). 학습 내역은 전적으로 CLI가 관리하며 — 러너는 `learnings.json`을 직접 쓰지 않고, 학습 내역 처리 실패 시 경고만 출력하며 상태 전환을 차단하지 않습니다.
 
 ```
+4x learn add --category <cat> --content <text>  # learning 수동 추가 (standalone session용)
+4x learn add --category ops --content "..." --json  # JSON 출력: {"id":"L0xx","added":true}
 4x learn list                     # 모든 학습 내역 나열 (id/category/status/used/content)
 4x learn list --category=testing  # 카테고리 필터링
 4x learn prune                    # 오래된 항목(90일 이상 미사용) 표시 및 삭제
@@ -449,7 +451,9 @@ pending-review 기능을 완료로 표시합니다. 기능에 worktree(`.worktre
 4x learn remove <id>              # 학습 내역 항목 삭제
 ```
 
-- 카테고리: `design`, `code-quality`, `testing`, `review`, `tooling`, `process`
+`learn add`는 기존 항목과의 유사성 검사(정확 일치, 정규화, Jaccard 유사도)를 수행합니다. 퍼지 중복이 발견되면 기존 ID를 보고하고 쓰기하지 않습니다.
+
+- 카테고리: `design`, `code-quality`, `testing`, `review`, `tooling`, `process`, `ops`
 - 상태: `active`(주입 가능), `stale`(90일 이상 미사용, 읽을 때 자동 표시), `promoted`(템플릿/지침으로 승격됨)
 - 활성 항목 100개의 소프트 상한에 도달하면 `4x learn prune` 권장 경고가 표시됩니다 — 항목은 절대 자동 삭제되지 않습니다
 

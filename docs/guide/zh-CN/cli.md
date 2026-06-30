@@ -439,6 +439,8 @@ Dashboard 通过 `POST /api/force-done` 提供此功能，请求体为 `{id, rea
 每个 feature 的 Acceptor 会写入 `retro-learnings.json`；CLI 将其收集到 `.4x/learnings.json`。下一个 feature 的 Designer 会从中选取相关条目写入 `selected-learnings.json`，CLI 按类别过滤后注入每个角色的 prompt。Learnings 完全由 CLI 管理——runner 不会直接写 `learnings.json`，任何 learnings 操作失败只发出警告，不阻塞状态转换。
 
 ```
+4x learn add --category <cat> --content <text>  # 手动新增 learning（standalone session 用）
+4x learn add --category ops --content "..." --json  # JSON 输出：{"id":"L0xx","added":true}
 4x learn list                     # 列出所有 learnings（id/category/status/used/content）
 4x learn list --category=testing  # 按类别过滤
 4x learn prune                    # 标记陈旧（>90 天未使用）条目并删除
@@ -447,7 +449,9 @@ Dashboard 通过 `POST /api/force-done` 提供此功能，请求体为 `{id, rea
 4x learn remove <id>              # 删除某条 learning
 ```
 
-- 类别：`design`、`code-quality`、`testing`、`review`、`tooling`、`process`
+`learn add` 会检查是否有相似的既有条目（完全比对、正规化比对、Jaccard 相似度）。若发现模糊重复，会回报既有 ID 且不写入。
+
+- 类别：`design`、`code-quality`、`testing`、`review`、`tooling`、`process`、`ops`
 - 状态：`active`（可注入）、`stale`（>90 天未使用，读取时自动标记）、`promoted`（已升级为模板/指令）
 - 100 条活跃条目的软上限会触发建议运行 `4x learn prune` 的警告——不会自动删除条目
 

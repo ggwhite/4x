@@ -389,6 +389,8 @@ Dashboard 透過 `POST /api/force-done` 加 `{id, reason}` 提供此功能。
 每個 feature 的 Acceptor 會寫入 `retro-learnings.json`；CLI 將其匯整至 `.4x/learnings.json`。下一個 feature 時，Designer 會從中挑選相關條目存入 `selected-learnings.json`，CLI 再依類別過濾後注入每個角色的 prompt。learnings 完全由 CLI 管理——runner 絕不直接寫入 `learnings.json`，任何 learnings 失敗都只會警告，不阻擋狀態轉換。
 
 ```
+4x learn add --category <cat> --content <text>  # 手動新增 learning（standalone session 用）
+4x learn add --category ops --content "..." --json  # JSON 輸出：{"id":"L0xx","added":true}
 4x learn list                     # 列出所有 learnings（id/category/status/used/content）
 4x learn list --category=testing  # 依類別過濾
 4x learn prune                    # 標記陳舊（>90 天未使用）條目並移除
@@ -397,7 +399,9 @@ Dashboard 透過 `POST /api/force-done` 加 `{id, reason}` 提供此功能。
 4x learn remove <id>              # 移除一筆 learning 條目
 ```
 
-- 類別：`design`、`code-quality`、`testing`、`review`、`tooling`、`process`
+`learn add` 會檢查是否有相似的既有條目（完全比對、正規化比對、Jaccard 相似度）。若發現模糊重複，會回報既有 ID 且不寫入。
+
+- 類別：`design`、`code-quality`、`testing`、`review`、`tooling`、`process`、`ops`
 - 狀態：`active`（可注入）、`stale`（>90 天未使用，讀取時自動標記）、`promoted`（已升級為模板/指引）
 - 超過 100 筆 active 條目時會顯示軟上限警告，建議執行 `4x learn prune`——不會自動刪除條目
 
