@@ -102,7 +102,28 @@ interrupted mid-review. If it exists, read it:
 - If Verdict is already filled, verify it is consistent and finish
 Do NOT assume an existing file means the review is done — check the sections.
 
+== Role Learnings (optional) ==
+如果你在設計審查中發現了對未來 feature 有價值的教訓（設計文件常見疏漏、規格與實作的落差模式等），可以產出：
+
+  {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/role-learnings.json
+
+格式：
+{
+  "role": "design-reviewer",
+  "learnings": [
+    {
+      "category": "design | code-quality | testing | review | tooling | process",
+      "content": "具體、可操作的一句話教訓"
+    }
+  ]
+}
+
+原則：
+- 只在遇到值得記錄的坑或洞見時才寫，沒有就不寫
+- 只寫「未來能改善什麼」，不寫「這次做了什麼」
+- 不超過 3 條——只留最有價值的
+
 == Constraints ==
 - You may NOT modify source code
-- You may ONLY write design-review-report.md
+- You may ONLY write design-review-report.md and role-learnings.json
 - You may NOT write coder-report.md, review-report.md, final-report.md, or any source file

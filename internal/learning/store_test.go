@@ -44,7 +44,7 @@ func TestHarvest_AddsAndDeduplicates(t *testing.T) {
 		{Category: CategoryTesting, Content: "test edge cases"},
 		{Category: CategoryCodeQuality, Content: "always wrap errors"}, // 重複
 	}
-	added := s.Harvest("F042-test", learnings)
+	added := s.Harvest("F042-test", "", learnings)
 	if added != 2 {
 		t.Errorf("expected 2 added, got %d", added)
 	}
@@ -70,7 +70,7 @@ func TestHarvest_SkipsDuplicateWithExisting(t *testing.T) {
 		{Category: CategoryCodeQuality, Content: "always wrap errors"},
 		{Category: CategoryTesting, Content: "new learning"},
 	}
-	added := s.Harvest("F043", learnings)
+	added := s.Harvest("F043", "acceptor", learnings)
 	if added != 1 {
 		t.Errorf("expected 1 added, got %d", added)
 	}
@@ -89,7 +89,7 @@ func TestHarvest_SkipsInvalidCategory(t *testing.T) {
 		{Category: CategoryDesign, Content: "valid one"},
 		{Category: CategoryDesign, Content: ""}, // 空 content 也跳過
 	}
-	added := s.Harvest("F044", learnings)
+	added := s.Harvest("F044", "coder", learnings)
 	if added != 1 {
 		t.Errorf("expected 1 added, got %d", added)
 	}
@@ -265,6 +265,111 @@ func TestApplyConsolidation_InvalidIDs(t *testing.T) {
 	}
 	if len(s.Entries) != 1 {
 		t.Errorf("entries should be unchanged")
+	}
+}
+
+func TestHarvest_SetsSourceRole(t *testing.T) {
+	s := Store{Version: 1}
+	learnings := []RetroLearning{
+		{Category: CategoryCodeQuality, Content: "wrap errors with context"},
+	}
+	s.Harvest("F050", "reviewer", learnings)
+	if len(s.Entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(s.Entries))
+	}
+	if s.Entries[0].SourceRole != "reviewer" {
+		t.Errorf("expected source_role=reviewer, got %s", s.Entries[0].SourceRole)
+	}
+	if s.Entries[0].SourceFeature != "F050" {
+		t.Errorf("expected source_feature=F050, got %s", s.Entries[0].SourceFeature)
+	}
+}
+
+func TestParseRoleLearningsFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "role-learnings.json")
+	content := `{"role":"coder","learnings":[{"category":"tooling","content":"use make lint"}]}`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	role, got, err := ParseRoleLearningsFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if role != "coder" {
+		t.Errorf("expected role=coder, got %s", role)
+	}
+	if len(got) != 1 || got[0].Category != CategoryTooling {
+		t.Errorf("unexpected parse result: %+v", got)
+	}
+}
+
+func TestHarvest_FuzzyDedup_NormalizedMatch(t *testing.T) {
+	s := Store{Version: 1}
+	s.Harvest("F060", "coder", []RetroLearning{
+		{Category: CategoryCodeQuality, Content: "Always wrap errors with context"},
+	})
+	added := s.Harvest("F061", "reviewer", []RetroLearning{
+		{Category: CategoryCodeQuality, Content: "always wrap errors with context"},
+	})
+	if added != 0 {
+		t.Errorf("normalized duplicate should be skipped, got added=%d", added)
+	}
+	if len(s.Entries) != 1 {
+		t.Errorf("expected 1 entry, got %d", len(s.Entries))
+	}
+}
+
+func TestHarvest_FuzzyDedup_JaccardMatch(t *testing.T) {
+	s := Store{Version: 1}
+	s.Harvest("F060", "coder", []RetroLearning{
+		{Category: CategoryCodeQuality, Content: "always run gofmt and go vet before commit"},
+	})
+	added := s.Harvest("F061", "reviewer", []RetroLearning{
+		{Category: CategoryCodeQuality, Content: "run gofmt and go vet before every commit"},
+	})
+	if added != 0 {
+		t.Errorf("fuzzy duplicate should be skipped (high Jaccard), got added=%d", added)
+	}
+}
+
+func TestHarvest_FuzzyDedup_DifferentContent(t *testing.T) {
+	s := Store{Version: 1}
+	s.Harvest("F060", "coder", []RetroLearning{
+		{Category: CategoryCodeQuality, Content: "always run gofmt before commit"},
+	})
+	added := s.Harvest("F061", "tester", []RetroLearning{
+		{Category: CategoryTesting, Content: "test database migrations with real schema"},
+	})
+	if added != 1 {
+		t.Errorf("distinct content should be added, got added=%d", added)
+	}
+}
+
+func TestJaccardSimilarity(t *testing.T) {
+	tests := []struct {
+		name string
+		a, b map[string]bool
+		want float64
+	}{
+		{"identical", map[string]bool{"a": true, "b": true}, map[string]bool{"a": true, "b": true}, 1.0},
+		{"disjoint", map[string]bool{"a": true}, map[string]bool{"b": true}, 0.0},
+		{"both empty", map[string]bool{}, map[string]bool{}, 1.0},
+		{"partial", map[string]bool{"a": true, "b": true, "c": true}, map[string]bool{"a": true, "b": true, "d": true}, 0.5},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := JaccardSimilarity(tt.a, tt.b)
+			if got != tt.want {
+				t.Errorf("JaccardSimilarity() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseRoleLearningsFile_NotExist(t *testing.T) {
+	_, _, err := ParseRoleLearningsFile(filepath.Join(t.TempDir(), "nope.json"))
+	if err == nil {
+		t.Error("expected error for non-existent file")
 	}
 }
 

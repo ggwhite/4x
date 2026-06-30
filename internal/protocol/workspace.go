@@ -64,6 +64,7 @@ const (
 	// retro learnings 相關檔名。
 	LearningsFile         = "learnings.json"          // .4x/learnings.json，跨 feature 累積的 learnings 庫
 	RetroLearningsFile    = "retro-learnings.json"    // .4x/{feature-id}/retro-learnings.json，Acceptor 產出
+	RoleLearningsFileName = "role-learnings.json"     // rounds/round-{n}/role-learnings.json，各角色產出
 	SelectedLearningsFile = "selected-learnings.json" // .4x/{feature-id}/selected-learnings.json，Designer 選出
 	ConsolidateInputFile  = "consolidate-input.json"  // .4x/consolidate-input.json，供 consolidate runner 讀
 	ConsolidateResultFile = "consolidate-result.json" // .4x/consolidate-result.json，consolidate runner 產出

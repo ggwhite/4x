@@ -219,6 +219,27 @@ Evidence rules:
 - Valid evidence = actual command output, HTTP responses, log lines, test results, screenshots
 - If you cannot execute a check, mark it SKIP with a reason — do NOT fake evidence by reading code
 
+== Role Learnings (optional) ==
+如果你在測試過程中發現了對未來 feature 有價值的教訓（測試環境問題、容易遺漏的測試場景等），可以產出：
+
+  {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/role-learnings.json
+
+格式：
+{
+  "role": "tester",
+  "learnings": [
+    {
+      "category": "design | code-quality | testing | review | tooling | process",
+      "content": "具體、可操作的一句話教訓"
+    }
+  ]
+}
+
+原則：
+- 只在遇到值得記錄的坑或洞見時才寫，沒有就不寫
+- 只寫「未來能改善什麼」，不寫「這次做了什麼」
+- 不超過 3 條——只留最有價值的
+
 == Constraints ==
 - Do NOT modify source code — only run tests and report
 - Do NOT write verify.json — it is produced by `${FOURX_BIN:-4x} verify`

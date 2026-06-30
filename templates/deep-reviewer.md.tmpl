@@ -273,9 +273,30 @@ Do NOT assume an existing file means the review is done — check which angles w
 {{- end}}
 {{- end}}
 
+== Role Learnings (optional) ==
+如果你在深度 review 中發現了對未來 feature 有價值的教訓（反覆出現的架構問題、隱藏的相依性等），可以產出：
+
+  {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/role-learnings.json
+
+格式：
+{
+  "role": "deep-reviewer",
+  "learnings": [
+    {
+      "category": "design | code-quality | testing | review | tooling | process",
+      "content": "具體、可操作的一句話教訓"
+    }
+  ]
+}
+
+原則：
+- 只在遇到值得記錄的坑或洞見時才寫，沒有就不寫
+- 只寫「未來能改善什麼」，不寫「這次做了什麼」
+- 不超過 3 條——只留最有價值的
+
 == Constraints ==
 - You may NOT modify source code
-- You may ONLY write {{$reportFile}} — do NOT write final-report.md or any other protocol file
+- You may ONLY write {{$reportFile}} and role-learnings.json — do NOT write final-report.md or any other protocol file
 - Every issue must have concrete evidence (file path, line number, code snippet)
 - Do not repeat issues already found in review-report.md
 - Report Statistics section even when all findings are dropped — show you did the work

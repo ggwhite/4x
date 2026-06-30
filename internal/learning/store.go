@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -62,6 +63,8 @@ const (
 	MaxSelectedPerRole = 10
 	// ConsolidateThreshold 是觸發 AI consolidate 的 active 條目門檻。
 	ConsolidateThreshold = 30
+	// FuzzyDupThreshold 是判定 learning 語意重複的 Jaccard 相似度門檻。
+	FuzzyDupThreshold = 0.7
 )
 
 // ConsolidateAction 是 AI 對單一 learning 的處理決策。
@@ -82,6 +85,7 @@ type ConsolidateResult struct {
 type Entry struct {
 	ID            string    `json:"id"`
 	SourceFeature string    `json:"source_feature"`
+	SourceRole    string    `json:"source_role,omitempty"`
 	Category      Category  `json:"category"`
 	Content       string    `json:"content"`
 	CreatedAt     time.Time `json:"created_at"`
@@ -154,13 +158,18 @@ func (s *Store) Save(path string) error {
 	return os.Rename(tmpName, path)
 }
 
-// Harvest 把 Acceptor 產出的 learnings 追加到 store，回傳實際新增數量。
-// 去重規則：content 完全相同即跳過（不做模糊比對）；category 不在白名單或
-// content 為空的條目也跳過。新條目自動分配 L 序號 ID 並標記為 active。
-func (s *Store) Harvest(featureID string, learnings []RetroLearning) int {
-	existing := make(map[string]bool, len(s.Entries))
+// Harvest 把 learnings 追加到 store，回傳實際新增數量。
+// sourceRole 標記產出來源角色（"acceptor"、"coder"、"reviewer" 等），空字串表示未知。
+// 三層去重：(1) content 完全比對 (2) 正規化比對（大小寫/空白/標點）(3) 詞集 Jaccard ≥ 0.7。
+// category 不在白名單或 content 為空的條目跳過。新條目自動分配 L 序號 ID 並標記為 active。
+func (s *Store) Harvest(featureID, sourceRole string, learnings []RetroLearning) int {
+	exactSet := make(map[string]bool, len(s.Entries))
+	normSet := make(map[string]bool, len(s.Entries))
+	tokenSets := make([]map[string]bool, 0, len(s.Entries))
 	for _, e := range s.Entries {
-		existing[e.Content] = true
+		exactSet[e.Content] = true
+		normSet[normalizeContent(e.Content)] = true
+		tokenSets = append(tokenSets, tokenize(e.Content))
 	}
 
 	added := 0
@@ -169,13 +178,26 @@ func (s *Store) Harvest(featureID string, learnings []RetroLearning) int {
 		if !IsValidCategory(l.Category) || l.Content == "" {
 			continue
 		}
-		if existing[l.Content] {
+		if exactSet[l.Content] {
 			continue
 		}
-		existing[l.Content] = true
+		norm := normalizeContent(l.Content)
+		if normSet[norm] {
+			continue
+		}
+		tokens := tokenize(l.Content)
+		if isFuzzyDuplicate(tokens, tokenSets) {
+			continue
+		}
+
+		exactSet[l.Content] = true
+		normSet[norm] = true
+		tokenSets = append(tokenSets, tokens)
+
 		s.Entries = append(s.Entries, Entry{
 			ID:            s.nextID(),
 			SourceFeature: featureID,
+			SourceRole:    sourceRole,
 			Category:      l.Category,
 			Content:       l.Content,
 			CreatedAt:     now,
@@ -339,6 +361,25 @@ func ParseRetroFile(path string) ([]RetroLearning, error) {
 	return rf.Learnings, nil
 }
 
+// RoleLearningsFile 是各角色在 round 目錄內產出的 role-learnings.json 結構。
+type RoleLearningsFile struct {
+	Role      string          `json:"role"`
+	Learnings []RetroLearning `json:"learnings"`
+}
+
+// ParseRoleLearningsFile 讀取角色產出的 role-learnings.json，回傳角色名稱與 learnings。
+func ParseRoleLearningsFile(path string) (string, []RetroLearning, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", nil, err
+	}
+	var rf RoleLearningsFile
+	if err := json.Unmarshal(data, &rf); err != nil {
+		return "", nil, fmt.Errorf("parse role-learnings file: %w", err)
+	}
+	return rf.Role, rf.Learnings, nil
+}
+
 var roleCategoryMap = map[string][]Category{
 	"designer":        {CategoryDesign, CategoryProcess},
 	"design-reviewer": {CategoryDesign, CategoryReview},
@@ -352,4 +393,49 @@ var roleCategoryMap = map[string][]Category{
 // CategoriesForRole 回傳指定 role 應注入的 category 列表；未知 role 回傳 nil。
 func CategoriesForRole(role string) []Category {
 	return roleCategoryMap[role]
+}
+
+// normalizeContent 正規化 content：小寫、去前後空白、收合連續空白。
+func normalizeContent(s string) string {
+	return strings.Join(strings.Fields(strings.ToLower(strings.TrimSpace(s))), " ")
+}
+
+// tokenize 把 content 切成去標點的小寫詞集。
+func tokenize(s string) map[string]bool {
+	words := strings.Fields(normalizeContent(s))
+	set := make(map[string]bool, len(words))
+	for _, w := range words {
+		w = strings.TrimRight(w, ".,;:!?。，；：！？、")
+		if w != "" {
+			set[w] = true
+		}
+	}
+	return set
+}
+
+// JaccardSimilarity 計算兩個詞集的 Jaccard 相似度 = |交集| / |聯集|。
+func JaccardSimilarity(a, b map[string]bool) float64 {
+	if len(a) == 0 && len(b) == 0 {
+		return 1.0
+	}
+	intersection := 0
+	for w := range a {
+		if b[w] {
+			intersection++
+		}
+	}
+	union := len(a) + len(b) - intersection
+	if union == 0 {
+		return 0
+	}
+	return float64(intersection) / float64(union)
+}
+
+func isFuzzyDuplicate(candidate map[string]bool, existing []map[string]bool) bool {
+	for _, e := range existing {
+		if JaccardSimilarity(candidate, e) >= FuzzyDupThreshold {
+			return true
+		}
+	}
+	return false
 }

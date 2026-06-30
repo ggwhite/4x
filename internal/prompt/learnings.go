@@ -79,19 +79,10 @@ func LoadSelectedLearnings(dotDir, featureID string, role protocol.Role) []learn
 	return result
 }
 
-// HarvestLearnings 讀取 Acceptor 產出的 retro-learnings.json，追加到 .4x/learnings.json。
-// learnings 屬 nice-to-have，任何錯誤只 warn，絕不影響 state transition。
+// HarvestLearnings 收割 feature 的所有 learnings 並追加到 .4x/learnings.json。
+// 來源有二：(1) 各角色在 round 目錄產出的 role-learnings.json，(2) Acceptor 的 retro-learnings.json。
+// 屬 nice-to-have，任何錯誤只 warn，絕不影響 state transition。
 func HarvestLearnings(ws *protocol.Workspace, featureID string) {
-	retroPath := filepath.Join(ws.FeatureDir(featureID), protocol.RetroLearningsFile)
-	learnings, err := learning.ParseRetroFile(retroPath)
-	if err != nil {
-		slog.Warn("skip learnings harvest", "feature", featureID, "error", err)
-		return
-	}
-	if len(learnings) == 0 {
-		return
-	}
-
 	storePath := filepath.Join(ws.DotDir(), protocol.LearningsFile)
 	store, err := learning.LoadStore(storePath)
 	if err != nil {
@@ -100,8 +91,12 @@ func HarvestLearnings(ws *protocol.Workspace, featureID string) {
 	}
 
 	store.MarkStale(learning.DefaultStaleDays)
-	added := store.Harvest(featureID, learnings)
-	if added == 0 {
+	totalAdded := 0
+
+	totalAdded += harvestRoleLearnings(&store, ws, featureID)
+	totalAdded += harvestRetroLearnings(&store, ws, featureID)
+
+	if totalAdded == 0 {
 		return
 	}
 
@@ -111,11 +106,57 @@ func HarvestLearnings(ws *protocol.Workspace, featureID string) {
 	}
 
 	active := len(store.ActiveEntries())
-	slog.Info("harvested learnings", "feature", featureID, "added", added, "total_active", active)
+	slog.Info("harvested learnings", "feature", featureID, "added", totalAdded, "total_active", active)
 	if active > learning.MaxActiveEntries {
 		slog.Warn("learnings store exceeds capacity, consider running '4x learn prune'",
 			"active", active, "limit", learning.MaxActiveEntries)
 	}
+}
+
+func harvestRetroLearnings(store *learning.Store, ws *protocol.Workspace, featureID string) int {
+	retroPath := filepath.Join(ws.FeatureDir(featureID), protocol.RetroLearningsFile)
+	learnings, err := learning.ParseRetroFile(retroPath)
+	if err != nil {
+		slog.Warn("skip retro learnings harvest", "feature", featureID, "error", err)
+		return 0
+	}
+	if len(learnings) == 0 {
+		return 0
+	}
+	added := store.Harvest(featureID, "acceptor", learnings)
+	if added > 0 {
+		slog.Debug("harvested retro learnings", "feature", featureID, "added", added)
+	}
+	return added
+}
+
+func harvestRoleLearnings(store *learning.Store, ws *protocol.Workspace, featureID string) int {
+	roundsDir := filepath.Join(ws.FeatureDir(featureID), protocol.RoundsDir)
+	entries, err := os.ReadDir(roundsDir)
+	if err != nil {
+		return 0
+	}
+
+	totalAdded := 0
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		rlPath := filepath.Join(roundsDir, entry.Name(), protocol.RoleLearningsFileName)
+		role, learnings, err := learning.ParseRoleLearningsFile(rlPath)
+		if err != nil {
+			continue
+		}
+		if len(learnings) == 0 {
+			continue
+		}
+		added := store.Harvest(featureID, role, learnings)
+		if added > 0 {
+			slog.Debug("harvested role learnings", "feature", featureID, "role", role, "round", entry.Name(), "added", added)
+			totalAdded += added
+		}
+	}
+	return totalAdded
 }
 
 // NeedConsolidate 檢查 active learnings 是否超過 consolidate 門檻。
