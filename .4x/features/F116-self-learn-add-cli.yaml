@@ -1,7 +1,7 @@
 id: F116-self-learn-add-cli
 name: 'F116: learn add CLI'
 description: 新增 4x learn add --category --content CLI subcommand，讓 standalone session 可以直接寫入 learning。新增 Store.FindSimilar() 方法支援重複偵測與報告。
-status: ready-for-review
+status: done
 profile: standard
 depends:
     - F115-self-learn-ops-cat
