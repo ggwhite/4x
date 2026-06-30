@@ -17,7 +17,8 @@ cli_content=$(tr '[:upper:]' '[:lower:]' < "$CLI_DOC")
 missing=()
 for cmd in $COMMANDS; do
   # batch is a parent command — check for "4x batch" pattern
-  if ! echo "$cli_content" | grep -q "4x ${cmd}"; then
+  # Use herestring to avoid SIGPIPE with pipefail when grep -q exits early
+  if ! grep -q "4x ${cmd}" <<< "$cli_content"; then
     missing+=("$cmd")
   fi
 done
