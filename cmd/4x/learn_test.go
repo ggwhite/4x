@@ -1,11 +1,14 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/ggwhite/4x/internal/learning"
+	"github.com/ggwhite/4x/internal/prompt"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -95,6 +98,44 @@ func TestLearnPrune(t *testing.T) {
 	reloaded, _ := learning.LoadStore(storePath)
 	if len(reloaded.Entries) != 1 {
 		t.Errorf("expected 1 entry, got %d", len(reloaded.Entries))
+	}
+}
+
+func TestLearnContext_CLI(t *testing.T) {
+	root := t.TempDir()
+	if err := protocol.Init(root, protocol.Config{}); err != nil {
+		t.Fatal(err)
+	}
+	storePath := filepath.Join(root, protocol.DirName, protocol.LearningsFile)
+
+	store := learning.Store{Version: 1, Entries: []learning.Entry{
+		{ID: "L001", Category: learning.CategoryDesign, Content: "test learning", Status: learning.StatusActive, CreatedAt: time.Now()},
+	}}
+	if err := store.Save(storePath); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Chdir(root)
+	ws, err := protocol.Find(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := prompt.GenerateLearningsContext(ws); err != nil {
+		t.Fatal(err)
+	}
+
+	outPath := filepath.Join(root, protocol.DirName, protocol.LearningsContextFile)
+	if _, err := os.Stat(outPath); err != nil {
+		t.Fatalf("learnings-context.md not created: %v", err)
+	}
+
+	data, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "test learning") {
+		t.Error("expected context file to contain the learning")
 	}
 }
 

@@ -452,9 +452,10 @@ The Acceptor of each feature writes a `retro-learnings.json`; the CLI harvests i
 4x learn prune --dry-run          # preview stale entries without removing
 4x learn promote <id>             # mark a learning as promoted (kept but no longer injected)
 4x learn remove <id>              # remove a learning entry
+4x learn context                  # generate .4x/learnings-context.md snapshot
 ```
 
-- Categories: `design`, `code-quality`, `testing`, `review`, `tooling`, `process`
+- Categories: `design`, `code-quality`, `testing`, `review`, `tooling`, `process`, `ops`
 - Status: `active` (injectable), `stale` (>90 days unused, auto-marked on read), `promoted` (upgraded to template/instructions)
 - A soft cap of 100 active entries triggers a warning suggesting `4x learn prune` — entries are never auto-deleted
 
@@ -662,6 +663,7 @@ Each tool is a thin wrapper that invokes the matching `4x` subcommand with `--js
 | `4x_learn_prune` | `learn prune` |
 | `4x_learn_promote` | `learn promote` |
 | `4x_learn_remove` | `learn remove` |
+| `4x_learn_context` | `learn context` |
 | `4x_evolve` | `evolve` |
 
 **Config & gate**

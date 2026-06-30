@@ -782,6 +782,9 @@ func (r *Runner) runConsolidate(ctx context.Context, s protocol.State) {
 	}
 	if merged+removed > 0 {
 		slog.Info("learnings consolidated", "merged", merged, "removed", removed)
+		if err := prompt.GenerateLearningsContext(r.Ws); err != nil {
+			slog.Warn("refresh learnings context after consolidation failed", "error", err)
+		}
 	}
 }
 

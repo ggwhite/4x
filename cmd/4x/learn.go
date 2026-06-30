@@ -7,6 +7,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/ggwhite/4x/internal/learning"
+	"github.com/ggwhite/4x/internal/prompt"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/spf13/cobra"
 )
@@ -22,6 +23,7 @@ func newLearnCmd() *cobra.Command {
 		newLearnPruneCmd(),
 		newLearnPromoteCmd(),
 		newLearnRemoveCmd(),
+		newLearnContextCmd(),
 	)
 	return cmd
 }
@@ -208,6 +210,40 @@ func newLearnRemoveCmd() *cobra.Command {
 				}{args[0], true})
 			}
 			fmt.Printf("Removed %s\n", args[0])
+			return nil
+		}),
+	}
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
+	return cmd
+}
+
+func newLearnContextCmd() *cobra.Command {
+	var jsonOutput bool
+
+	cmd := &cobra.Command{
+		Use:   "context",
+		Short: "Generate learnings context snapshot (.4x/learnings-context.md)",
+		RunE: withJsonError(&jsonOutput, func(cmd *cobra.Command, args []string) error {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			ws, err := protocol.Find(cwd)
+			if err != nil {
+				return fmt.Errorf("not in a 4x project: %w", err)
+			}
+
+			if err := prompt.GenerateLearningsContext(ws); err != nil {
+				return err
+			}
+
+			outPath := filepath.Join(ws.DotDir(), protocol.LearningsContextFile)
+			if jsonOutput {
+				return printJSON(struct {
+					Path string `json:"path"`
+				}{outPath})
+			}
+			fmt.Printf("Written: %s\n", outPath)
 			return nil
 		}),
 	}

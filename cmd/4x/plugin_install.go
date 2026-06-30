@@ -99,6 +99,8 @@ func installPlugins(root string, cfg protocol.Config) {
 			}
 		}
 	}
+
+	ensureAppendImport(root, "CLAUDE.md", "@.4x/"+protocol.LearningsContextFile)
 }
 
 // syncPlugins 在 4x run 開始前靜默同步 plugin 檔案，有更新時 log。
@@ -139,6 +141,22 @@ func ensureImport(root, filename, importLine, runner string) {
 		os.WriteFile(target, []byte(importLine+"\n"), 0o644)
 		fmt.Printf("Plugin:   %s → created %s\n", runner, filename)
 	}
+}
+
+// ensureAppendImport 確保根目錄指令檔的尾部包含指定的 @import 行。
+// 與 ensureImport 不同，此函式將 import 附加到檔案末端而非前端。
+// 檔案不存在時不建立（learnings-context 需先由 learn context 產生）。
+func ensureAppendImport(root, filename, importLine string) {
+	target := filepath.Join(root, filename)
+	data, err := os.ReadFile(target)
+	if err != nil {
+		return
+	}
+	if strings.Contains(string(data), importLine) {
+		return
+	}
+	content := strings.TrimRight(string(data), "\n") + "\n\n" + importLine + "\n"
+	os.WriteFile(target, []byte(content), 0o644)
 }
 
 // installCodexConfig 建立 codex.json 預設設定

@@ -242,6 +242,7 @@ Roles communicate through the `.4x/` directory, not shared context windows.
 ├── features/
 │   └── {id}.yaml                    # Feature definition (canonical source)
 ├── learnings.json                  # Retro learnings store (accumulated across features)
+├── learnings-context.md            # Auto-generated active learnings snapshot (@ included by CLAUDE.md)
 ├── templates/                      # Optional project-level prompt template overrides (4x init --dump-templates)
 └── run/                            # Runtime artifacts (per-feature working directories)
     └── {feature-id}/
