@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/ggwhite/4x/internal/envutil"
 )
 
 // resolveCommand 在 enriched PATH 中查找 command 的完整路徑。
@@ -36,80 +38,14 @@ func resolveCommand(command string, env []string) string {
 	return command
 }
 
-// enrichedEnv 回傳加強版的環境變數，補上 GUI app 啟動時缺少的 PATH 路徑。
+// enrichedEnv 回傳加強版的環境變數，補上 GUI app 啟動時缺少的 PATH 路徑，
+// 並將 4x 自身的 exe 目錄 prepend 到 PATH 最前面、設定 FOURX_BIN。
 func enrichedEnv() []string {
-	env := os.Environ()
-
-	var prependPaths, extraPaths []string
-	pathSep := ":"
-	pathKey := "PATH="
+	env := envutil.EnrichedEnv()
 
 	if exe, err := os.Executable(); err == nil {
-		prependPaths = append(prependPaths, filepath.Dir(exe))
+		env = envutil.PrependPath(env, filepath.Dir(exe))
 		env = append(env, "FOURX_BIN="+exe)
-	}
-
-	switch runtime.GOOS {
-	case "darwin":
-		home := os.Getenv("HOME")
-		extraPaths = append(extraPaths,
-			"/usr/local/bin",
-			"/opt/homebrew/bin",
-			"/opt/homebrew/sbin",
-			home+"/.local/bin",
-			home+"/.cargo/bin",
-		)
-	case "windows":
-		userProfile := os.Getenv("USERPROFILE")
-		appData := os.Getenv("LOCALAPPDATA")
-		programFiles := os.Getenv("ProgramFiles")
-		pathSep = ";"
-		extraPaths = append(extraPaths,
-			appData+"\\Programs\\claude-code\\resources\\bin",
-			userProfile+"\\.cargo\\bin",
-			userProfile+"\\.local\\bin",
-			programFiles+"\\nodejs",
-			appData+"\\fnm\\aliases\\default",
-		)
-	case "linux":
-		home := os.Getenv("HOME")
-		extraPaths = append(extraPaths,
-			"/usr/local/bin",
-			home+"/.local/bin",
-			home+"/.cargo/bin",
-			"/snap/bin",
-			home+"/.nvm/current/bin",
-			home+"/.fnm/aliases/default/bin",
-		)
-	default:
-		return env
-	}
-
-	for i, e := range env {
-		if strings.HasPrefix(strings.ToUpper(e), strings.ToUpper(pathKey)) {
-			current := e[len(pathKey):]
-			parts := strings.Split(current, pathSep)
-			seen := make(map[string]bool, len(parts))
-			for _, p := range parts {
-				seen[p] = true
-			}
-			// exe 目錄放最前面，確保 agent 呼叫 4x 時拿到同版本 binary
-			var newParts []string
-			for _, p := range prependPaths {
-				if p != "" && !seen[p] {
-					newParts = append(newParts, p)
-					seen[p] = true
-				}
-			}
-			newParts = append(newParts, parts...)
-			for _, p := range extraPaths {
-				if p != "" && !seen[p] {
-					newParts = append(newParts, p)
-				}
-			}
-			env[i] = pathKey + strings.Join(newParts, pathSep)
-			return env
-		}
 	}
 
 	return env

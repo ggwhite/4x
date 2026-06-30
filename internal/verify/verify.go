@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ggwhite/4x/internal/envutil"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -149,6 +150,7 @@ func executeCommand(ctx context.Context, cmdStr, group, workDir string) protocol
 	start := time.Now()
 	cmd := exec.CommandContext(ctx, "sh", "-c", cmdStr)
 	cmd.Dir = workDir
+	cmd.Env = envutil.EnrichedEnv()
 
 	out, err := cmd.CombinedOutput()
 	finished := time.Now()

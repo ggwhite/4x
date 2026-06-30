@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ggwhite/4x/internal/envutil"
 	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 )
@@ -45,6 +46,7 @@ func Execute(ctx context.Context, hooks []feature.HookEntry, logDir string) ([]R
 	for i, h := range hooks {
 		start := time.Now()
 		cmd := exec.CommandContext(ctx, "sh", "-c", h.Run)
+		cmd.Env = envutil.EnrichedEnv()
 
 		var output bytes.Buffer
 		cmd.Stdout = &output
