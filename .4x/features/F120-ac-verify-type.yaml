@@ -1,0 +1,30 @@
+id: F120-ac-verify-type
+name: 'F120: AC verify type'
+description: Designer 在 acceptance-criteria.md 標記每條 AC 的驗證類型（unit-test / integration / inspection / skip），Tester 依標記決定驗證方式，Guard 在 testing→accepting 閘門 enforce execution 類 AC 必須有命令輸出 evidence。無 Designer 階段時預設全部從嚴（execution）。
+status: not-started
+priority: 1
+subtasks:
+    - id: add-types
+      name: ACEvidence 加 VerifyType + TestStrategy 加 ACVerifyMap
+      status: ""
+    - id: guard-check
+      name: Guard checkACEvidence 依 verify_type 正則檢查 evidence 品質
+      status: ""
+    - id: designer-tmpl
+      name: Designer template 加 Verify 欄和 ac_verify_map 指引
+      status: ""
+    - id: design-reviewer-tmpl
+      name: Design Reviewer template 加 AC verify type 完整性 checklist
+      status: ""
+    - id: tester-tmpl
+      name: Tester template 讀 ac_verify_map 並強化 evidence 規則
+      status: ""
+    - id: verify-e2e
+      name: 全流程驗證
+      status: ""
+spec: docs/design/ac-verify-type-spec.md
+plan: docs/design/ac-verify-type-plan.md
+rules:
+    - 向後相容：舊 feature 無 ac_verify_map 時全部預設 execution
+    - Guard 判斷來源是 test-strategy.yaml 的 ac_verify_map，不依賴 Tester 自標的 verify_type
+    - 不改 4x verify 指令本身
