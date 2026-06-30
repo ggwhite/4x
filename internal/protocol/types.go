@@ -183,9 +183,10 @@ type BaselineRepo struct {
 
 // ACEvidence 是單一 acceptance criterion 的驗證結果
 type ACEvidence struct {
-	ID       string   `json:"id"`
-	Passed   bool     `json:"passed"`
-	Evidence []string `json:"evidence"`
+	ID         string   `json:"id"`
+	Passed     bool     `json:"passed"`
+	Evidence   []string `json:"evidence"`
+	VerifyType string   `json:"verify_type,omitempty"`
 }
 
 // VerifyEvidence 是 rounds/round-N/verify.json 的結構
@@ -243,6 +244,9 @@ type TestStrategy struct {
 	// ManualChecks 定義 Tester 必須實際執行（非讀 code）的驗證步驟。
 	// Guard 會驗證 verify.json 含有對應的 manual_check_results。
 	ManualChecks []ManualCheck `yaml:"manual_checks,omitempty" json:"manual_checks,omitempty"`
+	// ACVerifyMap 標記每條 AC 的驗證類型（unit-test / integration / inspection / skip）。
+	// Guard 依此決定 evidence 品質要求；未列出的 AC 預設 execution（從嚴）。
+	ACVerifyMap map[string]string `yaml:"ac_verify_map,omitempty" json:"ac_verify_map,omitempty"`
 }
 
 // ManualCheck 是 Designer 在 test-strategy.yaml 定義的手動驗證步驟。

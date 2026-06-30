@@ -383,7 +383,7 @@ Deterministic checks enforced by the CLI — not dependent on AI judgment.
 | **Dependencies** | Blocks `4x run` if depended features are not done |
 | **Backlog drift** | Warns when `.4x/features/*.yaml` and external mirrors are out of sync |
 | **Build gate** | In coding/amending phase: runs `settings.json` build + lint commands, writes `build-gate.json`. Failure blocks the round; the Coder agent should fix and re-run `4x check` |
-| **Testing → Accepting gate** | Requires `verify.json` (passed=true), `test-report.md`, `final-report.md`. If `test-strategy.yaml` defines `manual_checks`, each must have a corresponding `manual_check_results` entry with non-empty evidence |
+| **Testing → Accepting gate** | Requires `verify.json` (passed=true), `test-report.md`, `final-report.md`. If `test-strategy.yaml` defines `manual_checks`, each must have a corresponding `manual_check_results` entry with non-empty evidence. If `test-strategy.yaml` defines `ac_verify_map`, execution-type ACs (unit-test / integration) must have command output in evidence; inspection ACs need non-empty evidence; skip ACs are not checked. ACs not listed in the map default to execution |
 | **Self-mod guard** | Layered on top of Scope (does not replace it): flags file-level changes to protected paths (default `internal/state/`, `internal/guard/`, `internal/protocol/`), blocks the round when the per-round protected diff exceeds the budget, requires accompanying tests before accepting, and blocks auto-merge until manually approved |
 
 Run manually with `4x check <feature-id>`.

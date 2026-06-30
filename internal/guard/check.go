@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -233,30 +234,91 @@ func checkTestingToAccepting(ws *protocol.Workspace, featureID string, round int
 		}
 	}
 
-	checkACEvidence(evidence, r)
+	checkACEvidence(ws, featureID, evidence, r)
 	checkManualChecks(ws, featureID, evidence, r)
 	checkSelfModTestGate(ws, featureID, r)
 }
 
+var validACVerifyTypes = map[string]bool{
+	"unit-test":   true,
+	"integration": true,
+	"inspection":  true,
+	"skip":        true,
+	"execution":   true,
+}
+
+var executionPattern = regexp.MustCompile(`(\$\s|PASS|FAIL|^ok\s|--- |exit code|→|stdout|stderr|\d+\.\d+s)`)
+
+func isExecutionType(vt string) bool {
+	return vt == "unit-test" || vt == "integration" || vt == "execution"
+}
+
 // checkACEvidence 檢查 verify.json 的 per-AC evidence mapping：每個 AC 都必須 passed 且有 evidence。
 // ac_results 為空時阻擋（舊格式 verify.json 不通過此檢查）。
-func checkACEvidence(evidence protocol.VerifyEvidence, r *CheckResult) {
+// 若 test-strategy.yaml 有 ac_verify_map，依 verify_type 檢查 evidence 品質。
+func checkACEvidence(ws *protocol.Workspace, featureID string, evidence protocol.VerifyEvidence, r *CheckResult) {
 	if len(evidence.ACResults) == 0 {
 		r.Pass = false
 		r.Errors = append(r.Errors, "verify.json missing ac_results: every acceptance criterion must have evidence")
 		r.RetryableErrors++
 		return
 	}
+
+	ts, err := ws.ReadTestStrategy(featureID)
+	if err != nil {
+		r.Pass = false
+		r.Errors = append(r.Errors, fmt.Sprintf("failed to read test-strategy.yaml for ac_verify_map: %v", err))
+		r.RetryableErrors++
+		return
+	}
+	verifyMap := ts.ACVerifyMap
+
 	for _, ac := range evidence.ACResults {
+		vt := "execution"
+		if verifyMap != nil {
+			if v, ok := verifyMap[ac.ID]; ok {
+				vt = v
+			}
+		}
+
+		if !validACVerifyTypes[vt] {
+			r.Pass = false
+			r.Errors = append(r.Errors, fmt.Sprintf("%s: invalid verify_type %q", ac.ID, vt))
+			r.RetryableErrors++
+			continue
+		}
+
+		if vt == "skip" {
+			continue
+		}
+
 		if !ac.Passed {
 			r.Pass = false
-			r.Errors = append(r.Errors, fmt.Sprintf("AC %s failed", ac.ID))
+			r.Errors = append(r.Errors, fmt.Sprintf("%s failed", ac.ID))
 			r.RetryableErrors++
 		}
+
 		if len(ac.Evidence) == 0 {
 			r.Pass = false
-			r.Errors = append(r.Errors, fmt.Sprintf("AC %s has no evidence", ac.ID))
+			r.Errors = append(r.Errors, fmt.Sprintf("%s: no evidence", ac.ID))
 			r.RetryableErrors++
+			continue
+		}
+
+		if isExecutionType(vt) {
+			hasExecEvidence := false
+			for _, e := range ac.Evidence {
+				if executionPattern.MatchString(e) {
+					hasExecEvidence = true
+					break
+				}
+			}
+			if !hasExecEvidence {
+				r.Pass = false
+				r.Errors = append(r.Errors, fmt.Sprintf(
+					"%s: verify_type=%s but evidence has no execution output (need command results, not code references)", ac.ID, vt))
+				r.RetryableErrors++
+			}
 		}
 	}
 }

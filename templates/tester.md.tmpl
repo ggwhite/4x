@@ -110,10 +110,21 @@ test-strategy.yaml or update ac_results for the fallback commands.
 After running `4x verify`, you MUST update verify.json to include `ac_results`.
 Read the existing verify.json, add the `ac_results` field, and write it back.
 
+Read `ac_verify_map` from test-strategy.yaml to know each AC's verify type.
+If test-strategy.yaml has no `ac_verify_map`, treat ALL ACs as execution type.
+
 Every AC item from acceptance-criteria.md must appear in `ac_results` with:
 - `id`: the AC identifier (e.g. "AC-1", "AC-2")
 - `passed`: true/false
-- `evidence`: array of strings describing how this AC was verified
+- `verify_type`: the type from ac_verify_map (or "execution" if not mapped)
+- `evidence`: array of strings — content depends on verify_type:
+
+| verify_type | Required evidence |
+|---|---|
+| unit-test | Command + test output (e.g. "$ go test -run TestFoo → PASS (0.02s)") |
+| integration | Command + runtime output (e.g. "$ curl localhost:4567/api → 200 OK") |
+| inspection | Non-empty description (code ref or diff check is acceptable) |
+| skip | Empty array — this AC is skipped |
 
 Example ac_results entry in verify.json:
 ```json
@@ -123,13 +134,16 @@ Example ac_results entry in verify.json:
   "role": "tester",
   "commands": [...],
   "ac_results": [
-    {"id": "AC-1", "passed": true, "evidence": ["make test passed with 0 failures"]},
-    {"id": "AC-2", "passed": true, "evidence": ["verified output matches expected format", "edge case handled correctly"]}
+    {"id": "AC-1", "verify_type": "unit-test", "passed": true, "evidence": ["$ go test -run TestFindSimilar → PASS (0.03s)"]},
+    {"id": "AC-2", "verify_type": "inspection", "passed": true, "evidence": ["git diff shows no API signature changes"]},
+    {"id": "AC-3", "verify_type": "skip", "passed": true, "evidence": []}
   ]
 }
 ```
 
-The guard will block testing → accepting if any AC has no evidence.
+The guard will block testing → accepting if:
+- Any execution-type AC evidence lacks command output patterns
+- Any non-skip AC has empty evidence
 
 == Manual Checks (REQUIRED if defined) ==
 If test-strategy.yaml contains `manual_checks`, you MUST execute every one.
@@ -214,10 +228,12 @@ Your UNIQUE value is verifying RUNTIME BEHAVIOR:
 - Run the feature end-to-end and confirm it works
 - Compare actual output against expected output
 
-Evidence rules:
-- "I read the code and it looks correct" is NOT valid evidence — the Reviewer already did that
-- Valid evidence = actual command output, HTTP responses, log lines, test results, screenshots
-- If you cannot execute a check, mark it SKIP with a reason — do NOT fake evidence by reading code
+Evidence rules by verify_type:
+- unit-test / integration: you MUST include actual command output. "I read the code and it looks correct" will be REJECTED by the guard. Include the $ command and its output.
+- inspection: static evidence is acceptable (diff output, grep results, code reference). Only use this for ACs explicitly marked as inspection in ac_verify_map.
+- skip: no evidence needed. Only use for ACs marked skip.
+
+If ac_verify_map is not present in test-strategy.yaml, ALL ACs default to execution — you must provide command output for every single AC.
 
 == Role Learnings (optional) ==
 如果你在測試過程中發現了對未來 feature 有價值的教訓（測試環境問題、容易遺漏的測試場景等），可以產出：

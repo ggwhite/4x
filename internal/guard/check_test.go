@@ -134,7 +134,7 @@ func TestCheckTestingToAccepting_AllArtifactsPresent(t *testing.T) {
 	featureDir := ws.FeatureDir("feat-1")
 
 	data, _ := json.Marshal(protocol.VerifyEvidence{Passed: true, Round: 1,
-		ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: true, Evidence: []string{"ok"}}}})
+		ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: true, Evidence: []string{"$ make test → PASS (1.23s)"}}}})
 	writeFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))
 	writeFile(t, filepath.Join(roundDir, protocol.TestReport), "# Test")
 	writeFile(t, filepath.Join(featureDir, protocol.FinalReport), "# Final")
@@ -257,7 +257,7 @@ func TestCheckTestingToAccepting_ManualChecksPass(t *testing.T) {
 	data, _ := json.Marshal(protocol.VerifyEvidence{
 		Passed:    true,
 		Round:     1,
-		ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: true, Evidence: []string{"ok"}}},
+		ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: true, Evidence: []string{"$ make test → PASS (0.5s)"}}},
 		ManualCheckResults: []protocol.ManualCheckResult{
 			{ID: "mc-1", Passed: true, Evidence: []string{"curl returned 200"}},
 		},
@@ -283,7 +283,7 @@ func TestCheckTestingToAccepting_ManualCheckMissingResult(t *testing.T) {
 	data, _ := json.Marshal(protocol.VerifyEvidence{
 		Passed:    true,
 		Round:     1,
-		ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: true, Evidence: []string{"ok"}}},
+		ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: true, Evidence: []string{"$ make test → PASS (0.5s)"}}},
 	})
 	writeFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))
 	writeFile(t, filepath.Join(roundDir, protocol.TestReport), "# Test")
@@ -315,7 +315,7 @@ func TestCheckTestingToAccepting_ManualCheckEmptyEvidence(t *testing.T) {
 	data, _ := json.Marshal(protocol.VerifyEvidence{
 		Passed:    true,
 		Round:     1,
-		ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: true, Evidence: []string{"ok"}}},
+		ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: true, Evidence: []string{"$ make test → PASS (0.5s)"}}},
 		ManualCheckResults: []protocol.ManualCheckResult{
 			{ID: "mc-1", Passed: true, Evidence: []string{}},
 		},

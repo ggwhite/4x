@@ -51,7 +51,7 @@ func TestCheckTestingToAccepting_EmptyCommandsPasses(t *testing.T) {
 	featureDir := ws.FeatureDir("feat-1")
 
 	data, _ := json.Marshal(protocol.VerifyEvidence{Passed: true, Round: 1,
-		ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: true, Evidence: []string{"ok"}}}})
+		ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: true, Evidence: []string{"$ make test → PASS (0.5s)"}}}})
 	writeFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))
 	writeFile(t, filepath.Join(roundDir, protocol.TestReport), "# Test")
 	writeFile(t, filepath.Join(featureDir, protocol.FinalReport), "# Final")
@@ -76,7 +76,7 @@ func TestCheckTestingToAccepting_ExpectedNonZeroExitPasses(t *testing.T) {
 			{Command: "make build", ExitCode: 0},
 			{Command: "status __nonexistent__ --json", ExitCode: 1, ExpectedExitCode: &expectedOne},
 		},
-		ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: true, Evidence: []string{"ok"}}},
+		ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: true, Evidence: []string{"$ make test → PASS (0.5s)"}}},
 	}
 	data, _ := json.Marshal(ev)
 	writeFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))
@@ -127,7 +127,7 @@ func TestCheckTestingToAccepting_AllCommandsZeroPasses(t *testing.T) {
 			{Command: "make build", ExitCode: 0},
 			{Command: "make test", ExitCode: 0},
 		},
-		ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: true, Evidence: []string{"ok"}}},
+		ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: true, Evidence: []string{"$ make test → PASS (0.5s)"}}},
 	}
 	data, _ := json.Marshal(ev)
 	writeFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))

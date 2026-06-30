@@ -94,9 +94,16 @@ Subtasks:
 
 == acceptance-criteria.md format ==
 # Acceptance Criteria
-| # | Criterion | Verification Method |
-|---|---|---|
-| AC-1 | ... | ... |
+| # | Criterion | Verification Method | Verify |
+|---|---|---|---|
+| AC-1 | ... | ... | unit-test |
+
+The Verify column classifies how each AC should be verified:
+- unit-test: verifiable by running a unit test — Tester must show test command + output
+- integration: needs a running service or cross-component check — Tester must show command + output
+- inspection: verifiable by reading code or diff — Tester may use static evidence
+- skip: already verified by Reviewer or not applicable — Tester skips this AC
+Default to unit-test when uncertain. The Guard rejects execution-type ACs without command output.
 
 == test-strategy.yaml format ==
 web: false
@@ -149,6 +156,12 @@ Rules for manual_checks:
 - Each step should be a concrete command or observable action, not "check the code"
 - Use when the AC requires observing actual runtime behavior
 - build/test/lint failures should be caught by verify_commands, not manual_checks
+
+ac_verify_map maps each AC to its verify type. Must match the Verify column in acceptance-criteria.md:
+ac_verify_map:
+  AC-1: unit-test
+  AC-2: integration
+  AC-3: inspection
 
 == Incremental Writing & Resume ==
 Write task-brief.md incrementally as you analyze — do not wait until the end.

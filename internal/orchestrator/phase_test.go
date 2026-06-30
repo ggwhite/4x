@@ -118,7 +118,7 @@ func TestNextPhaseAfter_TestingGuardRetry(t *testing.T) {
 	data, _ := json.Marshal(protocol.VerifyEvidence{
 		Passed:    true,
 		Round:     1,
-		ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: true, Evidence: []string{"ok"}}},
+		ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: true, Evidence: []string{"$ make test → PASS (0.5s)"}}},
 	})
 	writePhaseFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))
 	writePhaseFile(t, filepath.Join(roundDir, protocol.TestReport), "# Test\n## Verdict\nPASS")
@@ -161,7 +161,7 @@ func TestNextPhaseAfter_TestingGuardRetrySucceeds(t *testing.T) {
 	data, _ := json.Marshal(protocol.VerifyEvidence{
 		Passed:    true,
 		Round:     1,
-		ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: true, Evidence: []string{"ok"}}},
+		ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: true, Evidence: []string{"$ make test → PASS (0.5s)"}}},
 		ManualCheckResults: []protocol.ManualCheckResult{
 			{ID: "mc-1", Passed: true, Evidence: []string{"curl returned 200"}},
 		},
@@ -191,7 +191,7 @@ func TestNextPhaseAfter_TestingGuardRetryGlobalCap(t *testing.T) {
 	data, _ := json.Marshal(protocol.VerifyEvidence{
 		Passed:    true,
 		Round:     1,
-		ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: true, Evidence: []string{"ok"}}},
+		ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: true, Evidence: []string{"$ make test → PASS (0.5s)"}}},
 	})
 	writePhaseFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))
 	writePhaseFile(t, filepath.Join(roundDir, protocol.TestReport), "# Test\n## Verdict\nPASS")
@@ -220,7 +220,7 @@ func TestNextPhaseAfter_TestingNonRetryableGoesToNeedsAttention(t *testing.T) {
 		Commands: []protocol.VerifyCommand{
 			{Command: "make test", ExitCode: 1},
 		},
-		ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: true, Evidence: []string{"ok"}}},
+		ACResults: []protocol.ACEvidence{{ID: "AC-1", Passed: true, Evidence: []string{"$ make test → PASS (0.5s)"}}},
 	}
 	data, _ := json.Marshal(ev)
 	writePhaseFile(t, filepath.Join(roundDir, protocol.VerifyFile), string(data))

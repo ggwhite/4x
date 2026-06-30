@@ -44,8 +44,8 @@ func TestCheckACEvidence_AllACsHaveEvidence(t *testing.T) {
 		Passed: true,
 		Round:  1,
 		ACResults: []protocol.ACEvidence{
-			{ID: "AC-1", Passed: true, Evidence: []string{"build passed"}},
-			{ID: "AC-2", Passed: true, Evidence: []string{"test passed", "output verified"}},
+			{ID: "AC-1", Passed: true, Evidence: []string{"$ make build → PASS (2.1s)"}},
+			{ID: "AC-2", Passed: true, Evidence: []string{"$ make test → PASS (0.5s)", "output verified"}},
 		},
 	}
 	data, _ := json.Marshal(ev)
@@ -68,7 +68,7 @@ func TestCheckACEvidence_ACMissingEvidence(t *testing.T) {
 		Passed: true,
 		Round:  1,
 		ACResults: []protocol.ACEvidence{
-			{ID: "AC-1", Passed: true, Evidence: []string{"build passed"}},
+			{ID: "AC-1", Passed: true, Evidence: []string{"$ make build → PASS (1.0s)"}},
 			{ID: "AC-2", Passed: true, Evidence: []string{}},
 			{ID: "AC-3", Passed: false, Evidence: nil},
 		},
@@ -85,10 +85,10 @@ func TestCheckACEvidence_ACMissingEvidence(t *testing.T) {
 
 	foundAC2, foundAC3 := false, false
 	for _, e := range result.Errors {
-		if strings.Contains(e, "AC-2") && strings.Contains(e, "no evidence") {
+		if strings.Contains(e, "AC-2") && strings.Contains(e, "evidence") {
 			foundAC2 = true
 		}
-		if strings.Contains(e, "AC-3") && strings.Contains(e, "no evidence") {
+		if strings.Contains(e, "AC-3") && strings.Contains(e, "evidence") {
 			foundAC3 = true
 		}
 	}
