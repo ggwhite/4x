@@ -22,18 +22,19 @@ const (
 	CategoryReview      Category = "review"
 	CategoryTooling     Category = "tooling"
 	CategoryProcess     Category = "process"
+	CategoryOps         Category = "ops"
 )
 
 // ValidCategories 回傳所有合法的 category 列舉，供 CLI 與驗證使用。
 func ValidCategories() []Category {
 	return []Category{
 		CategoryDesign, CategoryCodeQuality, CategoryTesting,
-		CategoryReview, CategoryTooling, CategoryProcess,
+		CategoryReview, CategoryTooling, CategoryProcess, CategoryOps,
 	}
 }
 
 var validCategorySet = func() map[Category]bool {
-	m := make(map[Category]bool, 6)
+	m := make(map[Category]bool, len(ValidCategories()))
 	for _, c := range ValidCategories() {
 		m[c] = true
 	}
@@ -383,10 +384,11 @@ func ParseRoleLearningsFile(path string) (string, []RetroLearning, error) {
 var roleCategoryMap = map[string][]Category{
 	"designer":        {CategoryDesign, CategoryProcess},
 	"design-reviewer": {CategoryDesign, CategoryReview},
-	"coder":           {CategoryDesign, CategoryCodeQuality, CategoryTooling},
+	"coder":           {CategoryDesign, CategoryCodeQuality, CategoryTooling, CategoryOps},
 	"reviewer":        {CategoryCodeQuality, CategoryReview},
 	"deep-reviewer":   {CategoryCodeQuality, CategoryReview, CategoryDesign},
-	"tester":          {CategoryTesting, CategoryTooling},
+	"tester":          {CategoryTesting, CategoryTooling, CategoryOps},
+	"fixer":           {CategoryCodeQuality, CategoryTooling, CategoryOps},
 	"acceptor":        {CategoryProcess},
 }
 

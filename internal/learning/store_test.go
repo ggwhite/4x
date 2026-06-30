@@ -183,14 +183,70 @@ func TestUpdateUsage(t *testing.T) {
 }
 
 func TestCategoriesForRole(t *testing.T) {
-	if got := CategoriesForRole("coder"); len(got) != 3 {
-		t.Errorf("expected 3 categories for coder, got %v", got)
+	containsOps := func(cats []Category) bool {
+		for _, c := range cats {
+			if c == CategoryOps {
+				return true
+			}
+		}
+		return false
+	}
+
+	if got := CategoriesForRole("coder"); len(got) != 4 || !containsOps(got) {
+		t.Errorf("expected 4 categories including ops for coder, got %v", got)
+	}
+	if got := CategoriesForRole("tester"); !containsOps(got) {
+		t.Errorf("expected ops in tester categories, got %v", got)
+	}
+	if got := CategoriesForRole("fixer"); !containsOps(got) {
+		t.Errorf("expected ops in fixer categories, got %v", got)
+	}
+	if got := CategoriesForRole("designer"); containsOps(got) {
+		t.Errorf("designer should not have ops, got %v", got)
+	}
+	if got := CategoriesForRole("reviewer"); containsOps(got) {
+		t.Errorf("reviewer should not have ops, got %v", got)
+	}
+	if got := CategoriesForRole("deep-reviewer"); containsOps(got) {
+		t.Errorf("deep-reviewer should not have ops, got %v", got)
+	}
+	if got := CategoriesForRole("design-reviewer"); containsOps(got) {
+		t.Errorf("design-reviewer should not have ops, got %v", got)
 	}
 	if got := CategoriesForRole("acceptor"); len(got) != 1 || got[0] != CategoryProcess {
 		t.Errorf("expected [process] for acceptor, got %v", got)
 	}
 	if got := CategoriesForRole("unknown"); got != nil {
 		t.Errorf("expected nil for unknown role, got %v", got)
+	}
+}
+
+func TestIsValidCategory_Ops(t *testing.T) {
+	if !IsValidCategory(CategoryOps) {
+		t.Error("ops should be a valid category")
+	}
+	if !IsValidCategory("ops") {
+		t.Error("string 'ops' should be a valid category")
+	}
+}
+
+func TestHarvest_OpsCategory(t *testing.T) {
+	s := Store{Version: 1}
+	learnings := []RetroLearning{
+		{Category: CategoryOps, Content: "在 worktree 內跑 go build 前必須設 GOWORK=off"},
+	}
+	added := s.Harvest("F115-test", "coder", learnings)
+	if added != 1 {
+		t.Errorf("expected 1 added for ops category, got %d", added)
+	}
+	if len(s.Entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(s.Entries))
+	}
+	if s.Entries[0].Category != CategoryOps {
+		t.Errorf("expected category ops, got %s", s.Entries[0].Category)
+	}
+	if s.Entries[0].Status != StatusActive {
+		t.Errorf("expected active status, got %s", s.Entries[0].Status)
 	}
 }
 
