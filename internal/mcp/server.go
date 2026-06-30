@@ -151,6 +151,14 @@ func NewServer(version, workspaceRoot string) *mcp.Server {
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
+		Name:        "4x_learn_add",
+		Description: "Add a new learning entry",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, input LearnAddInput) (*mcp.CallToolResult, any, error) {
+		res, err := h.LearnAdd(ctx, input)
+		return wrapResult(res, err)
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
 		Name:        "4x_learn_list",
 		Description: "List all retro learnings",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input LearnListInput) (*mcp.CallToolResult, any, error) {
