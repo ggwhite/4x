@@ -13,7 +13,7 @@
   <img src="docs/assets/demo.gif" alt="4x demo" width="720">
 </p>
 
-**4x is a multi-role AI development framework that splits the software engineering loop into four specialized phases** — Design, Code, Review, Test — each driven by a dedicated AI agent. Like 4X strategy games (eXplore, eXpand, eXploit, eXterminate), the name reflects a system where distinct roles with distinct strengths converge to conquer complexity.
+**4x** is an open-source CLI that orchestrates AI coding agents into a multi-role development loop — each role (Design, Code, Review, Test) runs in isolation with deterministic guardrails, so features survive contact with production. Like 4X strategy games (eXplore, eXpand, eXploit, eXterminate), the name reflects a system where distinct roles with distinct strengths converge to conquer complexity.
 
 ## Key Features
 
