@@ -1,7 +1,7 @@
 id: F115-self-learn-ops-cat
 name: 'F115: ops category for learnings'
 description: 新增 ops category，讓環境、工具、帳號、部署等操作知識可被 learnings 機制捕獲。加入 ValidCategories、roleCategoryMap（coder/tester/fixer），更新三個 role template 的 role-learnings 提示。
-status: not-started
+status: in-progress
 profile: standard
 spec: docs/design/self-learning-spec.md
 plan: docs/design/self-learning-ops-cat-plan.md
