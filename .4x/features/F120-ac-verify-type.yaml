@@ -1,7 +1,7 @@
 id: F120-ac-verify-type
 name: 'F120: AC verify type'
 description: Designer 在 acceptance-criteria.md 標記每條 AC 的驗證類型（unit-test / integration / inspection / skip），Tester 依標記決定驗證方式，Guard 在 testing→accepting 閘門 enforce execution 類 AC 必須有命令輸出 evidence。無 Designer 階段時預設全部從嚴（execution）。
-status: in-progress
+status: ready-for-review
 priority: 1
 subtasks:
     - id: add-types
