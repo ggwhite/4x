@@ -60,6 +60,42 @@ docs/
 | [plugin-contract](reference/plugin-contract.md) | ~30 | Plugin 合約 — invocation、filesystem I/O、heartbeat、exit codes、dry-run | 開發新 plugin、改 plugin 介面 |
 | [cli-reference](reference/cli-reference.md) | ~130 | CLI 指令參考 — init / new / status / check / transition / event / prompt / batch / live | 改 CLI、加新 subcommand、查參數用法 |
 
+### dev/ — 開發操作知識
+
+| 文件 | 說明 | 何時讀 |
+|---|---|---|
+| [troubleshoot](dev/troubleshoot.md) | 操作知識 Playbook — 環境/工具/build/測試的已知坑與解法 | 遇到非程式碼邏輯的問題時先查這裡 |
+
+## 操作知識 Playbook
+
+**位置**：[`docs/dev/troubleshoot.md`](dev/troubleshoot.md)
+
+所有 session（4x role、standalone Claude Code、自動化 routine）在工作過程中解決了環境、工具、build、測試相關的坑時，**append 一條 entry 到 playbook 並 commit**。
+
+### 讀
+
+- 遇到 build 失敗、測試報錯、環境異常時，先查 playbook 再 debug
+- 4x Tester / Coder role 的 prompt 會透過 `includes` 自動注入
+
+### 寫
+
+觸發條件：你解決了一個**非程式碼邏輯**的問題（環境配置、工具版本、帳號/權限、workaround）。
+
+格式：
+```
+### [簡短標題]
+- **症狀**：觀察到什麼錯誤/現象
+- **原因**：根因分析
+- **解法**：具體步驟
+- **來源**：哪個 feature/session 首次遇到
+```
+
+### 不寫什麼
+
+- 程式碼 bug 的修法 → 那是 commit message 和 PR 的事
+- 設計教訓 → 那是 `learnings.json` 的事
+- 硬規則 → 那是 `settings.json rules` 的事
+
 ## 文件維護規則
 
 - **新增文件時，必須同步更新本索引**
