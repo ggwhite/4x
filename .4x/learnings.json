@@ -415,7 +415,7 @@
       "id": "L052",
       "source_feature": "F112-verify-fallback",
       "category": "process",
-      "content": "Coder 開始前應先執行 `make check-docs`，確認 pre-existing 的文件缺漏（如 `4x retry`）不會在本 feature 的 CI 驗證中攔截，避免留給後續 round 修復",
+      "content": "Coder 開始前應先執行 `make check-docs`，確認 pre-existing 文件缺漏（如 `4x retry`）不會在本 feature 的 CI 驗證中攔截，避免留給後續 round 修復。",
       "created_at": "2026-06-29T01:04:22.697082+08:00",
       "last_used": "2026-06-29T09:13:33.439443+08:00",
       "used_count": 2,
@@ -437,6 +437,36 @@
       "category": "testing",
       "content": "整合測試應涵蓋「壞 YAML / 非 IsNotExist 錯誤」場景（AC-7），確認 fallback 只在 IsNotExist 觸發，而非吞掉所有解析錯誤",
       "created_at": "2026-06-29T01:04:22.697082+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L055",
+      "source_feature": "F114-coder-build-gate",
+      "category": "code-quality",
+      "content": "新增 guard 函式時，對 coding/amending 共用同一 case 區塊的情境，應同時補上兩個 phase 的獨立測試（即使邏輯相同），以保持測試覆蓋對稱性。",
+      "created_at": "2026-06-30T10:03:31.184683+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L056",
+      "source_feature": "F114-coder-build-gate",
+      "category": "testing",
+      "content": "Mock runner 在新增會寫出檔案的 guard 後必須同步補上對應的假輸出（如 build-gate.json），否則既有 integration test 會靜默失敗，難以定位。",
+      "created_at": "2026-06-30T10:03:31.184683+08:00",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "active"
+    },
+    {
+      "id": "L058",
+      "source_feature": "F114-coder-build-gate",
+      "category": "design",
+      "content": "復用既有結構（VerifyEvidence / runGroup 語意）作為 build-gate 輸出格式，可大幅降低 Orchestrator 和測試的理解成本；設計新 guard 時應優先考慮能否複用現有資料結構。",
+      "created_at": "2026-06-30T10:03:31.184683+08:00",
       "last_used": "0001-01-01T00:00:00Z",
       "used_count": 0,
       "status": "active"
