@@ -1,0 +1,39 @@
+id: F112-verify-fallback
+name: 'F112: 4x verify fallback：無 test-strategy.yaml 時用 settings.json 指令'
+description: |-
+    ## 現狀
+    有 testing phase 的 profile（standard/dashboard）若跳過 Designer，test-strategy.yaml 不存在。
+    此時 4x verify 直接 error，Tester 無法產出 verify.json，guard 阻擋 testing→accepting，
+    最終落 needs-attention 需要人工介入。
+
+    ## 需求
+    1. cmd/4x/verify.go：test-strategy.yaml os.IsNotExist 時不報錯，fallback 到 ws.ReadConfig().Project.Test（與 Build/Lint）組成一個 fallback verify group
+    2. internal/verify/ 新增 FallbackGroups(cfg) helper，把 settings.json 指令轉成 []Group
+    3. fallback 路徑在 RunGroups 完成後，自動合成 ac_results（每個 command 一條 ACEvidence{ID: "verify:<cmd>", Passed: exit==0, Evidence: [summary]}），確保 checkACEvidence 不阻擋
+    4. templates/tester.md.tmpl 補充說明：test-strategy.yaml 不存在時 4x verify 自動 fallback，不需手動建 test-strategy.yaml
+
+    ## 約束
+    - 有 test-strategy.yaml 的正常路徑行為完全不變
+    - fallback 只在 os.IsNotExist 觸發，不處理其他 read error
+    - 不引入新外部依賴
+    - 必須通過 go build ./cmd/4x && go vet ./... && go test -race ./...
+status: done
+priority: 2
+profile: quick
+subtasks:
+    - id: fallback-groups
+      name: internal/verify/ 新增 FallbackGroups helper
+      status: ""
+    - id: verify-cmd
+      name: verify.go fallback 路徑 + ac_results 合成
+      status: ""
+    - id: test
+      name: TestVerifyFallback_NoTestStrategy + TestVerifyFallback_ACResults
+      status: ""
+    - id: template
+      name: tester.md.tmpl 補充說明
+      status: ""
+rules:
+    - 有 test-strategy.yaml 的路徑不受影響
+    - fallback 只在 IsNotExist 觸發
+    - 必須通過 go test -race

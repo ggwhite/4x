@@ -1,0 +1,32 @@
+id: F110-dedupe-fileline-helpers
+name: 'F110: dedupe fileLineCount / numstat 解析重複 helper'
+description: |-
+    ## 現狀
+    gitops 與 guard 兩個 package 各有一對邏輯逐字相同的私有 helper：
+    - 行數計算：internal/gitops/gitops.go:126 countFileLines() 與 internal/guard/selfmod.go:202 fileLineCount()（讀檔→數 \n→末行無換行補 1→錯誤/空檔回 0，完全相同）
+    - numstat 解析：internal/gitops/gitops.go:110 parseNumstatCount() 與 internal/guard/selfmod.go:187 numstatCount()（binary "-" 視為 0、逐字元累加，完全相同）
+
+    ## 需求
+    1. 在 internal/gitops 將兩個 helper export 為單一權威實作：CountFileLines(path string) int、ParseNumstatCount(s string) int
+    2. 移除 internal/guard/selfmod.go 內的 fileLineCount() 與 numstatCount()，改呼叫 gitops.CountFileLines / gitops.ParseNumstatCount（selfmod.go 已 import internal/gitops，無需新增依賴）
+    3. gitops 內部原 countFileLines / parseNumstatCount 的 caller 一併改用 export 後的名稱
+
+    ## 約束
+    - 純 refactor，不改變任何行為與回傳值（含 0 行、無換行末行、binary "-" 等邊界）
+    - 不引入新 package、不引入新外部依賴
+    - 依賴方向維持 guard → gitops，不得反向（避免循環依賴）
+    - 必須通過 go build ./cmd/4x && go vet ./... && go test -race ./...
+status: done
+priority: 4
+profile: quick
+subtasks:
+    - id: line-count
+      name: 收斂 fileLineCount/countFileLines 至 gitops.CountFileLines
+      status: ""
+    - id: numstat
+      name: 收斂 numstatCount/parseNumstatCount 至 gitops.ParseNumstatCount
+      status: ""
+rules:
+    - 純 refactor 不改行為
+    - 依賴方向維持 guard → gitops
+    - 必須通過 go test -race

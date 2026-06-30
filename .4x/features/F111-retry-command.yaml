@@ -1,0 +1,38 @@
+id: F111-retry-command
+name: 'F111: retry：從 needs-attention / blocked 恢復並重跑'
+description: |-
+    ## 現狀
+    needs-attention 與 blocked 是終止態，4x run 碰到會直接退出，無法自行恢復。
+    目前唯一出口是手動執行 4x transition --to {phase} 再 4x run，流程不直覺且不易發現。
+
+    ## 需求
+    1. 新增 4x retry <feature-id> 指令
+    2. 預設行為：從 needs-attention / blocked 轉回 accepting phase（最常見路徑：Acceptor 拒絕後修正）
+    3. 支援 --to <phase> flag 讓 user 指定要回到哪個 phase（如 amending、coding）
+    4. 轉換成功後自動呼叫 run loop，等同 transition + run 的組合
+    5. phase 不合法（非 needs-attention / blocked）時印出清楚錯誤訊息並結束
+
+    ## 約束
+    - 只允許從 needs-attention 或 blocked 觸發；其他 phase 呼叫視為使用者錯誤
+    - --to 的目標 phase 必須通過 state.CanTransition 驗證
+    - 不引入新外部依賴
+    - 必須通過 go build ./cmd/4x && go vet ./... && go test -race ./...
+status: done
+priority: 2
+profile: quick
+subtasks:
+    - id: cmd
+      name: 新增 cmd/4x/retry.go，實作 newRetryCmd()
+      status: ""
+    - id: logic
+      name: transition + run loop 串接，預設 --to accepting
+      status: ""
+    - id: error
+      name: phase 不符時的錯誤訊息
+      status: ""
+    - id: test
+      name: TestRetry_FromNeedsAttention、TestRetry_FromBlocked、TestRetry_InvalidPhase
+      status: ""
+rules:
+    - 只接受 needs-attention / blocked 來源 phase
+    - 必須通過 go test -race
