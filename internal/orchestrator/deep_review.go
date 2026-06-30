@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/ggwhite/4x/internal/enrich"
 	feat "github.com/ggwhite/4x/internal/feature"
@@ -393,9 +394,14 @@ func (r *Runner) runDeepReviewParallel(ctx context.Context, s *protocol.State, r
 	}
 
 	for _, o := range outcomes {
+		subLog := filepath.Join(runner.LogDir(ws, featureID), runner.DeepReviewerLogFileName(round, o.index))
+		subStats := ParseRunStatsFromLog(subLog)
+		r.totalTokens += subStats.Tokens
+		r.totalCostUSD += subStats.CostUSD
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleDeepReviewer, Round: round,
 			Status: fmt.Sprintf("exit-%d", o.result.ExitCode), Runner: runnerName, Model: deepModel,
+			TokensUsed: subStats.Tokens, CostUSD: subStats.CostUSD,
 		})
 	}
 
@@ -463,7 +469,12 @@ func (r *Runner) runSynthesizer(ctx context.Context, s *protocol.State, runnerNa
 	synthLog := filepath.Join(runner.LogDir(ws, featureID), runner.LogFileName(round, string(protocol.RoleSynthesizer)))
 	synthRunner := r.NewRunner(runnerName, synthLog, synthModel)
 	fmt.Printf("[round %d] deep-reviewing (synthesizer) — invoking %s (model: %s)\n", round, runnerName, synthModel)
+	synthStart := time.Now()
 	synthRes, synthErr := synthRunner.Run(ctx, synthPrompt)
+	synthDur := time.Since(synthStart)
+	synthStats := ParseRunStatsFromLog(synthLog)
+	r.totalTokens += synthStats.Tokens
+	r.totalCostUSD += synthStats.CostUSD
 	if synthErr != nil {
 		if ctx.Err() == context.Canceled {
 			StopState(ws, featureID, s, "interrupted", fmt.Sprintf("deep-review synthesizer interrupted by signal (round %d)", round))
@@ -474,12 +485,14 @@ func (r *Runner) runSynthesizer(ctx context.Context, s *protocol.State, runnerNa
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleSynthesizer, Round: round,
 			Status: "error", Detail: synthErr.Error(), Runner: runnerName, Model: synthModel,
+			TokensUsed: synthStats.Tokens, CostUSD: synthStats.CostUSD, DurationMs: synthDur.Milliseconds(),
 		})
 		return false, synthErr
 	}
 	ws.AppendEvent(featureID, protocol.Event{
 		Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleSynthesizer, Round: round,
 		Status: fmt.Sprintf("exit-%d", synthRes.ExitCode), Runner: runnerName, Model: synthModel,
+		TokensUsed: synthStats.Tokens, CostUSD: synthStats.CostUSD, DurationMs: synthDur.Milliseconds(),
 	})
 	if runner.IsHardError(synthRes) {
 		StopState(ws, featureID, s, "hard-error", fmt.Sprintf("deep-review synthesizer returned hard error (exit 2) (round %d)", round))
@@ -531,7 +544,9 @@ func (r *Runner) runDeepSubRole(ctx context.Context, s *protocol.State, role pro
 		fmt.Printf("[round %d] deep-reviewing (%s) — invoking %s\n", round, role, runnerName)
 	}
 
+	invokeStart := time.Now()
 	result, runErr := rn.Run(ctx, promptText)
+	invokeDur := time.Since(invokeStart)
 
 	if stopSync != nil {
 		stopSync()
@@ -541,6 +556,10 @@ func (r *Runner) runDeepSubRole(ctx context.Context, s *protocol.State, role pro
 			slog.Warn("sync from worktree failed", "feature", featureID, "round", round, "role", role, "error", serr)
 		}
 	}
+
+	stats := ParseRunStatsFromLog(logPath)
+	r.totalTokens += stats.Tokens
+	r.totalCostUSD += stats.CostUSD
 
 	if runErr != nil {
 		if ctx.Err() == context.Canceled {
@@ -552,6 +571,7 @@ func (r *Runner) runDeepSubRole(ctx context.Context, s *protocol.State, role pro
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: role, Round: round,
 			Status: "error", Detail: runErr.Error(), Runner: runnerName, Model: model,
+			TokensUsed: stats.Tokens, CostUSD: stats.CostUSD, DurationMs: invokeDur.Milliseconds(),
 		})
 		return false, runErr
 	}
@@ -559,6 +579,7 @@ func (r *Runner) runDeepSubRole(ctx context.Context, s *protocol.State, role pro
 	ws.AppendEvent(featureID, protocol.Event{
 		Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: role, Round: round,
 		Status: fmt.Sprintf("exit-%d", result.ExitCode), Runner: runnerName, Model: model,
+		TokensUsed: stats.Tokens, CostUSD: stats.CostUSD, DurationMs: invokeDur.Milliseconds(),
 	})
 
 	if runner.IsHardError(result) {

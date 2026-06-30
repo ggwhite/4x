@@ -228,6 +228,11 @@ func handleMessages(ws *protocol.CachedWorkspace, featureID string, w http.Respo
 			content := readIfExists(filepath.Join(roundPath, f.name))
 			if content != "" {
 				rp := phases[durationKey{f.role, roundNum}]
+				if f.role == "deep-reviewer" {
+					sp := phases[durationKey{"synthesizer", roundNum}]
+					rp.costUSD += sp.costUSD
+					rp.tokensUsed += sp.tokensUsed
+				}
 				messages = append(messages, messageInfo{
 					Role:       f.role,
 					Label:      f.name,
@@ -322,10 +327,10 @@ func buildPhaseInfo(ws *protocol.CachedWorkspace, featureID string) map[duration
 						info.model = e.Model
 					}
 					if e.TokensUsed > 0 {
-						info.tokensUsed = e.TokensUsed
+						info.tokensUsed += e.TokensUsed
 					}
 					if e.CostUSD > 0 {
-						info.costUSD = e.CostUSD
+						info.costUSD += e.CostUSD
 					}
 					result[key] = info
 				}
