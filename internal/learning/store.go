@@ -272,11 +272,11 @@ func (s *Store) MarkStale(staleDays int) {
 	}
 }
 
-// ActiveEntries 回傳所有 status==active 的條目，保持原始順序。
+// ActiveEntries 回傳所有 status==active 且非 ineffective 的條目，保持原始順序。
 func (s *Store) ActiveEntries() []Entry {
 	var result []Entry
 	for _, e := range s.Entries {
-		if e.Status == StatusActive {
+		if e.Status == StatusActive && !e.Ineffective {
 			result = append(result, e)
 		}
 	}
@@ -491,16 +491,26 @@ func (s *Store) MarkIneffective() int {
 	return marked
 }
 
-// hasCategoryContinuation 檢查最近 3 個來自不同 feature 的 entries 是否包含同 category 的 learning。
+// hasCategoryContinuation 檢查最近 3 個來自不同 feature 的 active entries（比 target 更新）是否包含同 category。
 func (s *Store) hasCategoryContinuation(targetIdx int) bool {
 	target := s.Entries[targetIdx]
+	activated := target.ActivatedAt
+	if activated.IsZero() {
+		activated = target.CreatedAt
+	}
 	count := 0
 	for j := len(s.Entries) - 1; j >= 0 && count < 3; j-- {
 		if j == targetIdx {
 			continue
 		}
 		other := s.Entries[j]
-		if other.SourceFeature == target.SourceFeature {
+		if other.Status != StatusActive && other.Status != StatusCandidate {
+			continue
+		}
+		if other.SourceFeature == "" || other.SourceFeature == target.SourceFeature {
+			continue
+		}
+		if other.CreatedAt.Before(activated) {
 			continue
 		}
 		count++

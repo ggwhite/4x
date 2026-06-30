@@ -118,10 +118,6 @@ func HarvestLearnings(ws *protocol.Workspace, featureID string) {
 		return
 	}
 
-	if totalAdded == 0 {
-		return
-	}
-
 	if err := GenerateLearningsContext(ws); err != nil {
 		slog.Warn("refresh learnings context after harvest failed", "error", err)
 	}
