@@ -64,54 +64,113 @@
   "profiles": {
     "full": {
       "phases": [
-        { "phase": "designing" },
-        { "phase": "design-reviewing" },
-        { "phase": "coding" },
-        { "phase": "reviewing" },
-        { "phase": "testing" },
-        { "phase": "deep-reviewing" },
-        { "phase": "fixing" },
-        { "phase": "accepting" }
+        {
+          "phase": "designing"
+        },
+        {
+          "phase": "design-reviewing"
+        },
+        {
+          "phase": "coding"
+        },
+        {
+          "phase": "reviewing"
+        },
+        {
+          "phase": "testing"
+        },
+        {
+          "phase": "deep-reviewing"
+        },
+        {
+          "phase": "fixing"
+        },
+        {
+          "phase": "accepting"
+        }
       ]
     },
     "normal": {
       "phases": [
-        { "phase": "designing" },
-        { "phase": "coding" },
-        { "phase": "reviewing" },
-        { "phase": "testing" },
-        { "phase": "accepting" }
+        {
+          "phase": "designing"
+        },
+        {
+          "phase": "coding"
+        },
+        {
+          "phase": "reviewing"
+        },
+        {
+          "phase": "testing"
+        },
+        {
+          "phase": "accepting"
+        }
       ]
     },
     "standard": {
       "phases": [
-        { "phase": "coding" },
-        { "phase": "reviewing" },
-        { "phase": "testing" },
-        { "phase": "accepting" }
+        {
+          "phase": "coding"
+        },
+        {
+          "phase": "reviewing"
+        },
+        {
+          "phase": "testing"
+        },
+        {
+          "phase": "accepting"
+        }
       ]
     },
     "quick": {
       "phases": [
-        { "phase": "coding" },
-        { "phase": "reviewing", "model": "sonnet" },
-        { "phase": "accepting", "model": "sonnet" }
+        {
+          "phase": "coding"
+        },
+        {
+          "phase": "reviewing",
+          "model": "sonnet"
+        },
+        {
+          "phase": "accepting",
+          "model": "sonnet"
+        }
       ]
     },
     "code-only": {
       "phases": [
-        { "phase": "coding" },
-        { "phase": "accepting", "model": "sonnet" }
+        {
+          "phase": "coding"
+        },
+        {
+          "phase": "accepting",
+          "model": "sonnet"
+        }
       ]
     },
     "dashboard": {
       "phases": [
-        { "phase": "coding" },
-        { "phase": "reviewing" },
-        { "phase": "testing" },
-        { "phase": "deep-reviewing" },
-        { "phase": "fixing" },
-        { "phase": "accepting" }
+        {
+          "phase": "coding"
+        },
+        {
+          "phase": "reviewing"
+        },
+        {
+          "phase": "testing"
+        },
+        {
+          "phase": "deep-reviewing"
+        },
+        {
+          "phase": "fixing"
+        },
+        {
+          "phase": "accepting"
+        }
       ]
     }
   },
@@ -150,6 +209,9 @@
         "不要動 templates/*.md.tmpl 除非 task-brief 明確要求",
         "若功能涉及新增 settings.json 欄位（config schema 變更），同步更新 .4x/settings.json 加入 sensible defaults",
         "禁止使用 git add . / git add -A / git add --all，只 add 具體檔案路徑，避免意外加入 symlink 或非預期檔案"
+      ],
+      "includes": [
+        "docs/dev/troubleshoot.md"
       ]
     },
     "reviewer": {
@@ -178,6 +240,9 @@
         "截圖檔名格式 {step}-{description}.png（如 01-dashboard-loaded.png、02-profile-selector.png），每個 AC 至少一張",
         "嚴禁影響使用者環境：不可對 port 4567 發送請求、不可修改 ~/.4x/、不可彈出可見瀏覽器視窗",
         "Playwright 腳本存到 .4x/run/{feature-id}/e2e/，檔名用描述性名稱如 run-feature.spec.ts"
+      ],
+      "includes": [
+        "docs/dev/troubleshoot.md"
       ]
     },
     "acceptor": {
@@ -192,7 +257,14 @@
   "runners": {
     "claude": {
       "command": "claude",
-      "args": ["--dangerously-skip-permissions", "-p", "{prompt}", "--output-format", "stream-json", "--verbose"],
+      "args": [
+        "--dangerously-skip-permissions",
+        "-p",
+        "{prompt}",
+        "--output-format",
+        "stream-json",
+        "--verbose"
+      ],
       "model": "opus",
       "output_format": "stream-json",
       "tiers": {

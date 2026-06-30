@@ -39,3 +39,17 @@
 - **原因**：`internal/server` 的整合測試啟動 HTTP server，port 衝突或 goroutine leak
 - **解法**：先確認無其他 `4x live` 或測試程序佔用 port 4567；必要時 `lsof -i :4567` 檢查
 - **來源**：開發 server 相關功能時偶發
+
+### build-gate 子程序找不到 go/node 等工具
+
+- **症狀**：`4x check` 的 build-gate 報 `go: command not found`，但在 shell 裡直接跑同一指令正常
+- **原因**：GUI app（dashboard）啟動的 4x 不繼承 shell profile，PATH 精簡。v0.3.5 前 `verify.executeCommand` 和 `hook.Execute` 沒有擴充 PATH
+- **解法**：已在 v0.3.5 修復（`internal/envutil/env.go` 補上常見工具路徑）。若仍遇到，檢查工具安裝路徑是否在 `envutil.EnrichedEnv()` 的清單中，不在的話需要新增
+- **來源**：Kairos ws-108（v0.3.4）
+
+### go.work 環境下 go vet ./... 失敗
+
+- **症狀**：build-gate lint 報 `pattern ./...: directory prefix . does not contain modules listed in go.work`
+- **原因**：`go vet ./...` 在有 `go.work` 的 workspace 根目錄下不認得多模組結構
+- **解法**：settings.json 的 lint 指令不要用 `go vet ./...`，改用逐 repo cd 的腳本（如 `./lint.sh`），或用 `go vet all`
+- **來源**：Kairos ws-108（v0.3.5）

@@ -118,6 +118,10 @@ feature 的 `description` 要讓 dashboard Overview 一眼看清全貌：
 ID 自動在 word boundary 截斷；用 `--id` 可指定完整 slug 不截斷。
 參考範例：F034、F040 的 YAML description 格式。
 
+## Troubleshooting
+
+遇到環境、build、測試的坑時，先查 `docs/dev/troubleshoot.md`。解決新坑後 append 到該檔案。
+
 ## Current State
 
 見 `progress.md` 了解目前進度，`feature_list.json` 列出待做功能。
