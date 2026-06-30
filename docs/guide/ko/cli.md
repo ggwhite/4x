@@ -446,6 +446,7 @@ pending-review 기능을 완료로 표시합니다. 기능에 worktree(`.worktre
 4x learn list                     # active + candidate 학습 내역 나열 (기본값)
 4x learn list --category=testing  # 카테고리 필터링
 4x learn list --status=active     # 상태 필터링 (active, candidate, stale, promoted)
+4x learn list --ineffective       # 비효과적 항목만 표시 (used≥3 + 30일 + 동일 카테고리 지속)
 4x learn prune                    # 오래된 항목(90일 이상 미사용) 표시 및 삭제
 4x learn prune --dry-run          # 삭제 없이 오래된 항목 미리보기
 4x learn promote <id>             # 학습 내역을 promoted로 표시 (유지하되 더 이상 주입 안 함)
@@ -457,6 +458,7 @@ pending-review 기능을 완료로 표시합니다. 기능에 worktree(`.worktre
 - 카테고리: `design`, `code-quality`, `testing`, `review`, `tooling`, `process`, `ops`
 - 상태: `active`(주입 가능), `candidate`(새 harvest, 크로스 피처 검증 대기), `stale`(90일 이상 미사용, 읽을 때 자동 표시), `promoted`(템플릿/지침으로 승격됨)
 - candidate 항목은 ID 뒤에 `*` 접미사가 표시됩니다. 다른 feature에서 독립적으로 생성되거나 Designer가 선택하면 자동으로 active로 승격됩니다
+- 비효과적 항목은 `active!` 상태로 표시됩니다: 3회 이상 주입, 30일 이상 경과, 동일 카테고리의 새로운 learning이 계속 발생하는 경우
 - 활성 항목 100개의 소프트 상한에 도달하면 `4x learn prune` 권장 경고가 표시됩니다 — 항목은 절대 자동 삭제되지 않습니다
 
 ---

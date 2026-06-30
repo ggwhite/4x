@@ -446,6 +446,7 @@ El Acceptor de cada feature escribe un `retro-learnings.json`; el CLI lo cosecha
 4x learn list                     # listar learnings activos + candidatos (por defecto)
 4x learn list --category=testing  # filtrar por categoría
 4x learn list --status=active     # filtrar por estado (active, candidate, stale, promoted)
+4x learn list --ineffective       # solo mostrar entradas ineficaces (used≥3 + 30d + misma categoría)
 4x learn prune                    # marcar entradas obsoletas (>90 días sin uso) y eliminarlas
 4x learn prune --dry-run          # previsualizar entradas obsoletas sin eliminar
 4x learn promote <id>             # marcar un learning como promovido (se mantiene pero no se inyecta)
@@ -457,6 +458,7 @@ El Acceptor de cada feature escribe un `retro-learnings.json`; el CLI lo cosecha
 - Categorías: `design`, `code-quality`, `testing`, `review`, `tooling`, `process`, `ops`
 - Estado: `active` (inyectable), `candidate` (nuevo harvest, pendiente de validación cross-feature), `stale` (>90 días sin uso, marcado automáticamente al leer), `promoted` (actualizado a plantilla/instrucciones)
 - Las entradas candidatas se muestran con sufijo `*` en el ID; se promueven automáticamente a active cuando son producidas independientemente por otra feature o seleccionadas por un Designer
+- Las entradas ineficaces son learnings activos marcados con estado `active!` cuando: usados ≥ 3 veces, activados hace > 30 días, y la misma categoría sigue produciendo nuevos learnings
 - Un límite flexible de 100 entradas activas activa una advertencia que sugiere `4x learn prune` — las entradas nunca se eliminan automáticamente
 
 ---

@@ -394,6 +394,7 @@ Dashboard 透過 `POST /api/force-done` 加 `{id, reason}` 提供此功能。
 4x learn list                     # 列出 active + candidate learnings（預設）
 4x learn list --category=testing  # 依類別過濾
 4x learn list --status=active     # 依狀態過濾（active、candidate、stale、promoted）
+4x learn list --ineffective       # 僅顯示無效條目（used≥3 + 30天 + 同類別持續產出）
 4x learn prune                    # 標記陳舊（>90 天未使用）條目並移除
 4x learn prune --dry-run          # 預覽陳舊條目但不移除
 4x learn promote <id>             # 標記 learning 為已升級（保留但不再注入）
@@ -405,6 +406,7 @@ Dashboard 透過 `POST /api/force-done` 加 `{id, reason}` 提供此功能。
 - 類別：`design`、`code-quality`、`testing`、`review`、`tooling`、`process`、`ops`
 - 狀態：`active`（可注入）、`candidate`（新 harvest，待跨 feature 驗證）、`stale`（>90 天未使用，讀取時自動標記）、`promoted`（已升級為模板/指引）
 - candidate 條目 ID 後綴帶 `*` 標記；被不同 feature 獨立產出或被 Designer 選中時自動升級為 active
+- 無效條目以 `active!` 狀態顯示：已注入 ≥ 3 次、激活 > 30 天、且同類別仍持續產出新 learning，表示該 learning 未能減少重複問題
 - 超過 100 筆 active 條目時會顯示軟上限警告，建議執行 `4x learn prune`——不會自動刪除條目
 
 ---

@@ -576,10 +576,143 @@ func TestPromoteCandidates(t *testing.T) {
 	if s.Entries[0].Status != StatusActive {
 		t.Errorf("L001 should be promoted to active, got %s", s.Entries[0].Status)
 	}
+	if s.Entries[0].ActivatedAt.IsZero() {
+		t.Error("L001 should have ActivatedAt set after promotion")
+	}
 	if s.Entries[1].Status != StatusActive {
 		t.Errorf("L002 should stay active, got %s", s.Entries[1].Status)
 	}
 	if s.Entries[2].Status != StatusCandidate {
 		t.Errorf("L003 should remain candidate, got %s", s.Entries[2].Status)
+	}
+}
+
+func TestHarvest_CrossFeaturePromotion_SetsActivatedAt(t *testing.T) {
+	s := Store{Version: 1}
+	s.Harvest("F100", "coder", []RetroLearning{
+		{Category: CategoryCodeQuality, Content: "always run gofmt and go vet before commit"},
+	})
+	if !s.Entries[0].ActivatedAt.IsZero() {
+		t.Error("candidate should not have ActivatedAt")
+	}
+
+	s.Harvest("F101", "reviewer", []RetroLearning{
+		{Category: CategoryCodeQuality, Content: "run gofmt and go vet before every commit"},
+	})
+	if s.Entries[0].Status != StatusActive {
+		t.Fatalf("expected promotion to active, got %s", s.Entries[0].Status)
+	}
+	if s.Entries[0].ActivatedAt.IsZero() {
+		t.Error("promoted entry should have ActivatedAt set")
+	}
+}
+
+func TestMarkIneffective_MeetsAllConditions(t *testing.T) {
+	old := time.Now().Add(-60 * 24 * time.Hour)
+	s := Store{Version: 1, Entries: []Entry{
+		{ID: "L001", Status: StatusActive, Category: CategoryCodeQuality, Content: "wrap errors",
+			UsedCount: 5, ActivatedAt: old, SourceFeature: "F001", CreatedAt: old},
+		{ID: "L010", Status: StatusCandidate, Category: CategoryCodeQuality, Content: "new from F050",
+			SourceFeature: "F050", CreatedAt: time.Now()},
+		{ID: "L011", Status: StatusCandidate, Category: CategoryCodeQuality, Content: "new from F051",
+			SourceFeature: "F051", CreatedAt: time.Now()},
+		{ID: "L012", Status: StatusCandidate, Category: CategoryCodeQuality, Content: "new from F052",
+			SourceFeature: "F052", CreatedAt: time.Now()},
+	}}
+	marked := s.MarkIneffective()
+	if marked != 1 {
+		t.Errorf("expected 1 marked, got %d", marked)
+	}
+	if !s.Entries[0].Ineffective {
+		t.Error("L001 should be marked ineffective")
+	}
+}
+
+func TestMarkIneffective_NotEnoughUsage(t *testing.T) {
+	old := time.Now().Add(-60 * 24 * time.Hour)
+	s := Store{Version: 1, Entries: []Entry{
+		{ID: "L001", Status: StatusActive, Category: CategoryCodeQuality, Content: "wrap errors",
+			UsedCount: 2, ActivatedAt: old, SourceFeature: "F001", CreatedAt: old},
+		{ID: "L010", Status: StatusCandidate, Category: CategoryCodeQuality, Content: "new from F050",
+			SourceFeature: "F050", CreatedAt: time.Now()},
+		{ID: "L011", Status: StatusCandidate, Category: CategoryCodeQuality, Content: "new from F051",
+			SourceFeature: "F051", CreatedAt: time.Now()},
+		{ID: "L012", Status: StatusCandidate, Category: CategoryCodeQuality, Content: "new from F052",
+			SourceFeature: "F052", CreatedAt: time.Now()},
+	}}
+	marked := s.MarkIneffective()
+	if marked != 0 {
+		t.Errorf("expected 0 marked (UsedCount < 3), got %d", marked)
+	}
+	if s.Entries[0].Ineffective {
+		t.Error("L001 should NOT be marked ineffective")
+	}
+}
+
+func TestMarkIneffective_TooRecent(t *testing.T) {
+	recent := time.Now().Add(-10 * 24 * time.Hour)
+	s := Store{Version: 1, Entries: []Entry{
+		{ID: "L001", Status: StatusActive, Category: CategoryCodeQuality, Content: "wrap errors",
+			UsedCount: 5, ActivatedAt: recent, SourceFeature: "F001", CreatedAt: recent},
+		{ID: "L010", Status: StatusCandidate, Category: CategoryCodeQuality, Content: "new from F050",
+			SourceFeature: "F050", CreatedAt: time.Now()},
+		{ID: "L011", Status: StatusCandidate, Category: CategoryCodeQuality, Content: "new from F051",
+			SourceFeature: "F051", CreatedAt: time.Now()},
+		{ID: "L012", Status: StatusCandidate, Category: CategoryCodeQuality, Content: "new from F052",
+			SourceFeature: "F052", CreatedAt: time.Now()},
+	}}
+	marked := s.MarkIneffective()
+	if marked != 0 {
+		t.Errorf("expected 0 marked (too recent), got %d", marked)
+	}
+}
+
+func TestMarkIneffective_NoCategoryContinuation(t *testing.T) {
+	old := time.Now().Add(-60 * 24 * time.Hour)
+	s := Store{Version: 1, Entries: []Entry{
+		{ID: "L001", Status: StatusActive, Category: CategoryCodeQuality, Content: "wrap errors",
+			UsedCount: 5, ActivatedAt: old, SourceFeature: "F001", CreatedAt: old},
+		{ID: "L010", Status: StatusCandidate, Category: CategoryTesting, Content: "test from F050",
+			SourceFeature: "F050", CreatedAt: time.Now()},
+		{ID: "L011", Status: StatusCandidate, Category: CategoryDesign, Content: "design from F051",
+			SourceFeature: "F051", CreatedAt: time.Now()},
+		{ID: "L012", Status: StatusCandidate, Category: CategoryOps, Content: "ops from F052",
+			SourceFeature: "F052", CreatedAt: time.Now()},
+	}}
+	marked := s.MarkIneffective()
+	if marked != 0 {
+		t.Errorf("expected 0 marked (no same-category continuation), got %d", marked)
+	}
+}
+
+func TestMarkIneffective_FallsBackToCreatedAt(t *testing.T) {
+	old := time.Now().Add(-60 * 24 * time.Hour)
+	s := Store{Version: 1, Entries: []Entry{
+		{ID: "L001", Status: StatusActive, Category: CategoryCodeQuality, Content: "wrap errors",
+			UsedCount: 5, CreatedAt: old, SourceFeature: "F001"},
+		{ID: "L010", Status: StatusCandidate, Category: CategoryCodeQuality, Content: "new from F050",
+			SourceFeature: "F050", CreatedAt: time.Now()},
+		{ID: "L011", Status: StatusCandidate, Category: CategoryCodeQuality, Content: "new from F051",
+			SourceFeature: "F051", CreatedAt: time.Now()},
+		{ID: "L012", Status: StatusCandidate, Category: CategoryCodeQuality, Content: "new from F052",
+			SourceFeature: "F052", CreatedAt: time.Now()},
+	}}
+	marked := s.MarkIneffective()
+	if marked != 1 {
+		t.Errorf("expected 1 marked (fallback to CreatedAt), got %d", marked)
+	}
+}
+
+func TestMarkIneffective_AlreadyMarked(t *testing.T) {
+	old := time.Now().Add(-60 * 24 * time.Hour)
+	s := Store{Version: 1, Entries: []Entry{
+		{ID: "L001", Status: StatusActive, Category: CategoryCodeQuality, Content: "wrap errors",
+			UsedCount: 5, ActivatedAt: old, SourceFeature: "F001", Ineffective: true},
+		{ID: "L010", Status: StatusCandidate, Category: CategoryCodeQuality, Content: "new from F050",
+			SourceFeature: "F050", CreatedAt: time.Now()},
+	}}
+	marked := s.MarkIneffective()
+	if marked != 0 {
+		t.Errorf("already-marked entry should not be counted again, got %d", marked)
 	}
 }

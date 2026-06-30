@@ -1,10 +1,10 @@
 id: F119-self-learn-effectiveness
 name: 'F119: learning effectiveness tracking'
 description: 追蹤 learning 注入後是否減少同類問題。新增 ActivatedAt 欄位、Ineffective 標記、MarkIneffective() proxy 指標（used_count>=3 + 30天觀察期 + 同 category 持續產出）。CLI learn list --ineffective。
-status: not-started
+status: done
 priority: 3
 profile: standard
-spec: docs/design/self-learning-spec.md
-plan: docs/design/self-learning-effectiveness-plan.md
 depends:
     - F117-self-learn-candidate
+spec: docs/design/self-learning-spec.md
+plan: docs/design/self-learning-effectiveness-plan.md

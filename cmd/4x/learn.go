@@ -109,6 +109,7 @@ func newLearnAddCmd() *cobra.Command {
 func newLearnListCmd() *cobra.Command {
 	var category string
 	var statusFilter string
+	var ineffective bool
 	var jsonOutput bool
 
 	cmd := &cobra.Command{
@@ -124,13 +125,17 @@ func newLearnListCmd() *cobra.Command {
 				return err
 			}
 
-			showDefault := statusFilter == ""
+			showDefault := statusFilter == "" && !ineffective
 			var filtered []learning.Entry
 			for _, e := range store.Entries {
 				if category != "" && string(e.Category) != category {
 					continue
 				}
-				if showDefault {
+				if ineffective {
+					if !e.Ineffective {
+						continue
+					}
+				} else if showDefault {
 					if e.Status != learning.StatusActive && e.Status != learning.StatusCandidate {
 						continue
 					}
@@ -162,8 +167,12 @@ func newLearnListCmd() *cobra.Command {
 				if e.Status == learning.StatusCandidate {
 					id += "*"
 				}
+				status := string(e.Status)
+				if e.Ineffective && e.Status == learning.StatusActive {
+					status = "active!"
+				}
 				fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\n",
-					id, e.Category, e.Status, e.UsedCount, content)
+					id, e.Category, status, e.UsedCount, content)
 			}
 			w.Flush()
 
@@ -174,6 +183,7 @@ func newLearnListCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&category, "category", "", "filter by category")
 	cmd.Flags().StringVar(&statusFilter, "status", "", "filter by status (active, candidate, stale, promoted)")
+	cmd.Flags().BoolVar(&ineffective, "ineffective", false, "only show ineffective entries")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 	return cmd
 }

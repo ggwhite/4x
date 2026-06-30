@@ -91,9 +91,11 @@ type Entry struct {
 	Category      Category  `json:"category"`
 	Content       string    `json:"content"`
 	CreatedAt     time.Time `json:"created_at"`
+	ActivatedAt   time.Time `json:"activated_at,omitempty"`
 	LastUsed      time.Time `json:"last_used,omitempty"`
 	UsedCount     int       `json:"used_count"`
 	Status        Status    `json:"status"`
+	Ineffective   bool      `json:"ineffective,omitempty"`
 }
 
 // Store 是 .4x/learnings.json 的完整結構。
@@ -217,6 +219,7 @@ func (s *Store) Harvest(featureID, sourceRole string, learnings []RetroLearning)
 			matched := &s.Entries[matchIdx]
 			if matched.Status == StatusCandidate && matched.SourceFeature != featureID {
 				matched.Status = StatusActive
+				matched.ActivatedAt = now
 			}
 			continue
 		}
@@ -291,15 +294,17 @@ func (s *Store) CandidateEntries() []Entry {
 	return result
 }
 
-// PromoteCandidates 將指定 ID 中 status==candidate 的條目升級為 active。
+// PromoteCandidates 將指定 ID 中 status==candidate 的條目升級為 active，並設定 ActivatedAt。
 func (s *Store) PromoteCandidates(ids []string) {
 	idSet := make(map[string]bool, len(ids))
 	for _, id := range ids {
 		idSet[id] = true
 	}
+	now := time.Now()
 	for i := range s.Entries {
 		if idSet[s.Entries[i].ID] && s.Entries[i].Status == StatusCandidate {
 			s.Entries[i].Status = StatusActive
+			s.Entries[i].ActivatedAt = now
 		}
 	}
 }
@@ -449,6 +454,61 @@ var roleCategoryMap = map[string][]Category{
 // CategoriesForRole 回傳指定 role 應注入的 category 列表；未知 role 回傳 nil。
 func CategoriesForRole(role string) []Category {
 	return roleCategoryMap[role]
+}
+
+// MarkIneffective 掃描所有 active 條目，滿足以下三條件的標記 Ineffective=true，回傳新標記數：
+// 1. UsedCount >= 3
+// 2. ActivatedAt（零值時用 CreatedAt）距今 > 30 天
+// 3. 最近 3 個來自不同 feature 的 entries 中有同 category 的新 learning
+func (s *Store) MarkIneffective() int {
+	now := time.Now()
+	cutoff := now.Add(-30 * 24 * time.Hour)
+	marked := 0
+
+	for i := range s.Entries {
+		e := &s.Entries[i]
+		if e.Status != StatusActive {
+			continue
+		}
+		if e.Ineffective {
+			continue
+		}
+		if e.UsedCount < 3 {
+			continue
+		}
+		activated := e.ActivatedAt
+		if activated.IsZero() {
+			activated = e.CreatedAt
+		}
+		if activated.After(cutoff) {
+			continue
+		}
+		if s.hasCategoryContinuation(i) {
+			e.Ineffective = true
+			marked++
+		}
+	}
+	return marked
+}
+
+// hasCategoryContinuation 檢查最近 3 個來自不同 feature 的 entries 是否包含同 category 的 learning。
+func (s *Store) hasCategoryContinuation(targetIdx int) bool {
+	target := s.Entries[targetIdx]
+	count := 0
+	for j := len(s.Entries) - 1; j >= 0 && count < 3; j-- {
+		if j == targetIdx {
+			continue
+		}
+		other := s.Entries[j]
+		if other.SourceFeature == target.SourceFeature {
+			continue
+		}
+		count++
+		if other.Category == target.Category {
+			return true
+		}
+	}
+	return false
 }
 
 // normalizeContent 正規化 content：小寫、去前後空白、收合連續空白。

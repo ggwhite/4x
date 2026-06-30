@@ -408,6 +408,17 @@ If the feature touched self-mod protected paths (see the `self_mod_guard` settin
 
 ---
 
+## `4x force-done <feature-id>`
+
+<!-- alias: 4x forcedone -->
+Force a feature to done from any phase, bypassing the normal state machine. Requires `--reason` to document why.
+
+```
+4x force-done <feature-id> --reason "descoped, no longer needed"
+```
+
+---
+
 ## `4x merge <feature-id>`
 
 Complete a merge after resolving conflicts from `4x done`.
@@ -451,6 +462,7 @@ The Acceptor of each feature writes a `retro-learnings.json`; the CLI harvests i
 4x learn list                     # list active + candidate learnings (default)
 4x learn list --category=testing  # filter by category
 4x learn list --status=active     # filter by status (active, candidate, stale, promoted)
+4x learn list --ineffective       # only show ineffective entries (used≥3 + 30d + same-category churn)
 4x learn prune                    # mark stale (>90 days unused) entries and remove them
 4x learn prune --dry-run          # preview stale entries without removing
 4x learn promote <id>             # mark a learning as promoted (kept but no longer injected)
@@ -464,6 +476,7 @@ The Acceptor of each feature writes a `retro-learnings.json`; the CLI harvests i
 - Categories: `design`, `code-quality`, `testing`, `review`, `tooling`, `process`, `ops`
 - Status: `active` (injectable), `candidate` (new harvest, pending cross-feature validation), `stale` (>90 days unused, auto-marked on read), `promoted` (upgraded to template/instructions)
 - Candidate entries are shown with `*` suffix on ID; they auto-promote to active when independently produced by a different feature or selected by a Designer
+- Ineffective entries are active learnings marked with `active!` status when: used ≥ 3 times, activated > 30 days ago, and the same category keeps producing new learnings — indicating the learning isn't reducing repeat issues
 - A soft cap of 100 active entries triggers a warning suggesting `4x learn prune` — entries are never auto-deleted
 
 ---

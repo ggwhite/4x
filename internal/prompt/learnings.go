@@ -107,12 +107,18 @@ func HarvestLearnings(ws *protocol.Workspace, featureID string) {
 	totalAdded += harvestRoleLearnings(&store, ws, featureID)
 	totalAdded += harvestRetroLearnings(&store, ws, featureID)
 
-	if totalAdded == 0 {
+	ineffective := store.MarkIneffective()
+
+	if totalAdded == 0 && ineffective == 0 {
 		return
 	}
 
 	if err := store.Save(storePath); err != nil {
 		slog.Warn("save learnings store failed", "error", err)
+		return
+	}
+
+	if totalAdded == 0 {
 		return
 	}
 

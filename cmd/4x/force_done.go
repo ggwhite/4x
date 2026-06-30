@@ -13,8 +13,8 @@ import (
 
 func newForceDoneCmd() *cobra.Command {
 	var (
-		reason    string
-		jsonOut   bool
+		reason  string
+		jsonOut bool
 	)
 
 	cmd := &cobra.Command{
