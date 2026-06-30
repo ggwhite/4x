@@ -255,11 +255,16 @@ func handleMessages(ws *protocol.CachedWorkspace, featureID string, w http.Respo
 	if showAcceptor {
 		final := readIfExists(filepath.Join(dir, protocol.FinalReport))
 		if final != "" {
+			ap := phases[durationKey{"acceptor", s.Round}]
 			messages = append(messages, messageInfo{
-				Role:    "acceptor",
-				Label:   protocol.FinalReport,
-				Content: final,
-				File:    protocol.FinalReport,
+				Role:       "acceptor",
+				Label:      protocol.FinalReport,
+				Content:    final,
+				File:       protocol.FinalReport,
+				Duration:   ap.duration,
+				Model:      ap.model,
+				TokensUsed: ap.tokensUsed,
+				CostUSD:    ap.costUSD,
 			})
 		}
 	}
