@@ -18,6 +18,20 @@
 - 루트 레벨 파일에 `@import` 라인 추가 (CLAUDE.md, AGENTS.md, GEMINI.md, AGY.md, .cursorrules)
 - `.4x/`가 이미 존재하면 오류 발생
 
+### `4x init --dump-templates`
+
+내장된 역할 프롬프트 템플릿을 `.4x/templates/`에 덤프하여 프로젝트에서 재정의할 수 있게 합니다.
+
+```
+4x init --dump-templates          # 내장 템플릿을 .4x/templates/에 기록
+4x init --dump-templates --force  # 기존 템플릿 파일 덮어쓰기
+```
+
+- `.4x/`가 이미 존재해야 합니다 (먼저 `4x init` 실행)
+- 내장된 모든 `*.md.tmpl`(`locale.tmpl` 포함)을 `.4x/templates/`에 기록
+- `--force`를 지정하지 않으면 기존 파일은 경고와 함께 건너뜀
+- 프롬프트 생성 시 `.4x/templates/{file}`이 내장 템플릿보다 우선합니다(전체 파일 재정의); `locale.tmpl`과 각 역할 템플릿은 독립적으로 폴백됩니다
+
 ---
 
 ## `4x new <title>`
@@ -131,6 +145,45 @@
 ```
 4x subtask F043-dashboard-screenshot-gall protocol-screenshot-type --status done
 ```
+
+---
+
+## `4x approve <feature-id>`
+
+enriched auto-discover가 생성한 `draft` 기능을 승인하여 `draft → not-started`로 전환합니다. 메타 루프가 이 기능을 처리하게 됩니다. Draft는 `enrich_discovered_features`가 활성화되고 `enrich_auto_approve`가 `false`일 때만 생성됩니다. 기능이 `draft` 상태가 아니면 오류가 발생합니다.
+
+```
+4x approve F042-some-discovered-feature
+```
+
+---
+
+## `4x reject <feature-id>`
+
+enriched auto-discover가 생성한 `draft` 기능을 거부하여 `draft → abandoned`로 전환합니다. 메타 루프에서 제외됩니다. 기능이 `draft` 상태가 아니면 오류가 발생합니다.
+
+```
+4x reject F042-some-discovered-feature
+```
+
+---
+
+## `4x retry <feature-id>`
+
+`needs-attention` 또는 `blocked` 상태에서 멈춘 기능을 다시 작업 단계로 전환하고 즉시 `4x run`을 실행합니다. `4x transition --to <phase> <id> && 4x run <id>`와 동일합니다.
+
+기본 대상 단계는 `accepting`(사람이 이슈를 수정한 후 Acceptor를 재실행)입니다. `--to`로 다른 단계를 지정할 수 있습니다.
+
+```
+4x retry F042-some-feature
+4x retry F042-some-feature --to amending
+```
+
+| 플래그 | 설명 |
+|------|-------------|
+| `--to <phase>` | 복구할 대상 단계 (기본값: `accepting`) |
+
+기능이 현재 `needs-attention` 또는 `blocked` 상태가 아니면 오류가 발생합니다.
 
 ---
 
@@ -331,6 +384,27 @@ pending-review 기능을 완료로 표시합니다. 기능에 worktree(`.worktre
 
 ---
 
+## `4x force-done <feature-id>`
+
+<!-- alias: 4x forcedone -->
+
+비터미널 단계에서 기능을 강제로 완료 처리합니다. 정상 파이프라인을 건너뛰는 이유를 문서화하기 위해 `--reason`이 필수입니다.
+
+```
+4x force-done <feature-id> --reason "코드 리뷰 완료 및 테스트 통과, e2e 테스트는 병합 후로 연기"
+```
+
+기능을 `pending-review`로 전환하고, 사유가 포함된 `force-done` 이벤트를 기록한 후 `4x done`과 동일한 병합 흐름을 실행합니다. `needs-attention`, `blocked` 또는 활성 단계 어디에서든 작동합니다.
+
+대시보드는 이를 `POST /api/force-done`(`{id, reason}`)으로 노출합니다.
+
+| 플래그 | 설명 |
+|---|---|
+| `--reason` | 기능을 강제 완료하는 이유 (필수) |
+| `--json` | 결과를 JSON으로 출력 |
+
+---
+
 ## `4x merge <feature-id>`
 
 `4x done`에서 발생한 충돌을 해결한 후 병합을 완료합니다.
@@ -357,6 +431,56 @@ pending-review 기능을 완료로 표시합니다. 기능에 worktree(`.worktre
 ```
 
 `done` 또는 `abandoned` 상태이고 워크스페이스 디렉토리가 존재하는 기능만 대상입니다. 활성(실행 중) 기능은 절대 정리되지 않으며, `blocked` / `needs-attention` 기능은 디버그 아티팩트가 유지되도록 보존됩니다. 정리는 상태 머신 전환이 아닙니다 — 기능 라이프사이클을 변경하지 않습니다.
+
+---
+
+## `4x learn`
+
+`.4x/learnings.json`에 누적된 개발 교훈인 회고 학습 내역을 관리합니다.
+
+각 기능의 Acceptor가 `retro-learnings.json`을 작성하면, CLI가 이를 `.4x/learnings.json`에 수집합니다. 다음 기능에서 Designer가 관련 항목을 `selected-learnings.json`으로 선택하고, CLI가 이를 각 역할의 프롬프트에 주입합니다(카테고리별 필터링). 학습 내역은 전적으로 CLI가 관리하며 — 러너는 `learnings.json`을 직접 쓰지 않고, 학습 내역 처리 실패 시 경고만 출력하며 상태 전환을 차단하지 않습니다.
+
+```
+4x learn list                     # 모든 학습 내역 나열 (id/category/status/used/content)
+4x learn list --category=testing  # 카테고리 필터링
+4x learn prune                    # 오래된 항목(90일 이상 미사용) 표시 및 삭제
+4x learn prune --dry-run          # 삭제 없이 오래된 항목 미리보기
+4x learn promote <id>             # 학습 내역을 promoted로 표시 (유지하되 더 이상 주입 안 함)
+4x learn remove <id>              # 학습 내역 항목 삭제
+```
+
+- 카테고리: `design`, `code-quality`, `testing`, `review`, `tooling`, `process`
+- 상태: `active`(주입 가능), `stale`(90일 이상 미사용, 읽을 때 자동 표시), `promoted`(템플릿/지침으로 승격됨)
+- 활성 항목 100개의 소프트 상한에 도달하면 `4x learn prune` 권장 경고가 표시됩니다 — 항목은 절대 자동 삭제되지 않습니다
+
+---
+
+## `4x mine`
+
+`.4x/` 전체 이력을 스캔하여 실패 신호를 수집하고 `.4x/candidates.json`에 후보 풀로 집계합니다. 자동 발견(단일 실행의 딥 리뷰 PASS에서만 동작하며 `[NEW-FEATURE]` 마커를 파싱)과 달리, miner는 **모든** 기능에서 가장 풍부한 실패 데이터(에스컬레이션, 정체된 기능, 반복적 리뷰 실패)를 스캔합니다.
+
+Miner는 순수 CLI/프로토콜 계층 스캔으로 — LLM을 호출하지 않으며 기능을 생성하지 않습니다. 후보만 생성하며, 후보가 실제 기능으로 승격될지는 나중에 F097 gate가 결정합니다.
+
+```
+4x mine                          # 스캔 후 .4x/candidates.json 기록
+4x mine --dry-run                # 기록 없이 요약만 출력
+4x mine --min-occurrences 5      # 실패 패턴 임계값 높이기 (기본값 3)
+4x mine --output path.json       # 커스텀 경로에 기록
+```
+
+| 플래그 | 기본값 | 설명 |
+|---|---|---|
+| `--min-occurrences` | `3` | 반복 리뷰 이슈가 후보가 되기 위한 distinct-feature 수 |
+| `--output` | `.4x/candidates.json` | 후보 풀 출력 경로 |
+| `--dry-run` | `false` | 요약만 출력, 기록 없음 |
+
+세 가지 스캐너가 풀에 데이터를 공급하며 각 후보에 추적성을 위한 `source`를 태그합니다:
+
+- **escalation** — 각 라운드의 `escalation.json`(`spec-mismatch` / `criteria-wrong` / `blocker` / `scope-change`)을 읽습니다
+- **stuck** — `needs-attention` / `abandoned` / `blocked` 상태에 멈춘 기능으로, `state.json` 또는 최신 에스컬레이션에서 차단 사유를 추출합니다
+- **fail-pattern** — `>= --min-occurrences`개의 distinct feature에 걸쳐 반복되는 리뷰/딥 리뷰 FAIL 이슈(Jaccard 유사도로 클러스터링); 각 클러스터는 리뷰 체크리스트 후보 학습도 생성합니다
+
+스캔은 최선의 노력으로 수행됩니다: 손상된 기능 하나가 경고를 출력해도 나머지 스캔을 중단하지 않습니다. 후보는 기존 기능 YAML, 이전 `candidates.json`, 현재 배치 내에서 중복 제거(Jaccard)됩니다.
 
 ---
 

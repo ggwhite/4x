@@ -67,6 +67,39 @@ Deep Reviewer가 차단 이슈를 발견하면, `deep-reviewing` 단계에서 `a
 
 `parallel_reviewers`가 설정되지 않았거나 `<= 1`이면, 루프는 원래의 단일 에이전트 흐름으로 폴백합니다: 한 명의 딥 리뷰어가 11개 관점을 모두 렌더링하고 `deep-review-report.md`를 직접 작성하며, 부분 보고서나 synthesizer는 없습니다.
 
+### 선택적 딥 리뷰 관점
+
+딥 리뷰를 배포하기 전에, 4x는 diff 영향을 받는 파일 경로를 분석하여 11개의 관점 중 어떤 것을 실행할지 선택합니다. `roles.deep-reviewer`의 `angle_mapping` 필드는 경로 접두사(예: `internal/state/`)와 접미사 패턴(예: `*_test.go`)을 관점 번호에 매핑합니다. 변경된 각 파일에 대해 가장 길게 매칭되는 접두사가 우선합니다(접두사 규칙이 접미사 규칙보다 우선); 매칭된 관점들의 합집합이 선택된 세트가 됩니다. 어떤 파일도 규칙에 매칭되지 않으면 안전 폴백으로 11개 관점 모두 실행됩니다.
+
+선택 결과는 라운드 디렉토리의 `deep-review-angles.json`에 기록되며, 어떤 파일이 어떤 규칙에 매칭되었는지, 각 파일이 어떤 관점에 기여했는지 포함됩니다. 이 아티팩트는 크래시 복구 시 올바른 부분 카운트를 결정하는 데도 사용됩니다.
+
+매핑에 관계없이 11개 관점 모두를 강제 실행하려면:
+- `4x run`에 `--all-angles`를 전달
+- 기능 YAML에 `deep_review_all_angles: true` 설정
+
+`angle_mapping`은 `settings.json`의 `roles.deep-reviewer` 아래에서 커스터마이즈할 수 있습니다; 설정하지 않으면 표준 프로젝트 레이아웃(`internal/state/`, `internal/protocol/`, `cmd/`, `docs/`, `templates/`, `dashboard/`, `*_test.go`)을 다루는 내장 기본값이 적용됩니다.
+
+### 딥 리뷰 서브페이즈 & 크래시 복구
+
+`deep-reviewing` 단계는 내부적으로 여러 단계(sub-reviewer → synthesizer → mini-coder → re-verifier)를 실행하지만, 이들은 **상태 머신 단계가 아닙니다**. 라이브 진행 상황과 크래시 복구가 *어느 단계가 실행 중인지* 인식할 수 있도록, `State`는 `subPhase` 필드(`internal/protocol/types.go`)를 가지며 이는 `phase == deep-reviewing`일 때만 의미가 있습니다:
+
+| `subPhase` | 단계 | 설정 시점 |
+|---|---|---|
+| `reviewing` | sub-reviewer(또는 단일 에이전트 폴백)가 diff를 스캔 중 | deep review 진입 시 |
+| `synthesizing` | synthesizer가 부분 보고서를 병합 중 | synthesizer 생성 시 |
+| `fixing` | mini-coder가 차단 이슈를 수정 중 | self-heal mini-coder 생성 시 |
+| `reverifying` | re-verifier가 수정을 확인 중 | self-heal re-verifier 생성 시 |
+
+`WriteState`는 단일 불변식을 강제합니다: `phase`가 `deep-reviewing`이 아닌 쓰기는 `subPhase`를 빈 문자열로 초기화합니다(`omitempty`로 `state.json`에서 완전히 제외). 따라서 deep review를 떠날 때 — `accepting`, `amending`, `needs-attention` 어느 경로로 나가든 — 오래된 sub-phase가 남지 않습니다.
+
+크래시 복구 시, `smartResumePhase`는 `deep-review-report.md`가 불완전한 경우 deep review를 처음부터 재시작하지 않습니다. 디스크 아티팩트를 검사하여 올바른 단계에서 재개합니다:
+
+- **`deep-review-partial-{i}.md`가 누락되거나 불완전한 경우** → `reviewing`에서 재개; 병렬 루프는 부분 파일이 누락된 sub-reviewer만 재시작하며(`missingDeepPartials`), 각 인덱스의 원래 관점 그룹을 재사용하여 재할당 없이 진행합니다.
+- **모든 부분 파일이 있지만 보고서가 불완전한 경우** → `synthesizing`에서 재개; sub-reviewer는 건너뛰고 synthesizer만 재실행합니다.
+- **보고서는 완전하지만 FAIL인 경우** → 변경 없이 `subPhase`를 초기화하고 `amending`으로 라우팅합니다.
+
+부분 파일은 `deepPartialComplete`로 완전 여부를 판단합니다 — 파일이 존재하고 비어있지 않으며, deep-reviewer 템플릿이 항상 출력하는 `## Statistics` 센티넬 섹션을 포함하는지 확인하여 반쯤 쓰인 부분 파일을 완전한 것으로 오인하지 않습니다. 이 최소 재실행 복구는 이미 완료된 단계에 (비용이 큰) deep 모델을 재소비하는 것을 방지합니다.
+
 ### 자동 발견 기능
 
 딥 리뷰어는 실제 문제이지만 **현재 기능의 범위 밖**인 이슈를 종종 발견합니다 — 잠재적 버그, 기술 부채, 누락된 기능 등. 기록할 곳이 없으면 이런 메모는 보고서에 묻히게 됩니다. `auto_discover_features`가 활성화되면 실행 루프가 자동으로 이를 캡처합니다.
@@ -79,6 +112,24 @@ Deep Reviewer가 차단 이슈를 발견하면, `deep-reviewing` 단계에서 `a
 - 결과(생성됨 / 중복으로 건너뜀 / 제한됨)를 `.4x/run/{feature-id}/discovered-features.md`에 **요약**합니다.
 
 이 단계는 최선의 노력으로 수행됩니다: 오류가 발생해도 `accepting`으로의 전환을 차단하지 않습니다. 최종 딥 리뷰 PASS에서만 실행됩니다 — 중간 라운드와 FAIL/`needs-attention` 경로에서는 실행되지 않습니다. 설정에 대해서는 [설정 → 자동 발견 기능](configuration.md#auto-discover-features)을 참조하세요.
+
+### 히스토리 마이너 & 후보 풀
+
+자동 발견 기능은 **최종 딥 리뷰 PASS**에서만 동작하며, 해당 라운드의 `deep-review-report.md`에서 `[NEW-FEATURE]` 블록만 파싱합니다. 가장 풍부한 신호인 *실패* — `escalation.json`, `needs-attention`/`abandoned`/`blocked`에 멈춘 기능, 여러 기능에 걸쳐 반복되는 동일한 리뷰어 FAIL 이슈 — 는 수집되지 않습니다.
+
+`4x mine` 명령어가 이 공백을 메웁니다. `.4x/` 전체 디렉토리를 스캔하여 과거 실패 신호를 수집하고 `.4x/candidates.json`에 후보 풀로 집계합니다. 순수 CLI/프로토콜 계층 명령어로 — **LLM 호출 없음**, 자동 발견 기능이 사용하는 것과 동일한 Jaccard 토큰 유사도 중복 제거만 수행합니다. 세 가지 스캐너가 풀에 데이터를 공급하며 각 후보에 `Source`와 `Origin` 추적 문자열을 태그합니다:
+
+| 소스 | 신호 | Origin 형식 |
+|---|---|---|
+| `escalation` | `needed: true`인 각 라운드의 `escalation.json`, `reason`으로 분류(spec-mismatch / criteria-wrong / blocker / scope-change) | `<featureID> round-<n> <reason>` |
+| `stuck` | `state.json` 단계가 `needs-attention`, `abandoned`, `blocked`인 기능; 차단 사유는 `stopReason`/`stopMessage`에서 가져오며, 없으면 최신 라운드의 에스컬레이션 `detail`로 폴백 | `<featureID> <phase>` |
+| `fail-pattern` | **distinct** 기능에 걸쳐 반복되는 리뷰어/딥 리뷰어 FAIL 이슈 제목(같은 기능의 여러 라운드는 한 번으로 계산), Jaccard 유사도로 클러스터링되며 `--min-occurrences`(기본값 `3`)로 게이팅 | `N features: <ids>` |
+
+반복 fail-pattern은 리뷰 체크리스트나 템플릿으로 승격할 것을 제안하는 `CandidateLearning`(카테고리 `review`)도 생성합니다.
+
+출력 `CandidatePool`(`candidates.json`)에는 `Version`, `GeneratedAt`, `Candidate` 목록, `CandidateLearning` 목록이 포함됩니다. 기록 전에 후보는 세 가지 방식으로 중복 제거됩니다: 기존 기능 YAML, 이전 `candidates.json`, 현재 배치 내에서. 플래그: `--min-occurrences`(fail-pattern 임계값), `--output`(기본값 `.4x/candidates.json`), `--dry-run`(기록 없이 요약만 출력).
+
+명령어 전체는 최선의 노력으로 수행됩니다 — 손상된 기능 하나는 로그에 기록되고 건너뛰며, 스캔을 중단하지 않습니다. 중요하게, `4x mine`은 **후보 풀만 생성하며 기능을 생성하지 않습니다**. 후보가 실제 기능으로 승격될지는 별도의 gate(F097)에 맡깁니다.
 
 ### Evolve Driver
 
@@ -212,6 +263,12 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
 
 - **`batch-report.json`** — 배치 실행이 종료될 때(정상, 중지, 인터럽트 또는 크래시) 기록됩니다. 위의 두 신호 파일과 달리 "마지막 배치 보고서"로 실행 간에 유지되며, 배치가 활성 상태가 아닐 때 대시보드에 표시됩니다. `outcome`, 전체 카운트(`total` / `completed` / `failed` / `remaining`), 러너, 총 소요 시간, 기능별 분석(최종 상태, 라운드, 중지 사유)을 기록하며, `crashed` 결과에는 `panicMessage`도 포함됩니다. 원자적으로 기록(임시 파일 + rename)되므로 대시보드가 반쯤 쓰인 보고서를 읽는 일은 없습니다.
 
+### 워크트리 경로 복구
+
+기능이 worktree 격리 모드로 실행될 때, 루프는 시작 시 `worktree: <경로>`를 출력하며 이는 `events.jsonl`에 `run-output` 이벤트로 기록됩니다. `Workspace.WorktreePath`는 git을 재실행하는 대신 감사 추적을 스캔하여 나중에(예: 스크린샷 탐색 시) 이 경로를 복구합니다.
+
+스캔은 `events.jsonl` **전체**를 읽고 **마지막** 매칭 `run-output` 이벤트의 경로를 반환합니다. 이는 재실행 시 중요합니다: 각 `4x run`이 새 `worktree: …` 이벤트를 추가하므로, 파일에는 기능의 수명 동안 항목이 누적됩니다. 처음 몇 줄만 읽으면 충분한 이벤트가 쌓인 후 경로를 놓치거나, 이미 제거된 오래된 worktree 경로를 반환할 수 있습니다. 마지막 매칭 항목을 사용하면 항상 가장 최근 실행의 worktree를 얻을 수 있습니다.
+
 ### 원자적 상태 쓰기
 
 `state.json`은 여러 주체 — 실행 루프, 대시보드 서버, 백그라운드 리콘실러 — 가 동시에 읽고 씁니다. 읽는 쪽이 절반만 쓰인 파일을 보지 않도록, `WriteState`는 절대 직접 덮어쓰지 않습니다. 상태를 마셜링하고, **같은 디렉토리**에 임시 파일(`.state-*.json`)을 쓴 다음(같은 파일시스템이므로 rename이 원자적임), `os.Rename`으로 `state.json` 위에 덮어씁니다. 따라서 읽는 쪽은 항상 완전한 이전 파일이나 완전한 새 파일만 보며 — 절대 부분적인 파일은 보지 않습니다. 실패 시 임시 파일은 삭제되어 `.state-*.json` 잔해가 쌓이지 않습니다. 파일 잠금은 사용하지 않으며, 정확성은 원자적 rename과 `UpdatedAt` 비교에 의해 보장됩니다.
@@ -295,9 +352,29 @@ CLI에서 시행되는 확정적 검사 — AI 판단에 의존하지 않습니�
 | **범위** | 모노레포 모드: `git diff --name-only HEAD` 최상위 디렉토리를 기능이 선언한 repos와 비교. 멀티 리포 모드: 모든 워크스페이스 리포지토리에서 `gitops.Ops.DetectChangedRepos()` 사용 |
 | **의존성** | 의존 기능이 완료되지 않으면 `4x run` 차단 |
 | **백로그 드리프트** | `.4x/features/*.yaml`과 외부 미러가 동기화되지 않으면 경고 |
-| **Testing → Accepting 게이트** | `verify.json`(passed=true), `test-report.md`, `final-report.md` 필요 |
+| **빌드 게이트** | coding/amending 단계에서: `settings.json`의 빌드 + 린트 명령어를 실행하고 `build-gate.json`을 기록. 실패 시 라운드 차단; Coder 에이전트가 수정 후 `4x check`를 재실행해야 함 |
+| **Testing → Accepting 게이트** | `verify.json`(passed=true), `test-report.md`, `final-report.md` 필요. `test-strategy.yaml`에 `manual_checks`가 정의된 경우, 각각에 비어있지 않은 증거가 담긴 `manual_check_results` 항목이 있어야 함 |
+| **Self-mod guard** | Scope 위에 레이어로 추가됨(대체가 아님): 보호된 경로에 대한 파일 수준 변경을 플래그 처리하고, 라운드당 보호된 diff가 예산을 초과하면 라운드를 차단하며, 수락 전 수반되는 테스트를 요구하고, 수동 승인 전까지 자동 병합을 차단 |
 
 `4x check <feature-id>`로 수동 실행 가능합니다.
+
+### Self-mod guard
+
+4x가 자기 자신에 대해 실행될 때(메타 루프), 핵심 기반(상태 머신 / 가드레일 / 프로토콜)에 대한 변경은 일반 기능 작업보다 위험합니다 — 여기서 발생하는 회귀는 전체 멀티 역할 루프를 망가뜨립니다. self-mod guard는 repo 수준의 Scope guard 위에 추가적인 레이어를 더하며, `settings.json`의 `self_mod_guard` 아래에서 설정합니다:
+
+```json
+"self_mod_guard": {
+  "protected_paths": ["internal/state/", "internal/guard/", "internal/protocol/"],
+  "max_diff_lines": 200,
+  "require_tests": true
+}
+```
+
+- `protected_paths` — 경로 접두사 허용 목록(범위 루트에 대한 상대 경로); 이 경로 아래의 변경이 플래그 처리됩니다. 설정하지 않으면 세 가지 아키텍처 레드라인으로 기본 설정됩니다.
+- `max_diff_lines` — 라운드당 보호된 diff 예산; 초과 시 guard가 실패하고 기능이 `needs-attention`으로 이동합니다. 기본값 `200`.
+- `require_tests` — `true`(기본값)일 때, 보호된 `.go` 변경은 기능이 `testing`을 벗어나기 전에 보호된 `_test.go` 변경을 함께 포함해야 합니다.
+
+터치는 코딩 후 guard 검사 중 한 번 감지되어 `state.json`에 영속화됩니다(`selfModTouched` / `selfModPaths`). 보호된 경로를 터치하면 자동 병합이 되지 않습니다: `4x done` / `4x merge`는 `--approve-self-mod`로 재실행하기 전까지 차단되며, 이는 state에 `selfModApproved`를 기록합니다.
 
 ---
 
@@ -456,6 +533,28 @@ verify_commands:
 ```
 
 `profiles`는 `omitempty`입니다 — 이 필드가 없는 `test-strategy.yaml`은 이전과 정확히 동일하게 동작합니다(주입 없음).
+
+### 수동 확인
+
+빌드/테스트/린트 이상의 런타임 검증이 필요한 AC 항목에 대해, Designer는 `test-strategy.yaml`에 `manual_checks`를 추가할 수 있습니다(`internal/protocol/types.go`의 `TestStrategy.ManualChecks`):
+
+```yaml
+manual_checks:
+  - id: mc-1
+    ac_ref: AC-3
+    description: "routing이 올바르게 분류됨을 검증"
+    steps:
+      - "server 시작: go run ./cmd/gate --port 8080"
+      - "curl http://localhost:8080/health → 200 확인"
+  - id: mc-2
+    ac_ref: AC-5
+    description: "graceful shutdown 검증"
+    steps:
+      - "server를 시작하고 SIGTERM 전송"
+      - "exit code가 0임을 확인"
+```
+
+Tester는 각 단계를 실행하고 실제 출력을 `verify.json`의 `manual_check_results`(`VerifyEvidence.ManualCheckResults`)에 증거로 기록해야 합니다. guard는 수동 확인 결과가 없거나 증거가 비어있으면 `testing → accepting` 전환을 차단합니다. 실패가 재시도 가능한 경우, tester는 `guard-feedback.json`으로 guard 오류가 주입된 상태에서 자동으로 한 번 재시도합니다; 두 번째 실패 시 `needs-attention`으로 에스컬레이션합니다.
 
 ### 기본 제공 프로파일
 

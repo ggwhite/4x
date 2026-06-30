@@ -67,6 +67,39 @@ fan-out 完全由 4x CLI 驅動——不依賴 LLM 自身的 subagent 或工具�
 
 當 `parallel_reviewers` 未設定或 `≤ 1` 時，迴圈退回原始的單一 agent 流程：一個 deep reviewer 處理全部 11 個角度並直接寫入 `deep-review-report.md`，無 partial report 或 synthesizer。
 
+### 選擇性 Deep Review 角度
+
+在派發 deep review 前，4x 分析 diff 影響的檔案路徑，並選取要執行的 11 個角度中的哪幾個。`roles.deep-reviewer` 中的 `angle_mapping` 欄位將路徑前綴（例如 `internal/state/`）和後綴模式（例如 `*_test.go`）對應到角度編號。對每個變更的檔案，最長匹配的前綴勝出（前綴規則優先於後綴規則）；所有匹配角度的聯集成為選定集合。若沒有任何檔案匹配規則，則以安全 fallback 方式執行全部 11 個角度。
+
+選擇結果記錄在輪次目錄的 `deep-review-angles.json`，包含哪些檔案匹配了哪些規則、以及每個規則貢獻了哪些角度。此 artifact 也供 crash recovery 用來判斷正確的 partial 數量。
+
+如需強制執行全部 11 個角度，不受 mapping 影響：
+- 對 `4x run` 傳入 `--all-angles`
+- 在 feature YAML 中設定 `deep_review_all_angles: true`
+
+`angle_mapping` 可在 `settings.json` 的 `roles.deep-reviewer` 下自訂；若未設定，內建預設涵蓋標準專案佈局（`internal/state/`、`internal/protocol/`、`cmd/`、`docs/`、`templates/`、`dashboard/`、`*_test.go`）。
+
+### Deep Review 子階段與 Crash Recovery
+
+`deep-reviewing` 階段執行數個內部步驟（sub-reviewer → synthesizer → mini-coder → re-verifier），但它們**不是**狀態機階段。為讓即時進度和 crash recovery 知道目前執行到哪個步驟，`State` 攜帶一個 `subPhase` 欄位（`internal/protocol/types.go`），只在 `phase == deep-reviewing` 時有意義：
+
+| `subPhase` | 步驟 | 設定時機 |
+|---|---|---|
+| `reviewing` | sub-reviewer（或單一 agent fallback）正在掃描 diff | 進入 deep review 時 |
+| `synthesizing` | synthesizer 正在合併 partial report | synthesizer 啟動時 |
+| `fixing` | mini-coder 正在修復阻塞問題 | self-heal mini-coder 啟動時 |
+| `reverifying` | re-verifier 正在確認修復結果 | self-heal re-verifier 啟動時 |
+
+`WriteState` 強制執行一個不變式：任何 `phase` 不是 `deep-reviewing` 的寫入都會將 `subPhase` 清空（`omitempty` 使其完全不出現在 `state.json`）。因此離開 deep review——到 `accepting`、`amending` 或 `needs-attention`——無論走哪條退出路徑，都不會留下過時的子階段。
+
+發生 crash 時，`smartResumePhase` 不再從頭重啟 deep review（當 `deep-review-report.md` 不完整時）。它檢查磁碟上的 artifact 並從正確步驟恢復：
+
+- **任何 `deep-review-partial-{i}.md` 缺失或不完整** → 從 `reviewing` 恢復；平行迴圈只重新啟動 partial 缺失的 sub-reviewer（`missingDeepPartials`），並重用每個索引原本的角度群組，不重新分配。
+- **所有 partial 都存在但 report 不完整** → 從 `synthesizing` 恢復；略過 sub-reviewer，只重跑 synthesizer。
+- **report 完整但為 FAIL** → 行為不變：路由到 `amending` 並清空 `subPhase`。
+
+partial 的完整性由 `deepPartialComplete` 判斷——檔案存在、非空，且包含 deep-reviewer 模板永遠輸出的 `## Statistics` 標記區段，因此寫了一半的 partial 不會被誤判為已完成。此最小重跑 recovery 避免在已完成的步驟上重花（昂貴的）deep model 費用。
+
 ### 自動發現 Feature
 
 Deep reviewer 經常發現問題是真實的但**超出當前 feature 範圍**——潛在 bug、技術債、缺少的功能。沒有歸屬的地方，這些筆記就埋在報告裡。當啟用 `auto_discover_features` 時，執行迴圈會自動捕獲它們。
@@ -79,6 +112,24 @@ Deep reviewer 將每個超出範圍的候選寫為 `deep-review-report.md` 的 `
 - **摘要** — 將結果（created / skipped-as-duplicate / capped）寫入 `.4x/run/{feature-id}/discovered-features.md`。
 
 此步驟為 best-effort：任何錯誤都會記錄但不會阻擋轉換到 `accepting`。它只在最終 deep review PASS 時執行——中間輪次和 FAIL/`needs-attention` 路徑永遠不會到達它。詳見[設定 → Auto-Discover Features](configuration.md#auto-discover-features)。
+
+### 歷史 Miner 與候選池
+
+自動發現 Feature 只在**最終 deep review PASS** 時觸發，且只解析該單次執行 `deep-review-report.md` 的 `[NEW-FEATURE]` 區塊。最豐富的訊號——**失敗**——從未被收集：`escalation.json`、卡在 `needs-attention`/`abandoned`/`blocked` 的 feature，或跨多個 feature 反覆出現的相同 reviewer FAIL 問題。
+
+`4x mine` 命令填補了這個缺口。它掃描**整個** `.4x/` 目錄的歷史失敗訊號，並將其彙整為 `.4x/candidates.json` 候選池。這是純 CLI/protocol 層命令——**不呼叫 LLM**，只是機械式掃描加上與自動發現 Feature 相同的 Jaccard token-overlap 去重。三個掃描器餵入候選池，每個都為每筆候選標記 `Source` 和 `Origin` 追蹤字串：
+
+| Source | 訊號 | Origin 格式 |
+|---|---|---|
+| `escalation` | 每一輪中 `needed: true` 的 `escalation.json`，依 `reason` 分類（spec-mismatch / criteria-wrong / blocker / scope-change） | `<featureID> round-<n> <reason>` |
+| `stuck` | `state.json` 的 phase 為 `needs-attention`、`abandoned` 或 `blocked` 的 feature；阻塞原因取自 `stopReason`/`stopMessage`，若無則 fallback 到最新輪次的 escalation `detail` | `<featureID> <phase>` |
+| `fail-pattern` | 跨**不同** feature 反覆出現的 reviewer/deep-reviewer FAIL 問題標題（同一 feature 的多輪只算一次），以 Jaccard 相似度聚類，並受 `--min-occurrences`（預設 `3`）限制 | `N features: <ids>` |
+
+反覆出現的 fail-pattern 還會產生一筆 `CandidateLearning`（類別 `review`），建議將該問題提升為 review checklist 或模板。
+
+輸出的 `CandidatePool`（`candidates.json`）包含 `Version`、`GeneratedAt`、`Candidate` 列表和 `CandidateLearning` 列表。寫入前以三種方式去重：對照既有 feature YAML、對照前一份 `candidates.json`、以及在當前批次內部去重。旗標：`--min-occurrences`（fail-pattern 閾值）、`--output`（預設 `.4x/candidates.json`）、`--dry-run`（只印摘要不寫入）。
+
+整個命令為盡力而為——單一損壞的 feature 只記錄並跳過，絕不中止掃描。`4x mine` **只產生候選池；它從不建立 feature**。候選是否升級為真正的 feature 交由獨立的 gate（F097）決定。這使它與自動發現 Feature 互補而非取代：一個在成功時收集範圍內的筆記，另一個收集整個歷史的失敗訊號。
 
 ### Evolve Driver
 
@@ -216,6 +267,12 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
 
 `state.json` 由多個角色並行讀寫——執行迴圈、儀表板伺服器和背景 reconciler。為避免讀取者看到截斷或寫了一半的檔案，`WriteState` 不會原地寫入。它 marshal 狀態後，寫到同目錄的暫存檔（`.state-*.json`，保證在同一檔案系統使 rename 為原子操作），然後 `os.Rename` 覆蓋 `state.json`。讀取者因此永遠看到完整的舊檔案或完整的新檔案——不會看到部分寫入。寫入失敗時暫存檔會被移除，不會累積 `.state-*.json` 殘留。不使用檔案鎖；正確性來自原子 rename 加 `UpdatedAt` 比較。
 
+### Worktree 路徑復原
+
+當 feature 在 worktree 隔離環境中執行時，迴圈在啟動時印出 `worktree: <path>`，並以 `run-output` 事件記錄至 `events.jsonl`。`Workspace.WorktreePath` 在後續（例如截圖探索）透過掃描審計軌跡來復原該路徑，而非重新執行 git。
+
+掃描會讀取**整個** `events.jsonl`，並從**最後一筆**匹配的 `run-output` 事件取得路徑。這對於重跑很重要：每次 `4x run` 都會附加一個新的 `worktree: …` 事件，因此檔案會在 feature 的生命週期中累積多筆。只讀前幾行要麼在事件累積後找不到路徑，要麼回傳一個已移除的舊 worktree。取最後一筆匹配永遠回傳最近一次執行的 worktree。
+
 ### Workspace 讀取快取（儀表板伺服器）
 
 CLI 是短命程序：每個命令讀取它需要的 `.4x/` 檔案一次後退出，因此總是使用普通的 `*protocol.Workspace`。儀表板伺服器（`4x live`）相反——它是長期執行的，每個 API 請求都重新讀取相同檔案。在多專案×多 feature 的 workspace 中（例如 5 個專案×50 個 feature），單一請求可觸發數百次 YAML/JSON 解析。
@@ -295,9 +352,29 @@ monorepo 模式下（無 `workspace.repos`），所有範圍檢查和 git 操作
 | **範圍** | monorepo 模式：比對 `git diff --name-only HEAD` 的頂層目錄與 feature 宣告的 repo。多 repo 模式：使用 `gitops.Ops.DetectChangedRepos()` 跨所有 workspace repo 檢查 |
 | **依賴** | 如果被依賴的 feature 未完成，則阻擋 `4x run` |
 | **Backlog drift** | 當 `.4x/features/*.yaml` 與外部映射不同步時警告 |
-| **Testing → Accepting 閘門** | 需要 `verify.json`（passed=true）、`test-report.md`、`final-report.md` |
+| **Build gate** | 在 coding/amending 階段：執行 `settings.json` 的 build + lint 命令，寫入 `build-gate.json`。失敗會阻擋此輪；Coder agent 應修復並重跑 `4x check` |
+| **Testing → Accepting 閘門** | 需要 `verify.json`（passed=true）、`test-report.md`、`final-report.md`。若 `test-strategy.yaml` 定義了 `manual_checks`，每項都必須在 `manual_check_results` 中有對應的非空 evidence 條目 |
+| **Self-mod guard** | 疊加在 Scope 之上（不取代它）：標記受保護路徑（預設 `internal/state/`、`internal/guard/`、`internal/protocol/`）的檔案級變更，當每輪受保護的 diff 超過預算時阻擋，要求在 accepting 前附帶測試，並在手動核准前阻擋自動 merge |
 
 可用 `4x check <feature-id>` 手動執行。
+
+### Self-mod guard
+
+當 4x 在自身上執行（meta-loop）時，對其核心基礎（狀態機 / guardrail / protocol）的變更比一般 feature 工作風險更高——那裡的 regression 會破壞整個多角色迴圈。self-mod guard 在 repo 層級的 Scope guard 之上新增一個額外層，在 `settings.json` 的 `self_mod_guard` 下設定：
+
+```json
+"self_mod_guard": {
+  "protected_paths": ["internal/state/", "internal/guard/", "internal/protocol/"],
+  "max_diff_lines": 200,
+  "require_tests": true
+}
+```
+
+- `protected_paths` — 路徑前綴許可清單（相對於 scope 根目錄）；這些路徑下的變更會被標記。未設定時預設為三條架構紅線。
+- `max_diff_lines` — 每輪受保護 diff 的預算；超過則 guard 失敗，feature 降至 `needs-attention`。預設 `200`。
+- `require_tests` — 為 `true`（預設）時，受保護的 `.go` 變更必須在 feature 離開 `testing` 前附帶受保護的 `_test.go` 變更。
+
+觸碰行為在 coding 後 guard 檢查時偵測一次並持久化到 `state.json`（`selfModTouched` / `selfModPaths`）。觸碰受保護路徑永遠不會自動 merge：`4x done` / `4x merge` 會阻擋，直到你以 `--approve-self-mod` 重跑，這會在 state 中記錄 `selfModApproved`。
 
 ---
 
@@ -456,6 +533,28 @@ verify_commands:
 ```
 
 `profiles` 為 `omitempty`——沒有它的 `test-strategy.yaml` 行為與以前完全相同（不注入）。
+
+### 手動檢查
+
+針對需要超出 build/test/lint 範圍的執行期驗證的 AC 項目，Designer 可在 `test-strategy.yaml` 中新增 `manual_checks`（`internal/protocol/types.go` 的 `TestStrategy.ManualChecks`）：
+
+```yaml
+manual_checks:
+  - id: mc-1
+    ac_ref: AC-3
+    description: "驗證 routing 正確分流"
+    steps:
+      - "啟動 server: go run ./cmd/gate --port 8080"
+      - "curl http://localhost:8080/health → 確認 200"
+  - id: mc-2
+    ac_ref: AC-5
+    description: "驗證 graceful shutdown"
+    steps:
+      - "啟動 server 並送 SIGTERM"
+      - "確認 exit code 為 0"
+```
+
+Tester 必須執行每個步驟，並在 `verify.json` 的 `manual_check_results` 下記錄實際輸出作為證據（`VerifyEvidence.ManualCheckResults`）。若任何手動檢查無結果或證據為空，guard 會阻擋 `testing → accepting`。若失敗可重試，tester 會透過 `guard-feedback.json` 注入 guard 錯誤獲得一次自動重試；第二次失敗則升級至 `needs-attention`。
 
 ### 內建 profiles
 

@@ -18,6 +18,20 @@
 - ルートレベルのファイル（CLAUDE.md、AGENTS.md、GEMINI.md、AGY.md、.cursorrules）に `@import` 行を追加
 - `.4x/` が既に存在する場合はエラー
 
+### `4x init --dump-templates`
+
+組み込みのロールプロンプトテンプレートを `.4x/templates/` に出力し、プロジェクトでカスタマイズできるようにします。
+
+```
+4x init --dump-templates          # 組み込みテンプレートを .4x/templates/ に書き込む
+4x init --dump-templates --force  # 既存のテンプレートファイルを上書き
+```
+
+- `.4x/` が既に存在する必要があります（先に `4x init` を実行してください）
+- 埋め込まれているすべての `*.md.tmpl`（`locale.tmpl` を含む）を `.4x/templates/` に書き込みます
+- 既存ファイルは `--force` なしでは警告付きでスキップされます
+- プロンプト生成時に `.4x/templates/{file}` が埋め込みテンプレートより優先されます（ファイル全体の上書き）。`locale.tmpl` と各ロールテンプレートはそれぞれ独立してフォールバックします
+
 ---
 
 ## `4x new <title>`
@@ -131,6 +145,45 @@ Feature 内のサブタスクのステータスを更新します。
 ```
 4x subtask F043-dashboard-screenshot-gall protocol-screenshot-type --status done
 ```
+
+---
+
+## `4x approve <feature-id>`
+
+enriched auto-discover が生成した `draft` Feature を承認し、`draft → not-started` に遷移させます。これにより meta-loop が Feature を処理対象とします。Draft は `enrich_discovered_features` が有効で `enrich_auto_approve` が `false` の場合にのみ作成されます。Feature が `draft` ステータスでない場合はエラーになります。
+
+```
+4x approve F042-some-discovered-feature
+```
+
+---
+
+## `4x reject <feature-id>`
+
+enriched auto-discover が生成した `draft` Feature を却下し、`draft → abandoned` に遷移させます。これにより meta-loop の対象から外れます。Feature が `draft` ステータスでない場合はエラーになります。
+
+```
+4x reject F042-some-discovered-feature
+```
+
+---
+
+## `4x retry <feature-id>`
+
+`needs-attention` または `blocked` でスタックした Feature を適切な作業フェーズに戻し、直ちに `4x run` を起動します。`4x transition --to <phase> <id> && 4x run <id>` と同等です。
+
+デフォルトのターゲットフェーズは `accepting`（人間が問題を修正した後に Acceptor を再実行）です。`--to` で別フェーズを指定できます。
+
+```
+4x retry F042-some-feature
+4x retry F042-some-feature --to amending
+```
+
+| フラグ | 説明 |
+|------|-------------|
+| `--to <phase>` | 復帰先のターゲットフェーズ（デフォルト：`accepting`） |
+
+Feature が `needs-attention` または `blocked` でない場合はエラーになります。
 
 ---
 
@@ -331,6 +384,27 @@ Feature が `pending-review` フェーズにある場合のみ動作します。
 
 ---
 
+## `4x force-done <feature-id>`
+
+<!-- alias: 4x forcedone -->
+
+通常のパイプラインをスキップしてどのフェーズからでも Feature を強制完了します。なぜ通常のパイプラインをスキップするかを記録するために `--reason` が必須です。
+
+```
+4x force-done <feature-id> --reason "コードレビュー済み、テストは合格。E2E テストはマージ後に実施予定"
+```
+
+`pending-review` に遷移し、reason を含む `force-done` イベントを記録した後、`4x done` と同じマージフローを実行します。`needs-attention`、`blocked`、またはアクティブなフェーズから動作します。
+
+Dashboard はこれを `POST /api/force-done`（`{id, reason}`）として公開します。
+
+| フラグ | 説明 |
+|---|---|
+| `--reason` | Feature を強制完了する理由（必須） |
+| `--json` | 結果を JSON で出力 |
+
+---
+
 ## `4x merge <feature-id>`
 
 `4x done` でのコンフリクト解決後にマージを完了します。
@@ -357,6 +431,56 @@ Feature が `pending-review` または `done` フェーズにあり、`.worktree
 ```
 
 `done` または `abandoned` ステータスで、ワークスペースディレクトリが存在する Feature のみが対象です。アクティブ（実行中）の Feature はクリーンされず、`blocked`/`needs-attention` の Feature はデバッグアーティファクトを残すために保持されます。クリーンはステートマシンの遷移ではなく、Feature のライフサイクルを変更しません。
+
+---
+
+## `4x learn`
+
+レトロラーニングを管理します。ラーニングは `.4x/learnings.json` に蓄積される、Feature をまたいだ開発上の学びです。
+
+各 Feature の Acceptor が `retro-learnings.json` を書き込み、CLI がそれを `.4x/learnings.json` に収集します。次の Feature では Designer が関連エントリを `selected-learnings.json` に選択し、CLI がカテゴリでフィルタリングして各ロールのプロンプトに注入します。Learnings は完全に CLI が管理します。Runner が `learnings.json` を直接書き込むことはなく、learnings の失敗は警告のみで状態遷移をブロックしません。
+
+```
+4x learn list                     # 全 learning を一覧（id/category/status/used/content）
+4x learn list --category=testing  # カテゴリでフィルタ
+4x learn prune                    # 古い（90日以上未使用）エントリにマークして削除
+4x learn prune --dry-run          # 削除せずに古いエントリをプレビュー
+4x learn promote <id>             # learning を promoted としてマーク（保持するが注入しなくなる）
+4x learn remove <id>              # learning エントリを削除
+```
+
+- カテゴリ：`design`、`code-quality`、`testing`、`review`、`tooling`、`process`
+- ステータス：`active`（注入可能）、`stale`（90日以上未使用、読み取り時に自動マーク）、`promoted`（テンプレート/指示として昇格済み）
+- アクティブエントリが 100 件を超えると `4x learn prune` を促す警告が表示されます（エントリは自動削除されません）
+
+---
+
+## `4x mine`
+
+`.4x/` 全履歴を失敗シグナルでスキャンし、候補プールを `.4x/candidates.json` に集約します。auto-discovery（単一実行の Deep Review PASS 時にのみ発動し `[NEW-FEATURE]` マーカーを解析）とは異なり、miner は**すべての** Feature を対象に最も濃密な失敗データ（エスカレーション、スタックした Feature、繰り返しのレビュー失敗）をスイープします。
+
+miner は純粋な CLI/プロトコル層スキャンです。LLM を呼び出さず、Feature を作成しません。候補の生成のみを行い、候補を実際の Feature に昇格させるかどうかは F097 ゲートが決定します。
+
+```
+4x mine                          # スキャンして .4x/candidates.json を書き込む
+4x mine --dry-run                # 書き込まずにサマリーを表示
+4x mine --min-occurrences 5      # 失敗パターンの閾値を上げる（デフォルト 3）
+4x mine --output path.json       # カスタムパスに書き込む
+```
+
+| フラグ | デフォルト | 説明 |
+|---|---|---|
+| `--min-occurrences` | `3` | 繰り返しレビュー問題が候補になるために必要な distinct-feature 数 |
+| `--output` | `.4x/candidates.json` | 候補プールの出力パス |
+| `--dry-run` | `false` | サマリーのみ表示、書き込みなし |
+
+3つのスキャナーがプールに候補を供給し、それぞれがトレーサビリティのために `source` をタグ付けします：
+
+- **escalation** — 各ラウンドの `escalation.json`（`spec-mismatch` / `criteria-wrong` / `blocker` / `scope-change`）を読み込む
+- **stuck** — `needs-attention` / `abandoned` / `blocked` でスタックした Feature。ブロック理由は `state.json` または最新エスカレーションから抽出
+- **fail-pattern** — `>= --min-occurrences` 個の distinct Feature にまたがって繰り返すレビュー / Deep Review FAIL 問題（Jaccard 類似度でクラスタリング）
+
+スキャンはベストエフォートです。1つの壊れた Feature は警告のみでスキャン全体を中断しません。候補は既存 Feature、前回の `candidates.json`、およびバッチ内で重複排除（Jaccard）されます。
 
 ---
 

@@ -18,6 +18,20 @@
 - 在根目录文件中添加 `@import` 行（CLAUDE.md、AGENTS.md、GEMINI.md、AGY.md、.cursorrules）
 - 如果 `.4x/` 已存在则报错
 
+### `4x init --dump-templates`
+
+将内置的角色 prompt 模板导出到 `.4x/templates/`，以便项目覆盖它们。
+
+```
+4x init --dump-templates          # 将内置模板写入 .4x/templates/
+4x init --dump-templates --force  # 覆盖已存在的模板文件
+```
+
+- 要求 `.4x/` 已存在（先运行 `4x init`）
+- 将所有内嵌的 `*.md.tmpl`（包括 `locale.tmpl`）写入 `.4x/templates/`
+- 除非指定 `--force`，已有文件会附带警告跳过
+- 生成 prompt 时，`.4x/templates/{file}` 优先于内嵌模板（整文件覆盖）；`locale.tmpl` 和各角色模板相互独立地回退
+
 ---
 
 ## `4x new <title>`
@@ -129,6 +143,45 @@
 ```
 4x subtask F043-dashboard-screenshot-gall protocol-screenshot-type --status done
 ```
+
+---
+
+## `4x approve <feature-id>`
+
+批准由富集自动发现产生的 `draft` feature，将其从 `draft → not-started`，以便 meta-loop 拾取。Draft 仅在启用 `enrich_discovered_features` 且 `enrich_auto_approve` 为 `false` 时创建。若 feature 不在 `draft` 状态则报错。
+
+```
+4x approve F042-some-discovered-feature
+```
+
+---
+
+## `4x reject <feature-id>`
+
+拒绝由富集自动发现产生的 `draft` feature，将其从 `draft → abandoned`，使其不进入 meta-loop。若 feature 不在 `draft` 状态则报错。
+
+```
+4x reject F042-some-discovered-feature
+```
+
+---
+
+## `4x retry <feature-id>`
+
+恢复卡在 `needs-attention` 或 `blocked` 的 feature，将其转换回工作阶段，然后立即启动 `4x run`。相当于 `4x transition --to <phase> <id> && 4x run <id>`。
+
+默认目标阶段为 `accepting`（人工修复问题后重跑 Acceptor）。使用 `--to` 指定其他目标阶段。
+
+```
+4x retry F042-some-feature
+4x retry F042-some-feature --to amending
+```
+
+| 标志 | 说明 |
+|------|-------------|
+| `--to <phase>` | 要恢复到的目标阶段（默认：`accepting`） |
+
+若 feature 当前不在 `needs-attention` 或 `blocked` 状态则报错。
 
 ---
 
@@ -329,6 +382,27 @@ Dashboard 通过 `GET /api/evolve-report` 呈现最新报告。
 
 ---
 
+## `4x force-done <feature-id>`
+
+<!-- alias: 4x forcedone -->
+
+从任意非终态阶段强制将 feature 标记为完成。需要提供 `--reason` 说明为何跳过正常流水线。
+
+```
+4x force-done <feature-id> --reason "code reviewed and tests pass, e2e test deferred to post-merge"
+```
+
+将 feature 转换到 `pending-review`，记录带有原因的 `force-done` 事件，然后触发与 `4x done` 相同的合并流程。可从 `needs-attention`、`blocked` 或任何活跃阶段使用。
+
+Dashboard 通过 `POST /api/force-done` 提供此功能，请求体为 `{id, reason}`。
+
+| 标志 | 说明 |
+|---|---|
+| `--reason` | 强制完成的原因（必填） |
+| `--json` | 以 JSON 格式输出结果 |
+
+---
+
 ## `4x merge <feature-id>`
 
 在解决 `4x done` 产生的冲突后完成合并。
@@ -355,6 +429,56 @@ Dashboard 通过 `GET /api/evolve-report` 呈现最新报告。
 ```
 
 只有状态为 `done` 或 `abandoned` 且工作区目录存在的 feature 才有资格。活跃（运行中）的 feature 不会被清理，`blocked`/`needs-attention` 的 feature 也会保留以便调试。清理不是状态机转换——不会改变 feature 生命周期。
+
+---
+
+## `4x learn`
+
+管理回顾学习——在 `.4x/learnings.json` 中跨 feature 积累的开发经验。
+
+每个 feature 的 Acceptor 会写入 `retro-learnings.json`；CLI 将其收集到 `.4x/learnings.json`。下一个 feature 的 Designer 会从中选取相关条目写入 `selected-learnings.json`，CLI 按类别过滤后注入每个角色的 prompt。Learnings 完全由 CLI 管理——runner 不会直接写 `learnings.json`，任何 learnings 操作失败只发出警告，不阻塞状态转换。
+
+```
+4x learn list                     # 列出所有 learnings（id/category/status/used/content）
+4x learn list --category=testing  # 按类别过滤
+4x learn prune                    # 标记陈旧（>90 天未使用）条目并删除
+4x learn prune --dry-run          # 预览陈旧条目，不删除
+4x learn promote <id>             # 将某条 learning 标记为 promoted（保留但不再注入）
+4x learn remove <id>              # 删除某条 learning
+```
+
+- 类别：`design`、`code-quality`、`testing`、`review`、`tooling`、`process`
+- 状态：`active`（可注入）、`stale`（>90 天未使用，读取时自动标记）、`promoted`（已升级为模板/指令）
+- 100 条活跃条目的软上限会触发建议运行 `4x learn prune` 的警告——不会自动删除条目
+
+---
+
+## `4x mine`
+
+扫描整个 `.4x/` 历史记录中的失败信号，将其聚合为 `.4x/candidates.json` 中的候选池。与自动发现（仅在单次运行的深度审查 PASS 时触发，解析 `[NEW-FEATURE]` 标记）不同，miner 扫描**所有** feature 中最密集的失败数据：escalation、卡住的 feature 以及反复出现的审查失败。
+
+Miner 是纯 CLI/protocol 层扫描——从不调用 LLM，也不创建 feature。它只产生候选；候选是否被提升为真正的 feature，由后续的 F097 gate 决定。
+
+```
+4x mine                          # 扫描并写入 .4x/candidates.json
+4x mine --dry-run                # 打印摘要，不写入
+4x mine --min-occurrences 5      # 提高失败模式阈值（默认 3）
+4x mine --output path.json       # 写入自定义路径
+```
+
+| 标志 | 默认值 | 说明 |
+|---|---|---|
+| `--min-occurrences` | `3` | 反复出现的审查问题成为候选所需的 distinct-feature 数量 |
+| `--output` | `.4x/candidates.json` | 候选池输出路径 |
+| `--dry-run` | `false` | 只打印摘要，不写入任何文件 |
+
+三个扫描器向候选池输送数据，每个候选都带有 `source` 标记以追溯来源：
+
+- **escalation** — 读取每轮的 `escalation.json`（`spec-mismatch` / `criteria-wrong` / `blocker` / `scope-change`）
+- **stuck** — 处于 `needs-attention` / `abandoned` / `blocked` 的 feature，阻塞原因从 `state.json` 或最新轮的 escalation `detail` 提取
+- **fail-pattern** — 跨 `>= --min-occurrences` 个不同 feature 反复出现的审查/深度审查 FAIL 问题（按 Jaccard 相似度聚类）；每个集群还生成一条建议将问题提升为审查清单的候选 learning
+
+扫描是尽力而为的：单个损坏的 feature 只记录警告，绝不中止其余扫描。候选项会针对现有 feature YAML、前一次 `candidates.json` 以及当前批次内部进行去重。
 
 ---
 

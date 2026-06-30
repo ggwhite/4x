@@ -70,6 +70,23 @@ Schedule (4 features):
 
 创建 `.4x/batch-stop` 信号文件。批处理完成当前 feature 后优雅退出。
 
+## 合并冲突
+
+当自动合并遇到冲突时，批处理暂停并写入 `.4x/batch-conflict.json`，记录 feature、冲突的仓库（多仓库模式）和受影响的文件。Worktree 被保留以便解决冲突。此信号文件让[仪表盘](dashboard.md)显示冲突并提供**继续批处理**操作——底层逻辑是清除信号文件并重启 `4x batch run`。从 CLI 操作时，解决文件冲突后运行 `4x merge <id>`，再重新运行 `4x batch run` 继续。冲突文件在每次批处理运行开始时自动清除。
+
+## 运行报告
+
+每次批处理运行结束时——无论是正常完成、被停止、被中断还是崩溃——都会写入 `.4x/batch-report.json`。报告记录整体统计（total / completed / failed / remaining）、runner、总持续时间，以及每个 feature 的名称、最终状态、持续时间、轮次数和停止原因。
+
+`outcome` 字段记录运行的结束方式：
+
+- `completed` — 所有 feature 已完成
+- `stopped` — 你按下停止（`.4x/batch-stop`）或自动合并冲突暂停了运行
+- `interrupted` — 批处理进程收到 `SIGTERM`/`SIGINT`；报告记录当时正在运行的 feature
+- `crashed` — 批处理进程发生 panic；报告尽力而为，包含 `panicMessage`
+
+[仪表盘](dashboard.md)在没有活跃批处理时读取此文件，显示展开为每个 feature 详情的"上次批处理报告"摘要卡片。报告仅在运行停止后写入，从不在每个 feature 的执行循环内写入，因此不会增加批处理吞吐量的开销。
+
 ## 查看进度
 
 ```bash

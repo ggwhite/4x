@@ -64,13 +64,36 @@
 | 2 | 하드 오류 | 루프 중단, 주의 필요 |
 | timeout | 제한 시간 내 응답 없음 | 소프트 실패로 처리 |
 
+### 플레이스홀더 해석
+
+러너 `args`에는 CLI가 서브프로세스를 실행하기 전에 치환하는 플레이스홀더를 포함할 수 있습니다:
+
+| 플레이스홀더 | 치환 내용 |
+|---|---|
+| `{prompt}` | 역할 프롬프트 텍스트, 인수로 인라인 삽입 |
+| `{promptFile}` | 프롬프트가 담긴 임시 파일 경로 |
+| `{model}` | 이 역할에 해석된 모델 오버라이드 |
+
+플레이스홀더 해석은 리터럴 플레이스홀더를 AI CLI에 전달하는 대신 **큰 소리로 실패**합니다:
+
+- `{model}`이 있지만 모델 오버라이드가 해석되지 않음 → 러너가 `model not resolved for runner <name>` 오류를 반환합니다(`--model {model}`을 전달하면 CLI가 불명확한 오류로 거부).
+- `{promptFile}`이 있지만 임시 파일을 생성하거나 쓸 수 없음(예: `/tmp` 꽉 참) → 러너가 래핑된 오류(`runner <name>: create prompt temp file: ...`)를 반환하고 부분적으로 생성된 임시 파일을 제거합니다.
+
+해석 중 생성된 임시 파일은 이후 단계가 실패하더라도 항상 정리됩니다.
+
 ### Stream JSON 모드
 
 `output_format: "stream-json"` 러너는 dashboard가 tail하는 읽기 쉬운 `.log`와 디버깅용 raw `.stream.jsonl` 두 파일을 씁니다. Claude Code는 기본적으로 이 모드를 사용합니다.
 
+### 비-PTY 프로세스 그룹 처리
+
+비-PTY 러너(stream-json 모드, stdin 모드, 일반 인수 모드)는 독립적인 프로세스 그룹(`Unix`의 `Setpgid`)을 사용합니다. 실행 컨텍스트가 취소되면 프로세스 그룹에 즉시 `SIGKILL`이 전송됩니다 — SIGTERM 유예 기간이 없습니다. Windows에서는 기본 `exec.CommandContext` 동작이 적용됩니다.
+
 ### PTY 모드
 
-`tty: true`인 러너는 ANSI 이스케이프 시퀀스를 포함한 전체 출력을 캡처하기 위해 의사 터미널을 사용합니다. 상태 유지 ANSI 스트리퍼가 로그 파일을 정리합니다. `output_format`이 `"stream-json"`이면 이 경로를 사용하지 않습니다.
+`tty: true`인 러너(그리고 `output_format: "stream-json"`을 사용하지 않는)는 ANSI 이스케이프 시퀀스를 포함한 전체 출력을 캡처하기 위해 의사 터미널을 사용합니다. 상태 유지 ANSI 스트리퍼가 로그 파일을 정리합니다. PTY 경로는 정상 종료를 위한 전용 컨텍스트 감시자를 가진 `exec.Command`를 사용하며, 비-PTY 러너는 프로세스 그룹 수준의 취소를 가진 `exec.CommandContext`를 사용합니다(위 참조).
+
+PTY 자식은 자체 세션/프로세스 그룹에서 실행됩니다. 실행 컨텍스트가 취소되면(예: 타임아웃 또는 Ctrl+C), 전체 프로세스 그룹에 `SIGTERM`이 전송되고, 5초 이내에 종료되지 않으면 `SIGKILL`로 에스컬레이션됩니다 — 실행이 끝난 후에도 자식 프로세스가 고아로 남지 않습니다.
 
 ### Stdin 모드
 

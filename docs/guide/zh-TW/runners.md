@@ -64,13 +64,36 @@ Runner 在 `.4x/settings.json` 的 `runners` 區段中設定。CLI 以子程序�
 | 2 | 硬錯誤 | 迴圈停止，需要關注 |
 | timeout | 在限制時間內無回應 | 視為軟失敗 |
 
+### Placeholder 解析
+
+Runner `args` 可包含 CLI 在呼叫子程序前替換的 placeholder：
+
+| Placeholder | 替換為 |
+|---|---|
+| `{prompt}` | 角色 prompt 文字，作為引數直接嵌入 |
+| `{promptFile}` | 包含 prompt 的暫存檔路徑 |
+| `{model}` | 此角色解析出的 model override |
+
+Placeholder 解析會**大聲失敗**，而非將字面 placeholder 傳給 AI CLI：
+
+- `{model}` 存在但未解析出 model override → runner 以 `model not resolved for runner <name>` 報錯，而非送出 `--model {model}`（CLI 會以不透明的錯誤拒絕）。
+- `{promptFile}` 但無法建立或寫入暫存檔（例如 `/tmp` 已滿）→ runner 回傳包裝後的底層錯誤（`runner <name>: create prompt temp file: ...`）並移除任何已部分建立的暫存檔，而非送出字面字串 `{promptFile}`。
+
+解析過程中建立的任何暫存檔都會被清理，即使後續步驟失敗亦然。
+
 ### Stream JSON 模式
 
 設定 `output_format: "stream-json"` 的 runner 會寫入兩種檔案：dashboard tail 的人類可讀 `.log`，以及供除錯使用的原始 `.stream.jsonl`。Claude Code 預設使用此模式。
 
+### 非 PTY 程序群組處理
+
+非 PTY runner（stream-json 模式、stdin 模式、純引數模式）使用獨立的程序群組（Unix 上的 `Setpgid`）。當執行 context 被取消時，程序群組立即收到 `SIGKILL`——沒有 SIGTERM 寬限期。在 Windows 上則套用預設的 `exec.CommandContext` 行為。
+
 ### PTY 模式
 
-設定 `tty: true` 的 runner 使用偽終端機來擷取完整輸出，包含 ANSI 跳脫序列。一個有狀態的 ANSI 清除器會清理日誌檔。`output_format` 為 `"stream-json"` 時會略過此路徑。
+設定 `tty: true` 的 runner 使用偽終端機來擷取完整輸出，包含 ANSI 跳脫序列。一個有狀態的 ANSI 清除器會清理日誌檔。PTY 路徑使用帶有專用 context watcher 的 `exec.Command` 進行優雅關閉，而非 PTY runner 使用帶有程序群組層級取消的 `exec.CommandContext`（見上文）。
+
+PTY 子程序在自己的 session/程序群組中執行。當執行 context 被取消（例如逾時或 Ctrl+C）時，整個程序群組收到 `SIGTERM`，若 5 秒內未退出則升級為 `SIGKILL`——確保不會有殘留的子程序存活於執行結束後。
 
 ### Stdin 模式
 

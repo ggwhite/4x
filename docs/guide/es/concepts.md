@@ -67,6 +67,39 @@ Los ángulos se dividen uniformemente y sin solapamiento: con el valor predeterm
 
 Cuando `parallel_reviewers` no está configurado o es `<= 1`, el ciclo vuelve al flujo original de agente único: un deep reviewer procesa los 11 ángulos y escribe `deep-review-report.md` directamente, sin reportes parciales ni synthesizer.
 
+### Ángulos de deep review selectivos
+
+Antes de despachar el deep review, 4x analiza los paths de archivos afectados por el diff y selecciona cuáles de los 11 ángulos ejecutar. El campo `angle_mapping` en `roles.deep-reviewer` mapea prefijos de path (por ej. `internal/state/`) y patrones de sufijo (por ej. `*_test.go`) a números de ángulo. Para cada archivo modificado gana el prefijo más largo que coincida (las reglas de prefijo tienen prioridad sobre las de sufijo); la unión de todos los ángulos que coincidan se convierte en el conjunto seleccionado. Cuando ningún archivo coincide con ninguna regla, se ejecutan los 11 ángulos como fallback de seguridad.
+
+La selección se registra en `deep-review-angles.json` en el directorio de la ronda, incluyendo qué archivos coincidieron con qué reglas y qué ángulos aportó cada uno. Este artefacto también lo usa la recuperación de crashes para determinar el conteo parcial correcto.
+
+Para forzar los 11 ángulos independientemente del mapeo:
+- Pasar `--all-angles` a `4x run`
+- Establecer `deep_review_all_angles: true` en el YAML del feature
+
+El `angle_mapping` se puede personalizar en `settings.json` bajo `roles.deep-reviewer`; cuando no está configurado, un valor predeterminado integrado cubre el layout estándar del proyecto (`internal/state/`, `internal/protocol/`, `cmd/`, `docs/`, `templates/`, `dashboard/`, `*_test.go`).
+
+### SubFase del deep review y recuperación de crashes
+
+La fase `deep-reviewing` ejecuta varios pasos internos (sub-revisor → synthesizer → mini-coder → re-verificador), pero **no** son fases de la máquina de estados. Para que el progreso en vivo y la recuperación de crashes sean conscientes de *qué* paso está ejecutándose, `State` lleva un campo `subPhase` (`internal/protocol/types.go`) que solo es significativo mientras `phase == deep-reviewing`:
+
+| `subPhase` | Paso | Se establece cuando |
+|---|---|---|
+| `reviewing` | los sub-revisores (o fallback de agente único) escanean el diff | al entrar al deep review |
+| `synthesizing` | el synthesizer está fusionando los reportes parciales | synthesizer lanzado |
+| `fixing` | el mini-coder está reparando problemas bloqueantes | mini-coder de auto-reparación lanzado |
+| `reverifying` | el re-verificador está confirmando la corrección | re-verificador de auto-reparación lanzado |
+
+`WriteState` impone un único invariante: cualquier escritura cuya `phase` no sea `deep-reviewing` limpia `subPhase` a cadena vacía (`omitempty` la mantiene fuera de `state.json` completamente). Así, salir del deep review — hacia `accepting`, `amending` o `needs-attention` — nunca deja una sub-fase obsoleta, independientemente de qué ruta de salida se tome.
+
+En la recuperación de crash, `smartResumePhase` ya no reinicia el deep review desde cero cuando `deep-review-report.md` está incompleto. Inspecciona los artefactos en disco y reanuda desde el paso correcto:
+
+- **Cualquier `deep-review-partial-{i}.md` faltante o incompleto** → reanudar en `reviewing`; el ciclo paralelo solo re-lanza los sub-revisores cuyos parciales faltan (`missingDeepPartials`), reutilizando el grupo de ángulos original de cada índice para que nada se reasigne.
+- **Todos los parciales presentes pero el reporte incompleto** → reanudar en `synthesizing`; los sub-revisores se omiten y solo el synthesizer vuelve a ejecutarse.
+- **Reporte completo pero con FAIL** → comportamiento sin cambios: enrutar a `amending` con `subPhase` limpio.
+
+Un parcial se juzga completo por `deepPartialComplete` — el archivo existe, no está vacío, y contiene la sección centinela `## Statistics` que la plantilla del deep-reviewer siempre emite, para que un parcial escrito a medias nunca se confunda con uno terminado. Esta recuperación de mínima re-ejecución evita gastar de nuevo el (costoso) modelo profundo en pasos que ya completaron antes del crash.
+
 ### Features auto-descubiertos
 
 Un deep reviewer a menudo detecta problemas que son reales pero **fuera del alcance del feature actual** — un bug latente, deuda técnica, una capacidad faltante. Sin un lugar donde registrarlos, esas observaciones quedan enterradas en el reporte. Cuando `auto_discover_features` está habilitado, el ciclo de ejecución los captura automáticamente.
@@ -79,6 +112,24 @@ El deep reviewer escribe cada candidato fuera de alcance como un bloque `[NEW-FE
 - **Resume** el resultado (creados / omitidos-como-duplicado / limitados) en `.4x/run/{feature-id}/discovered-features.md`.
 
 El paso es best-effort: cualquier error se registra y nunca bloquea la transición a `accepting`. Solo se ejecuta en el PASS final del deep review — las rondas intermedias y las rutas FAIL/`needs-attention` nunca lo alcanzan. Ver [Configuración -> Auto-descubrimiento de features](configuration.md#auto-discover-features) para la configuración.
+
+### Minero de historial y pool de candidatos
+
+Auto-Discovered Features solo se activa en un **PASS final del deep review**, y solo analiza los bloques `[NEW-FEATURE]` del `deep-review-report.md` de esa única ronda. La señal más rica — los *fallos* — nunca se cosecha: un `escalation.json`, un feature atascado en `needs-attention`/`abandoned`/`blocked`, o el mismo problema de revisor FAIL recurriendo en muchos features.
+
+El comando `4x mine` cierra esa brecha. Escanea el **directorio completo** `.4x/` en busca de señales de fallo históricas y las agrega en un pool de candidatos en `.4x/candidates.json`. Es un comando puro de capa CLI/protocol — **sin llamada a LLM**, solo escaneo mecánico más la misma deduplicación Jaccard de solapamiento de tokens que usa Auto-Discovered Features. Tres escáneres alimentan el pool, etiquetando cada candidato con un `Source` y una cadena de trazabilidad `Origin`:
+
+| Fuente | Señal | Formato de origen |
+|---|---|---|
+| `escalation` | el `escalation.json` de cada ronda con `needed: true`, clasificado por `reason` (spec-mismatch / criteria-wrong / blocker / scope-change) | `<featureID> round-<n> <reason>` |
+| `stuck` | features cuya fase en `state.json` es `needs-attention`, `abandoned`, o `blocked`; el motivo de bloqueo se toma de `stopReason`/`stopMessage`, con fallback a la `detail` de escalación de la última ronda | `<featureID> <phase>` |
+| `fail-pattern` | títulos de issues FAIL de reviewer/deep-reviewer que recurren en features **distintos** (múltiples rondas del mismo feature cuentan una vez), agrupados por similitud Jaccard y controlados por `--min-occurrences` (predeterminado `3`) | `N features: <ids>` |
+
+Un fail-pattern recurrente también emite un `CandidateLearning` (categoría `review`) sugiriendo que el issue se promueva a una lista de verificación de revisión o plantilla.
+
+El `CandidatePool` de salida (`candidates.json`) contiene `Version`, `GeneratedAt`, una lista de `Candidate`s y una lista de `CandidateLearning`s. Antes de escribir, los candidatos se deduplicarán de tres formas: contra los YAMLs de features existentes, contra el `candidates.json` anterior, y dentro del lote actual. Flags: `--min-occurrences` (umbral de fail-pattern), `--output` (predeterminado `.4x/candidates.json`), y `--dry-run` (imprimir el resumen sin escribir).
+
+El comando completo es best-effort — un feature corrupto se registra y omite, nunca abortando el escaneo. Crucialmente, `4x mine` **solo produce el pool de candidatos; nunca crea features**. Si un candidato se promueve a un feature real lo deja a un gate separado (F097). Esto lo hace complementario a — no un reemplazo de — Auto-Discovered Features: uno cosecha notas en-alcance en el éxito, el otro cosecha señales de fallo a través de todo el historial.
 
 ### Evolve Driver
 
@@ -216,6 +267,12 @@ Dos archivos señal a nivel raíz coordinan un batch en ejecución con observado
 
 `state.json` es leído y escrito por múltiples actores concurrentemente — el ciclo de ejecución, el servidor del dashboard y los reconciliadores en segundo plano. Para evitar que un lector vea un archivo truncado o a medio escribir, `WriteState` nunca escribe in situ. Serializa el estado, lo escribe en un archivo temporal (`.state-*.json`) **en el mismo directorio** (garantizando el mismo sistema de archivos para que el renombrado sea atómico), luego ejecuta `os.Rename` sobre `state.json`. Un lector por lo tanto siempre ve el archivo antiguo completo o el nuevo completo — nunca uno parcial. Ante cualquier fallo, el archivo temporal se elimina para que no se acumulen residuos `.state-*.json`. No se usa bloqueo de archivo; la corrección proviene del renombrado atómico más la comparación de `UpdatedAt`.
 
+### Recuperación del path del worktree
+
+Cuando un feature se ejecuta en aislamiento de worktree, el ciclo imprime `worktree: <path>` al inicio, lo cual se registra en `events.jsonl` como un evento `run-output`. `Workspace.WorktreePath` recupera ese path más tarde (por ej. para el descubrimiento de capturas de pantalla) escaneando el rastro de auditoría en lugar de volver a ejecutar git.
+
+El escaneo lee el **archivo completo** `events.jsonl` y retorna el path del **último** evento `run-output` que coincida. Esto importa para las re-ejecuciones: cada `4x run` agrega un nuevo evento `worktree: …`, por lo que el archivo acumula entradas durante la vida del feature. Leer solo las primeras líneas omitiría el path una vez que se acumulen suficientes eventos, o retornaría un worktree obsoleto que ya ha sido eliminado. Tomar el último match siempre produce el worktree de la ejecución más reciente.
+
 ### Cache de lectura del workspace (servidor del dashboard)
 
 El CLI es un proceso de corta duración: cada comando lee los archivos de `.4x/` que necesita una vez y termina, por lo que siempre usa un `*protocol.Workspace` simple. El servidor del dashboard (`4x live`) es lo opuesto — es de larga duración y cada solicitud API re-lee los mismos archivos. En un workspace multi-proyecto x multi-feature (ej. 5 proyectos x 50 features) una sola solicitud puede disparar cientos de parseos YAML/JSON.
@@ -281,6 +338,24 @@ Por defecto, 4x opera en modo monorepo. Para trabajar con múltiples repositorio
 Cada entrada mapea un nombre de repo a su ruta (relativa a la raíz del workspace) y un flag `hub` opcional. Los repos hub son infraestructura compartida que múltiples features pueden tocar — se excluyen del agrupamiento por alcance en `4x batch plan`.
 
 En modo monorepo (sin `workspace.repos`), todas las verificaciones de alcance y operaciones git usan la raíz del repo único.
+
+### Guardia de auto-modificación
+
+Cuando 4x se ejecuta sobre sí mismo (meta-loop), los cambios a su propia base central (máquina de estados / guardrails / protocol) son más riesgosos que el trabajo de feature ordinario — una regresión ahí rompe todo el ciclo multi-rol. La guardia de auto-modificación añade una capa extra sobre la guardia de Scope a nivel de repo, configurada bajo `self_mod_guard` en `settings.json`:
+
+```json
+"self_mod_guard": {
+  "protected_paths": ["internal/state/", "internal/guard/", "internal/protocol/"],
+  "max_diff_lines": 200,
+  "require_tests": true
+}
+```
+
+- `protected_paths` — lista de prefijos de path permitidos (relativa a la raíz del scope); los cambios bajo estos son marcados. Por defecto son las tres líneas rojas de arquitectura cuando no está configurado.
+- `max_diff_lines` — presupuesto de diff protegido por ronda; excederlo falla la guardia y mueve el feature a `needs-attention`. Por defecto `200`.
+- `require_tests` — cuando es `true` (predeterminado), los cambios `.go` protegidos deben incluir cambios `_test.go` protegidos antes de que el feature pueda salir de `testing`.
+
+Un toque se detecta una vez durante la verificación de guardia post-coding y se persiste en `state.json` (`selfModTouched` / `selfModPaths`). Tocar paths protegidos nunca hace auto-merge: `4x done` / `4x merge` bloquean hasta que se vuelva a ejecutar con `--approve-self-mod`, lo cual registra `selfModApproved` en estado.
 
 ---
 
@@ -456,6 +531,28 @@ verify_commands:
 ```
 
 `profiles` es `omitempty` — un `test-strategy.yaml` sin este campo se comporta exactamente como antes (sin inyección).
+
+### Verificaciones manuales
+
+Para los elementos de AC que necesitan verificación en tiempo de ejecución más allá de build/test/lint, el Designer puede añadir `manual_checks` a `test-strategy.yaml` (`TestStrategy.ManualChecks` en `internal/protocol/types.go`):
+
+```yaml
+manual_checks:
+  - id: mc-1
+    ac_ref: AC-3
+    description: "驗證 routing 正確分流"
+    steps:
+      - "啟動 server: go run ./cmd/gate --port 8080"
+      - "curl http://localhost:8080/health → 確認 200"
+  - id: mc-2
+    ac_ref: AC-5
+    description: "驗證 graceful shutdown"
+    steps:
+      - "啟動 server 並送 SIGTERM"
+      - "確認 exit code 為 0"
+```
+
+El Tester debe ejecutar cada paso y registrar la salida real como evidencia en `verify.json` bajo `manual_check_results` (`VerifyEvidence.ManualCheckResults`). La guardia bloquea `testing → accepting` si alguna verificación manual no tiene resultado o tiene evidencia vacía. Si el fallo es reintentable, el tester obtiene un reintento automático con los errores de la guardia inyectados vía `guard-feedback.json`; un segundo fallo escala a `needs-attention`.
 
 ### Perfiles integrados
 

@@ -18,6 +18,20 @@ Inicializar un workspace `.4x/` en el directorio actual.
 - Agrega líneas `@import` a archivos del nivel raíz (CLAUDE.md, AGENTS.md, GEMINI.md, AGY.md, .cursorrules)
 - Produce error si `.4x/` ya existe
 
+### `4x init --dump-templates`
+
+Vuelca las plantillas de prompts de rol integradas en `.4x/templates/` para que el proyecto pueda sobreescribirlas.
+
+```
+4x init --dump-templates          # escribir plantillas integradas en .4x/templates/
+4x init --dump-templates --force  # sobreescribir archivos de plantilla existentes
+```
+
+- Requiere que `.4x/` ya exista (ejecutar `4x init` primero)
+- Escribe cada `*.md.tmpl` embebido (incluyendo `locale.tmpl`) en `.4x/templates/`
+- Los archivos existentes se omiten con una advertencia a menos que se use `--force`
+- En tiempo de prompt, `.4x/templates/{file}` tiene prioridad sobre la plantilla embebida (sobreescritura completa); `locale.tmpl` y cada plantilla de rol regresan al valor por defecto de forma independiente
+
 ---
 
 ## `4x new <title>`
@@ -131,6 +145,45 @@ Ejemplo:
 ```
 4x subtask F043-dashboard-screenshot-gall protocol-screenshot-type --status done
 ```
+
+---
+
+## `4x approve <feature-id>`
+
+Aprobar un feature en estado `draft` producido por el auto-descubrimiento enriquecido, transicionándolo `draft → not-started` para que el meta-loop lo recoja. Los borradores solo se crean cuando `enrich_discovered_features` está habilitado y `enrich_auto_approve` es `false`. Produce error si el feature no está en estado `draft`.
+
+```
+4x approve F042-some-discovered-feature
+```
+
+---
+
+## `4x reject <feature-id>`
+
+Rechazar un feature en estado `draft` producido por el auto-descubrimiento enriquecido, transicionándolo `draft → abandoned` para que quede fuera del meta-loop. Produce error si el feature no está en estado `draft`.
+
+```
+4x reject F042-some-discovered-feature
+```
+
+---
+
+## `4x retry <feature-id>`
+
+Recuperar un feature atascado en `needs-attention` o `blocked` transicionándolo de vuelta a una fase activa, e inmediatamente lanzando `4x run`. Equivalente a `4x transition --to <phase> <id> && 4x run <id>`.
+
+La fase destino por defecto es `accepting` (volver a ejecutar el Acceptor después de que el humano resuelva los problemas). Usa `--to` para apuntar a una fase diferente.
+
+```
+4x retry F042-some-feature
+4x retry F042-some-feature --to amending
+```
+
+| Bandera | Descripción |
+|------|-------------|
+| `--to <phase>` | Fase destino para la recuperación (por defecto: `accepting`) |
+
+Produce error si el feature no está actualmente en `needs-attention` o `blocked`.
 
 ---
 
@@ -331,6 +384,27 @@ Si ocurre un conflicto de merge o error de merge, el feature permanece en `pendi
 
 ---
 
+## `4x force-done <feature-id>`
+
+<!-- alias: 4x forcedone -->
+
+Forzar un feature a done desde cualquier fase no terminal. Requiere `--reason` para documentar por qué se está saltando el pipeline normal.
+
+```
+4x force-done <feature-id> --reason "código revisado y tests pasan, test e2e diferido a post-merge"
+```
+
+Transiciona el feature a `pending-review`, registra un evento `force-done` con el motivo, luego activa el mismo flujo de merge que `4x done`. Funciona desde `needs-attention`, `blocked`, o cualquier fase activa.
+
+El dashboard expone esto como `POST /api/force-done` con `{id, reason}`.
+
+| Bandera | Descripción |
+|---|---|
+| `--reason` | Por qué el feature está siendo forzado a completado (requerido) |
+| `--json` | Mostrar resultado como JSON |
+
+---
+
 ## `4x merge <feature-id>`
 
 Completar un merge después de resolver conflictos de `4x done`.
@@ -357,6 +431,56 @@ Eliminar artefactos del workspace (`logs/`, `rounds/`, reportes, `state.json`, `
 ```
 
 Solo los features en estado `done` o `abandoned` con un directorio de workspace existente son elegibles. Los features activos (en ejecución) nunca se limpian, y los features en `blocked` / `needs-attention` se mantienen para que sus artefactos de depuración permanezcan disponibles. La limpieza no es una transición de la máquina de estados — no cambia el ciclo de vida del feature.
+
+---
+
+## `4x learn`
+
+Gestionar los aprendizajes retro — lecciones de desarrollo acumuladas a través de features en `.4x/learnings.json`.
+
+El Acceptor de cada feature escribe un `retro-learnings.json`; el CLI lo cosecha en `.4x/learnings.json`. En el siguiente feature, el Designer selecciona las entradas relevantes en `selected-learnings.json`, y el CLI las inyecta (filtradas por categoría) en el prompt de cada rol. Los learnings son gestionados enteramente por el CLI — los runners nunca escriben `learnings.json` directamente, y cualquier fallo de learnings solo advierte sin bloquear las transiciones de estado.
+
+```
+4x learn list                     # listar todos los learnings (id/categoría/estado/usado/contenido)
+4x learn list --category=testing  # filtrar por categoría
+4x learn prune                    # marcar entradas obsoletas (>90 días sin uso) y eliminarlas
+4x learn prune --dry-run          # previsualizar entradas obsoletas sin eliminar
+4x learn promote <id>             # marcar un learning como promovido (se mantiene pero no se inyecta)
+4x learn remove <id>              # eliminar una entrada de learning
+```
+
+- Categorías: `design`, `code-quality`, `testing`, `review`, `tooling`, `process`
+- Estado: `active` (inyectable), `stale` (>90 días sin uso, marcado automáticamente al leer), `promoted` (actualizado a plantilla/instrucciones)
+- Un límite flexible de 100 entradas activas activa una advertencia que sugiere `4x learn prune` — las entradas nunca se eliminan automáticamente
+
+---
+
+## `4x mine`
+
+Escanear todo el historial de `.4x/` en busca de señales de fallo y agregarlas en un pool de candidatos en `.4x/candidates.json`. A diferencia del auto-descubrimiento (que solo se activa en un único deep-review PASS y analiza marcadores `[NEW-FEATURE]`), el miner barre **todos** los features para obtener los datos de fallo más densos: escalaciones, features atascados y fallos de revisión recurrentes.
+
+El miner es un escaneo puro de capa CLI/protocol — nunca llama a un LLM y nunca crea features. Solo produce candidatos; si un candidato se promueve a un feature real lo decide más tarde el gate F097.
+
+```
+4x mine                          # escanear y escribir .4x/candidates.json
+4x mine --dry-run                # imprimir resumen sin escribir
+4x mine --min-occurrences 5      # elevar el umbral de patrón de fallo (por defecto 3)
+4x mine --output path.json       # escribir en una ruta personalizada
+```
+
+| Bandera | Por defecto | Descripción |
+|---|---|---|
+| `--min-occurrences` | `3` | Cantidad de features distintos que un problema de revisión recurrente debe alcanzar para convertirse en candidato |
+| `--output` | `.4x/candidates.json` | Ruta de salida del pool de candidatos |
+| `--dry-run` | `false` | Solo imprimir el resumen, no escribir nada |
+
+Tres escáneres alimentan el pool, cada uno etiquetando candidatos con un `source` para trazabilidad:
+
+- **escalation** — lee el `escalation.json` de cada ronda (`spec-mismatch` / `criteria-wrong` / `blocker` / `scope-change`)
+- **stuck** — features atascados en `needs-attention` / `abandoned` / `blocked`, con el motivo de bloqueo extraído de `state.json` o la escalación más reciente
+- **fail-pattern** — problemas de revisión / deep-review FAIL que recurren en `>= --min-occurrences` features distintos (agrupados por similitud Jaccard); cada cluster también emite un learning candidato que sugiere una lista de verificación de revisión
+
+El escaneo es de mejor esfuerzo: un único feature corrupto solo registra una advertencia y nunca aborta el resto. Los candidatos se deduplicarán (Jaccard) contra los features existentes, el `candidates.json` anterior y entre sí.
 
 ---
 

@@ -64,13 +64,36 @@ Runner 在 `.4x/settings.json` 的 `runners` 键下配置。CLI 以子进程方�
 | 2 | 硬错误 | 循环停止，需要关注 |
 | timeout | 超过时限无响应 | 视为软失败 |
 
+### 占位符解析
+
+Runner 的 `args` 可包含占位符，CLI 在调用子进程前会将其替换：
+
+| 占位符 | 替换为 |
+|---|---|
+| `{prompt}` | 角色 prompt 文本，作为参数内联传入 |
+| `{promptFile}` | 包含 prompt 内容的临时文件路径 |
+| `{model}` | 该角色解析后的模型覆盖值 |
+
+占位符解析**失败时立即报错**，而非将字面占位符传给 AI CLI：
+
+- `{model}` 存在但没有解析到模型覆盖值 → runner 报错 `model not resolved for runner <name>`，而非发送 `--model {model}`（后者会导致 CLI 报出含义不明的错误）。
+- `{promptFile}` 但临时文件无法创建或写入（如 `/tmp` 已满）→ runner 返回包装后的底层错误（`runner <name>: create prompt temp file: ...`）并删除任何已创建的临时文件，而非发送字面字符串 `{promptFile}`。
+
+解析期间创建的临时文件始终会被清理，即使后续步骤失败也是如此。
+
 ### Stream JSON 模式
 
 设置 `output_format: "stream-json"` 的 runner 会写入两种文件：dashboard tail 的可读 `.log`，以及用于调试的原始 `.stream.jsonl`。Claude Code 默认使用此模式。
 
+### 非 PTY 进程组处理
+
+非 PTY runner（stream-json 模式、stdin 模式、普通参数模式）使用独立进程组（Unix 上的 `Setpgid`）。当运行上下文被取消时，进程组会立即收到 `SIGKILL`——没有 SIGTERM 宽限期。Windows 上使用默认的 `exec.CommandContext` 行为。
+
 ### PTY 模式
 
-`tty: true` 的 runner 使用伪终端捕获完整输出，包括 ANSI 转义序列。一个有状态的 ANSI 清理器会清洗日志文件。`output_format` 为 `"stream-json"` 时会跳过此路径。
+`tty: true` 的 runner（且不使用 `output_format: "stream-json"`）使用伪终端捕获完整输出，包括 ANSI 转义序列。一个有状态的 ANSI 清理器会清洗日志文件。PTY 路径使用 `exec.Command` 配合专用的上下文监视器进行优雅关闭，而非 PTY runner 使用带进程组级取消的 `exec.CommandContext`（见上文）。
+
+PTY 子进程在自己的会话/进程组中运行。当运行上下文被取消（如超时或 Ctrl+C）时，整个进程组收到 `SIGTERM`，若 5 秒内未退出则升级为 `SIGKILL`——确保没有孤儿子进程存活于运行结束之后。
 
 ### Stdin 模式
 

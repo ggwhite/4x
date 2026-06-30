@@ -177,6 +177,10 @@ Feature 详情中包含**截图**标签页（当该 feature 存在截图时）�
 
 当多个角色同时写日志——并行深度审查子审查者，或并发的审查者+测试者——流尾随**所有**当前活跃的日志，而非仅最近修改的那个。不带 `?file=` 查询参数时，它跟踪 mtime 落在最近窗口内的每个日志（各自有独立偏移量），每条消息的 `file` 字段让客户端将内容路由到匹配的面板。传入 `?file=<name>` 可固定流到单个日志。
 
+### 完成通知
+
+每次 SSE tick 时，dashboard 从 `/api/events/{id}` 读取最新事件，当事件携带 `notify` 提示（`run-end` 成功、`guard-fail` 或 `escalation`）时，触发原生 OS 通知。派发器根据运行环境选择正确的通知渠道：macOS 原生应用使用 `nativeNotify` WebKit 桥接，Tauri shell 调用由 `tauri-plugin-notification` 支持的 `notify` 命令，普通浏览器使用 Web Notification API（需先请求权限）。不支持或无权限的环境会静默降级。通知文本通过 `notifications.*` i18n 键进行本地化。
+
 ### 多项目路由
 
 当有多个项目时，端点前缀为 `/api/project/{project-id}/...` 和 `/sse/project/{project-id}/...`。单项目模式使用无前缀路径以保持向后兼容。

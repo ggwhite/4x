@@ -18,6 +18,20 @@
 - 在根層級檔案（CLAUDE.md、AGENTS.md、GEMINI.md、AGY.md、.cursorrules）加入 `@import` 行
 - 如果 `.4x/` 已存在則報錯
 
+### `4x init --dump-templates`
+
+將內建的角色 prompt 模板傾印到 `.4x/templates/`，讓專案可以覆寫它們。
+
+```
+4x init --dump-templates          # 將內建模板寫入 .4x/templates/
+4x init --dump-templates --force  # 覆寫既有的模板檔案
+```
+
+- 需要 `.4x/` 已存在（先執行 `4x init`）
+- 將每個內嵌的 `*.md.tmpl`（包含 `locale.tmpl`）寫入 `.4x/templates/`
+- 既有檔案會被略過並顯示警告，除非指定 `--force`
+- 在 prompt 時，`.4x/templates/{file}` 優先於內嵌模板（整個檔案覆寫）；`locale.tmpl` 和每個角色模板各自獨立回退
+
 ---
 
 ## `4x new <title>`
@@ -131,6 +145,45 @@ Review 判定必須以 `PASS` 開頭才算通過。`## Verdict` 標題與判定�
 ```
 4x subtask F043-dashboard-screenshot-gall protocol-screenshot-type --status done
 ```
+
+---
+
+## `4x approve <feature-id>`
+
+核准由 enriched auto-discover 產生的 `draft` feature，將其從 `draft → not-started`，使 meta-loop 可以接手。草稿只在啟用 `enrich_discovered_features` 且 `enrich_auto_approve` 為 `false` 時才會建立。若 feature 不在 `draft` 狀態則報錯。
+
+```
+4x approve F042-some-discovered-feature
+```
+
+---
+
+## `4x reject <feature-id>`
+
+拒絕由 enriched auto-discover 產生的 `draft` feature，將其從 `draft → abandoned`，使其不進入 meta-loop。若 feature 不在 `draft` 狀態則報錯。
+
+```
+4x reject F042-some-discovered-feature
+```
+
+---
+
+## `4x retry <feature-id>`
+
+將卡在 `needs-attention` 或 `blocked` 的 feature 轉回工作階段，然後立即啟動 `4x run`。等同於 `4x transition --to <phase> <id> && 4x run <id>`。
+
+預設目標階段為 `accepting`（讓人工修復問題後重跑 Acceptor）。使用 `--to` 可指定不同階段。
+
+```
+4x retry F042-some-feature
+4x retry F042-some-feature --to amending
+```
+
+| 旗標 | 說明 |
+|------|------|
+| `--to <phase>` | 要復原至的目標階段（預設：`accepting`） |
+
+若 feature 目前不在 `needs-attention` 或 `blocked` 則報錯。
 
 ---
 
@@ -279,6 +332,27 @@ Dashboard 透過 `GET /api/evolve-report` 呈現最新報告。
 
 ---
 
+## `4x force-done <feature-id>`
+
+<!-- alias: 4x forcedone -->
+
+從任何非終止階段強制將 feature 標記為完成。需要 `--reason` 來記錄跳過正常 pipeline 的原因。
+
+```
+4x force-done <feature-id> --reason "code reviewed and tests pass, e2e test deferred to post-merge"
+```
+
+將 feature 轉換到 `pending-review`，記錄一個帶有原因的 `force-done` 事件，然後觸發與 `4x done` 相同的 merge 流程。可從 `needs-attention`、`blocked` 或任何活躍階段執行。
+
+Dashboard 透過 `POST /api/force-done` 加 `{id, reason}` 提供此功能。
+
+| 旗標 | 說明 |
+|---|---|
+| `--reason` | 強制完成的原因（必填） |
+| `--json` | 以 JSON 格式輸出結果 |
+
+---
+
 ## `4x merge <feature-id>`
 
 完成 `4x done` 發現 conflict 後的 merge。
@@ -305,6 +379,56 @@ Dashboard 透過 `GET /api/evolve-report` 呈現最新報告。
 ```
 
 只有狀態為 `done` 或 `abandoned` 且有既有 workspace 目錄的 feature 才合格。活躍中（執行中）的 feature 永遠不會被清理，`blocked` / `needs-attention` 的 feature 也會保留以便除錯。清理不是狀態機轉換——它不會改變 feature 生命週期。
+
+---
+
+## `4x learn`
+
+管理回顧學習——在 `.4x/learnings.json` 中累積的跨 feature 開發心得。
+
+每個 feature 的 Acceptor 會寫入 `retro-learnings.json`；CLI 將其匯整至 `.4x/learnings.json`。下一個 feature 時，Designer 會從中挑選相關條目存入 `selected-learnings.json`，CLI 再依類別過濾後注入每個角色的 prompt。learnings 完全由 CLI 管理——runner 絕不直接寫入 `learnings.json`，任何 learnings 失敗都只會警告，不阻擋狀態轉換。
+
+```
+4x learn list                     # 列出所有 learnings（id/category/status/used/content）
+4x learn list --category=testing  # 依類別過濾
+4x learn prune                    # 標記陳舊（>90 天未使用）條目並移除
+4x learn prune --dry-run          # 預覽陳舊條目但不移除
+4x learn promote <id>             # 標記 learning 為已升級（保留但不再注入）
+4x learn remove <id>              # 移除一筆 learning 條目
+```
+
+- 類別：`design`、`code-quality`、`testing`、`review`、`tooling`、`process`
+- 狀態：`active`（可注入）、`stale`（>90 天未使用，讀取時自動標記）、`promoted`（已升級為模板/指引）
+- 超過 100 筆 active 條目時會顯示軟上限警告，建議執行 `4x learn prune`——不會自動刪除條目
+
+---
+
+## `4x mine`
+
+掃描整個 `.4x/` 歷史記錄，尋找失敗訊號並將其彙整為 `.4x/candidates.json` 候選池。不同於自動發現（只在單次執行的 deep-review PASS 後觸發並解析 `[NEW-FEATURE]` 標記），miner 掃描**所有** feature 以取得最密集的失敗資料：escalation、卡住的 feature、以及反覆出現的 review 失敗。
+
+miner 是純 CLI/protocol 層掃描——不呼叫 LLM，不建立 feature。它只產生候選；候選是否升級為真正的 feature 由 F097 gate 後續決定。
+
+```
+4x mine                          # 掃描並寫入 .4x/candidates.json
+4x mine --dry-run                # 印出摘要但不寫入
+4x mine --min-occurrences 5      # 提高失敗模式閾值（預設 3）
+4x mine --output path.json       # 寫入自訂路徑
+```
+
+| 旗標 | 預設值 | 說明 |
+|---|---|---|
+| `--min-occurrences` | `3` | 反覆出現的 review 問題須達到的 distinct feature 數才成為候選 |
+| `--output` | `.4x/candidates.json` | 候選池輸出路徑 |
+| `--dry-run` | `false` | 只印出摘要，不寫入任何內容 |
+
+三個掃描器餵入候選池，每個都為候選標記 `source` 以供追蹤：
+
+- **escalation** — 讀取每一輪的 `escalation.json`（`spec-mismatch` / `criteria-wrong` / `blocker` / `scope-change`）
+- **stuck** — 卡在 `needs-attention` / `abandoned` / `blocked` 的 feature，從 `state.json` 或最新 escalation 的 `detail` 提取阻塞原因
+- **fail-pattern** — 跨**不同** feature 反覆出現的 review / deep-review FAIL 問題（同一 feature 的多輪只算一次），以 Jaccard 相似度聚類，並受 `--min-occurrences` 閾值限制；每個叢集還會產生一筆建議加入 review checklist 的候選 learning
+
+掃描為盡力而為——單一損壞的 feature 只記錄警告，不中止掃描。候選以三種方式去重：對照既有 feature YAML、對照前一份 `candidates.json`，以及在當前批次內部去重。
 
 ---
 

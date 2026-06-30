@@ -177,6 +177,10 @@ xattr -cr /Applications/4x\ Live.app
 
 여러 역할이 동시에 로그를 쓸 때 — 병렬 딥 리뷰 sub-reviewer나 동시 reviewer + tester — 스트림은 가장 최근 수정된 로그 하나가 아닌 **모든** 현재 활성 로그를 테일합니다. `?file=` 쿼리 파라미터 없이는 최근 기간 내 mtime에 해당하는 모든 로그를 각각의 오프셋으로 추적하며, 메시지별 `file` 필드로 클라이언트가 내용을 맞는 패널로 라우팅할 수 있습니다. `?file=<name>`을 전달하면 스트림을 단일 로그에 고정합니다.
 
+### 완료 알림
+
+매 SSE 틱마다 대시보드는 `/api/events/{id}`에서 최신 이벤트를 읽고, `notify` 힌트를 포함하는 경우(`run-end` 성공, `guard-fail`, `escalation`) 네이티브 OS 알림을 발생시킵니다. 디스패처는 환경에 맞는 채널을 선택합니다: macOS 네이티브 앱은 `nativeNotify` WebKit 브리지를 사용하고, Tauri 셸은 `tauri-plugin-notification`이 지원하는 `notify` 명령을 호출하며, 일반 브라우저는 Web Notification API를 사용합니다(권한 요청 후). 지원되지 않거나 권한이 없는 환경에서는 무시합니다. 알림 텍스트는 `notifications.*` i18n 키를 통해 현지화됩니다.
+
 ### 다중 프로젝트 라우팅
 
 여러 프로젝트가 있을 때 엔드포인트 앞에 `/api/project/{project-id}/...` 및 `/sse/project/{project-id}/...`가 붙습니다. 단일 프로젝트 모드는 하위 호환성을 위해 접두사 없는 경로를 사용합니다.

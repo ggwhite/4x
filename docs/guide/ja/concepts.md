@@ -67,6 +67,39 @@ Deep Review は11の異なるアングル（正確性、品質、規約、履歴
 
 `parallel_reviewers` が未設定または `<= 1` の場合、元の単一エージェントフローにフォールバックします：1つの Deep Reviewer が全11アングルをレンダリングし、部分レポートや synthesizer なしで `deep-review-report.md` を直接書き込みます。
 
+### Deep Review アングルの選択
+
+Deep Review をディスパッチする前に、4x は diff に影響するファイルパスを分析し、11のアングルのうちどれを実行するかを選択します。`roles.deep-reviewer` の `angle_mapping` フィールドはパスプレフィックス（例：`internal/state/`）とサフィックスパターン（例：`*_test.go`）をアングル番号にマッピングします。変更された各ファイルについて最も長く一致するプレフィックスが勝ち（プレフィックスルールはサフィックスルールより優先）、マッチしたすべてのアングルの和集合が選択セットになります。いずれのファイルもどのルールにもマッチしない場合、安全のフォールバックとして全 11 アングルが実行されます。
+
+選択結果はラウンドディレクトリの `deep-review-angles.json` に記録されます。どのファイルがどのルールにマッチし、各ファイルがどのアングルに貢献したかも含まれます。このアーティファクトはクラッシュリカバリーで正しい partial 数を判断するためにも使用されます。
+
+マッピングに関わらず全 11 アングルを強制実行するには：
+- `4x run` に `--all-angles` を指定
+- Feature YAML に `deep_review_all_angles: true` を設定
+
+`angle_mapping` は `settings.json` の `roles.deep-reviewer` 下でカスタマイズできます。設定がない場合、標準プロジェクトレイアウト（`internal/state/`、`internal/protocol/`、`cmd/`、`docs/`、`templates/`、`dashboard/`、`*_test.go`）をカバーする組み込みデフォルトが使用されます。
+
+### Deep Review SubPhase & クラッシュリカバリー
+
+`deep-reviewing` フェーズはいくつかの内部ステップ（sub-reviewer → synthesizer → mini-coder → re-verifier）を実行しますが、これらはステートマシンのフェーズでは**ありません**。ライブ進捗とクラッシュリカバリーが*どのステップが実行中か*を認識できるよう、`State` は `subPhase` フィールドを持ちます（`internal/protocol/types.go`）。このフィールドは `phase == deep-reviewing` の間のみ意味を持ちます：
+
+| `subPhase` | ステップ | 設定タイミング |
+|---|---|---|
+| `reviewing` | sub-reviewers（または単一エージェントフォールバック）が diff をスキャン中 | Deep Review 開始時 |
+| `synthesizing` | synthesizer が部分レポートをマージ中 | synthesizer 起動時 |
+| `fixing` | mini-coder がブロッキング問題を修正中 | 自己修復 mini-coder 起動時 |
+| `reverifying` | re-verifier が修正を確認中 | 自己修復 re-verifier 起動時 |
+
+`WriteState` は1つの不変条件を強制します：`phase` が `deep-reviewing` でない書き込みは `subPhase` を空文字列にクリアします（`omitempty` により `state.json` から完全に除外）。Deep Review を離れる際（`accepting`、`amending`、`needs-attention` のいずれでも）、どの終了パスを経由しても古い sub-phase が残ることはありません。
+
+クラッシュリカバリーでは、`smartResumePhase` が `deep-review-report.md` が不完全な場合でも Deep Review を最初からやり直しません。ディスク上のアーティファクトを検査して適切なステップから再開します：
+
+- **`deep-review-partial-{i}.md` が欠落または不完全** → `reviewing` から再開。並列ループは partial が欠落している sub-reviewer のみを再起動し（`missingDeepPartials`）、各インデックスの元のアングルグループを再使用して再割り当てを防ぎます。
+- **すべての partial が存在するがレポートが不完全** → `synthesizing` から再開。sub-reviewer はスキップされ synthesizer のみが再実行されます。
+- **レポートが完成しているが FAIL** → 変更なしの動作：`subPhase` をクリアして `amending` にルーティング。
+
+partial が完成しているかどうかは `deepPartialComplete` で判定されます。ファイルが存在し、空でなく、Deep Reviewer テンプレートが常に出力する `## Statistics` セントinelセクションを含んでいる場合に完成とみなします。半書き込みの partial を完成と間違えることはありません。この最小再実行リカバリーにより、クラッシュ前に完了したステップに対して（コストの高い）Deep モデルを再消費することを避けられます。
+
 ### 自動検出 Feature
 
 Deep Reviewer は現在の Feature のスコープ外だが実在する問題（潜在的バグ、技術的負債、不足機能）を発見することがよくあります。着地先がなければ、それらの指摘はレポートに埋もれてしまいます。`auto_discover_features` が有効な場合、実行ループが自動的にキャプチャします。
@@ -79,6 +112,24 @@ Deep Reviewer は各スコープ外候補を `deep-review-report.md` の `## Dis
 - 結果（作成 / 重複スキップ / 制限超過）を `.4x/run/{feature-id}/discovered-features.md` に**サマリー**として出力します。
 
 このステップはベストエフォートです。エラーが発生しても `accepting` への遷移をブロックしません。最終的な Deep Review PASS でのみ実行されます（中間ラウンドや FAIL/`needs-attention` パスでは実行されません）。設定については [設定 → 自動検出 Feature](configuration.md#auto-discover-features) を参照してください。
+
+### 履歴マイナー & 候補プール
+
+Auto-Discovered Features は**最終 Deep Review PASS** 時にのみ発動し、その単一ラウンドの `deep-review-report.md` の `[NEW-FEATURE]` ブロックのみを解析します。最も豊富なシグナルである*失敗*は収集されません：`escalation.json`、`needs-attention`/`abandoned`/`blocked` でスタックした Feature、または多くの Feature にまたがって繰り返す同じレビュー FAIL 問題などです。
+
+`4x mine` コマンドがこのギャップを埋めます。**すべての** `.4x/` ディレクトリの履歴失敗シグナルをスキャンし、`.4x/candidates.json` の候補プールに集約します。純粋な CLI/プロトコル層コマンドで、**LLM は呼び出さず**、Auto-Discovered Features が使う Jaccard トークンオーバーラップ重複排除と同じ機械的スキャンのみを行います。3つのスキャナーがプールに候補を供給し、それぞれが `Source` と `Origin` トレーサビリティ文字列でタグ付けします：
+
+| ソース | シグナル | Origin 形式 |
+|---|---|---|
+| `escalation` | `needed: true` を持つ各ラウンドの `escalation.json`、`reason` で分類（spec-mismatch / criteria-wrong / blocker / scope-change） | `<featureID> round-<n> <reason>` |
+| `stuck` | `state.json` フェーズが `needs-attention`、`abandoned`、`blocked` の Feature。ブロック理由は `stopReason`/`stopMessage` から取得し、最新ラウンドのエスカレーション `detail` にフォールバック | `<featureID> <phase>` |
+| `fail-pattern` | **distinct** Feature にまたがって繰り返すレビュー/Deep-Reviewer FAIL 問題タイトル（同じ Feature の複数ラウンドは1回としてカウント）。Jaccard 類似度でクラスタリングし `--min-occurrences`（デフォルト `3`）でゲート | `N features: <ids>` |
+
+繰り返す fail-pattern はレビューチェックリストやテンプレートへの昇格を提案する `CandidateLearning`（カテゴリ `review`）も出力します。
+
+出力される `CandidatePool`（`candidates.json`）は `Version`、`GeneratedAt`、`Candidate` のリスト、`CandidateLearning` のリストを持ちます。書き込み前に候補は3つの方法で重複排除されます：既存 Feature YAML、前回の `candidates.json`、および現在のバッチ内。フラグ：`--min-occurrences`（fail-pattern 閾値）、`--output`（デフォルト `.4x/candidates.json`）、`--dry-run`（書き込まずにサマリーを表示）。
+
+コマンド全体はベストエフォートです。1つの壊れた Feature はログに記録されスキップされ、スキャンを中断しません。重要な点として、`4x mine` は**候補プールのみを生成し、Feature は作成しません**。候補を実際の Feature に昇格させるかどうかは別のゲート（F097）が決定します。これにより Auto-Discovered Features を補完します：一方は成功時のスコープ内の指摘を収集し、もう一方は全履歴の失敗シグナルを収集します。
 
 ### Evolve Driver
 
@@ -216,6 +267,12 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
 
 `state.json` は複数のアクターにより同時に読み書きされます（実行ループ、ダッシュボードサーバー、バックグラウンドリコンシラー）。リーダーが不完全なファイルを読むのを防ぐため、`WriteState` はインプレースに書き込みません。状態をマーシャルし、一時ファイル（`.state-*.json`）を**同じディレクトリ**に書き込み（同じファイルシステムであることを保証し、リネームがアトミックになる）、`os.Rename` で `state.json` を上書きします。これにより、リーダーは常に完全な旧ファイルか完全な新ファイルのいずれかを見ます。失敗時には一時ファイルが削除されるため `.state-*.json` の残骸は蓄積されません。ファイルロックは使用しません。正確性はアトミックリネームと `UpdatedAt` の比較により保証されます。
 
+### Worktree パス復元
+
+Feature が worktree 分離で実行される場合、ループは起動時に `worktree: <path>` を出力し、これが `events.jsonl` に `run-output` イベントとして記録されます。`Workspace.WorktreePath` は後から（例：スクリーンショット検索のため）その監査証跡をスキャンすることでパスを復元します。git を再実行する必要はありません。
+
+スキャンは `events.jsonl` **全体**を読み取り、最後にマッチした `run-output` イベントからパスを返します。これは再実行で重要です：各 `4x run` が新しい `worktree: …` イベントを追記するため、ファイルは Feature の生存期間にわたってエントリを蓄積します。最初の数行のみを読み取ると、十分なイベントが溜まった後にパスを見逃すか、すでに削除された古い worktree を返す可能性があります。最後のマッチを取ることで常に最新実行の worktree が得られます。
+
 ### ワークスペース読み取りキャッシュ（ダッシュボードサーバー）
 
 CLI は短命なプロセスです：各コマンドは必要な `.4x/` ファイルを一度読んで終了するため、常にプレーンな `*protocol.Workspace` を使用します。ダッシュボードサーバー（`4x live`）は逆に長時間実行され、すべての API リクエストが同じファイルを再読み取りします。マルチプロジェクト x マルチ Feature のワークスペース（例：5プロジェクト x 50 Feature）では、単一のリクエストで数百の YAML/JSON パースが発生し得ます。
@@ -298,6 +355,24 @@ CLI によって強制される決定的なチェック -- AI の判断には依
 | **Testing → Accepting ゲート** | `verify.json`（passed=true）、`test-report.md`、`final-report.md` が必要 |
 
 `4x check <feature-id>` で手動実行できます。
+
+### Self-mod ガード
+
+4x が自身上で実行される（meta-loop）場合、コア基盤（ステートマシン / ガードレール / プロトコル）への変更は通常の Feature 作業より高リスクです。そこでの回帰は multi-role ループ全体を壊す可能性があります。Self-mod ガードはリポジトリレベルのスコープガードの上にレイヤーとして追加され、`settings.json` の `self_mod_guard` で設定されます：
+
+```json
+"self_mod_guard": {
+  "protected_paths": ["internal/state/", "internal/guard/", "internal/protocol/"],
+  "max_diff_lines": 200,
+  "require_tests": true
+}
+```
+
+- `protected_paths` — パスプレフィックス許可リスト（スコープルートからの相対パス）；これらの下の変更がフラグ立てされます。未設定の場合、デフォルトは3つのアーキテクチャ境界線です。
+- `max_diff_lines` — ラウンドごとの保護 diff バジェット；超過するとガードが失敗し Feature が `needs-attention` に落ちます。デフォルト `200`。
+- `require_tests` — `true`（デフォルト）の場合、保護された `.go` の変更は Feature が `testing` を離れる前に保護された `_test.go` の変更も含む必要があります。
+
+タッチの検出はコーディング後のガードチェック時に1度行われ、`state.json` に永続化されます（`selfModTouched` / `selfModPaths`）。保護パスへのタッチは自動マージされません：`4x done` / `4x merge` は `--approve-self-mod` で再実行するまでブロックします（状態に `selfModApproved` が記録されます）。
 
 ---
 
@@ -456,6 +531,28 @@ verify_commands:
 ```
 
 `profiles` は `omitempty` です。これのない `test-strategy.yaml` は従来どおり動作します（注入なし）。
+
+### マニュアルチェック
+
+ビルド/テスト/lint を超えたランタイム検証が必要な AC 項目について、Designer は `test-strategy.yaml` に `manual_checks` を追加できます（`internal/protocol/types.go` の `TestStrategy.ManualChecks`）：
+
+```yaml
+manual_checks:
+  - id: mc-1
+    ac_ref: AC-3
+    description: "ルーティングが正しく振り分けられることを検証"
+    steps:
+      - "サーバーを起動: go run ./cmd/gate --port 8080"
+      - "curl http://localhost:8080/health → 200 を確認"
+  - id: mc-2
+    ac_ref: AC-5
+    description: "グレースフルシャットダウンを検証"
+    steps:
+      - "サーバーを起動して SIGTERM を送信"
+      - "exit code が 0 であることを確認"
+```
+
+Tester は各ステップを実行し、実際の出力をエビデンスとして `verify.json` の `manual_check_results`（`VerifyEvidence.ManualCheckResults`）に記録しなければなりません。マニュアルチェックの結果がないか、エビデンスが空の場合、ガードが `testing → accepting` をブロックします。失敗がリトライ可能な場合、Tester は `guard-feedback.json` 経由でガードエラーを注入された状態で自動的に1度リトライされます。2回目の失敗は `needs-attention` にエスカレーションされます。
 
 ### 組み込みプロファイル
 

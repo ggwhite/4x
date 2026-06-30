@@ -177,6 +177,10 @@ Feature 詳情頁在有截圖時包含**截圖**分頁。截圖依輪次分組�
 
 當多個角色同時寫入日誌——平行 deep-review sub-reviewer、或同時的 reviewer + tester——串流會 tail **所有**當前活躍的日誌，而非僅最近修改的一個。不帶 `?file=` 查詢參數時，它追蹤每個 mtime 落在近期視窗內的日誌（各有自己的偏移量），每個訊息的 `file` 欄位讓客戶端將內容路由到對應的面板。傳入 `?file=<name>` 可將串流固定在單一日誌上。
 
+### 完成通知
+
+每次 SSE tick，儀表板從 `/api/events/{id}` 讀取最新事件，當事件攜帶 `notify` 提示（`run-end` 成功、`guard-fail` 或 `escalation`）時，觸發原生 OS 通知。分發器依環境選擇合適的管道：macOS 原生應用程式使用 `nativeNotify` WebKit bridge，Tauri 殼層呼叫由 `tauri-plugin-notification` 支援的 `notify` 命令，一般瀏覽器則使用 Web Notification API（需先請求權限）。不支援或無權限的環境會靜默降級。通知文字透過 `notifications.*` i18n key 本地化。
+
 ### 多專案路由
 
 在多專案模式下，端點前綴為 `/api/project/{project-id}/...` 和 `/sse/project/{project-id}/...`。單一專案模式使用不帶前綴的路徑以維持向後相容。

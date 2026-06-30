@@ -67,6 +67,39 @@
 
 当 `parallel_reviewers` 未设置或 `<= 1` 时，循环回退到原始的单 agent 流程：一个深度审查者渲染全部 11 个角度并直接写入 `deep-review-report.md`，不生成部分报告或 synthesizer。
 
+### 选择性深度审查角度
+
+在分发深度审查之前，4x 分析 diff 影响的文件路径，选择要运行的 11 个角度中的哪些。`roles.deep-reviewer` 中的 `angle_mapping` 字段将路径前缀（如 `internal/state/`）和后缀模式（如 `*_test.go`）映射到角度编号。对于每个变更文件，最长匹配的前缀获胜（前缀规则优先于后缀规则）；所有匹配角度的并集即为选定集合。当没有文件匹配任何规则时，所有 11 个角度作为安全回退运行。
+
+选择结果记录在轮次目录的 `deep-review-angles.json` 中，包含哪些文件匹配了哪些规则以及每个规则贡献了哪些角度。此产物也被崩溃恢复用于确定正确的部分报告数量。
+
+强制运行所有 11 个角度（无视映射）的方式：
+- 向 `4x run` 传入 `--all-angles`
+- 在 feature YAML 中设置 `deep_review_all_angles: true`
+
+`angle_mapping` 可在 `settings.json` 的 `roles.deep-reviewer` 下自定义；未设置时，内置默认值覆盖标准项目布局（`internal/state/`、`internal/protocol/`、`cmd/`、`docs/`、`templates/`、`dashboard/`、`*_test.go`）。
+
+### 深度审查子阶段与崩溃恢复
+
+`deep-reviewing` 阶段运行多个内部步骤（sub-reviewer → synthesizer → mini-coder → re-verifier），但它们**不是**状态机阶段。为了让实时进度和崩溃恢复感知到当前正在运行哪个步骤，`State` 携带一个 `subPhase` 字段（`internal/protocol/types.go`），仅在 `phase == deep-reviewing` 时有意义：
+
+| `subPhase` | 步骤 | 设置时机 |
+|---|---|---|
+| `reviewing` | sub-reviewer（或单 agent 回退）正在扫描 diff | 进入深度审查时 |
+| `synthesizing` | synthesizer 正在合并部分报告 | synthesizer 启动时 |
+| `fixing` | mini-coder 正在修复阻塞问题 | 自修复 mini-coder 启动时 |
+| `reverifying` | re-verifier 正在确认修复结果 | 自修复 re-verifier 启动时 |
+
+`WriteState` 强制执行单一不变量：任何 `phase` 不是 `deep-reviewing` 的写入都会将 `subPhase` 清空为空字符串（`omitempty` 使其完全不出现在 `state.json` 中）。因此离开深度审查——转到 `accepting`、`amending` 或 `needs-attention`——无论走哪条退出路径，都绝不会留下过期的子阶段。
+
+崩溃恢复时，`smartResumePhase` 在 `deep-review-report.md` 不完整时不再从头重启深度审查。它检查磁盘上的产物并从正确的步骤恢复：
+
+- **任何 `deep-review-partial-{i}.md` 缺失或不完整** → 从 `reviewing` 恢复；并行循环只重新启动部分报告缺失的 sub-reviewer（`missingDeepPartials`），复用每个索引原始的角度组，不重新分配。
+- **所有部分报告完整但主报告不完整** → 从 `synthesizing` 恢复；跳过 sub-reviewer，只重新运行 synthesizer。
+- **报告完整但 FAIL** → 行为不变：路由到 `amending`，`subPhase` 清空。
+
+部分报告的完整性由 `deepPartialComplete` 判断——文件存在、非空，且包含深度审查者模板始终会输出的 `## Statistics` 哨兵节，因此半写的部分报告绝不会被误认为已完成。这种最小化重跑恢复避免了在崩溃前已完成的步骤上重复花费（昂贵的）deep 模型。
+
 ### 自动发现的 Feature
 
 深度审查者经常发现确实存在但**超出当前 feature 范围**的问题——潜在 bug、技术债、缺失功能。如果没有着落点，这些发现就会被埋在报告里。启用 `auto_discover_features` 后，运行循环会自动捕获它们。
@@ -79,6 +112,24 @@
 - **汇总**：结果（已创建 / 跳过为重复 / 已封顶）写入 `.4x/run/{feature-id}/discovered-features.md`。
 
 此步骤是尽力而为的：任何错误仅记录日志，绝不阻塞向 `accepting` 的转换。仅在最终深度审查 PASS 时运行——中间轮次和 FAIL/`needs-attention` 路径不会触发。详见[配置 → 自动发现 Feature](configuration.md#auto-discover-features)。
+
+### 历史记录挖掘器与候选池
+
+自动发现的 Feature 仅在**最终深度审查 PASS** 时触发，且只解析该轮 `deep-review-report.md` 的 `[NEW-FEATURE]` 块。最丰富的信号——*失败*——从未被采集：`escalation.json`、卡在 `needs-attention`/`abandoned`/`blocked` 的 feature，或跨多个 feature 反复出现的同一审查者 FAIL 问题。
+
+`4x mine` 命令填补了这一空白。它扫描**整个** `.4x/` 目录中的历史失败信号，将其聚合为 `.4x/candidates.json` 中的候选池。这是纯 CLI/protocol 层命令——**不调用 LLM**，只是机械扫描加上与自动发现 Feature 相同的 Jaccard token 重叠去重。三个扫描器向候选池输送数据，每个候选都带有 `Source` 和 `Origin` 可追溯字符串：
+
+| 来源 | 信号 | Origin 格式 |
+|---|---|---|
+| `escalation` | 每轮 `escalation.json` 中 `needed: true` 的条目，按 `reason` 分类（spec-mismatch / criteria-wrong / blocker / scope-change） | `<featureID> round-<n> <reason>` |
+| `stuck` | `state.json` 阶段为 `needs-attention`、`abandoned` 或 `blocked` 的 feature；阻塞原因取自 `stopReason`/`stopMessage`，回退到最新轮的 escalation `detail` | `<featureID> <phase>` |
+| `fail-pattern` | 跨**不同** feature 反复出现的审查/深度审查 FAIL 问题标题（同一 feature 的多轮只计一次），按 Jaccard 相似度聚类并以 `--min-occurrences`（默认 `3`）为门槛 | `N features: <ids>` |
+
+反复出现的失败模式还会生成一条 `CandidateLearning`（类别 `review`），建议将该问题提升为审查清单或模板。
+
+输出的 `CandidatePool`（`candidates.json`）包含 `Version`、`GeneratedAt`、`Candidate` 列表和 `CandidateLearning` 列表。写入前，候选项会经过三重去重：与现有 feature YAML、与之前的 `candidates.json`、以及批次内部互相去重。标志：`--min-occurrences`（失败模式阈值）、`--output`（默认 `.4x/candidates.json`）、`--dry-run`（打印摘要但不写入）。
+
+整个命令是尽力而为的——单个损坏的 feature 只记录日志并跳过，绝不中止扫描。关键在于，`4x mine` **只产生候选池，从不创建 feature**。候选是否被提升为真正的 feature 留给独立的 gate（F097）决定。这使它成为自动发现 Feature 的补充而非替代：一个在成功时采集范围内的注释，另一个则横扫所有历史记录采集失败信号。
 
 ### Evolve Driver
 
@@ -216,6 +267,12 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
 
 `state.json` 由多个参与者并发读写——运行循环、仪表盘服务器和后台协调器。为避免读者看到截断或半写的文件，`WriteState` 从不原地写入。它序列化状态，写入临时文件（`.state-*.json`）**在同一目录中**（保证同一文件系统使重命名原子化），然后 `os.Rename` 覆盖 `state.json`。读者因此只会看到完整的旧文件或完整的新文件——永远看不到部分内容。任何失败时临时文件会被删除，不会累积 `.state-*.json` 残留。不使用文件锁；正确性来自原子重命名加 `UpdatedAt` 比较。
 
+### Worktree 路径恢复
+
+当 feature 在 worktree 隔离模式下运行时，循环在启动时会打印 `worktree: <path>`，并将其作为 `run-output` 事件记录到 `events.jsonl` 中。`Workspace.WorktreePath` 随后（如截图发现时）通过扫描审计日志来恢复该路径，而非重新运行 git。
+
+扫描会读取**整个** `events.jsonl` 并返回**最后**一个匹配的 `run-output` 事件中的路径。这对重新运行很重要：每次 `4x run` 都会追加新的 `worktree: …` 事件，因此文件会在 feature 生命周期中积累多个条目。只读取前几行要么在事件堆积后找不到路径，要么返回已被删除的过期 worktree。取最后一个匹配项始终得到最近一次运行的 worktree。
+
 ### 工作区读缓存（仪表盘服务器）
 
 CLI 是短命进程：每个命令读取所需的 `.4x/` 文件一次就退出，因此始终使用普通的 `*protocol.Workspace`。仪表盘服务器（`4x live`）相反——它是长驻的，每个 API 请求都重新读取相同的文件。在多项目 × 多 feature 的工作区中（如 5 个项目 × 50 个 feature），一个请求可能触发数百次 YAML/JSON 解析。
@@ -281,6 +338,24 @@ hooks: {}    # 可选的阶段钩子（与 settings.json 格式相同）
 每个条目将仓库名映射到其路径（相对于工作区根目录）和可选的 `hub` 标志。Hub 仓库是多个 feature 可能涉及的共享基础设施——它们被排除在 `4x batch plan` 的范围集群之外。
 
 单仓库模式下（无 `workspace.repos`），所有范围检查和 git 操作使用单个仓库根目录。
+
+### Self-mod guard
+
+当 4x 在自身上运行（meta-loop）时，对其核心基础（状态机 / 护栏 / protocol）的改动比普通 feature 工作风险更高——该处的回归会破坏整个多角色循环。Self-mod guard 在仓库级 Scope guard 之上添加了额外一层，通过 `settings.json` 中的 `self_mod_guard` 配置：
+
+```json
+"self_mod_guard": {
+  "protected_paths": ["internal/state/", "internal/guard/", "internal/protocol/"],
+  "max_diff_lines": 200,
+  "require_tests": true
+}
+```
+
+- `protected_paths` — 路径前缀白名单（相对于 scope 根目录）；这些路径下的变更会被标记。未设置时默认为三条架构红线。
+- `max_diff_lines` — 每轮受保护 diff 的预算行数；超出则 guard 失败，feature 降至 `needs-attention`。默认 `200`。
+- `require_tests` — 为 `true`（默认）时，受保护的 `.go` 变更必须同时包含受保护的 `_test.go` 变更，feature 才能离开 `testing` 阶段。
+
+触碰在编码后 guard 检查期间被检测一次，并持久化到 `state.json`（`selfModTouched` / `selfModPaths`）。触碰受保护路径的 feature 不会自动合并：`4x done` / `4x merge` 会阻塞，直到以 `--approve-self-mod` 重新运行，该标志会将 `selfModApproved` 记录到 state 中。
 
 ---
 
@@ -456,6 +531,28 @@ verify_commands:
 ```
 
 `profiles` 是 `omitempty` 的——没有它的 `test-strategy.yaml` 行为与以前完全一致（不注入）。
+
+### 手动检查
+
+对于需要构建/测试/lint 之外的运行时验证的 AC 项，设计者可以在 `test-strategy.yaml` 中添加 `manual_checks`（`internal/protocol/types.go` 中的 `TestStrategy.ManualChecks`）：
+
+```yaml
+manual_checks:
+  - id: mc-1
+    ac_ref: AC-3
+    description: "驗證 routing 正確分流"
+    steps:
+      - "啟動 server: go run ./cmd/gate --port 8080"
+      - "curl http://localhost:8080/health → 確認 200"
+  - id: mc-2
+    ac_ref: AC-5
+    description: "驗證 graceful shutdown"
+    steps:
+      - "啟動 server 並送 SIGTERM"
+      - "確認 exit code 為 0"
+```
+
+测试者必须执行每个步骤，并在 `verify.json` 的 `manual_check_results`（`VerifyEvidence.ManualCheckResults`）中将实际输出作为证据记录。若任何手动检查没有结果或证据为空，guard 会阻止 `testing → accepting` 转换。如果失败可重试，测试者会通过 `guard-feedback.json` 注入 guard 错误后自动重试一次；第二次失败则升级为 `needs-attention`。
 
 ### 内置 profile
 

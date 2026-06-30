@@ -177,6 +177,10 @@ El flujo de logs (`/sse/logs/{id}`) también rastrea un desplazamiento de bytes 
 
 Cuando varios roles escriben logs al mismo tiempo — sub-revisores paralelos del deep review, o reviewer + tester concurrentes — el flujo sigue **todos** los logs actualmente activos en lugar de solo el modificado más recientemente. Sin un parámetro de consulta `?file=` rastrea cada log cuyo mtime cae dentro de una ventana reciente (cada uno con su propio desplazamiento), y el campo `file` por mensaje permite al cliente dirigir el contenido al panel correspondiente. Usa `?file=<name>` para fijar el flujo a un solo log.
 
+### Notificaciones de completado
+
+En cada tick SSE el dashboard lee el último evento de `/api/events/{id}` y, cuando lleva un hint `notify` (`run-end` exitoso, `guard-fail`, o `escalation`), lanza una notificación nativa del SO. El dispatcher elige el canal correcto según el entorno: la app nativa de macOS usa un puente WebKit `nativeNotify`, el shell Tauri invoca un comando `notify` respaldado por `tauri-plugin-notification`, y un navegador simple usa la Web Notification API (tras solicitar permiso). Los entornos no soportados o sin permiso degradan silenciosamente. El texto de las notificaciones se localiza mediante las claves i18n `notifications.*`.
+
 ### Enrutamiento multi-proyecto
 
 Con múltiples proyectos, los endpoints se prefijan con `/api/project/{project-id}/...` y `/sse/project/{project-id}/...`. El modo de proyecto único usa las rutas sin prefijo para compatibilidad retroactiva.

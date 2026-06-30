@@ -1,0 +1,42 @@
+id: F114-coder-build-gate
+name: 'F114: coder-build-gate'
+description: |-
+    ## 現狀
+    Coder phase 結束時 `4x check` 只檢查 scope/baseline/required-files，
+    不跑 build/lint。靜態就能抓到的編譯錯誤、lint warning 要等 Tester phase 才爆，
+    白白多跑一輪 review + test。
+
+    ## 需求
+    - `4x check` 在 coding/amending phase 時，額外執行 settings.json 的 build + lint 指令
+    - 失敗時 exit 1 並輸出具體錯誤，讓 Coder agent 在同一 session 內自行修復
+    - Orchestrator 層 NextPhaseAfter(PhaseCoding) 加最後防線：若 verify evidence 顯示 build/lint 失敗則 NeedsAttention
+    - 不刪除 coder-report.md、不重跑整個 Coder phase——修復靠 agent 內部迴圈
+
+    ## 約束
+    - 不動 Tester 的 verify 流程，4x verify 維持不變
+    - 不引入新的 phase retry 機制（和 Tester guard retry 不同）
+    - build + lint 只在 coding/amending phase 跑，其他 phase 的 check 行為不變
+    - test 指令暫不納入（可能太重），未來可選擇性加入
+
+    ## 設計文件
+    - 設計規格：docs/design/F114-coder-build-gate-spec.md
+    - 實作計畫：docs/design/F114-coder-build-gate-plan.md
+status: done
+priority: 1
+profile: standard
+subtasks:
+    - id: check-build-lint
+      name: 4x check 在 coding phase 跑 build+lint
+      status: ""
+    - id: check-output
+      name: check 失敗時輸出結構化錯誤訊息
+      status: ""
+    - id: orchestrator-gate
+      name: NextPhaseAfter 加 build/lint 防線
+      status: ""
+    - id: prompt-update
+      name: Coder prompt 加入 check 失敗自修指示
+      status: ""
+    - id: tests
+      name: 補 guard 和 orchestrator 的單元測試
+      status: ""

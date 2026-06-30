@@ -70,6 +70,23 @@ Schedule (4 features):
 
 建立一個 `.4x/batch-stop` 信號檔。批次會完成當前 feature，然後優雅結束。
 
+## Merge Conflict
+
+當自動 merge 發生 conflict 時，批次會暫停並寫入 `.4x/batch-conflict.json`，記錄 feature、衝突的 repo（多 repo 模式）和受影響的檔案。worktree 會保留以便解決 conflict。此信號檔讓[儀表板](dashboard.md)能呈現 conflict 並提供**繼續批次**動作——底層會清除信號檔並重啟 `4x batch run`。從 CLI，解決檔案衝突後執行 `4x merge <id>`，然後重跑 `4x batch run` 繼續。Conflict 檔在每次批次執行開始時自動清除。
+
+## 執行報告
+
+每次批次執行結束時（無論正常完成、停止、中斷或 crash）都會寫入 `.4x/batch-report.json`。報告記錄整體統計（total / completed / failed / remaining）、runner、總耗時，以及每個 feature 的名稱、最終狀態、耗時、輪次數和停止原因。
+
+`outcome` 欄位記錄執行結束的方式：
+
+- `completed` — 所有 feature 都完成了
+- `stopped` — 你按下停止（`.4x/batch-stop`）或自動 merge conflict 暫停了執行
+- `interrupted` — 批次程序收到 `SIGTERM`/`SIGINT`；報告記錄當時正在執行的 feature
+- `crashed` — 批次程序 panic；報告為盡力而為並包含 `panicMessage`
+
+[儀表板](dashboard.md)在無批次執行時讀取此檔案，顯示「最近批次報告」摘要卡片，可展開查看每 feature 詳情。報告僅在執行停止後寫入，不在每 feature 的執行迴圈內寫入，因此不會增加批次吞吐量的額外負擔。
+
 ## 檢查進度
 
 ```bash
