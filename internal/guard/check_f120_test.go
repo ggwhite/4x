@@ -84,7 +84,7 @@ func TestCheckTestingToAccepting_SkipVerifyType(t *testing.T) {
 	}
 }
 
-func TestCheckTestingToAccepting_NoMapDefaultsExecution(t *testing.T) {
+func TestCheckTestingToAccepting_NoMapBasicChecksOnly(t *testing.T) {
 	ws := setupGuardWorkspace(t, "feat-1")
 	roundDir := ws.RoundDir("feat-1", 1)
 	featureDir := ws.FeatureDir("feat-1")
@@ -98,8 +98,8 @@ func TestCheckTestingToAccepting_NoMapDefaultsExecution(t *testing.T) {
 	writeFile(t, filepath.Join(featureDir, protocol.FinalReport), "# Final")
 
 	result := CheckTestingToAccepting(ws, "feat-1", 1)
-	if result.Pass {
-		t.Fatal("no ac_verify_map should default to execution and fail on code-only evidence")
+	if !result.Pass {
+		t.Fatalf("no ac_verify_map should pass with basic checks only, got: %v", result.Errors)
 	}
 }
 

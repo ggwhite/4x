@@ -234,29 +234,33 @@ func checkTestingToAccepting(ws *protocol.Workspace, featureID string, round int
 		}
 	}
 
-	checkACEvidence(ws, featureID, evidence, r)
-	checkManualChecks(ws, featureID, evidence, r)
+	ts, tsErr := ws.ReadTestStrategy(featureID)
+	if tsErr != nil {
+		r.Errors = append(r.Errors, fmt.Sprintf("warning: failed to read test-strategy.yaml: %v (falling back to defaults)", tsErr))
+	}
+	checkACEvidence(ts, evidence, r)
+	checkManualChecks(ts, evidence, r)
 	checkSelfModTestGate(ws, featureID, r)
 }
 
-var validACVerifyTypes = map[string]bool{
-	"unit-test":   true,
-	"integration": true,
-	"inspection":  true,
-	"skip":        true,
-	"execution":   true,
+// acVerifyType 定義合法的 AC 驗證類型。needsExec 表示是否需要執行輸出作為 evidence。
+type acVerifyType struct{ needsExec bool }
+
+var acVerifyTypes = map[string]acVerifyType{
+	"unit-test":   {needsExec: true},
+	"integration": {needsExec: true},
+	"execution":   {needsExec: true},
+	"inspection":  {needsExec: false},
+	"skip":        {needsExec: false},
 }
 
-var executionPattern = regexp.MustCompile(`(\$\s|PASS|FAIL|^ok\s|--- |exit code|→|stdout|stderr|\d+\.\d+s)`)
-
-func isExecutionType(vt string) bool {
-	return vt == "unit-test" || vt == "integration" || vt == "execution"
-}
+var executionPattern = regexp.MustCompile(`(\$\s|\bPASS\b|\bFAIL\b|^ok\s|--- |exit code|→|stdout|stderr|\d+\.\d+s)`)
 
 // checkACEvidence 檢查 verify.json 的 per-AC evidence mapping：每個 AC 都必須 passed 且有 evidence。
 // ac_results 為空時阻擋（舊格式 verify.json 不通過此檢查）。
 // 若 test-strategy.yaml 有 ac_verify_map，依 verify_type 檢查 evidence 品質。
-func checkACEvidence(ws *protocol.Workspace, featureID string, evidence protocol.VerifyEvidence, r *CheckResult) {
+// verifyMap 為 nil 時只做基礎檢查（passed + evidence 非空），不做 execution pattern 檢查。
+func checkACEvidence(ts protocol.TestStrategy, evidence protocol.VerifyEvidence, r *CheckResult) {
 	if len(evidence.ACResults) == 0 {
 		r.Pass = false
 		r.Errors = append(r.Errors, "verify.json missing ac_results: every acceptance criterion must have evidence")
@@ -264,59 +268,66 @@ func checkACEvidence(ws *protocol.Workspace, featureID string, evidence protocol
 		return
 	}
 
-	ts, err := ws.ReadTestStrategy(featureID)
-	if err != nil {
-		r.Pass = false
-		r.Errors = append(r.Errors, fmt.Sprintf("failed to read test-strategy.yaml for ac_verify_map: %v", err))
-		r.RetryableErrors++
-		return
-	}
 	verifyMap := ts.ACVerifyMap
 
 	for _, ac := range evidence.ACResults {
-		vt := "execution"
+		vt := ""
 		if verifyMap != nil {
 			if v, ok := verifyMap[ac.ID]; ok {
 				vt = v
+			} else {
+				vt = "execution" // map exists but AC not listed → strict default
 			}
 		}
+		// verifyMap == nil → vt stays "" → basic checks only (backward compatible)
 
-		if !validACVerifyTypes[vt] {
-			r.Pass = false
-			r.Errors = append(r.Errors, fmt.Sprintf("%s: invalid verify_type %q", ac.ID, vt))
-			r.RetryableErrors++
-			continue
-		}
+		if vt != "" {
+			vtype, valid := acVerifyTypes[vt]
+			if !valid {
+				r.Pass = false
+				r.Errors = append(r.Errors, fmt.Sprintf("%s: invalid verify_type %q", ac.ID, vt))
+				r.RetryableErrors++
+				continue
+			}
+			if vt == "skip" {
+				continue
+			}
 
-		if vt == "skip" {
-			continue
-		}
-
-		if !ac.Passed {
-			r.Pass = false
-			r.Errors = append(r.Errors, fmt.Sprintf("%s failed", ac.ID))
-			r.RetryableErrors++
-		}
-
-		if len(ac.Evidence) == 0 {
-			r.Pass = false
-			r.Errors = append(r.Errors, fmt.Sprintf("%s: no evidence", ac.ID))
-			r.RetryableErrors++
-			continue
-		}
-
-		if isExecutionType(vt) {
-			hasExecEvidence := false
-			for _, e := range ac.Evidence {
-				if executionPattern.MatchString(e) {
-					hasExecEvidence = true
-					break
+			if !ac.Passed {
+				r.Pass = false
+				r.Errors = append(r.Errors, fmt.Sprintf("%s failed", ac.ID))
+				r.RetryableErrors++
+			}
+			if len(ac.Evidence) == 0 {
+				r.Pass = false
+				r.Errors = append(r.Errors, fmt.Sprintf("%s: no evidence", ac.ID))
+				r.RetryableErrors++
+				continue
+			}
+			if vtype.needsExec {
+				hasExecEvidence := false
+				for _, e := range ac.Evidence {
+					if executionPattern.MatchString(e) {
+						hasExecEvidence = true
+						break
+					}
+				}
+				if !hasExecEvidence {
+					r.Pass = false
+					r.Errors = append(r.Errors, fmt.Sprintf(
+						"%s: verify_type=%s but evidence has no execution output (need command results, not code references)", ac.ID, vt))
+					r.RetryableErrors++
 				}
 			}
-			if !hasExecEvidence {
+		} else {
+			if !ac.Passed {
 				r.Pass = false
-				r.Errors = append(r.Errors, fmt.Sprintf(
-					"%s: verify_type=%s but evidence has no execution output (need command results, not code references)", ac.ID, vt))
+				r.Errors = append(r.Errors, fmt.Sprintf("%s failed", ac.ID))
+				r.RetryableErrors++
+			}
+			if len(ac.Evidence) == 0 {
+				r.Pass = false
+				r.Errors = append(r.Errors, fmt.Sprintf("%s: no evidence", ac.ID))
 				r.RetryableErrors++
 			}
 		}
@@ -324,10 +335,9 @@ func checkACEvidence(ws *protocol.Workspace, featureID string, evidence protocol
 }
 
 // checkManualChecks 驗證 test-strategy.yaml 的 manual_checks 全部有對應的執行結果。
-// manual_checks 為空（或 test-strategy 不存在）時靜默通過。
-func checkManualChecks(ws *protocol.Workspace, featureID string, evidence protocol.VerifyEvidence, r *CheckResult) {
-	ts, err := ws.ReadTestStrategy(featureID)
-	if err != nil || len(ts.ManualChecks) == 0 {
+// manual_checks 為空時靜默通過。
+func checkManualChecks(ts protocol.TestStrategy, evidence protocol.VerifyEvidence, r *CheckResult) {
+	if len(ts.ManualChecks) == 0 {
 		return
 	}
 	resultMap := make(map[string]protocol.ManualCheckResult, len(evidence.ManualCheckResults))

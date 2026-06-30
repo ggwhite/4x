@@ -186,7 +186,7 @@ type ACEvidence struct {
 	ID         string   `json:"id"`
 	Passed     bool     `json:"passed"`
 	Evidence   []string `json:"evidence"`
-	VerifyType string   `json:"verify_type,omitempty"`
+	VerifyType string   `json:"verify_type,omitempty"` // Tester 寫入供記錄；Guard 從 TestStrategy.ACVerifyMap 判斷
 }
 
 // VerifyEvidence 是 rounds/round-N/verify.json 的結構
