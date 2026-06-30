@@ -4,8 +4,7 @@ description: 追蹤 learning 注入後是否減少同類問題。新增 Activate
 status: not-started
 priority: 3
 profile: standard
-rules:
-    - 'spec: docs/design/self-learning-spec.md'
-    - 'plan: docs/design/self-learning-effectiveness-plan.md'
+spec: docs/design/self-learning-spec.md
+plan: docs/design/self-learning-effectiveness-plan.md
 depends:
     - F117-self-learn-candidate
