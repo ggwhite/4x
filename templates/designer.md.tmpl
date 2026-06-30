@@ -189,7 +189,7 @@ Rewrite only the sections that need fixing; keep approved sections unchanged.
 
 可用的 learnings：
 {{- range .Learnings}}
-- [{{.ID}}] ({{.Category}}) {{.Content}}
+- [{{.ID}}]{{if eq (printf "%s" .Status) "candidate"}} [candidate]{{end}} ({{.Category}}) {{.Content}}
 {{- end}}
 {{- end}}
 

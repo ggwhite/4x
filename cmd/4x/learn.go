@@ -108,11 +108,12 @@ func newLearnAddCmd() *cobra.Command {
 
 func newLearnListCmd() *cobra.Command {
 	var category string
+	var statusFilter string
 	var jsonOutput bool
 
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List all learnings",
+		Short: "List learnings (default: active + candidate)",
 		RunE: withJsonError(&jsonOutput, func(cmd *cobra.Command, args []string) error {
 			storePath, err := findLearningsPath()
 			if err != nil {
@@ -123,33 +124,46 @@ func newLearnListCmd() *cobra.Command {
 				return err
 			}
 
-			if jsonOutput {
-				entries := []learning.Entry{}
-				for _, e := range store.Entries {
-					if category != "" && string(e.Category) != category {
+			showDefault := statusFilter == ""
+			var filtered []learning.Entry
+			for _, e := range store.Entries {
+				if category != "" && string(e.Category) != category {
+					continue
+				}
+				if showDefault {
+					if e.Status != learning.StatusActive && e.Status != learning.StatusCandidate {
 						continue
 					}
-					entries = append(entries, e)
+				} else if string(e.Status) != statusFilter {
+					continue
+				}
+				filtered = append(filtered, e)
+			}
+
+			if jsonOutput {
+				if filtered == nil {
+					filtered = []learning.Entry{}
 				}
 				return printJSON(struct {
 					Entries []learning.Entry `json:"entries"`
 					Active  int              `json:"active"`
 					Total   int              `json:"total"`
-				}{entries, len(store.ActiveEntries()), len(store.Entries)})
+				}{filtered, len(store.ActiveEntries()), len(store.Entries)})
 			}
 
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 			fmt.Fprintln(w, "ID\tCATEGORY\tSTATUS\tUSED\tCONTENT")
-			for _, e := range store.Entries {
-				if category != "" && string(e.Category) != category {
-					continue
-				}
+			for _, e := range filtered {
 				content := e.Content
 				if len(content) > 60 {
 					content = content[:57] + "..."
 				}
+				id := e.ID
+				if e.Status == learning.StatusCandidate {
+					id += "*"
+				}
 				fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\n",
-					e.ID, e.Category, e.Status, e.UsedCount, content)
+					id, e.Category, e.Status, e.UsedCount, content)
 			}
 			w.Flush()
 
@@ -159,6 +173,7 @@ func newLearnListCmd() *cobra.Command {
 		}),
 	}
 	cmd.Flags().StringVar(&category, "category", "", "filter by category")
+	cmd.Flags().StringVar(&statusFilter, "status", "", "filter by status (active, candidate, stale, promoted)")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 	return cmd
 }

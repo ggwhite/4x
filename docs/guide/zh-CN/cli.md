@@ -441,8 +441,9 @@ Dashboard 通过 `POST /api/force-done` 提供此功能，请求体为 `{id, rea
 ```
 4x learn add --category <cat> --content <text>  # 手动新增 learning（standalone session 用）
 4x learn add --category ops --content "..." --json  # JSON 输出：{"id":"L0xx","added":true}
-4x learn list                     # 列出所有 learnings（id/category/status/used/content）
+4x learn list                     # 列出 active + candidate learnings（默认）
 4x learn list --category=testing  # 按类别过滤
+4x learn list --status=active     # 按状态过滤（active、candidate、stale、promoted）
 4x learn prune                    # 标记陈旧（>90 天未使用）条目并删除
 4x learn prune --dry-run          # 预览陈旧条目，不删除
 4x learn promote <id>             # 将某条 learning 标记为 promoted（保留但不再注入）
@@ -452,7 +453,8 @@ Dashboard 通过 `POST /api/force-done` 提供此功能，请求体为 `{id, rea
 `learn add` 会检查是否有相似的既有条目（完全比对、正规化比对、Jaccard 相似度）。若发现模糊重复，会回报既有 ID 且不写入。
 
 - 类别：`design`、`code-quality`、`testing`、`review`、`tooling`、`process`、`ops`
-- 状态：`active`（可注入）、`stale`（>90 天未使用，读取时自动标记）、`promoted`（已升级为模板/指令）
+- 状态：`active`（可注入）、`candidate`（新 harvest，待跨 feature 验证）、`stale`（>90 天未使用，读取时自动标记）、`promoted`（已升级为模板/指令）
+- candidate 条目 ID 后带 `*` 标记；被不同 feature 独立产出或被 Designer 选中时自动升级为 active
 - 100 条活跃条目的软上限会触发建议运行 `4x learn prune` 的警告——不会自动删除条目
 
 ---

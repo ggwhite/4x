@@ -443,8 +443,9 @@ El Acceptor de cada feature escribe un `retro-learnings.json`; el CLI lo cosecha
 ```
 4x learn add --category <cat> --content <text>  # agregar learning manualmente (sesiones standalone)
 4x learn add --category ops --content "..." --json  # salida JSON: {"id":"L0xx","added":true}
-4x learn list                     # listar todos los learnings (id/categoría/estado/usado/contenido)
+4x learn list                     # listar learnings activos + candidatos (por defecto)
 4x learn list --category=testing  # filtrar por categoría
+4x learn list --status=active     # filtrar por estado (active, candidate, stale, promoted)
 4x learn prune                    # marcar entradas obsoletas (>90 días sin uso) y eliminarlas
 4x learn prune --dry-run          # previsualizar entradas obsoletas sin eliminar
 4x learn promote <id>             # marcar un learning como promovido (se mantiene pero no se inyecta)
@@ -454,7 +455,8 @@ El Acceptor de cada feature escribe un `retro-learnings.json`; el CLI lo cosecha
 `learn add` verifica si hay entradas similares existentes (coincidencia exacta, normalizada y similitud Jaccard). Si se encuentra un duplicado aproximado, reporta el ID existente y no escribe.
 
 - Categorías: `design`, `code-quality`, `testing`, `review`, `tooling`, `process`, `ops`
-- Estado: `active` (inyectable), `stale` (>90 días sin uso, marcado automáticamente al leer), `promoted` (actualizado a plantilla/instrucciones)
+- Estado: `active` (inyectable), `candidate` (nuevo harvest, pendiente de validación cross-feature), `stale` (>90 días sin uso, marcado automáticamente al leer), `promoted` (actualizado a plantilla/instrucciones)
+- Las entradas candidatas se muestran con sufijo `*` en el ID; se promueven automáticamente a active cuando son producidas independientemente por otra feature o seleccionadas por un Designer
 - Un límite flexible de 100 entradas activas activa una advertencia que sugiere `4x learn prune` — las entradas nunca se eliminan automáticamente
 
 ---

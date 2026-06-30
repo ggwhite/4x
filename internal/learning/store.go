@@ -50,9 +50,10 @@ func IsValidCategory(c Category) bool {
 type Status string
 
 const (
-	StatusActive   Status = "active"
-	StatusStale    Status = "stale"
-	StatusPromoted Status = "promoted"
+	StatusCandidate Status = "candidate"
+	StatusActive    Status = "active"
+	StatusStale     Status = "stale"
+	StatusPromoted  Status = "promoted"
 )
 
 const (
@@ -185,15 +186,17 @@ func (s *Store) FindSimilar(content string) *Entry {
 // Harvest 把 learnings 追加到 store，回傳實際新增數量。
 // sourceRole 標記產出來源角色（"acceptor"、"coder"、"reviewer" 等），空字串表示未知。
 // 三層去重：(1) content 完全比對 (2) 正規化比對（大小寫/空白/標點）(3) 詞集 Jaccard ≥ 0.7。
-// category 不在白名單或 content 為空的條目跳過。新條目自動分配 L 序號 ID 並標記為 active。
+// category 不在白名單或 content 為空的條目跳過。新條目自動分配 L 序號 ID 並標記為 candidate。
+// fuzzy match 到 active entry 時 skip（去重）；match 到同 feature candidate 時 skip；
+// match 到不同 feature 的 candidate 時升級該 candidate 為 active，新的不寫入。
 func (s *Store) Harvest(featureID, sourceRole string, learnings []RetroLearning) int {
 	exactSet := make(map[string]bool, len(s.Entries))
 	normSet := make(map[string]bool, len(s.Entries))
-	tokenSets := make([]map[string]bool, 0, len(s.Entries))
-	for _, e := range s.Entries {
+	tokenSets := make([]indexedTokens, 0, len(s.Entries))
+	for i, e := range s.Entries {
 		exactSet[e.Content] = true
 		normSet[normalizeContent(e.Content)] = true
-		tokenSets = append(tokenSets, tokenize(e.Content))
+		tokenSets = append(tokenSets, indexedTokens{idx: i, tokens: tokenize(e.Content)})
 	}
 
 	added := 0
@@ -210,14 +213,17 @@ func (s *Store) Harvest(featureID, sourceRole string, learnings []RetroLearning)
 			continue
 		}
 		tokens := tokenize(l.Content)
-		if isFuzzyDuplicate(tokens, tokenSets) {
+		if matchIdx := findFuzzyMatch(tokens, tokenSets); matchIdx >= 0 {
+			matched := &s.Entries[matchIdx]
+			if matched.Status == StatusCandidate && matched.SourceFeature != featureID {
+				matched.Status = StatusActive
+			}
 			continue
 		}
 
 		exactSet[l.Content] = true
 		normSet[norm] = true
-		tokenSets = append(tokenSets, tokens)
-
+		newIdx := len(s.Entries)
 		s.Entries = append(s.Entries, Entry{
 			ID:            s.nextID(),
 			SourceFeature: featureID,
@@ -225,8 +231,9 @@ func (s *Store) Harvest(featureID, sourceRole string, learnings []RetroLearning)
 			Category:      l.Category,
 			Content:       l.Content,
 			CreatedAt:     now,
-			Status:        StatusActive,
+			Status:        StatusCandidate,
 		})
+		tokenSets = append(tokenSets, indexedTokens{idx: newIdx, tokens: tokens})
 		added++
 	}
 	return added
@@ -271,6 +278,30 @@ func (s *Store) ActiveEntries() []Entry {
 		}
 	}
 	return result
+}
+
+// CandidateEntries 回傳所有 status==candidate 的條目，保持原始順序。
+func (s *Store) CandidateEntries() []Entry {
+	var result []Entry
+	for _, e := range s.Entries {
+		if e.Status == StatusCandidate {
+			result = append(result, e)
+		}
+	}
+	return result
+}
+
+// PromoteCandidates 將指定 ID 中 status==candidate 的條目升級為 active。
+func (s *Store) PromoteCandidates(ids []string) {
+	idSet := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		idSet[id] = true
+	}
+	for i := range s.Entries {
+		if idSet[s.Entries[i].ID] && s.Entries[i].Status == StatusCandidate {
+			s.Entries[i].Status = StatusActive
+		}
+	}
 }
 
 // Promote 將指定 ID 標記為 promoted（已升級到 template/instructions，保留記錄不再注入）。
@@ -456,11 +487,17 @@ func JaccardSimilarity(a, b map[string]bool) float64 {
 	return float64(intersection) / float64(union)
 }
 
-func isFuzzyDuplicate(candidate map[string]bool, existing []map[string]bool) bool {
+type indexedTokens struct {
+	idx    int
+	tokens map[string]bool
+}
+
+// findFuzzyMatch 在既有 token 集合中尋找第一個 Jaccard ≥ 門檻的匹配，回傳其在 Entries 中的 index；未命中回傳 -1。
+func findFuzzyMatch(candidate map[string]bool, existing []indexedTokens) int {
 	for _, e := range existing {
-		if JaccardSimilarity(candidate, e) >= FuzzyDupThreshold {
-			return true
+		if JaccardSimilarity(candidate, e.tokens) >= FuzzyDupThreshold {
+			return e.idx
 		}
 	}
-	return false
+	return -1
 }

@@ -57,8 +57,8 @@ func TestHarvest_AddsAndDeduplicates(t *testing.T) {
 	if s.Entries[0].SourceFeature != "F042-test" {
 		t.Errorf("expected source_feature F042-test, got %s", s.Entries[0].SourceFeature)
 	}
-	if s.Entries[0].Status != StatusActive {
-		t.Errorf("expected active status, got %s", s.Entries[0].Status)
+	if s.Entries[0].Status != StatusCandidate {
+		t.Errorf("expected candidate status, got %s", s.Entries[0].Status)
 	}
 }
 
@@ -245,8 +245,8 @@ func TestHarvest_OpsCategory(t *testing.T) {
 	if s.Entries[0].Category != CategoryOps {
 		t.Errorf("expected category ops, got %s", s.Entries[0].Category)
 	}
-	if s.Entries[0].Status != StatusActive {
-		t.Errorf("expected active status, got %s", s.Entries[0].Status)
+	if s.Entries[0].Status != StatusCandidate {
+		t.Errorf("expected candidate status, got %s", s.Entries[0].Status)
 	}
 }
 
@@ -480,5 +480,106 @@ func TestParseRetroFile(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].Category != CategoryTesting {
 		t.Errorf("unexpected parse result: %+v", got)
+	}
+}
+
+func TestHarvest_NewEntryIsCandidate(t *testing.T) {
+	s := Store{Version: 1}
+	added := s.Harvest("F117-test", "coder", []RetroLearning{
+		{Category: CategoryCodeQuality, Content: "new learning for candidate test"},
+	})
+	if added != 1 {
+		t.Fatalf("expected 1 added, got %d", added)
+	}
+	if s.Entries[0].Status != StatusCandidate {
+		t.Errorf("expected candidate status, got %s", s.Entries[0].Status)
+	}
+}
+
+func TestHarvest_CrossFeatureFuzzyPromotes(t *testing.T) {
+	s := Store{Version: 1}
+	s.Harvest("F100", "coder", []RetroLearning{
+		{Category: CategoryCodeQuality, Content: "always run gofmt and go vet before commit"},
+	})
+	if s.Entries[0].Status != StatusCandidate {
+		t.Fatalf("precondition: expected candidate, got %s", s.Entries[0].Status)
+	}
+
+	added := s.Harvest("F101", "reviewer", []RetroLearning{
+		{Category: CategoryCodeQuality, Content: "run gofmt and go vet before every commit"},
+	})
+	if added != 0 {
+		t.Errorf("expected 0 added (fuzzy match), got %d", added)
+	}
+	if s.Entries[0].Status != StatusActive {
+		t.Errorf("expected candidate promoted to active, got %s", s.Entries[0].Status)
+	}
+}
+
+func TestHarvest_SameFeatureFuzzySkips(t *testing.T) {
+	s := Store{Version: 1}
+	s.Harvest("F100", "coder", []RetroLearning{
+		{Category: CategoryCodeQuality, Content: "always run gofmt and go vet before commit"},
+	})
+
+	added := s.Harvest("F100", "reviewer", []RetroLearning{
+		{Category: CategoryCodeQuality, Content: "run gofmt and go vet before every commit"},
+	})
+	if added != 0 {
+		t.Errorf("expected 0 added (same feature fuzzy), got %d", added)
+	}
+	if s.Entries[0].Status != StatusCandidate {
+		t.Errorf("same feature fuzzy should not promote, got %s", s.Entries[0].Status)
+	}
+}
+
+func TestActiveEntries_ExcludesCandidate(t *testing.T) {
+	s := Store{Version: 1, Entries: []Entry{
+		{ID: "L001", Status: StatusActive, Content: "a"},
+		{ID: "L002", Status: StatusCandidate, Content: "b"},
+		{ID: "L003", Status: StatusActive, Content: "c"},
+	}}
+	active := s.ActiveEntries()
+	if len(active) != 2 {
+		t.Fatalf("expected 2 active, got %d", len(active))
+	}
+	for _, e := range active {
+		if e.Status != StatusActive {
+			t.Errorf("expected only active entries, got %s for %s", e.Status, e.ID)
+		}
+	}
+}
+
+func TestCandidateEntries(t *testing.T) {
+	s := Store{Version: 1, Entries: []Entry{
+		{ID: "L001", Status: StatusActive, Content: "a"},
+		{ID: "L002", Status: StatusCandidate, Content: "b"},
+		{ID: "L003", Status: StatusCandidate, Content: "c"},
+		{ID: "L004", Status: StatusStale, Content: "d"},
+	}}
+	candidates := s.CandidateEntries()
+	if len(candidates) != 2 {
+		t.Fatalf("expected 2 candidates, got %d", len(candidates))
+	}
+	if candidates[0].ID != "L002" || candidates[1].ID != "L003" {
+		t.Errorf("unexpected candidate IDs: %s, %s", candidates[0].ID, candidates[1].ID)
+	}
+}
+
+func TestPromoteCandidates(t *testing.T) {
+	s := Store{Version: 1, Entries: []Entry{
+		{ID: "L001", Status: StatusCandidate, Content: "a"},
+		{ID: "L002", Status: StatusActive, Content: "b"},
+		{ID: "L003", Status: StatusCandidate, Content: "c"},
+	}}
+	s.PromoteCandidates([]string{"L001", "L002"})
+	if s.Entries[0].Status != StatusActive {
+		t.Errorf("L001 should be promoted to active, got %s", s.Entries[0].Status)
+	}
+	if s.Entries[1].Status != StatusActive {
+		t.Errorf("L002 should stay active, got %s", s.Entries[1].Status)
+	}
+	if s.Entries[2].Status != StatusCandidate {
+		t.Errorf("L003 should remain candidate, got %s", s.Entries[2].Status)
 	}
 }

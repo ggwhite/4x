@@ -18,8 +18,8 @@ type selectedLearningsPayload struct {
 	Selected []string `json:"selected"`
 }
 
-// LoadActiveLearnings 讀取 learnings.json 中所有 active 條目，供 Designer prompt 列出供選擇。
-// 任何讀取失敗只 warn 並回傳 nil，不影響 prompt 產生。
+// LoadActiveLearnings 讀取 learnings.json 中所有 active + candidate 條目，供 Designer prompt 列出供選擇。
+// active 條目排前，candidate 排後。任何讀取失敗只 warn 並回傳 nil，不影響 prompt 產生。
 func LoadActiveLearnings(dotDir string) []learning.Entry {
 	storePath := filepath.Join(dotDir, protocol.LearningsFile)
 	store, err := learning.LoadStore(storePath)
@@ -27,7 +27,15 @@ func LoadActiveLearnings(dotDir string) []learning.Entry {
 		slog.Warn("load learnings for prompt failed", "error", err)
 		return nil
 	}
-	return store.ActiveEntries()
+	active := store.ActiveEntries()
+	candidates := store.CandidateEntries()
+	if len(candidates) == 0 {
+		return active
+	}
+	result := make([]learning.Entry, 0, len(active)+len(candidates))
+	result = append(result, active...)
+	result = append(result, candidates...)
+	return result
 }
 
 // LoadSelectedLearnings 讀取 selected-learnings.json，濾出符合 role category 的 active 條目。
@@ -71,7 +79,7 @@ func LoadSelectedLearnings(dotDir, featureID string, role protocol.Role) []learn
 			break
 		}
 		e, ok := entryMap[id]
-		if !ok || e.Status != learning.StatusActive {
+		if !ok || (e.Status != learning.StatusActive && e.Status != learning.StatusCandidate) {
 			continue
 		}
 		if !catSet[e.Category] {
@@ -268,6 +276,7 @@ func UpdateLearningsUsage(ws *protocol.Workspace, featureID string) {
 	}
 
 	store.UpdateUsage(payload.Selected)
+	store.PromoteCandidates(payload.Selected)
 	if err := store.Save(storePath); err != nil {
 		slog.Warn("save learnings store after usage update failed", "error", err)
 	}

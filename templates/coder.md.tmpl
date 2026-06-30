@@ -169,7 +169,7 @@ If none are relevant: {"selected": []}
 
 Available learnings:
 {{- range .Learnings}}
-- [{{.ID}}] ({{.Category}}) {{.Content}}
+- [{{.ID}}]{{if eq (printf "%s" .Status) "candidate"}} [candidate]{{end}} ({{.Category}}) {{.Content}}
 {{- end}}
 {{- else if .SelectedLearnings}}
 

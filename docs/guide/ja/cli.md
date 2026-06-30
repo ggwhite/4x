@@ -443,8 +443,9 @@ Feature が `pending-review` または `done` フェーズにあり、`.worktree
 ```
 4x learn add --category <cat> --content <text>  # learning を手動追加（standalone session 用）
 4x learn add --category ops --content "..." --json  # JSON 出力：{"id":"L0xx","added":true}
-4x learn list                     # 全 learning を一覧（id/category/status/used/content）
+4x learn list                     # active + candidate の learning を一覧（デフォルト）
 4x learn list --category=testing  # カテゴリでフィルタ
+4x learn list --status=active     # ステータスでフィルタ（active, candidate, stale, promoted）
 4x learn prune                    # 古い（90日以上未使用）エントリにマークして削除
 4x learn prune --dry-run          # 削除せずに古いエントリをプレビュー
 4x learn promote <id>             # learning を promoted としてマーク（保持するが注入しなくなる）
@@ -454,7 +455,8 @@ Feature が `pending-review` または `done` フェーズにあり、`.worktree
 `learn add` は既存エントリとの類似チェック（完全一致・正規化・Jaccard 類似度）を行います。ファジー重複が見つかった場合、既存 ID を報告して書き込みません。
 
 - カテゴリ：`design`、`code-quality`、`testing`、`review`、`tooling`、`process`、`ops`
-- ステータス：`active`（注入可能）、`stale`（90日以上未使用、読み取り時に自動マーク）、`promoted`（テンプレート/指示として昇格済み）
+- ステータス：`active`（注入可能）、`candidate`（新規 harvest、クロスフィーチャー検証待ち）、`stale`（90日以上未使用、読み取り時に自動マーク）、`promoted`（テンプレート/指示として昇格済み）
+- candidate エントリは ID に `*` 接尾辞が付きます。別のフィーチャーで独立に生成されるか、Designer に選択されると自動的に active に昇格します
 - アクティブエントリが 100 件を超えると `4x learn prune` を促す警告が表示されます（エントリは自動削除されません）
 
 ---

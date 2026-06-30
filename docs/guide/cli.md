@@ -448,8 +448,9 @@ The Acceptor of each feature writes a `retro-learnings.json`; the CLI harvests i
 ```
 4x learn add --category <cat> --content <text>  # add a learning manually (standalone sessions)
 4x learn add --category ops --content "..." --json  # JSON output: {"id":"L0xx","added":true}
-4x learn list                     # list all learnings (id/category/status/used/content)
+4x learn list                     # list active + candidate learnings (default)
 4x learn list --category=testing  # filter by category
+4x learn list --status=active     # filter by status (active, candidate, stale, promoted)
 4x learn prune                    # mark stale (>90 days unused) entries and remove them
 4x learn prune --dry-run          # preview stale entries without removing
 4x learn promote <id>             # mark a learning as promoted (kept but no longer injected)
@@ -461,7 +462,8 @@ The Acceptor of each feature writes a `retro-learnings.json`; the CLI harvests i
 
 
 - Categories: `design`, `code-quality`, `testing`, `review`, `tooling`, `process`, `ops`
-- Status: `active` (injectable), `stale` (>90 days unused, auto-marked on read), `promoted` (upgraded to template/instructions)
+- Status: `active` (injectable), `candidate` (new harvest, pending cross-feature validation), `stale` (>90 days unused, auto-marked on read), `promoted` (upgraded to template/instructions)
+- Candidate entries are shown with `*` suffix on ID; they auto-promote to active when independently produced by a different feature or selected by a Designer
 - A soft cap of 100 active entries triggers a warning suggesting `4x learn prune` — entries are never auto-deleted
 
 ---

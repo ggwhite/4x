@@ -1,7 +1,7 @@
 id: F117-self-learn-candidate
 name: 'F117: candidate status for learnings'
 description: 新 harvest 的 learning 預設為 candidate，跨 feature 獨立產出（fuzzy match）自動升級為 active。Designer select 也觸發升級。CLI learn list 加 --status 過濾。
-status: blocked
+status: ready-for-review
 profile: standard
 depends:
     - F115-self-learn-ops-cat
