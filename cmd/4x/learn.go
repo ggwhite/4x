@@ -131,16 +131,16 @@ func newLearnListCmd() *cobra.Command {
 				if category != "" && string(e.Category) != category {
 					continue
 				}
-				if ineffective {
-					if !e.Ineffective {
-						continue
-					}
-				} else if showDefault {
+				if ineffective && !e.Ineffective {
+					continue
+				}
+				if statusFilter != "" && string(e.Status) != statusFilter {
+					continue
+				}
+				if showDefault {
 					if e.Status != learning.StatusActive && e.Status != learning.StatusCandidate {
 						continue
 					}
-				} else if string(e.Status) != statusFilter {
-					continue
 				}
 				filtered = append(filtered, e)
 			}
