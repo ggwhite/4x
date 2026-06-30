@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.5] - 2026-06-30
+
+### Fixes
+
+- **Build-gate PATH 擴充** — GUI 啟動的 4x（如 dashboard）不繼承 shell profile，build-gate 和 hook 子程序找不到 go/node 等工具；抽出共用 `envutil.EnrichedEnv()` 補上常見路徑（含 `/usr/local/go/bin`、`$HOME/go/bin`）
+
 ## [0.3.4] - 2026-06-30
 
 ### Features
