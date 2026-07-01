@@ -10,7 +10,7 @@ description: |-
     約束：
     - 不改變預設 port 4567 的行為（僅重構讀取來源，非改變預設值）
     - 不影響現有 4x live 啟動流程與既有使用者環境
-status: not-started
+status: done
 priority: 3
 profile: standard
 subtasks:
