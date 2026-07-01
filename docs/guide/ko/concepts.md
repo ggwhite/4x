@@ -81,7 +81,7 @@ Deep Reviewer가 차단 이슈를 발견하면, `deep-reviewing` 단계에서 `a
 
 ### 딥 리뷰 서브페이즈 & 크래시 복구
 
-`deep-reviewing` 단계는 내부적으로 여러 단계(sub-reviewer → synthesizer → mini-coder → re-verifier)를 실행하지만, 이들은 **상태 머신 단계가 아닙니다**. 라이브 진행 상황과 크래시 복구가 *어느 단계가 실행 중인지* 인식할 수 있도록, `State`는 `subPhase` 필드(`internal/protocol/types.go`)를 가지며 이는 `phase == deep-reviewing`일 때만 의미가 있습니다:
+`deep-reviewing` 단계는 내부적으로 여러 단계(sub-reviewer → synthesizer → mini-coder → re-verifier)를 실행하지만, 이들은 **상태 머신 단계가 아닙니다**. 라이브 진행 상황과 크래시 복구가 *어느 단계가 실행 중인지* 인식할 수 있도록, `State`는 `subPhase` 필드(`internal/protocol/state.go`)를 가지며 이는 `phase == deep-reviewing`일 때만 의미가 있습니다:
 
 | `subPhase` | 단계 | 설정 시점 |
 |---|---|---|
@@ -459,7 +459,7 @@ Tester 역할이 시작되기 전에, CLI가 자동으로 환경이 정상인지
 
 ### 설정
 
-헬스 체크는 세 개의 필드를 가집니다(`internal/protocol/types.go`의 `HealthCheck`):
+헬스 체크는 세 개의 필드를 가집니다(`internal/protocol/verify.go`의 `HealthCheck`):
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
@@ -522,7 +522,7 @@ Recovery는 최대 한 번만 트리거됩니다 — 재시도 루프나 백오�
 
 ### 프로파일 선언
 
-Designer가 `test-strategy.yaml`에 프로파일을 나열합니다(`internal/protocol/types.go`의 `TestStrategy.Profiles`):
+Designer가 `test-strategy.yaml`에 프로파일을 나열합니다(`internal/protocol/verify.go`의 `TestStrategy.Profiles`):
 
 ```yaml
 profiles:
@@ -536,7 +536,7 @@ verify_commands:
 
 ### 수동 확인
 
-빌드/테스트/린트 이상의 런타임 검증이 필요한 AC 항목에 대해, Designer는 `test-strategy.yaml`에 `manual_checks`를 추가할 수 있습니다(`internal/protocol/types.go`의 `TestStrategy.ManualChecks`):
+빌드/테스트/린트 이상의 런타임 검증이 필요한 AC 항목에 대해, Designer는 `test-strategy.yaml`에 `manual_checks`를 추가할 수 있습니다(`internal/protocol/verify.go`의 `TestStrategy.ManualChecks`):
 
 ```yaml
 manual_checks:

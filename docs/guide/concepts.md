@@ -88,7 +88,7 @@ The `angle_mapping` can be customized in `settings.json` under `roles.deep-revie
 
 ### Deep Review SubPhase & Crash Recovery
 
-The `deep-reviewing` phase runs several internal steps (sub-reviewer → synthesizer → mini-coder → re-verifier), but they are **not** state-machine phases. To make the live progress and crash recovery aware of *which* step is running, `State` carries a `subPhase` field (`internal/protocol/types.go`) that is only meaningful while `phase == deep-reviewing`:
+The `deep-reviewing` phase runs several internal steps (sub-reviewer → synthesizer → mini-coder → re-verifier), but they are **not** state-machine phases. To make the live progress and crash recovery aware of *which* step is running, `State` carries a `subPhase` field (`internal/protocol/state.go`) that is only meaningful while `phase == deep-reviewing`:
 
 | `subPhase` | Step | Set when |
 |---|---|---|
@@ -489,7 +489,7 @@ Before the Tester role starts, the CLI can automatically verify the environment 
 
 ### Configuration
 
-A health check has three fields (`HealthCheck` in `internal/protocol/types.go`):
+A health check has three fields (`HealthCheck` in `internal/protocol/verify.go`):
 
 | Field | Type | Description |
 |---|---|---|
@@ -552,7 +552,7 @@ A **test profile** is a reusable block of test methodology that the Designer tag
 
 ### Declaring profiles
 
-The Designer lists profiles in `test-strategy.yaml` (`TestStrategy.Profiles` in `internal/protocol/types.go`):
+The Designer lists profiles in `test-strategy.yaml` (`TestStrategy.Profiles` in `internal/protocol/verify.go`):
 
 ```yaml
 profiles:
@@ -566,7 +566,7 @@ verify_commands:
 
 ### Manual checks
 
-For AC items that need runtime verification beyond build/test/lint, the Designer can add `manual_checks` to `test-strategy.yaml` (`TestStrategy.ManualChecks` in `internal/protocol/types.go`):
+For AC items that need runtime verification beyond build/test/lint, the Designer can add `manual_checks` to `test-strategy.yaml` (`TestStrategy.ManualChecks` in `internal/protocol/verify.go`):
 
 ```yaml
 manual_checks:

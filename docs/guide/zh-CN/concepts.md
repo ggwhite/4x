@@ -81,7 +81,7 @@
 
 ### 深度审查子阶段与崩溃恢复
 
-`deep-reviewing` 阶段运行多个内部步骤（sub-reviewer → synthesizer → mini-coder → re-verifier），但它们**不是**状态机阶段。为了让实时进度和崩溃恢复感知到当前正在运行哪个步骤，`State` 携带一个 `subPhase` 字段（`internal/protocol/types.go`），仅在 `phase == deep-reviewing` 时有意义：
+`deep-reviewing` 阶段运行多个内部步骤（sub-reviewer → synthesizer → mini-coder → re-verifier），但它们**不是**状态机阶段。为了让实时进度和崩溃恢复感知到当前正在运行哪个步骤，`State` 携带一个 `subPhase` 字段（`internal/protocol/state.go`），仅在 `phase == deep-reviewing` 时有意义：
 
 | `subPhase` | 步骤 | 设置时机 |
 |---|---|---|
@@ -457,7 +457,7 @@ post_{target_phase} 钩子（按数组顺序）
 
 ### 配置
 
-健康检查包含三个字段（`internal/protocol/types.go` 中的 `HealthCheck`）：
+健康检查包含三个字段（`internal/protocol/verify.go` 中的 `HealthCheck`）：
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
@@ -520,7 +520,7 @@ health_check:
 
 ### 声明 profile
 
-设计者在 `test-strategy.yaml` 中列出 profile（`internal/protocol/types.go` 中的 `TestStrategy.Profiles`）：
+设计者在 `test-strategy.yaml` 中列出 profile（`internal/protocol/verify.go` 中的 `TestStrategy.Profiles`）：
 
 ```yaml
 profiles:
@@ -534,7 +534,7 @@ verify_commands:
 
 ### 手动检查
 
-对于需要构建/测试/lint 之外的运行时验证的 AC 项，设计者可以在 `test-strategy.yaml` 中添加 `manual_checks`（`internal/protocol/types.go` 中的 `TestStrategy.ManualChecks`）：
+对于需要构建/测试/lint 之外的运行时验证的 AC 项，设计者可以在 `test-strategy.yaml` 中添加 `manual_checks`（`internal/protocol/verify.go` 中的 `TestStrategy.ManualChecks`）：
 
 ```yaml
 manual_checks:

@@ -81,7 +81,7 @@ Deep Review をディスパッチする前に、4x は diff に影響するフ�
 
 ### Deep Review SubPhase & クラッシュリカバリー
 
-`deep-reviewing` フェーズはいくつかの内部ステップ（sub-reviewer → synthesizer → mini-coder → re-verifier）を実行しますが、これらはステートマシンのフェーズでは**ありません**。ライブ進捗とクラッシュリカバリーが*どのステップが実行中か*を認識できるよう、`State` は `subPhase` フィールドを持ちます（`internal/protocol/types.go`）。このフィールドは `phase == deep-reviewing` の間のみ意味を持ちます：
+`deep-reviewing` フェーズはいくつかの内部ステップ（sub-reviewer → synthesizer → mini-coder → re-verifier）を実行しますが、これらはステートマシンのフェーズでは**ありません**。ライブ進捗とクラッシュリカバリーが*どのステップが実行中か*を認識できるよう、`State` は `subPhase` フィールドを持ちます（`internal/protocol/state.go`）。このフィールドは `phase == deep-reviewing` の間のみ意味を持ちます：
 
 | `subPhase` | ステップ | 設定タイミング |
 |---|---|---|
@@ -457,7 +457,7 @@ Tester ロールの開始前に、CLI がビルドの合格、サービスの稼
 
 ### 設定
 
-ヘルスチェックには3つのフィールドがあります（`internal/protocol/types.go` の `HealthCheck`）：
+ヘルスチェックには3つのフィールドがあります（`internal/protocol/verify.go` の `HealthCheck`）：
 
 | フィールド | 型 | 説明 |
 |---|---|---|
@@ -520,7 +520,7 @@ commands を順番に実行（各コマンドに個別のタイムアウト）
 
 ### プロファイルの宣言
 
-Designer が `test-strategy.yaml` にプロファイルをリストします（`internal/protocol/types.go` の `TestStrategy.Profiles`）：
+Designer が `test-strategy.yaml` にプロファイルをリストします（`internal/protocol/verify.go` の `TestStrategy.Profiles`）：
 
 ```yaml
 profiles:
@@ -534,7 +534,7 @@ verify_commands:
 
 ### マニュアルチェック
 
-ビルド/テスト/lint を超えたランタイム検証が必要な AC 項目について、Designer は `test-strategy.yaml` に `manual_checks` を追加できます（`internal/protocol/types.go` の `TestStrategy.ManualChecks`）：
+ビルド/テスト/lint を超えたランタイム検証が必要な AC 項目について、Designer は `test-strategy.yaml` に `manual_checks` を追加できます（`internal/protocol/verify.go` の `TestStrategy.ManualChecks`）：
 
 ```yaml
 manual_checks:

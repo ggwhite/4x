@@ -81,7 +81,7 @@ El `angle_mapping` se puede personalizar en `settings.json` bajo `roles.deep-rev
 
 ### SubFase del deep review y recuperación de crashes
 
-La fase `deep-reviewing` ejecuta varios pasos internos (sub-revisor → synthesizer → mini-coder → re-verificador), pero **no** son fases de la máquina de estados. Para que el progreso en vivo y la recuperación de crashes sean conscientes de *qué* paso está ejecutándose, `State` lleva un campo `subPhase` (`internal/protocol/types.go`) que solo es significativo mientras `phase == deep-reviewing`:
+La fase `deep-reviewing` ejecuta varios pasos internos (sub-revisor → synthesizer → mini-coder → re-verificador), pero **no** son fases de la máquina de estados. Para que el progreso en vivo y la recuperación de crashes sean conscientes de *qué* paso está ejecutándose, `State` lleva un campo `subPhase` (`internal/protocol/state.go`) que solo es significativo mientras `phase == deep-reviewing`:
 
 | `subPhase` | Paso | Se establece cuando |
 |---|---|---|
@@ -457,7 +457,7 @@ Antes de que el rol Tester comience, el CLI puede verificar automáticamente que
 
 ### Configuración
 
-Una verificación de salud tiene tres campos (`HealthCheck` en `internal/protocol/types.go`):
+Una verificación de salud tiene tres campos (`HealthCheck` en `internal/protocol/verify.go`):
 
 | Campo | Tipo | Descripción |
 |---|---|---|
@@ -520,7 +520,7 @@ Un **perfil de pruebas** es un bloque reutilizable de metodología de pruebas qu
 
 ### Declaración de perfiles
 
-El Designer lista los perfiles en `test-strategy.yaml` (`TestStrategy.Profiles` en `internal/protocol/types.go`):
+El Designer lista los perfiles en `test-strategy.yaml` (`TestStrategy.Profiles` en `internal/protocol/verify.go`):
 
 ```yaml
 profiles:
@@ -534,7 +534,7 @@ verify_commands:
 
 ### Verificaciones manuales
 
-Para los elementos de AC que necesitan verificación en tiempo de ejecución más allá de build/test/lint, el Designer puede añadir `manual_checks` a `test-strategy.yaml` (`TestStrategy.ManualChecks` en `internal/protocol/types.go`):
+Para los elementos de AC que necesitan verificación en tiempo de ejecución más allá de build/test/lint, el Designer puede añadir `manual_checks` a `test-strategy.yaml` (`TestStrategy.ManualChecks` en `internal/protocol/verify.go`):
 
 ```yaml
 manual_checks:

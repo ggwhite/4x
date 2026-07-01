@@ -81,7 +81,7 @@ fan-out 完全由 4x CLI 驅動——不依賴 LLM 自身的 subagent 或工具�
 
 ### Deep Review 子階段與 Crash Recovery
 
-`deep-reviewing` 階段執行數個內部步驟（sub-reviewer → synthesizer → mini-coder → re-verifier），但它們**不是**狀態機階段。為讓即時進度和 crash recovery 知道目前執行到哪個步驟，`State` 攜帶一個 `subPhase` 欄位（`internal/protocol/types.go`），只在 `phase == deep-reviewing` 時有意義：
+`deep-reviewing` 階段執行數個內部步驟（sub-reviewer → synthesizer → mini-coder → re-verifier），但它們**不是**狀態機階段。為讓即時進度和 crash recovery 知道目前執行到哪個步驟，`State` 攜帶一個 `subPhase` 欄位（`internal/protocol/state.go`），只在 `phase == deep-reviewing` 時有意義：
 
 | `subPhase` | 步驟 | 設定時機 |
 |---|---|---|
@@ -459,7 +459,7 @@ Tester 角色啟動前，CLI 可自動驗證環境健康——確認建置通過
 
 ### 設定
 
-Health check 有三個欄位（`internal/protocol/types.go` 中的 `HealthCheck`）：
+Health check 有三個欄位（`internal/protocol/verify.go` 中的 `HealthCheck`）：
 
 | 欄位 | 型別 | 說明 |
 |---|---|---|
@@ -522,7 +522,7 @@ Recovery 最多觸發一次——沒有多次重試或退避機制。
 
 ### 宣告 profile
 
-Designer 在 `test-strategy.yaml` 中列出 profiles（`internal/protocol/types.go` 的 `TestStrategy.Profiles`）：
+Designer 在 `test-strategy.yaml` 中列出 profiles（`internal/protocol/verify.go` 的 `TestStrategy.Profiles`）：
 
 ```yaml
 profiles:
@@ -536,7 +536,7 @@ verify_commands:
 
 ### 手動檢查
 
-針對需要超出 build/test/lint 範圍的執行期驗證的 AC 項目，Designer 可在 `test-strategy.yaml` 中新增 `manual_checks`（`internal/protocol/types.go` 的 `TestStrategy.ManualChecks`）：
+針對需要超出 build/test/lint 範圍的執行期驗證的 AC 項目，Designer 可在 `test-strategy.yaml` 中新增 `manual_checks`（`internal/protocol/verify.go` 的 `TestStrategy.ManualChecks`）：
 
 ```yaml
 manual_checks:
