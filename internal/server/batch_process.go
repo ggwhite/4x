@@ -6,7 +6,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -21,9 +20,11 @@ import (
 // 與 ProcessManager（管 `4x run <feature>`）分離，兩者生命週期互不影響。
 type BatchManager struct {
 	mu         sync.Mutex
-	cmd        *exec.Cmd
-	ws         *protocol.Workspace
+	cmd        Cmd
+	ws         BatchWorkspace
+	root       string
 	binName    string
+	launcher   Launcher
 	running    bool
 	done       chan struct{}
 	adoptedPid int // 被 adopt 的孤兒子程序 PID，供 Shutdown 用 PID kill；managed 子程序時維持 0
@@ -34,7 +35,7 @@ func NewBatchManager(ws *protocol.Workspace, binName string) *BatchManager {
 	if binName == "" {
 		binName = "4x"
 	}
-	return &BatchManager{ws: ws, binName: binName}
+	return &BatchManager{ws: ws, root: ws.Root, binName: binName, launcher: execLauncher{}}
 }
 
 // Start 啟動 `4x batch run` 子程序；若已有 batch 執行中則回 error（同 project 不可並行兩個 batch）。
@@ -46,8 +47,8 @@ func (bm *BatchManager) Start(runner string, maxRounds int) error {
 		return fmt.Errorf("a batch run is already in progress")
 	}
 
-	cmd := exec.Command(bm.binName, buildBatchArgs(runner, maxRounds)...)
-	cmd.Dir = bm.ws.Root
+	cmd := bm.launcher.Command(bm.binName, buildBatchArgs(runner, maxRounds)...)
+	cmd.SetDir(bm.root)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -172,8 +173,8 @@ func (bm *BatchManager) Shutdown() error {
 
 	var err error
 	switch {
-	case cmd != nil && cmd.Process != nil:
-		err = terminateProcess(cmd.Process, done)
+	case cmd != nil:
+		err = terminateProcess(cmd, done)
 	case adoptedPid != 0:
 		err = terminateAdopted(adoptedPid)
 	}
@@ -189,8 +190,8 @@ func (bm *BatchManager) Shutdown() error {
 }
 
 // terminateProcess 對 managed 子程序送 SIGTERM，等其結束（done channel）最多 5 秒，逾時則 Kill。
-func terminateProcess(proc *os.Process, done chan struct{}) error {
-	if err := proc.Signal(syscall.SIGTERM); err != nil {
+func terminateProcess(cmd Cmd, done chan struct{}) error {
+	if err := cmd.Signal(syscall.SIGTERM); err != nil {
 		// 程序可能已結束；若 done 已關閉視為正常。
 		if done != nil {
 			select {
@@ -208,7 +209,7 @@ func terminateProcess(proc *os.Process, done chan struct{}) error {
 	case <-done:
 		return nil
 	case <-time.After(5 * time.Second):
-		_ = proc.Kill()
+		_ = cmd.Kill()
 		<-done
 		return nil
 	}

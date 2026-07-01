@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os/exec"
 	"strconv"
 	"sync"
 	"syscall"
@@ -23,7 +22,7 @@ type RunInfo struct {
 	Runner    string    `json:"runner"`
 	Profile   string    `json:"profile,omitempty"`
 	Pid       int       `json:"pid,omitempty"`
-	Cmd       *exec.Cmd `json:"-"`
+	Cmd       Cmd       `json:"-"`
 	StartTime time.Time `json:"startTime"`
 	done      chan struct{}
 }
@@ -33,8 +32,10 @@ type ProcessManager struct {
 	mu          sync.Mutex
 	runs        map[string]*RunInfo
 	maxParallel int
-	ws          *protocol.Workspace
+	ws          ProcessWorkspace
+	root        string
 	binName     string
+	launcher    Launcher
 }
 
 // NewProcessManager 建立 ProcessManager，binName 通常是 "4x"，測試可替換成假 command。
@@ -49,7 +50,9 @@ func NewProcessManager(ws *protocol.Workspace, maxParallel int, binName string) 
 		runs:        make(map[string]*RunInfo),
 		maxParallel: maxParallel,
 		ws:          ws,
+		root:        ws.Root,
 		binName:     binName,
+		launcher:    execLauncher{},
 	}
 }
 
@@ -79,8 +82,8 @@ func (pm *ProcessManager) Start(featureID, runner string, maxRounds int, profile
 		return nil, fmt.Errorf("max concurrent runs reached (%d)", pm.maxParallel)
 	}
 
-	cmd := exec.Command(pm.binName, buildRunArgs(featureID, runner, maxRounds, profile, overrides)...)
-	cmd.Dir = pm.ws.Root
+	cmd := pm.launcher.Command(pm.binName, buildRunArgs(featureID, runner, maxRounds, profile, overrides)...)
+	cmd.SetDir(pm.root)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -98,7 +101,7 @@ func (pm *ProcessManager) Start(featureID, runner string, maxRounds int, profile
 
 	id, err := newRunID()
 	if err != nil {
-		if kerr := cmd.Process.Kill(); kerr != nil {
+		if kerr := cmd.Kill(); kerr != nil {
 			slog.Warn("failed to kill subprocess after run ID error", "feature", featureID, "error", kerr)
 		}
 		return nil, err
@@ -108,7 +111,7 @@ func (pm *ProcessManager) Start(featureID, runner string, maxRounds int, profile
 		FeatureID: featureID,
 		Runner:    runner,
 		Profile:   profile,
-		Pid:       cmd.Process.Pid,
+		Pid:       cmd.Pid(),
 		Cmd:       cmd,
 		StartTime: time.Now().UTC(),
 		done:      make(chan struct{}),
@@ -255,7 +258,7 @@ func (pm *ProcessManager) Shutdown() {
 }
 
 func terminateRun(info *RunInfo) error {
-	if info.Cmd.Process == nil {
+	if info.Cmd == nil {
 		return nil
 	}
 	select {
@@ -264,7 +267,7 @@ func terminateRun(info *RunInfo) error {
 	default:
 	}
 
-	if err := info.Cmd.Process.Signal(syscall.SIGTERM); err != nil {
+	if err := info.Cmd.Signal(syscall.SIGTERM); err != nil {
 		select {
 		case <-info.done:
 			return nil
@@ -277,7 +280,7 @@ func terminateRun(info *RunInfo) error {
 	case <-info.done:
 		return nil
 	case <-time.After(5 * time.Second):
-		if err := info.Cmd.Process.Kill(); err != nil {
+		if err := info.Cmd.Kill(); err != nil {
 			select {
 			case <-info.done:
 				return nil
