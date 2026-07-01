@@ -11,7 +11,7 @@ description: |-
     - 不改變現有 REST/SSE API 的對外行為
     - 不影響現有 dashboard 與 server 的溝通協議
     - 抽出的介面需附對應測試（含現有 binName seam 測試不可迴歸）
-status: not-started
+status: done
 priority: 2
 profile: standard
 subtasks:
