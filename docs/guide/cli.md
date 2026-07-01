@@ -632,6 +632,8 @@ Start the 4x Live dashboard server.
 | `--web` | `-w` | `false` | Open in browser |
 | `--app` | `-a` | `false` | Open macOS native app |
 
+The `4567` default is read from `internal/server.DefaultPort`, the single source of truth also used by the macOS/Tauri shells; see [Port source of truth](dashboard.md#port-source-of-truth) for how the three copies stay in sync.
+
 Without paths, loads recent projects from `~/.4x/recent-projects.json` (LRU, max 20). With paths, opens each as a project tab.
 
 ---

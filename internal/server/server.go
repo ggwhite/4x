@@ -347,6 +347,13 @@ func StartMulti(ctx context.Context, reg *ProjectRegistry, port int, recentPath 
 	return err
 }
 
+// DefaultPort 是 dashboard server 的預設監聽 port，為 CLI（`4x live`）與桌面殼
+// （macOS Swift、Windows/Linux Tauri）啟動時的預設猜測值之單一事實來源。
+// Swift（dashboard/macos/Sources/main.swift）與 Rust（dashboard/tauri/src-tauri/src/main.rs）
+// 各自維護一份等值字面常量（無法跨語言直接讀取此常量），由
+// internal/server/port_sync_test.go 的一致性測試守護三者不漂移；異動此值須同步更新該兩處字面常量。
+const DefaultPort = 4567
+
 // ListenForMulti 在指定 port 建立 TCP listener，port 為 0 時由 OS 自動分配可用 port。
 func ListenForMulti(port int) (net.Listener, error) {
 	return net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))

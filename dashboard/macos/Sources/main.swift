@@ -9,6 +9,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
     var statusItem: NSStatusItem!
     var popover: NSPopover!
     var popoverWebView: WKWebView!
+    // 預設值須與 internal/server.DefaultPort（單一事實來源）保持一致，
+    // 由 internal/server/port_sync_test.go 自動驗證。
     var serverPort: Int = 4567
     var embeddedServer: Process?
     var statusTimer: Timer?

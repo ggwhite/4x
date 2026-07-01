@@ -39,6 +39,10 @@ xattr -cr /Applications/4x\ Live.app
 4x live -a
 ```
 
+### Port source of truth
+
+The default port (`4567`) has a single source of truth: `internal/server.DefaultPort`. `cmd/4x/live.go`'s `--port` flag default reads this constant; the macOS shell (`main.swift`'s `serverPort`) and the Tauri shell (`main.rs`'s `DEFAULT_PORT`) each hold their own local copy (cross-language builds can't reference the Go constant directly), kept in sync by `internal/server/port_sync_test.go`, which fails `make test` if any of the three literals drift.
+
 ## Multi-Project Support
 
 The dashboard supports multiple projects simultaneously. Without path arguments, it loads from `~/.4x/recent-projects.json` (LRU, max 20 entries).

@@ -39,6 +39,10 @@ xattr -cr /Applications/4x\ Live.app
 4x live -a
 ```
 
+### Fuente única de verdad para el puerto
+
+El puerto por defecto (`4567`) tiene una única fuente de verdad: `internal/server.DefaultPort`. El valor por defecto del flag `--port` en `cmd/4x/live.go` lee esta constante; el shell de macOS (`serverPort` en `main.swift`) y el shell de Tauri (`DEFAULT_PORT` en `main.rs`) mantienen cada uno una copia local del mismo valor (las compilaciones entre lenguajes no pueden referenciar directamente la constante de Go), sincronizadas por `internal/server/port_sync_test.go`, que hace fallar `make test` si alguno de los tres literales se desincroniza.
+
 ## Soporte multi-proyecto
 
 El dashboard soporta múltiples proyectos simultáneamente. Sin argumentos de ruta, carga desde `~/.4x/recent-projects.json` (LRU, máximo 20 entradas).

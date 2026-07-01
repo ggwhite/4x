@@ -39,6 +39,10 @@ xattr -cr /Applications/4x\ Live.app
 4x live -a
 ```
 
+### ポートの単一の信頼できる情報源
+
+デフォルトのport（`4567`）は `internal/server.DefaultPort` を単一の信頼できる情報源としています。`cmd/4x/live.go` の `--port` フラグのデフォルト値はこの定数を読み取ります。macOSシェル（`main.swift` の `serverPort`）とTauriシェル（`main.rs` の `DEFAULT_PORT`）は、それぞれローカルに同値の定数を保持しています（言語間ビルドではGoの定数を直接参照できないため）。この3箇所のリテラルは `internal/server/port_sync_test.go` によって同期が保証され、値がずれると `make test` が失敗します。
+
 ## マルチプロジェクト対応
 
 ダッシュボードは複数のプロジェクトを同時にサポートします。パス引数なしの場合、`~/.4x/recent-projects.json`（LRU、最大20エントリ）から読み込みます。

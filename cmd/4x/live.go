@@ -100,7 +100,7 @@ With paths, opens each as a project tab.`,
 		},
 	}
 
-	cmd.Flags().IntVarP(&port, "port", "p", 4567, "dashboard port (0 = auto)")
+	cmd.Flags().IntVarP(&port, "port", "p", server.DefaultPort, "dashboard port (0 = auto)")
 	cmd.Flags().BoolVarP(&webFlag, "web", "w", false, "open browser after start")
 	cmd.Flags().BoolVarP(&appFlag, "app", "a", false, "launch native app after start")
 	return cmd

@@ -39,6 +39,10 @@ xattr -cr /Applications/4x\ Live.app
 4x live -a
 ```
 
+### Port 单一事实来源
+
+默认 port（`4567`）以 `internal/server.DefaultPort` 为单一事实来源。`cmd/4x/live.go` 的 `--port` flag 默认值即读取此常量；macOS 壳（`main.swift` 的 `serverPort`）与 Tauri 壳（`main.rs` 的 `DEFAULT_PORT`）各自持有一份等值的本地常量（跨语言编译无法直接引用 Go 常量），由 `internal/server/port_sync_test.go` 守护，若三处字面值漂移会导致 `make test` 失败。
+
 ## 多项目支持
 
 仪表盘同时支持多个项目。不提供路径参数时，从 `~/.4x/recent-projects.json` 加载（LRU，最多 20 个条目）。

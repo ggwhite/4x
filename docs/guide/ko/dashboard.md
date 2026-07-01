@@ -39,6 +39,10 @@ xattr -cr /Applications/4x\ Live.app
 4x live -a
 ```
 
+### Port 단일 진실 공급원
+
+기본 port(`4567`)는 `internal/server.DefaultPort`를 단일 진실 공급원으로 합니다. `cmd/4x/live.go`의 `--port` 플래그 기본값은 이 상수를 읽습니다. macOS 셸(`main.swift`의 `serverPort`)과 Tauri 셸(`main.rs`의 `DEFAULT_PORT`)은 각각 동일한 값의 로컬 상수를 보유합니다(언어 간 빌드에서는 Go 상수를 직접 참조할 수 없기 때문입니다). 이 세 곳의 리터럴은 `internal/server/port_sync_test.go`에 의해 동기화가 보장되며, 값이 어긋나면 `make test`가 실패합니다.
+
 ## 다중 프로젝트 지원
 
 대시보드는 여러 프로젝트를 동시에 지원합니다. 경로 인수 없이 실행하면 `~/.4x/recent-projects.json`에서 로드합니다(LRU, 최대 20개 항목).

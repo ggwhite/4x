@@ -35,6 +35,15 @@
 macOS 不使用 Tauri（保留 Swift 原生殼）；Tauri 的 Rust 僅負責 spawn sidecar + 載入 URL，
 不含任何業務邏輯。
 
+**預設 port 單一事實來源**：Go 端以 `internal/server.DefaultPort`（值 4567）為權威定義，
+`cmd/4x/live.go` 的 `--port` flag 預設值即讀取此常量。Swift（`main.swift` 的
+`serverPort`）與 Rust（`main.rs` 的 `DEFAULT_PORT`）在殼啟動、決定要 spawn 的 server
+port 時必須各自持有一份等值的本地常量（跨語言編譯無法直接引用 Go 常量），
+由 `internal/server/port_sync_test.go` 的測試在 `make test` 時自動比對三處字面值，
+確保未來修改任一處都會被 CI 攔截，而非靜默漂移。前端（`dashboard/web/core.js`）
+一律使用相對路徑呼叫 API/SSE，不需感知實際 port，因此不含 port 字面值，
+同一測試檔內也對此做迴歸防護。
+
 ### macOS 細節
 
 - `dashboard/macos/Sources/main.swift` 的 `launchEmbeddedServer()` 啟動與 Swift 執行檔

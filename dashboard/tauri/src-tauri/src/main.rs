@@ -26,6 +26,8 @@ use tauri_plugin_shell::ShellExt;
 
 struct SidecarChild(std::sync::Mutex<Option<CommandChild>>);
 
+// 預設值須與 internal/server.DefaultPort（單一事實來源）保持一致，
+// 由 internal/server/port_sync_test.go 自動驗證。
 const DEFAULT_PORT: u16 = 4567;
 
 /// notify 顯示一則原生系統通知，供前端在 Tauri 環境下推播 run 結束事件。
