@@ -8,16 +8,22 @@
     "featureId": { "type": "string" },
     "phase": {
       "type": "string",
-      "enum": ["init", "designing", "coding", "reviewing", "testing", "amending", "accepting", "pending-review", "done", "blocked", "needs-attention"]
+      "enum": ["init", "designing", "design-reviewing", "coding", "reviewing", "deep-reviewing", "fixing", "testing", "amending", "accepting", "pending-review", "done", "abandoned", "blocked", "needs-attention"]
     },
     "role": {
       "type": "string",
-      "enum": ["designer", "coder", "reviewer", "deep-reviewer", "tester", "acceptor"]
+      "enum": ["designer", "design-reviewer", "coder", "reviewer", "deep-reviewer", "tester", "acceptor", "fixer"]
+    },
+    "subPhase": {
+      "type": "string",
+      "description": "deep-reviewing phase 內的子步驟，僅在 phase==deep-reviewing 時有意義",
+      "enum": ["reviewing", "synthesizing", "fixing", "reverifying"]
     },
     "round": { "type": "integer", "minimum": 0 },
     "profile": { "type": "string", "description": "本次 run 使用的 profile 名稱" },
     "maxRounds": { "type": "integer", "minimum": 1 },
     "active": { "type": "boolean" },
+    "pid": { "type": "integer", "description": "run 子程序的 process id" },
     "runner": { "type": "string" },
     "label": { "type": "string" },
     "createdAt": { "type": "string", "format": "date-time" },
@@ -26,10 +32,19 @@
     "consecutiveNoProgress": { "type": "integer" },
     "lastFailCount": { "type": "integer" },
     "stopReason": { "type": ["string", "null"] },
+    "stopMessage": { "type": "string", "description": "run 停止時的詳細訊息" },
     "runners": {
       "type": "array",
       "items": { "type": "string" },
       "description": "All runners that have participated in this feature run"
-    }
+    },
+    "selfModTouched": { "type": "boolean", "description": "本次 coding/amending 是否觸及受保護路徑（self-mod guard）" },
+    "selfModPaths": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "最新一輪觸及的受保護檔案路徑（相對 scope root）"
+    },
+    "selfModApproved": { "type": "boolean", "description": "人工是否已透過 --approve-self-mod 核可受保護路徑變更" },
+    "guardRetries": { "type": "integer", "description": "全域 guard retry 次數（跨 round 累計）" }
   }
 }

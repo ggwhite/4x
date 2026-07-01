@@ -166,6 +166,7 @@ const ROLES = {
   'deep-reviewer':{name:'Deep Review',emoji:'🔍',color:'#4ade80',bg:'rgba(74,222,128,.08)'},
   tester:{name:'Tester',emoji:'🧪',color:'#fb923c',bg:'rgba(251,146,60,.08)'},
   acceptor:{name:'Acceptor',emoji:'⭐',color:'#facc15',bg:'rgba(250,204,21,.08)'},
+  fixer:{name:'Fixer',emoji:'🔧',color:'#f87171',bg:'rgba(248,113,113,.08)'},
   'deep-fix':{name:'Deep Fix',emoji:'🔧',color:'#f472b6',bg:'rgba(244,114,182,.08)'},
   'deep-reverify':{name:'Deep Reverify',emoji:'🔬',color:'#a78bfa',bg:'rgba(167,139,250,.08)'},
   synthesizer:{name:'Synthesizer',emoji:'🧩',color:'#34d399',bg:'rgba(52,211,153,.08)'},
@@ -176,7 +177,7 @@ const ROLES = {
   consolidator:{name:'Consolidator',emoji:'🗂️',color:'#60a5fa',bg:'rgba(96,165,250,.08)'},
   'round-summarizer':{name:'Round Summarizer',emoji:'📋',color:'#94a3b8',bg:'rgba(148,163,184,.08)'},
 };
-const PHASE_ICON = { designing:'◆','design-reviewing':'◆',coding:'◆',reviewing:'◆','deep-reviewing':'◆',testing:'◆',accepting:'◆',amending:'◆','pending-review':'⏳',done:'✓',blocked:'✕','needs-attention':'!',init:'○','not-started':'○' };
+const PHASE_ICON = { designing:'◆','design-reviewing':'◆',coding:'◆',reviewing:'◆','deep-reviewing':'◆',fixing:'◆',testing:'◆',accepting:'◆',amending:'◆','pending-review':'⏳',done:'✓',abandoned:'✕',blocked:'✕','needs-attention':'!',init:'○','not-started':'○' };
 
 const PHASE_COLORS = {
   designing:{letter:'D',color:'#c084fc',bg:'rgba(192,132,252,.15)',border:'rgba(192,132,252,.25)'},

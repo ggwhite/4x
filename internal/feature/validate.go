@@ -8,22 +8,24 @@ import (
 
 var featureIDRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9]$`)
 
-var validStatuses = map[Status]bool{
-	StatusNotStarted:     true,
-	StatusInProgress:     true,
-	StatusDone:           true,
-	StatusAbandoned:      true,
-	StatusBlocked:        true,
-	StatusNeedsAttention: true,
-	StatusReadyForReview: true,
-	StatusDraft:          true,
+var validStatuses = buildStatusSet()
+
+var validSubtaskStatuses = buildSubtaskStatusSet()
+
+func buildStatusSet() map[Status]bool {
+	m := make(map[Status]bool, len(AllStatuses()))
+	for _, s := range AllStatuses() {
+		m[s] = true
+	}
+	return m
 }
 
-var validSubtaskStatuses = map[string]bool{
-	"not-started": true,
-	"in-progress": true,
-	"done":        true,
-	"blocked":     true,
+func buildSubtaskStatusSet() map[string]bool {
+	m := make(map[string]bool, len(AllSubtaskStatuses()))
+	for _, s := range AllSubtaskStatuses() {
+		m[s] = true
+	}
+	return m
 }
 
 // Validate 驗證 Feature 結構的必要欄位與合法值，回傳所有錯誤的彙整。
@@ -67,7 +69,7 @@ func (s Subtask) validate(index int) error {
 		errs = append(errs, prefix+".name is required")
 	}
 	if s.Status != "" && !validSubtaskStatuses[s.Status] {
-		errs = append(errs, fmt.Sprintf("%s.status %q is invalid, must be one of: not-started, in-progress, done, blocked", prefix, s.Status))
+		errs = append(errs, fmt.Sprintf("%s.status %q is invalid, must be one of: %s", prefix, s.Status, subtaskStatusList()))
 	}
 
 	if len(errs) == 0 {
@@ -109,19 +111,20 @@ func (s Subtask) validateLoose(index int) []string {
 		warnings = append(warnings, prefix+".name is empty")
 	}
 	if s.Status != "" && !validSubtaskStatuses[s.Status] {
-		warnings = append(warnings, fmt.Sprintf("%s.status %q is not recognized (valid: not-started, in-progress, done, blocked)", prefix, s.Status))
+		warnings = append(warnings, fmt.Sprintf("%s.status %q is not recognized (valid: %s)", prefix, s.Status, subtaskStatusList()))
 	}
 	return warnings
 }
 
 func statusList() string {
-	all := []Status{
-		StatusNotStarted, StatusInProgress, StatusDone, StatusAbandoned,
-		StatusBlocked, StatusNeedsAttention, StatusReadyForReview, StatusDraft,
-	}
+	all := AllStatuses()
 	parts := make([]string, len(all))
 	for i, s := range all {
 		parts[i] = string(s)
 	}
 	return strings.Join(parts, ", ")
+}
+
+func subtaskStatusList() string {
+	return strings.Join(AllSubtaskStatuses(), ", ")
 }

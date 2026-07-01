@@ -9,7 +9,7 @@
     "phase": { "type": "string" },
     "type": {
       "type": "string",
-      "enum": ["run-start", "run-end", "phase-start", "phase-end", "transition", "step", "verify", "scope-check", "escalation", "blocked", "heartbeat", "subtask-done"]
+      "enum": ["escalation", "feature-discovered", "force-done", "guard-fail", "health-check-failed", "hook", "phase-skipped", "phase-start", "run-end", "run-error", "run-output", "run-start", "self-mod-approved", "self-mod-detected", "transition"]
     },
     "role": { "type": "string" },
     "round": { "type": "integer" },
@@ -23,6 +23,9 @@
       "type": "string",
       "description": "Notification level hint for dashboards; empty means no notification",
       "enum": ["success", "error", "warning"]
-    }
+    },
+    "tokens_used": { "type": "integer", "description": "本次 runner invocation 使用的 token 數量，僅 run-end event 填寫" },
+    "cost_usd": { "type": "number", "description": "本次 runner invocation 花費（美元），僅 run-end event 填寫" },
+    "duration_ms": { "type": "integer", "description": "本次 runner invocation 耗時（毫秒），僅 run-end event 填寫" }
   }
 }

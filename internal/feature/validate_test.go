@@ -93,6 +93,19 @@ func TestFeatureValidate_InvalidStatus(t *testing.T) {
 	}
 }
 
+func TestFeatureValidate_SubtaskReadyForReview(t *testing.T) {
+	f := Feature{
+		ID:   "f001-ok",
+		Name: "OK",
+		Subtasks: []Subtask{
+			{ID: "s1", Name: "Sub 1", Status: "ready-for-review"},
+		},
+	}
+	if err := f.Validate(); err != nil {
+		t.Fatalf("ready-for-review subtask status should be valid: %v", err)
+	}
+}
+
 func TestFeatureValidate_SubtaskErrors(t *testing.T) {
 	f := Feature{
 		ID:   "f001-ok",

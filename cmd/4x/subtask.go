@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
+	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/spf13/cobra"
 )
@@ -41,15 +43,12 @@ Examples:
 				return fmt.Errorf("feature %s not found: %w", featureID, err)
 			}
 
-			validStatuses := map[string]bool{
-				"not-started":      true,
-				"in-progress":      true,
-				"blocked":          true,
-				"done":             true,
-				"ready-for-review": true,
+			validStatuses := make(map[string]bool, len(feature.AllSubtaskStatuses()))
+			for _, s := range feature.AllSubtaskStatuses() {
+				validStatuses[s] = true
 			}
 			if !validStatuses[status] {
-				return fmt.Errorf("invalid status %q; valid values: not-started, in-progress, blocked, done, ready-for-review", status)
+				return fmt.Errorf("invalid status %q; valid values: %s", status, strings.Join(feature.AllSubtaskStatuses(), ", "))
 			}
 
 			found := false
@@ -80,7 +79,7 @@ Examples:
 		}),
 	}
 
-	cmd.Flags().StringVar(&status, "status", "", "new status (done, in-progress, blocked, not-started)")
+	cmd.Flags().StringVar(&status, "status", "", fmt.Sprintf("new status (%s)", strings.Join(feature.AllSubtaskStatuses(), ", ")))
 	cmd.MarkFlagRequired("status")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 

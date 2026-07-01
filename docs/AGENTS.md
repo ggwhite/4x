@@ -43,6 +43,7 @@ docs/
 | [protocol](architecture/protocol.md) | ~490 | `.4x/` 目錄協議 — settings.json、features/*.yaml、state.json、events.jsonl、baseline.json、verify.json、所有 report 格式範本 | 讀寫 `.4x/` 檔案、實作 protocol package、開發 plugin |
 | [state-machine](architecture/state-machine.md) | ~50 | 狀態機 — 10 states、16 valid transitions、round counter 規則 | 改狀態轉換邏輯、debug transition 錯誤 |
 | [cross-platform-packaging](architecture/cross-platform-packaging.md) | ~70 | 三平台桌面打包 — `dashboard/web/` 共用前端層、macOS Swift / Windows·Linux Tauri 殼、CI matrix | 改桌面 app 打包、前端資產位置、desktop CI |
+| [schema-sync](architecture/schema-sync.md) | ~80 | Schema 單一事實來源同步機制 — Go struct 為 SoT、欄位/列舉 accessor、`internal/schemasync` 一致性驗證、dashboard 覆蓋檢查 | 改 protocol/feature 型別、新增 phase/role/event type、debug schema 與 struct drift |
 
 ### design/ — 機制設計
 

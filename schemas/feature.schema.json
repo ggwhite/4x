@@ -26,13 +26,17 @@
         "properties": {
           "id": { "type": "string" },
           "name": { "type": "string" },
-          "status": { "type": "string", "enum": ["not-started", "in-progress", "done", "blocked"] },
+          "status": { "type": "string", "enum": ["not-started", "in-progress", "blocked", "done", "ready-for-review"] },
           "description": { "type": "string" },
           "depends": { "type": "array", "items": { "type": "string" } }
         }
       }
     },
     "rules": { "type": "array", "items": { "type": "string" } },
-    "depends": { "type": "array", "items": { "type": "string" } }
+    "depends": { "type": "array", "items": { "type": "string" } },
+    "hooks": { "type": "object", "description": "phase 對應的 hook 清單（run/on_fail）" },
+    "phaseOverrides": { "type": "object", "description": "feature 層對單一 phase 的 runner/model 覆寫" },
+    "deepReviewAllAngles": { "type": "boolean", "description": "為 true 時強制 deep review 跑全部 11 個角度" },
+    "warnings": { "type": "array", "items": { "type": "string" }, "description": "feature 讀取/驗證時產生的警告訊息" }
   }
 }
