@@ -11,7 +11,7 @@ description: |-
     - 不改變現有 batch/run/evolve 三個 CLI subcommand 的對外行為與 flag
     - cmd/4x 層仍不得呼叫 LLM，維持現有三層架構邊界
     - 抽出的共用邏輯需有對應單元測試
-status: not-started
+status: done
 priority: 2
 profile: standard
 subtasks:
