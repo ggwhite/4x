@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.6] - 2026-07-01
+
+### Features
+
+- **Protocol package 拆分（F121）** — `internal/protocol/types.go` 拆分為 domain.go / config.go / config_resolve.go / batch.go / review.go / state.go / verify.go 等單一職責檔案，降低耦合、提升可維護性
+- **Schema 單一事實來源同步機制（F122）** — 新增 `schemasync` 套件，驗證 Go struct 與 `schemas/*.schema.json`、`dashboard/web/core.js` 三邊欄位一致；`make check-schema-sync` 納入建置流程防止 drift
+- **batch.go 拆分與 runnerFactory 去重（F123）** — batch 執行邏輯拆分，並抽出共用 runnerFactory 消除重複的 runner 建構程式碼
+- **server 子程序啟動抽介面（F124）** — server 子程序啟動邏輯抽出介面，方便測試與未來替換實作
+- **Dashboard port 單一設定來源（F125）** — dashboard port 改為單一設定來源，避免多處硬編碼不一致
+
+### Fixes
+
+- **Build-gate 限定 feature 自己的 worktree** — build-gate 的 lint/build 檢查範圍限定在該 feature 專屬 worktree 內，避免誤判其他 worktree 的問題
+- **Dashboard role 顯示同步** — 補齊 dashboard ROLES 對照表缺少的 fixer / mini-coder / re-verifier / gate / consolidator / round-summarizer 角色顯示
+- **ac_verify_map verify_type 提前驗證** — Guard 在 `Check()` 一開始就驗證 `verify_type` 合法性，避免後續流程誤用未定義型別
+- **check-docs SIGPIPE** — CI 的 check-docs grep 改用 herestring，避免 SIGPIPE 導致誤判失敗
+- **Acceptor message 補齊 cost/duration** — acceptor 訊息補上 model/duration/cost 欄位
+- **Deep review run-end 補齊 cost/tokens** — deep review 的 run-end 事件補上 cost_usd 與 token 欄位
+
+### Internal
+
+- **Coder 預設 tier 改為 sonnet** — coder role 預設模型層級從 opus 切到 sonnet，降低成本
+
 ## [0.3.5] - 2026-06-30
 
 ### Fixes
