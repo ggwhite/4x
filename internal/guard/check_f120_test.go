@@ -233,3 +233,43 @@ func TestCheckTestingToAccepting_UnmappedACDefaultsExecution(t *testing.T) {
 		t.Fatalf("expected AC-2 execution output error, got: %v", result.Errors)
 	}
 }
+
+func TestCheckTestStrategyVerifyTypes_InvalidType(t *testing.T) {
+	ws := setupGuardWorkspace(t, "feat-1")
+	writeState(t, ws, "feat-1", protocol.State{Phase: protocol.PhaseDesigning, Round: 0})
+
+	writeFile(t, filepath.Join(ws.FeatureDir("feat-1"), protocol.TestStratFile),
+		"verify_commands:\n  - make test\nac_verify_map:\n  AC-1: admin-test\n  AC-2: manual\n")
+
+	result := Check(ws, "feat-1", nil)
+	if result.Pass {
+		t.Fatal("invalid verify_type in ac_verify_map should fail Check")
+	}
+	foundAC1, foundAC2 := false, false
+	for _, e := range result.Errors {
+		if strings.Contains(e, "AC-1") && strings.Contains(e, "invalid verify_type") {
+			foundAC1 = true
+		}
+		if strings.Contains(e, "AC-2") && strings.Contains(e, "invalid verify_type") {
+			foundAC2 = true
+		}
+	}
+	if !foundAC1 || !foundAC2 {
+		t.Fatalf("expected errors for both AC-1 and AC-2, got: %v", result.Errors)
+	}
+}
+
+func TestCheckTestStrategyVerifyTypes_ValidTypes(t *testing.T) {
+	ws := setupGuardWorkspace(t, "feat-1")
+	writeState(t, ws, "feat-1", protocol.State{Phase: protocol.PhaseDesigning, Round: 0})
+
+	writeFile(t, filepath.Join(ws.FeatureDir("feat-1"), protocol.TestStratFile),
+		"verify_commands:\n  - make test\nac_verify_map:\n  AC-1: unit-test\n  AC-2: inspection\n  AC-3: skip\n")
+
+	result := Check(ws, "feat-1", nil)
+	for _, e := range result.Errors {
+		if strings.Contains(e, "invalid verify_type") {
+			t.Fatalf("valid verify_types should not produce errors, got: %v", result.Errors)
+		}
+	}
+}

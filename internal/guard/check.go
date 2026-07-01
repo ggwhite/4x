@@ -56,6 +56,7 @@ func Check(ws *protocol.Workspace, featureID string, detector ScopeDetector) Che
 	checkBacklogDrift(ws, featureID, &r)
 	checkSymlinks(ws, featureID, &r)
 	checkBuildGate(ws, featureID, &r)
+	checkTestStrategyVerifyTypes(ws, featureID, &r)
 
 	return r
 }
@@ -241,6 +242,21 @@ func checkTestingToAccepting(ws *protocol.Workspace, featureID string, round int
 	checkACEvidence(ts, evidence, r)
 	checkManualChecks(ts, evidence, r)
 	checkSelfModTestGate(ws, featureID, r)
+}
+
+// checkTestStrategyVerifyTypes 在 test-strategy.yaml 存在時，驗證 ac_verify_map 的值都是合法的 verify_type。
+// 這讓 Designer 跑完 4x check 時就能發現非法值，不用等到 Tester 階段才炸。
+func checkTestStrategyVerifyTypes(ws *protocol.Workspace, featureID string, r *CheckResult) {
+	ts, err := ws.ReadTestStrategy(featureID)
+	if err != nil || len(ts.ACVerifyMap) == 0 {
+		return
+	}
+	for acID, vt := range ts.ACVerifyMap {
+		if _, valid := acVerifyTypes[vt]; !valid {
+			r.Pass = false
+			r.Errors = append(r.Errors, fmt.Sprintf("test-strategy.yaml: ac_verify_map[%s] has invalid verify_type %q (valid: unit-test, integration, execution, inspection, skip)", acID, vt))
+		}
+	}
 }
 
 // acVerifyType 定義合法的 AC 驗證類型。needsExec 表示是否需要執行輸出作為 evidence。
