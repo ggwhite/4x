@@ -12,7 +12,6 @@
 - 新增指令的 --json 非互動路徑時，若已有對應的互動/文字路徑（如 clean 的 cleanAll），必須對齊其 partial-failure 不變式（skip-and-continue、回報已完成項），不要直接 return error 丟棄已累積結果。
 - 重構下沉移除某函式的 production 呼叫者後，應確認剩餘呼叫端是否存在；若該函式只為某測試或特殊場景存活，應一併刪除，不留 dead-code wrapper
 - 重構改變呼叫路徑時，要同步搜尋並更新描述舊路徑的註解（含括號內實作提示），否則正是此 feature 想消除的『邏輯漂移』縮影。
-- Coder 送 review 前必須跑 gofmt -w 整理格式（make lint 只跑 go vet 不檢查格式），在同一 commit 內提交，避免 Reviewer FAIL 並省去額外 amending 成本
 - 純拆檔重構的 feature spec 應明確限制 scope（只改指定檔案），避免 Coder 順手改到 README 等不相關檔案
 - 錯誤訊息設計應避免前綴與 ID 重疊（如 'AC AC-2 has no evidence'），直接用 ID 本身加描述詞（如 'AC-2: no evidence'）更清晰。
 - Template 中用同一個 bool flag（$parallel）同時控制「平行模式」與「有角度限縮」時，加入第三個 else if 分支處理「非平行但有篩選」情境，避免標頭文字與 body 內容不一致
@@ -24,11 +23,10 @@
 
 ## design
 - task-brief 限制某檔案「只加某常量」時，會逼 Coder 在該檔旁另造局部 helper 而非抽共用 method，造成邏輯重複；設計階段若已知有可重用原語，應在 scope 內明確允許重構或預先抽出 exported helper。
-- task-brief 應主動標出 spec、plan 與現況程式碼的矛盾並裁決（如型別名不一致、過時假設、out-of-scope 項目），在開頭明列「設計裁決」覆寫 plan，避免 Coder 照抄錯誤骨架或重造輪子
+- task-brief 應主動標出並裁決矛盾——無論是 spec/plan 與現況程式碼不一致（型別名不一致、過時假設、out-of-scope 項目），或 feature 內部兩個需求互相牴觸（如「語意一致」vs「對外行為不變」）——在開頭明列「設計裁決」，列出唯一刻意的行為變更並覆寫 plan，供 Coder/Reviewer/Acceptor 對焦，避免各自猜測、照抄錯誤骨架或重造輪子。
 - 對有語意的 cap 欄位（如 max_accept_per_run），用零值補預設會吃掉「0=不收」的使用者意圖；若 0 是合法輸入應改用 *int 或在 doctor 加 WARN，並在 GoDoc 明示 0 的行為。
 - 讀檔回空 pool 不報錯的 API（LoadCandidates）在編排命令中會把「前置步驟沒跑」遮蔽成「靜默成功 exit 0」；對手動操作的子命令應對缺前置輸入給明確 error。
 - report 的統計欄位（如 deduped）要明確定義來源語意，不要把不同階段的丟棄數（本輪 mine 去重 vs pool-wide PreVeto）相加塞進同一數字，避免多輪累積後誤導使用者。
-- 當 feature 兩個要求（如『語意一致』vs『對外行為不變』）在某 edge 互相牴觸時，Designer 應在 task-brief 先做明確裁決並列出唯一刻意的對外行為變更，供 Reviewer/Acceptor 對焦而非各自猜測。
 - Feature spec 的「已知位置」清單若不完整，Coder 會照規格範圍作業，殘留問題需後續 feature 補；Designer 應於 spec 加入 grep 掃全庫的步驟，確保已知清單完整
 - 設計 fallback 邏輯時（如無匹配 mapping 則跑全部角度），要同步確認 template 標頭文字能正確反映三種情境：平行限縮、非平行限縮、全部角度
 - 純 rename refactor 類 feature 可跳過 Designer 直接進 Coder，但 feature YAML 的 description 需明列「哪些 caller 要一併改名」，避免 Coder 遺漏內部呼叫點。
@@ -63,3 +61,6 @@
 - Mock runner 在新增會寫出檔案的 guard 後必須同步補上對應的假輸出（如 build-gate.json），否則既有 integration test 會靜默失敗，難以定位。
 - role-to-category mapping 的測試應同時驗證正反兩面：目標 role 含有 ops，以及不該含的 role（designer/reviewer）也明確不含，才能防止誤加
 - CLI 整合測試應同時覆蓋 --json 旗標輸出格式，避免 JSON schema 改動後無測試保護。
+
+## tooling
+- make check-docs-sync 只比對 symbol→doc 的結構化映射，不涵蓋 docs prose 內以純文字寫死的檔案路徑字串（例如「XxxType (internal/pkg/foo.go)」），也不涵蓋非英文翻譯版；刪除或搬遷檔案的 feature 應額外對 docs/guide/**/*.md（含所有語系）跑 grep -rn '<被刪檔案路徑>' 做覆核，不能只信任 check-docs-sync 回報 OK。
