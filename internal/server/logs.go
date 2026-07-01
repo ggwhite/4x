@@ -36,7 +36,8 @@ var roleOrder = map[string]int{
 	"synthesizer":     6,
 	"deep-fix":        7,
 	"deep-reverify":   8,
-	"acceptor":        9,
+	"fixer":           9,
+	"acceptor":        10,
 }
 
 // handleLogs 處理 /api/logs/<featureId> 列表或 /api/logs/<featureId>/<filename> 內容

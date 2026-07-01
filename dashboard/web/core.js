@@ -169,6 +169,12 @@ const ROLES = {
   'deep-fix':{name:'Deep Fix',emoji:'🔧',color:'#f472b6',bg:'rgba(244,114,182,.08)'},
   'deep-reverify':{name:'Deep Reverify',emoji:'🔬',color:'#a78bfa',bg:'rgba(167,139,250,.08)'},
   synthesizer:{name:'Synthesizer',emoji:'🧩',color:'#34d399',bg:'rgba(52,211,153,.08)'},
+  fixer:{name:'Fixer',emoji:'🛠️',color:'#fb7185',bg:'rgba(251,113,133,.08)'},
+  'mini-coder':{name:'Mini Coder',emoji:'🔩',color:'#67e8f9',bg:'rgba(103,232,249,.08)'},
+  're-verifier':{name:'Re-Verifier',emoji:'🔁',color:'#86efac',bg:'rgba(134,239,172,.08)'},
+  gate:{name:'Gate',emoji:'🚦',color:'#fbbf24',bg:'rgba(251,191,36,.08)'},
+  consolidator:{name:'Consolidator',emoji:'🗂️',color:'#60a5fa',bg:'rgba(96,165,250,.08)'},
+  'round-summarizer':{name:'Round Summarizer',emoji:'📋',color:'#94a3b8',bg:'rgba(148,163,184,.08)'},
 };
 const PHASE_ICON = { designing:'◆','design-reviewing':'◆',coding:'◆',reviewing:'◆','deep-reviewing':'◆',testing:'◆',accepting:'◆',amending:'◆','pending-review':'⏳',done:'✓',blocked:'✕','needs-attention':'!',init:'○','not-started':'○' };
 
