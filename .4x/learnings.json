@@ -787,6 +787,78 @@
       "last_used": "0001-01-01T00:00:00Z",
       "used_count": 0,
       "status": "candidate"
+    },
+    {
+      "id": "L082",
+      "source_feature": "F123-batch-go-runnerfactory",
+      "source_role": "coder",
+      "category": "ops",
+      "content": "golangci-lint 快取可能殘留已刪除的 sibling worktree 路徑（如 F122-schema），導致 make lint 報與本次改動無關的 errcheck 錯誤且訊息含 'no such file or directory'；遇到 lint 錯誤指向不存在的檔案路徑時，先跑 `golangci-lint cache clean` 再重跑，不要急著去改程式碼。",
+      "created_at": "2026-07-01T14:34:05.790557+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L083",
+      "source_feature": "F123-batch-go-runnerfactory",
+      "source_role": "coder",
+      "category": "code-quality",
+      "content": "把私有 struct（如 batchProgress）下沉到獨立 package 並 export 時，若原呼叫端用 struct literal 直接寫入欄位，應同時提供對應建構子（如 NewProgress）並把欄位保持 unexported，避免整組欄位被迫全部 export 而洩漏內部狀態。",
+      "created_at": "2026-07-01T14:34:05.790557+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L084",
+      "source_feature": "F123-batch-go-runnerfactory",
+      "source_role": "coder",
+      "category": "process",
+      "content": "下沉 DAG/排程邏輯到 internal package 時，其專屬測試（用 runBatchSchedule/finishBatchReport 等私有符號的測試）通常分散在多個 _test.go 檔（本例橫跨 batch_test.go、batch_auto_merge_test.go、run_f060_test.go）；搬遷前先用 grep 列出所有引用私有符號的測試檔，一次搬完並在新 package 補一個對應 test helper（如 newScheduleTestWorkspace），避免遺漏造成 vet 報 undefined。",
+      "created_at": "2026-07-01T14:34:05.790557+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L085",
+      "source_feature": "F123-batch-go-runnerfactory",
+      "source_role": "coder",
+      "category": "review",
+      "content": "驗證測試隨邏輯搬遷到新套件是否完整時，用 grep -c '^func Test' 分別數出來源檔（拆分前，逐檔加總）與目的檔（合併後）的測試函式數量並核對總和是否一致，比逐一比對測試名稱更快能抓出遺漏或重複搬遷。",
+      "created_at": "2026-07-01T14:34:05.790557+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L086",
+      "source_feature": "F123-batch-go-runnerfactory",
+      "source_role": "acceptor",
+      "category": "process",
+      "content": "跨三個檔案（run.go/evolve.go/batch.go）重複邏輯去重時，先用逐行比對舊檔與新抽出檔案（git show \u003ccommit\u003e^:\u003cpath\u003e 對照新檔）驗證純結構性搬遷，可作為 reviewer 標準檢查步驟，快速排除隱藏行為變更的風險。",
+      "created_at": "2026-07-01T14:34:05.791671+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L087",
+      "source_feature": "F123-batch-go-runnerfactory",
+      "source_role": "acceptor",
+      "category": "code-quality",
+      "content": "God file 拆分時，測試搬遷應與被測程式碼一起搬到同一目的地 package（如 schedule_test.go 整併自三個來源檔），避免測試留在原 cmd 層造成邏輯與測試分離。",
+      "created_at": "2026-07-01T14:34:05.791671+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
     }
   ]
 }
