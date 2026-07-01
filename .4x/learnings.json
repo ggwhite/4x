@@ -63,8 +63,8 @@
       "content": "孤立單元測試綠燈不等於端到端生效：AC-3 對 MergeConfig 單測通過，但 merged config 從未流到消費點（guard 用 ReadConfig 而非 LoadMergedConfig），驗收應追到資料真正被消費的呼叫鏈。",
       "created_at": "2026-06-22T17:02:55.599908+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-06-24T21:02:34.437805+08:00",
-      "used_count": 5,
+      "last_used": "2026-07-01T13:45:56.76989+08:00",
+      "used_count": 7,
       "status": "active"
     },
     {
@@ -85,8 +85,8 @@
       "content": "task-brief 應主動標出 spec、plan 與現況程式碼的矛盾並裁決（如型別名不一致、過時假設、out-of-scope 項目），在開頭明列「設計裁決」覆寫 plan，避免 Coder 照抄錯誤骨架或重造輪子",
       "created_at": "2026-06-22T17:56:03.049721+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-01T12:02:57.925658+08:00",
-      "used_count": 9,
+      "last_used": "2026-07-01T13:45:56.76989+08:00",
+      "used_count": 11,
       "status": "active"
     },
     {
@@ -217,8 +217,8 @@
       "content": "重構下沉移除某函式的 production 呼叫者後，應確認剩餘呼叫端是否存在；若該函式只為某測試或特殊場景存活，應一併刪除，不留 dead-code wrapper",
       "created_at": "2026-06-24T21:32:14.561822+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-01T12:02:57.925658+08:00",
-      "used_count": 4,
+      "last_used": "2026-07-01T13:45:56.76989+08:00",
+      "used_count": 6,
       "status": "active"
     },
     {
@@ -239,8 +239,8 @@
       "content": "當 feature 兩個要求（如『語意一致』vs『對外行為不變』）在某 edge 互相牴觸時，Designer 應在 task-brief 先做明確裁決並列出唯一刻意的對外行為變更，供 Reviewer/Acceptor 對焦而非各自猜測。",
       "created_at": "2026-06-24T21:32:14.561822+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-01T12:02:57.925658+08:00",
-      "used_count": 2,
+      "last_used": "2026-07-01T13:45:56.76989+08:00",
+      "used_count": 4,
       "status": "active"
     },
     {
@@ -261,8 +261,8 @@
       "content": "Feature spec 的「已知位置」清單若不完整，Coder 會照規格範圍作業，殘留問題需後續 feature 補；Designer 應於 spec 加入 grep 掃全庫的步驟，確保已知清單完整",
       "created_at": "2026-06-27T10:23:04.125803+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "0001-01-01T00:00:00Z",
-      "used_count": 0,
+      "last_used": "2026-07-01T13:45:56.76989+08:00",
+      "used_count": 2,
       "status": "active"
     },
     {
@@ -382,8 +382,8 @@
       "content": "程式碼改動 protocol types 或新增 test 檔案後，commit 前應執行 make check-docs-sync 並在同一 PR 更新對應 docs/guide/ 文件，避免文件欠債累積。",
       "created_at": "2026-06-27T20:28:17.951101+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-01T12:02:57.925658+08:00",
-      "used_count": 4,
+      "last_used": "2026-07-01T13:45:56.76989+08:00",
+      "used_count": 6,
       "status": "active"
     },
     {
@@ -525,8 +525,8 @@
       "content": "新增 category 常量時，集合大小應改用 len(ValidCategories()) 而非硬編碼數字，避免未來新增 category 時遺漏更新",
       "created_at": "2026-06-30T12:01:09.853085+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "0001-01-01T00:00:00Z",
-      "used_count": 0,
+      "last_used": "2026-07-01T13:45:56.76989+08:00",
+      "used_count": 2,
       "status": "active"
     },
     {
@@ -627,10 +627,10 @@
       "category": "tooling",
       "content": "make check-docs-sync 只比對 symbol→doc 的結構化映射，不涵蓋 docs prose 內以純文字寫死的檔案路徑字串（例如「XxxType (internal/pkg/foo.go)」），也不涵蓋非英文翻譯版；刪除或搬遷檔案的 feature 應額外對 docs/guide/**/*.md（含所有語系）跑 grep -rn '\u003c被刪檔案路徑\u003e' 做覆核，不能只信任 check-docs-sync 回報 OK。",
       "created_at": "2026-07-01T12:03:58.957162+08:00",
-      "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "0001-01-01T00:00:00Z",
-      "used_count": 0,
-      "status": "candidate"
+      "activated_at": "2026-07-01T13:00:04.604112+08:00",
+      "last_used": "2026-07-01T13:45:56.76989+08:00",
+      "used_count": 2,
+      "status": "active"
     },
     {
       "id": "L069",
