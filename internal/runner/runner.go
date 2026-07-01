@@ -559,6 +559,18 @@ func StreamLogFileName(round int, role string) string {
 	return fmt.Sprintf("round-%d-%s.stream.jsonl", round, role)
 }
 
+// IterationLogFileName 產生「同一 round 內第 iteration 次執行」的 log 檔名。
+// designer / design-reviewer 這類 role 在 round 不變的情況下也可能重複執行
+// （例如 design-reviewing FAIL 打回 designing），iteration 用來避免同名 log
+// 檔案互相覆寫。iteration<=1 沿用既有 round-<N>-<role>.log 格式（向下相容），
+// iteration>1 才加上 -<iteration> 後綴。
+func IterationLogFileName(round int, role string, iteration int) string {
+	if iteration <= 1 {
+		return LogFileName(round, role)
+	}
+	return fmt.Sprintf("round-%d-%s-%d.log", round, role, iteration)
+}
+
 // DeepFixLogFileName 產生 deep-reviewing 自癒循環中 mini-coder 的 log 檔名：
 // round-<round>-deep-fix-<iteration>.log。
 func DeepFixLogFileName(round, iteration int) string {

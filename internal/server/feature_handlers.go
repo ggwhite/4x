@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -161,44 +162,123 @@ type messageInfo struct {
 	CostUSD    float64 `json:"costUsd,omitempty"`
 }
 
+// buildDesignRoundMessages 讀取 design-rounds/round-<round>-<iteration>/ 底下歸檔的
+// designer/design-reviewer artifact，依 round、iteration 由小到大組成 message 列表，
+// 讓 design-reviewing FAIL 打回 designing 的每一輪都能在 dashboard 顯示出來。
+// design-rounds/ 目錄不存在或沒有任何內容時回傳空 slice，呼叫端會退回舊行為。
+func buildDesignRoundMessages(dir string, phases map[durationKey]phaseInfo) []messageInfo {
+	roundsDir := filepath.Join(dir, protocol.DesignRoundsDir)
+	entries, err := os.ReadDir(roundsDir)
+	if err != nil {
+		return nil
+	}
+
+	type cycle struct {
+		round, iteration int
+		path, name       string
+	}
+	var cycles []cycle
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		var round, iteration int
+		if _, err := fmt.Sscanf(entry.Name(), "round-%d-%d", &round, &iteration); err != nil {
+			continue
+		}
+		cycles = append(cycles, cycle{round, iteration, filepath.Join(roundsDir, entry.Name()), entry.Name()})
+	}
+	sort.Slice(cycles, func(i, j int) bool {
+		if cycles[i].round != cycles[j].round {
+			return cycles[i].round < cycles[j].round
+		}
+		return cycles[i].iteration < cycles[j].iteration
+	})
+
+	var messages []messageInfo
+	for _, c := range cycles {
+		if content := readIfExists(filepath.Join(c.path, protocol.TaskBrief)); content != "" {
+			p := phases[durationKey{"designer", c.round, c.iteration}]
+			messages = append(messages, messageInfo{
+				Role: "designer", Label: protocol.TaskBrief, Content: content,
+				File:       filepath.Join(protocol.DesignRoundsDir, c.name, protocol.TaskBrief),
+				Round:      c.round,
+				Duration:   p.duration,
+				Model:      p.model,
+				TokensUsed: p.tokensUsed,
+				CostUSD:    p.costUSD,
+			})
+		}
+		if content := readIfExists(filepath.Join(c.path, protocol.Criteria)); content != "" {
+			messages = append(messages, messageInfo{
+				Role:    "designer",
+				Label:   protocol.Criteria,
+				Content: content,
+				File:    filepath.Join(protocol.DesignRoundsDir, c.name, protocol.Criteria),
+				Round:   c.round,
+			})
+		}
+		if content := readIfExists(filepath.Join(c.path, protocol.DesignReviewReport)); content != "" {
+			p := phases[durationKey{"design-reviewer", c.round, c.iteration}]
+			messages = append(messages, messageInfo{
+				Role: "design-reviewer", Label: protocol.DesignReviewReport, Content: content,
+				File:       filepath.Join(protocol.DesignRoundsDir, c.name, protocol.DesignReviewReport),
+				Round:      c.round,
+				Duration:   p.duration,
+				Model:      p.model,
+				TokensUsed: p.tokensUsed,
+				CostUSD:    p.costUSD,
+			})
+		}
+	}
+	return messages
+}
+
 func handleMessages(ws *protocol.CachedWorkspace, featureID string, w http.ResponseWriter) {
 	dir := ws.FeatureDir(featureID)
 	phases := buildPhaseInfo(ws, featureID)
 	var messages []messageInfo
 
-	for i, name := range []string{protocol.TaskBrief, protocol.Criteria} {
-		content := readIfExists(filepath.Join(dir, name))
-		if content != "" {
-			mi := messageInfo{
-				Role:    "designer",
-				Label:   name,
-				Content: content,
-				File:    name,
+	if designMsgs := buildDesignRoundMessages(dir, phases); len(designMsgs) > 0 {
+		messages = append(messages, designMsgs...)
+	} else {
+		// design-rounds/ 目錄不存在或無內容：feature 是在這次修復之前完成/執行的舊資料，
+		// 沒有逐輪歸檔，退回舊行為，直接讀 feature 目錄根目錄下的最新一份 artifact，
+		// 避免既有 feature 的 message 區因為這次改動而變成空白。
+		for i, name := range []string{protocol.TaskBrief, protocol.Criteria} {
+			content := readIfExists(filepath.Join(dir, name))
+			if content != "" {
+				mi := messageInfo{
+					Role:    "designer",
+					Label:   name,
+					Content: content,
+					File:    name,
+				}
+				if i == 0 {
+					p := phases[durationKey{"designer", 0, 1}]
+					mi.Duration = p.duration
+					mi.Model = p.model
+					mi.TokensUsed = p.tokensUsed
+					mi.CostUSD = p.costUSD
+				}
+				messages = append(messages, mi)
 			}
-			if i == 0 {
-				p := phases[durationKey{"designer", 0}]
-				mi.Duration = p.duration
-				mi.Model = p.model
-				mi.TokensUsed = p.tokensUsed
-				mi.CostUSD = p.costUSD
-			}
-			messages = append(messages, mi)
 		}
-	}
 
-	drr := readIfExists(filepath.Join(dir, protocol.DesignReviewReport))
-	if drr != "" {
-		dp := phases[durationKey{"design-reviewer", 0}]
-		messages = append(messages, messageInfo{
-			Role:       "design-reviewer",
-			Label:      protocol.DesignReviewReport,
-			Content:    drr,
-			File:       protocol.DesignReviewReport,
-			Duration:   dp.duration,
-			Model:      dp.model,
-			TokensUsed: dp.tokensUsed,
-			CostUSD:    dp.costUSD,
-		})
+		drr := readIfExists(filepath.Join(dir, protocol.DesignReviewReport))
+		if drr != "" {
+			dp := phases[durationKey{"design-reviewer", 0, 1}]
+			messages = append(messages, messageInfo{
+				Role:       "design-reviewer",
+				Label:      protocol.DesignReviewReport,
+				Content:    drr,
+				File:       protocol.DesignReviewReport,
+				Duration:   dp.duration,
+				Model:      dp.model,
+				TokensUsed: dp.tokensUsed,
+				CostUSD:    dp.costUSD,
+			})
+		}
 	}
 
 	roundsDir := filepath.Join(dir, protocol.RoundsDir)
@@ -227,9 +307,9 @@ func handleMessages(ws *protocol.CachedWorkspace, featureID string, w http.Respo
 		} {
 			content := readIfExists(filepath.Join(roundPath, f.name))
 			if content != "" {
-				rp := phases[durationKey{f.role, roundNum}]
+				rp := phases[durationKey{f.role, roundNum, 1}]
 				if f.role == "deep-reviewer" {
-					sp := phases[durationKey{"synthesizer", roundNum}]
+					sp := phases[durationKey{"synthesizer", roundNum, 1}]
 					rp.costUSD += sp.costUSD
 					rp.tokensUsed += sp.tokensUsed
 				}
@@ -255,7 +335,7 @@ func handleMessages(ws *protocol.CachedWorkspace, featureID string, w http.Respo
 	if showAcceptor {
 		final := readIfExists(filepath.Join(dir, protocol.FinalReport))
 		if final != "" {
-			ap := phases[durationKey{"acceptor", s.Round}]
+			ap := phases[durationKey{"acceptor", s.Round, 1}]
 			messages = append(messages, messageInfo{
 				Role:       "acceptor",
 				Label:      protocol.FinalReport,
@@ -274,8 +354,9 @@ func handleMessages(ws *protocol.CachedWorkspace, featureID string, w http.Respo
 }
 
 type durationKey struct {
-	role  string
-	round int
+	role      string
+	round     int
+	iteration int
 }
 
 type phaseInfo struct {
@@ -304,6 +385,10 @@ func buildPhaseInfo(ws *protocol.CachedWorkspace, featureID string) map[duration
 	}
 
 	starts := make(map[durationKey]time.Time)
+	// iterCount 追蹤同一 (round, role) 累計出現過幾次 phase-start，讓 designer /
+	// design-reviewer 這類在 round 不變時仍可能重複執行的 role，每一輪的
+	// duration/cost/tokens 各自獨立記錄，不會被下一輪覆蓋（比照 logKeyFromEvent）。
+	iterCount := make(map[string]int)
 	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
 		if line == "" {
 			continue
@@ -312,9 +397,11 @@ func buildPhaseInfo(ws *protocol.CachedWorkspace, featureID string) map[duration
 		if err := json.Unmarshal([]byte(line), &e); err != nil {
 			continue
 		}
-		key := durationKey{e.Role, e.Round}
+		counterKey := fmt.Sprintf("%d-%s", e.Round, e.Role)
 		switch e.Type {
 		case "phase-start":
+			iterCount[counterKey]++
+			key := durationKey{e.Role, e.Round, iterCount[counterKey]}
 			if t, err := time.Parse(time.RFC3339, e.Ts); err == nil {
 				starts[key] = t
 			}
@@ -324,6 +411,7 @@ func buildPhaseInfo(ws *protocol.CachedWorkspace, featureID string) map[duration
 			}
 			result[key] = info
 		case "run-end":
+			key := durationKey{e.Role, e.Round, iterCount[counterKey]}
 			if start, ok := starts[key]; ok {
 				if t, err := time.Parse(time.RFC3339, e.Ts); err == nil {
 					info := result[key]

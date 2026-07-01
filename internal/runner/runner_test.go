@@ -603,6 +603,22 @@ func TestDeepReviewerLogFileName(t *testing.T) {
 	}
 }
 
+// TestIterationLogFileName 驗證同一 round 內某 role 重複執行時（例如
+// design-reviewing FAIL 打回 designing 又再次進 design-reviewing，round 本身不會變動），
+// 第 1 次沿用既有 round-<N>-<role>.log 格式（向下相容），第 2 次以後才加上 -<iteration>
+// 後綴，避免同名 log 檔案被覆寫。
+func TestIterationLogFileName(t *testing.T) {
+	if got := IterationLogFileName(0, "designer", 1); got != "round-0-designer.log" {
+		t.Errorf("iteration 1: got %q, want round-0-designer.log", got)
+	}
+	if got := IterationLogFileName(0, "designer", 2); got != "round-0-designer-2.log" {
+		t.Errorf("iteration 2: got %q, want round-0-designer-2.log", got)
+	}
+	if got := IterationLogFileName(0, "design-reviewer", 3); got != "round-0-design-reviewer-3.log" {
+		t.Errorf("iteration 3: got %q, want round-0-design-reviewer-3.log", got)
+	}
+}
+
 // TestBuildArgs_UnresolvedModel 驗證 W16：arg 含 {model} 但 ModelOverride 為空時
 // 回傳 error，不把字面 "{model}" 傳給 CLI。
 func TestBuildArgs_UnresolvedModel(t *testing.T) {

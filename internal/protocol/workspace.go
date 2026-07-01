@@ -17,16 +17,20 @@ var (
 )
 
 const (
-	DirName            = ".4x"
-	UserConfigDir      = ".4x"
-	UserConfigFile     = "settings.json"
-	BacklogFile        = "feature_list.json"
-	ConfigFile         = "settings.json"
-	FeaturesDir        = "features"
-	StateFile          = "state.json"
-	EventsFile         = "events.jsonl"
-	BaselineFile       = "baseline.json"
-	RoundsDir          = "rounds"
+	DirName        = ".4x"
+	UserConfigDir  = ".4x"
+	UserConfigFile = "settings.json"
+	BacklogFile    = "feature_list.json"
+	ConfigFile     = "settings.json"
+	FeaturesDir    = "features"
+	StateFile      = "state.json"
+	EventsFile     = "events.jsonl"
+	BaselineFile   = "baseline.json"
+	RoundsDir      = "rounds"
+	// DesignRoundsDir 存放 designer/design-reviewer 循環（design-reviewing FAIL 打回
+	// designing）每一輪的 task-brief.md／acceptance-criteria.md／design-review-report.md
+	// 快照，避免這些固定檔名的 artifact 被下一輪覆寫、dashboard message 區看不到歷史。
+	DesignRoundsDir    = "design-rounds"
 	FinalReport        = "final-report.md"
 	TaskBrief          = "task-brief.md"
 	Criteria           = "acceptance-criteria.md"

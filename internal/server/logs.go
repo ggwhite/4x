@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ggwhite/4x/internal/protocol"
+	"github.com/ggwhite/4x/internal/runner"
 )
 
 type logInfo struct {
@@ -137,7 +138,15 @@ func logKeyFromEvent(round int, role, eventType string, iterCount map[string]int
 		cnt := iterCount[counterKey]
 		return fmt.Sprintf("round-%d-deep-reviewer-%d.log", round, cnt)
 	default:
-		return fmt.Sprintf("round-%d-%s.log", round, role)
+		// designer / design-reviewer 這類 role 在 round 不變的情況下也可能重複
+		// 執行（例如 design-reviewing FAIL 打回 designing），用 iterCount 追蹤同
+		// round+role 的出現次數，比照 mini-coder / re-verifier 的迭代號機制，
+		// 避免同名 log 檔案覆寫、dashboard 上看不出實際循環了幾次。
+		counterKey := fmt.Sprintf("%d-%s", round, role)
+		if eventType == "phase-start" {
+			iterCount[counterKey]++
+		}
+		return runner.IterationLogFileName(round, role, iterCount[counterKey])
 	}
 }
 

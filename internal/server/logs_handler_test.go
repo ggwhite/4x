@@ -164,6 +164,13 @@ func TestLogKeyFromEvent(t *testing.T) {
 			wantKey:   "round-1-coder.log",
 		},
 		{
+			name:      "designer 第一次 phase-start",
+			round:     0,
+			role:      "designer",
+			eventType: "phase-start",
+			wantKey:   "round-0-designer.log",
+		},
+		{
 			name:      "reviewer 一般 role",
 			round:     3,
 			role:      "reviewer",
@@ -210,6 +217,33 @@ func TestLogKeyFromEvent_MiniCoderIterates(t *testing.T) {
 	k3 := logKeyFromEvent(1, "mini-coder", "run-end", iterCount)
 	if k3 != "round-1-deep-fix-2.log" {
 		t.Errorf("run-end = %q, want round-1-deep-fix-2.log", k3)
+	}
+}
+
+// TestLogKeyFromEvent_DesignerIterates 驗證 design-reviewing FAIL 打回 designing
+// 造成同一 round 內 designer 重複執行時，第 1 次沿用 round-<N>-designer.log（向下相容），
+// 第 2 次以後才加上 -<iteration> 後綴，避免和前一輪的 log 撞名互相覆寫。
+func TestLogKeyFromEvent_DesignerIterates(t *testing.T) {
+	iterCount := map[string]int{}
+
+	k1 := logKeyFromEvent(0, "designer", "phase-start", iterCount)
+	if k1 != "round-0-designer.log" {
+		t.Errorf("first = %q, want round-0-designer.log", k1)
+	}
+
+	k2 := logKeyFromEvent(0, "design-reviewer", "phase-start", iterCount)
+	if k2 != "round-0-design-reviewer.log" {
+		t.Errorf("first design-reviewer = %q, want round-0-design-reviewer.log", k2)
+	}
+
+	k3 := logKeyFromEvent(0, "designer", "phase-start", iterCount)
+	if k3 != "round-0-designer-2.log" {
+		t.Errorf("second designer = %q, want round-0-designer-2.log", k3)
+	}
+
+	k4 := logKeyFromEvent(0, "design-reviewer", "phase-start", iterCount)
+	if k4 != "round-0-design-reviewer-2.log" {
+		t.Errorf("second design-reviewer = %q, want round-0-design-reviewer-2.log", k4)
 	}
 }
 

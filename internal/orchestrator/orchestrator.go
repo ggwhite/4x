@@ -94,6 +94,48 @@ func PhaseToRole(phase protocol.Phase) protocol.Role {
 	return state.PhaseToRole(phase)
 }
 
+// nextRoleIteration 回傳並遞增 role 在 round 內的執行次數。designer / design-reviewer
+// 這類 role 在 design-reviewing FAIL 打回 designing 時，round 不會遞增，同 round 內
+// 可能重複執行；用這個計數搭配 runner.IterationLogFileName 避免同名 log 檔案互相覆寫。
+func nextRoleIteration(counts map[string]int, round int, role protocol.Role) int {
+	key := fmt.Sprintf("%d-%s", round, role)
+	counts[key]++
+	return counts[key]
+}
+
+// archiveDesignArtifact 把 designer/design-reviewer 剛寫入的固定檔名 artifact
+// （task-brief.md／acceptance-criteria.md／design-review-report.md）複製一份到
+// design-rounds/round-<round>-<iteration>/。這些檔案不像 coding phase 有
+// rounds/round-N/ 目錄保留歷史，design-reviewing FAIL 打回 designing 時會被下一輪
+// 直接覆寫，dashboard message 區因此看不到過去輪次的內容；歸檔後 handleMessages
+// 才能把每一輪都列出來。非 designer/design-reviewer 的 role 不受影響，直接 no-op。
+func archiveDesignArtifact(ws *protocol.Workspace, featureID string, round, iteration int, role protocol.Role) {
+	var files []string
+	switch role {
+	case protocol.RoleDesigner:
+		files = []string{protocol.TaskBrief, protocol.Criteria}
+	case protocol.RoleDesignReviewer:
+		files = []string{protocol.DesignReviewReport}
+	default:
+		return
+	}
+
+	destDir := filepath.Join(ws.FeatureDir(featureID), protocol.DesignRoundsDir, fmt.Sprintf("round-%d-%d", round, iteration))
+	for _, name := range files {
+		data, err := os.ReadFile(filepath.Join(ws.FeatureDir(featureID), name))
+		if err != nil {
+			continue
+		}
+		if err := os.MkdirAll(destDir, 0o755); err != nil {
+			slog.Warn("archive design artifact: mkdir failed", "feature", featureID, "dir", destDir, "error", err)
+			return
+		}
+		if err := os.WriteFile(filepath.Join(destDir, name), data, 0o644); err != nil {
+			slog.Warn("archive design artifact: write failed", "feature", featureID, "file", name, "error", err)
+		}
+	}
+}
+
 // RecoverState 檢查是否需要 resume recovery，若需要則依 artifacts 推斷正確的 phase 並修正 state。
 // 回傳修正後的 state（可能與輸入相同）與 error。
 func RecoverState(ws *protocol.Workspace, featureID string, s protocol.State, cfg protocol.Config) (protocol.State, error) {
@@ -138,6 +180,7 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 
 	designerEscalations := 0
 	const maxDesignerEscalations = 2
+	roleRoundIter := map[string]int{}
 
 	var commitWG sync.WaitGroup
 	defer commitWG.Wait()
@@ -219,7 +262,8 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 
 		promptText := r.resolvePrompt(&pending, role, &s, phaseRunner)
 
-		logPath := filepath.Join(runner.LogDir(r.Ws, featureID), runner.LogFileName(s.Round, string(role)))
+		iteration := nextRoleIteration(roleRoundIter, s.Round, role)
+		logPath := filepath.Join(runner.LogDir(r.Ws, featureID), runner.IterationLogFileName(s.Round, string(role), iteration))
 		rn := r.NewRunner(phaseRunner, logPath, model)
 
 		commitWG.Wait()
@@ -285,6 +329,8 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 		if !s.Active {
 			break
 		}
+
+		archiveDesignArtifact(r.Ws, featureID, s.Round, iteration, role)
 
 		next, nextRole, stopReason := NextPhaseAfter(r.Ws, featureID, s)
 

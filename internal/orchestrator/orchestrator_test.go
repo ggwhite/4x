@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/ggwhite/4x/internal/protocol"
 )
 
 func TestParseRunStatsFromLog(t *testing.T) {
@@ -50,6 +52,74 @@ func TestParseRunStatsFromLog(t *testing.T) {
 			t.Errorf("ParseRunStatsFromLog(missing) = %+v, want zero", got)
 		}
 	})
+}
+
+// TestNextRoleIteration 驗證同一 round 內某 role 重複執行時（例如
+// design-reviewing FAIL 打回 designing，round 本身不會遞增），每次呼叫都拿到
+// 遞增的迭代號；不同 round 或不同 role 各自獨立計數。
+func TestNextRoleIteration(t *testing.T) {
+	counts := map[string]int{}
+
+	if got := nextRoleIteration(counts, 0, protocol.RoleDesigner); got != 1 {
+		t.Errorf("designer 第 1 次 = %d, want 1", got)
+	}
+	if got := nextRoleIteration(counts, 0, protocol.RoleDesignReviewer); got != 1 {
+		t.Errorf("design-reviewer 第 1 次 = %d, want 1", got)
+	}
+	if got := nextRoleIteration(counts, 0, protocol.RoleDesigner); got != 2 {
+		t.Errorf("designer 第 2 次 = %d, want 2", got)
+	}
+	if got := nextRoleIteration(counts, 0, protocol.RoleDesignReviewer); got != 2 {
+		t.Errorf("design-reviewer 第 2 次 = %d, want 2", got)
+	}
+	if got := nextRoleIteration(counts, 1, protocol.RoleDesigner); got != 1 {
+		t.Errorf("round 換了應重新計數 = %d, want 1", got)
+	}
+}
+
+// TestArchiveDesignArtifact_Designer 驗證 designer 剛寫入的 task-brief.md／
+// acceptance-criteria.md 會被複製一份到 design-rounds/round-<round>-<iteration>/，
+// 讓 design-reviewing FAIL 打回 designing 之前的版本不會因為下一輪覆寫而消失。
+func TestArchiveDesignArtifact_Designer(t *testing.T) {
+	ws := setupPhaseWorkspace(t, "feat-1")
+	writePhaseFile(t, filepath.Join(ws.FeatureDir("feat-1"), protocol.TaskBrief), "brief v1")
+	writePhaseFile(t, filepath.Join(ws.FeatureDir("feat-1"), protocol.Criteria), "criteria v1")
+
+	archiveDesignArtifact(ws, "feat-1", 0, 1, protocol.RoleDesigner)
+
+	dir := filepath.Join(ws.FeatureDir("feat-1"), protocol.DesignRoundsDir, "round-0-1")
+	if got, err := os.ReadFile(filepath.Join(dir, protocol.TaskBrief)); err != nil || string(got) != "brief v1" {
+		t.Fatalf("task-brief archive = %q, err=%v", got, err)
+	}
+	if got, err := os.ReadFile(filepath.Join(dir, protocol.Criteria)); err != nil || string(got) != "criteria v1" {
+		t.Fatalf("criteria archive = %q, err=%v", got, err)
+	}
+}
+
+// TestArchiveDesignArtifact_DesignReviewer 驗證 design-reviewer 的
+// design-review-report.md 也會被歸檔到同一個 round-<round>-<iteration>/ 目錄。
+func TestArchiveDesignArtifact_DesignReviewer(t *testing.T) {
+	ws := setupPhaseWorkspace(t, "feat-1")
+	writePhaseFile(t, filepath.Join(ws.FeatureDir("feat-1"), protocol.DesignReviewReport), "FAIL: needs work")
+
+	archiveDesignArtifact(ws, "feat-1", 0, 1, protocol.RoleDesignReviewer)
+
+	dir := filepath.Join(ws.FeatureDir("feat-1"), protocol.DesignRoundsDir, "round-0-1")
+	if got, err := os.ReadFile(filepath.Join(dir, protocol.DesignReviewReport)); err != nil || string(got) != "FAIL: needs work" {
+		t.Fatalf("report archive = %q, err=%v", got, err)
+	}
+}
+
+// TestArchiveDesignArtifact_OtherRoleNoop 驗證非 designer/design-reviewer 的 role
+// 不會觸發歸檔（coding phase 已經有自己的 rounds/round-N/ 機制，不需要重複）。
+func TestArchiveDesignArtifact_OtherRoleNoop(t *testing.T) {
+	ws := setupPhaseWorkspace(t, "feat-1")
+
+	archiveDesignArtifact(ws, "feat-1", 1, 1, protocol.RoleCoder)
+
+	if _, err := os.Stat(filepath.Join(ws.FeatureDir("feat-1"), protocol.DesignRoundsDir)); !os.IsNotExist(err) {
+		t.Fatalf("expected no design-rounds dir for coder role, stat err = %v", err)
+	}
 }
 
 func TestFormatTokens(t *testing.T) {
