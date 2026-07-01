@@ -197,7 +197,7 @@
       ]
     },
     "coder": {
-      "model": "opus",
+      "model": "sonnet",
       "instructions": [
         "每次改動後跑 make build && make test && make lint（包含 go vet + gofmt + golangci-lint），改到 locale 或 docs 時加跑 make check-i18n && make check-guide-i18n && make check-docs-sync",
         "寫 coder-report 前必須跑 make lint 確保零錯誤——unused import、未使用變數、格式問題都必須在此階段自行修掉，不可讓 reviewer 打槍",
@@ -268,7 +268,7 @@
       "model": "opus",
       "output_format": "stream-json",
       "tiers": {
-        "opus": "claude-opus-4-6",
+        "opus": "opus",
         "sonnet": "sonnet"
       }
     }
