@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.7] - 2026-07-01
+
+### Fixes
+
+- **Multi-repo worktree scope 誤判** — multi-repo feature（如同時涉及多個獨立 git repo）的 worktree 容器目錄本身不是 git repo，`ScopeRoot` 會誤判為非 linked worktree 並靜默 fallback 回主工作區，導致 build-gate 和 symlink 檢查掃到主 repo 既有的無關問題，而非 feature 自己 worktree 內的變更。新增 `ScopeRoots`，容器目錄非 linked worktree 時改為逐一掃描子目錄找出各 sub-repo 的 linked worktree；mono-repo 行為不變
+
 ## [0.3.6] - 2026-07-01
 
 ### Features
