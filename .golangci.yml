@@ -57,6 +57,10 @@ linters:
         - (*github.com/ggwhite/4x/internal/protocol.Workspace).AppendEvent
 
   exclusions:
+    paths:
+      # feature 各自的 linked worktree 會 checkout 在主 repo 底下（.worktrees/），
+      # 未排除的話 lint 會掃到其他 feature 尚未合併的程式碼，誤判成本次的 guard-fail
+      - "^\\.worktrees/"
     rules:
       # test 檔放寬 errcheck（defer cleanup、setup helper 常見省略）
       - path: "_test\\.go$"

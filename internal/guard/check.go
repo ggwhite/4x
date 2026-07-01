@@ -546,7 +546,7 @@ func checkBuildGate(ws *protocol.Workspace, featureID string, r *CheckResult) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
-	evidence := verify.RunGroups(ctx, groups, ws.Root)
+	evidence := verify.RunGroups(ctx, groups, gitops.ScopeRoot(ws.Root, featureID))
 	evidence.Round = state.Round
 	evidence.Role = protocol.RoleCoder
 
