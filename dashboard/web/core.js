@@ -170,7 +170,6 @@ const ROLES = {
   'deep-fix':{name:'Deep Fix',emoji:'🔧',color:'#f472b6',bg:'rgba(244,114,182,.08)'},
   'deep-reverify':{name:'Deep Reverify',emoji:'🔬',color:'#a78bfa',bg:'rgba(167,139,250,.08)'},
   synthesizer:{name:'Synthesizer',emoji:'🧩',color:'#34d399',bg:'rgba(52,211,153,.08)'},
-  fixer:{name:'Fixer',emoji:'🛠️',color:'#fb7185',bg:'rgba(251,113,133,.08)'},
   'mini-coder':{name:'Mini Coder',emoji:'🔩',color:'#67e8f9',bg:'rgba(103,232,249,.08)'},
   're-verifier':{name:'Re-Verifier',emoji:'🔁',color:'#86efac',bg:'rgba(134,239,172,.08)'},
   gate:{name:'Gate',emoji:'🚦',color:'#fbbf24',bg:'rgba(251,191,36,.08)'},
