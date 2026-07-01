@@ -655,6 +655,138 @@
       "last_used": "0001-01-01T00:00:00Z",
       "used_count": 0,
       "status": "candidate"
+    },
+    {
+      "id": "L071",
+      "source_feature": "F122-schema",
+      "source_role": "design-reviewer",
+      "category": "design",
+      "content": "當 feature 要把「現有 schema/文件的既有值域」拿來當作新的 SoT（source of truth）基準時，必須先驗證該既有值域本身是否已經 stale——若是複製一份已知不完整的清單當新的『canonical 集合』，一致性測試會通過但完全偵測不到真正的 drift，等於空殼驗證。",
+      "created_at": "2026-07-01T14:14:58.689289+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L072",
+      "source_feature": "F122-schema",
+      "source_role": "design-reviewer",
+      "category": "design",
+      "content": "task-brief 若把「某個範圍該包含哪些值」的判斷寫成『由 Coder 裁定』，Design Reviewer 應先自行查一次程式碼（如 state machine 轉換表）確認答案是否其實可推導；可推導的設計決策不該留白丟給 Coder，否則違反 4x 協定的角色邊界。",
+      "created_at": "2026-07-01T14:14:58.689289+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L073",
+      "source_feature": "F122-schema",
+      "source_role": "reviewer",
+      "category": "review",
+      "content": "coder-report.md 的「Files Changed」清單不能只信任內容本身——一律用 git log --stat 比對 task-brief Scope 清單與實際 commit 檔案差異，找出未揭露的 scope-外變更（尤其是 report 檔案 mtime 晚於某 commit 卻未提及該 commit 的情況）。",
+      "created_at": "2026-07-01T14:14:58.6901+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L074",
+      "source_feature": "F122-schema",
+      "source_role": "reviewer",
+      "category": "review",
+      "content": "遇到 self_mod_guard.protected_paths（如 internal/guard/、internal/state/）內的檔案被修改時，須確認 coder-report 有揭露且走 --approve-self-mod 或 escalation，不能因為 build-gate/lint 目前綠燈就視為已解決。",
+      "created_at": "2026-07-01T14:14:58.6901+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L075",
+      "source_feature": "F122-schema",
+      "source_role": "reviewer",
+      "category": "review",
+      "content": "驗證 enum accessor（如 AllEventTypes）宣稱『全庫 grep 為準』時，Reviewer 應獨立重跑同等 grep（Type:\\s*\" composite literal + pipeOutput helper）核對，不能只信任 Designer/Coder 附的清單。",
+      "created_at": "2026-07-01T14:14:58.6901+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L076",
+      "source_feature": "F122-schema",
+      "source_role": "coder",
+      "category": "testing",
+      "content": "新增 accessor/utility function 時，即使其值已被下游 package 的整合測試間接覆蓋（如本例 schemasync 比對 schema），仍應在 function 所在 package 內補一份直接單元測試斷言其自身契約（非空、去重、數量），因為 AC verify method 常明文指定測試範圍到特定 package，間接覆蓋不算數。",
+      "created_at": "2026-07-01T14:14:58.690939+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L077",
+      "source_feature": "F122-schema",
+      "source_role": "acceptor",
+      "category": "design",
+      "content": "建立「列舉/欄位一致性」機制時，不可直接沿用現有 schema 或既有白名單作為 SoT——先 grep 全庫實際字面值（emitter/composite literal）驗證現況是否已有反向 drift，否則機制會通過測試卻毫無偵測力。",
+      "created_at": "2026-07-01T14:14:58.691952+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L078",
+      "source_feature": "F122-schema",
+      "source_role": "acceptor",
+      "category": "code-quality",
+      "content": "把某個硬編碼列舉改為消費 SoT accessor 時，順手 grep 同一檔案/同一函式內是否還有其他地方（如 CLI flag usage 說明字串）引用了相同列舉但仍硬編碼，一併同步，避免在自己修改的檔案裡留下新的平行清單。",
+      "created_at": "2026-07-01T14:14:58.691952+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L079",
+      "source_feature": "F122-schema",
+      "source_role": "acceptor",
+      "category": "code-quality",
+      "content": "巢狀資料結構的 parse/extract 錯誤處理要與同函式內對應的頂層邏輯保持一致（該往上傳的 error 就不要靜默吞掉），即使下游有保底檢查會攔截，不一致的錯誤處理仍會讓失敗訊息失去診斷精度。",
+      "created_at": "2026-07-01T14:14:58.691952+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L080",
+      "source_feature": "F122-schema",
+      "source_role": "acceptor",
+      "category": "testing",
+      "content": "新增的 exported accessor／SoT 函式，除了在消費端（白名單、schema 一致性測試）被間接覆蓋外，應在其自身 package 內補一份專屬單元測試（非空、去重、數量與權威清單一致），否則會被 tester 判定 AC 未完整覆蓋。",
+      "created_at": "2026-07-01T14:14:58.691952+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L081",
+      "source_feature": "F122-schema",
+      "source_role": "acceptor",
+      "category": "review",
+      "content": "Reviewer 若發現疑似 scope 外變更的檔案，先查證該檔案/commit 是否來自外部 main merge（用 git merge-base + git log main..HEAD 核對），避免誤判為本 feature 越界。",
+      "created_at": "2026-07-01T14:14:58.691952+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
     }
   ]
 }
