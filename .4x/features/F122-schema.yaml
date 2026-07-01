@@ -12,7 +12,7 @@ description: |-
     - 不改變現有 REST/SSE API 的欄位語意或行為，只補齊同步機制
     - 不引入過重的建置工具鏈（優先選擇輕量、可讀性佳的方案）
     - 需覆蓋 state/event/feature 三個 schema
-status: in-progress
+status: done
 priority: 1
 profile: full
 subtasks:
