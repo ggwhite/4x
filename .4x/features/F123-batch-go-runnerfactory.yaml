@@ -1,0 +1,31 @@
+id: F123-batch-go-runnerfactory
+name: 'F123: batch.go 拆分與 runnerFactory 去重'
+description: |-
+    現狀：cmd/4x/batch.go 達 769 行，且與 run.go、evolve.go 三處各自重複實作同一組 runnerFactory pattern，維護時需三處同步修改，容易漏改。
+
+    需求：
+    - 抽出共用的 runnerFactory builder 到 internal（例如 internal/runner 或新的 internal/cliutil）供 run.go、evolve.go、batch.go 共用
+    - batch.go 的 DAG 排程編排邏輯下沉到 internal/batch，cmd 層僅保留參數解析與呼叫
+
+    約束：
+    - 不改變現有 batch/run/evolve 三個 CLI subcommand 的對外行為與 flag
+    - cmd/4x 層仍不得呼叫 LLM，維持現有三層架構邊界
+    - 抽出的共用邏輯需有對應單元測試
+status: not-started
+priority: 2
+profile: standard
+subtasks:
+    - id: extract-runner-factory-builder
+      name: 抽出共用 runnerFactory builder 供 run/evolve/batch 共用
+      status: ""
+    - id: sink-dag-logic
+      name: batch.go 的 DAG 編排邏輯下沉到 internal/batch
+      status: ""
+    - id: add-tests
+      name: 為抽出的共用邏輯補單元測試
+      status: ""
+rules:
+    - 不改變 batch/run/evolve 三個 CLI subcommand 對外行為與 flag
+    - cmd/4x 層不得呼叫 LLM
+depends:
+    - F121

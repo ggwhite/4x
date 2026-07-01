@@ -1,0 +1,37 @@
+id: F121-protocol-package
+name: 'F121: Protocol package 拆分（高內聚重構）'
+description: |-
+    現狀：internal/protocol/types.go 701 行、37 個 top-level type 集中一檔，混雜純 domain 型別定義、workspace I/O（workspace_*.go）、miner.go、profile.go、pipeline.go、discover.go 邏輯，職責過廣（上帝檔案），任何變更影響面都很大。
+
+    需求：
+    - 依職責盤點並拆分 internal/protocol：純 domain 型別、workspace persistence I/O、miner/profile/pipeline/discover 各自邊界清楚，各自獨立檔案或子目錄
+    - 拆分後 state/guard/batch/runner/server 等既有呼叫端的行為與可用性不可被破壞
+    - 因 internal/protocol/ 屬 self_mod_guard 保護路徑（單輪 diff 上限 200 行），必須分批小步提交，避免觸發 needs-attention
+
+    約束：
+    - 不改變任何 public API 的行為語意，只做結構性搬遷，不摻雜邏輯變更
+    - 不引入新的第三方依賴
+    - 每輪變更完整跑過 make build && make test && make lint 才可提交下一輪
+status: done
+priority: 1
+profile: full
+subtasks:
+    - id: audit-boundaries
+      name: 盤點 types.go 現有型別/函式並依職責分類
+      status: ""
+    - id: split-domain-types
+      name: 抽出純 domain 型別到獨立檔案，不動邏輯只搬遷
+      status: ""
+    - id: split-workspace-io
+      name: workspace_*.go 的 I/O 邏輯整理成職責單一的分組
+      status: ""
+    - id: split-misc-modules
+      name: miner/profile/pipeline/discover 各自檢查並拆分邊界
+      status: ""
+    - id: verify-callers
+      name: 確認 state/guard/batch/runner/server 呼叫端不受影響並跑全套驗證
+      status: ""
+rules:
+    - 每輪受保護路徑 diff 行數不得超過 self_mod_guard 上限 200 行，需分批提交
+    - 不改變 public API 行為語意，只做結構性搬遷
+    - 每輪必須 make build && make test && make lint 全過

@@ -1,0 +1,36 @@
+id: F122-schema
+name: 'F122: Schema 單一事實來源同步機制'
+description: |-
+    現狀：schemas/{state,event,feature}.schema.json、internal/protocol/types.go、dashboard/web/core.js 三邊各自手動維護欄位定義，無 codegen 也無執行期驗證掛勾，欄位改名或增刪容易在三邊間靜默 drift。
+
+    需求：
+    - 決定單一事實來源策略（以 Go struct 為源生成 JSON schema，或反向以 schema 生成型別，或加執行期驗證掛勾防止三邊不一致）並落地
+    - dashboard/web/core.js 消費的欄位需與 Go server 輸出的 JSON 欄位保持同步且可被驗證（型別產生或至少 CI 檢查）
+    - 若採 codegen，需整合進 make 流程，並在文件中說明維護方式
+
+    約束：
+    - 不改變現有 REST/SSE API 的欄位語意或行為，只補齊同步機制
+    - 不引入過重的建置工具鏈（優先選擇輕量、可讀性佳的方案）
+    - 需覆蓋 state/event/feature 三個 schema
+status: in-progress
+priority: 1
+profile: full
+subtasks:
+    - id: design-source-of-truth
+      name: 決定單一事實來源與同步/驗證策略
+      status: ""
+    - id: wire-generation-or-validation
+      name: 落地 codegen 或執行期驗證掛勾
+      status: ""
+    - id: sync-dashboard-fields
+      name: 確認 dashboard/web/core.js 欄位與後端輸出一致
+      status: ""
+    - id: wire-into-make
+      name: 整合進 make 流程並加文件說明
+      status: ""
+rules:
+    - 不改變現有 REST/SSE API 欄位語意或行為
+    - 涵蓋 state/event/feature 三個 schema
+    - 不引入過重的建置工具鏈
+depends:
+    - F121

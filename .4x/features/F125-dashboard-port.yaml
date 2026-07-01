@@ -1,0 +1,28 @@
+id: F125-dashboard-port
+name: 'F125: Dashboard port 單一設定來源'
+description: |-
+    現狀：dashboard port 4567 在 dashboard/macos/Sources/main.swift（Swift 殼）與 dashboard/web/core.js（apiBase/sseBase）兩處各自寫死，無單一 config 來源，日後若要改 port 需兩處同步修改，容易漏改造成靜默失聯。
+
+    需求：
+    - 建立單一 port 設定來源（例如由 Go server 啟動時寫入設定檔或環境變數，Swift 與 web 端統一讀取）
+    - Swift main.swift 與 web core.js 都改為從該來源讀取，移除硬編字面值
+
+    約束：
+    - 不改變預設 port 4567 的行為（僅重構讀取來源，非改變預設值）
+    - 不影響現有 4x live 啟動流程與既有使用者環境
+status: not-started
+priority: 3
+profile: standard
+subtasks:
+    - id: define-single-source
+      name: 建立單一 port 設定來源（設定檔或環境變數）
+      status: ""
+    - id: wire-swift
+      name: main.swift 改讀取設定來源，移除硬編字面值
+      status: ""
+    - id: wire-web
+      name: core.js 改讀取設定來源，移除硬編字面值
+      status: ""
+rules:
+    - 不改變預設 port 4567 的行為
+    - 不影響現有 4x live 啟動流程

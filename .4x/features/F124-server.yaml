@@ -1,0 +1,31 @@
+id: F124-server
+name: 'F124: server 子程序啟動抽介面'
+description: |-
+    現狀：internal/server/process.go、batch_process.go 直接用 exec.Command 硬呼叫 4x binary，且 server 直接 import protocol/feature/batch/gitops/state 等具體 package 而非介面，測試需仰賴 binName 參數留下的 seam，不易單獨對 handler 做單元測試。
+
+    需求：
+    - 為子程序啟動邏輯抽出 launcher interface，process.go/batch_process.go 依賴介面而非直接 exec.Command
+    - 評估 server handler 對 workspace 存取的依賴，抽出必要的薄介面以提升可測性
+
+    約束：
+    - 不改變現有 REST/SSE API 的對外行為
+    - 不影響現有 dashboard 與 server 的溝通協議
+    - 抽出的介面需附對應測試（含現有 binName seam 測試不可迴歸）
+status: not-started
+priority: 2
+profile: standard
+subtasks:
+    - id: extract-launcher-interface
+      name: process.go/batch_process.go 的 exec.Command 抽 launcher interface
+      status: ""
+    - id: thin-workspace-interface
+      name: 評估並抽出 server handler 依賴的薄介面
+      status: ""
+    - id: add-tests
+      name: 補齊介面的單元測試
+      status: ""
+rules:
+    - 不改變現有 REST/SSE API 對外行為
+    - 不影響現有 dashboard 與 server 的溝通協議
+depends:
+    - F121
