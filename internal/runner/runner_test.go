@@ -197,6 +197,47 @@ func TestNewRunner(t *testing.T) {
 	}
 }
 
+func TestNewFactory(t *testing.T) {
+	root := t.TempDir()
+	protocol.Init(root, protocol.Config{Project: protocol.ProjectConfig{Name: "t"}})
+	ws := &protocol.Workspace{Root: root}
+
+	cfg := protocol.Config{
+		Runners: map[string]protocol.RunnerConfig{
+			"claude": {Command: "claude", Args: []string{"-p", "{prompt}"}},
+		},
+	}
+	factory := NewFactory(ws, cfg, 30)
+
+	r := factory("claude", "/tmp/log.txt", "opus")
+	sr, ok := r.(*SubprocessRunner)
+	if !ok {
+		t.Fatal("expected *SubprocessRunner")
+	}
+	if sr.Config.Command != "claude" {
+		t.Errorf("Command = %s, want claude", sr.Config.Command)
+	}
+	if sr.Name != "claude" {
+		t.Errorf("Name = %s, want claude", sr.Name)
+	}
+	if sr.LogPath != "/tmp/log.txt" {
+		t.Errorf("LogPath = %s, want /tmp/log.txt", sr.LogPath)
+	}
+	if sr.ModelOverride != "opus" {
+		t.Errorf("ModelOverride = %s, want opus", sr.ModelOverride)
+	}
+	if sr.Timeout != 30*time.Second {
+		t.Errorf("Timeout = %s, want 30s", sr.Timeout)
+	}
+
+	// 未知 runner name → cfg.Runners 查無設定，回傳零值 RunnerConfig（不 panic）。
+	r2 := factory("unknown", "", "")
+	sr2 := r2.(*SubprocessRunner)
+	if sr2.Config.Command != "" {
+		t.Errorf("Command = %s, want empty for unknown runner", sr2.Config.Command)
+	}
+}
+
 func TestBuildArgs_ModelOverrideAppended(t *testing.T) {
 	r := &SubprocessRunner{
 		Config:        protocol.RunnerConfig{Args: []string{"-p", "{prompt}"}},

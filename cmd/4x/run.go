@@ -203,9 +203,7 @@ func newRunCmd() *cobra.Command {
 
 			r := orchestrator.NewRunner(orchestrator.Config{
 				Ws: ws, RunnerWs: runnerWs, Feature: feature, Cfg: cfg, Ops: ops,
-				NewRunner: func(rn, logPath, model string) runner.Runner {
-					return runner.NewRunner(runnerWs, rn, cfg.Runners[rn], time.Duration(p.timeout)*time.Second, logPath, model)
-				},
+				NewRunner:      runner.NewFactory(runnerWs, cfg, p.timeout),
 				CommitStrategy: commitStrategy, ManualRunner: p.manualRunner, RunOverrides: p.runOverrides,
 				ForceAllAngles: allAngles,
 			})

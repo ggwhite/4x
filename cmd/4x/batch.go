@@ -5,15 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"maps"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"runtime/debug"
-	"strings"
-	"sync"
 	"syscall"
-	"time"
 
 	"github.com/ggwhite/4x/internal/batch"
 	feat "github.com/ggwhite/4x/internal/feature"
@@ -253,9 +249,7 @@ func (bc *batchRunConfig) executeBatchFeature(next string, feature feat.Feature,
 		commitStrategy = "per-round"
 	}
 
-	runnerFactory := func(rn string, logPath string, model string) runner.Runner {
-		return runner.NewRunner(batchRunnerWs, rn, bc.cfg.Runners[rn], time.Duration(bc.timeout)*time.Second, logPath, model)
-	}
+	runnerFactory := runner.NewFactory(batchRunnerWs, bc.cfg, bc.timeout)
 	runErr := runLoop(batchCtx, bc.ws, batchRunnerWs, feature, bc.cfg, s, batchOps, runnerFactory, commitStrategy, bc.manualRunner, nil)
 
 	updated, _ := bc.ws.LoadFeature(next)
@@ -352,11 +346,7 @@ func newBatchRunCmd() *cobra.Command {
 				statusMap[f.ID] = f.Status
 			}
 
-			progress := &batchProgress{
-				startedAt: time.Now(),
-				statusMap: maps.Clone(statusMap),
-				outcome:   protocol.BatchOutcomeCompleted,
-			}
+			progress := batch.NewProgress(statusMap, protocol.BatchOutcomeCompleted)
 
 			sigCh := make(chan os.Signal, 1)
 			signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -370,14 +360,14 @@ func newBatchRunCmd() *cobra.Command {
 				case <-doneCh:
 					return
 				case <-sigCh:
-					finishBatchReport(ws, plan, runnerName, progress, protocol.BatchOutcomeInterrupted, "")
+					batch.FinishReport(ws, plan, runnerName, progress, protocol.BatchOutcomeInterrupted, "")
 					os.Exit(130)
 				}
 			}()
 
 			defer func() {
 				if r := recover(); r != nil {
-					finishBatchReport(ws, plan, runnerName, progress, protocol.BatchOutcomeCrashed, fmt.Sprint(r))
+					batch.FinishReport(ws, plan, runnerName, progress, protocol.BatchOutcomeCrashed, fmt.Sprint(r))
 					slog.Error("batch panic", "error", r, "stack", string(debug.Stack()))
 					panic(r)
 				}
@@ -392,9 +382,9 @@ func newBatchRunCmd() *cobra.Command {
 			}
 
 			slog.Info("batch operation", "action", "run", "features", len(plan.Schedule), "runner", runnerName)
-			completed := runBatchSchedule(ws, plan, statusMap, maxRounds, runnerName, bc.executeBatchFeature, noAutoMerge, bc.mergeBatchFeature, progress)
+			completed := batch.RunSchedule(ws, plan, statusMap, maxRounds, runnerName, bc.executeBatchFeature, noAutoMerge, bc.mergeBatchFeature, progress)
 
-			finishBatchReport(ws, plan, runnerName, progress, "", "")
+			batch.FinishReport(ws, plan, runnerName, progress, "", "")
 
 			slog.Info("batch operation", "action", "complete", "completed", completed, "total", len(plan.Schedule))
 			fmt.Printf("\n══════════════════════════════════════\n")
@@ -409,327 +399,6 @@ func newBatchRunCmd() *cobra.Command {
 	cmd.Flags().IntVar(&timeout, "timeout", 3600, "plugin timeout in seconds")
 	cmd.Flags().BoolVar(&noAutoMerge, "no-auto-merge", false, "feature 完成後停在 pending-review，不自動 merge 回 main")
 	return cmd
-}
-
-const maxFeatureFailures = 2
-
-type batchProgress struct {
-	mu             sync.Mutex
-	startedAt      time.Time
-	statusMap      map[string]feat.Status
-	failReasons    map[string]string
-	runningFeature string
-	outcome        string
-}
-
-func (p *batchProgress) setRunning(id string) {
-	if p == nil {
-		return
-	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.runningFeature = id
-}
-
-func (p *batchProgress) update(statusMap map[string]feat.Status, failReasons map[string]string) {
-	if p == nil {
-		return
-	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.runningFeature = ""
-	p.statusMap = maps.Clone(statusMap)
-	p.failReasons = maps.Clone(failReasons)
-}
-
-func (p *batchProgress) markStopped() {
-	if p == nil {
-		return
-	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.outcome = protocol.BatchOutcomeStopped
-}
-
-func (p *batchProgress) snapshot() (startedAt time.Time, runningFeature, outcome string, statusMap map[string]feat.Status, failReasons map[string]string) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.startedAt, p.runningFeature, p.outcome, maps.Clone(p.statusMap), maps.Clone(p.failReasons)
-}
-
-func finishBatchReport(ws *protocol.Workspace, plan *batch.BatchPlan, runnerName string,
-	progress *batchProgress, outcomeOverride, panicMsg string) protocol.BatchReport {
-	startedAt, running, outcome, sm, fr := progress.snapshot()
-	if outcomeOverride != "" {
-		outcome = outcomeOverride
-	} else {
-		running = ""
-	}
-	report := batch.BuildBatchReport(ws, plan, sm, fr, runnerName, startedAt, time.Now(), outcome, running, panicMsg)
-	if err := ws.WriteBatchReport(report); err != nil {
-		slog.Warn("failed to write batch report", "outcome", outcome, "error", err)
-	}
-	return report
-}
-
-// batchTracker 追蹤每個 feature 的失敗次數與原因，供 selectNextFeature 跳過達上限的 feature。
-type batchTracker struct {
-	failedFeatures map[string]int
-	failReasons    map[string]string
-	loggedSkip     map[string]bool
-}
-
-func newBatchTracker() *batchTracker {
-	return &batchTracker{
-		failedFeatures: map[string]int{},
-		failReasons:    map[string]string{},
-		loggedSkip:     map[string]bool{},
-	}
-}
-
-func (t *batchTracker) recordFailure(featureID, reason string) {
-	t.failedFeatures[featureID]++
-	t.failReasons[featureID] = reason
-}
-
-func (t *batchTracker) recordFailureNoReason(featureID string) {
-	t.failedFeatures[featureID]++
-}
-
-// selectNextFeature 從 plan 的 schedule 中選出下一個可執行的 feature：跳過已完成、已達失敗
-// 上限、依賴未滿足的 feature，回傳第一個符合條件的 feature ID；全部不可選時回傳空字串。
-func selectNextFeature(plan *batch.BatchPlan, statusMap map[string]feat.Status, tracker *batchTracker) string {
-	for _, s := range plan.Schedule {
-		if batchCompleted(statusMap[s.FeatureID]) {
-			continue
-		}
-		if tracker.failedFeatures[s.FeatureID] >= maxFeatureFailures {
-			if !tracker.loggedSkip[s.FeatureID] {
-				fmt.Printf("  skipping %s: failed %d times\n", s.FeatureID, tracker.failedFeatures[s.FeatureID])
-				tracker.loggedSkip[s.FeatureID] = true
-			}
-			continue
-		}
-		allDone := true
-		for _, dep := range s.CanStartAfter {
-			if !batchCompleted(statusMap[dep]) {
-				allDone = false
-				break
-			}
-		}
-		if allDone {
-			return s.FeatureID
-		}
-	}
-	return ""
-}
-
-// prepareFeatureState 載入 feature、初始化目錄、檢查依賴、建構或恢復 state。
-// 回傳 (feature, state, error)：error 非 nil 時呼叫端應跳過並記錄失敗；
-// skipCompleted 為 true 時表示 feature 已 done，呼叫端直接計入 completed。
-type featurePrep struct {
-	feature       feat.Feature
-	state         protocol.State
-	skipCompleted bool
-	skipAlive     bool
-}
-
-func prepareFeatureState(ws *protocol.Workspace, featureID string, maxRounds int, runnerName string,
-	statusMap map[string]feat.Status, tracker *batchTracker, progress *batchProgress) (*featurePrep, error) {
-
-	feature, err := ws.LoadFeature(featureID)
-	if err != nil {
-		reason := fmt.Sprintf("error loading feature: %v", err)
-		fmt.Printf("  %s\n", reason)
-		statusMap[featureID] = feat.StatusBlocked
-		tracker.recordFailure(featureID, reason)
-		return nil, fmt.Errorf("skip")
-	}
-
-	if err := ws.InitFeatureDir(featureID); err != nil {
-		reason := fmt.Sprintf("init feature dir failed: %v", err)
-		fmt.Printf("  %s\n", reason)
-		statusMap[featureID] = feat.StatusBlocked
-		tracker.recordFailure(featureID, reason)
-		return nil, fmt.Errorf("skip")
-	}
-
-	depResult := guard.CheckDependencies(ws, featureID)
-	if !depResult.Pass {
-		reason := "dependency check failed: " + strings.Join(depResult.Errors, "; ")
-		fmt.Printf("  %s\n", reason)
-		statusMap[featureID] = feat.StatusBlocked
-		tracker.recordFailure(featureID, reason)
-		return nil, fmt.Errorf("skip")
-	}
-
-	rounds := maxRounds
-	if rounds <= 0 {
-		rounds = 5
-	}
-
-	s := protocol.State{
-		FeatureID: featureID,
-		Phase:     protocol.PhaseInit,
-		MaxRounds: rounds,
-		Active:    true,
-		Runner:    runnerName,
-		CreatedAt: time.Now(),
-	}
-	if existing, err := ws.ReadState(featureID); err == nil {
-		if existing.Active && existing.Pid != os.Getpid() && protocol.ProcessAlive(existing.Pid) {
-			fmt.Printf("  skipping %s: already running (pid %d)\n", featureID, existing.Pid)
-			statusMap[featureID] = feat.StatusInProgress
-			tracker.recordFailureNoReason(featureID)
-			progress.update(statusMap, tracker.failReasons)
-			return &featurePrep{skipAlive: true}, nil
-		}
-		s = existing
-		s.Active = true
-	}
-
-	if s.Phase == protocol.PhaseDone {
-		fmt.Printf("  %s already done — skipping\n", featureID)
-		statusMap[featureID] = feat.StatusDone
-		progress.update(statusMap, tracker.failReasons)
-		return &featurePrep{skipCompleted: true}, nil
-	}
-
-	s.Pid = os.Getpid()
-	if err := ws.WriteState(featureID, s); err != nil {
-		slog.Warn("failed to write state during batch prep", "feature", featureID, "error", err)
-	}
-
-	return &featurePrep{feature: feature, state: s}, nil
-}
-
-// mergeAction 表示 handleAutoMerge 的決策結果。
-type mergeAction int
-
-const (
-	mergeActionNone     mergeAction = iota // 不需 merge 或 merge 成功
-	mergeActionConflict                    // 衝突，應暫停 batch
-	mergeActionError                       // 非衝突錯誤，警告後繼續
-)
-
-// handleAutoMerge 處理 feature 完成後的自動 merge，回傳決策讓主迴圈決定暫停或繼續。
-func handleAutoMerge(ws *protocol.Workspace, featureID string, feature feat.Feature,
-	statusMap map[string]feat.Status, completed int,
-	autoMerge func(featureID string) gitops.MergeResult, progress *batchProgress,
-	tracker *batchTracker) mergeAction {
-
-	result := autoMerge(featureID)
-
-	switch {
-	case result.Conflict:
-		slog.Error("auto-merge conflict", "feature", featureID, "files", result.Files, "repo", result.ConflictRepo)
-		if err := ws.WriteBatchConflict(protocol.BatchConflict{
-			FeatureID:    featureID,
-			FeatureName:  feature.Name,
-			ConflictRepo: result.ConflictRepo,
-			Files:        result.Files,
-			DetectedAt:   time.Now().UTC(),
-		}); err != nil {
-			slog.Warn("failed to write batch conflict", "feature", featureID, "error", err)
-		}
-		fmt.Printf("\n⏸ auto-merge conflict on %s — pausing batch (%d done):\n", featureID, completed)
-		for _, file := range result.Files {
-			fmt.Printf("  conflict: %s\n", file)
-		}
-		if result.ConflictRepo != "" {
-			fmt.Printf("  repo: %s\n", result.ConflictRepo)
-		}
-		fmt.Printf("  worktree: %s\n", gitops.Dir(ws.Root, featureID))
-		fmt.Printf("  resolve conflicts, then run '4x merge %s' and re-run '4x batch run' to continue.\n", featureID)
-		progress.markStopped()
-		progress.update(statusMap, tracker.failReasons)
-		return mergeActionConflict
-
-	case result.Error != "":
-		slog.Error("auto-merge failed", "feature", featureID, "error", result.Error)
-		fmt.Printf("  worktree preserved at: %s\n", gitops.Dir(ws.Root, featureID))
-		return mergeActionError
-
-	default:
-		slog.Info("auto-merge succeeded", "feature", featureID, "skipped", result.Skipped)
-		statusMap[featureID] = feat.StatusDone
-		return mergeActionNone
-	}
-}
-
-func runBatchSchedule(ws *protocol.Workspace, plan *batch.BatchPlan, statusMap map[string]feat.Status,
-	maxRounds int, runnerName string,
-	runFeature func(next string, feature feat.Feature, s protocol.State) (feat.Status, error),
-	noAutoMerge bool, autoMerge func(featureID string) gitops.MergeResult, progress *batchProgress) int {
-
-	stopFile := filepath.Join(ws.DotDir(), protocol.BatchStopFile)
-	if err := ws.ClearBatchConflict(); err != nil {
-		fmt.Fprintf(os.Stderr, "warn: failed to clear stale batch conflict: %v\n", err)
-	}
-
-	completed := 0
-	tracker := newBatchTracker()
-
-	for {
-		if _, err := os.Stat(stopFile); err == nil {
-			os.Remove(stopFile)
-			fmt.Printf("\n⏸ batch-stop detected — stopping gracefully (%d done)\n", completed)
-			progress.markStopped()
-			break
-		}
-
-		next := selectNextFeature(plan, statusMap, tracker)
-		if next == "" {
-			break
-		}
-
-		progress.setRunning(next)
-
-		slog.Info("batch feature", "feature", next, "status", "started", "completed", completed, "total", len(plan.Schedule))
-		fmt.Printf("\n══════════════════════════════════════\n")
-		fmt.Printf("  BATCH: %s (%d/%d done)\n", next, completed, len(plan.Schedule))
-		fmt.Printf("══════════════════════════════════════\n\n")
-
-		prep, err := prepareFeatureState(ws, next, maxRounds, runnerName, statusMap, tracker, progress)
-		if err != nil {
-			continue
-		}
-		if prep.skipAlive {
-			continue
-		}
-		if prep.skipCompleted {
-			completed++
-			continue
-		}
-
-		updatedStatus, runErr := runFeature(next, prep.feature, prep.state)
-		statusMap[next] = updatedStatus
-
-		slog.Info("batch feature", "feature", next, "status", "completed", "result", string(updatedStatus))
-
-		if updatedStatus == feat.StatusNeedsAttention || updatedStatus == feat.StatusBlocked || updatedStatus == feat.StatusInProgress {
-			tracker.recordFailureNoReason(next)
-		}
-
-		if runErr != nil {
-			fmt.Printf("  feature %s failed: %v\n", next, runErr)
-		}
-
-		if !noAutoMerge && updatedStatus == feat.StatusReadyForReview && autoMerge != nil {
-			action := handleAutoMerge(ws, next, prep.feature, statusMap, completed, autoMerge, progress, tracker)
-			if action == mergeActionConflict {
-				return completed
-			}
-		}
-
-		if batchCompleted(updatedStatus) {
-			completed++
-		}
-
-		progress.update(statusMap, tracker.failReasons)
-	}
-
-	return completed
 }
 
 func newBatchStopCmd() *cobra.Command {

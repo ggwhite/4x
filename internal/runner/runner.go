@@ -353,6 +353,19 @@ func NewRunner(ws *protocol.Workspace, name string, cfg protocol.RunnerConfig, t
 	return r
 }
 
+// Factory 依 (name, logPath, model) 建構一個 Runner，供 run.go/evolve.go/batch.go
+// 共用同一組「從 workspace + config + timeout 組出 runnerFactory」的邏輯。
+type Factory func(name, logPath, model string) Runner
+
+// NewFactory 回傳一個 Factory：呼叫時以 cfg.Runners[name] 解析該 runner 的設定，
+// 搭配固定的 ws 與 timeoutSec 建構 Runner。取代原本在 run.go/evolve.go/batch.go
+// 各自重複撰寫的 runnerFactory 閉包。
+func NewFactory(ws *protocol.Workspace, cfg protocol.Config, timeoutSec int) Factory {
+	return func(name, logPath, model string) Runner {
+		return NewRunner(ws, name, cfg.Runners[name], time.Duration(timeoutSec)*time.Second, logPath, model)
+	}
+}
+
 // ansiStripper 以狀態機跨 Write 呼叫正確剝除 ANSI escape sequence，
 // 涵蓋 CSI（含 private mode ?）、OSC（BEL 或 ST 結尾）、單字元 ESC 序列。
 type ansiStripper struct {

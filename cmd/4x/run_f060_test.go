@@ -7,8 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ggwhite/4x/internal/batch"
-	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/orchestrator"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/runner"
@@ -226,112 +224,5 @@ func TestStartLiveSync_StopDrainsThenFinalSync(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(mainWs.RoundDir("feat-sync", round), protocol.CoderReport)); err != nil {
 		t.Errorf("coder report not synced to main: %v", err)
-	}
-}
-
-// batchTestFeature 在 ws 建立一個 feature YAML，供 runBatchSchedule 測試使用。
-func batchTestFeature(t *testing.T, ws *protocol.Workspace, id string, depends []string) {
-	t.Helper()
-	if err := ws.InitFeatureDir(id); err != nil {
-		t.Fatal(err)
-	}
-	if err := ws.SaveFeature(feature.Feature{ID: id, Name: id, Status: "not-started", Depends: depends}); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// W4 / AC-7：dependency 未完成的 feature 被 gate 擋下、標記 blocked、不進 runFeature。
-func TestRunBatchSchedule_DependencyGateBlocks(t *testing.T) {
-	ws := setupLoopWorkspace(t, "feat-a")
-	batchTestFeature(t, ws, "feat-a", []string{"feat-b"})
-	batchTestFeature(t, ws, "feat-b", nil) // B 未 done
-
-	plan := &batch.BatchPlan{Schedule: []batch.ScheduleEntry{{FeatureID: "feat-a"}}}
-	statusMap := map[string]feature.Status{"feat-a": "not-started", "feat-b": "not-started"}
-
-	var executed []string
-	runFeature := func(next string, f feature.Feature, s protocol.State) (feature.Status, error) {
-		executed = append(executed, next)
-		return feature.StatusReadyForReview, nil
-	}
-
-	completed := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, true, nil, nil)
-	if len(executed) != 0 {
-		t.Fatalf("feat-a should not run with unmet dependency, executed: %v", executed)
-	}
-	if statusMap["feat-a"] != feature.StatusBlocked {
-		t.Errorf("statusMap[feat-a] = %s, want blocked", statusMap["feat-a"])
-	}
-	if completed != 0 {
-		t.Errorf("completed = %d, want 0", completed)
-	}
-}
-
-// W4 / AC-8：resume 已 done 的 feature 時跳過不重跑；執行的 feature state 帶有本 process PID。
-func TestRunBatchSchedule_SkipsDoneAndSetsPid(t *testing.T) {
-	ws := setupLoopWorkspace(t, "feat-done")
-	batchTestFeature(t, ws, "feat-done", nil)
-	ws.WriteState("feat-done", protocol.State{FeatureID: "feat-done", Phase: protocol.PhaseDone})
-
-	batchTestFeature(t, ws, "feat-run", nil)
-
-	plan := &batch.BatchPlan{Schedule: []batch.ScheduleEntry{
-		{FeatureID: "feat-done"},
-		{FeatureID: "feat-run"},
-	}}
-	statusMap := map[string]feature.Status{"feat-done": "not-started", "feat-run": "not-started"}
-
-	var executed []string
-	var gotPid int
-	runFeature := func(next string, f feature.Feature, s protocol.State) (feature.Status, error) {
-		executed = append(executed, next)
-		if next == "feat-run" {
-			gotPid = s.Pid
-		}
-		return feature.StatusReadyForReview, nil
-	}
-
-	completed := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, true, nil, nil)
-
-	for _, e := range executed {
-		if e == "feat-done" {
-			t.Error("already-done feature should not be executed")
-		}
-	}
-	if statusMap["feat-done"] != feature.StatusDone {
-		t.Errorf("statusMap[feat-done] = %s, want done", statusMap["feat-done"])
-	}
-	if gotPid != os.Getpid() {
-		t.Errorf("feat-run state Pid = %d, want %d", gotPid, os.Getpid())
-	}
-	st, _ := ws.ReadState("feat-run")
-	if st.Pid != os.Getpid() {
-		t.Errorf("persisted feat-run Pid = %d, want %d", st.Pid, os.Getpid())
-	}
-	if completed != 2 {
-		t.Errorf("completed = %d, want 2", completed)
-	}
-}
-
-// W12 / AC-16：對恆失敗的 feature，連續 2 次後跳過不再選中，batch 正常結束（不無限迴圈）。
-func TestRunBatchSchedule_FailureCapStopsRetry(t *testing.T) {
-	ws := setupLoopWorkspace(t, "feat-fail")
-	batchTestFeature(t, ws, "feat-fail", nil)
-
-	plan := &batch.BatchPlan{Schedule: []batch.ScheduleEntry{{FeatureID: "feat-fail"}}}
-	statusMap := map[string]feature.Status{"feat-fail": "not-started"}
-
-	count := 0
-	runFeature := func(next string, f feature.Feature, s protocol.State) (feature.Status, error) {
-		count++
-		return feature.StatusNeedsAttention, nil
-	}
-
-	completed := runBatchSchedule(ws, plan, statusMap, 5, "mock", runFeature, true, nil, nil)
-	if count != 2 {
-		t.Fatalf("feat-fail ran %d times, want capped at 2", count)
-	}
-	if completed != 0 {
-		t.Errorf("completed = %d, want 0", completed)
 	}
 }

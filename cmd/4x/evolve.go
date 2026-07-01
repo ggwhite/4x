@@ -178,9 +178,7 @@ func makeEvolveRunFeature(ws *protocol.Workspace, cfg protocol.Config, runnerNam
 			return protocol.State{}, err
 		}
 
-		runnerFactory := func(rn, logPath, model string) runner.Runner {
-			return runner.NewRunner(runnerWs, rn, cfg.Runners[rn], time.Duration(timeout)*time.Second, logPath, model)
-		}
+		runnerFactory := runner.NewFactory(runnerWs, cfg, timeout)
 		runErr := runLoop(ctx, ws, runnerWs, f, cfg, s, ops, runnerFactory, commitStrategy, runnerName, nil)
 
 		final, rerr := ws.ReadState(featureID)
