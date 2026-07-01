@@ -909,6 +909,90 @@
       "last_used": "0001-01-01T00:00:00Z",
       "used_count": 0,
       "status": "candidate"
+    },
+    {
+      "id": "L094",
+      "source_feature": "F125-dashboard-port",
+      "source_role": "reviewer",
+      "category": "review",
+      "content": "coder-report 宣稱的 make check-docs-sync/check-i18n 等驗證結果不可照單全收，Reviewer 應親自重跑一次比對，本輪就抓到 coder-report 誤報 check-docs-sync 為 OK 但實際輸出 NEEDS_UPDATE",
+      "created_at": "2026-07-01T15:14:54.874969+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L095",
+      "source_feature": "F125-dashboard-port",
+      "source_role": "reviewer",
+      "category": "tooling",
+      "content": "worktree 內的 codegraph MCP 索引不含該 worktree 分支尚未進主工作區的新提交（新檔案/新常量會查不到），遇到查無結果時應直接改讀 worktree 內實際檔案驗證，而非誤判為程式碼不存在",
+      "created_at": "2026-07-01T15:14:54.874969+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L096",
+      "source_feature": "F125-dashboard-port",
+      "source_role": "coder",
+      "category": "tooling",
+      "content": "make check-docs-sync 用 git diff --name-only main...HEAD 比對已提交歷史，未 commit 的 docs 修改不會被判定為「已更新」——改完 docs 後必須先 commit 再重跑該指令確認轉為 OK，否則 coder-report 的驗證聲明會失真。",
+      "created_at": "2026-07-01T15:14:54.875855+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L097",
+      "source_feature": "F125-dashboard-port",
+      "source_role": "coder",
+      "category": "process",
+      "content": "在 docs/guide/*.md 新增任何層級的標題（## 或 ###）都會觸發 make check-guide-i18n 的 heading 數量比對失敗，須同步在 es/ja/ko/zh-CN/zh-TW 五個語系檔案補上對應翻譯段落，不能只改英文版。",
+      "created_at": "2026-07-01T15:14:54.875855+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L098",
+      "source_feature": "F125-dashboard-port",
+      "source_role": "acceptor",
+      "category": "process",
+      "content": "Coder 在 coder-report.md 宣稱驗證指令（如 make check-docs-sync）結果前，必須實際重跑該指令並貼上真實輸出，不可憑記憶或假設寫「OK」，否則會導致 Reviewer FAIL 並多耗一輪。",
+      "created_at": "2026-07-01T15:14:54.877093+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L099",
+      "source_feature": "F125-dashboard-port",
+      "source_role": "acceptor",
+      "category": "tooling",
+      "content": "在 docs/guide/*.md 新增 heading 時，須同步在所有語系（es/ja/ko/zh-CN/zh-TW）補上對應 heading，否則 make check-guide-i18n 會因 heading 數量不符而失敗；新增文件段落前先確認是否會觸發 i18n heading 比對。",
+      "created_at": "2026-07-01T15:14:54.877093+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L100",
+      "source_feature": "F125-dashboard-port",
+      "source_role": "acceptor",
+      "category": "design",
+      "content": "當多個獨立編譯的殼（Swift/Rust）無法在編譯期讀取 Go 常量時，可用『各自持有本地字面值 + 專屬同步測試（如 port_sync_test.go）在 CI/make test 時比對』作為單一事實來源的替代方案，而非強行做跨語言 codegen。",
+      "created_at": "2026-07-01T15:14:54.877093+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
     }
   ]
 }
