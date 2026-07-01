@@ -128,6 +128,74 @@ func TestMultiRepo_DetectChangedRepos_WorktreeScoped(t *testing.T) {
 	}
 }
 
+// TestScopeRoots_Mono 驗證 mono-repo 下 ScopeRoots 回傳單元素 slice，
+// 值與 ScopeRoot 一致（既有行為不變的硬約束）。
+func TestScopeRoots_Mono(t *testing.T) {
+	root, _, ops := setupMonoWorkspace(t)
+
+	wtPath, err := ops.SetupWorktree("feat-scoperoots-mono", nil)
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+
+	roots := ScopeRoots(root, "feat-scoperoots-mono")
+	if len(roots) != 1 {
+		t.Fatalf("expected 1 root, got %v", roots)
+	}
+	if !sameRealPath(t, roots[0], wtPath) {
+		t.Errorf("roots[0] = %q, want %q", roots[0], wtPath)
+	}
+
+	want := ScopeRoot(root, "feat-scoperoots-mono")
+	if !sameRealPath(t, roots[0], want) {
+		t.Errorf("ScopeRoots result diverges from ScopeRoot: %q vs %q", roots[0], want)
+	}
+}
+
+// TestScopeRoots_NoWorktree 驗證沒有 worktree 時回退 fallback，維持既有行為。
+func TestScopeRoots_NoWorktree(t *testing.T) {
+	root, _, _ := setupMonoWorkspace(t)
+
+	roots := ScopeRoots(root, "feat-never-run")
+	if len(roots) != 1 || !sameRealPath(t, roots[0], root) {
+		t.Errorf("expected fallback [%q], got %v", root, roots)
+	}
+}
+
+// TestScopeRoots_MultiRepo 是本次修正的核心回歸測試：multi-repo 的 worktree 容器目錄
+// 本身不是 git repo，ScopeRoots 必須改為逐一掃描子目錄，回報各 sub-repo 的 linked
+// worktree 根目錄，而不是誤判整體非 linked 而 fallback 回 main workspace。
+func TestScopeRoots_MultiRepo(t *testing.T) {
+	root, _, ops := setupMultiWorkspace(t)
+
+	wtPath, err := ops.SetupWorktree("feat-scoperoots-multi", nil)
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+
+	roots := ScopeRoots(root, "feat-scoperoots-multi")
+	if len(roots) != 2 {
+		t.Fatalf("expected 2 sub-repo roots, got %v", roots)
+	}
+	wantCore := filepath.Join(wtPath, "core")
+	wantGate := filepath.Join(wtPath, "gate")
+	for _, want := range []string{wantCore, wantGate} {
+		found := false
+		for _, r := range roots {
+			if sameRealPath(t, r, want) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("roots %v missing expected sub-repo root %q", roots, want)
+		}
+		if sameRealPath(t, want, root) {
+			t.Errorf("root %q must not resolve to main workspace %q", want, root)
+		}
+	}
+}
+
 func contains(xs []string, target string) bool {
 	for _, x := range xs {
 		if x == target {

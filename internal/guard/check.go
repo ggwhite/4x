@@ -515,6 +515,21 @@ func detectChangedRepos(root string) []string {
 	return repos
 }
 
+// runGroupsAcrossRoots 對 roots 逐一執行 verify.RunGroups 並合併證據；multi-repo
+// feature 的 roots 有多個 sub-repo worktree，須各自跑一輪 build/lint 才能涵蓋全部範圍。
+// roots 只有一個元素時（mono-repo 恆常情況）等同直接呼叫 verify.RunGroups，行為不變。
+func runGroupsAcrossRoots(ctx context.Context, groups []verify.Group, roots []string) protocol.VerifyEvidence {
+	merged := protocol.VerifyEvidence{Passed: true}
+	for _, root := range roots {
+		evidence := verify.RunGroups(ctx, groups, root)
+		merged.Commands = append(merged.Commands, evidence.Commands...)
+		if !evidence.Passed {
+			merged.Passed = false
+		}
+	}
+	return merged
+}
+
 // checkBuildGate 在 coding/amending phase 時執行 settings.json 的 build + lint 指令，
 // 結果寫入 build-gate.json。非 coding/amending phase 時不執行。
 func checkBuildGate(ws *protocol.Workspace, featureID string, r *CheckResult) {
@@ -546,7 +561,7 @@ func checkBuildGate(ws *protocol.Workspace, featureID string, r *CheckResult) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
-	evidence := verify.RunGroups(ctx, groups, gitops.ScopeRoot(ws.Root, featureID))
+	evidence := runGroupsAcrossRoots(ctx, groups, gitops.ScopeRoots(ws.Root, featureID))
 	evidence.Round = state.Round
 	evidence.Role = protocol.RoleCoder
 
@@ -578,7 +593,8 @@ func checkBuildGate(ws *protocol.Workspace, featureID string, r *CheckResult) {
 // 階段攔截：掃 uncommitted diff + untracked 的 Lstat，以及已 staged/committed 的
 // git ls-files -s mode 120000。
 func checkSymlinks(ws *protocol.Workspace, featureID string, r *CheckResult) {
-	root := gitops.ScopeRoot(ws.Root, featureID)
+	roots := gitops.ScopeRoots(ws.Root, featureID)
+	multi := len(roots) > 1
 	seen := make(map[string]bool)
 	var symlinks []string
 
@@ -589,41 +605,48 @@ func checkSymlinks(ws *protocol.Workspace, featureID string, r *CheckResult) {
 		}
 	}
 
-	scanLstat := func(out []byte) {
-		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-			if line == "" {
-				continue
-			}
-			info, err := os.Lstat(filepath.Join(root, line))
-			if err != nil {
-				continue
-			}
-			if info.Mode()&os.ModeSymlink != 0 {
-				add(line)
+	for _, root := range roots {
+		prefix := ""
+		if multi {
+			prefix = filepath.Base(root) + "/"
+		}
+
+		scanLstat := func(out []byte) {
+			for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+				if line == "" {
+					continue
+				}
+				info, err := os.Lstat(filepath.Join(root, line))
+				if err != nil {
+					continue
+				}
+				if info.Mode()&os.ModeSymlink != 0 {
+					add(prefix + line)
+				}
 			}
 		}
-	}
 
-	diffCmd := exec.Command("git", "diff", "--name-only", "HEAD")
-	diffCmd.Dir = root
-	if out, err := diffCmd.Output(); err == nil {
-		scanLstat(out)
-	}
+		diffCmd := exec.Command("git", "diff", "--name-only", "HEAD")
+		diffCmd.Dir = root
+		if out, err := diffCmd.Output(); err == nil {
+			scanLstat(out)
+		}
 
-	untrackedCmd := exec.Command("git", "ls-files", "--others", "--exclude-standard")
-	untrackedCmd.Dir = root
-	if out, err := untrackedCmd.Output(); err == nil {
-		scanLstat(out)
-	}
+		untrackedCmd := exec.Command("git", "ls-files", "--others", "--exclude-standard")
+		untrackedCmd.Dir = root
+		if out, err := untrackedCmd.Output(); err == nil {
+			scanLstat(out)
+		}
 
-	lsCmd := exec.Command("git", "ls-files", "-s")
-	lsCmd.Dir = root
-	if out, err := lsCmd.Output(); err == nil {
-		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-			if strings.HasPrefix(line, "120000 ") {
-				parts := strings.SplitN(line, "\t", 2)
-				if len(parts) == 2 {
-					add(parts[1])
+		lsCmd := exec.Command("git", "ls-files", "-s")
+		lsCmd.Dir = root
+		if out, err := lsCmd.Output(); err == nil {
+			for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+				if strings.HasPrefix(line, "120000 ") {
+					parts := strings.SplitN(line, "\t", 2)
+					if len(parts) == 2 {
+						add(prefix + parts[1])
+					}
 				}
 			}
 		}

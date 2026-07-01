@@ -1,6 +1,9 @@
 package gitops
 
-import "path/filepath"
+import (
+	"os"
+	"path/filepath"
+)
 
 // WorktreeInfo 描述某個目錄所屬的 git worktree 狀態。
 type WorktreeInfo struct {
@@ -41,6 +44,38 @@ func ScopeRoot(fallback, featureID string) string {
 		return info.Root
 	}
 	return fallback
+}
+
+// ScopeRoots 回傳掃描 feature scope 變更時應使用的根目錄清單，涵蓋 multi-repo 情境。
+//
+// feature 的 worktree 容器目錄（Dir(fallback, featureID)）在 mono-repo 下本身就是
+// linked worktree；在 multi-repo 下容器目錄不是 git repo，各 sub-repo 的 linked
+// worktree 是其子目錄（見 multiRepo.SetupWorktree）。對容器目錄整體判定 IsLinked 在
+// multi-repo 下會誤判為 false（git 往上層找到主 repo），故容器本身非 linked worktree
+// 時進一步掃描子目錄，逐一判定是否為 linked worktree。
+//
+// mono-repo（含非 worktree 情境）回傳結果恆為單元素 slice，與 ScopeRoot 回傳值一致，
+// 呼叫端對其迭代等同執行一次，行為不變。
+func ScopeRoots(fallback, featureID string) []string {
+	wtDir := Dir(fallback, featureID)
+	if info, ok := DetectWorktree(wtDir); ok && info.IsLinked {
+		return []string{info.Root}
+	}
+	entries, err := os.ReadDir(wtDir)
+	if err != nil {
+		return []string{fallback}
+	}
+	var roots []string
+	for _, e := range entries {
+		sub := filepath.Join(wtDir, e.Name())
+		if info, ok := DetectWorktree(sub); ok && info.IsLinked {
+			roots = append(roots, info.Root)
+		}
+	}
+	if len(roots) == 0 {
+		return []string{fallback}
+	}
+	return roots
 }
 
 // resolveGitPath 將 git rev-parse 回傳的 git-dir / git-common-dir 解析成可比較的絕對路徑。
