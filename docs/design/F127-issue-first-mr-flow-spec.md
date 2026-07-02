@@ -53,11 +53,14 @@ type IssueRef struct {
 type Hub interface {
     Preflight(repoPath string) error
     CreateIssue(repoPath, title, body string) (id, url string, err error)
+    GetIssue(repoPath, ref string) (id, url string, err error) // ref 可為純數字 ID 或完整 issue URL
     OpenMR(repoPath, sourceBranch, targetBranch, title, body string) (url string, err error)
 }
 
 func New(repoPath string) Hub // 依 git remote hostname 自動判斷回傳 githubHub 或 glabHub
 ```
+
+`GetIssue` 用於連結既有 issue（見下方「連結既有 issue」）：呼叫 `gh issue view`/`glab issue view` 驗證該 issue 確實存在於這個 repo，回傳規範化的 ID 與 URL；不存在時回傳 error。
 
 - 平台判斷：`git -C <repoPath> remote get-url origin`，hostname 含 `github.com` → `gh` CLI；其餘一律當 GitLab（含自架）→ `glab` CLI。
 - `Preflight`：`exec.LookPath("gh"/"glab")` + `gh auth status`/`glab auth status`，用來在 `4x new` 動手之前快速失敗。
@@ -72,15 +75,29 @@ func New(repoPath string) Hub // 依 git remote hostname 自動判斷回傳 gith
 
 2. feature.Create(ws, opts)  // 不變，寫 feature YAML
 
-3. cfg.IssueTracker.Enabled 為 true 時：
-   對每個 repo 呼叫 vcshub.New(path).CreateIssue(path, f.Name, f.Description)
-   成功 → 塞進 f.Issues；失敗 → 塞進 f.Warnings（partial-tolerant，不中止）
+3. cfg.IssueTracker.Enabled 為 true 時，對每個 repo：
+   若該 repo 有對應的 --issue 參照 → vcshub.New(path).GetIssue(path, ref) 驗證並取得規範化 id/url
+   否則                          → vcshub.New(path).CreateIssue(path, f.Name, f.Description)
+   成功 → 塞進 f.Issues；失敗 → 塞進 f.Warnings（partial-tolerant，不中止，GetIssue 驗證失敗也算在這裡）
    把補齊的 f.Issues / f.Warnings 寫回 YAML
 
-4. 終端輸出列出每個成功建立的 issue URL
+4. 終端輸出列出每個成功建立/連結的 issue URL
 ```
 
-Preflight 是唯一會擋下整個 `4x new` 的環節（CLI 未裝／未登入代表整個功能都不可用，寧可讓使用者先修好環境再重跑）；單一 repo 的建立失敗（權限不足等只在實際呼叫時才會發現的錯誤）走 partial-tolerant，不阻擋 feature 建立。
+Preflight 是唯一會擋下整個 `4x new` 的環節（CLI 未裝／未登入代表整個功能都不可用，寧可讓使用者先修好環境再重跑）；單一 repo 的建立/連結失敗（權限不足、`--issue` 打錯編號等只在實際呼叫時才會發現的錯誤）走 partial-tolerant，不阻擋 feature 建立。
+
+### 連結既有 issue（`--issue` flag）
+
+不是每個 feature 都該建新 issue——常見情境是已經有人在 GitLab/GitHub 回報的 bug 或 product ticket，`4x new` 應該連結上去而非重複建立。
+
+`4x new` 新增 `--issue` flag，格式比照既有 `--subtask "id:name"` 的 repeatable 風格：
+
+```
+4x new "Fix login redirect" --repo old-game-server --issue "old-game-server:456"
+4x new "Fix login redirect" --issue 456   # 單 repo（monorepo 或 feature 只宣告一個 repo）時可省略 repo 前綴
+```
+
+值可以是純數字 ID 或完整 issue URL（`GetIssue` 內部統一解析）。同一個 feature 可以混用：部分 repo 用 `--issue` 連結既有 issue，其他 repo 沒指定的照常自動建立新 issue。
 
 ### `4x done` 流程（`internal/gitops`）
 
@@ -127,7 +144,7 @@ if cfg.IssueTracker.Enabled {
 | `internal/vcshub/vcshub.go`（新增） | `Hub` interface、`New()` 平台偵測 |
 | `internal/vcshub/github.go`（新增） | `githubHub`，包 `gh` CLI |
 | `internal/vcshub/gitlab.go`（新增） | `glabHub`，包 `glab` CLI |
-| `cmd/4x/new.go` | preflight + 建 issue 流程串接 |
+| `cmd/4x/new.go` | preflight + 建 issue／`--issue` 連結既有 issue 流程串接 |
 | `internal/gitops/gitops.go` | `Ops` interface 新增 `PushAndOpenMR`；`MergeResult` 新增 `MRUrls` |
 | `internal/gitops/monorepo.go` | `PushAndOpenMR` 實作 |
 | `internal/gitops/multirepo.go` | `PushAndOpenMR` 實作（逐 repo 迴圈） |
