@@ -86,9 +86,21 @@ type groupResult struct {
 	commands []protocol.VerifyCommand
 }
 
+// CommandsPassed 回傳 cmds 是否整體通過：所有非 skipped command 的 exit code 皆為 0。
+// 這是「build 通過」的單一權威定義——RunGroups 與 guard 的 runGroupsAcrossRoots 皆
+// 呼叫此 helper，避免同一條判定式在兩層各自複製、日後 drift。
+func CommandsPassed(cmds []protocol.VerifyCommand) bool {
+	for _, cmd := range cmds {
+		if cmd.ExitCode != 0 && !cmd.Skipped {
+			return false
+		}
+	}
+	return true
+}
+
 // RunGroups 平行執行所有 group（組內依序），回傳組裝好的 VerifyEvidence（不含 Round 和 Role，由呼叫端補上）。
 // 任一 group 失敗不會中斷其他 group——全部跑完才彙總。
-// Passed 為 true 的條件：所有非 skipped command 的 exit code 皆為 0。
+// Passed 為 true 的條件：所有非 skipped command 的 exit code 皆為 0（見 CommandsPassed）。
 func RunGroups(ctx context.Context, groups []Group, workDir string) protocol.VerifyEvidence {
 	results := make([]groupResult, len(groups))
 	var wg sync.WaitGroup
@@ -103,18 +115,12 @@ func RunGroups(ctx context.Context, groups []Group, workDir string) protocol.Ver
 	wg.Wait()
 
 	var allCommands []protocol.VerifyCommand
-	allPassed := true
 	for _, r := range results {
-		for _, cmd := range r.commands {
-			allCommands = append(allCommands, cmd)
-			if cmd.ExitCode != 0 && !cmd.Skipped {
-				allPassed = false
-			}
-		}
+		allCommands = append(allCommands, r.commands...)
 	}
 
 	return protocol.VerifyEvidence{
-		Passed:   allPassed,
+		Passed:   CommandsPassed(allCommands),
 		Commands: allCommands,
 	}
 }

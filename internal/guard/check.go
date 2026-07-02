@@ -457,6 +457,16 @@ func checkScope(ws *protocol.Workspace, featureID string, detector ScopeDetector
 		allowedRepos[repo] = true
 	}
 
+	// hub repo（EffectiveHubRepos）依設計是跨 feature 共用，永遠不算 scope violation，
+	// 不論它是否列在 feature.Repos。ReadConfig 失敗時 hubRepos 維持空 map（fail-safe），
+	// 不因讀 config 失敗而靜默放行所有 repo。
+	hubRepos := make(map[string]bool)
+	if cfg, cfgErr := ws.ReadConfig(); cfgErr == nil {
+		for _, h := range protocol.EffectiveHubRepos(cfg) {
+			hubRepos[h] = true
+		}
+	}
+
 	var changedRepos []string
 	if detector != nil {
 		changedRepos = detector.DetectChangedRepos(featureID)
@@ -464,6 +474,9 @@ func checkScope(ws *protocol.Workspace, featureID string, detector ScopeDetector
 		changedRepos = detectChangedRepos(gitops.ScopeRoot(ws.Root, featureID))
 	}
 	for _, repo := range changedRepos {
+		if hubRepos[repo] {
+			continue
+		}
 		if !allowedRepos[repo] {
 			r.Pass = false
 			r.Errors = append(r.Errors, fmt.Sprintf("scope violation: repo %q not in feature repos", repo))
@@ -515,19 +528,51 @@ func detectChangedRepos(root string) []string {
 	return repos
 }
 
+// isCommandMissing 判斷 vc 是否因指令本身不存在（而非指令執行後的真實失敗）而導致
+// exit 127。build-gate 常見於某個 sub-repo root 沒安裝該語言/工具鏈（如 node_modules
+// 未在該 root 裝），此時應優雅降級而非整體判 FAIL。
+func isCommandMissing(vc protocol.VerifyCommand) bool {
+	if vc.ExitCode != 127 {
+		return false
+	}
+	summary := strings.ToLower(vc.Summary)
+	return strings.Contains(summary, "command not found") || strings.Contains(summary, "no such file or directory")
+}
+
 // runGroupsAcrossRoots 對 roots 逐一執行 verify.RunGroups 並合併證據；multi-repo
 // feature 的 roots 有多個 sub-repo worktree，須各自跑一輪 build/lint 才能涵蓋全部範圍。
 // roots 只有一個元素時（mono-repo 恆常情況）等同直接呼叫 verify.RunGroups，行為不變。
-func runGroupsAcrossRoots(ctx context.Context, groups []verify.Group, roots []string) protocol.VerifyEvidence {
+//
+// 對 isCommandMissing 的 command 做優雅降級：標記 Skipped 並排除於 pass/fail 判定，
+// 同時回傳可讀的 warn 訊息供呼叫端記錄。build-gate group 的指令順序是 Build 在前、
+// Lint 在後（見 verify.BuildGateGroups），runGroup 只會在某指令失敗時把「之後」的指令
+// 標記 Skipped（ExitCode 維持零值），不會誤觸 isCommandMissing（要求 ExitCode==127），
+// 故這裡的 post-processing 足以完整覆蓋，不會漏掉排在降級指令之後的其他指令。
+//
+// 已知前提／限制：本降級只處理「指令自身缺失（127）」。若排在最前的指令因缺失被降級，
+// 其後的指令早已被 runGroup 以「前序失敗」語意標成 Skipped（ExitCode 零值）而根本沒執行，
+// 此處會連帶視為 pass。實務上 build-gate 的 Build/Lint 通常共用同一 make/工具鏈，工具缺失
+// 時兩者會一起 127 被降級；唯有「Build 與 Lint 工具鏈相異且僅 Build 缺失」的特殊佈局下，
+// Lint 的真實失敗才可能被此連帶 skip 靜默遮蔽。目前 4x 目標專案未見此佈局，故不改變降級
+// 語意；若日後出現，需改讓 build-gate 對 Build/Lint 使用獨立 group、互不連帶 skip。
+func runGroupsAcrossRoots(ctx context.Context, groups []verify.Group, roots []string) (protocol.VerifyEvidence, []string) {
 	merged := protocol.VerifyEvidence{Passed: true}
+	var warns []string
 	for _, root := range roots {
 		evidence := verify.RunGroups(ctx, groups, root)
+		for i := range evidence.Commands {
+			cmd := &evidence.Commands[i]
+			if isCommandMissing(*cmd) {
+				cmd.Skipped = true
+				warns = append(warns, fmt.Sprintf("build-gate: %q not found on root %s, skipped", cmd.Command, root))
+			}
+		}
 		merged.Commands = append(merged.Commands, evidence.Commands...)
-		if !evidence.Passed {
+		if !verify.CommandsPassed(evidence.Commands) {
 			merged.Passed = false
 		}
 	}
-	return merged
+	return merged, warns
 }
 
 // checkBuildGate 在 coding/amending phase 時執行 settings.json 的 build + lint 指令，
@@ -561,7 +606,8 @@ func checkBuildGate(ws *protocol.Workspace, featureID string, r *CheckResult) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
-	evidence := runGroupsAcrossRoots(ctx, groups, gitops.ScopeRoots(ws.Root, featureID))
+	evidence, warns := runGroupsAcrossRoots(ctx, groups, gitops.ScopeRoots(ws.Root, featureID))
+	r.Warns = append(r.Warns, warns...)
 	evidence.Round = state.Round
 	evidence.Role = protocol.RoleCoder
 

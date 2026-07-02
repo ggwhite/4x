@@ -339,6 +339,11 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 		}
 
 		if err := r.executeTransitionHooks(ctx, &s, next, "pre"); err != nil {
+			// ExecutePhaseHooks 已在回傳 error 前把 state 轉去 needs-attention、
+			// 設 Active=false、補 StopReason=<timing>-hook-fail 並持久化
+			// （見 hook.go ExecutePhaseHooks），故此處不需（也不應）再呼叫
+			// abortTransition，否則會用較不精確的 "transition-error" 覆寫掉
+			// 已經更精確的 hook-fail StopReason。
 			return nil, err
 		}
 
@@ -354,7 +359,8 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 
 		newState, err := state.Transition(s, next, nextRole)
 		if err != nil {
-			return nil, fmt.Errorf("loop transition %s→%s: %w", s.Phase, next, err)
+			r.abortTransition(featureID, &s, phase, role, phaseRunner, err)
+			return nil, fmt.Errorf("loop transition %s→%s: %w", phase, next, err)
 		}
 
 		if next == protocol.PhaseAmending {
@@ -638,6 +644,26 @@ func (r *Runner) syncFromWorktree(featureID string, round int) {
 			slog.Warn("sync from worktree failed", "feature", featureID, "round", round, "error", serr)
 		}
 	}
+}
+
+// abortTransition 處理「角色 run 已 exit-0 完成，但收尾（state.Transition 本身，
+// 一個不寫入任何狀態的純函式）失敗」的情況：把 state 標為 needs-attention 並
+// 持久化 Active=false。若不這麼做，state.json 會停在轉換前的舊 phase（Active
+// 仍為 true），使 cmd/4x/run.go 的 defer DeferRunCleanup 兜底邏輯誤將這個「角色
+// 其實已完成、只是收尾失敗」的狀況標記為 process-exit/interrupted，掩蓋角色已
+// 完成的事實。注意：pre-transition hook 失敗不會呼叫本函式——
+// executeTransitionHooks 內的 ExecutePhaseHooks 已自行完成同等的收尾
+// （轉 needs-attention、Active=false、StopReason=<timing>-hook-fail、持久化），
+// 這裡再呼叫只會用較不精確的 StopReason 覆寫掉它。
+func (r *Runner) abortTransition(featureID string, s *protocol.State, phase protocol.Phase, role protocol.Role, phaseRunner string, cause error) {
+	s.Phase = protocol.PhaseNeedsAttention
+	StopState(r.Ws, featureID, s, "transition-error", fmt.Sprintf(
+		"state transition out of %s failed after round %d's runner already completed: %v", phase, s.Round, cause))
+	LogSyncErr(r.Ws.SyncFeatureStatus(featureID, s.Phase), featureID, s.Phase)
+	r.Ws.AppendEvent(featureID, protocol.Event{
+		Type: "run-end", Phase: s.Phase, Role: role, Round: s.Round,
+		Status: "error", Detail: cause.Error(), Runner: phaseRunner, Notify: protocol.NotifyError,
+	})
 }
 
 func (r *Runner) handleRunnerError(ctx context.Context, s *protocol.State, phase protocol.Phase, role protocol.Role, phaseRunner, model string, runErr error) error {
@@ -1052,6 +1078,13 @@ func DeferRunCleanup(ws *protocol.Workspace, featureID string) {
 		if cur.StopReason == "" {
 			cur.StopReason = "process-exit"
 			cur.StopMessage = fmt.Sprintf("process exited unexpectedly during %s (round %d)", cur.Phase, cur.Round)
+			// 只在「原本 StopReason 為空」的兜底情境覆寫 phase：這代表 RunLoop 沒有機會
+			// 走到任何終態收尾路徑就中斷（真正的 crash），需要 needs-attention 讓
+			// `4x retry` 能接手；已由其他路徑正常寫入終態的情況不會進到這個 if。
+			cur.Phase = protocol.PhaseNeedsAttention
+			// cur.Role 維持不變：retryTransition（cmd/4x/retry.go）依目標 phase 算
+			// toRole，不讀舊 Role；state.Transition 的合法性判斷也只看 Phase，
+			// 清空 Role 沒有好處反而丟失資訊。
 		}
 		LogStateWriteErr(ws.WriteState(featureID, cur), featureID, cur.Phase)
 		LogSyncErr(ws.SyncFeatureStatus(featureID, cur.Phase), featureID, cur.Phase)

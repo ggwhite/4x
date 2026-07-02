@@ -145,6 +145,29 @@ The guard will block testing → accepting if:
 - Any execution-type AC evidence lacks command output patterns
 - Any non-skip AC has empty evidence
 
+== expectedExitCode（驗證指令「成功 = 非 0 exit」時必填） ==
+`4x verify` 產生的 verify.json 中，每個 command entry 預設用 exit code 0 判斷是否成功。
+但有些驗證指令天生「成功時 exit code 非 0」——最常見的是 `grep`/`rg` 預期查無結果
+（exit 1 才代表沒找到，也就是驗證通過）。這種情況下，你必須在該 command entry 手動
+加上 `expectedExitCode`，guard 的交叉驗證（W7）才會拿它（而非預設的 0）與實際
+`exitCode` 比對，而不是把非 0 exit 誤判為「你謊報 passed」。
+
+範例：驗證某段已刪除的 legacy 程式碼不再被引用，指令是 `grep -r "OldFunc" ./src`，
+預期「查無結果」（exit 1）才代表通過：
+
+```json
+{
+  "command": "grep -r \"OldFunc\" ./src",
+  "exitCode": 1,
+  "expectedExitCode": 1,
+  "summary": "0 matches — OldFunc has been fully removed"
+}
+```
+
+未設定 `expectedExitCode` 時，W7 一律預設期望 0。若你的驗證指令本質上是「非 0
+exit 才算成功」卻沒標這個欄位，guard 會把它當成謊報攔下，即使你的 verify.json
+標了 `passed: true` 也一樣。
+
 == Manual Checks (REQUIRED if defined) ==
 If test-strategy.yaml contains `manual_checks`, you MUST execute every one.
 The guard will block if any manual_check has no result or empty evidence in verify.json.
