@@ -152,6 +152,39 @@ tailwind.config = {
   </div>
 </section>
 
+<!-- Multi-repo & Worktree -->
+<section class="max-w-4xl mx-auto px-6 py-16">
+  <h2 class="text-2xl font-bold text-center mb-4" data-i18n="multirepo.title">Built for Multi-Repo Projects</h2>
+  <p class="text-muted text-center mb-8 max-w-2xl mx-auto" data-i18n="multirepo.desc">Workspace can span multiple independent git repos plus shared hub repos. Every feature runs in its own isolated git worktree — concurrent features never step on each other's files.</p>
+  <div class="grid sm:grid-cols-3 gap-4 mb-8">
+    <div class="feature-card rounded-xl p-5">
+      <div class="text-accent text-lg font-bold mb-2" data-i18n="multirepo.p1.title">Independent Repos, One Workspace</div>
+      <p class="text-muted text-sm" data-i18n="multirepo.p1.desc">Declare each repo's path and mark shared ones as hub — 4x scopes every feature to only the repos it's allowed to touch.</p>
+    </div>
+    <div class="feature-card rounded-xl p-5">
+      <div class="text-green text-lg font-bold mb-2" data-i18n="multirepo.p2.title">Git Worktree Isolation</div>
+      <p class="text-muted text-sm" data-i18n="multirepo.p2.desc">Each feature gets its own linked worktree. No branch switching, no stashing, no collision between features running in parallel.</p>
+    </div>
+    <div class="feature-card rounded-xl p-5">
+      <div class="text-purple text-lg font-bold mb-2" data-i18n="multirepo.p3.title">Scope Guard</div>
+      <p class="text-muted text-sm" data-i18n="multirepo.p3.desc">Guardrail checks reject any diff that touches a repo outside the feature's declared scope — before it ever reaches review.</p>
+    </div>
+  </div>
+  <div class="code-block rounded-xl p-6 font-mono text-sm overflow-x-auto">
+<pre class="whitespace-pre">{
+  <span class="text-accent">"workspace"</span>: {
+    <span class="text-accent">"repos"</span>: {
+      <span class="text-accent">"core"</span>:    { <span class="text-accent">"path"</span>: <span class="text-orange">"core"</span>,    <span class="text-accent">"hub"</span>: <span class="text-purple">true</span> },
+      <span class="text-accent">"gateway"</span>: { <span class="text-accent">"path"</span>: <span class="text-orange">"gateway"</span> },
+      <span class="text-accent">"admin"</span>:   { <span class="text-accent">"path"</span>: <span class="text-orange">"admin"</span> },
+      <span class="text-accent">"web"</span>:     { <span class="text-accent">"path"</span>: <span class="text-orange">"web"</span> }
+    }
+  },
+  <span class="text-accent">"isolation"</span>: <span class="text-orange">"worktree"</span>
+}</pre>
+  </div>
+</section>
+
 <!-- How it works -->
 <section class="max-w-5xl mx-auto px-6 py-16">
   <h2 class="text-2xl font-bold text-center mb-12" data-i18n="how.title">How It Works</h2>
@@ -559,7 +592,15 @@ const i18n = {
     "evo.gate.title": "Value Gate",
     "evo.gate.desc": "ROI evaluation with anti-hack mechanism prevents backlog bloat and low-value work.",
     "evo.driver.title": "Evolve Driver",
-    "evo.driver.desc": "One command to start the continuous self-improvement loop: mine → evaluate → implement → verify → deploy."
+    "evo.driver.desc": "One command to start the continuous self-improvement loop: mine → evaluate → implement → verify → deploy.",
+    "multirepo.title": "Built for Multi-Repo Projects",
+    "multirepo.desc": "Workspace can span multiple independent git repos plus shared hub repos. Every feature runs in its own isolated git worktree — concurrent features never step on each other's files.",
+    "multirepo.p1.title": "Independent Repos, One Workspace",
+    "multirepo.p1.desc": "Declare each repo's path and mark shared ones as hub — 4x scopes every feature to only the repos it's allowed to touch.",
+    "multirepo.p2.title": "Git Worktree Isolation",
+    "multirepo.p2.desc": "Each feature gets its own linked worktree. No branch switching, no stashing, no collision between features running in parallel.",
+    "multirepo.p3.title": "Scope Guard",
+    "multirepo.p3.desc": "Guardrail checks reject any diff that touches a repo outside the feature's declared scope — before it ever reaches review."
   },
   "zh-TW": {
     "hero.desc": "多角色 AI 開發框架，將軟體工程迴圈拆分為四個專業階段 — 設計、實作、審查、測試 — 每個階段由專屬 AI agent 驅動。",
@@ -618,7 +659,15 @@ const i18n = {
     "evo.gate.title": "價值閘門",
     "evo.gate.desc": "ROI 評估 + anti-hack 機制，防止 backlog 膨脹與低價值工作。",
     "evo.driver.title": "演化驅動器",
-    "evo.driver.desc": "一條指令啟動持續自我改進迴路：挖掘 → 評估 → 實作 → 驗證 → 部署。"
+    "evo.driver.desc": "一條指令啟動持續自我改進迴路：挖掘 → 評估 → 實作 → 驗證 → 部署。",
+    "multirepo.title": "為多 Repo 專案打造",
+    "multirepo.desc": "Workspace 可橫跨多個獨立 git repo，再加上共用的 hub repo。每個 feature 都在自己的 git worktree 裡執行 — 平行跑的 feature 之間不會互相干擾。",
+    "multirepo.p1.title": "獨立 Repo，統一 Workspace",
+    "multirepo.p1.desc": "宣告每個 repo 的路徑，把共用的標成 hub — 4x 會把每個 feature 限定在它被允許碰的 repo 範圍內。",
+    "multirepo.p2.title": "Git Worktree 隔離",
+    "multirepo.p2.desc": "每個 feature 都有自己的 linked worktree。不用切分支、不用 stash，平行跑的 feature 之間不會互撞。",
+    "multirepo.p3.title": "Scope 防護",
+    "multirepo.p3.desc": "Guardrail 檢查會擋下任何動到 feature 宣告範圍外 repo 的 diff — 在進 review 之前就攔下來。"
   },
   "zh-CN": {
     "hero.desc": "多角色 AI 开发框架，将软件工程循环拆分为四个专业阶段 — 设计、编码、审查、测试 — 每个阶段由专属 AI agent 驱动。",
