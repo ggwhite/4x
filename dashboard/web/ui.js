@@ -1389,10 +1389,10 @@ function startLogDurationTimers() {
 }
 
 // logBaseRole 從 log 檔名取出 base role（去掉 round 前綴、副檔名與尾端迭代/索引號），
-// 讓 deep-reviewer-1 / deep-fix-2 等都能對應到 ROLES map 的同一個顏色與名稱。
+// 讓 designer-2 / deep-reviewer-1 / deep-fix-2 等都能對應到 ROLES map 的同一個顏色與名稱。
 function logBaseRole(name) {
   return name.replace(/^round-\d+-/, '').replace(/\.log$/, '')
-    .replace(/^(deep-(?:fix|reverify|reviewer))-\d+$/, '$1');
+    .replace(/-\d+$/, '');
 }
 
 let _renderMultiLogRAF = null;
