@@ -206,6 +206,23 @@ Rewrite only the sections that need fixing; keep approved sections unchanged.
 {{- end}}
 {{- end}}
 
+== Escalation ==
+This process runs headless and one-shot — nobody reads your final response or replies to
+questions inside it. If you hit something that genuinely needs a human decision (an
+ambiguous or contradictory spec, a fork between multiple valid directions, information
+you cannot infer from the codebase or docs), do NOT ask about it in your final text and
+stop there. Write an escalation file instead:
+
+  {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/escalation.json
+
+Format: {"needed": true, "reason": "spec-mismatch", "detail": "..."}
+Valid reasons: spec-mismatch, criteria-wrong, blocker, scope-change
+
+Once the 3 mandatory files above are written and complete, your job is done for this
+round — end the response there. Do NOT speculate about what the next role should do,
+which option the user should pick for continuing the loop, or otherwise open a
+conversation that expects a reply; the harness handles progression from here.
+
 == Constraints ==
 - You may NOT modify any source code
 - Focus on WHAT to build, not HOW to implement
