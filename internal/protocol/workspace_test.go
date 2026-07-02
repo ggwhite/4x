@@ -525,6 +525,49 @@ func TestDiscoverScreenshotsMerge(t *testing.T) {
 	}
 }
 
+func TestDiscoverScreenshotsMalformedVerifyJSON(t *testing.T) {
+	ws := setupWorkspace(t)
+	const featureID = "feat-bad-verify"
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatal(err)
+	}
+
+	round1Dir := ws.RoundDir(featureID, 1)
+	if err := os.MkdirAll(round1Dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// 模擬 subprocess 輸出的原始 ANSI escape code 混進 verify.json，導致無法解析。
+	badData := []byte("\x1b[32mPASS\x1b[0m not json")
+	if err := os.WriteFile(filepath.Join(round1Dir, VerifyFile), badData, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	round2Dir := ws.RoundDir(featureID, 2)
+	if err := os.MkdirAll(round2Dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	verify := VerifyEvidence{
+		Passed: true,
+		Round:  2,
+		Role:   RoleTester,
+		Screenshots: []feature.Screenshot{
+			{Path: ".4x/run/feat-bad-verify/screenshot/01-ok.png", Step: "01", Description: "ok"},
+		},
+	}
+	verifyData, _ := json.Marshal(verify)
+	if err := os.WriteFile(filepath.Join(round2Dir, VerifyFile), verifyData, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	groups, err := ws.DiscoverScreenshots(featureID, feature.DefaultScreenshotDir)
+	if err != nil {
+		t.Fatalf("DiscoverScreenshots: %v, want nil error (malformed verify.json should be skipped, not fatal)", err)
+	}
+	if len(groups) != 1 || groups[0].Round != 2 || len(groups[0].Screenshots) != 1 {
+		t.Fatalf("groups = %+v, want round 2 with 1 screenshot from the valid verify.json", groups)
+	}
+}
+
 func TestDiscoverScreenshotsSameFilenameAcrossRounds(t *testing.T) {
 	ws := setupWorkspace(t)
 	const featureID = "feat-same-name"
