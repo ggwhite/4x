@@ -86,7 +86,11 @@ func (w *Workspace) discoverFromVerify(
 
 		var evidence VerifyEvidence
 		if err := json.Unmarshal(data, &evidence); err != nil {
-			return nil, fmt.Errorf("parse %s: %w", verifyPath, err)
+			// 壞掉的單一 verify.json（例如捕捉到未跳脫的 subprocess 輸出，混進
+			// 原始 ANSI escape code）不該讓整個 screenshot 探索、進而整個
+			// `4x status`/`4x check` 指令連帶失敗。best-effort：跳過這個 round
+			// 的截圖，其餘 round 照常處理。
+			continue
 		}
 		for _, raw := range evidence.Screenshots {
 			path := feature.NormalizeScreenshotPath(raw.Path)
