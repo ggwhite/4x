@@ -219,6 +219,28 @@ tailwind.config = {
   </div>
 </section>
 
+<!-- Cost Visibility -->
+<section class="max-w-4xl mx-auto px-6 py-16">
+  <h2 class="text-2xl font-bold text-center mb-4" data-i18n="costviz.title">Know What Every Round Costs</h2>
+  <p class="text-muted text-center mb-8 max-w-2xl mx-auto" data-i18n="costviz.desc">The dashboard breaks down token usage and duration per phase, so you see exactly where the budget goes before it surprises you.</p>
+  <div class="grid sm:grid-cols-3 gap-4 mb-8">
+    <div class="feature-card rounded-xl p-5">
+      <div class="text-accent text-lg font-bold mb-2" data-i18n="costviz.p1.title">Per-Phase Breakdown</div>
+      <p class="text-muted text-sm" data-i18n="costviz.p1.desc">Tokens, cost, and duration for designing, coding, reviewing, testing — tracked separately, not just a total.</p>
+    </div>
+    <div class="feature-card rounded-xl p-5">
+      <div class="text-green text-lg font-bold mb-2" data-i18n="costviz.p2.title">Model-Aware</div>
+      <p class="text-muted text-sm" data-i18n="costviz.p2.desc">Mix opus for design with sonnet for review and test — the dashboard shows the cost impact of each choice.</p>
+    </div>
+    <div class="feature-card rounded-xl p-5">
+      <div class="text-purple text-lg font-bold mb-2" data-i18n="costviz.p3.title">No Surprises</div>
+      <p class="text-muted text-sm" data-i18n="costviz.p3.desc">Runaway rounds show up immediately in the per-phase view instead of hiding in a single end-of-run total.</p>
+    </div>
+  </div>
+  <img src="assets/dashboard-overview.png" alt="Dashboard cost per phase" class="rounded-xl w-full" style="border:1px solid #30363d;">
+  <p class="text-muted text-xs text-center mt-3" data-i18n="costviz.img.caption">Dashboard overview — cost and duration per phase at a glance</p>
+</section>
+
 <!-- How it works -->
 <section class="max-w-5xl mx-auto px-6 py-16">
   <h2 class="text-2xl font-bold text-center mb-12" data-i18n="how.title">How It Works</h2>
@@ -642,7 +664,16 @@ const i18n = {
     "quality.p2.title": "Selective Deep Review",
     "quality.p2.desc": "Deep review picks angles based on which files the diff actually touches, instead of running all review angles on every small change.",
     "quality.p3.title": "Cross-Verified Testing",
-    "quality.p3.desc": "Tester's verify.json results are cross-checked against actual command exit codes — a claimed PASS with contradicting evidence gets caught automatically."
+    "quality.p3.desc": "Tester's verify.json results are cross-checked against actual command exit codes — a claimed PASS with contradicting evidence gets caught automatically.",
+    "costviz.title": "Know What Every Round Costs",
+    "costviz.desc": "The dashboard breaks down token usage and duration per phase, so you see exactly where the budget goes before it surprises you.",
+    "costviz.p1.title": "Per-Phase Breakdown",
+    "costviz.p1.desc": "Tokens, cost, and duration for designing, coding, reviewing, testing — tracked separately, not just a total.",
+    "costviz.p2.title": "Model-Aware",
+    "costviz.p2.desc": "Mix opus for design with sonnet for review and test — the dashboard shows the cost impact of each choice.",
+    "costviz.p3.title": "No Surprises",
+    "costviz.p3.desc": "Runaway rounds show up immediately in the per-phase view instead of hiding in a single end-of-run total.",
+    "costviz.img.caption": "Dashboard overview — cost and duration per phase at a glance"
   },
   "zh-TW": {
     "hero.desc": "多角色 AI 開發框架，將軟體工程迴圈拆分為四個專業階段 — 設計、實作、審查、測試 — 每個階段由專屬 AI agent 驅動。",
@@ -717,7 +748,16 @@ const i18n = {
     "quality.p2.title": "Selective Deep Review",
     "quality.p2.desc": "Deep review 依 diff 實際動到的檔案自動挑相關角度，不用每次小改動都跑完整套審查角度。",
     "quality.p3.title": "交叉驗證測試結果",
-    "quality.p3.desc": "Tester 回報的 verify.json 結果會跟指令實際的 exit code 交叉比對 — 宣稱 PASS 但證據矛盾的情況會被自動抓出來。"
+    "quality.p3.desc": "Tester 回報的 verify.json 結果會跟指令實際的 exit code 交叉比對 — 宣稱 PASS 但證據矛盾的情況會被自動抓出來。",
+    "costviz.title": "每一輪花多少，一目了然",
+    "costviz.desc": "Dashboard 把 token 用量與耗時拆到每個 phase，budget 花在哪裡一眼就看到，不會等到最後才嚇一跳。",
+    "costviz.p1.title": "逐 Phase 拆解",
+    "costviz.p1.desc": "Designing、coding、reviewing、testing 各自的 token、成本、耗時分開追蹤，不是只給一個總數。",
+    "costviz.p2.title": "感知模型差異",
+    "costviz.p2.desc": "Design 用 opus、review/test 用 sonnet 混著搭 — dashboard 直接顯示每個選擇對成本的影響。",
+    "costviz.p3.title": "不會被總數嚇到",
+    "costviz.p3.desc": "失控的某一輪在逐 phase 檢視裡馬上現形，不會被藏在跑完才看到的單一總數裡。",
+    "costviz.img.caption": "Dashboard 總覽 — 每個 phase 的成本與耗時一目了然"
   },
   "zh-CN": {
     "hero.desc": "多角色 AI 开发框架，将软件工程循环拆分为四个专业阶段 — 设计、编码、审查、测试 — 每个阶段由专属 AI agent 驱动。",
