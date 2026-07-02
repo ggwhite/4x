@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>4x — Multi-Role AI Development Loop</title>
+<meta name="description" content="Split the software engineering loop into Design, Code, Review, Test — each driven by a dedicated AI agent.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>4</text></svg>">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        bg: '#0d1117',
+        surface: '#161b22',
+        border: '#30363d',
+        muted: '#8b949e',
+        accent: '#58a6ff',
+        green: '#3fb950',
+        purple: '#bc8cff',
+        orange: '#d29922',
+        red: '#f85149',
+      },
+      fontFamily: {
+        mono: ['JetBrains Mono', 'Fira Code', 'SF Mono', 'monospace'],
+      }
+    }
+  }
+}
+</script>
+<style>
+  body { background: #0d1117; color: #e6edf3; }
+  .code-block { background: #161b22; border: 1px solid #30363d; }
+  .feature-card { background: #161b22; border: 1px solid #30363d; transition: border-color 0.2s; }
+  .feature-card:hover { border-color: #58a6ff; }
+  .phase-arrow { color: #30363d; }
+  .tab-active { background: #161b22; color: #58a6ff; border-color: #58a6ff; }
+  .tab-inactive { color: #8b949e; border-color: transparent; }
+  .tab-inactive:hover { color: #e6edf3; }
+  .runner-badge { background: #161b22; border: 1px solid #30363d; }
+  ::selection { background: #264f78; }
+  .lightbox { display:none; position:fixed; inset:0; z-index:100; background:rgba(0,0,0,.85); backdrop-filter:blur(8px); flex-direction:column; align-items:center; justify-content:center; }
+  .lightbox.active { display:flex; }
+  .lightbox img { max-width:92vw; max-height:80vh; border-radius:8px; box-shadow:0 8px 32px rgba(0,0,0,.5); }
+  .lightbox-caption { color:#e6edf3; margin-top:16px; font-size:14px; text-align:center; max-width:600px; }
+  .lightbox-counter { color:#8b949e; font-size:12px; margin-top:6px; }
+  .lightbox-btn { position:absolute; top:50%; transform:translateY(-50%); background:rgba(255,255,255,.1); border:none; color:#e6edf3; width:44px; height:44px; border-radius:50%; cursor:pointer; font-size:20px; display:flex; align-items:center; justify-content:center; transition:background .2s; }
+  .lightbox-btn:hover { background:rgba(255,255,255,.2); }
+  .lightbox-prev { left:16px; }
+  .lightbox-next { right:16px; }
+  .lightbox-close { position:absolute; top:16px; right:16px; background:none; border:none; color:#8b949e; font-size:28px; cursor:pointer; width:40px; height:40px; display:flex; align-items:center; justify-content:center; }
+  .lightbox-close:hover { color:#e6edf3; }
+  .gallery-thumb { cursor:pointer; transition:opacity .2s; }
+  .gallery-thumb:hover { opacity:.8; }
+  .lang-select { background: #161b22; border: 1px solid #30363d; color: #e6edf3; }
+  .gradient-text { background: linear-gradient(135deg, #58a6ff, #bc8cff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+</style>
+</head>
+<body class="font-sans antialiased">
+
+<!-- Language Switcher -->
+<div class="fixed top-4 right-4 z-50">
+  <select id="lang-switcher" class="lang-select rounded-md px-3 py-1.5 text-sm cursor-pointer focus:outline-none focus:border-accent" onchange="switchLang(this.value)">
+    <option value="en">English</option>
+    <option value="zh-TW">繁體中文</option>
+    <option value="zh-CN">简体中文</option>
+    <option value="ja">日本語</option>
+    <option value="ko">한국어</option>
+    <option value="es">Español</option>
+  </select>
+</div>
+
+<!-- Hero -->
+<header class="max-w-4xl mx-auto px-6 pt-20 pb-16 text-center">
+  <img src="assets/4x-banner.svg" alt="4X" class="mx-auto mb-6" style="width:480px;max-width:100%;">
+  <h1 class="text-4xl sm:text-5xl font-bold mb-4">
+    <span class="gradient-text">Design. Code. Review. Test.</span>
+  </h1>
+  <p class="text-lg text-muted mb-8 max-w-2xl mx-auto" data-i18n="hero.desc">
+    A multi-role AI development framework that splits the software engineering loop into four specialized phases — each driven by a dedicated AI agent.
+  </p>
+  <div class="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
+    <div class="code-block rounded-lg px-5 py-3 font-mono text-sm flex items-center gap-3">
+      <span class="text-muted select-none">$</span>
+      <span>brew install ggwhite/tap/fourx</span>
+      <button onclick="navigator.clipboard.writeText('brew install ggwhite/tap/fourx')" class="text-muted hover:text-accent ml-2" title="Copy">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+      </button>
+    </div>
+    <a href="https://github.com/ggwhite/4x" class="inline-flex items-center gap-2 bg-accent/10 hover:bg-accent/20 text-accent px-5 py-3 rounded-lg text-sm font-medium transition-colors">
+      <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+      <span data-i18n="hero.github">View on GitHub</span>
+    </a>
+  </div>
+  <div class="flex gap-3 justify-center flex-wrap mb-8">
+    <img src="https://img.shields.io/github/stars/ggwhite/4x?style=social" alt="GitHub Stars">
+    <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License">
+    <img src="https://github.com/ggwhite/4x/actions/workflows/ci.yml/badge.svg" alt="CI">
+  </div>
+  <div class="grid grid-cols-3 gap-4 max-w-lg mx-auto">
+    <div class="code-block rounded-xl py-3 px-4 text-center">
+      <div class="text-2xl font-bold gradient-text">100+</div>
+      <div class="text-muted text-xs mt-1" data-i18n="stats.features">Features Shipped</div>
+    </div>
+    <div class="code-block rounded-xl py-3 px-4 text-center">
+      <div class="text-2xl font-bold text-purple">6</div>
+      <div class="text-muted text-xs mt-1" data-i18n="stats.runners">AI Runners</div>
+    </div>
+    <div class="code-block rounded-xl py-3 px-4 text-center">
+      <div class="text-2xl font-bold text-green">3</div>
+      <div class="text-muted text-xs mt-1" data-i18n="stats.platforms">Platforms</div>
+    </div>
+  </div>
+</header>
+
+<!-- Why 4x -->
+<section class="max-w-5xl mx-auto px-6 py-16">
+  <h2 class="text-2xl font-bold text-center mb-4" data-i18n="why.title">Why 4x?</h2>
+  <p class="text-muted text-center mb-12 max-w-2xl mx-auto" data-i18n="why.desc">
+    Single-agent coding is fast but fragile. 4x splits the loop so each role has a focused job, limited scope, and no access to the others' reasoning.
+  </p>
+  <div class="grid sm:grid-cols-2 gap-6">
+    <div class="feature-card rounded-xl p-6">
+      <div class="text-accent text-2xl mb-3">
+        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+      </div>
+      <h3 class="font-semibold text-lg mb-2" data-i18n="why.isolation.title">Role Isolation</h3>
+      <p class="text-muted text-sm" data-i18n="why.isolation.desc">The Coder never judges its own work. The Reviewer is adversarial by design. No self-review bias.</p>
+    </div>
+    <div class="feature-card rounded-xl p-6">
+      <div class="text-green text-2xl mb-3">
+        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/></svg>
+      </div>
+      <h3 class="font-semibold text-lg mb-2" data-i18n="why.crash.title">Crash-Resistant</h3>
+      <p class="text-muted text-sm" data-i18n="why.crash.desc">Everything lives in .4x/ files. Session dies, machine reboots — run picks up exactly where it stopped.</p>
+    </div>
+    <div class="feature-card rounded-xl p-6">
+      <div class="text-purple text-2xl mb-3">
+        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+      </div>
+      <h3 class="font-semibold text-lg mb-2" data-i18n="why.agnostic.title">LLM-Agnostic</h3>
+      <p class="text-muted text-sm" data-i18n="why.agnostic.desc">Switch between Claude, Gemini, Codex, or mix them per role. File-based protocol, no vendor lock-in.</p>
+    </div>
+    <div class="feature-card rounded-xl p-6">
+      <div class="text-orange text-2xl mb-3">
+        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+      </div>
+      <h3 class="font-semibold text-lg mb-2" data-i18n="why.batch.title">Batch Mode</h3>
+      <p class="text-muted text-sm" data-i18n="why.batch.desc">Dependency-aware scheduling. Queue dozens of features overnight, review them in the morning.</p>
+    </div>
+  </div>
+</section>
+
+<!-- How it works -->
+<section class="max-w-5xl mx-auto px-6 py-16">
+  <h2 class="text-2xl font-bold text-center mb-12" data-i18n="how.title">How It Works</h2>
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
+    <div class="text-center">
+      <div class="w-16 h-16 mx-auto mb-3 rounded-2xl bg-accent/10 flex items-center justify-center">
+        <svg class="w-8 h-8 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+      </div>
+      <h3 class="font-semibold mb-1" data-i18n="how.design">Design</h3>
+      <p class="text-muted text-xs" data-i18n="how.design.desc">Spec & acceptance criteria</p>
+    </div>
+    <div class="text-center">
+      <div class="w-16 h-16 mx-auto mb-3 rounded-2xl bg-green/10 flex items-center justify-center">
+        <svg class="w-8 h-8 text-green" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+      </div>
+      <h3 class="font-semibold mb-1" data-i18n="how.code">Code</h3>
+      <p class="text-muted text-xs" data-i18n="how.code.desc">Implement from spec</p>
+    </div>
+    <div class="text-center">
+      <div class="w-16 h-16 mx-auto mb-3 rounded-2xl bg-purple/10 flex items-center justify-center">
+        <svg class="w-8 h-8 text-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+      </div>
+      <h3 class="font-semibold mb-1" data-i18n="how.review">Review</h3>
+      <p class="text-muted text-xs" data-i18n="how.review.desc">Adversarial inspection</p>
+    </div>
+    <div class="text-center">
+      <div class="w-16 h-16 mx-auto mb-3 rounded-2xl bg-orange/10 flex items-center justify-center">
+        <svg class="w-8 h-8 text-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+      </div>
+      <h3 class="font-semibold mb-1" data-i18n="how.test">Test</h3>
+      <p class="text-muted text-xs" data-i18n="how.test.desc">Verify against criteria</p>
+    </div>
+  </div>
+  <div class="hidden sm:flex justify-center items-center mt-6 text-muted text-sm gap-2">
+    <span data-i18n="how.loop">If review or test fails, the loop iterates automatically.</span>
+  </div>
+</section>
+
+<!-- Quick Start -->
+<section class="max-w-3xl mx-auto px-6 py-16">
+  <h2 class="text-2xl font-bold text-center mb-8" data-i18n="qs.title">Quick Start</h2>
+  <div class="code-block rounded-xl p-6 font-mono text-sm space-y-4">
+    <div>
+      <span class="text-muted"># <span data-i18n="qs.step1">Install</span></span>
+      <div class="mt-1"><span class="text-muted select-none">$ </span><span class="text-green">brew install</span> ggwhite/tap/fourx</div>
+    </div>
+    <div>
+      <span class="text-muted"># <span data-i18n="qs.step2">Initialize in your project</span></span>
+      <div class="mt-1"><span class="text-muted select-none">$ </span><span class="text-green">4x init</span></div>
+    </div>
+    <div>
+      <span class="text-muted"># <span data-i18n="qs.step3">Create a feature</span></span>
+      <div class="mt-1"><span class="text-muted select-none">$ </span><span class="text-green">4x new</span> <span class="text-orange">"User authentication with OAuth2"</span></div>
+    </div>
+    <div>
+      <span class="text-muted"># <span data-i18n="qs.step4">Run the AI development loop</span></span>
+      <div class="mt-1"><span class="text-muted select-none">$ </span><span class="text-green">4x run</span> F001</div>
+    </div>
+    <div>
+      <span class="text-muted"># <span data-i18n="qs.step5">Watch it live</span></span>
+      <div class="mt-1"><span class="text-muted select-none">$ </span><span class="text-green">4x live</span></div>
+    </div>
+  </div>
+  <div class="flex flex-wrap gap-3 justify-center mt-6 text-sm">
+    <span class="text-muted" data-i18n="qs.also">Also available via:</span>
+    <code class="code-block rounded px-2 py-1 text-xs">go install github.com/ggwhite/4x/cmd/4x@latest</code>
+    <code class="code-block rounded px-2 py-1 text-xs">curl -sSfL .../install.sh | sh</code>
+  </div>
+</section>
+
+<!-- Configuration Examples -->
+<section class="max-w-4xl mx-auto px-6 py-16">
+  <h2 class="text-2xl font-bold text-center mb-4" data-i18n="config.title">Configuration</h2>
+  <p class="text-muted text-center mb-8" data-i18n="config.desc">Monorepo or multi-repo. Per-role models and instructions. Inject your coding standards, architecture docs, and project rules.</p>
+  <div class="flex gap-1 mb-0">
+    <button onclick="switchTab('monorepo')" id="tab-monorepo" class="tab-active px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-colors">Monorepo</button>
+    <button onclick="switchTab('multirepo')" id="tab-multirepo" class="tab-inactive px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-colors">Multi-repo</button>
+    <button onclick="switchTab('roles')" id="tab-roles" class="tab-inactive px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-colors" data-i18n="config.tab.roles">Roles &amp; Instructions</button>
+  </div>
+  <div id="panel-monorepo" class="code-block rounded-b-xl rounded-tr-xl p-6 font-mono text-sm overflow-x-auto">
+<pre class="whitespace-pre">{
+  <span class="text-accent">"project"</span>: {
+    <span class="text-accent">"name"</span>: <span class="text-orange">"my-project"</span>,
+    <span class="text-accent">"language"</span>: <span class="text-orange">"go"</span>,
+    <span class="text-accent">"build"</span>: [<span class="text-orange">"make build"</span>],
+    <span class="text-accent">"test"</span>:  [<span class="text-orange">"make test"</span>],
+    <span class="text-accent">"lint"</span>:  [<span class="text-orange">"make lint"</span>],
+    <span class="text-accent">"docs"</span>:  [<span class="text-orange">"docs/architecture/overview.md"</span>],
+    <span class="text-accent">"rules"</span>: [<span class="text-orange">"always use structured logging"</span>],
+    <span class="text-accent">"includes"</span>: [<span class="text-orange">"docs/coding-standards.md"</span>]
+  },
+  <span class="text-accent">"runners"</span>: {
+    <span class="text-accent">"claude"</span>: { <span class="text-accent">"command"</span>: <span class="text-orange">"claude"</span>, <span class="text-accent">"model"</span>: <span class="text-orange">"opus"</span> }
+  },
+  <span class="text-accent">"default_runner"</span>: <span class="text-orange">"claude"</span>
+}</pre>
+  </div>
+  <div id="panel-multirepo" class="code-block rounded-b-xl rounded-tr-xl p-6 font-mono text-sm overflow-x-auto hidden">
+<pre class="whitespace-pre">{
+  <span class="text-accent">"project"</span>: { <span class="text-accent">"name"</span>: <span class="text-orange">"my-platform"</span> },
+  <span class="text-accent">"workspace"</span>: {
+    <span class="text-accent">"repos"</span>: {
+      <span class="text-accent">"core"</span>:    { <span class="text-accent">"path"</span>: <span class="text-orange">"core"</span>,    <span class="text-accent">"hub"</span>: <span class="text-purple">true</span> },
+      <span class="text-accent">"gateway"</span>: { <span class="text-accent">"path"</span>: <span class="text-orange">"gateway"</span> },
+      <span class="text-accent">"admin"</span>:   { <span class="text-accent">"path"</span>: <span class="text-orange">"admin"</span> },
+      <span class="text-accent">"web"</span>:     { <span class="text-accent">"path"</span>: <span class="text-orange">"web"</span> }
+    }
+  },
+  <span class="text-accent">"runners"</span>: {
+    <span class="text-accent">"claude"</span>: { <span class="text-accent">"command"</span>: <span class="text-orange">"claude"</span>, <span class="text-accent">"model"</span>: <span class="text-orange">"opus"</span> },
+    <span class="text-accent">"gemini"</span>: { <span class="text-accent">"command"</span>: <span class="text-orange">"gemini"</span> }
+  },
+  <span class="text-accent">"default_runner"</span>: <span class="text-orange">"claude"</span>,
+  <span class="text-accent">"isolation"</span>: <span class="text-orange">"worktree"</span>
+}</pre>
+  </div>
+  <div id="panel-roles" class="code-block rounded-b-xl rounded-tr-xl p-6 font-mono text-sm overflow-x-auto hidden">
+<pre class="whitespace-pre"><span class="text-muted">// <span data-i18n="config.roles.comment">Per-role model, instructions, and context — tailor each AI agent to your project</span></span>
+{
+  <span class="text-accent">"roles"</span>: {
+    <span class="text-accent">"designer"</span>: {
+      <span class="text-accent">"model"</span>: <span class="text-orange">"opus"</span>,
+      <span class="text-accent">"instructions"</span>: [
+        <span class="text-orange">"all specs must define gRPC proto changes before implementation"</span>,
+        <span class="text-orange">"acceptance criteria must include load test thresholds"</span>,
+        <span class="text-orange">"always consider backward compatibility with existing clients"</span>
+      ],
+      <span class="text-accent">"includes"</span>: [
+        <span class="text-orange">"docs/architecture/service-map.md"</span>,
+        <span class="text-orange">"docs/api/proto-conventions.md"</span>
+      ]
+    },
+    <span class="text-accent">"coder"</span>: {
+      <span class="text-accent">"model"</span>: <span class="text-orange">"sonnet"</span>,
+      <span class="text-accent">"instructions"</span>: [
+        <span class="text-orange">"use dependency injection via dig container"</span>,
+        <span class="text-orange">"all DB queries must go through repository layer"</span>,
+        <span class="text-orange">"structured logging only — no fmt.Println"</span>,
+        <span class="text-orange">"new endpoints must have OpenAPI annotations"</span>
+      ],
+      <span class="text-accent">"includes"</span>: [
+        <span class="text-orange">"docs/coding-standards.md"</span>,
+        <span class="text-orange">"docs/error-handling.md"</span>
+      ]
+    },
+    <span class="text-accent">"reviewer"</span>: {
+      <span class="text-accent">"model"</span>: <span class="text-orange">"sonnet"</span>,
+      <span class="text-accent">"instructions"</span>: [
+        <span class="text-orange">"check for SQL injection, XSS, and auth bypass"</span>,
+        <span class="text-orange">"verify all money calculations use decimal, not float"</span>,
+        <span class="text-orange">"flag any direct DB access outside repository layer"</span>
+      ]
+    },
+    <span class="text-accent">"tester"</span>: {
+      <span class="text-accent">"model"</span>: <span class="text-orange">"sonnet"</span>,
+      <span class="text-accent">"instructions"</span>: [
+        <span class="text-orange">"integration tests must use testcontainers"</span>,
+        <span class="text-orange">"test concurrent access for all shared state"</span>
+      ],
+      <span class="text-accent">"screenshot_dir"</span>: <span class="text-orange">".4x/e2e/{feature-id}/screenshot/"</span>
+    },
+    <span class="text-accent">"deep-reviewer"</span>: {
+      <span class="text-accent">"model"</span>: <span class="text-orange">"opus"</span>,
+      <span class="text-accent">"parallel_reviewers"</span>: <span class="text-purple">3</span>,
+      <span class="text-accent">"max_fix_rounds"</span>: <span class="text-purple">2</span>,
+      <span class="text-accent">"includes"</span>: [
+        <span class="text-orange">"docs/architecture/overview.md"</span>,
+        <span class="text-orange">"docs/architecture/data-flow.md"</span>,
+        <span class="text-orange">"docs/security/threat-model.md"</span>
+      ]
+    }
+  }
+}</pre>
+  </div>
+</section>
+
+<!-- Demo -->
+<section class="max-w-4xl mx-auto px-6 py-16 text-center">
+  <h2 class="text-2xl font-bold mb-4" data-i18n="demo.title">See It In Action</h2>
+  <p class="text-muted mb-8" data-i18n="demo.desc">Initialize, create a feature, and start the AI development loop — all from the terminal.</p>
+  <div class="code-block rounded-xl p-2 inline-block">
+    <img src="assets/demo.gif" alt="4x CLI demo" class="rounded-lg max-w-full" loading="lazy">
+  </div>
+</section>
+
+<!-- Dashboard -->
+<section class="max-w-5xl mx-auto px-6 py-16">
+  <h2 class="text-2xl font-bold text-center mb-4" data-i18n="dash.title">4x Live Dashboard</h2>
+  <p class="text-muted text-center mb-8" data-i18n="dash.desc">macOS native (Swift) + Windows / Linux (Tauri). Real-time SSE monitoring, dependency graph, screenshot gallery, 6-language i18n, system notifications.</p>
+  <!-- Main screenshot -->
+  <div class="code-block rounded-xl p-2 mb-6 gallery-thumb" onclick="openLightbox(0)">
+    <img src="assets/dashboard-overview.png" alt="4x Live Dashboard overview" class="rounded-lg w-full" loading="lazy">
+  </div>
+  <!-- Detail screenshots -->
+  <div class="grid sm:grid-cols-3 gap-4">
+    <div>
+      <div class="code-block rounded-xl p-1.5 mb-2 gallery-thumb" onclick="openLightbox(1)">
+        <img src="assets/dashboard-messages.png" alt="Acceptance criteria and review messages" class="rounded-lg w-full" loading="lazy">
+      </div>
+      <p class="text-muted text-xs text-center" data-i18n="dash.messages">Structured acceptance criteria from Designer</p>
+    </div>
+    <div>
+      <div class="code-block rounded-xl p-1.5 mb-2 gallery-thumb" onclick="openLightbox(2)">
+        <img src="assets/dashboard-logs.png" alt="Development loop logs" class="rounded-lg w-full" loading="lazy">
+      </div>
+      <p class="text-muted text-xs text-center" data-i18n="dash.logs">Full development loop logs per round</p>
+    </div>
+    <div>
+      <div class="code-block rounded-xl p-1.5 mb-2 gallery-thumb" onclick="openLightbox(3)">
+        <img src="assets/dashboard-run.png" alt="Run feature dialog" class="rounded-lg w-full" loading="lazy">
+      </div>
+      <p class="text-muted text-xs text-center" data-i18n="dash.run">One-click run with runner and round config</p>
+    </div>
+  </div>
+</section>
+
+<!-- Supported Runners -->
+<section class="max-w-4xl mx-auto px-6 py-16">
+  <h2 class="text-2xl font-bold text-center mb-4" data-i18n="runners.title">Supported Runners</h2>
+  <p class="text-muted text-center mb-8" data-i18n="runners.desc">Use any AI coding tool. Mix and match per role.</p>
+  <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
+    <div class="runner-badge rounded-xl p-4 text-center">
+      <div class="mb-2 flex justify-center">
+        <!-- Claude -->
+        <svg class="w-8 h-8" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z" fill="#D97757" fill-rule="nonzero"/></svg>
+      </div>
+      <div class="font-medium text-sm">Claude Code</div>
+    </div>
+    <div class="runner-badge rounded-xl p-4 text-center">
+      <div class="mb-2 flex justify-center">
+        <!-- OpenAI / Codex -->
+        <svg class="w-8 h-8" viewBox="0 0 24 24" fill="#e6edf3"><path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.998 5.998 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z"/></svg>
+      </div>
+      <div class="font-medium text-sm">Codex</div>
+    </div>
+    <div class="runner-badge rounded-xl p-4 text-center">
+      <div class="mb-2 flex justify-center">
+        <!-- Google Gemini sparkle -->
+        <svg class="w-8 h-8" viewBox="0 0 24 24"><defs><linearGradient id="gm" x1="0" y1="0" x2="24" y2="24"><stop offset="0%" stop-color="#4285F4"/><stop offset="50%" stop-color="#9B72CB"/><stop offset="100%" stop-color="#D96570"/></linearGradient></defs><path fill="url(#gm)" d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373-12 12-12-6.627 0-12-5.373-12-12z"/></svg>
+      </div>
+      <div class="font-medium text-sm">Gemini</div>
+    </div>
+    <div class="runner-badge rounded-xl p-4 text-center">
+      <div class="mb-2 flex justify-center">
+        <!-- GitHub -->
+        <svg class="w-8 h-8" viewBox="0 0 24 24" fill="#e6edf3"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+      </div>
+      <div class="font-medium text-sm">Copilot</div>
+    </div>
+    <div class="runner-badge rounded-xl p-4 text-center">
+      <div class="mb-2 flex justify-center">
+        <!-- Cursor -->
+        <svg class="w-8 h-8" viewBox="0 0 24 24" fill="#e6edf3"><path d="M5.5 3.21a1 1 0 011.27-.42l12.71 6.1a1 1 0 01.03 1.78l-5.08 2.73-2.73 5.08a1 1 0 01-1.78-.03L5.08 4.48a1 1 0 01.42-1.27z"/></svg>
+      </div>
+      <div class="font-medium text-sm">Cursor</div>
+    </div>
+    <div class="runner-badge rounded-xl p-4 text-center">
+      <div class="mb-2 flex justify-center">
+        <!-- Antigravity -->
+        <img class="w-8 h-8" src="assets/antigravity-color.svg" alt="Antigravity">
+      </div>
+      <div class="font-medium text-sm">Antigravity</div>
+    </div>
+  </div>
+</section>
+
+<!-- Self-Evolution -->
+<section class="max-w-4xl mx-auto px-6 py-16">
+  <h2 class="text-2xl font-bold text-center mb-4" data-i18n="evo.title">Self-Evolution</h2>
+  <p class="text-muted text-center mb-8" data-i18n="evo.desc">4x learns from its own runs and continuously improves — mining failures, enriching discoveries, gating by value, and iterating itself.</p>
+  <div class="grid sm:grid-cols-3 gap-4">
+    <div class="feature-card rounded-xl p-5">
+      <div class="text-purple text-lg font-bold mb-2" data-i18n="evo.mine.title">History Mining</div>
+      <p class="text-muted text-sm" data-i18n="evo.mine.desc">Extract improvement signals from failed runs, escalations, and recurring FAIL patterns.</p>
+    </div>
+    <div class="feature-card rounded-xl p-5">
+      <div class="text-orange text-lg font-bold mb-2" data-i18n="evo.gate.title">Value Gate</div>
+      <p class="text-muted text-sm" data-i18n="evo.gate.desc">ROI evaluation with anti-hack mechanism prevents backlog bloat and low-value work.</p>
+    </div>
+    <div class="feature-card rounded-xl p-5">
+      <div class="text-green text-lg font-bold mb-2" data-i18n="evo.driver.title">Evolve Driver</div>
+      <p class="text-muted text-sm" data-i18n="evo.driver.desc">One command to start the continuous self-improvement loop: mine → evaluate → implement → verify → deploy.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="max-w-4xl mx-auto px-6 py-12 text-center border-t border-border">
+  <div class="flex justify-center gap-6 mb-4">
+    <a href="https://github.com/ggwhite/4x" class="text-muted hover:text-accent transition-colors text-sm">GitHub</a>
+    <a href="https://github.com/ggwhite/4x/blob/main/docs/guide/getting-started.md" class="text-muted hover:text-accent transition-colors text-sm" data-i18n="footer.docs">Documentation</a>
+    <a href="https://github.com/ggwhite/4x/releases" class="text-muted hover:text-accent transition-colors text-sm" data-i18n="footer.releases">Releases</a>
+    <a href="https://github.com/ggwhite/4x/blob/main/LICENSE" class="text-muted hover:text-accent transition-colors text-sm">MIT License</a>
+  </div>
+  <p class="text-muted text-xs" data-i18n="footer.tagline">Design. Code. Review. Test. — The AI development loop.</p>
+</footer>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" onclick="if(event.target===this)closeLightbox()">
+  <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+  <button class="lightbox-btn lightbox-prev" onclick="navLightbox(-1)">&#8249;</button>
+  <button class="lightbox-btn lightbox-next" onclick="navLightbox(1)">&#8250;</button>
+  <img id="lightbox-img" src="" alt="">
+  <div class="lightbox-caption" id="lightbox-caption"></div>
+  <div class="lightbox-counter" id="lightbox-counter"></div>
+</div>
+
+<script>
+const gallery = [
+  { src: 'assets/dashboard-overview.png', captionKey: 'dash.overview.caption' },
+  { src: 'assets/dashboard-messages.png', captionKey: 'dash.messages' },
+  { src: 'assets/dashboard-logs.png', captionKey: 'dash.logs' },
+  { src: 'assets/dashboard-run.png', captionKey: 'dash.run' },
+];
+let lightboxIndex = 0;
+
+function openLightbox(idx) {
+  lightboxIndex = idx;
+  updateLightbox();
+  document.getElementById('lightbox').classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+function navLightbox(dir) {
+  lightboxIndex = (lightboxIndex + dir + gallery.length) % gallery.length;
+  updateLightbox();
+}
+
+function updateLightbox() {
+  const item = gallery[lightboxIndex];
+  document.getElementById('lightbox-img').src = item.src;
+  const texts = i18n[currentLang] || i18n.en;
+  document.getElementById('lightbox-caption').textContent = texts[item.captionKey] || '';
+  document.getElementById('lightbox-counter').textContent = `${lightboxIndex + 1} / ${gallery.length}`;
+}
+
+document.addEventListener('keydown', e => {
+  const lb = document.getElementById('lightbox');
+  if (!lb.classList.contains('active')) return;
+  if (e.key === 'Escape') closeLightbox();
+  if (e.key === 'ArrowLeft') navLightbox(-1);
+  if (e.key === 'ArrowRight') navLightbox(1);
+});
+
+const i18n = {
+  en: {
+    "hero.desc": "A multi-role AI development framework that splits the software engineering loop into four specialized phases — each driven by a dedicated AI agent.",
+    "hero.github": "View on GitHub",
+    "why.title": "Why 4x?",
+    "why.desc": "Single-agent coding is fast but fragile. 4x splits the loop so each role has a focused job, limited scope, and no access to the others’ reasoning.",
+    "why.isolation.title": "Role Isolation",
+    "why.isolation.desc": "The Coder never judges its own work. The Reviewer is adversarial by design. No self-review bias.",
+    "why.crash.title": "Crash-Resistant",
+    "why.crash.desc": "Everything lives in .4x/ files. Session dies, machine reboots — run picks up exactly where it stopped.",
+    "why.agnostic.title": "LLM-Agnostic",
+    "why.agnostic.desc": "Switch between Claude, Gemini, Codex, or mix them per role. File-based protocol, no vendor lock-in.",
+    "why.batch.title": "Batch Mode",
+    "why.batch.desc": "Dependency-aware scheduling. Queue dozens of features overnight, review them in the morning.",
+    "how.title": "How It Works",
+    "how.design": "Design",
+    "how.design.desc": "Spec & acceptance criteria",
+    "how.code": "Code",
+    "how.code.desc": "Implement from spec",
+    "how.review": "Review",
+    "how.review.desc": "Adversarial inspection",
+    "how.test": "Test",
+    "how.test.desc": "Verify against criteria",
+    "how.loop": "If review or test fails, the loop iterates automatically.",
+    "qs.title": "Quick Start",
+    "qs.step1": "Install",
+    "qs.step2": "Initialize in your project",
+    "qs.step3": "Create a feature",
+    "qs.step4": "Run the AI development loop",
+    "qs.step5": "Watch it live",
+    "qs.also": "Also available via:",
+    "config.title": "Configuration",
+    "config.desc": "Monorepo or multi-repo. Per-role models and instructions. Inject your coding standards, architecture docs, and project rules.",
+    "config.tab.roles": "Roles & Instructions",
+    "config.roles.comment": "Per-role model, instructions, and context — tailor each AI agent to your project",
+    "demo.title": "See It In Action",
+    "demo.desc": "Initialize, create a feature, and start the AI development loop — all from the terminal.",
+    "dash.title": "4x Live Dashboard",
+    "dash.desc": "macOS native (Swift) + Windows / Linux (Tauri). Real-time SSE monitoring, dependency graph, screenshot gallery, 6-language i18n, system notifications.",
+    "dash.overview.caption": "Dashboard overview — status summary, rounds distribution, recent completions",
+    "dash.messages": "Structured acceptance criteria from Designer",
+    "dash.logs": "Full development loop logs per round",
+    "dash.run": "One-click run with runner and round config",
+    "runners.title": "Supported Runners",
+    "runners.desc": "Use any AI coding tool. Mix and match per role.",
+    "footer.docs": "Documentation",
+    "footer.releases": "Releases",
+    "footer.tagline": "Design. Code. Review. Test. — The AI development loop.",
+    "stats.features": "Features Shipped",
+    "stats.runners": "AI Runners",
+    "stats.platforms": "Platforms",
+    "evo.title": "Self-Evolution",
+    "evo.desc": "4x learns from its own runs and continuously improves — mining failures, enriching discoveries, gating by value, and iterating itself.",
+    "evo.mine.title": "History Mining",
+    "evo.mine.desc": "Extract improvement signals from failed runs, escalations, and recurring FAIL patterns.",
+    "evo.gate.title": "Value Gate",
+    "evo.gate.desc": "ROI evaluation with anti-hack mechanism prevents backlog bloat and low-value work.",
+    "evo.driver.title": "Evolve Driver",
+    "evo.driver.desc": "One command to start the continuous self-improvement loop: mine → evaluate → implement → verify → deploy."
+  },
+  "zh-TW": {
+    "hero.desc": "多角色 AI 開發框架，將軟體工程迴圈拆分為四個專業階段 — 設計、實作、審查、測試 — 每個階段由專屬 AI agent 驅動。",
+    "hero.github": "在 GitHub 上查看",
+    "why.title": "為什麼選 4x？",
+    "why.desc": "單一 agent 寫程式快但脆弱。4x 拆分迴圈，讓每個角色專注各自的工作，限定範圍，且無法存取其他角色的推理。",
+    "why.isolation.title": "角色隔離",
+    "why.isolation.desc": "Coder 不會判斷自己的作品。Reviewer 天生對抗式設計。沒有自我審查偏見。",
+    "why.crash.title": "當機復原",
+    "why.crash.desc": "所有狀態都在 .4x/ 檔案裡。Session 死掉、機器重開 — run 會從中斷處繼續。",
+    "why.agnostic.title": "LLM 無關",
+    "why.agnostic.desc": "在 Claude、Gemini、Codex 之間切換，或每個角色用不同的。檔案協定，不鎖定供應商。",
+    "why.batch.title": "批次模式",
+    "why.batch.desc": "依賴感知排程。晚上排入幾十個 feature，早上起來審查。",
+    "how.title": "運作方式",
+    "how.design": "設計",
+    "how.design.desc": "規格與驗收標準",
+    "how.code": "實作",
+    "how.code.desc": "依規格實現",
+    "how.review": "審查",
+    "how.review.desc": "對抗式檢查",
+    "how.test": "測試",
+    "how.test.desc": "依標準驗證",
+    "how.loop": "審查或測試失敗時，迴圈會自動迭代。",
+    "qs.title": "快速開始",
+    "qs.step1": "安裝",
+    "qs.step2": "在專案中初始化",
+    "qs.step3": "建立 feature",
+    "qs.step4": "執行 AI 開發迴圈",
+    "qs.step5": "即時監看",
+    "qs.also": "也可以透過：",
+    "config.title": "設定範例",
+    "config.desc": "支援 monorepo 或 multi-repo。可為每個角色設定模型與指令，注入你的程式碼規範、架構文件與專案規則。",
+    "config.tab.roles": "角色與指令",
+    "config.roles.comment": "為每個角色設定模型、指令與上下文 — 根據專案需求量身打造 AI agent",
+    "demo.title": "實際操作",
+    "demo.desc": "初始化、建立 feature、啟動 AI 開發迴圈 — 全部從終端機完成。",
+    "dash.title": "4x Live 儀表板",
+    "dash.overview.caption": "儀表板總覽 — 狀態統計、回合分佈、最近完成",
+    "dash.messages": "Designer 產出的結構化驗收標準",
+    "dash.logs": "每輪完整開發迴圈日誌",
+    "dash.run": "一鍵執行，選擇 runner 與輪數",
+    "runners.title": "支援的 Runner",
+    "runners.desc": "使用任何 AI 編程工具。可依角色混搭。",
+    "footer.docs": "文件",
+    "footer.releases": "版本發佈",
+    "footer.tagline": "Design. Code. Review. Test. — AI 開發迴圈。",
+    "stats.features": "已交付功能",
+    "stats.runners": "AI Runner",
+    "stats.platforms": "跨平台",
+    "dash.desc": "macOS 原生（Swift）+ Windows / Linux（Tauri）。即時 SSE 監控、依賴圖、截圖 gallery、6 語系 i18n、系統通知。",
+    "evo.title": "自我演化",
+    "evo.desc": "4x 從自身 run 中學習並持續改進 — 挖掘失敗、充實發現、價值把關、自我迭代。",
+    "evo.mine.title": "歷史挖掘",
+    "evo.mine.desc": "從失敗 run、escalation、反覆 FAIL pattern 中提取改進訊號。",
+    "evo.gate.title": "價值閘門",
+    "evo.gate.desc": "ROI 評估 + anti-hack 機制，防止 backlog 膨脹與低價值工作。",
+    "evo.driver.title": "演化驅動器",
+    "evo.driver.desc": "一條指令啟動持續自我改進迴路：挖掘 → 評估 → 實作 → 驗證 → 部署。"
+  },
+  "zh-CN": {
+    "hero.desc": "多角色 AI 开发框架，将软件工程循环拆分为四个专业阶段 — 设计、编码、审查、测试 — 每个阶段由专属 AI agent 驱动。",
+    "hero.github": "在 GitHub 上查看",
+    "why.title": "为什么选 4x？",
+    "why.desc": "单 agent 编码快但脆弱。4x 拆分循环，让每个角色专注各自的工作，限定范围，且无法访问其他角色的推理。",
+    "why.isolation.title": "角色隔离",
+    "why.isolation.desc": "Coder 不会判断自己的作品。Reviewer 天生对抗式设计。没有自我审查偏见。",
+    "why.crash.title": "崩溃恢复",
+    "why.crash.desc": "所有状态都在 .4x/ 文件里。Session 挂掉、机器重启 — run 会从中断处继续。",
+    "why.agnostic.title": "LLM 无关",
+    "why.agnostic.desc": "在 Claude、Gemini、Codex 之间切换，或每个角色用不同的。文件协议，不锁定供应商。",
+    "why.batch.title": "批量模式",
+    "why.batch.desc": "依赖感知调度。晚上排入几十个 feature，早上起来审查。",
+    "how.title": "运作方式",
+    "how.design": "设计",
+    "how.design.desc": "规格与验收标准",
+    "how.code": "编码",
+    "how.code.desc": "依规格实现",
+    "how.review": "审查",
+    "how.review.desc": "对抗式检查",
+    "how.test": "测试",
+    "how.test.desc": "依标准验证",
+    "how.loop": "审查或测试失败时，循环会自动迭代。",
+    "qs.title": "快速开始",
+    "qs.step1": "安装",
+    "qs.step2": "在项目中初始化",
+    "qs.step3": "创建 feature",
+    "qs.step4": "运行 AI 开发循环",
+    "qs.step5": "实时监控",
+    "qs.also": "也可以通过：",
+    "config.title": "配置示例",
+    "config.desc": "支持 monorepo 或 multi-repo。可为每个角色设定模型与指令，注入你的代码规范、架构文档与项目规则。",
+    "config.tab.roles": "角色与指令",
+    "config.roles.comment": "为每个角色设定模型、指令与上下文 — 根据项目需求定制 AI agent",
+    "demo.title": "实际操作",
+    "demo.desc": "初始化、创建 feature、启动 AI 开发循环 — 全部从终端完成。",
+    "dash.title": "4x Live 仪表盘",
+    "dash.overview.caption": "仪表盘总览 — 状态统计、回合分布、最近完成",
+    "dash.messages": "Designer 产出的结构化验收标准",
+    "dash.logs": "每轮完整开发循环日志",
+    "dash.run": "一键执行，选择 runner 与轮数",
+    "runners.title": "支持的 Runner",
+    "runners.desc": "使用任何 AI 编程工具。可按角色混搭。",
+    "footer.docs": "文档",
+    "footer.releases": "版本发布",
+    "footer.tagline": "Design. Code. Review. Test. — AI 开发循环。",
+    "stats.features": "已交付功能",
+    "stats.runners": "AI Runner",
+    "stats.platforms": "跨平台",
+    "dash.desc": "macOS 原生（Swift）+ Windows / Linux（Tauri）。实时 SSE 监控、依赖图、截图 gallery、6 语言 i18n、系统通知。",
+    "evo.title": "自我进化",
+    "evo.desc": "4x 从自身 run 中学习并持续改进 — 挖掘失败、充实发现、价值把关、自我迭代。",
+    "evo.mine.title": "历史挖掘",
+    "evo.mine.desc": "从失败 run、escalation、反复 FAIL pattern 中提取改进信号。",
+    "evo.gate.title": "价值闸门",
+    "evo.gate.desc": "ROI 评估 + anti-hack 机制，防止 backlog 膨胀与低价值工作。",
+    "evo.driver.title": "进化驱动器",
+    "evo.driver.desc": "一条命令启动持续自我改进循环：挖掘 → 评估 → 实现 → 验证 → 部署。"
+  },
+  ja: {
+    "hero.desc": "ソフトウェア開発ループを4つの専門フェーズに分割するマルチロール AI 開発フレームワーク — 各フェーズは専用 AI エージェントが担当。",
+    "hero.github": "GitHub で見る",
+    "why.title": "なぜ 4x？",
+    "why.desc": "シングルエージェントのコーディングは速いが脆い。4x はループを分割し、各ロールが専用の仕事と限定的なスコープを持ちます。",
+    "why.isolation.title": "ロール分離",
+    "why.isolation.desc": "Coder は自分の作品を判断しません。Reviewer は設計上対抗的です。自己レビューのバイアスなし。",
+    "why.crash.title": "クラッシュ耐性",
+    "why.crash.desc": "すべての状態が .4x/ ファイルに。セッションが落ちても、マシンが再起動しても — run は中断地点から再開。",
+    "why.agnostic.title": "LLM 非依存",
+    "why.agnostic.desc": "Claude、Gemini、Codex を切り替え、またはロールごとに混在。ファイルベースプロトコル、ベンダーロックインなし。",
+    "why.batch.title": "バッチモード",
+    "why.batch.desc": "依存関係を考慮したスケジューリング。夜間に数十の feature をキューに入れ、朝にレビュー。",
+    "how.title": "動作の仕組み",
+    "how.design": "設計",
+    "how.design.desc": "仕様と受入基準",
+    "how.code": "実装",
+    "how.code.desc": "仕様に基づき実装",
+    "how.review": "レビュー",
+    "how.review.desc": "対抗的検査",
+    "how.test": "テスト",
+    "how.test.desc": "基準に対して検証",
+    "how.loop": "レビューまたはテストが失敗すると、ループが自動的に反復します。",
+    "qs.title": "クイックスタート",
+    "qs.step1": "インストール",
+    "qs.step2": "プロジェクトで初期化",
+    "qs.step3": "feature を作成",
+    "qs.step4": "AI 開発ループを実行",
+    "qs.step5": "リアルタイムで監視",
+    "qs.also": "他のインストール方法：",
+    "config.title": "設定例",
+    "config.desc": "monorepo と multi-repo に対応。ロールごとにモデルと指示を設定、コーディング規約やアーキテクチャドキュメントを注入。",
+    "config.tab.roles": "ロールと指示",
+    "config.roles.comment": "ロールごとにモデル・指示・コンテキストを設定 — プロジェクトに合わせて AI エージェントをカスタマイズ",
+    "demo.title": "実際の動作",
+    "demo.desc": "初期化、feature 作成、AI 開発ループの実行 — すべてターミナルから。",
+    "dash.title": "4x Live ダッシュボード",
+    "dash.overview.caption": "ダッシュボード概要 — ステータスサマリー、ラウンド分布、最近の完了",
+    "dash.messages": "Designer が生成した構造化受入基準",
+    "dash.logs": "ラウンドごとの完全な開発ループログ",
+    "dash.run": "ワンクリック実行、Runner とラウンド数を設定",
+    "runners.title": "サポートされた Runner",
+    "runners.desc": "どの AI コーディングツールでも使用可能。ロールごとに混合も可。",
+    "footer.docs": "ドキュメント",
+    "footer.releases": "リリース",
+    "footer.tagline": "Design. Code. Review. Test. — AI 開発ループ。",
+    "stats.features": "出荷済み機能",
+    "stats.runners": "AI ランナー",
+    "stats.platforms": "プラットフォーム",
+    "dash.desc": "macOS ネイティブ（Swift）+ Windows / Linux（Tauri）。リアルタイム SSE モニタリング、依存関係グラフ、スクリーンショットギャラリー、6言語 i18n、システム通知。",
+    "evo.title": "自己進化",
+    "evo.desc": "4x は自らの実行から学び、継続的に改善する — 失敗の発掘、発見の充実、価値による選別、自己反復。",
+    "evo.mine.title": "履歴マイニング",
+    "evo.mine.desc": "失敗した run、エスカレーション、繰り返す FAIL パターンから改善シグナルを抽出。",
+    "evo.gate.title": "バリューゲート",
+    "evo.gate.desc": "ROI 評価 + アンチハック機構でバックログの膨張と低価値作業を防止。",
+    "evo.driver.title": "進化ドライバー",
+    "evo.driver.desc": "1コマンドで継続的自己改善ループを開始：発掘 → 評価 → 実装 → 検証 → デプロイ。"
+  },
+  ko: {
+    "hero.desc": "소프트웨어 엔지니어링 루프를 4가지 전문 단계로 나누는 다중 역할 AI 개발 프레임워크 — 각 단계는 전담 AI 에이전트가 수행합니다.",
+    "hero.github": "GitHub에서 보기",
+    "why.title": "왜 4x인가요?",
+    "why.desc": "단일 에이전트 코딩은 빠르지만 취약합니다. 4x는 루프를 분리하여 각 역할이 전담 업무와 제한된 범위를 가집니다.",
+    "why.isolation.title": "역할 격리",
+    "why.isolation.desc": "Coder는 자신의 작업을 판단하지 않습니다. Reviewer는 설계상 적대적입니다. 자체 리뷰 편향 없음.",
+    "why.crash.title": "크래시 복원",
+    "why.crash.desc": "모든 상태가 .4x/ 파일에 저장됩니다. 세션이 죽거나 머신이 재부팅되어도 — run이 중단 지점에서 재개.",
+    "why.agnostic.title": "LLM 비의존",
+    "why.agnostic.desc": "Claude, Gemini, Codex 간 전환 또는 역할별 혼합 사용. 파일 기반 프로토콜, 벤더 종속 없음.",
+    "why.batch.title": "배치 모드",
+    "why.batch.desc": "의존성 인식 스케줄링. 밤사이 수십 개 feature 대기열, 아침에 리뷰.",
+    "how.title": "작동 방식",
+    "how.design": "설계",
+    "how.design.desc": "스펙 및 합격 기준",
+    "how.code": "코딩",
+    "how.code.desc": "스펙에 따라 구현",
+    "how.review": "리뷰",
+    "how.review.desc": "적대적 검사",
+    "how.test": "테스트",
+    "how.test.desc": "기준에 따라 검증",
+    "how.loop": "리뷰 또는 테스트 실패 시 루프가 자동으로 반복됩니다.",
+    "qs.title": "빠른 시작",
+    "qs.step1": "설치",
+    "qs.step2": "프로젝트에서 초기화",
+    "qs.step3": "feature 생성",
+    "qs.step4": "AI 개발 루프 실행",
+    "qs.step5": "실시간 모니터링",
+    "qs.also": "다른 설치 방법:",
+    "config.title": "설정 예시",
+    "config.desc": "monorepo 또는 multi-repo 지원. 역할별 모델과 지시 설정, 코딩 표준 및 아키텍처 문서 주입 가능.",
+    "config.tab.roles": "역할 및 지시",
+    "config.roles.comment": "역할별 모델, 지시, 컨텍스트 설정 — 프로젝트에 맞게 AI 에이전트를 맞춤 설정",
+    "demo.title": "실제 동작",
+    "demo.desc": "초기화, feature 생성, AI 개발 루프 실행 — 모두 터미널에서.",
+    "dash.title": "4x Live 대시보드",
+    "dash.overview.caption": "대시보드 개요 — 상태 요약, 라운드 분포, 최근 완료",
+    "dash.messages": "Designer가 생성한 구조화된 합격 기준",
+    "dash.logs": "라운드별 전체 개발 루프 로그",
+    "dash.run": "원클릭 실행, Runner 및 라운드 수 설정",
+    "runners.title": "지원되는 Runner",
+    "runners.desc": "어떤 AI 코딩 도구든 사용 가능. 역할별로 혼합 가능.",
+    "footer.docs": "문서",
+    "footer.releases": "릴리스",
+    "footer.tagline": "Design. Code. Review. Test. — AI 개발 루프.",
+    "stats.features": "출시된 기능",
+    "stats.runners": "AI 러너",
+    "stats.platforms": "플랫폼",
+    "dash.desc": "macOS 네이티브 (Swift) + Windows / Linux (Tauri). 실시간 SSE 모니터링, 의존성 그래프, 스크린샷 갤러리, 6개 언어 i18n, 시스템 알림.",
+    "evo.title": "자기 진화",
+    "evo.desc": "4x는 자체 실행에서 학습하고 지속적으로 개선합니다 — 실패 마이닝, 발견 보강, 가치 게이팅, 자기 반복.",
+    "evo.mine.title": "히스토리 마이닝",
+    "evo.mine.desc": "실패한 run, 에스컬레이션, 반복되는 FAIL 패턴에서 개선 신호를 추출.",
+    "evo.gate.title": "밸류 게이트",
+    "evo.gate.desc": "ROI 평가 + 안티 핵 메커니즘으로 백로그 비대화와 저가치 작업을 방지.",
+    "evo.driver.title": "이볼브 드라이버",
+    "evo.driver.desc": "한 명령어로 지속적 자기 개선 루프 시작: 마이닝 → 평가 → 구현 → 검증 → 배포."
+  },
+  es: {
+    "hero.desc": "Un framework de desarrollo con IA multi-rol que divide el ciclo de ingeniería de software en cuatro fases especializadas — cada una impulsada por un agente de IA dedicado.",
+    "hero.github": "Ver en GitHub",
+    "why.title": "¿Por qué 4x?",
+    "why.desc": "La programación con un solo agente es rápida pero frágil. 4x divide el ciclo para que cada rol tenga un trabajo enfocado, alcance limitado y sin acceso al razonamiento de los demás.",
+    "why.isolation.title": "Aislamiento de Roles",
+    "why.isolation.desc": "El Coder nunca juzga su propio trabajo. El Reviewer es adversarial por diseño. Sin sesgo de auto-revisión.",
+    "why.crash.title": "Resistente a Caídas",
+    "why.crash.desc": "Todo vive en archivos .4x/. La sesión muere, la máquina reinicia — run continúa exactamente donde se detuvo.",
+    "why.agnostic.title": "Agnóstico de LLM",
+    "why.agnostic.desc": "Cambia entre Claude, Gemini, Codex o mézclalos por rol. Protocolo basado en archivos, sin dependencia de proveedor.",
+    "why.batch.title": "Modo Batch",
+    "why.batch.desc": "Programación con conciencia de dependencias. Encola decenas de features por la noche, revísalos por la mañana.",
+    "how.title": "Cómo Funciona",
+    "how.design": "Diseño",
+    "how.design.desc": "Especificación y criterios",
+    "how.code": "Código",
+    "how.code.desc": "Implementar desde spec",
+    "how.review": "Revisión",
+    "how.review.desc": "Inspección adversarial",
+    "how.test": "Prueba",
+    "how.test.desc": "Verificar contra criterios",
+    "how.loop": "Si la revisión o prueba falla, el ciclo itera automáticamente.",
+    "qs.title": "Inicio Rápido",
+    "qs.step1": "Instalar",
+    "qs.step2": "Inicializar en tu proyecto",
+    "qs.step3": "Crear un feature",
+    "qs.step4": "Ejecutar el ciclo de desarrollo IA",
+    "qs.step5": "Ver en vivo",
+    "qs.also": "También disponible vía:",
+    "config.title": "Configuración",
+    "config.desc": "Monorepo o multi-repo. Modelos e instrucciones por rol. Inyecta estándares de código, documentación de arquitectura y reglas del proyecto.",
+    "config.tab.roles": "Roles e Instrucciones",
+    "config.roles.comment": "Modelo, instrucciones y contexto por rol — personaliza cada agente IA para tu proyecto",
+    "demo.title": "Véalo en Acción",
+    "demo.desc": "Inicializar, crear un feature y ejecutar el ciclo de desarrollo IA — todo desde la terminal.",
+    "dash.title": "4x Live Dashboard",
+    "dash.overview.caption": "Vista general del dashboard — resumen de estado, distribución de rondas, completados recientes",
+    "dash.messages": "Criterios de aceptación estructurados del Designer",
+    "dash.logs": "Logs completos del ciclo de desarrollo por ronda",
+    "dash.run": "Ejecución con un clic, configura runner y rondas",
+    "runners.title": "Runners Soportados",
+    "runners.desc": "Usa cualquier herramienta de codificación IA. Mezcla y combina por rol.",
+    "footer.docs": "Documentación",
+    "footer.releases": "Versiones",
+    "footer.tagline": "Design. Code. Review. Test. — El ciclo de desarrollo IA.",
+    "stats.features": "Features Entregados",
+    "stats.runners": "Runners de IA",
+    "stats.platforms": "Plataformas",
+    "dash.desc": "macOS nativo (Swift) + Windows / Linux (Tauri). Monitoreo SSE en tiempo real, grafo de dependencias, galería de capturas, i18n en 6 idiomas, notificaciones del sistema.",
+    "evo.title": "Auto-Evolución",
+    "evo.desc": "4x aprende de sus propias ejecuciones y mejora continuamente — minería de fallos, enriquecimiento de descubrimientos, filtrado por valor, e iteración propia.",
+    "evo.mine.title": "Minería de Historial",
+    "evo.mine.desc": "Extrae señales de mejora de runs fallidos, escalaciones y patrones FAIL recurrentes.",
+    "evo.gate.title": "Compuerta de Valor",
+    "evo.gate.desc": "Evaluación ROI + mecanismo anti-hack para prevenir backlog inflado y trabajo de bajo valor.",
+    "evo.driver.title": "Driver de Evolución",
+    "evo.driver.desc": "Un comando para iniciar el ciclo de mejora continua: minar → evaluar → implementar → verificar → desplegar."
+  }
+};
+
+let currentLang = 'en';
+
+function switchLang(lang) {
+  currentLang = lang;
+  const texts = i18n[lang];
+  if (!texts) return;
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (texts[key]) el.textContent = texts[key];
+  });
+  document.documentElement.lang = lang;
+  localStorage.setItem('4x-lang', lang);
+}
+
+function switchTab(tab) {
+  const tabs = ['monorepo', 'multirepo', 'roles'];
+  const active = 'tab-active px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-colors';
+  const inactive = 'tab-inactive px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-colors';
+  tabs.forEach(t => {
+    document.getElementById('panel-' + t).classList.toggle('hidden', t !== tab);
+    document.getElementById('tab-' + t).className = t === tab ? active : inactive;
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const saved = localStorage.getItem('4x-lang');
+  if (saved && i18n[saved]) {
+    document.getElementById('lang-switcher').value = saved;
+    switchLang(saved);
+    return;
+  }
+  const browserLang = navigator.language;
+  const match = Object.keys(i18n).find(k =>
+    browserLang.startsWith(k) || browserLang.replace('-', '-') === k
+  );
+  if (match) {
+    document.getElementById('lang-switcher').value = match;
+    switchLang(match);
+  }
+});
+</script>
+
+</body>
+</html>
