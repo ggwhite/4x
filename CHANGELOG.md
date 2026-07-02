@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - **Design-review loop 迭代覆寫 log/message** — design-reviewing FAIL 打回 designing 時 round 計數器不遞增，導致每次循環的 log 檔名與 task-brief/design-review-report 互相覆寫，dashboard 只能看到最後一輪。Log 檔名與訊息區改為依 (round, iteration) 分別歸檔並列出每一輪
 - **Multi-repo worktree scope/guard 邊界情況修復（F126）** — hub_repo（如共用 docs）一律排除於 scope violation 判斷；build-gate 對缺失指令（如聚合腳本非每個 repo 都有）優雅降級為 skip 而非硬 fail；Tester prompt 補教 `expectedExitCode` 欄位用法；`DeferRunCleanup` 補上 `needs-attention` phase，並修正 exit-0 後收尾失敗被誤標為 process crash 的競態根因
+- **build-gate 缺指令判斷在 Linux CI 失效** — 上一項的優雅降級只認 macOS `/bin/sh`（bash 相容）的 `"command not found"` 措辭，Linux 預設的 dash 印的是不含 "command" 字樣的 `"not found"`，導致同一段邏輯在 GitHub Actions（Ubuntu runner）上完全打不中。改為比對兩種 shell 共有的 `"not found"` 子字串，仍綁定 exit code 127 才生效
 
 ### Docs
 
