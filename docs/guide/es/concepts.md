@@ -273,6 +273,10 @@ Cuando un feature se ejecuta en aislamiento de worktree, el ciclo imprime `workt
 
 El escaneo lee el **archivo completo** `events.jsonl` y retorna el path del **último** evento `run-output` que coincida. Esto importa para las re-ejecuciones: cada `4x run` agrega un nuevo evento `worktree: …`, por lo que el archivo acumula entradas durante la vida del feature. Leer solo las primeras líneas omitiría el path una vez que se acumulen suficientes eventos, o retornaría un worktree obsoleto que ya ha sido eliminado. Tomar el último match siempre produce el worktree de la ejecución más reciente.
 
+### Resiliencia del descubrimiento de capturas de pantalla
+
+`Workspace.DiscoverScreenshots` lee el `verify.json` de cada ronda para recopilar la evidencia de capturas de pantalla registrada por el Tester. El `verify.json` de una sola ronda puede terminar malformado — por ejemplo, códigos de escape ANSI sin escapar de la salida capturada de un subproceso que se filtran al archivo — lo cual haría fallar el parseo JSON. En lugar de propagar eso como un error fatal que tumba toda la llamada de descubrimiento (y con ella `4x status`/`4x check` para todo el feature), un fallo de parseo se trata como best-effort: esa ronda no aporta capturas de pantalla provenientes de verify.json, pero su número de ronda igual se rastrea, y la evidencia de todas las demás rondas — más el fallback de escaneo de directorio — se procesa con normalidad.
+
 ### Cache de lectura del workspace (servidor del dashboard)
 
 El CLI es un proceso de corta duración: cada comando lee los archivos de `.4x/` que necesita una vez y termina, por lo que siempre usa un `*protocol.Workspace` simple. El servidor del dashboard (`4x live`) es lo opuesto — es de larga duración y cada solicitud API re-lee los mismos archivos. En un workspace multi-proyecto x multi-feature (ej. 5 proyectos x 50 features) una sola solicitud puede disparar cientos de parseos YAML/JSON.

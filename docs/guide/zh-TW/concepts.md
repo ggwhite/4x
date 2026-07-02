@@ -273,6 +273,10 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
 
 掃描會讀取**整個** `events.jsonl`，並從**最後一筆**匹配的 `run-output` 事件取得路徑。這對於重跑很重要：每次 `4x run` 都會附加一個新的 `worktree: …` 事件，因此檔案會在 feature 的生命週期中累積多筆。只讀前幾行要麼在事件累積後找不到路徑，要麼回傳一個已移除的舊 worktree。取最後一筆匹配永遠回傳最近一次執行的 worktree。
 
+### 截圖探索的容錯處理
+
+`Workspace.DiscoverScreenshots` 會讀取每個 round 的 `verify.json` 以蒐集 Tester 記錄的截圖證據。單一 round 的 `verify.json` 有可能損壞——例如捕捉到的 subprocess 輸出混進未跳脫的原始 ANSI escape code——導致 JSON 解析失敗。與其讓這個錯誤往上傳遞成硬性失敗、拖垮整個探索呼叫（連帶讓整個 feature 的 `4x status`/`4x check` 也失敗），解析失敗改為 best-effort 處理：該 round 不貢獻任何從 verify.json 取得的截圖，但其 round 編號仍會被記錄，其餘 round 的證據以及目錄掃描的備援機制都照常運作。
+
 ### Workspace 讀取快取（儀表板伺服器）
 
 CLI 是短命程序：每個命令讀取它需要的 `.4x/` 檔案一次後退出，因此總是使用普通的 `*protocol.Workspace`。儀表板伺服器（`4x live`）相反——它是長期執行的，每個 API 請求都重新讀取相同檔案。在多專案×多 feature 的 workspace 中（例如 5 個專案×50 個 feature），單一請求可觸發數百次 YAML/JSON 解析。
