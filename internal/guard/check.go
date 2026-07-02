@@ -531,12 +531,20 @@ func detectChangedRepos(root string) []string {
 // isCommandMissing 判斷 vc 是否因指令本身不存在（而非指令執行後的真實失敗）而導致
 // exit 127。build-gate 常見於某個 sub-repo root 沒安裝該語言/工具鏈（如 node_modules
 // 未在該 root 裝），此時應優雅降級而非整體判 FAIL。
+//
+// 訊息比對故意只認寬鬆的 "not found"，不要求 "command not found"：executeCommand
+// 用 `sh -c` 執行，不同 shell 對 exit 127 的措辭不同——macOS 的 /bin/sh（bash 相容）
+// 印 "sh: cmd: command not found"，而 Linux（多數 CI，如 Ubuntu runner）的 /bin/sh 是
+// dash，印的是 "sh: 1: cmd: not found"（沒有 "command" 字樣）。要求 "command not
+// found" 在 dash 上永遠比對失敗，導致這個降級邏輯在 Linux CI 上完全失效。exit 127
+// 已經是強訊號（shell 保留給「指令不存在」的慣例 exit code），故只需比對兩種 shell
+// 共有的 "not found" 子字串即可，不會誤吃其他真實失敗的 exit 127。
 func isCommandMissing(vc protocol.VerifyCommand) bool {
 	if vc.ExitCode != 127 {
 		return false
 	}
 	summary := strings.ToLower(vc.Summary)
-	return strings.Contains(summary, "command not found") || strings.Contains(summary, "no such file or directory")
+	return strings.Contains(summary, "not found") || strings.Contains(summary, "no such file or directory")
 }
 
 // runGroupsAcrossRoots 對 roots 逐一執行 verify.RunGroups 並合併證據；multi-repo
