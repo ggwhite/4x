@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.9] - 2026-07-02
+
+### Fixes
+
+- **Screenshot 探索遇到損毀 verify.json 整個掛掉** — 單一 round 的 verify.json 若混進未跳脫的 raw ANSI escape code（例如捕捉到的 subprocess 輸出未跳脫），JSON 解析失敗會讓整個 DiscoverScreenshots hard-fail，連帶讓 `4x status`/`4x check` 對整個 feature 失效。改為 best-effort：跳過該 round 的截圖，其餘 round 照常處理
+- **Dashboard 日誌分頁內容裁切與 retry log 缺 icon** — 切到「日誌」分頁時外層容器缺 `min-height:0`，長 log 內容被外層 `overflow:hidden` 直接裁掉而非交由內層捲動；同一 round 內重跑第 2 次以上的角色 log（如 `round-0-designer-2.log`）因判斷正則只涵蓋 deep-* 角色，圖示與顏色消失
+
 ## [0.3.8] - 2026-07-02
 
 ### Fixes
