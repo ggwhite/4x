@@ -230,8 +230,8 @@ tailwind.config = {
       <p class="text-muted text-sm" data-i18n="costviz.p3.desc">Runaway rounds show up immediately in the per-phase view instead of hiding in a single end-of-run total.</p>
     </div>
   </div>
-  <img src="assets/dashboard-overview.png" alt="Dashboard cost per phase" class="rounded-xl w-full" style="border:1px solid #30363d;">
-  <p class="text-muted text-xs text-center mt-3" data-i18n="costviz.img.caption">Dashboard overview — cost and duration per phase at a glance</p>
+  <img src="assets/dashboard-cost-detail.png" alt="Dashboard cost per phase" class="rounded-xl w-full" style="border:1px solid #30363d;">
+  <p class="text-muted text-xs text-center mt-3" data-i18n="costviz.img.caption">Per-step model, duration, and cost — no more end-of-run surprises</p>
 </section>
 
 <!-- How it works -->
@@ -431,21 +431,21 @@ tailwind.config = {
   <div class="grid sm:grid-cols-3 gap-4">
     <div>
       <div class="code-block rounded-xl p-1.5 mb-2 gallery-thumb" onclick="openLightbox(1)">
-        <img src="assets/dashboard-messages.png" alt="Acceptance criteria and review messages" class="rounded-lg w-full" loading="lazy">
+        <img src="assets/dashboard-cost-detail.png" alt="Per-step model, duration, and cost" class="rounded-lg w-full" loading="lazy">
       </div>
-      <p class="text-muted text-xs text-center" data-i18n="dash.messages">Structured acceptance criteria from Designer</p>
+      <p class="text-muted text-xs text-center" data-i18n="dash.messages">Per-step model, duration, and cost</p>
     </div>
     <div>
       <div class="code-block rounded-xl p-1.5 mb-2 gallery-thumb" onclick="openLightbox(2)">
-        <img src="assets/dashboard-logs.png" alt="Development loop logs" class="rounded-lg w-full" loading="lazy">
+        <img src="assets/dashboard-screenshots-gallery.png" alt="Auto-captured screenshot gallery" class="rounded-lg w-full" loading="lazy">
       </div>
-      <p class="text-muted text-xs text-center" data-i18n="dash.logs">Full development loop logs per round</p>
+      <p class="text-muted text-xs text-center" data-i18n="dash.screenshots">Auto-captured screenshot gallery per round</p>
     </div>
     <div>
       <div class="code-block rounded-xl p-1.5 mb-2 gallery-thumb" onclick="openLightbox(3)">
-        <img src="assets/dashboard-run.png" alt="Run feature dialog" class="rounded-lg w-full" loading="lazy">
+        <img src="assets/dashboard-run-profile.png" alt="Run dialog with profile selection" class="rounded-lg w-full" loading="lazy">
       </div>
-      <p class="text-muted text-xs text-center" data-i18n="dash.run">One-click run with runner and round config</p>
+      <p class="text-muted text-xs text-center" data-i18n="dash.run">Pick a profile and see the full phase pipeline before running</p>
     </div>
   </div>
 </section>
@@ -544,9 +544,9 @@ tailwind.config = {
 <script>
 const gallery = [
   { src: 'assets/dashboard-overview.png', captionKey: 'dash.overview.caption' },
-  { src: 'assets/dashboard-messages.png', captionKey: 'dash.messages' },
-  { src: 'assets/dashboard-logs.png', captionKey: 'dash.logs' },
-  { src: 'assets/dashboard-run.png', captionKey: 'dash.run' },
+  { src: 'assets/dashboard-cost-detail.png', captionKey: 'dash.messages' },
+  { src: 'assets/dashboard-screenshots-gallery.png', captionKey: 'dash.screenshots' },
+  { src: 'assets/dashboard-run-profile.png', captionKey: 'dash.run' },
 ];
 let lightboxIndex = 0;
 
@@ -623,9 +623,9 @@ const i18n = {
     "dash.title": "4x Live Dashboard",
     "dash.desc": "macOS native (Swift) + Windows / Linux (Tauri). Real-time SSE monitoring, dependency graph, screenshot gallery, 6-language i18n, system notifications.",
     "dash.overview.caption": "Dashboard overview — status summary, rounds distribution, recent completions",
-    "dash.messages": "Structured acceptance criteria from Designer",
-    "dash.logs": "Full development loop logs per round",
-    "dash.run": "One-click run with runner and round config",
+    "dash.messages": "Per-step model, duration, and cost",
+    "dash.screenshots": "Auto-captured screenshot gallery per round",
+    "dash.run": "Pick a profile and see the full phase pipeline before running",
     "runners.title": "Supported Runners",
     "runners.desc": "Use any AI coding tool. Mix and match per role.",
     "footer.docs": "Documentation",
@@ -666,7 +666,7 @@ const i18n = {
     "costviz.p2.desc": "Mix opus for design with sonnet for review and test — the dashboard shows the cost impact of each choice.",
     "costviz.p3.title": "No Surprises",
     "costviz.p3.desc": "Runaway rounds show up immediately in the per-phase view instead of hiding in a single end-of-run total.",
-    "costviz.img.caption": "Dashboard overview — cost and duration per phase at a glance"
+    "costviz.img.caption": "Per-step model, duration, and cost — no more end-of-run surprises"
   },
   "zh-TW": {
     "hero.desc": "多角色 AI 開發框架，將軟體工程迴圈拆分為四個專業階段 — 設計、實作、審查、測試 — 每個階段由專屬 AI agent 驅動。",
@@ -706,9 +706,9 @@ const i18n = {
     "demo.desc": "初始化、建立 feature、啟動 AI 開發迴圈 — 全部從終端機完成。",
     "dash.title": "4x Live 儀表板",
     "dash.overview.caption": "儀表板總覽 — 狀態統計、回合分佈、最近完成",
-    "dash.messages": "Designer 產出的結構化驗收標準",
-    "dash.logs": "每輪完整開發迴圈日誌",
-    "dash.run": "一鍵執行，選擇 runner 與輪數",
+    "dash.messages": "每個步驟的 model、耗時與成本",
+    "dash.screenshots": "每輪自動截圖 gallery",
+    "dash.run": "選擇 profile，執行前看到完整 phase pipeline",
     "runners.title": "支援的 Runner",
     "runners.desc": "使用任何 AI 編程工具。可依角色混搭。",
     "footer.docs": "文件",
@@ -750,7 +750,7 @@ const i18n = {
     "costviz.p2.desc": "Design 用 opus、review/test 用 sonnet 混著搭 — dashboard 直接顯示每個選擇對成本的影響。",
     "costviz.p3.title": "不會被總數嚇到",
     "costviz.p3.desc": "失控的某一輪在逐 phase 檢視裡馬上現形，不會被藏在跑完才看到的單一總數裡。",
-    "costviz.img.caption": "Dashboard 總覽 — 每個 phase 的成本與耗時一目了然"
+    "costviz.img.caption": "每個步驟的 model、耗時與成本 — 不會等到跑完才嚇一跳"
   },
   "zh-CN": {
     "hero.desc": "多角色 AI 开发框架，将软件工程循环拆分为四个专业阶段 — 设计、编码、审查、测试 — 每个阶段由专属 AI agent 驱动。",
@@ -790,9 +790,9 @@ const i18n = {
     "demo.desc": "初始化、创建 feature、启动 AI 开发循环 — 全部从终端完成。",
     "dash.title": "4x Live 仪表盘",
     "dash.overview.caption": "仪表盘总览 — 状态统计、回合分布、最近完成",
-    "dash.messages": "Designer 产出的结构化验收标准",
-    "dash.logs": "每轮完整开发循环日志",
-    "dash.run": "一键执行，选择 runner 与轮数",
+    "dash.messages": "每个步骤的 model、耗时与成本",
+    "dash.screenshots": "每轮自动截图 gallery",
+    "dash.run": "选择 profile，执行前看到完整 phase pipeline",
     "runners.title": "支持的 Runner",
     "runners.desc": "使用任何 AI 编程工具。可按角色混搭。",
     "footer.docs": "文档",
@@ -803,13 +803,38 @@ const i18n = {
     "stats.platforms": "跨平台",
     "dash.desc": "macOS 原生（Swift）+ Windows / Linux（Tauri）。实时 SSE 监控、依赖图、截图 gallery、6 语言 i18n、系统通知。",
     "evo.title": "自我进化",
-    "evo.desc": "4x 从自身 run 中学习并持续改进 — 挖掘失败、充实发现、价值把关、自我迭代。",
+    "evo.desc": "4x 从自身 run 中学习并持续改进 — 挖掘失败、充实发现、价值把关、自我迭代。当 active learnings 超过 30 条时，会自动用 AI 判断语义重复并整合，避免 prompt 越养越肥。",
     "evo.mine.title": "历史挖掘",
     "evo.mine.desc": "从失败 run、escalation、反复 FAIL pattern 中提取改进信号。",
     "evo.gate.title": "价值闸门",
     "evo.gate.desc": "ROI 评估 + anti-hack 机制，防止 backlog 膨胀与低价值工作。",
     "evo.driver.title": "进化驱动器",
-    "evo.driver.desc": "一条命令启动持续自我改进循环：挖掘 → 评估 → 实现 → 验证 → 部署。"
+    "evo.driver.desc": "一条命令启动持续自我改进循环：挖掘 → 评估 → 实现 → 验证 → 部署。",
+    "multirepo.title": "为多 Repo 项目打造",
+    "multirepo.desc": "Workspace 可横跨多个独立 git repo，再加上共用的 hub repo。每个 feature 都在自己的 git worktree 里执行 — 并行跑的 feature 之间不会互相干扰。",
+    "multirepo.p1.title": "独立 Repo，统一 Workspace",
+    "multirepo.p1.desc": "声明每个 repo 的路径，把共用的标成 hub — 4x 会把每个 feature 限定在它被允许碰的 repo 范围内。",
+    "multirepo.p2.title": "Git Worktree 隔离",
+    "multirepo.p2.desc": "每个 feature 都有自己的 linked worktree。不用切分支、不用 stash，并行跑的 feature 之间不会互撞。",
+    "multirepo.p3.title": "Scope 防护",
+    "multirepo.p3.desc": "Guardrail 检查会挡下任何动到 feature 声明范围外 repo 的 diff — 在进 review 之前就拦下来。",
+    "quality.title": "每个验收标准都要有证据",
+    "quality.desc": "Acceptance criteria 不是勾一勾就算过 — 每一项都要在 verify.json 附上证据，guardrail 判定证据不足的回合，reviewer 没办法直接放行。",
+    "quality.p1.title": "AC Evidence Mapping",
+    "quality.p1.desc": "verify.json 里每个 acceptance criterion 都要有 passed 标志与证据记录。缺证据时 4x check 会挡下这一轮。",
+    "quality.p2.title": "Selective Deep Review",
+    "quality.p2.desc": "Deep review 依 diff 实际动到的文件自动挑相关角度，不用每次小改动都跑完整套审查角度。",
+    "quality.p3.title": "交叉验证测试结果",
+    "quality.p3.desc": "Tester 回报的 verify.json 结果会跟命令实际的 exit code 交叉比对 — 宣称 PASS 但证据矛盾的情况会被自动抓出来。",
+    "costviz.title": "每一轮花多少，一目了然",
+    "costviz.desc": "Dashboard 把 token 用量与耗时拆到每个 phase，budget 花在哪里一眼就看到，不会等到最后才吓一跳。",
+    "costviz.p1.title": "逐 Phase 拆解",
+    "costviz.p1.desc": "Designing、coding、reviewing、testing 各自的 token、成本、耗时分开追踪，不是只给一个总数。",
+    "costviz.p2.title": "感知模型差异",
+    "costviz.p2.desc": "Design 用 opus、review/test 用 sonnet 混着搭 — dashboard 直接显示每个选择对成本的影响。",
+    "costviz.p3.title": "不会被总数吓到",
+    "costviz.p3.desc": "失控的某一轮在逐 phase 检视里马上现形，不会被藏在跑完才看到的单一总数里。",
+    "costviz.img.caption": "每个步骤的 model、耗时与成本 — 不会等到跑完才吓一跳"
   },
   ja: {
     "hero.desc": "ソフトウェア開発ループを4つの専門フェーズに分割するマルチロール AI 開発フレームワーク — 各フェーズは専用 AI エージェントが担当。",
@@ -849,9 +874,9 @@ const i18n = {
     "demo.desc": "初期化、feature 作成、AI 開発ループの実行 — すべてターミナルから。",
     "dash.title": "4x Live ダッシュボード",
     "dash.overview.caption": "ダッシュボード概要 — ステータスサマリー、ラウンド分布、最近の完了",
-    "dash.messages": "Designer が生成した構造化受入基準",
-    "dash.logs": "ラウンドごとの完全な開発ループログ",
-    "dash.run": "ワンクリック実行、Runner とラウンド数を設定",
+    "dash.messages": "ステップごとの model、所要時間、コスト",
+    "dash.screenshots": "ラウンドごとに自動取得されるスクリーンショットギャラリー",
+    "dash.run": "profile を選択し、実行前にフェーズパイプライン全体を確認",
     "runners.title": "サポートされた Runner",
     "runners.desc": "どの AI コーディングツールでも使用可能。ロールごとに混合も可。",
     "footer.docs": "ドキュメント",
@@ -862,13 +887,38 @@ const i18n = {
     "stats.platforms": "プラットフォーム",
     "dash.desc": "macOS ネイティブ（Swift）+ Windows / Linux（Tauri）。リアルタイム SSE モニタリング、依存関係グラフ、スクリーンショットギャラリー、6言語 i18n、システム通知。",
     "evo.title": "自己進化",
-    "evo.desc": "4x は自らの実行から学び、継続的に改善する — 失敗の発掘、発見の充実、価値による選別、自己反復。",
+    "evo.desc": "4x は自らの実行から学び、継続的に改善する — 失敗の発掘、発見の充実、価値による選別、自己反復。アクティブな learnings が30件を超えると、AI が自動的に意味的な重複を検出して統合し、プロンプトを簡潔に保つ。",
     "evo.mine.title": "履歴マイニング",
     "evo.mine.desc": "失敗した run、エスカレーション、繰り返す FAIL パターンから改善シグナルを抽出。",
     "evo.gate.title": "バリューゲート",
     "evo.gate.desc": "ROI 評価 + アンチハック機構でバックログの膨張と低価値作業を防止。",
     "evo.driver.title": "進化ドライバー",
-    "evo.driver.desc": "1コマンドで継続的自己改善ループを開始：発掘 → 評価 → 実装 → 検証 → デプロイ。"
+    "evo.driver.desc": "1コマンドで継続的自己改善ループを開始：発掘 → 評価 → 実装 → 検証 → デプロイ。",
+    "multirepo.title": "マルチリポジトリ プロジェクトに対応",
+    "multirepo.desc": "Workspace は複数の独立した git リポジトリと共有 hub リポジトリにまたがることができる。各 feature は独自の隔離された git worktree 内で実行され、並行する feature 同士がファイルを奪い合うことはない。",
+    "multirepo.p1.title": "独立したリポジトリ、統一された Workspace",
+    "multirepo.p1.desc": "各リポジトリのパスを宣言し、共有するものは hub として指定 — 4x は各 feature を許可されたリポジトリのみに制限する。",
+    "multirepo.p2.title": "Git Worktree による隔離",
+    "multirepo.p2.desc": "各 feature は専用の linked worktree を持つ。ブランチ切り替えも stash も不要で、並行実行される feature 同士が衝突することはない。",
+    "multirepo.p3.title": "Scope Guard",
+    "multirepo.p3.desc": "Guardrail チェックは、feature が宣言した scope 外のリポジトリに触れる diff を、レビューに届く前に拒否する。",
+    "quality.title": "すべての主張に証拠が必要",
+    "quality.desc": "Acceptance criteria は単にチェックを入れるだけではない — 各項目は verify.json に証拠を持たなければならず、guardrail が未証明と判断したラウンドは承認できない。",
+    "quality.p1.title": "AC Evidence Mapping",
+    "quality.p1.desc": "verify.json 内の各 acceptance criterion には passed フラグと証拠の記録が必要。証拠が欠けている場合、4x check がそのラウンドをブロックする。",
+    "quality.p2.title": "Selective Deep Review",
+    "quality.p2.desc": "Deep review は diff が実際に触れたファイルに基づいて関連する角度を選択し、小さな変更のたびにすべてのレビュー角度を実行することはない。",
+    "quality.p3.title": "テスト結果のクロス検証",
+    "quality.p3.desc": "Tester が報告する verify.json の結果は、実際のコマンドの exit code とクロスチェックされる — 証拠と矛盾する PASS の主張は自動的に検出される。",
+    "costviz.title": "各ラウンドのコストを把握",
+    "costviz.desc": "Dashboard はフェーズごとのトークン使用量と所要時間を分解表示するので、予算がどこに使われているかを驚く前に正確に把握できる。",
+    "costviz.p1.title": "フェーズ別内訳",
+    "costviz.p1.desc": "designing、coding、reviewing、testing それぞれのトークン、コスト、所要時間を個別に追跡 — 合計だけではない。",
+    "costviz.p2.title": "モデルを意識",
+    "costviz.p2.desc": "設計には opus、レビューとテストには sonnet を組み合わせる — dashboard は各選択のコストへの影響を表示する。",
+    "costviz.p3.title": "驚きはない",
+    "costviz.p3.desc": "暴走したラウンドはフェーズ別ビューにすぐ現れ、実行終了時の単一合計に隠れることはない。",
+    "costviz.img.caption": "ステップごとの model、所要時間、コスト — 実行後に驚くことはもうない"
   },
   ko: {
     "hero.desc": "소프트웨어 엔지니어링 루프를 4가지 전문 단계로 나누는 다중 역할 AI 개발 프레임워크 — 각 단계는 전담 AI 에이전트가 수행합니다.",
@@ -908,9 +958,9 @@ const i18n = {
     "demo.desc": "초기화, feature 생성, AI 개발 루프 실행 — 모두 터미널에서.",
     "dash.title": "4x Live 대시보드",
     "dash.overview.caption": "대시보드 개요 — 상태 요약, 라운드 분포, 최근 완료",
-    "dash.messages": "Designer가 생성한 구조화된 합격 기준",
-    "dash.logs": "라운드별 전체 개발 루프 로그",
-    "dash.run": "원클릭 실행, Runner 및 라운드 수 설정",
+    "dash.messages": "단계별 model, 소요 시간, 비용",
+    "dash.screenshots": "라운드마다 자동 캡처되는 스크린샷 갤러리",
+    "dash.run": "profile을 선택하고 실행 전 전체 phase 파이프라인 확인",
     "runners.title": "지원되는 Runner",
     "runners.desc": "어떤 AI 코딩 도구든 사용 가능. 역할별로 혼합 가능.",
     "footer.docs": "문서",
@@ -921,13 +971,38 @@ const i18n = {
     "stats.platforms": "플랫폼",
     "dash.desc": "macOS 네이티브 (Swift) + Windows / Linux (Tauri). 실시간 SSE 모니터링, 의존성 그래프, 스크린샷 갤러리, 6개 언어 i18n, 시스템 알림.",
     "evo.title": "자기 진화",
-    "evo.desc": "4x는 자체 실행에서 학습하고 지속적으로 개선합니다 — 실패 마이닝, 발견 보강, 가치 게이팅, 자기 반복.",
+    "evo.desc": "4x는 자체 실행에서 학습하고 지속적으로 개선합니다 — 실패 마이닝, 발견 보강, 가치 게이팅, 자기 반복. 활성 learnings가 30개를 넘으면 AI가 자동으로 의미적 중복을 감지하고 통합하여 프롬프트를 간결하게 유지합니다.",
     "evo.mine.title": "히스토리 마이닝",
     "evo.mine.desc": "실패한 run, 에스컬레이션, 반복되는 FAIL 패턴에서 개선 신호를 추출.",
     "evo.gate.title": "밸류 게이트",
     "evo.gate.desc": "ROI 평가 + 안티 핵 메커니즘으로 백로그 비대화와 저가치 작업을 방지.",
     "evo.driver.title": "이볼브 드라이버",
-    "evo.driver.desc": "한 명령어로 지속적 자기 개선 루프 시작: 마이닝 → 평가 → 구현 → 검증 → 배포."
+    "evo.driver.desc": "한 명령어로 지속적 자기 개선 루프 시작: 마이닝 → 평가 → 구현 → 검증 → 배포.",
+    "multirepo.title": "멀티 레포 프로젝트를 위한 설계",
+    "multirepo.desc": "Workspace는 여러 개의 독립된 git 레포와 공유 hub 레포에 걸쳐 있을 수 있습니다. 각 feature는 자체적으로 격리된 git worktree에서 실행되며, 동시에 실행되는 feature끼리 파일이 충돌하지 않습니다.",
+    "multirepo.p1.title": "독립된 레포, 하나의 Workspace",
+    "multirepo.p1.desc": "각 레포의 경로를 선언하고 공유하는 레포는 hub로 표시 — 4x는 각 feature를 허용된 레포로만 제한합니다.",
+    "multirepo.p2.title": "Git Worktree 격리",
+    "multirepo.p2.desc": "각 feature는 자체 linked worktree를 가집니다. 브랜치 전환이나 stash 없이, 병렬로 실행되는 feature끼리 충돌하지 않습니다.",
+    "multirepo.p3.title": "Scope Guard",
+    "multirepo.p3.desc": "Guardrail 검사는 feature가 선언한 scope 밖의 레포를 건드리는 diff를 리뷰에 도달하기 전에 거부합니다.",
+    "quality.title": "모든 주장에는 증거가 필요합니다",
+    "quality.desc": "Acceptance criteria는 단순히 체크만 하는 것이 아닙니다 — 각 항목은 verify.json에 증거를 담아야 하며, guardrail이 미입증으로 판단한 라운드는 승인될 수 없습니다.",
+    "quality.p1.title": "AC Evidence Mapping",
+    "quality.p1.desc": "verify.json의 각 acceptance criterion에는 passed 플래그와 증거 기록이 필요합니다. 증거가 없으면 4x check가 해당 라운드를 차단합니다.",
+    "quality.p2.title": "Selective Deep Review",
+    "quality.p2.desc": "Deep review는 diff가 실제로 건드린 파일을 기준으로 관련 관점을 선택하며, 작은 변경마다 모든 리뷰 관점을 실행하지 않습니다.",
+    "quality.p3.title": "교차 검증된 테스트",
+    "quality.p3.desc": "Tester가 보고한 verify.json 결과는 실제 명령어의 exit code와 교차 검증됩니다 — 증거와 모순되는 PASS 주장은 자동으로 감지됩니다.",
+    "costviz.title": "라운드마다 드는 비용을 한눈에",
+    "costviz.desc": "Dashboard는 phase별 토큰 사용량과 소요 시간을 분석하여, 예산이 어디로 가는지 놀라기 전에 정확히 보여줍니다.",
+    "costviz.p1.title": "Phase별 분석",
+    "costviz.p1.desc": "designing, coding, reviewing, testing 각각의 토큰, 비용, 소요 시간을 개별적으로 추적 — 단순 합계가 아닙니다.",
+    "costviz.p2.title": "모델을 인식",
+    "costviz.p2.desc": "설계에는 opus, 리뷰와 테스트에는 sonnet을 조합 — dashboard가 각 선택의 비용 영향을 보여줍니다.",
+    "costviz.p3.title": "놀랄 일 없음",
+    "costviz.p3.desc": "폭주하는 라운드는 phase별 뷰에 즉시 나타나며, 실행 종료 시 단일 합계에 숨겨지지 않습니다.",
+    "costviz.img.caption": "단계별 model, 소요 시간, 비용 — 실행 후 더 이상 놀랄 일 없음"
   },
   es: {
     "hero.desc": "Un framework de desarrollo con IA multi-rol que divide el ciclo de ingeniería de software en cuatro fases especializadas — cada una impulsada por un agente de IA dedicado.",
@@ -967,9 +1042,9 @@ const i18n = {
     "demo.desc": "Inicializar, crear un feature y ejecutar el ciclo de desarrollo IA — todo desde la terminal.",
     "dash.title": "4x Live Dashboard",
     "dash.overview.caption": "Vista general del dashboard — resumen de estado, distribución de rondas, completados recientes",
-    "dash.messages": "Criterios de aceptación estructurados del Designer",
-    "dash.logs": "Logs completos del ciclo de desarrollo por ronda",
-    "dash.run": "Ejecución con un clic, configura runner y rondas",
+    "dash.messages": "Modelo, duración y costo por paso",
+    "dash.screenshots": "Galería de capturas de pantalla automáticas por ronda",
+    "dash.run": "Elige un profile y ve el pipeline de fases completo antes de ejecutar",
     "runners.title": "Runners Soportados",
     "runners.desc": "Usa cualquier herramienta de codificación IA. Mezcla y combina por rol.",
     "footer.docs": "Documentación",
@@ -980,13 +1055,38 @@ const i18n = {
     "stats.platforms": "Plataformas",
     "dash.desc": "macOS nativo (Swift) + Windows / Linux (Tauri). Monitoreo SSE en tiempo real, grafo de dependencias, galería de capturas, i18n en 6 idiomas, notificaciones del sistema.",
     "evo.title": "Auto-Evolución",
-    "evo.desc": "4x aprende de sus propias ejecuciones y mejora continuamente — minería de fallos, enriquecimiento de descubrimientos, filtrado por valor, e iteración propia.",
+    "evo.desc": "4x aprende de sus propias ejecuciones y mejora continuamente — minería de fallos, enriquecimiento de descubrimientos, filtrado por valor, e iteración propia. Cuando los learnings activos superan 30, usa IA automáticamente para detectar duplicados semánticos y consolidarlos, manteniendo los prompts concisos.",
     "evo.mine.title": "Minería de Historial",
     "evo.mine.desc": "Extrae señales de mejora de runs fallidos, escalaciones y patrones FAIL recurrentes.",
     "evo.gate.title": "Compuerta de Valor",
     "evo.gate.desc": "Evaluación ROI + mecanismo anti-hack para prevenir backlog inflado y trabajo de bajo valor.",
     "evo.driver.title": "Driver de Evolución",
-    "evo.driver.desc": "Un comando para iniciar el ciclo de mejora continua: minar → evaluar → implementar → verificar → desplegar."
+    "evo.driver.desc": "Un comando para iniciar el ciclo de mejora continua: minar → evaluar → implementar → verificar → desplegar.",
+    "multirepo.title": "Diseñado para proyectos multi-repo",
+    "multirepo.desc": "El workspace puede abarcar múltiples repos git independientes más repos hub compartidos. Cada feature se ejecuta en su propio git worktree aislado — los features concurrentes nunca interfieren entre sí.",
+    "multirepo.p1.title": "Repos independientes, un solo Workspace",
+    "multirepo.p1.desc": "Declara la ruta de cada repo y marca los compartidos como hub — 4x limita cada feature solo a los repos que tiene permitido tocar.",
+    "multirepo.p2.title": "Aislamiento con Git Worktree",
+    "multirepo.p2.desc": "Cada feature obtiene su propio worktree vinculado. Sin cambiar de rama, sin stash, sin colisiones entre features que se ejecutan en paralelo.",
+    "multirepo.p3.title": "Scope Guard",
+    "multirepo.p3.desc": "Las verificaciones de guardrail rechazan cualquier diff que toque un repo fuera del scope declarado del feature — antes de llegar a revisión.",
+    "quality.title": "Cada afirmación necesita evidencia",
+    "quality.desc": "Los acceptance criteria no solo se marcan como completados — cada uno debe llevar evidencia en verify.json, y una ronda que el guardrail considera no probada no puede aceptarse.",
+    "quality.p1.title": "Mapeo de evidencia de AC",
+    "quality.p1.desc": "Cada acceptance criterion en verify.json necesita una marca passed y un rastro de evidencia. 4x check bloquea la ronda si falta evidencia.",
+    "quality.p2.title": "Deep Review selectivo",
+    "quality.p2.desc": "Deep review elige ángulos según qué archivos toca realmente el diff, en lugar de ejecutar todos los ángulos de revisión en cada cambio pequeño.",
+    "quality.p3.title": "Pruebas verificadas de forma cruzada",
+    "quality.p3.desc": "Los resultados de verify.json del Tester se verifican cruzadamente contra los códigos de salida reales de los comandos — un PASS declarado con evidencia contradictoria se detecta automáticamente.",
+    "costviz.title": "Sabe cuánto cuesta cada ronda",
+    "costviz.desc": "El dashboard desglosa el uso de tokens y la duración por fase, para que veas exactamente a dónde va el presupuesto antes de que te sorprenda.",
+    "costviz.p1.title": "Desglose por fase",
+    "costviz.p1.desc": "Tokens, costo y duración para designing, coding, reviewing, testing — rastreados por separado, no solo un total.",
+    "costviz.p2.title": "Consciente del modelo",
+    "costviz.p2.desc": "Combina opus para diseño con sonnet para revisión y pruebas — el dashboard muestra el impacto en el costo de cada elección.",
+    "costviz.p3.title": "Sin sorpresas",
+    "costviz.p3.desc": "Las rondas descontroladas aparecen de inmediato en la vista por fase en lugar de ocultarse en un único total al final de la ejecución.",
+    "costviz.img.caption": "Modelo, duración y costo por paso — sin sorpresas al final"
   }
 };
 
