@@ -171,17 +171,10 @@ tailwind.config = {
     </div>
   </div>
   <div class="code-block rounded-xl p-6 font-mono text-sm overflow-x-auto">
-<pre class="whitespace-pre">{
-  <span class="text-accent">"workspace"</span>: {
-    <span class="text-accent">"repos"</span>: {
-      <span class="text-accent">"core"</span>:    { <span class="text-accent">"path"</span>: <span class="text-orange">"core"</span>,    <span class="text-accent">"hub"</span>: <span class="text-purple">true</span> },
-      <span class="text-accent">"gateway"</span>: { <span class="text-accent">"path"</span>: <span class="text-orange">"gateway"</span> },
-      <span class="text-accent">"admin"</span>:   { <span class="text-accent">"path"</span>: <span class="text-orange">"admin"</span> },
-      <span class="text-accent">"web"</span>:     { <span class="text-accent">"path"</span>: <span class="text-orange">"web"</span> }
-    }
-  },
-  <span class="text-accent">"isolation"</span>: <span class="text-orange">"worktree"</span>
-}</pre>
+<pre class="whitespace-pre"><span class="text-muted">$ 4x check my-feature</span>
+<span class="text-red">✗ scope violation:</span> repo <span class="text-orange">"payment"</span> not in feature repos
+  feature declares: [<span class="text-orange">"core"</span>, <span class="text-orange">"gateway"</span>, <span class="text-orange">"web"</span>]
+  diff touches:     <span class="text-accent">payment/internal/ledger.go</span></pre>
   </div>
 </section>
 
@@ -510,7 +503,7 @@ tailwind.config = {
 <!-- Self-Evolution -->
 <section class="max-w-4xl mx-auto px-6 py-16">
   <h2 class="text-2xl font-bold text-center mb-4" data-i18n="evo.title">Self-Evolution</h2>
-  <p class="text-muted text-center mb-8" data-i18n="evo.desc">4x learns from its own runs and continuously improves — mining failures, enriching discoveries, gating by value, and iterating itself.</p>
+  <p class="text-muted text-center mb-8" data-i18n="evo.desc">4x learns from its own runs and continuously improves — mining failures, enriching discoveries, gating by value, and iterating itself. When active learnings pass 30, it automatically uses AI to detect semantic duplicates and consolidate them, keeping prompts lean.</p>
   <div class="grid sm:grid-cols-3 gap-4">
     <div class="feature-card rounded-xl p-5">
       <div class="text-purple text-lg font-bold mb-2" data-i18n="evo.mine.title">History Mining</div>
