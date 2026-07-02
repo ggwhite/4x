@@ -1,0 +1,134 @@
+id: F126-multirepo-worktree-guard-gaps
+name: 'F126: 多 repo worktree scope/guard 邊界情況修復'
+description: |-
+    在 Kairos（multi-repo，isolation:worktree，含 hub_repos）的實際 dogfooding 中，2026-07-01
+    連續遇到 4 個邊界情況，共同根因都跟「multi-repo worktree 佈局下的 root/scope 解析」有關。
+    本 feature 彙整這 4 個問題，逐一修復並補回歸測試。
+
+    ## 背景
+
+    Kairos 專案結構：workspace 根下有多個獨立 git repo（kairos-core/gate/game/payment/
+    service/admin/web/e2e）+ 一個 hub_repo（docs，settings.json workspace.repos 有列，
+    但不是「業務 repo」，是所有 feature 共用的文件目錄，也沒有獨立 .git——docs/ 底下就是
+    主工作區同一份文件，只是被 workspace.repos 設定收錄以便 DetectChangedFiles 之類的
+    工具識別）。isolation: worktree，每個 feature 的 worktree container
+    （.worktrees/4x/{id}/）底下，kairos-admin/kairos-web 等業務 repo 是真正的 linked git
+    worktree，但 docs 只是原樣存在（無獨立 .git worktree 結構）。
+
+    ## Issue 1 — checkBuildGate 對「非每 repo都有的 Lint 指令」沒有優雅降級
+
+    `internal/verify/verify.go` BuildGateGroups 直接把 settings.json 的 Build+Lint
+    指令串成一組 command，`internal/guard/check.go` runGroupsAcrossRoots
+    （約 L518-531）對 `gitops.ScopeRoots` 回傳的每個 root 各跑一次。若專案的 Lint
+    指令是一個「彙總型」腳本（如 Kairos 的 lint.sh，本身會 cd 進每個 repo 迴圈跑，只存在於
+    workspace 根目錄，不是每個 repo 都有一份），在每個 sub-repo worktree root 各自
+    `./lint.sh` 就會 exit 127（No such file or directory）。Build 指令若是「每 repo
+    一份」（如 Kairos 的 init.sh）則沒事，造成同一組 BuildGateGroups 裡 Build 和 Lint
+    行為不一致、難以察覺。
+
+    現況：已在 Kairos 專案側加了每個 repo 自己的 lint.sh workaround，但 4x 本體對這種
+    「聚合腳本 vs per-repo 腳本」的落差沒有偵測或優雅降級（例如：指令回傳 127 且
+    `command not found`/`No such file` 時，應該視為「這個 root 沒有這個指令」warn+skip，
+    而不是直接當成 lint failure 讓整個 build-gate fail）。
+
+    ## Issue 2 — VerifyCommand.ExpectedExitCode 欄位存在但未寫進任何角色 prompt
+
+    `internal/protocol/verify.go:39` 的 `ExpectedExitCode *int` 欄位用來支援
+    「預期非 0 exit code」的驗證指令（例如 grep 找不到東西是好事、exit 1 才是通過）。
+    但 Tester 角色沒有任何 prompt/文件告知這個欄位存在，導致 Tester 寫一個
+    「grep 預期 0 matches」的檢查時，只填了 exitCode: 1 和正確的 summary，
+    沒填 expectedExitCode，觸發 `checkTestingToAccepting`（check.go 約 L221-236）
+    的 W7 交叉驗證誤判成「verify.json claims passed but command exited 1
+    (expected 0)」，整個 feature 卡在 needs-attention，即使底層驗證結果其實正確。
+
+    修法：在 Tester 角色的 prompt 樣板（cmd/4x/prompt.go 或對應 role prompt 產生邏輯）
+    明確教學 expectedExitCode 欄位的用途與範例，或是在 checkTestingToAccepting 對常見的
+    「grep/rg 無結果」模式做更寬容的判斷。
+
+    ## Issue 3 — hub_repo（docs）被誤判 scope violation，且行為與呼叫時的 CWD 有關
+
+    `internal/gitops/multirepo.go` DetectChangedRepos（約 L293-313）原本的保護邏輯是對的：
+    若某 repo 在 worktree container 底下沒有真正的 linked worktree（`isLinkedWorktree`
+    回傳 false）且 `wtActive` 為真，就跳過不檢查，避免把主工作區無關的 dirty file
+    誤判成本輪 scope violation。但這個保護只在 `m.root`（來自 ws.Root）正確指向
+    「真正的主工作區根目錄」時才生效。
+
+    問題：worktree container（.worktrees/4x/{id}/）底下複製了一份 `.4x/`
+    目錄，若 4x 指令是在 worktree 內執行（agent 本來就是在自己的 worktree 裡工作，
+    `4x check {id}` 是 agent 自己主動呼叫的），workspace root 解析（往上找最近的
+    `.4x/`）會誤停在 worktree container 自己的 `.4x/`，導致 `ws.Root` 變成 worktree
+    container 路徑而非真正主工作區。這會讓 `wtDir := Dir(m.root, featureID)`
+    算出一個巢狀不存在的路徑（`{worktree}/.worktrees/4x/{id}/`），`wtActive` 判成
+    false，保護邏輯的 `continue` 跳過條件失效，於是對 docs 這種「無獨立 linked
+    worktree、只是共用主工作區同一份目錄」的 hub_repo，退回用
+    `filepath.Join(m.root, "docs")` 當作 repoPath——這剛好還是實體上同一個 docs
+    目錄（因為 worktree container 底下的 docs 也是同一份），git diff 掃到主工作區
+    當下任何未 commit 的 docs 變更（哪怕跟本 feature完全無關，是另一個並行 session
+    留下的），就誤判成「本輪動了 docs」，回報 scope violation。
+
+    實測驗證：同一個 `4x check {id}`，在主工作區根目錄執行 → PASS；
+    在 `.worktrees/4x/{id}/` 內執行 → FAIL（scope violation: repo "docs" not in
+    feature repos）。兩次呼叫之間 git 狀態完全沒變，唯一差異是 CWD。
+
+    修法方向（擇一或組合）：
+    (a) workspace root 解析時排除「worktree container 內的 `.4x/`」，不要把它當成
+        有效的 workspace root anchor（例如檢查該 `.4x/` 底下有沒有
+        `.4x/features/`、`.4x/settings.json` 且不在任何 `.worktrees/` 路徑之下）。
+    (b) worktree container 的 `.4x/` 改成 symlink 回主工作區的 `.4x/`，而不是
+        實體複製，從根本上消除「兩份 `.4x/`」的歧義。
+    (c) `DetectChangedRepos`/`ScopeRoots` 系列函式改成接受呼叫端明確傳入的
+        authoritative root（例如從 `4x` 指令啟動時就把真正的 workspace root
+        存進一個固定位置或環境變數，不要每次呼叫都重新從 CWD 往上找）。
+    (d) hub_repos（settings.json workspace 或 project 層新增欄位標示）應該從
+        scope violation 判斷中完全排除——它們本來就是設計成跨 feature 共用，
+        不該被當成「這個 feature 動了不該動的 repo」。
+
+    ## Issue 4 — DeferRunCleanup 沒有把 phase 一併轉成 needs-attention
+
+    `internal/orchestrator/orchestrator.go` DeferRunCleanup（約 L1044-1068）在
+    process 意外中斷、`cur.Active` 仍為 true 時，只補了 `StopReason`/
+    `StopMessage`（若原本為空才補 "process-exit"），但沒有把 `cur.Phase` 改成
+    `protocol.PhaseNeedsAttention`。實測結果：state.json 停在原本 mid-flight 的
+    phase（例如 "fixing"），`4x retry {id}` 因為 `cmd/4x/retry.go:77` 檢查的是
+    `s.Phase != PhaseNeedsAttention && s.Phase != PhaseBlocked` 而直接拒絕
+    （"retry only works from needs-attention or blocked"），使用者必須手動編輯
+    state.json 的 phase 欄位才能讓 `4x retry` 接手，體驗很差、也容易讓人誤以為
+    retry 機制本身壞掉。
+
+    實測也觀察到：同一輪的 events.jsonl 裡，fixer 的 run-end 先寫了一筆
+    `status: "exit-0"`，緊接著又寫了一筆 `status: "interrupted", detail:
+    "process-exit"`——代表子程序其實已經正常結束、agent 也已完整寫完
+    fixer-report.md/escalation.json，但外層某個判斷仍認為它「還在跑」而觸發了
+    DeferRunCleanup 的兜底邏輯。建議一併調查這個「明明已經 exit-0 卻又觸發
+    process-exit」的 race，不只是把 phase 補上而已——否則會掩蓋掉真正該修的
+    時序問題。
+
+    修法：DeferRunCleanup 補上 `cur.Phase = protocol.PhaseNeedsAttention`（與
+    `checkTestingToAccepting` 等既有 gate 失敗時的行為一致），並且找出並修掉
+    「exit-0 之後又誤觸發 process-exit」的競態根因。
+status: in-progress
+priority: 1
+profile: full
+repos:
+    - internal/guard
+    - internal/verify
+    - internal/gitops
+    - internal/orchestrator
+    - internal/protocol
+subtasks:
+    - id: issue1-lint-fallback
+      name: Issue 1 — build-gate 對聚合型 vs per-repo Lint 指令優雅降級（非 127 硬 fail）
+      status: ""
+    - id: issue2-expectedexitcode-doc
+      name: Issue 2 — Tester prompt 補教 ExpectedExitCode 欄位用法，或 W7 對 grep 無結果模式更寬容
+      status: ""
+    - id: issue3-hub-repo-scope
+      name: Issue 3 — workspace root 解析排除 worktree container 內的 .4x，修正 hub_repo(docs) 誤判 scope violation 且行為與 CWD 無關
+      status: ""
+    - id: issue4-defer-cleanup-phase
+      name: Issue 4 — DeferRunCleanup 補 phase=needs-attention，並查明 exit-0 後又觸發 process-exit 的競態根因
+      status: ""
+rules:
+    - 每個 issue 都要補一個可重現的回歸測試（優先用現有 _test.go 的 fixture 手法模擬 multi-repo worktree + hub_repo 佈局），不能只改邏輯不驗證
+    - Issue 3 是最高優先，因為它會影響幾乎每個 multi-repo feature（Designer 依慣例都要寫 docs/features/*.md）
+    - 修復基準是今天（2026-07-01）在 Kairos 專案 ws-112/ws-120 實際踩到的案例，可用該專案的 .4x/run/ws-112、.4x/run/ws-120-gm 歷史記錄核對現象是否重現
