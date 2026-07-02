@@ -1,0 +1,36 @@
+id: F127-issue-first-mr-flow
+name: 'F127: Issue-first MR flow (GitHub/GitLab integration)'
+description: |-
+    現狀：`4x done` 完成時只會在本地對 feature branch 做 `git merge --squash` + commit，沒有任何 GitHub/GitLab 串接；沒有 issue 追蹤，也沒有 MR/PR 建立，合併結果完全不進版控平台的 review 流程。
+
+    需求：
+    - `.4x/settings.json` 新增 `issue_tracker.enabled` 開關（預設 false，僅需要的專案如 Kairos 開啟）。
+    - `4x new` 在開關開啟時，對 feature 宣告的每個 repo 建立 issue（title=feature name、body=feature description），寫回 `Feature.Issues`；任一 repo 建立失敗記入 `Feature.Warnings`（partial-tolerant），但若 gh/glab 未安裝或未登入（preflight 失敗）則整個 `4x new` 中止、不寫入 feature YAML。
+    - `4x done`（經由 `internal/gitops/finalize.go MergeAndFinalize` 這個 CLI/server 共用入口）在開關開啟時，改成 push feature branch 到 origin 並對每個有實際變更的 repo 開 MR/PR，MR body 帶 `Closes #<issue-id>`；target branch 讀取既有 `baseline.json` 記錄的 branch，不新增欄位。done 狀態代表「已開 MR」，不等待 GitLab/GitHub 實際合併。
+    - 新增 `internal/vcshub` package 封裝 `gh`/`glab` 呼叫，依 repo 的 git remote hostname 自動判斷平台，不需要使用者手動設定平台欄位。
+
+    約束：
+    - 不動 `internal/gitops` 既有的純 git 職責邊界，forge API 呼叫全部在 `vcshub` 裡。
+    - 未開啟 `issue_tracker.enabled` 的專案（如 Infinite）行為完全不變。
+    - 不做「等待遠端實際合併才轉 done」的狀態機（YAGNI，done = MR 已開）。
+    - 不做 issue 自動關閉（abandon 的 feature 留給人工處理）。
+status: not-started
+subtasks:
+    - id: settings-schema
+      name: .4x/settings.json 新增 issue_tracker.enabled 設定
+      status: ""
+    - id: feature-schema
+      name: Feature YAML 新增 Issues/Warnings 欄位擴充
+      status: ""
+    - id: vcshub-package
+      name: 新增 internal/vcshub package（Hub interface、gh/glab 實作、平台偵測、preflight）
+      status: ""
+    - id: new-cmd-integration
+      name: cmd/4x/new.go 串接 preflight + 建 issue 流程
+      status: ""
+    - id: done-flow-integration
+      name: internal/gitops 新增 PushAndOpenMR，finalize.go 分支串接
+      status: ""
+    - id: tests
+      name: vcshub mock 測試 + finalize_test.go 新增 issue_tracker 情境
+      status: ""
