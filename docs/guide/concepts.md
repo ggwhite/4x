@@ -302,6 +302,10 @@ When a feature runs in worktree isolation, the loop prints `worktree: <path>` on
 
 The scan reads the **entire** `events.jsonl` and returns the path from the **last** matching `run-output` event. This matters for re-runs: each `4x run` appends a fresh `worktree: …` event, so the file accumulates entries over the feature's lifetime. Reading only the first few lines would either miss the path once enough events pile up, or return a stale worktree that has since been removed. Taking the last match always yields the most recent run's worktree.
 
+### Screenshot Discovery Resilience
+
+`Workspace.DiscoverScreenshots` reads every round's `verify.json` to collect Tester-recorded screenshot evidence. A single round's `verify.json` can end up malformed — e.g. a captured subprocess's raw ANSI escape codes leaking into the file — which would otherwise fail JSON parsing. Rather than propagating that as a hard error and taking down the whole discovery call (and with it `4x status`/`4x check` for the entire feature), a parse failure is treated as best-effort: that round contributes no verify-sourced screenshots, but its round number is still tracked and every other round's evidence — plus the directory scan fallback — is processed normally.
+
 ### Workspace Read Cache (Dashboard Server)
 
 The CLI is a short-lived process: each command reads the `.4x/` files it needs once and exits, so it always uses a plain `*protocol.Workspace`. The dashboard server (`4x live`) is the opposite — it is long-running and every API request re-reads the same files. In a multi-project × multi-feature workspace (e.g. 5 projects × 50 features) a single request can trigger hundreds of YAML/JSON parses.
