@@ -240,6 +240,7 @@ func checkTestingToAccepting(ws *protocol.Workspace, featureID string, round int
 		r.Errors = append(r.Errors, fmt.Sprintf("warning: failed to read test-strategy.yaml: %v (falling back to defaults)", tsErr))
 	}
 	checkACEvidence(ts, evidence, r)
+	checkScreenshotRequirement(ws, ts, evidence, r)
 	checkManualChecks(ts, evidence, r)
 	checkSelfModTestGate(ws, featureID, r)
 }
@@ -254,7 +255,7 @@ func checkTestStrategyVerifyTypes(ws *protocol.Workspace, featureID string, r *C
 	for acID, vt := range ts.ACVerifyMap {
 		if _, valid := acVerifyTypes[vt]; !valid {
 			r.Pass = false
-			r.Errors = append(r.Errors, fmt.Sprintf("test-strategy.yaml: ac_verify_map[%s] has invalid verify_type %q (valid: unit-test, integration, execution, inspection, skip)", acID, vt))
+			r.Errors = append(r.Errors, fmt.Sprintf("test-strategy.yaml: ac_verify_map[%s] has invalid verify_type %q (valid: unit-test, integration, execution, inspection, skip, e2e-screenshot)", acID, vt))
 		}
 	}
 }
@@ -263,11 +264,12 @@ func checkTestStrategyVerifyTypes(ws *protocol.Workspace, featureID string, r *C
 type acVerifyType struct{ needsExec bool }
 
 var acVerifyTypes = map[string]acVerifyType{
-	"unit-test":   {needsExec: true},
-	"integration": {needsExec: true},
-	"execution":   {needsExec: true},
-	"inspection":  {needsExec: false},
-	"skip":        {needsExec: false},
+	"unit-test":      {needsExec: true},
+	"integration":    {needsExec: true},
+	"execution":      {needsExec: true},
+	"inspection":     {needsExec: false},
+	"skip":           {needsExec: false},
+	"e2e-screenshot": {needsExec: false},
 }
 
 var executionPattern = regexp.MustCompile(`(\$\s|\bPASS\b|\bFAIL\b|^ok\s|--- |exit code|→|stdout|stderr|\d+\.\d+s)`)
@@ -348,6 +350,61 @@ func checkACEvidence(ts protocol.TestStrategy, evidence protocol.VerifyEvidence,
 			}
 		}
 	}
+}
+
+// checkScreenshotRequirement 驗證宣告 verify_type=e2e-screenshot 的 AC 有留下截圖證據，
+// 只檢查檔案是否存在（不比對內容），round 內任一截圖檔存在即視為所有此類 AC 皆有證據。
+func checkScreenshotRequirement(ws *protocol.Workspace, ts protocol.TestStrategy, evidence protocol.VerifyEvidence, r *CheckResult) {
+	resultMap := make(map[string]protocol.ACEvidence, len(evidence.ACResults))
+	for _, ac := range evidence.ACResults {
+		resultMap[ac.ID] = ac
+	}
+	for acID, vt := range ts.ACVerifyMap {
+		if vt != "e2e-screenshot" {
+			continue
+		}
+		if ac, ok := resultMap[acID]; !ok || !ac.Passed {
+			r.Pass = false
+			r.Errors = append(r.Errors, fmt.Sprintf(
+				"%s: verify_type=e2e-screenshot but AC missing or not passed in ac_results", acID))
+			r.RetryableErrors++
+			continue
+		}
+		if !hasExistingScreenshot(ws.Root, evidence.Screenshots) {
+			r.Pass = false
+			r.Errors = append(r.Errors, fmt.Sprintf(
+				"%s: verify_type=e2e-screenshot but no screenshot file found — tester must capture and record a screenshot, not skip", acID))
+			r.RetryableErrors++
+		}
+	}
+}
+
+// hasExistingScreenshot 檢查截圖清單裡是否至少一個檔案真的存在於磁碟。
+// NormalizeScreenshotPath 會剝掉 ".4x/" 前綴，故預設截圖目錄需依序嘗試 root 與
+// root/.4x 兩個基準才能解析回正確位置（比照 internal/server/screenshots.go 慣例）。
+func hasExistingScreenshot(root string, shots []feat.Screenshot) bool {
+	for _, s := range shots {
+		if filepath.IsAbs(s.Path) {
+			if info, err := os.Stat(s.Path); err == nil && !info.IsDir() {
+				return true
+			}
+			continue
+		}
+		normalized := feat.NormalizeScreenshotPath(s.Path)
+		if normalized == "" {
+			continue
+		}
+		candidates := []string{
+			filepath.Join(root, normalized),
+			filepath.Join(root, protocol.DirName, normalized),
+		}
+		for _, full := range candidates {
+			if info, err := os.Stat(full); err == nil && !info.IsDir() {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // checkManualChecks 驗證 test-strategy.yaml 的 manual_checks 全部有對應的執行結果。
