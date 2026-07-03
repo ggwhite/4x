@@ -14,7 +14,7 @@ description: |-
     - 不修正 `buildPhaseInfo` 既有的 iteration key 併發 bug，也不修 Deep Review 那一行單獨顯示的數字（範圍已明確排除，風險與範圍留待後續另開 feature）。
     - 不新增第二份持續寫回的累計欄位（不做 state.json 累加計數器），維持 events.jsonl 為單一權威來源，每次即時重新加總。
     - 不動 dashboard/macos（Swift）——那只是 WKWebView wrapper，實際 UI 都在 dashboard/web/。
-status: not-started
+status: done
 subtasks:
     - id: protocol-helper
       name: internal/protocol 新增 TotalCost 共用函式，加總 events.jsonl 的 run-end cost_usd
