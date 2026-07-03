@@ -52,9 +52,11 @@ type Runner struct {
 	totalCostUSD float64
 }
 
-// NewRunner 建立新的 Runner 實例
+// NewRunner 建立新的 Runner 實例，並以 events.jsonl 的權威加總 seed totalCostUSD，
+// 讓曾中斷重啟過的 feature 也能正確帶回歷史花費（新 feature 因無 events.jsonl 得到 0，無害）。
 func NewRunner(cfg Config) *Runner {
-	return &Runner{Config: cfg}
+	seedCost, _ := cfg.Ws.TotalCost(cfg.Feature.ID)
+	return &Runner{Config: cfg, totalCostUSD: seedCost}
 }
 
 func (r *Runner) featureID() string {

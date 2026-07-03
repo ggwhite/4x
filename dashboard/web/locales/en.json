@@ -4,6 +4,7 @@
   "app.selectProject": "Select a project to get started",
   "app.openProject": "Open Project...",
   "app.noArtifacts": "No artifacts yet",
+  "app.totalCost": "Total cost: {amount}",
   "app.confirmDone": "Mark {id} as done?",
   "nav.messages": "Messages",
   "nav.logs": "Logs",

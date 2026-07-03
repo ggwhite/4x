@@ -4,6 +4,7 @@
   "app.selectProject": "プロジェクトを選択して開始",
   "app.openProject": "プロジェクトを開く...",
   "app.noArtifacts": "まだ成果物がありません",
+  "app.totalCost": "合計コスト：{amount}",
   "app.confirmDone": "{id} を完了にしますか？",
   "nav.messages": "メッセージ",
   "nav.logs": "ログ",

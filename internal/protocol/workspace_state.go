@@ -70,6 +70,38 @@ func (w *Workspace) AppendEvent(featureID string, evt Event) error {
 	return err
 }
 
+// TotalCost 加總 events.jsonl 中所有 run-end 事件的 cost_usd，作為該 feature
+// 跨行程（含中斷重啟）的權威總花費，不依賴 per-role/iteration 比對。
+// events.jsonl 不存在時回傳 (0, nil)（新 feature 尚無歷史）。
+func (w *Workspace) TotalCost(featureID string) (float64, error) {
+	eventsPath := filepath.Join(w.FeatureDir(featureID), EventsFile)
+	data, err := os.ReadFile(eventsPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	var total float64
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var ev struct {
+			Type    string  `json:"type"`
+			CostUSD float64 `json:"cost_usd"`
+		}
+		if json.Unmarshal([]byte(line), &ev) != nil {
+			continue
+		}
+		if ev.Type == "run-end" {
+			total += ev.CostUSD
+		}
+	}
+	return total, nil
+}
+
 // RequestStop 在 feature dir 下原子寫入 stop signal 檔，請求 run loop 停止該 feature。
 //
 // 採 signal file（對齊既有 BatchStopFile 機制）而非直接改寫 state.json：state.json

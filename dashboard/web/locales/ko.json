@@ -4,6 +4,7 @@
   "app.selectProject": "시작할 프로젝트를 선택하세요",
   "app.openProject": "프로젝트 열기...",
   "app.noArtifacts": "아직 결과물이 없습니다",
+  "app.totalCost": "총 비용：{amount}",
   "app.confirmDone": "{id}을(를) 완료로 표시하시겠습니까?",
   "nav.messages": "메시지",
   "nav.logs": "로그",

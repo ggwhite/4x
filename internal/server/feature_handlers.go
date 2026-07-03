@@ -349,8 +349,16 @@ func handleMessages(ws *protocol.CachedWorkspace, featureID string, w http.Respo
 		}
 	}
 
+	totalCost, _ := ws.TotalCost(featureID)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(messages)
+	json.NewEncoder(w).Encode(messagesResponse{Messages: messages, TotalCostUSD: totalCost})
+}
+
+// messagesResponse 是 handleMessages 的回應形狀，供 handler 編碼與測試解碼共用，
+// 避免形狀在兩處各寫一份日後漂移。
+type messagesResponse struct {
+	Messages     []messageInfo `json:"messages"`
+	TotalCostUSD float64       `json:"totalCostUSD"`
 }
 
 type durationKey struct {

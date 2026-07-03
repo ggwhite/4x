@@ -273,6 +273,10 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
 
 扫描会读取**整个** `events.jsonl` 并返回**最后**一个匹配的 `run-output` 事件中的路径。这对重新运行很重要：每次 `4x run` 都会追加新的 `worktree: …` 事件，因此文件会在 feature 生命周期中积累多个条目。只读取前几行要么在事件堆积后找不到路径，要么返回已被删除的过期 worktree。取最后一个匹配项始终得到最近一次运行的 worktree。
 
+### 权威花费总计
+
+`Workspace.TotalCost` 采用与上述 `WorktreePath` 相同的「扫描整个审计日志」模式，区别在于是求和而非取最后一项：它读取 `events.jsonl` 中每一个 `run-end` 事件，并累加各自的 `cost_usd`。这是 feature 总花费的单一权威来源，CLI（`4x run` 结尾的摘要，通过 seed 到 `orchestrator.NewRunner`，使中断重启后的 run 也能带回上一个进程的花费）与 dashboard（`/api/messages/{id}` 的 `totalCostUSD` 字段）都共用此函数。`events.jsonl` 不存在时（新 feature 尚未运行过）返回 `(0, nil)`；单行格式错误会被跳过而非中断整体扫描，避免一行坏数据掩盖其余所有运行的花费。
+
 ### 截图发现的容错处理
 
 `Workspace.DiscoverScreenshots` 会读取每个 round 的 `verify.json` 以收集 Tester 记录的截图证据。单个 round 的 `verify.json` 可能会损坏——例如捕获的 subprocess 输出中混入了未转义的原始 ANSI 转义码——从而导致 JSON 解析失败。与其让这个错误向上传播为硬性失败、拖垮整个发现调用（进而让整个 feature 的 `4x status`/`4x check` 也失败），解析失败被视为 best-effort：该 round 不会贡献任何来自 verify.json 的截图，但其 round 编号仍会被记录，其余 round 的证据以及目录扫描的兜底机制都照常处理。

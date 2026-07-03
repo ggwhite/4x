@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -120,6 +121,34 @@ func TestArchiveDesignArtifact_OtherRoleNoop(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(ws.FeatureDir("feat-1"), protocol.DesignRoundsDir)); !os.IsNotExist(err) {
 		t.Fatalf("expected no design-rounds dir for coder role, stat err = %v", err)
 	}
+}
+
+// TestNewRunner_SeedsCostFromEvents 驗證 NewRunner 建構時以 TotalCost seed
+// totalCostUSD：有 events.jsonl 歷史 run-end 時 seed 值等於其總和，無歷史時為 0。
+func TestNewRunner_SeedsCostFromEvents(t *testing.T) {
+	t.Run("with history", func(t *testing.T) {
+		ws := setupPhaseWorkspace(t, "feat-seed")
+		if err := ws.AppendEvent("feat-seed", protocol.Event{Type: "run-end", CostUSD: 1.5}); err != nil {
+			t.Fatal(err)
+		}
+		if err := ws.AppendEvent("feat-seed", protocol.Event{Type: "run-end", CostUSD: 2.25}); err != nil {
+			t.Fatal(err)
+		}
+
+		r := NewRunner(Config{Ws: ws, Feature: feature.Feature{ID: "feat-seed"}})
+		if want := 3.75; r.totalCostUSD != want {
+			t.Errorf("totalCostUSD = %v, want %v", r.totalCostUSD, want)
+		}
+	})
+
+	t.Run("no history", func(t *testing.T) {
+		ws := setupPhaseWorkspace(t, "feat-new")
+
+		r := NewRunner(Config{Ws: ws, Feature: feature.Feature{ID: "feat-new"}})
+		if r.totalCostUSD != 0 {
+			t.Errorf("totalCostUSD = %v, want 0", r.totalCostUSD)
+		}
+	})
 }
 
 func TestFormatTokens(t *testing.T) {

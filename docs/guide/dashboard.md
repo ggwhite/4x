@@ -92,7 +92,7 @@ Read-heavy endpoints (`/api/tasks`, `/api/overview`, `/api/projects`, `/api/sett
 | `/api/batch/status` | GET | Batch running state, scheduled queue, current feature, and conflict signal |
 | `/api/events/{id}` | GET | Get events for a feature |
 | `/api/overview/{id}` | GET | Get feature overview (YAML fields + spec/plan content, resolved via the shared `protocol.ResolveDesignDoc` — see [Design Doc Resolution](concepts.md#design-doc-resolution)) |
-| `/api/messages/{id}` | GET | Get messages for a feature |
+| `/api/messages/{id}` | GET | Get messages for a feature, plus the feature's authoritative total cost (see below) |
 | `/api/evolve-report` | GET | Latest `4x evolve` round summary (`.4x/evolve-report.md`); `{content, exists}`, `exists:false` when absent |
 | `/api/features/{id}/screenshots` | GET | Get screenshots grouped by round |
 | `/api/features/{id}/screenshots/{filename}` | GET | Serve one screenshot image |
@@ -116,6 +116,15 @@ Read-heavy endpoints (`/api/tasks`, `/api/overview`, `/api/projects`, `/api/sett
 | `/api/supported-runners` | GET | List supported runner names |
 
 GET-only endpoints (including `/api/messages/{id}` and `/api/overview/{id}`) reject non-`GET` requests with **HTTP 405 Method Not Allowed**.
+
+#### `GET /api/messages/{id}` Response
+
+Returns a JSON object (not a bare array):
+
+| Field | Type | Meaning |
+|---|---|---|
+| `messages` | array \| null | Same message entries as before; `null` when the feature has no artifacts yet |
+| `totalCostUSD` | float | Sum of `cost_usd` across every `run-end` event in the feature's `events.jsonl` (via `protocol.Workspace.TotalCost`), covering all past runs including interrupted/resumed ones |
 
 #### `POST /api/done` Response
 

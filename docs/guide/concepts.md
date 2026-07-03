@@ -302,6 +302,10 @@ When a feature runs in worktree isolation, the loop prints `worktree: <path>` on
 
 The scan reads the **entire** `events.jsonl` and returns the path from the **last** matching `run-output` event. This matters for re-runs: each `4x run` appends a fresh `worktree: …` event, so the file accumulates entries over the feature's lifetime. Reading only the first few lines would either miss the path once enough events pile up, or return a stale worktree that has since been removed. Taking the last match always yields the most recent run's worktree.
 
+### Authoritative Cost Totals
+
+`Workspace.TotalCost` follows the same "scan the entire audit trail" pattern as `WorktreePath` above, but sums instead of taking the last match: it reads every `run-end` event in `events.jsonl` and adds up each one's `cost_usd`. This is the single source of truth for a feature's total spend, used by both the CLI (`4x run`'s summary, seeded into `orchestrator.NewRunner` so a resumed run's total includes prior process's cost) and the dashboard (`/api/messages/{id}`'s `totalCostUSD` field). A missing `events.jsonl` (new feature, no runs yet) returns `(0, nil)`; a malformed line is skipped rather than aborting the whole scan, since one bad line shouldn't hide the cost of every other run.
+
 ### Screenshot Discovery Resilience
 
 `Workspace.DiscoverScreenshots` reads every round's `verify.json` to collect Tester-recorded screenshot evidence. A single round's `verify.json` can end up malformed — e.g. a captured subprocess's raw ANSI escape codes leaking into the file — which would otherwise fail JSON parsing. Rather than propagating that as a hard error and taking down the whole discovery call (and with it `4x status`/`4x check` for the entire feature), a parse failure is treated as best-effort: that round contributes no verify-sourced screenshots, but its round number is still tracked and every other round's evidence — plus the directory scan fallback — is processed normally.

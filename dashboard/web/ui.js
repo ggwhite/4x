@@ -1068,16 +1068,49 @@ function renderMsgCard(m) {
   return div;
 }
 
+// renderTotalCost 以固定 key `__total__` 增量渲染訊息頁頂部的總價區塊，
+// 用 renderedMsgKeys 比對避免每次 poll 都整頁重繪；即使無訊息（list 為空）
+// 也會被呼叫，避免「有花費但無 artifact」時總價完全消失。
+function renderTotalCost(el, totalCostUSD) {
+  const totalKey = '__total__';
+  const totalHash = totalCostUSD.toFixed(4);
+  if (renderedMsgKeys.get(totalKey) === totalHash) return;
+  let totalEl = el.querySelector('[data-msg-key="__total__"]');
+  if (!totalEl) {
+    totalEl = document.createElement('div');
+    totalEl.dataset.msgKey = totalKey;
+    totalEl.className = 'msg-total-cost text-sm text-zinc-400 mb-2';
+    el.prepend(totalEl);
+  }
+  totalEl.textContent = t('app.totalCost').replace('{amount}', '$' + totalCostUSD.toFixed(4));
+  renderedMsgKeys.set(totalKey, totalHash);
+}
+
 async function loadMessages(id) {
   const el = document.getElementById('messages');
   if (activeDetailTab === 'messages') el.classList.remove('hidden');
-  const msgs = await (await fetch(apiBase()+'/api/messages/'+id)).json();
-  const list = msgs || [];
+  const data = await (await fetch(apiBase()+'/api/messages/'+id)).json();
+  const list = data.messages || [];
+  const totalCostUSD = data.totalCostUSD || 0;
   if (list.length === 0) {
-    el.innerHTML = `<div class="msg-empty text-zinc-600 text-sm mt-8 text-center">${t('app.noArtifacts')}</div>`;
+    el.querySelectorAll('[data-msg-key]').forEach(node => {
+      if (node.dataset.msgKey === '__total__') return;
+      node.remove();
+    });
+    for (const key of Array.from(renderedMsgKeys.keys())) {
+      if (key !== '__total__') renderedMsgKeys.delete(key);
+    }
+    if (!el.querySelector('.msg-empty')) {
+      const emptyEl = document.createElement('div');
+      emptyEl.className = 'msg-empty text-zinc-600 text-sm mt-8 text-center';
+      emptyEl.textContent = t('app.noArtifacts');
+      el.appendChild(emptyEl);
+    }
+    renderTotalCost(el, totalCostUSD);
     return;
   }
   const empty = el.querySelector('.msg-empty'); if (empty) empty.remove();
+  renderTotalCost(el, totalCostUSD);
   let added = false;
   list.forEach(m => {
     const key = m.file || m.label;

@@ -280,10 +280,11 @@ func TestHandleMessages_DesignReviewLoop(t *testing.T) {
 	if rec.Code != 200 {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
-	var messages []messageInfo
-	if err := json.NewDecoder(rec.Body).Decode(&messages); err != nil {
+	var resp messagesResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
+	messages := resp.Messages
 
 	var briefs, reports []string
 	for _, m := range messages {
@@ -323,10 +324,11 @@ func TestHandleMessages_LegacyNoDesignRounds(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handleMessages(ws, "feat-legacy", rec)
 
-	var messages []messageInfo
-	if err := json.NewDecoder(rec.Body).Decode(&messages); err != nil {
+	var resp messagesResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
+	messages := resp.Messages
 
 	var found bool
 	for _, m := range messages {
@@ -336,6 +338,44 @@ func TestHandleMessages_LegacyNoDesignRounds(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("legacy task-brief not found in messages: %+v", messages)
+	}
+}
+
+// TestHandleMessages_TotalCostUSD 驗證 handleMessages 回應的 totalCostUSD 等於
+// events.jsonl 中所有 run-end 事件 cost_usd 的加總。
+func TestHandleMessages_TotalCostUSD(t *testing.T) {
+	root := t.TempDir()
+	cfg := protocol.Config{Project: protocol.ProjectConfig{Name: "test"}, Default: "claude"}
+	if err := protocol.Init(root, cfg); err != nil {
+		t.Fatal(err)
+	}
+	rawWs := &protocol.Workspace{Root: root}
+	if err := rawWs.InitFeatureDir("feat-cost"); err != nil {
+		t.Fatal(err)
+	}
+	if err := rawWs.AppendEvent("feat-cost", protocol.Event{Type: "run-end", CostUSD: 1.25}); err != nil {
+		t.Fatal(err)
+	}
+	if err := rawWs.AppendEvent("feat-cost", protocol.Event{Type: "run-end", CostUSD: 2.5}); err != nil {
+		t.Fatal(err)
+	}
+	if err := rawWs.AppendEvent("feat-cost", protocol.Event{Type: "phase-start", CostUSD: 99}); err != nil {
+		t.Fatal(err)
+	}
+
+	ws := protocol.NewCachedWorkspace(rawWs)
+	rec := httptest.NewRecorder()
+	handleMessages(ws, "feat-cost", rec)
+
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var resp messagesResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.TotalCostUSD != 3.75 {
+		t.Errorf("totalCostUSD = %v, want 3.75", resp.TotalCostUSD)
 	}
 }
 

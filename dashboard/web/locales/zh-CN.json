@@ -4,6 +4,7 @@
   "app.selectProject": "选择一个项目开始使用",
   "app.openProject": "打开项目...",
   "app.noArtifacts": "暂无产出物",
+  "app.totalCost": "总花费：{amount}",
   "app.confirmDone": "将 {id} 标记为完成？",
   "nav.messages": "消息",
   "nav.logs": "日志",
