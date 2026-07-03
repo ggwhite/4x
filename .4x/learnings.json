@@ -41,8 +41,8 @@
       "content": "對「重跑/idempotency」類命令，AC 與測試必須明確涵蓋「對未變動輸入重跑結果穩定」案例，且避免用固定 slice 的 fake 掩蓋真實非決定性來源（如 map iteration order）",
       "created_at": "2026-06-22T15:08:29.037309+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-06-22T19:30:37.62636+08:00",
-      "used_count": 6,
+      "last_used": "2026-07-03T09:51:09.881779+08:00",
+      "used_count": 7,
       "status": "active"
     },
     {
@@ -52,8 +52,8 @@
       "content": "AC 若在 Verification Method 明寫某 package 的整合測試（如 internal/gitops 建 worktree 測 DetectChangedFiles），Coder 必須在該 package 同目錄補測；用其他層的 fake 單元測試代替不算達標。",
       "created_at": "2026-06-22T17:02:55.599908+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-06-24T21:02:34.437805+08:00",
-      "used_count": 2,
+      "last_used": "2026-07-03T09:51:09.881779+08:00",
+      "used_count": 3,
       "status": "active"
     },
     {
@@ -63,8 +63,8 @@
       "content": "孤立單元測試綠燈不等於端到端生效：AC-3 對 MergeConfig 單測通過，但 merged config 從未流到消費點（guard 用 ReadConfig 而非 LoadMergedConfig），驗收應追到資料真正被消費的呼叫鏈。",
       "created_at": "2026-06-22T17:02:55.599908+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-01T13:45:56.76989+08:00",
-      "used_count": 7,
+      "last_used": "2026-07-03T09:51:09.881779+08:00",
+      "used_count": 8,
       "status": "active"
     },
     {
@@ -74,8 +74,8 @@
       "content": "新增跨 project/user 兩層的 config 欄位時，先確認消費端讀的是 merged config；否則 user 層欄位與 merge fallback 會變成死碼。",
       "created_at": "2026-06-22T17:02:55.599908+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-06-22T18:37:42.346702+08:00",
-      "used_count": 2,
+      "last_used": "2026-07-03T09:51:09.881779+08:00",
+      "used_count": 3,
       "status": "active"
     },
     {
@@ -85,19 +85,8 @@
       "content": "task-brief 應主動標出並裁決矛盾——無論是 spec/plan 與現況程式碼不一致（型別名不一致、過時假設、out-of-scope 項目），或 feature 內部兩個需求互相牴觸（如「語意一致」vs「對外行為不變」）——在開頭明列「設計裁決」，列出唯一刻意的行為變更並覆寫 plan，供 Coder/Reviewer/Acceptor 對焦，避免各自猜測、照抄錯誤骨架或重造輪子。",
       "created_at": "2026-06-22T17:56:03.049721+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-01T13:45:56.76989+08:00",
-      "used_count": 11,
-      "status": "active"
-    },
-    {
-      "id": "L010",
-      "source_feature": "F096-discovered-feature-enrichment",
-      "category": "code-quality",
-      "content": "新增 cobra subcommand 一律一檔一指令，即使 task-brief 寫「一檔含兩個 command」也要遵循 codebase 既有慣例，否則 review 必被打回。",
-      "created_at": "2026-06-22T17:56:03.049721+08:00",
-      "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-06-29T09:13:33.439443+08:00",
-      "used_count": 5,
+      "last_used": "2026-07-03T10:11:48.577245+08:00",
+      "used_count": 14,
       "status": "active"
     },
     {
@@ -206,8 +195,8 @@
       "content": "新增指令的 --json 非互動路徑時，若已有對應的互動/文字路徑（如 clean 的 cleanAll），必須對齊其 partial-failure 不變式（skip-and-continue、回報已完成項），不要直接 return error 丟棄已累積結果。",
       "created_at": "2026-06-24T20:37:27.5517+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "0001-01-01T00:00:00Z",
-      "used_count": 0,
+      "last_used": "2026-07-03T09:51:09.881779+08:00",
+      "used_count": 1,
       "status": "active"
     },
     {
@@ -239,8 +228,8 @@
       "content": "Feature spec 的「已知位置」清單若不完整，Coder 會照規格範圍作業，殘留問題需後續 feature 補；Designer 應於 spec 加入 grep 掃全庫的步驟，確保已知清單完整",
       "created_at": "2026-06-27T10:23:04.125803+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-01T13:45:56.76989+08:00",
-      "used_count": 2,
+      "last_used": "2026-07-03T10:11:48.577245+08:00",
+      "used_count": 4,
       "status": "active"
     },
     {
@@ -338,8 +327,8 @@
       "content": "新增 guard 邏輯時，既有測試的 VerifyEvidence fixture 應同步補上新增欄位（如 ACResults），以避免測試場景意外觸發額外錯誤路徑，降低後續維護疑慮。",
       "created_at": "2026-06-27T20:28:17.951101+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-06-29T00:41:17.218498+08:00",
-      "used_count": 1,
+      "last_used": "2026-07-03T10:11:48.577245+08:00",
+      "used_count": 3,
       "status": "active"
     },
     {
@@ -349,19 +338,8 @@
       "content": "錯誤訊息設計應避免前綴與 ID 重疊（如 'AC AC-2 has no evidence'），直接用 ID 本身加描述詞（如 'AC-2: no evidence'）更清晰。",
       "created_at": "2026-06-27T20:28:17.951101+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "0001-01-01T00:00:00Z",
-      "used_count": 0,
-      "status": "active"
-    },
-    {
-      "id": "L044",
-      "source_feature": "F108-ac-evidence-mapping",
-      "category": "process",
-      "content": "程式碼改動 protocol types 或新增 test 檔案後，commit 前應執行 make check-docs-sync 並在同一 PR 更新對應 docs/guide/ 文件，避免文件欠債累積。",
-      "created_at": "2026-06-27T20:28:17.951101+08:00",
-      "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-01T13:45:56.76989+08:00",
-      "used_count": 6,
+      "last_used": "2026-07-03T10:11:48.577245+08:00",
+      "used_count": 2,
       "status": "active"
     },
     {
@@ -437,8 +415,8 @@
       "content": "Coder 開始前應先執行 `make check-docs`，確認 pre-existing 文件缺漏（如 `4x retry`）不會在本 feature 的 CI 驗證中攔截，避免留給後續 round 修復。",
       "created_at": "2026-06-29T01:04:22.697082+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-06-29T09:13:33.439443+08:00",
-      "used_count": 2,
+      "last_used": "2026-07-03T10:11:48.577245+08:00",
+      "used_count": 4,
       "status": "active"
     },
     {
@@ -558,8 +536,8 @@
       "content": "CLI 整合測試應同時覆蓋 --json 旗標輸出格式，避免 JSON schema 改動後無測試保護。",
       "created_at": "2026-06-30T12:52:40.447294+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "0001-01-01T00:00:00Z",
-      "used_count": 0,
+      "last_used": "2026-07-03T09:51:09.881779+08:00",
+      "used_count": 1,
       "status": "active"
     },
     {
@@ -606,8 +584,8 @@
       "content": "make check-docs-sync 只比對 symbol→doc 的結構化映射，不涵蓋 docs prose 內以純文字寫死的檔案路徑字串（例如「XxxType (internal/pkg/foo.go)」），也不涵蓋非英文翻譯版；刪除或搬遷檔案的 feature 應額外對 docs/guide/**/*.md（含所有語系）跑 grep -rn '\u003c被刪檔案路徑\u003e' 做覆核，不能只信任 check-docs-sync 回報 OK。",
       "created_at": "2026-07-01T12:03:58.957162+08:00",
       "activated_at": "2026-07-01T13:00:04.604112+08:00",
-      "last_used": "2026-07-01T13:45:56.76989+08:00",
-      "used_count": 2,
+      "last_used": "2026-07-03T09:51:09.881779+08:00",
+      "used_count": 3,
       "status": "active"
     },
     {
@@ -725,10 +703,10 @@
       "category": "code-quality",
       "content": "把某個硬編碼列舉改為消費 SoT accessor 時，順手 grep 同一檔案/同一函式內是否還有其他地方（如 CLI flag usage 說明字串）引用了相同列舉但仍硬編碼，一併同步，避免在自己修改的檔案裡留下新的平行清單。",
       "created_at": "2026-07-01T14:14:58.691952+08:00",
-      "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "0001-01-01T00:00:00Z",
-      "used_count": 0,
-      "status": "candidate"
+      "activated_at": "2026-07-03T10:03:44.64307+08:00",
+      "last_used": "2026-07-03T10:11:48.577245+08:00",
+      "used_count": 2,
+      "status": "active"
     },
     {
       "id": "L079",
@@ -989,6 +967,66 @@
       "category": "design",
       "content": "當多個獨立編譯的殼（Swift/Rust）無法在編譯期讀取 Go 常量時，可用『各自持有本地字面值 + 專屬同步測試（如 port_sync_test.go）在 CI/make test 時比對』作為單一事實來源的替代方案，而非強行做跨語言 codegen。",
       "created_at": "2026-07-01T15:14:54.877093+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L101",
+      "source_feature": "F128-structured-e2e",
+      "source_role": "coder",
+      "category": "code-quality",
+      "content": "在受 self-mod guard 保護的路徑（internal/state/、internal/guard/、internal/protocol/，見 internal/guard/selfmod.go 的 DefaultProtectedPaths）新增測試檔時，未追蹤新檔的全部行數會計入 max_diff_lines（預設 200）的受保護 diff 預算；新測試檔一開始就寫成 table-driven 並精簡 GoDoc，避免逐案例展開超出預算後才回頭精簡。",
+      "created_at": "2026-07-03T10:14:58.492453+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L102",
+      "source_feature": "F128-structured-e2e",
+      "source_role": "coder",
+      "category": "design",
+      "content": "task-brief 若明確指出「plan 的路徑解析有缺陷、須覆寫」，實作前應對照該缺陷情境（如本例的 tester 預設截圖目錄）另建專屬測試案例，而非只驗證 happy path，避免修正後的 fallback 邏輯本身沒被涵蓋到。",
+      "created_at": "2026-07-03T10:14:58.492453+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L103",
+      "source_feature": "F128-structured-e2e",
+      "source_role": "acceptor",
+      "category": "design",
+      "content": "當某個相對路徑會在正規化過程中被剝除固定前綴（如 NormalizeScreenshotPath 剝掉 .4x/）時，存在性檢查必須依序嘗試多個解析基準（root 與 root+前綴），否則落在該前綴目錄下的最常見情境會被誤判為不存在；task-brief 裁決應明確列出待嘗試的基準順序與參照的既有慣例（如 screenshots.go 的既有路徑解析）供 Coder 直接複用。",
+      "created_at": "2026-07-03T10:14:58.493249+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L104",
+      "source_feature": "F128-structured-e2e",
+      "source_role": "acceptor",
+      "category": "code-quality",
+      "content": "新增列舉型 verify_type 時，除了目標 map（如 acVerifyTypes）外，務必同步檢查同檔案內平行維護的硬編碼字串清單（如錯誤訊息中的 valid 值列表），避免新值合法但錯誤訊息仍引導使用者寫錯。",
+      "created_at": "2026-07-03T10:14:58.493249+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L105",
+      "source_feature": "F128-structured-e2e",
+      "source_role": "acceptor",
+      "category": "process",
+      "content": "self-mod guard 對受保護路徑有 diff-budget 限制時，測試檔案應優先採用 table-driven 寫法而非逐案例展開，可大幅壓低受保護總 diff 行數，避免觸發 self-mod 阻擋而需要二次修改。",
+      "created_at": "2026-07-03T10:14:58.493249+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
       "last_used": "0001-01-01T00:00:00Z",
       "used_count": 0,
