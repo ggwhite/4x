@@ -1086,12 +1086,31 @@ function renderTotalCost(el, totalCostUSD) {
   renderedMsgKeys.set(totalKey, totalHash);
 }
 
+// renderHeaderTotalCost 把總花費顯示在 detail-tabs 列最右邊，不論目前在哪個分頁
+// （總覽／訊息／日誌／截圖）都看得到，跟訊息頁內的 renderTotalCost 共用同一個
+// totalCostUSD 數值，避免兩處各自定義格式造成不一致。
+function renderHeaderTotalCost(totalCostUSD) {
+  const el = document.getElementById('detail-total-cost');
+  if (!el) return;
+  el.textContent = totalCostUSD > 0 ? t('app.totalCost').replace('{amount}', '$' + totalCostUSD.toFixed(4)) : '';
+}
+
+// loadTotalCost 供非訊息分頁（總覽／日誌／截圖）獨立取得總花費，訊息分頁本身已在
+// loadMessages 內順便拿到這個值，不需要重複呼叫。
+async function loadTotalCost(id) {
+  try {
+    const data = await (await fetch(apiBase()+'/api/messages/'+id)).json();
+    renderHeaderTotalCost(data.totalCostUSD || 0);
+  } catch {}
+}
+
 async function loadMessages(id) {
   const el = document.getElementById('messages');
   if (activeDetailTab === 'messages') el.classList.remove('hidden');
   const data = await (await fetch(apiBase()+'/api/messages/'+id)).json();
   const list = data.messages || [];
   const totalCostUSD = data.totalCostUSD || 0;
+  renderHeaderTotalCost(totalCostUSD);
   if (list.length === 0) {
     el.querySelectorAll('[data-msg-key]').forEach(node => {
       if (node.dataset.msgKey === '__total__') return;
@@ -1274,6 +1293,7 @@ function switchDetailTab(tab) {
   if (tab === 'messages' && current) { connectSSE(current); loadMessages(current); }
   if (tab === 'logs' && current) { loadLogs(current); startLogsRefresh(current); }
   if (tab === 'screenshots' && current) loadScreenshots(current);
+  if (tab !== 'messages' && current) loadTotalCost(current);
 }
 
 let _lastScreenshotHash = '';
