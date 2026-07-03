@@ -8,8 +8,8 @@
       "content": "task-brief 限制某檔案「只加某常量」時，會逼 Coder 在該檔旁另造局部 helper 而非抽共用 method，造成邏輯重複；設計階段若已知有可重用原語，應在 scope 內明確允許重構或預先抽出 exported helper。",
       "created_at": "2026-06-22T15:08:29.037309+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-06-29T09:13:33.439443+08:00",
-      "used_count": 11,
+      "last_used": "2026-07-03T11:36:46.292606+08:00",
+      "used_count": 12,
       "status": "active"
     },
     {
@@ -63,8 +63,8 @@
       "content": "孤立單元測試綠燈不等於端到端生效：AC-3 對 MergeConfig 單測通過，但 merged config 從未流到消費點（guard 用 ReadConfig 而非 LoadMergedConfig），驗收應追到資料真正被消費的呼叫鏈。",
       "created_at": "2026-06-22T17:02:55.599908+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-03T09:51:09.881779+08:00",
-      "used_count": 8,
+      "last_used": "2026-07-03T11:36:46.292606+08:00",
+      "used_count": 9,
       "status": "active"
     },
     {
@@ -85,8 +85,8 @@
       "content": "task-brief 應主動標出並裁決矛盾——無論是 spec/plan 與現況程式碼不一致（型別名不一致、過時假設、out-of-scope 項目），或 feature 內部兩個需求互相牴觸（如「語意一致」vs「對外行為不變」）——在開頭明列「設計裁決」，列出唯一刻意的行為變更並覆寫 plan，供 Coder/Reviewer/Acceptor 對焦，避免各自猜測、照抄錯誤骨架或重造輪子。",
       "created_at": "2026-06-22T17:56:03.049721+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-03T10:11:48.577245+08:00",
-      "used_count": 14,
+      "last_used": "2026-07-03T11:36:46.292606+08:00",
+      "used_count": 15,
       "status": "active"
     },
     {
@@ -437,8 +437,8 @@
       "content": "整合測試應涵蓋「壞 YAML / 非 IsNotExist 錯誤」場景（AC-7），確認 fallback 只在 IsNotExist 觸發，而非吞掉所有解析錯誤",
       "created_at": "2026-06-29T01:04:22.697082+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "0001-01-01T00:00:00Z",
-      "used_count": 0,
+      "last_used": "2026-07-03T11:36:46.292606+08:00",
+      "used_count": 1,
       "status": "active"
     },
     {
@@ -727,10 +727,10 @@
       "category": "testing",
       "content": "新增的 exported accessor／SoT 函式，除了在消費端（白名單、schema 一致性測試）被間接覆蓋外，應在其自身 package 內補一份專屬單元測試（非空、去重、數量與權威清單一致），否則會被 tester 判定 AC 未完整覆蓋。",
       "created_at": "2026-07-01T14:14:58.691952+08:00",
-      "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "0001-01-01T00:00:00Z",
-      "used_count": 0,
-      "status": "candidate"
+      "activated_at": "2026-07-03T11:36:46.292607+08:00",
+      "last_used": "2026-07-03T11:36:46.292606+08:00",
+      "used_count": 1,
+      "status": "active"
     },
     {
       "id": "L081",
@@ -895,10 +895,10 @@
       "category": "review",
       "content": "coder-report 宣稱的 make check-docs-sync/check-i18n 等驗證結果不可照單全收，Reviewer 應親自重跑一次比對，本輪就抓到 coder-report 誤報 check-docs-sync 為 OK 但實際輸出 NEEDS_UPDATE",
       "created_at": "2026-07-01T15:14:54.874969+08:00",
-      "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "0001-01-01T00:00:00Z",
-      "used_count": 0,
-      "status": "candidate"
+      "activated_at": "2026-07-03T11:36:46.292607+08:00",
+      "last_used": "2026-07-03T11:36:46.292606+08:00",
+      "used_count": 1,
+      "status": "active"
     },
     {
       "id": "L095",
@@ -919,10 +919,10 @@
       "category": "tooling",
       "content": "make check-docs-sync 用 git diff --name-only main...HEAD 比對已提交歷史，未 commit 的 docs 修改不會被判定為「已更新」——改完 docs 後必須先 commit 再重跑該指令確認轉為 OK，否則 coder-report 的驗證聲明會失真。",
       "created_at": "2026-07-01T15:14:54.875855+08:00",
-      "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "0001-01-01T00:00:00Z",
-      "used_count": 0,
-      "status": "candidate"
+      "activated_at": "2026-07-03T11:36:46.292607+08:00",
+      "last_used": "2026-07-03T11:36:46.292606+08:00",
+      "used_count": 1,
+      "status": "active"
     },
     {
       "id": "L097",
@@ -931,10 +931,10 @@
       "category": "process",
       "content": "在 docs/guide/*.md 新增任何層級的標題（## 或 ###）都會觸發 make check-guide-i18n 的 heading 數量比對失敗，須同步在 es/ja/ko/zh-CN/zh-TW 五個語系檔案補上對應翻譯段落，不能只改英文版。",
       "created_at": "2026-07-01T15:14:54.875855+08:00",
-      "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "0001-01-01T00:00:00Z",
-      "used_count": 0,
-      "status": "candidate"
+      "activated_at": "2026-07-03T11:36:46.292607+08:00",
+      "last_used": "2026-07-03T11:36:46.292606+08:00",
+      "used_count": 1,
+      "status": "active"
     },
     {
       "id": "L098",
@@ -1087,6 +1087,114 @@
       "category": "review",
       "content": "多輪 sub-reviewer 對同一段程式碼給出衝突判定（一方視為刻意設計 DROP，另一方判為 CRITICAL）時，仲裁應追溯到「刻意設計」主張所依賴的前提條件是否在呼叫端真的成立（例如「glab 用當前 checkout branch 當 source」的前提是呼叫端已 checkout 到該 branch），而非僅憑機制描述本身判定合理性。",
       "created_at": "2026-07-03T10:53:46.70259+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L111",
+      "source_feature": "F129-accurate-cost-totals",
+      "source_role": "design-reviewer",
+      "category": "design",
+      "content": "設計文件若刻意做 API 回應形狀的破壞性變更（如陣列→物件），必須明確列出所有既有測試檔中對該回應做 json.Decode 的位置並要求同步更新，光寫「補一個新測試」容易讓 Coder 漏掉舊測試會直接 decode 失敗。",
+      "created_at": "2026-07-03T12:00:23.636297+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L112",
+      "source_feature": "F129-accurate-cost-totals",
+      "source_role": "design-reviewer",
+      "category": "review",
+      "content": "審查涉及既有函式修改或事件格式解讀的 design brief 時，用 codegraph_explore 追蹤實際的呼叫鏈（如 AppendEvent 的所有寫入點）能直接驗證「涵蓋所有角色/路徑」這類宣稱是否屬實，比單看文件描述更可靠。",
+      "created_at": "2026-07-03T12:00:23.636297+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L113",
+      "source_feature": "F129-accurate-cost-totals",
+      "source_role": "reviewer",
+      "category": "review",
+      "content": "make check-docs-sync 一律用預設 BASE（省略 BASE 參數，讓腳本自己判斷 main/tag）親自重跑一次，不要只信 coder-report 的文字宣稱；本輪再次抓到 coder 誤報 OK 但實際 NEEDS_UPDATE，且點名的 doc 內容確實有真實缺口（API 回應形狀破壞性變更未寫進 docs/guide/dashboard.md）。",
+      "created_at": "2026-07-03T12:00:23.638804+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L114",
+      "source_feature": "F129-accurate-cost-totals",
+      "source_role": "reviewer",
+      "category": "code-quality",
+      "content": "前端把「整頁 innerHTML 覆寫」改成「局部 DOM 增量更新（依 key diff）」時，要特別檢查『資料從非空變回空』這條路徑是否還會清空舊節點——這類重構常見遺漏：只顧著新增/更新 key，忘了處理『整批 key 消失』的清空邏輯。",
+      "created_at": "2026-07-03T12:00:23.638804+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L115",
+      "source_feature": "F129-accurate-cost-totals",
+      "source_role": "coder",
+      "category": "tooling",
+      "content": "make check-docs-sync's internal/protocol/ -\u003e docs/guide/concepts.md rule looks coarse (any file under the path), but before dismissing a hit as a false positive, check whether the new/changed function follows a pattern already documented for a sibling function (e.g. Workspace.WorktreePath's 'scan entire events.jsonl' pattern documented under Worktree Path Recovery) — if so it's a real doc gap, not noise.",
+      "created_at": "2026-07-03T12:00:23.640161+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L116",
+      "source_feature": "F129-accurate-cost-totals",
+      "source_role": "coder",
+      "category": "process",
+      "content": "Adding a new '### ' heading to docs/guide/concepts.md (English) breaks make check-guide-i18n's heading-count parity check against all five docs/guide/{es,ja,ko,zh-CN,zh-TW}/concepts.md translations; any new section there must be translated into all five locale copies in the same round, not just the English source.",
+      "created_at": "2026-07-03T12:00:23.640161+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L117",
+      "source_feature": "F129-accurate-cost-totals",
+      "source_role": "acceptor",
+      "category": "process",
+      "content": "coder 在回報 make check-docs-sync 等驗證結果前，務必以當前分支真正的比對基準（預設 BASE=main）親自重跑一次，不可只信任先前快取或片面判斷，避免 coder-report 宣稱與實際結果不符。",
+      "created_at": "2026-07-03T12:00:23.641659+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L118",
+      "source_feature": "F129-accurate-cost-totals",
+      "source_role": "acceptor",
+      "category": "code-quality",
+      "content": "把整頁 innerHTML 覆寫改成局部 DOM 增量更新時，要逐一檢查所有會讓資料變空的分支（如 list.length === 0）是否仍有對應的清空/移除舊節點邏輯，避免殘留卡片。",
+      "created_at": "2026-07-03T12:00:23.641659+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L119",
+      "source_feature": "F129-accurate-cost-totals",
+      "source_role": "acceptor",
+      "category": "code-quality",
+      "content": "i18n 字串含符號分隔（冒號、標點）時，應把分隔符一併放進翻譯字串（用 {placeholder} 取代），不要在程式碼端寫死單一語系慣用的符號後套用到所有語言。",
+      "created_at": "2026-07-03T12:00:23.641659+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
       "last_used": "0001-01-01T00:00:00Z",
       "used_count": 0,
