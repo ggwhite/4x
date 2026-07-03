@@ -12,7 +12,7 @@ description: |-
     - 不判斷截圖內容是否真的對應該條 AC（不加 vision model 呼叫），只檢查「有沒有確實截圖留存證據」。
     - 不新增 `internal/state/` 的 phase transition（不動 machine.go），沿用 testing phase 既有的 guard 失敗處理路徑。
     - 不處理 accepting phase 驗收失敗自動重跑（獨立問題，另開 feature）。
-status: in-progress
+status: done
 subtasks:
     - id: verify-type-schema
       name: ACVerifyMap 新增 e2e-screenshot 合法值與文件說明
