@@ -96,6 +96,10 @@
           "phase": "designing"
         },
         {
+          "phase": "design-reviewing",
+          "model": "sonnet"
+        },
+        {
           "phase": "coding"
         },
         {
