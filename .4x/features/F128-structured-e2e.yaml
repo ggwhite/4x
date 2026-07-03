@@ -1,0 +1,25 @@
+id: F128-structured-e2e
+name: 'F128: Structured e2e-screenshot verify_type for guard'
+description: |-
+    現狀：`test-strategy.yaml` 的 `ACVerifyMap`（`internal/protocol/verify.go:72-74`）只有 unit-test/integration/inspection/skip/execution 幾種 verify_type，沒有能宣告「這條 AC 需要 e2e 截圖佐證」的類型。Tester 有沒有真的截圖完全沒人檢查，guard 只在既有的 `checkACEvidence`/`checkManualChecks`（`internal/guard/check.go:279`/`355`）比對文字 evidence，跟 `VerifyEvidence.Screenshots`（`internal/protocol/verify.go:23`）完全沒有交叉驗證。
+
+    需求：
+    - `ACVerifyMap` 新增合法值 `e2e-screenshot`，Designer 可在 test-strategy.yaml 針對需要視覺驗證的 AC 明確宣告（相對的，只需要打 API 驗證的 AC 沿用既有的 `execution` 類型，不新增額外的「api-only」類型）。
+    - `internal/guard/check.go` 新增 `checkScreenshotRequirement`，比照 `checkManualChecks` 的模式：對每條宣告 `e2e-screenshot` 的 AC，檢查對應 `ACEvidence.Passed == true`，且該 round 的 `VerifyEvidence.Screenshots` 非空、且至少一個檔案實際存在於磁碟上；不滿足則回報失敗，導向 testing phase 既有的 retry/amending 路徑（`internal/orchestrator/phase.go:80-98`），不新增 state machine 轉換。
+    - 插入點：`checkACEvidence` 之後、`checkSelfModTestGate`（`check.go:389`）之前的既有驗收流程（`check.go:242-244`）。
+
+    約束：
+    - 不判斷截圖內容是否真的對應該條 AC（不加 vision model 呼叫），只檢查「有沒有確實截圖留存證據」。
+    - 不新增 `internal/state/` 的 phase transition（不動 machine.go），沿用 testing phase 既有的 guard 失敗處理路徑。
+    - 不處理 accepting phase 驗收失敗自動重跑（獨立問題，另開 feature）。
+status: not-started
+subtasks:
+    - id: verify-type-schema
+      name: ACVerifyMap 新增 e2e-screenshot 合法值與文件說明
+      status: ""
+    - id: guard-check
+      name: internal/guard/check.go 新增 checkScreenshotRequirement
+      status: ""
+    - id: tests
+      name: guard 測試涵蓋 e2e-screenshot 通過/缺檔/檔案不存在情境
+      status: ""
