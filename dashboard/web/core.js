@@ -94,6 +94,10 @@ function sseBase() { return activeProjectId ? '/sse/project/' + activeProjectId 
 function saveTabState() { localStorage.setItem('4x-tabs', JSON.stringify({ tabs: openTabs, active: activeProjectId })); }
 function loadTabState() { try { const s = JSON.parse(localStorage.getItem('4x-tabs') || '{}'); return { tabs: s.tabs || [], active: s.active || null }; } catch { return { tabs: [], active: null }; } }
 
+// BUILTIN_PROFILES — 內建 pipeline profile，對應 internal/protocol/profile.go 的 DefaultProfiles()。
+// 專案 settings.json 沒自訂 profiles 時，這些永遠可選。
+const BUILTIN_PROFILES = ['full', 'lite', 'normal', 'quick'];
+
 const DEFAULTS = { theme: 'frost', fontContent: 15, fontCode: 13, refresh: 3 };
 let settings = { ...DEFAULTS, ...JSON.parse(localStorage.getItem('4x-settings') || '{}') };
 function saveSettings() { localStorage.setItem('4x-settings', JSON.stringify(settings)); }

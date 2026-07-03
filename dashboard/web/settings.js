@@ -491,6 +491,8 @@ function renderProjectSettingsForm() {
     </select>
   </div>`;
   const profileNames = Object.keys(s.profiles || {});
+  // 內建 profile 永遠可選（即使專案 settings.json 沒自訂 profiles 區段）。
+  BUILTIN_PROFILES.forEach(n => { if (!profileNames.includes(n)) profileNames.push(n); });
   html += `<div class="ps-field-row" data-label="default profile" data-key="ps-default-profile" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
     <label style="font-size:13px;color:var(--text-2);min-width:160px">${t('projectSettings.defaultProfile')}</label>
     <select id="ps-default-profile" onchange="autoSave()" style="flex:1;max-width:400px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text-1);font-size:13px;font-family:inherit;outline:none">
@@ -886,8 +888,17 @@ function renderPhaseRunnerPicker(phaseId, currentRunner, currentModel) {
     let html = '<label style="font-size:10px;color:var(--text-3);display:block;margin-bottom:2px">Model Tier</label>';
     html += `<select id="phase-model-select-${escAttr(phaseId)}" style="width:100%;padding:6px 8px;font-size:12px;background:var(--bg-hover);border:1px solid var(--border);border-radius:6px;color:var(--text-1);font-family:inherit;outline:none">`;
     html += '<option value="">(inherit)</option>';
-    ['light', 'standard', 'pro'].forEach(tier => {
-      html += `<option value="${tier}"${currentModel === tier ? ' selected' : ''}>${tier}</option>`;
+    // tier 名稱取自實際 runner 設定（內建 preset + 專案覆寫），而非寫死清單，
+    // 才會跟 runners.*.tiers / model_tiers 實際可解析的值一致。
+    const runnerName = currentRunner || (_projectSettings && _projectSettings.default_runner) ||
+      (_supportedRunners[0] && _supportedRunners[0].name) || '';
+    const preset = _supportedRunners.find(r => r.name === runnerName);
+    const builtinTiers = (preset && preset.config && preset.config.tiers) ? Object.keys(preset.config.tiers) : [];
+    const projectRunner = _projectSettings && _projectSettings.runners && _projectSettings.runners[runnerName];
+    const projectTiers = (projectRunner && projectRunner.tiers) ? Object.keys(projectRunner.tiers) : [];
+    const tierNames = [...new Set([...builtinTiers, ...projectTiers])];
+    tierNames.forEach(tier => {
+      html += `<option value="${escAttr(tier)}"${currentModel === tier ? ' selected' : ''}>${esc(tier)}</option>`;
     });
     html += '</select>';
     modelContainer.innerHTML = html;
