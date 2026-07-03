@@ -85,7 +85,10 @@ func setupMonoWorkspace(t *testing.T) (root string, ws *protocol.Workspace, ops 
 	t.Helper()
 	root = t.TempDir()
 	os.MkdirAll(root, 0o755)
-	runGit(t, root, "init")
+	// PushAndOpenMR 在沒有 baseline.json 時 fallback target 是硬編碼的 "main"（見下方
+	// PushAndOpenMR 的註解），故這裡明確指定 initial branch 名稱，不依賴 CI runner 的
+	// git init.defaultBranch 全域設定（GitHub Actions runner 預設值與本機不同）。
+	runGit(t, root, "init", "-b", "main")
 	runGit(t, root, "config", "user.name", "test")
 	runGit(t, root, "config", "user.email", "test@test")
 
