@@ -56,6 +56,13 @@ type Event struct {
 	TokensUsed int     `json:"tokens_used,omitempty"`
 	CostUSD    float64 `json:"cost_usd,omitempty"`
 	DurationMs int64   `json:"duration_ms,omitempty"`
+	// Index 標記同一 round 內平行執行的同 role 事件屬於第幾個子任務（1-based），
+	// 目前僅 deep-reviewer 的平行 sub-reviewer 使用。多個平行事件共用同一個 Role
+	// 字串時，消費端不能再用單一遞增計數器區分 phase-start/run-end 配對（多個
+	// phase-start 會連續推高計數器，導致之後的 run-end 全部收斂到同一格互相覆蓋），
+	// 必須靠這個明確的索引還原正確配對。0（zero value）表示不適用，沿用既有的
+	// 循序重試（如 designer 被打回重做）計數器邏輯。
+	Index int `json:"index,omitempty"`
 }
 
 // 通知等級常量，供 server 端標注 Event.Notify 及前端判斷顯示樣式，避免散落字串。

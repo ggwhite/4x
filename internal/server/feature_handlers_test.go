@@ -240,6 +240,118 @@ func TestBuildPhaseInfo_DesignLoopIterates(t *testing.T) {
 	}
 }
 
+// TestBuildPhaseInfo_ParallelDeepReviewerIndexed 驗證平行 deep review 的多個
+// sub-reviewer（相同 Role="deep-reviewer"，相同 Round，靠 Index 區分）各自的
+// phase-start/run-end 用 Index 正確配對，不會因為共用 iterCount 計數器而讓
+// run-end 全部收斂到同一格互相覆蓋（真實案例：3 個 sub-reviewer 的 phase-start
+// 幾乎同時抵達，把計數器一次推到 3，若 run-end 仍讀「目前」計數器值，會導致
+// iteration 1、2 的 run-end 全部誤寫進 iteration 3，iteration 1/2 的成本歸零）。
+func TestBuildPhaseInfo_ParallelDeepReviewerIndexed(t *testing.T) {
+	root := t.TempDir()
+	cfg := protocol.Config{Project: protocol.ProjectConfig{Name: "test"}, Default: "claude"}
+	if err := protocol.Init(root, cfg); err != nil {
+		t.Fatal(err)
+	}
+	rawWs := &protocol.Workspace{Root: root}
+	if err := rawWs.InitFeatureDir("feat-parallel"); err != nil {
+		t.Fatal(err)
+	}
+
+	// 比照真實案例：3 個 sub-reviewer 的 phase-start 幾乎同時送出（早於任何 run-end），
+	// 之後 run-end 也幾乎同時送出，順序不保證跟 phase-start 一致。
+	events := []protocol.Event{
+		{Timestamp: "2026-01-01T00:00:00Z", Type: "phase-start", Role: protocol.RoleDeepReviewer, Round: 1, Model: "opus", Index: 1},
+		{Timestamp: "2026-01-01T00:00:00Z", Type: "phase-start", Role: protocol.RoleDeepReviewer, Round: 1, Model: "opus", Index: 2},
+		{Timestamp: "2026-01-01T00:00:00Z", Type: "phase-start", Role: protocol.RoleDeepReviewer, Round: 1, Model: "opus", Index: 3},
+		{Timestamp: "2026-01-01T00:04:40Z", Type: "run-end", Role: protocol.RoleDeepReviewer, Round: 1, Model: "opus", Index: 1, CostUSD: 2.4610},
+		{Timestamp: "2026-01-01T00:06:16Z", Type: "run-end", Role: protocol.RoleDeepReviewer, Round: 1, Model: "opus", Index: 2, CostUSD: 3.0534},
+		{Timestamp: "2026-01-01T00:08:18Z", Type: "run-end", Role: protocol.RoleDeepReviewer, Round: 1, Model: "opus", Index: 3, CostUSD: 3.3010},
+		{Timestamp: "2026-01-01T00:08:18Z", Type: "phase-start", Role: protocol.RoleSynthesizer, Round: 1, Model: "opus"},
+		{Timestamp: "2026-01-01T00:11:14Z", Type: "run-end", Role: protocol.RoleSynthesizer, Round: 1, Model: "opus", CostUSD: 0.9585},
+	}
+	for _, e := range events {
+		if err := rawWs.AppendEvent("feat-parallel", e); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	ws := protocol.NewCachedWorkspace(rawWs)
+	phases := buildPhaseInfo(ws, "feat-parallel")
+
+	want := map[int]float64{1: 2.4610, 2: 3.0534, 3: 3.3010}
+	for idx, wantCost := range want {
+		got := phases[durationKey{"deep-reviewer", 1, idx}]
+		if got.costUSD != wantCost {
+			t.Errorf("deep-reviewer iteration %d costUSD = %v, want %v (Index-based key collided with another sub-reviewer)", idx, got.costUSD, wantCost)
+		}
+	}
+}
+
+// TestHandleMessages_ParallelDeepReviewerCost 驗證平行 deep review 產出的
+// deep-review-report.md 訊息成本 = 3 個 sub-reviewer + synthesizer 加總，
+// 不是只有 synthesizer 自己的金額（此前 bug：iteration=1 從未被 run-end 寫入，
+// 訊息讀到的只有手動加上去的 synthesizer 成本）。
+func TestHandleMessages_ParallelDeepReviewerCost(t *testing.T) {
+	root := t.TempDir()
+	cfg := protocol.Config{Project: protocol.ProjectConfig{Name: "test"}, Default: "claude"}
+	if err := protocol.Init(root, cfg); err != nil {
+		t.Fatal(err)
+	}
+	rawWs := &protocol.Workspace{Root: root}
+	if err := rawWs.InitFeatureDir("feat-parallel"); err != nil {
+		t.Fatal(err)
+	}
+
+	events := []protocol.Event{
+		{Timestamp: "2026-01-01T00:00:00Z", Type: "phase-start", Role: protocol.RoleDeepReviewer, Round: 1, Model: "opus", Index: 1},
+		{Timestamp: "2026-01-01T00:00:00Z", Type: "phase-start", Role: protocol.RoleDeepReviewer, Round: 1, Model: "opus", Index: 2},
+		{Timestamp: "2026-01-01T00:00:00Z", Type: "phase-start", Role: protocol.RoleDeepReviewer, Round: 1, Model: "opus", Index: 3},
+		{Timestamp: "2026-01-01T00:04:40Z", Type: "run-end", Role: protocol.RoleDeepReviewer, Round: 1, Model: "opus", Index: 1, CostUSD: 2.4610},
+		{Timestamp: "2026-01-01T00:06:16Z", Type: "run-end", Role: protocol.RoleDeepReviewer, Round: 1, Model: "opus", Index: 2, CostUSD: 3.0534},
+		{Timestamp: "2026-01-01T00:08:18Z", Type: "run-end", Role: protocol.RoleDeepReviewer, Round: 1, Model: "opus", Index: 3, CostUSD: 3.3010},
+		{Timestamp: "2026-01-01T00:08:18Z", Type: "phase-start", Role: protocol.RoleSynthesizer, Round: 1, Model: "opus"},
+		{Timestamp: "2026-01-01T00:11:14Z", Type: "run-end", Role: protocol.RoleSynthesizer, Round: 1, Model: "opus", CostUSD: 0.9585},
+	}
+	for _, e := range events {
+		if err := rawWs.AppendEvent("feat-parallel", e); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	dir := rawWs.FeatureDir("feat-parallel")
+	round1 := filepath.Join(dir, protocol.RoundsDir, "round-1")
+	if err := os.MkdirAll(round1, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(round1, protocol.DeepReviewReport), []byte("PASS"), 0o644)
+
+	ws := protocol.NewCachedWorkspace(rawWs)
+	rec := httptest.NewRecorder()
+	handleMessages(ws, "feat-parallel", rec)
+
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var resp messagesResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	var deepReview *messageInfo
+	for i := range resp.Messages {
+		if resp.Messages[i].Role == "deep-reviewer" {
+			deepReview = &resp.Messages[i]
+		}
+	}
+	if deepReview == nil {
+		t.Fatal("no deep-reviewer message found")
+	}
+	const want = 2.4610 + 3.0534 + 3.3010 + 0.9585
+	if diff := deepReview.CostUSD - want; diff > 0.0001 || diff < -0.0001 {
+		t.Errorf("deep review message CostUSD = %v, want %v (sum of 3 sub-reviewers + synthesizer, not just synthesizer alone)", deepReview.CostUSD, want)
+	}
+}
+
 // TestHandleMessages_DesignReviewLoop 驗證 handleMessages 會把每一輪歸檔在
 // design-rounds/round-<round>-<iteration>/ 底下的 designer/design-reviewer 訊息都列出來，
 // 而不是只顯示 feature 目錄根目錄下最後一輪覆寫剩下的內容。

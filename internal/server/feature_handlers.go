@@ -307,11 +307,31 @@ func handleMessages(ws *protocol.CachedWorkspace, featureID string, w http.Respo
 		} {
 			content := readIfExists(filepath.Join(roundPath, f.name))
 			if content != "" {
-				rp := phases[durationKey{f.role, roundNum, 1}]
+				var rp phaseInfo
 				if f.role == "deep-reviewer" {
+					// 平行 deep review 每個 sub-reviewer 各佔一個 iteration（見 buildPhaseInfo
+					// 的 event.Index 配對），deep-review-report.md 代表整個 deep review 的產出，
+					// 必須加總全部 sub-reviewer 才是完整成本；wall time 則取最大值（平行執行，
+					// 不是相加）。非平行模式（單一 sub-reviewer）當時只有 iteration=1 一筆，加總
+					// 結果不變。
+					for key, info := range phases {
+						if key.role != "deep-reviewer" || key.round != roundNum {
+							continue
+						}
+						rp.costUSD += info.costUSD
+						rp.tokensUsed += info.tokensUsed
+						if info.duration > rp.duration {
+							rp.duration = info.duration
+						}
+						if rp.model == "" {
+							rp.model = info.model
+						}
+					}
 					sp := phases[durationKey{"synthesizer", roundNum, 1}]
 					rp.costUSD += sp.costUSD
 					rp.tokensUsed += sp.tokensUsed
+				} else {
+					rp = phases[durationKey{f.role, roundNum, 1}]
 				}
 				messages = append(messages, messageInfo{
 					Role:       f.role,
@@ -390,12 +410,16 @@ func buildPhaseInfo(ws *protocol.CachedWorkspace, featureID string) map[duration
 		Model      string  `json:"model"`
 		TokensUsed int     `json:"tokens_used"`
 		CostUSD    float64 `json:"cost_usd"`
+		Index      int     `json:"index"`
 	}
 
 	starts := make(map[durationKey]time.Time)
 	// iterCount 追蹤同一 (round, role) 累計出現過幾次 phase-start，讓 designer /
 	// design-reviewer 這類在 round 不變時仍可能重複執行的 role，每一輪的
 	// duration/cost/tokens 各自獨立記錄，不會被下一輪覆蓋（比照 logKeyFromEvent）。
+	// 只適用於循序重試（同一時間只有一個 phase-start/run-end 配對進行中）；deep-reviewer
+	// 平行 sub-reviewer 會在短時間內連續送出多筆 phase-start，把計數器一次推高，導致
+	// 之後全部 run-end 收斂到同一格互相覆蓋，因此平行事件改用 event.Index 明確配對。
 	iterCount := make(map[string]int)
 	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
 		if line == "" {
@@ -406,10 +430,16 @@ func buildPhaseInfo(ws *protocol.CachedWorkspace, featureID string) map[duration
 			continue
 		}
 		counterKey := fmt.Sprintf("%d-%s", e.Round, e.Role)
+		iteration := e.Index
+		if iteration == 0 {
+			if e.Type == "phase-start" {
+				iterCount[counterKey]++
+			}
+			iteration = iterCount[counterKey]
+		}
 		switch e.Type {
 		case "phase-start":
-			iterCount[counterKey]++
-			key := durationKey{e.Role, e.Round, iterCount[counterKey]}
+			key := durationKey{e.Role, e.Round, iteration}
 			if t, err := time.Parse(time.RFC3339, e.Ts); err == nil {
 				starts[key] = t
 			}
@@ -419,7 +449,7 @@ func buildPhaseInfo(ws *protocol.CachedWorkspace, featureID string) map[duration
 			}
 			result[key] = info
 		case "run-end":
-			key := durationKey{e.Role, e.Round, iterCount[counterKey]}
+			key := durationKey{e.Role, e.Round, iteration}
 			if start, ok := starts[key]; ok {
 				if t, err := time.Parse(time.RFC3339, e.Ts); err == nil {
 					info := result[key]

@@ -189,7 +189,7 @@ func TestLogKeyFromEvent(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			iterCount := map[string]int{}
-			got := logKeyFromEvent(tc.round, tc.role, tc.eventType, iterCount)
+			got := logKeyFromEvent(tc.round, tc.role, tc.eventType, 0, iterCount)
 			if got != tc.wantKey {
 				t.Errorf("logKeyFromEvent(%d, %q, %q) = %q, want %q",
 					tc.round, tc.role, tc.eventType, got, tc.wantKey)
@@ -203,18 +203,18 @@ func TestLogKeyFromEvent(t *testing.T) {
 func TestLogKeyFromEvent_MiniCoderIterates(t *testing.T) {
 	iterCount := map[string]int{}
 
-	k1 := logKeyFromEvent(1, "mini-coder", "phase-start", iterCount)
+	k1 := logKeyFromEvent(1, "mini-coder", "phase-start", 0, iterCount)
 	if k1 != "round-1-deep-fix-1.log" {
 		t.Errorf("first = %q, want round-1-deep-fix-1.log", k1)
 	}
 
-	k2 := logKeyFromEvent(1, "mini-coder", "phase-start", iterCount)
+	k2 := logKeyFromEvent(1, "mini-coder", "phase-start", 0, iterCount)
 	if k2 != "round-1-deep-fix-2.log" {
 		t.Errorf("second = %q, want round-1-deep-fix-2.log", k2)
 	}
 
 	// run-end 不遞增，回傳目前計數（2）的 key。
-	k3 := logKeyFromEvent(1, "mini-coder", "run-end", iterCount)
+	k3 := logKeyFromEvent(1, "mini-coder", "run-end", 0, iterCount)
 	if k3 != "round-1-deep-fix-2.log" {
 		t.Errorf("run-end = %q, want round-1-deep-fix-2.log", k3)
 	}
@@ -226,22 +226,22 @@ func TestLogKeyFromEvent_MiniCoderIterates(t *testing.T) {
 func TestLogKeyFromEvent_DesignerIterates(t *testing.T) {
 	iterCount := map[string]int{}
 
-	k1 := logKeyFromEvent(0, "designer", "phase-start", iterCount)
+	k1 := logKeyFromEvent(0, "designer", "phase-start", 0, iterCount)
 	if k1 != "round-0-designer.log" {
 		t.Errorf("first = %q, want round-0-designer.log", k1)
 	}
 
-	k2 := logKeyFromEvent(0, "design-reviewer", "phase-start", iterCount)
+	k2 := logKeyFromEvent(0, "design-reviewer", "phase-start", 0, iterCount)
 	if k2 != "round-0-design-reviewer.log" {
 		t.Errorf("first design-reviewer = %q, want round-0-design-reviewer.log", k2)
 	}
 
-	k3 := logKeyFromEvent(0, "designer", "phase-start", iterCount)
+	k3 := logKeyFromEvent(0, "designer", "phase-start", 0, iterCount)
 	if k3 != "round-0-designer-2.log" {
 		t.Errorf("second designer = %q, want round-0-designer-2.log", k3)
 	}
 
-	k4 := logKeyFromEvent(0, "design-reviewer", "phase-start", iterCount)
+	k4 := logKeyFromEvent(0, "design-reviewer", "phase-start", 0, iterCount)
 	if k4 != "round-0-design-reviewer-2.log" {
 		t.Errorf("second design-reviewer = %q, want round-0-design-reviewer-2.log", k4)
 	}

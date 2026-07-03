@@ -116,7 +116,7 @@ func logSortKey(name string) int {
 // logKeyFromEvent 將 events.jsonl 的 role 名稱映射到實際 log 檔名。
 // mini-coder / re-verifier 會帶迭代號（deep-fix-1、deep-reverify-2），
 // 用 iterCount 追蹤每個 round+role 的出現次數。
-func logKeyFromEvent(round int, role, eventType string, iterCount map[string]int) string {
+func logKeyFromEvent(round int, role, eventType string, index int, iterCount map[string]int) string {
 	switch role {
 	case "mini-coder":
 		counterKey := fmt.Sprintf("%d-mini-coder", round)
@@ -131,6 +131,12 @@ func logKeyFromEvent(round int, role, eventType string, iterCount map[string]int
 		}
 		return fmt.Sprintf("round-%d-deep-reverify-%d.log", round, iterCount[counterKey])
 	case "deep-reviewer":
+		if index > 0 {
+			// 平行 sub-reviewer 帶明確 index，直接配對，不吃共用計數器——避免多個
+			// sub-reviewer 的 phase-start 連續推高計數器後，run-end 全部收斂到同一個
+			// key 互相覆蓋（見 buildPhaseInfo 同樣的修法）。
+			return fmt.Sprintf("round-%d-deep-reviewer-%d.log", round, index)
+		}
 		counterKey := fmt.Sprintf("%d-deep-reviewer", round)
 		if eventType == "phase-start" {
 			iterCount[counterKey]++
@@ -162,6 +168,7 @@ func parseRoleTimings(featureDir string) map[string]roleTiming {
 		Type  string    `json:"type"`
 		Role  string    `json:"role"`
 		Round int       `json:"round"`
+		Index int       `json:"index"`
 	}
 	starts := map[string]time.Time{}
 	ended := map[string]bool{}
@@ -183,7 +190,7 @@ func parseRoleTimings(featureDir string) map[string]roleTiming {
 		if ev.Role == "" {
 			continue
 		}
-		key := logKeyFromEvent(ev.Round, string(ev.Role), ev.Type, iterCount)
+		key := logKeyFromEvent(ev.Round, string(ev.Role), ev.Type, ev.Index, iterCount)
 		switch ev.Type {
 		case "phase-start":
 			starts[key] = ev.Ts

@@ -359,7 +359,7 @@ func (r *Runner) runDeepReviewParallel(ctx context.Context, s *protocol.State, r
 				partialName := prompt.DeepReviewPartialName(idx)
 				ws.AppendEvent(featureID, protocol.Event{
 					Type: "phase-start", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleDeepReviewer, Round: round,
-					Runner: runnerName, Model: deepModel,
+					Runner: runnerName, Model: deepModel, Index: idx,
 				})
 				promptText, perr := prompt.Generate(r.promptCtx(), protocol.RoleDeepReviewer, round, 0, runnerName,
 					prompt.WithParallelDeepReviewer(idx, len(groups), angles, partialName))
@@ -388,7 +388,7 @@ func (r *Runner) runDeepReviewParallel(ctx context.Context, s *protocol.State, r
 		StopState(ws, featureID, s, "runner-error", fmt.Sprintf("deep-reviewer runner failed (round %d): %v", round, runErrOut.err))
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleDeepReviewer, Round: round,
-			Status: "error", Detail: runErrOut.err.Error(), Runner: runnerName, Model: deepModel,
+			Status: "error", Detail: runErrOut.err.Error(), Runner: runnerName, Model: deepModel, Index: runErrOut.index,
 		})
 		return false, runErrOut.err
 	}
@@ -401,7 +401,7 @@ func (r *Runner) runDeepReviewParallel(ctx context.Context, s *protocol.State, r
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleDeepReviewer, Round: round,
 			Status: fmt.Sprintf("exit-%d", o.result.ExitCode), Runner: runnerName, Model: deepModel,
-			TokensUsed: subStats.Tokens, CostUSD: subStats.CostUSD,
+			TokensUsed: subStats.Tokens, CostUSD: subStats.CostUSD, Index: o.index,
 		})
 	}
 
