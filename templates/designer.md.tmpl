@@ -122,6 +122,14 @@ Choose profiles that match the feature's testing needs:
   - REST API feature → profiles: [unit, api]
   - Multi-service feature → profiles: [unit, e2e]
 
+If any manual_check or profile requires the Tester to save screenshots, you MUST tell it to
+save them under this exact path (resolved from settings.json — do NOT invent another path,
+e.g. a worktree-absolute path or anything under the Coder's own working tree):
+
+  {{.ScreenshotDir}}
+
+Round-scoped filenames like `{step}-{description}.png` go directly under this directory.
+
 For multi-repo or parallel verification, use verify_groups instead:
 verify_groups:
   core:

@@ -47,6 +47,39 @@ func TestSyncFeatureFromWorktree_Learnings(t *testing.T) {
 	}
 }
 
+// TestSyncFeatureFromWorktree_RoundSubdir 重現 ws-126 事故：Tester 把截圖寫進
+// rounds/round-N/ 底下的任意子目錄（而非固定的 e2e/screenshots 特例路徑），
+// round 收尾同步時該子目錄必須完整複製回主 repo，不能被舊版「只複製頂層檔案」的
+// 白名單邏輯靜默丟棄——否則 4x done 清掉 worktree 後這些檔案就永久遺失。
+func TestSyncFeatureFromWorktree_RoundSubdir(t *testing.T) {
+	featureID := "feat-round-subdir-sync"
+	wt := &protocol.Workspace{Root: t.TempDir()}
+	main := &protocol.Workspace{Root: t.TempDir()}
+
+	srcRound := wt.RoundDir(featureID, 1)
+	srcScreens := filepath.Join(srcRound, "screenshots")
+	if err := os.MkdirAll(srcScreens, 0o755); err != nil {
+		t.Fatalf("mkdir round screenshots dir: %v", err)
+	}
+	content := []byte("fake-png-bytes")
+	if err := os.WriteFile(filepath.Join(srcScreens, "page1-first-pay-search.png"), content, 0o644); err != nil {
+		t.Fatalf("write screenshot: %v", err)
+	}
+
+	if err := SyncFeatureFromWorktree(wt, main, featureID, 1); err != nil {
+		t.Fatalf("SyncFeatureFromWorktree: %v", err)
+	}
+
+	dstFile := filepath.Join(main.RoundDir(featureID, 1), "screenshots", "page1-first-pay-search.png")
+	got, err := os.ReadFile(dstFile)
+	if err != nil {
+		t.Fatalf("round subdir screenshot not synced back: %v", err)
+	}
+	if string(got) != string(content) {
+		t.Errorf("screenshot content = %q, want %q", got, content)
+	}
+}
+
 func TestSyncFeatureToWorktree_SelectedLearnings(t *testing.T) {
 	featureID := "feat-learnings-push"
 	main := &protocol.Workspace{Root: t.TempDir()}

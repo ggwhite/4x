@@ -213,6 +213,33 @@ func CopyFileIfNewer(src, dst string) (copied bool, err error) {
 	return true, nil
 }
 
+// CopyDirIfNewer 遞迴複製 srcDir 底下所有檔案到 dstDir，每個檔案套用 CopyFileIfNewer 的
+// mtime 比對語意；用於 worktree round 產物同步，讓 agent 動態產生的子目錄（如截圖）
+// 不會因為只複製頂層檔案的白名單邏輯而被靜默丟棄。來源目錄不存在視為靜默成功。
+func CopyDirIfNewer(srcDir, dstDir string) error {
+	entries, err := os.ReadDir(srcDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	for _, e := range entries {
+		src := filepath.Join(srcDir, e.Name())
+		dst := filepath.Join(dstDir, e.Name())
+		if e.IsDir() {
+			if err := CopyDirIfNewer(src, dst); err != nil {
+				return err
+			}
+			continue
+		}
+		if _, err := CopyFileIfNewer(src, dst); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // isNothingToCommit 判斷 git commit 的輸出是否表示「無東西可 commit」。
 // git 在不同情境有不同訊息：clean tree 是 "nothing to commit"，
 // 有 untracked files 時是 "nothing added to commit"。

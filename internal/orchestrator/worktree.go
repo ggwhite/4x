@@ -82,37 +82,25 @@ func SyncFeatureFromWorktree(wt, main *protocol.Workspace, featureID string, rou
 		errs = append(errs, fmt.Sprintf("read round dir: %v", err))
 	}
 	for _, e := range entries {
-		if !e.IsDir() {
-			if _, err := gitops.CopyFileIfNewer(filepath.Join(srcRound, e.Name()), filepath.Join(dstRound, e.Name())); err != nil {
-				errs = append(errs, fmt.Sprintf("%s: %v", e.Name(), err))
+		src := filepath.Join(srcRound, e.Name())
+		dst := filepath.Join(dstRound, e.Name())
+		if e.IsDir() {
+			// Agent 可能在 round 目錄下建立任意子目錄（例如截圖、附件），
+			// 不能只複製頂層檔案而讓這些子目錄被靜默略過（見 round 收尾同步遺失截圖的事故）。
+			if err := gitops.CopyDirIfNewer(src, dst); err != nil {
+				errs = append(errs, fmt.Sprintf("%s/: %v", e.Name(), err))
 			}
+			continue
+		}
+		if _, err := gitops.CopyFileIfNewer(src, dst); err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", e.Name(), err))
 		}
 	}
 
 	srcE2E := filepath.Join(srcDir, "e2e", "screenshots")
 	dstE2E := filepath.Join(dstDir, "e2e", "screenshots")
-	if info, err := os.Stat(srcE2E); err == nil && info.IsDir() {
-		roundDirs, _ := os.ReadDir(srcE2E)
-		for _, rd := range roundDirs {
-			if !rd.IsDir() {
-				continue
-			}
-			srcRoundScreens := filepath.Join(srcE2E, rd.Name())
-			dstRoundScreens := filepath.Join(dstE2E, rd.Name())
-			if err := os.MkdirAll(dstRoundScreens, 0o755); err != nil {
-				errs = append(errs, err.Error())
-				continue
-			}
-			files, _ := os.ReadDir(srcRoundScreens)
-			for _, f := range files {
-				if f.IsDir() {
-					continue
-				}
-				if _, err := gitops.CopyFileIfNewer(filepath.Join(srcRoundScreens, f.Name()), filepath.Join(dstRoundScreens, f.Name())); err != nil {
-					errs = append(errs, fmt.Sprintf("screenshot %s/%s: %v", rd.Name(), f.Name(), err))
-				}
-			}
-		}
+	if err := gitops.CopyDirIfNewer(srcE2E, dstE2E); err != nil {
+		errs = append(errs, fmt.Sprintf("e2e/screenshots: %v", err))
 	}
 
 	if len(errs) > 0 {

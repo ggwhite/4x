@@ -45,6 +45,9 @@ type Data struct {
 	SelectedLearnings []learning.Entry
 	// CodeMap 是專案的 exported symbol 摘要（每個 package 一行），讓 agent 不用探索就知道 codebase 結構。
 	CodeMap string
+	// ScreenshotDir 是 settings.json 解析後的 tester 截圖目錄（{feature-id} 已替換），
+	// 供 Designer 撰寫 test-strategy.yaml 時直接引用，避免自行編造路徑導致 round 收尾同步遺漏。
+	ScreenshotDir string
 	// SkippedDesigner 為 true 代表 profile 跳過了 designer phase，template 應從 feature YAML 讀需求。
 	SkippedDesigner bool
 	// TaskBrief 是 task-brief.md 的完整內容，直接內嵌到 prompt 省掉 agent 的 Read tool call。
@@ -145,6 +148,7 @@ func Generate(ctx *Context, role protocol.Role, round, iteration int, runnerName
 		RoleIncludes:        LoadIncludes(ws.Root, roleInc),
 		RepoMap:             repoMap,
 		ProfileInstructions: LoadProfiles(ws, feature.ID, cfg),
+		ScreenshotDir:       strings.ReplaceAll(protocol.ScreenshotDir(cfg), "{feature-id}", feature.ID),
 	}
 	briefPath := filepath.Join(ws.FeatureDir(feature.ID), protocol.TaskBrief)
 	skippedDesigner := false
