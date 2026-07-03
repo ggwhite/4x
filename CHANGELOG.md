@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.11] - 2026-07-03
+
+### Features
+
+- **Dashboard 總花費顯示於分頁列** — 總花費徽章固定顯示在總覽／訊息／日誌／截圖分頁列右側，不論目前在哪個分頁都看得到，不用切到訊息頁才看得到
+
+### Fixes
+
+- **Round 產物同步遺漏子目錄** — worktree 收尾同步只複製 round 目錄下的頂層檔案，子目錄（如截圖）被靜默丟棄；加上 Designer 讀不到截圖路徑慣例只能自行編造路徑，兩者疊加導致截圖在 `4x done` 清除 worktree 後永久遺失。改為遞迴複製子目錄，Designer 直接引用 settings.json 解析後的實際路徑
+- **Profile／Model Tier 下拉選單缺內建選項** — 專案 settings.json 沒自訂 `profiles` 時 Default Profile 下拉只剩 None 可選；Profile 編輯器的 Model Tier 選單原本寫死 light/standard/pro，跟系統實際 tier 名稱（opus/sonnet）對不上，選了不會生效
+- **Runner 設定新增 Model Tier 編輯器** — 新增自訂模型（如 Fable 5）原本得手改 JSON；新增 key-value 編輯器可直接新增/刪除 tier。同時修正儲存表單時會把 `profiles`、`evolution`、`self_mod_guard` 等表單沒管理到的欄位靜默清空的資料遺失問題
+- **平行 deep review 成本／時長歸屬錯誤** — 多個平行 sub-reviewer 共用同一個角色標籤時，事件配對邏輯讓所有 run-end 收斂到同一格互相覆蓋，導致 dashboard 只顯示 synthesizer 自己的成本、其餘 sub-reviewer 的日誌時長被誤算成離譜的數字。新增明確的事件序號解決配對問題
+
 ## [0.3.10] - 2026-07-03
 
 ### Features
