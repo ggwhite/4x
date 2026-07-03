@@ -2,6 +2,7 @@ package gitops
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,7 +10,46 @@ import (
 	"testing"
 
 	"github.com/ggwhite/4x/internal/protocol"
+	"github.com/ggwhite/4x/internal/vcshub"
 )
+
+// fakeHub 是 vcshub.Hub 的測試替身，供 monorepo/multirepo 的 PushAndOpenMR 測試共用。
+// onCall（若設定）會在 OpenMR 被呼叫時收到全部參數；openMRErr 非 nil 時 OpenMR 回傳該錯誤。
+type fakeHub struct {
+	openMRErr error
+	onCall    func(repoPath, sourceBranch, targetBranch, title, body string)
+}
+
+func (f *fakeHub) Preflight(repoPath string) error { return nil }
+
+func (f *fakeHub) CreateIssue(repoPath, title, body string) (id, url string, err error) {
+	return "", "", nil
+}
+
+func (f *fakeHub) GetIssue(repoPath, ref string) (id, url string, err error) {
+	return "", "", nil
+}
+
+func (f *fakeHub) OpenMR(repoPath, sourceBranch, targetBranch, title, body string) (string, error) {
+	if f.onCall != nil {
+		f.onCall(repoPath, sourceBranch, targetBranch, title, body)
+	}
+	if f.openMRErr != nil {
+		return "", f.openMRErr
+	}
+	return "https://example.invalid/mr/" + sourceBranch, nil
+}
+
+// addBareRemote 在 t.TempDir() 建立一個 bare repo 並設為 repoDir 的 origin remote，供測試 git push。
+func addBareRemote(t *testing.T, repoDir string) string {
+	t.Helper()
+	bareDir := t.TempDir()
+	if out, err := exec.Command("git", "init", "--bare", bareDir).CombinedOutput(); err != nil {
+		t.Fatalf("git init --bare: %s", out)
+	}
+	runGit(t, repoDir, "remote", "add", "origin", bareDir)
+	return bareDir
+}
 
 // runGit 在指定目錄執行 git 子命令，失敗時呼叫 t.Fatalf。
 func runGit(t *testing.T, dir string, args ...string) {
@@ -369,6 +409,129 @@ func TestMonoRepo_MergeCommitFailCleansStaged(t *testing.T) {
 	}
 	if len(tracked) != 0 {
 		t.Errorf("added.go should not be committed to main after commit-fail, but it is tracked")
+	}
+}
+
+// TestMonoRepo_PushAndOpenMR_NoWorktree_Skipped 涵蓋 AC-11：沒有 worktree 時直接 Skipped。
+func TestMonoRepo_PushAndOpenMR_NoWorktree_Skipped(t *testing.T) {
+	_, _, ops := setupMonoWorkspace(t)
+	result := ops.PushAndOpenMR("feat-nonexist-pushmr", "Nonexistent")
+	if !result.Skipped {
+		t.Errorf("expected Skipped, got %+v", result)
+	}
+}
+
+// TestMonoRepo_PushAndOpenMR_NoCommitsAhead_Skipped 涵蓋 AC-11（D5）：worktree 存在但 feature
+// branch 相對 target 無 commit（rev-list --count == 0）時視為無變更，Skipped 且清理 worktree。
+func TestMonoRepo_PushAndOpenMR_NoCommitsAhead_Skipped(t *testing.T) {
+	root, _, ops := setupMonoWorkspace(t)
+	featureID := "feat-nocommits-ahead"
+
+	if _, err := ops.SetupWorktree(featureID, nil); err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+
+	result := ops.PushAndOpenMR(featureID, "No Commits")
+	if !result.Skipped {
+		t.Errorf("expected Skipped, got %+v", result)
+	}
+	if _, err := os.Stat(Dir(root, featureID)); !os.IsNotExist(err) {
+		t.Error("worktree should be cleaned up when no commits ahead")
+	}
+}
+
+// TestMonoRepo_PushAndOpenMR_Success 涵蓋 AC-11：worktree 有 committed commits 領先 target 時，
+// push 到 bare remote 後透過 fakeHub 開 MR，成功後回傳 MRUrls["."] 並清除 worktree。
+func TestMonoRepo_PushAndOpenMR_Success(t *testing.T) {
+	root, ws, ops := setupMonoWorkspace(t)
+	featureID := "feat-pushmr-ok"
+
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatalf("InitFeatureDir: %v", err)
+	}
+	if err := ops.CaptureBaseline(featureID, nil); err != nil {
+		t.Fatalf("CaptureBaseline: %v", err)
+	}
+
+	wtPath, err := ops.SetupWorktree(featureID, nil)
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(wtPath, "new.go"), []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := ops.Commit(wtPath, featureID, "wip"); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+
+	addBareRemote(t, root)
+
+	origVcshubNew := vcshubNew
+	defer func() { vcshubNew = origVcshubNew }()
+	var gotSource string
+	vcshubNew = func(repoPath string) vcshub.Hub {
+		return &fakeHub{onCall: func(rp, source, target, title, body string) {
+			gotSource = source
+		}}
+	}
+
+	result := ops.PushAndOpenMR(featureID, "Test Feature")
+	if result.Error != "" {
+		t.Fatalf("unexpected error: %s", result.Error)
+	}
+	if result.MRUrls["."] == "" {
+		t.Fatal("expected MRUrls[\".\"] to be set")
+	}
+	if gotSource != Branch(featureID) {
+		t.Errorf("OpenMR source branch = %q, want %q", gotSource, Branch(featureID))
+	}
+	if _, err := os.Stat(Dir(root, featureID)); !os.IsNotExist(err) {
+		t.Error("worktree should be cleaned up after successful PushAndOpenMR")
+	}
+}
+
+// TestMonoRepo_PushAndOpenMR_OpenMRFails_PreservesWorktree 涵蓋 AC-11（D6）：push 成功但
+// OpenMR 失敗時回傳 Error 且不清理 worktree／local branch，供使用者修好後重跑。
+func TestMonoRepo_PushAndOpenMR_OpenMRFails_PreservesWorktree(t *testing.T) {
+	root, ws, ops := setupMonoWorkspace(t)
+	featureID := "feat-pushmr-fail"
+
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatalf("InitFeatureDir: %v", err)
+	}
+	if err := ops.CaptureBaseline(featureID, nil); err != nil {
+		t.Fatalf("CaptureBaseline: %v", err)
+	}
+
+	wtPath, err := ops.SetupWorktree(featureID, nil)
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(wtPath, "new.go"), []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := ops.Commit(wtPath, featureID, "wip"); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+
+	addBareRemote(t, root)
+
+	origVcshubNew := vcshubNew
+	defer func() { vcshubNew = origVcshubNew }()
+	vcshubNew = func(repoPath string) vcshub.Hub {
+		return &fakeHub{openMRErr: errors.New("boom")}
+	}
+
+	result := ops.PushAndOpenMR(featureID, "Fail Feature")
+	if result.Error == "" {
+		t.Fatal("expected error from failed OpenMR")
+	}
+	if _, err := os.Stat(Dir(root, featureID)); err != nil {
+		t.Error("worktree should be preserved when OpenMR fails")
+	}
+	out, _ := exec.Command("git", "-C", root, "branch", "--list", Branch(featureID)).Output()
+	if len(out) == 0 {
+		t.Error("local feature branch should be preserved when OpenMR fails")
 	}
 }
 

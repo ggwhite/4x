@@ -591,6 +591,16 @@ Tester プロンプトは各解決済みプロファイルを `== Test Profile: 
 
 ---
 
+## Issue-First MR フロー
+
+`settings.json` で `"issue_tracker": {"enabled": true}`（デフォルト `false`、プロジェクトレベルのみ）を設定すると、`4x new`/`4x done` はローカルマージではなく GitHub/GitLab にコードレビューを委ねるようになります。プラットフォーム（GitHub か GitLab、セルフホストを含む）は各リポジトリの `origin` remote のホスト名から自動検出され、リポジトリごとの設定は不要です。`gh`/`glab` のインストールと認証が必要です。
+
+- `4x new` はフィーチャーを作成する前に、宣言された各リポジトリに対して `gh`/`glab` の preflight を実行し、いずれかが失敗すると作成を中止します。その後、リポジトリごとに新しい issue を作成する（または `--issue "repo:id-or-url"` で既存の issue をリンクする）とともに、`{repo, id, url}` をフィーチャー YAML の `issues` フィールドに記録します。個々のリポジトリでの作成・リンク失敗は警告として記録され（`warnings` フィールド、ターミナルにも出力）、フィーチャー作成をブロックしません — 部分的な成功も許容されます。
+- `4x done` はローカルの squash-merge の代わりに、フィーチャーブランチを push し、コミットされた変更がある各リポジトリに対して MR/PR を開きます（対応する issue があれば本文に `Closes #<issue-id>` を含めます）。この場合 `done` は「マージ済み」ではなく「MR がオープンされ、プラットフォームでのレビュー待ち」を意味します — 実際のマージをポーリングしたり待機したりすることはありません。開かれた URL は `MR opened[(repo)]: <url>` として表示され、`--json` 出力では `mrUrls` として現れます。あるリポジトリで push や MR オープンが失敗した場合、フィーチャーは `pending-review` のままとなり、worktree は再試行のために保持されます（既に MR があるブランチに対して再度 MR を開く操作は冪等で、既存の MR の URL がそのまま返されます）。
+- このフローは明示的な `4x new` からのみトリガーされます — ダッシュボードの「New Feature」フォームや自動発見・evolve で生成されたフィーチャーが issue を作成することはありません。
+
+`issue_tracker.enabled` が `false`（デフォルト）の場合、上記はすべて適用されず、`4x new`/`4x done` はこのページの他の箇所で説明されている通りに動作します。
+
 ## Pending Review ゲート
 
 ループは直接 `done` にはなりません。accepting の後、Feature は `pending-review` に入ります -- 人間が AI の成果物をレビューするのを待ちます。

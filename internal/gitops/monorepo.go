@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -123,6 +124,61 @@ func (m *monoRepo) Merge(featureID, featureName string) MergeResult {
 
 	m.Cleanup(featureID) //nolint:errcheck // best-effort worktree 清理，失敗不影響 merge 結果
 	return MergeResult{}
+}
+
+// PushAndOpenMR push feature branch 並開 MR/PR，取代 Merge 供 issue_tracker.enabled 時使用。
+// 依 D5：用 committed-commits-ahead（相對 baseline target branch）判定是否有變更要開 MR，
+// 不可用 DetectChangedFiles（那偵測的是 worktree 內 uncommitted 變更，done 時恆為空）。
+// 依 D6：push/OpenMR 失敗時保留 worktree 供重試，只有成功才 Cleanup。
+func (m *monoRepo) PushAndOpenMR(featureID, featureName string) MergeResult {
+	wtDir := Dir(m.root, featureID)
+	if _, err := os.Stat(wtDir); err != nil {
+		return MergeResult{Skipped: true}
+	}
+
+	branch := Branch(featureID)
+	target := "main"
+	if baseline, err := loadBaseline(m.ws, featureID); err == nil && len(baseline.Repos) > 0 && baseline.Repos[0].Branch != "" {
+		target = baseline.Repos[0].Branch
+	}
+
+	out, err := exec.Command("git", "-C", m.root, "rev-list", "--count", target+".."+branch).Output()
+	if err != nil {
+		// rev-list 失敗（如 target 無法解析）不可當「0 commits」處理：那會觸發下方的
+		// 破壞性 Cleanup，把含 commits 的 feature branch 連同 worktree 一起刪掉。
+		// 保留 worktree 回 Error，供使用者修正 target 後重跑（同 D6 的失敗保留語意）。
+		return MergeResult{Error: fmt.Sprintf("cannot determine commits ahead of %s: %v", target, err)}
+	}
+	count, _ := strconv.Atoi(strings.TrimSpace(string(out)))
+	if count == 0 {
+		m.Cleanup(featureID) //nolint:errcheck // 無 commit 可失，清理安全
+		return MergeResult{Skipped: true}
+	}
+
+	if out, err := exec.Command("git", "-C", m.root, "push", "origin", branch).CombinedOutput(); err != nil {
+		return MergeResult{Error: fmt.Sprintf("push: %s", strings.TrimSpace(string(out)))}
+	}
+
+	feat, _ := m.ws.LoadFeature(featureID)
+	body := featureName
+	for _, ir := range feat.Issues {
+		if ir.Repo == "." && ir.ID != "" {
+			body = fmt.Sprintf("Closes #%s\n\n%s", ir.ID, featureName)
+			break
+		}
+	}
+
+	// glab 用「當前 checkout 的 branch」當 MR source（見 vcshub.glabHub.OpenMR GoDoc），
+	// m.root 全程停在 base branch（worktree 才 checkout 在 branch），故用 wtDir 呼叫，
+	// 確保 glab 看到的當前 branch 就是 feature branch，避免 source==target。
+	title := fmt.Sprintf("feat(%s): %s", featureID, featureName)
+	url, err := vcshubNew(wtDir).OpenMR(wtDir, branch, target, title, body)
+	if err != nil {
+		return MergeResult{Error: err.Error()}
+	}
+
+	m.Cleanup(featureID) //nolint:errcheck // best-effort worktree 清理，失敗不影響 MR 結果
+	return MergeResult{MRUrls: map[string]string{".": url}}
 }
 
 func (m *monoRepo) Cleanup(featureID string) error {

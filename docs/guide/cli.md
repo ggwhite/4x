@@ -52,11 +52,14 @@ Create a new feature with optional metadata.
 | `--priority` | Priority level (0=critical, 1=high, 2=medium, 3=low) |
 | `--profile` | Pipeline profile written to the feature YAML (`full`/`normal`/`quick` or custom); applied per-feature on `4x batch run` |
 | `--repo` | Repository in scope (repeatable) |
+| `--issue` | Link an existing issue in `"repo:id-or-url"` format (repeatable); repo prefix optional for single-repo features. Only used when `issue_tracker.enabled` is set (see [Concepts](concepts.md#issue-first-mr-flow)) |
 | `--json` | Output as JSON |
 
 Creates `.4x/features/F{NNN}-{slug}.yaml` with status `not-started`.
 Auto-generated slug truncates at word boundary; use `--id` to override.
 Creation runs through the shared `feature.Create` path (see [Concepts](concepts.md#feature-creation)) — the dashboard's `POST /api/new` uses the same logic, so flags here map one-to-one to the dashboard's New Feature form.
+
+When `issue_tracker.enabled` is `true` in `settings.json`, `4x new` first preflights `gh`/`glab` (installed + authenticated) for every declared repo — any failure aborts before the feature is created. It then creates a new issue per repo (or links an existing one via `--issue`), recording the result in the feature YAML's `issues` field; a per-repo failure is recorded as a warning and printed, but does not block feature creation. See [Concepts](concepts.md#issue-first-mr-flow).
 
 Examples:
 ```bash
@@ -405,6 +408,8 @@ If the feature touched self-mod protected paths (see the `self_mod_guard` settin
 ```
 4x done <feature-id> --approve-self-mod
 ```
+
+When `issue_tracker.enabled` is `true` in `settings.json`, `4x done` pushes the feature branch and opens a MR/PR per repo with committed changes instead of merging locally — `done` then means "MR opened", not "merged". Each opened URL is printed as `MR opened[(repo)]: <url>` (and included as `mrUrls` in `--json` output); a repo that fails to push or open its MR keeps the feature in `pending-review` with the worktree preserved for a retry. See [Concepts](concepts.md#issue-first-mr-flow).
 
 ---
 

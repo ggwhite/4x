@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sort"
 
 	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/guard"
@@ -107,21 +108,42 @@ func markDone(ws *protocol.Workspace, featureID string, approveSelfMod, jsonOutp
 	}
 
 	if jsonOutput {
-		return printJSON(doneResult{FeatureID: featureID, Phase: string(protocol.PhaseDone), Merged: !result.Skipped})
+		return printJSON(doneResult{
+			FeatureID: featureID, Phase: string(protocol.PhaseDone), Merged: !result.Skipped, MRUrls: result.MRUrls,
+		})
 	}
 	fmt.Printf("Feature %s marked as done.\n", featureID)
-	if !result.Skipped {
+	if len(result.MRUrls) > 0 {
+		printMRUrls(result.MRUrls)
+	} else if !result.Skipped {
 		fmt.Printf("Merged and cleaned up branch %s.\n", gitops.Branch(featureID))
 	}
 	return nil
 }
 
+// printMRUrls 依 repo 名稱排序列印每個開出的 MR/PR URL；monorepo 固定 key "." 省略 repo 標註。
+func printMRUrls(mrUrls map[string]string) {
+	names := make([]string, 0, len(mrUrls))
+	for name := range mrUrls {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		if name == "." {
+			fmt.Printf("MR opened: %s\n", mrUrls[name])
+		} else {
+			fmt.Printf("MR opened(%s): %s\n", name, mrUrls[name])
+		}
+	}
+}
+
 // doneResult 是 `4x done` 與 `4x merge` 在 --json 下的成功／衝突輸出結構。
 type doneResult struct {
-	FeatureID string `json:"featureId"`
-	Phase     string `json:"phase,omitempty"`
-	Merged    bool   `json:"merged"`
-	Conflict  bool   `json:"conflict"`
+	FeatureID string            `json:"featureId"`
+	Phase     string            `json:"phase,omitempty"`
+	Merged    bool              `json:"merged"`
+	Conflict  bool              `json:"conflict"`
+	MRUrls    map[string]string `json:"mrUrls,omitempty"`
 }
 
 // autoMergeFeature 對 pending-review 的 feature 執行 merge 並標記 done，委派共用編排

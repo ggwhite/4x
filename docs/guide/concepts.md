@@ -623,6 +623,16 @@ The Tester prompt renders each resolved profile as a `== Test Profile: {name} ==
 
 ---
 
+## Issue-First MR Flow
+
+Setting `"issue_tracker": {"enabled": true}` in `settings.json` (default `false`, project-level only) switches `4x new`/`4x done` to hand code review off to GitHub/GitLab instead of merging locally. The platform (GitHub vs. GitLab, including self-hosted) is auto-detected per repo from its `origin` remote hostname — no per-repo platform setting needed. `gh`/`glab` must be installed and authenticated.
+
+- `4x new` preflights `gh`/`glab` for every declared repo before creating the feature — any failure aborts creation. It then creates a new issue per repo (or links an existing one via `--issue "repo:id-or-url"`), recording `{repo, id, url}` in the feature YAML's `issues` field. A per-repo creation/link failure is recorded as a warning (`warnings` field, also printed) and does not block feature creation — partial success is fine.
+- `4x done` pushes the feature branch and opens a MR/PR (body includes `Closes #<issue-id>` when an issue exists for that repo) for every repo with committed changes, instead of the local squash-merge. `done` then means "MR opened, awaiting platform review", not "merged" — nothing polls or waits for the actual merge. Opened URLs print as `MR opened[(repo)]: <url>` and appear as `mrUrls` in `--json` output. If a repo fails to push or open its MR, the feature stays `pending-review` with the worktree preserved so a retry can pick up where it left off (opening a MR for a branch that already has one is idempotent — it returns the existing MR's URL).
+- This flow only triggers from an explicit `4x new` — the dashboard's "New Feature" form and auto-discovered/evolved features never create issues.
+
+When `issue_tracker.enabled` is `false` (the default), none of the above applies: `4x new`/`4x done` behave exactly as documented elsewhere in this page.
+
 ## Pending Review Gate
 
 The loop does **not** go directly to `done`. After accepting, the feature enters `pending-review` — waiting for a human to review the AI's work.

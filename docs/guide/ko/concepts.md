@@ -593,6 +593,16 @@ Tester 프롬프트는 해석된 각 프로파일을 `== Test Profile: {name} ==
 
 ---
 
+## Issue-First MR 플로우
+
+`settings.json`에서 `"issue_tracker": {"enabled": true}`(기본값 `false`, 프로젝트 레벨 전용)를 설정하면 `4x new`/`4x done`이 로컬 머지 대신 GitHub/GitLab에 코드 리뷰를 맡기도록 전환됩니다. 플랫폼(GitHub 또는 GitLab, 자체 호스팅 포함)은 각 repo의 `origin` remote 호스트명으로 자동 감지되며, repo별 설정이 필요 없습니다. `gh`/`glab`가 설치되어 있고 인증되어 있어야 합니다.
+
+- `4x new`는 feature를 생성하기 전에 선언된 모든 repo에 대해 `gh`/`glab` preflight를 실행하며, 하나라도 실패하면 생성을 중단합니다. 이후 repo마다 새 issue를 생성하거나(또는 `--issue "repo:id-or-url"`로 기존 issue를 연결) `{repo, id, url}`을 feature YAML의 `issues` 필드에 기록합니다. 개별 repo의 생성/연결 실패는 경고로 기록되며(`warnings` 필드, 터미널에도 출력) feature 생성을 막지 않습니다 — 부분 성공이 허용됩니다.
+- `4x done`은 로컬 squash-merge 대신 feature branch를 push하고, 커밋된 변경 사항이 있는 각 repo에 대해 MR/PR을 엽니다(해당 repo에 연결된 issue가 있으면 본문에 `Closes #<issue-id>` 포함). 이때 `done`은 "머지됨"이 아니라 "MR이 열려 플랫폼 리뷰를 기다리는 중"을 의미합니다 — 실제 머지를 폴링하거나 기다리지 않습니다. 열린 URL은 `MR opened[(repo)]: <url>`로 출력되고 `--json` 출력에서는 `mrUrls`로 나타납니다. 어떤 repo에서 push나 MR 열기가 실패하면 feature는 `pending-review` 상태를 유지하고 worktree가 보존되어 재시도할 수 있습니다(이미 MR이 있는 branch에 다시 MR을 여는 작업은 멱등적이며 기존 MR의 URL을 그대로 반환합니다).
+- 이 플로우는 명시적인 `4x new`에서만 트리거됩니다 — 대시보드의 "New Feature" 폼이나 자동 발견/evolve로 생성된 feature는 issue를 생성하지 않습니다.
+
+`issue_tracker.enabled`가 `false`(기본값)이면 위 내용은 전혀 적용되지 않으며, `4x new`/`4x done`은 이 페이지의 다른 부분에서 설명한 대로 동작합니다.
+
 ## Pending Review 게이트
 
 루프는 `done`으로 **직접 이동하지 않습니다**. accepting 후 기능은 `pending-review`로 진입합니다 — 사람이 AI의 작업을 리뷰하기를 기다립니다.

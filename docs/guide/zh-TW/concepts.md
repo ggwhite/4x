@@ -593,6 +593,16 @@ Tester prompt 將每個解析出的 profile 渲染為 `== Test Profile: {name} =
 
 ---
 
+## Issue-First MR 流程
+
+在 `settings.json` 設定 `"issue_tracker": {"enabled": true}`（預設 `false`，僅專案層級）會讓 `4x new`/`4x done` 改把 code review 交給 GitHub/GitLab，不再本地合併。平台（GitHub 或 GitLab，含自架）依各 repo 的 `origin` remote hostname 自動偵測，不需額外設定；需先安裝並登入 `gh`/`glab`。
+
+- `4x new` 在建立 feature 之前，對每個宣告的 repo 執行 `gh`/`glab` preflight，任一失敗即中止建立。之後對每個 repo 建立新 issue（或用 `--issue "repo:id-or-url"` 連結既有 issue），把 `{repo, id, url}` 記錄進 feature YAML 的 `issues` 欄位。單一 repo 建立/連結失敗只記錄為警告（`warnings` 欄位，同時印出終端），不會擋下 feature 建立——允許部分成功。
+- `4x done` 改成 push feature branch，並對每個有 commit 變更的 repo 開 MR/PR（有對應 issue 時 body 會帶 `Closes #<issue-id>`），取代本地 squash-merge。此時 `done` 代表「已開 MR、等待平台審查」，而非「已合併」——不會輪詢或等待實際合併完成。開出的 URL 會印成 `MR opened[(repo)]: <url>`，`--json` 輸出中則是 `mrUrls`。若某個 repo push 或開 MR 失敗，feature 會維持在 `pending-review`、worktree 保留，供重跑接續（對已有 MR 的 branch 重複開 MR 是 idempotent 的，會直接回既有 MR 的 URL）。
+- 此流程只會被明確的 `4x new` 觸發——dashboard 的「New Feature」表單與自動發現／evolve 產生的 feature 都不會建立 issue。
+
+`issue_tracker.enabled` 為 `false`（預設值）時，以上皆不生效：`4x new`/`4x done` 行為與本頁其他章節所述完全一致。
+
 ## Pending Review 閘門
 
 迴圈**不會**直接進入 `done`。接受後，feature 進入 `pending-review` — 等待人類審查 AI 的工作。

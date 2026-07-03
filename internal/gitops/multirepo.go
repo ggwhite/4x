@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -207,6 +208,93 @@ func (m *multiRepo) Merge(featureID, featureName string) MergeResult {
 
 	m.Cleanup(featureID) //nolint:errcheck // best-effort worktree 清理，失敗不影響 merge 結果
 	return MergeResult{}
+}
+
+// PushAndOpenMR push feature branch 並對每個有 committed 變更的 repo 開 MR/PR，取代 Merge
+// 供 issue_tracker.enabled 時使用。依 D5：逐 repo 用 committed-commits-ahead（相對該 repo
+// baseline target branch）判定是否有變更，不可用 DetectChangedRepos（偵測的是 uncommitted
+// 變更，done 時恆為空）。依 D6：partial-tolerant——單一 repo push/OpenMR 失敗不阻擋其他 repo，
+// 但只有全部成功（errs 為空）才 Cleanup，避免部分失敗時遺失尚未 push 成功的 commit。
+func (m *multiRepo) PushAndOpenMR(featureID, featureName string) MergeResult {
+	wtDir := Dir(m.root, featureID)
+	if _, err := os.Stat(wtDir); err != nil {
+		return MergeResult{Skipped: true}
+	}
+
+	branch := Branch(featureID)
+
+	baselineBranch := make(map[string]string)
+	if baseline, err := loadBaseline(m.ws, featureID); err == nil {
+		for _, r := range baseline.Repos {
+			baselineBranch[r.Name] = r.Branch
+		}
+	}
+
+	feat, _ := m.ws.LoadFeature(featureID)
+	issueByRepo := make(map[string]string, len(feat.Issues))
+	for _, ir := range feat.Issues {
+		issueByRepo[ir.Repo] = ir.ID
+	}
+
+	title := fmt.Sprintf("feat(%s): %s", featureID, featureName)
+
+	mrUrls := make(map[string]string)
+	var errs []string
+	anyAhead := false
+	for name, rc := range m.targetRepos(feat.Repos) {
+		repoPath := filepath.Join(m.root, rc.Path)
+		target := baselineBranch[name]
+		if target == "" {
+			target = "main"
+		}
+
+		out, err := exec.Command("git", "-C", repoPath, "rev-list", "--count", target+".."+branch).Output()
+		if err != nil {
+			// rev-list 失敗（如 target 無法解析）不可當「0 commits」處理：那會讓下方
+			// !anyAhead 分支誤判整個 feature 無變更並 Cleanup 掉這個 repo 的 commits。
+			// 記為 error，讓下方 len(errs)>0 分支保留 worktree 供重試。
+			errs = append(errs, fmt.Sprintf("%s: cannot determine commits ahead of %s: %v", name, target, err))
+			continue
+		}
+		count, _ := strconv.Atoi(strings.TrimSpace(string(out)))
+		if count == 0 {
+			continue
+		}
+		anyAhead = true
+
+		if out, err := exec.Command("git", "-C", repoPath, "push", "origin", branch).CombinedOutput(); err != nil {
+			errs = append(errs, fmt.Sprintf("%s: push: %s", name, strings.TrimSpace(string(out))))
+			continue
+		}
+
+		body := featureName
+		if id := issueByRepo[name]; id != "" {
+			body = fmt.Sprintf("Closes #%s\n\n%s", id, featureName)
+		}
+
+		// glab 用「當前 checkout 的 branch」當 MR source（見 vcshub.glabHub.OpenMR GoDoc），
+		// repoPath（main workspace 下的 repo）全程停在 base branch，worktree 子目錄
+		// wtDir/name 才 checkout 在 feature branch，故用它呼叫，避免 source==target。
+		wtRepoDir := filepath.Join(wtDir, name)
+		url, err := vcshubNew(wtRepoDir).OpenMR(wtRepoDir, branch, target, title, body)
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", name, err))
+			continue
+		}
+		mrUrls[name] = url
+	}
+
+	// 只有 errs 為空才可能 Cleanup：rev-list 無法解析 target 時也會進 errs，
+	// 避免把「無法判定是否有變更」誤當「真的沒有變更」而執行破壞性 Cleanup。
+	if len(errs) > 0 {
+		return MergeResult{MRUrls: mrUrls, Error: strings.Join(errs, "; ")}
+	}
+	if !anyAhead {
+		m.Cleanup(featureID) //nolint:errcheck // 無 commit 可失，清理安全
+		return MergeResult{Skipped: true}
+	}
+	m.Cleanup(featureID) //nolint:errcheck // best-effort worktree 清理，失敗不影響 MR 結果
+	return MergeResult{MRUrls: mrUrls}
 }
 
 func (m *multiRepo) Cleanup(featureID string) error {

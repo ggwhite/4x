@@ -1508,3 +1508,33 @@ func TestLoadMergedConfig_NoProjectConfig_ReturnsError(t *testing.T) {
 		t.Fatal("expected error when settings.json missing")
 	}
 }
+
+// TestLoadMergedConfig_PreservesIssueTracker 涵蓋 AC-14（D2）：IssueTracker 是純
+// project-level 欄位，LoadMergedConfig 合併 user config 後不能遺失 project 端設定的值，
+// 否則 `4x done` 的 issue-first 分支會因讀不到 merged config 的欄位而變成死碼。
+func TestLoadMergedConfig_PreservesIssueTracker(t *testing.T) {
+	tmp := t.TempDir()
+	dotDir := filepath.Join(tmp, ".4x")
+	if err := os.MkdirAll(dotDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := Config{
+		Project:      ProjectConfig{Name: "test-proj"},
+		Default:      "claude",
+		IssueTracker: IssueTrackerConfig{Enabled: true},
+	}
+	data, _ := json.MarshalIndent(cfg, "", "  ")
+	if err := os.WriteFile(filepath.Join(dotDir, "settings.json"), data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ws := &Workspace{Root: tmp}
+	got, err := ws.LoadMergedConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !got.IssueTracker.Enabled {
+		t.Error("LoadMergedConfig().IssueTracker.Enabled = false, want true")
+	}
+}

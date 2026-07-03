@@ -8,6 +8,7 @@ import (
 
 	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
+	"github.com/ggwhite/4x/internal/vcshub"
 	"github.com/spf13/cobra"
 )
 
@@ -22,6 +23,7 @@ func newNewCmd() *cobra.Command {
 		depends     []string
 		priority    int
 		profileName string
+		issueRefs   []string
 	)
 
 	cmd := &cobra.Command{
@@ -80,6 +82,26 @@ Examples:
 			}
 			idf := feature.ResolveIDFormat(cfg.FeatureIDPrefix, cfg.FeatureIDDigits)
 
+			// issueTrackerRepos 是 issue_tracker.enabled 時要建立/連結 issue 的 repo 名稱清單：
+			// 沿用 --repo 宣告的 repos；monorepo 或未指定 --repo 時預設單一 "." repo。
+			issueTrackerRepos := repos
+			if len(issueTrackerRepos) == 0 {
+				issueTrackerRepos = []string{"."}
+			}
+
+			if cfg.IssueTracker.Enabled {
+				for _, repoName := range issueTrackerRepos {
+					path := repoPath(cwd, cfg, repoName)
+					if err := vcshub.New(path).Preflight(path); err != nil {
+						err = fmt.Errorf("issue tracker preflight failed for repo %q: %w", repoName, err)
+						if jsonOutput {
+							return jsonError(err.Error())
+						}
+						return err
+					}
+				}
+			}
+
 			opts := feature.CreateOpts{
 				Name:        name,
 				Description: description,
@@ -103,6 +125,47 @@ Examples:
 				return err
 			}
 
+			var issueLines []string
+			if cfg.IssueTracker.Enabled {
+				issueRefByRepo := make(map[string]string, len(issueRefs))
+				for _, raw := range issueRefs {
+					repoName, ref := parseIssueRef(raw)
+					if repoName == "" && len(issueTrackerRepos) == 1 {
+						repoName = issueTrackerRepos[0]
+					}
+					if repoName != "" {
+						issueRefByRepo[repoName] = ref
+					}
+				}
+
+				for _, repoName := range issueTrackerRepos {
+					path := repoPath(cwd, cfg, repoName)
+					hub := vcshub.New(path)
+					var id, url string
+					var issueErr error
+					if ref, ok := issueRefByRepo[repoName]; ok {
+						id, url, issueErr = hub.GetIssue(path, ref)
+					} else {
+						id, url, issueErr = hub.CreateIssue(path, f.Name, f.Description)
+					}
+					if issueErr != nil {
+						warning := fmt.Sprintf("repo %s: %v", repoName, issueErr)
+						f.Warnings = append(f.Warnings, warning)
+						issueLines = append(issueLines, fmt.Sprintf("  issue failed [%s]: %v", repoName, issueErr))
+						continue
+					}
+					f.Issues = append(f.Issues, feature.IssueRef{Repo: repoName, ID: id, URL: url})
+					issueLines = append(issueLines, fmt.Sprintf("  issue [%s]: %s", repoName, url))
+				}
+
+				if err := ws.SaveFeature(f); err != nil {
+					if jsonOutput {
+						return jsonError(err.Error())
+					}
+					return err
+				}
+			}
+
 			if jsonOutput {
 				result := struct {
 					FeatureID string `json:"featureId"`
@@ -123,6 +186,9 @@ Examples:
 			if len(parsedSubtasks) > 0 {
 				fmt.Printf("  Subtasks: %d\n", len(parsedSubtasks))
 			}
+			for _, line := range issueLines {
+				fmt.Println(line)
+			}
 			fmt.Println()
 			fmt.Printf("Run: 4x run %s\n", f.ID)
 			return nil
@@ -138,7 +204,29 @@ Examples:
 	cmd.Flags().StringSliceVar(&depends, "depends", nil, "dependency feature ID (can be repeated)")
 	cmd.Flags().IntVar(&priority, "priority", 0, "priority level (0=critical, 1=high, 2=medium, 3=low)")
 	cmd.Flags().StringVar(&profileName, "profile", "", "pipeline profile written to feature YAML (e.g. full/normal/quick)")
+	cmd.Flags().StringSliceVar(&issueRefs, "issue", nil, `link an existing issue in "repo:id-or-url" format (can be repeated); repo prefix optional for single-repo features`)
 	return cmd
+}
+
+// parseIssueRef 解析 --issue 的值：http(s) 開頭一律無 repo 前綴（純 URL）；
+// 否則第一個冒號前為 repo、之後為 ref；皆非則整串視為 ref（無 repo 前綴）。
+func parseIssueRef(s string) (repo, ref string) {
+	if strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://") {
+		return "", s
+	}
+	if idx := strings.Index(s, ":"); idx != -1 {
+		return s[:idx], s[idx+1:]
+	}
+	return "", s
+}
+
+// repoPath 將 issue tracker 的 repo 名稱解析為實際檔案路徑，沿用 protocol.ResolveRepoPaths
+// 作為 repo→path 解析的單一真相源；未知名稱與 "." 皆 fallback 回 root。
+func repoPath(root string, cfg protocol.Config, name string) string {
+	if path, ok := protocol.ResolveRepoPaths(cfg, root)[name]; ok && path != "" {
+		return path
+	}
+	return root
 }
 
 // parseSubtask 解析 "id:name" 或 "id:name:description" 格式的 subtask 字串。

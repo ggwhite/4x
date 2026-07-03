@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ggwhite/4x/internal/protocol"
+	"github.com/ggwhite/4x/internal/vcshub"
 )
 
 // writeState 在 root 的 .4x/run/{id}/ 寫入指定 phase 的 state.json。
@@ -89,5 +90,125 @@ func TestMergeAndFinalize_StateChangedSkipsFinalize(t *testing.T) {
 	}
 	if persisted.Phase != protocol.PhaseCoding {
 		t.Errorf("persisted phase = %q, want coding (must not finalize to done)", persisted.Phase)
+	}
+}
+
+// TestMergeAndFinalize_IssueTrackerEnabled_OpensMR 涵蓋 AC-13：cfg.IssueTracker.Enabled 為
+// true 時走 PushAndOpenMR 而非 Merge；成功 push+開 MR 後同樣完成既有的 re-read → FinalizeDone
+// 序列，FinalState.Phase 變成 done。
+func TestMergeAndFinalize_IssueTrackerEnabled_OpensMR(t *testing.T) {
+	root, ws, ops := setupMonoWorkspace(t)
+	cfg := protocol.Config{
+		Project:      protocol.ProjectConfig{Name: "test"},
+		IssueTracker: protocol.IssueTrackerConfig{Enabled: true},
+	}
+	featureID := "feat-done-mr"
+
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatalf("InitFeatureDir: %v", err)
+	}
+	if err := ops.CaptureBaseline(featureID, nil); err != nil {
+		t.Fatalf("CaptureBaseline: %v", err)
+	}
+	wtPath, err := ops.SetupWorktree(featureID, nil)
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(wtPath, "new.go"), []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := ops.Commit(wtPath, featureID, "wip"); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+	addBareRemote(t, root)
+
+	origVcshubNew := vcshubNew
+	defer func() { vcshubNew = origVcshubNew }()
+	vcshubNew = func(repoPath string) vcshub.Hub { return &fakeHub{} }
+
+	writeState(t, ws, featureID, protocol.PhasePendingReview)
+
+	result, err := MergeAndFinalize(root, ws, cfg, featureID, "Test Feature")
+	if err != nil {
+		t.Fatalf("MergeAndFinalize: %v", err)
+	}
+	if result.Error != "" {
+		t.Fatalf("unexpected error: %s", result.Error)
+	}
+	if result.MRUrls["."] == "" {
+		t.Fatal("expected MRUrls[\".\"] to be set")
+	}
+	if result.FinalState.Phase != protocol.PhaseDone {
+		t.Errorf("FinalState.Phase = %q, want done", result.FinalState.Phase)
+	}
+}
+
+// TestMergeAndFinalize_IssueTrackerEnabled_PartialFailureSkipsFinalize 涵蓋 AC-21（D6）：
+// multirepo + issue_tracker.enabled 時，某個 repo push/開 MR 失敗會讓 result.Error 非空，
+// MergeAndFinalize 在既有的早退條件（Conflict || Error != ""）下不 FinalizeDone，
+// FinalState 仍為 pending-review，且 worktree 保留供重試——杜絕「worktree 被清後重跑
+// 被誤判 Skipped→靜默 done」的資料遺失漏洞。
+func TestMergeAndFinalize_IssueTrackerEnabled_PartialFailureSkipsFinalize(t *testing.T) {
+	root, ws, ops := setupMultiWorkspace(t)
+	cfg := protocol.Config{
+		Project: protocol.ProjectConfig{Name: "test"},
+		Workspace: protocol.WorkspaceConfig{
+			Repos: map[string]protocol.RepoConfig{
+				"core": {Path: "core"},
+				"gate": {Path: "gate"},
+			},
+		},
+		IssueTracker: protocol.IssueTrackerConfig{Enabled: true},
+	}
+	featureID := "feat-done-mr-partial"
+
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatalf("InitFeatureDir: %v", err)
+	}
+	if err := ops.CaptureBaseline(featureID, nil); err != nil {
+		t.Fatalf("CaptureBaseline: %v", err)
+	}
+	wtPath, err := ops.SetupWorktree(featureID, nil)
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+	for _, name := range []string{"core", "gate"} {
+		if err := os.WriteFile(filepath.Join(wtPath, name, "new.go"), []byte("package "+name+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := ops.Commit(wtPath, featureID, "wip"); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+
+	// 只給 core 設 bare remote；gate push 會失敗，觸發 partial-failure。
+	addBareRemote(t, filepath.Join(root, "core"))
+
+	origVcshubNew := vcshubNew
+	defer func() { vcshubNew = origVcshubNew }()
+	vcshubNew = func(repoPath string) vcshub.Hub { return &fakeHub{} }
+
+	writeState(t, ws, featureID, protocol.PhasePendingReview)
+
+	result, err := MergeAndFinalize(root, ws, cfg, featureID, "Partial Feature")
+	if err != nil {
+		t.Fatalf("MergeAndFinalize: %v", err)
+	}
+	if result.Error == "" {
+		t.Fatal("expected result.Error from partial failure")
+	}
+
+	persisted, err := ws.ReadState(featureID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if persisted.Phase == protocol.PhaseDone {
+		t.Error("persisted phase must not be done on partial failure")
+	}
+	if persisted.Phase != protocol.PhasePendingReview {
+		t.Errorf("persisted phase = %q, want pending-review", persisted.Phase)
+	}
+	if _, err := os.Stat(Dir(root, featureID)); err != nil {
+		t.Error("worktree should be preserved on partial failure for retry")
 	}
 }

@@ -591,6 +591,16 @@ El prompt del Tester renderiza cada perfil resuelto como un bloque `== Test Prof
 
 ---
 
+## Flujo de MR basado en issues
+
+Configurar `"issue_tracker": {"enabled": true}` en `settings.json` (por defecto `false`, solo a nivel de proyecto) hace que `4x new`/`4x done` deleguen el code review a GitHub/GitLab en lugar de fusionar localmente. La plataforma (GitHub o GitLab, incluido self-hosted) se detecta automáticamente por repo según el hostname del remote `origin` — no hace falta configurar la plataforma por repo. Se requiere tener `gh`/`glab` instalado y autenticado.
+
+- `4x new` ejecuta un preflight de `gh`/`glab` para cada repo declarado antes de crear la feature; cualquier fallo aborta la creación. Luego crea un issue nuevo por repo (o enlaza uno existente con `--issue "repo:id-or-url"`), registrando `{repo, id, url}` en el campo `issues` del YAML de la feature. Un fallo de creación/enlace en un repo se registra como advertencia (campo `warnings`, también impresa) y no bloquea la creación de la feature — el éxito parcial es aceptable.
+- `4x done` hace push de la feature branch y abre un MR/PR (con `Closes #<issue-id>` en el cuerpo cuando existe un issue para ese repo) por cada repo con cambios confirmados, en lugar del squash-merge local. `done` pasa a significar "MR abierto, pendiente de revisión en la plataforma", no "fusionado" — nada hace polling ni espera la fusión real. Las URLs abiertas se imprimen como `MR opened[(repo)]: <url>` y aparecen como `mrUrls` en la salida `--json`. Si un repo falla al hacer push o al abrir su MR, la feature permanece en `pending-review` con el worktree preservado para reintentar (abrir un MR para una branch que ya tiene uno es idempotente — devuelve la URL del MR existente).
+- Este flujo solo se activa desde un `4x new` explícito — el formulario "New Feature" del dashboard y las features auto-descubiertas/evolucionadas nunca crean issues.
+
+Cuando `issue_tracker.enabled` es `false` (el valor por defecto), nada de lo anterior aplica: `4x new`/`4x done` se comportan exactamente como se documenta en el resto de esta página.
+
 ## Compuerta de pending review
 
 El ciclo **no** va directamente a `done`. Después de accepting, el feature entra en `pending-review` — esperando que un humano revise el trabajo de la IA.

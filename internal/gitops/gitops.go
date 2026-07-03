@@ -2,12 +2,14 @@
 package gitops
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/ggwhite/4x/internal/protocol"
+	"github.com/ggwhite/4x/internal/vcshub"
 )
 
 // Ops 封裝所有 git 操作，根據 workspace config 決定 monorepo 或 multi-repo 模式。
@@ -15,12 +17,18 @@ type Ops interface {
 	SetupWorktree(featureID string, featureRepos []string) (wtRoot string, err error)
 	Commit(wtRoot, featureID, msg string) error
 	Merge(featureID, featureName string) MergeResult
+	// PushAndOpenMR 取代 Merge，push feature branch 並對有 committed 變更的 repo 開 MR/PR，
+	// 供 issue_tracker.enabled 時的 `4x done` 使用（見 MergeAndFinalize）。
+	PushAndOpenMR(featureID, featureName string) MergeResult
 	Cleanup(featureID string) error
 	DetectChangedRepos(featureID string) []string
 	DetectChangedFiles(featureID string) []protocol.ChangedFile
 	CaptureBaseline(featureID string, featureRepos []string) error
 	IsMultiRepo() bool
 }
+
+// vcshubNew 對應 vcshub.New，測試可覆寫以注入 fakeHub。
+var vcshubNew = vcshub.New
 
 // MergeResult 描述 Merge 操作的結果。
 //
@@ -35,6 +43,8 @@ type MergeResult struct {
 	ConflictRepo string
 	StateChanged bool
 	FinalState   protocol.State
+	// MRUrls 記錄 PushAndOpenMR 成功開出的 MR/PR URL，key 為 monorepo 固定 "."、multirepo 為 repo 名。
+	MRUrls map[string]string
 }
 
 // New 根據 workspace config 建立對應的 Ops 實作。
@@ -231,6 +241,19 @@ func syncDotDirContents(mainRoot, dotDir string) {
 			}
 		}
 	}
+}
+
+// loadBaseline 讀取 featureID 的 baseline.json，供 PushAndOpenMR 決定各 repo 的 MR target branch。
+func loadBaseline(ws *protocol.Workspace, featureID string) (protocol.Baseline, error) {
+	data, err := os.ReadFile(filepath.Join(ws.FeatureDir(featureID), protocol.BaselineFile))
+	if err != nil {
+		return protocol.Baseline{}, err
+	}
+	var baseline protocol.Baseline
+	if err := json.Unmarshal(data, &baseline); err != nil {
+		return protocol.Baseline{}, err
+	}
+	return baseline, nil
 }
 
 // captureRepoBaseline 擷取單一 repo 的 baseline 狀態，若非 git repo 則回傳 nil。

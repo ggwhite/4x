@@ -66,8 +66,17 @@ type Feature struct {
 	Hooks          map[string][]HookEntry   `yaml:"hooks,omitempty" json:"hooks,omitempty"`
 	PhaseOverrides map[string]PhaseOverride `yaml:"phase_overrides,omitempty" json:"phaseOverrides,omitempty"`
 	// DeepReviewAllAngles 為 true 時強制 deep review 跑全部 11 個角度，忽略 angle mapping 的篩選。
-	DeepReviewAllAngles bool     `yaml:"deep_review_all_angles,omitempty" json:"deepReviewAllAngles,omitempty"`
-	Warnings            []string `yaml:"-" json:"warnings,omitempty"`
+	DeepReviewAllAngles bool `yaml:"deep_review_all_angles,omitempty" json:"deepReviewAllAngles,omitempty"`
+	// Issues 記錄 `4x new` 在 issue_tracker.enabled 時為此 feature 各 repo 建立/連結的 issue。
+	Issues   []IssueRef `yaml:"issues,omitempty" json:"issues,omitempty"`
+	Warnings []string   `yaml:"warnings,omitempty" json:"warnings,omitempty"`
+}
+
+// IssueRef 記錄 feature 在某個 repo 對應的 issue tracker 參照。
+type IssueRef struct {
+	Repo string `yaml:"repo" json:"repo"`
+	ID   string `yaml:"id" json:"id"`
+	URL  string `yaml:"url" json:"url"`
 }
 
 // Subtask 是 feature 內的子任務

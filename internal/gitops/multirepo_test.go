@@ -8,7 +8,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
+	"github.com/ggwhite/4x/internal/vcshub"
 )
 
 // setupMultiWorkspace 建立含兩個子 git repo 的 multi-repo workspace。
@@ -520,5 +522,159 @@ func TestMultiRepo_CaptureBaseline_AllReposWhenEmpty(t *testing.T) {
 	}
 	if len(baseline.Repos) != 2 {
 		t.Fatalf("nil repos should capture all 2 workspace repos, got %d", len(baseline.Repos))
+	}
+}
+
+// TestMultiRepo_PushAndOpenMR_Success 涵蓋 AC-12：兩個 repo 皆有 committed commits 領先
+// baseline target，push 到各自 bare remote 後透過 fakeHub 開 MR，全部成功時清除 worktree。
+func TestMultiRepo_PushAndOpenMR_Success(t *testing.T) {
+	root, ws, ops := setupMultiWorkspace(t)
+	featureID := "feat-pushmr-multi-ok"
+
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatalf("InitFeatureDir: %v", err)
+	}
+	if err := ops.CaptureBaseline(featureID, nil); err != nil {
+		t.Fatalf("CaptureBaseline: %v", err)
+	}
+
+	wtPath, err := ops.SetupWorktree(featureID, nil)
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+	for _, name := range []string{"core", "gate"} {
+		if err := os.WriteFile(filepath.Join(wtPath, name, "new.go"), []byte("package "+name+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := ops.Commit(wtPath, featureID, "wip"); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+
+	for _, name := range []string{"core", "gate"} {
+		addBareRemote(t, filepath.Join(root, name))
+	}
+
+	origVcshubNew := vcshubNew
+	defer func() { vcshubNew = origVcshubNew }()
+	vcshubNew = func(repoPath string) vcshub.Hub { return &fakeHub{} }
+
+	result := ops.PushAndOpenMR(featureID, "Multi Feature")
+	if result.Error != "" {
+		t.Fatalf("unexpected error: %s", result.Error)
+	}
+	for _, name := range []string{"core", "gate"} {
+		if result.MRUrls[name] == "" {
+			t.Errorf("MRUrls[%q] should be set", name)
+		}
+	}
+	if _, err := os.Stat(Dir(root, featureID)); !os.IsNotExist(err) {
+		t.Error("worktree should be cleaned up after full success")
+	}
+}
+
+// TestMultiRepo_PushAndOpenMR_PartialFailure 涵蓋 AC-12（D6，硬性要求）：core 有 remote 能
+// 成功 push+開 MR，gate 沒有 remote 導致 push 失敗；斷言 MRUrls 只含成功的 core、Error 非空，
+// 且 worktree 目錄與 gate 的本地 feature branch 仍存在（未被 Cleanup，可重試）。
+func TestMultiRepo_PushAndOpenMR_PartialFailure(t *testing.T) {
+	root, ws, ops := setupMultiWorkspace(t)
+	featureID := "feat-pushmr-multi-partial"
+
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatalf("InitFeatureDir: %v", err)
+	}
+	if err := ops.CaptureBaseline(featureID, nil); err != nil {
+		t.Fatalf("CaptureBaseline: %v", err)
+	}
+
+	wtPath, err := ops.SetupWorktree(featureID, nil)
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+	for _, name := range []string{"core", "gate"} {
+		if err := os.WriteFile(filepath.Join(wtPath, name, "new.go"), []byte("package "+name+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := ops.Commit(wtPath, featureID, "wip"); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+
+	// core 有 bare remote 能成功 push；gate 沒有 remote，push 會失敗。
+	addBareRemote(t, filepath.Join(root, "core"))
+
+	origVcshubNew := vcshubNew
+	defer func() { vcshubNew = origVcshubNew }()
+	vcshubNew = func(repoPath string) vcshub.Hub { return &fakeHub{} }
+
+	result := ops.PushAndOpenMR(featureID, "Partial Feature")
+	if result.Error == "" {
+		t.Fatal("expected error from partial failure")
+	}
+	if result.MRUrls["core"] == "" {
+		t.Error("MRUrls[\"core\"] should be set for the succeeding repo")
+	}
+	if _, ok := result.MRUrls["gate"]; ok {
+		t.Error("MRUrls[\"gate\"] should not be set for the failing repo")
+	}
+	if _, err := os.Stat(Dir(root, featureID)); err != nil {
+		t.Error("worktree should be preserved on partial failure")
+	}
+	out, _ := exec.Command("git", "-C", filepath.Join(root, "gate"), "branch", "--list", Branch(featureID)).Output()
+	if len(out) == 0 {
+		t.Error("gate's local feature branch should be preserved on partial failure")
+	}
+}
+
+// TestMultiRepo_PushAndOpenMR_ScopedRepos_IgnoresUnrelatedRepo 涵蓋 deep-review CRITICAL
+// 回歸：feat.Repos 為真子集（只含 core）時，gate 從未建立 feature branch，rev-list 在 gate
+// 上必然出錯（unknown revision）；PushAndOpenMR 必須只跑 feat.Repos 宣告的子集，不能把
+// gate 的 rev-list 錯誤當成整體失敗，否則永遠回傳 Error 卡在 pending-review。
+func TestMultiRepo_PushAndOpenMR_ScopedRepos_IgnoresUnrelatedRepo(t *testing.T) {
+	root, ws, ops := setupMultiWorkspace(t)
+	featureID := "feat-pushmr-scoped"
+
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatalf("InitFeatureDir: %v", err)
+	}
+	if err := ws.SaveFeature(feature.Feature{ID: featureID, Name: "Scoped Feature", Status: feature.StatusInProgress, Repos: []string{"core"}}); err != nil {
+		t.Fatalf("SaveFeature: %v", err)
+	}
+	if err := ops.CaptureBaseline(featureID, []string{"core"}); err != nil {
+		t.Fatalf("CaptureBaseline: %v", err)
+	}
+
+	wtPath, err := ops.SetupWorktree(featureID, []string{"core"})
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(wtPath, "gate")); !os.IsNotExist(err) {
+		t.Fatal("gate should not be part of the scoped worktree")
+	}
+	if err := os.WriteFile(filepath.Join(wtPath, "core", "new.go"), []byte("package core\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := ops.Commit(wtPath, featureID, "wip"); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+
+	addBareRemote(t, filepath.Join(root, "core"))
+
+	origVcshubNew := vcshubNew
+	defer func() { vcshubNew = origVcshubNew }()
+	vcshubNew = func(repoPath string) vcshub.Hub { return &fakeHub{} }
+
+	result := ops.PushAndOpenMR(featureID, "Scoped Feature")
+	if result.Error != "" {
+		t.Fatalf("unexpected error from unrelated gate repo: %s", result.Error)
+	}
+	if result.MRUrls["core"] == "" {
+		t.Error("MRUrls[\"core\"] should be set")
+	}
+	if _, ok := result.MRUrls["gate"]; ok {
+		t.Error("MRUrls[\"gate\"] should not be set — gate is outside feat.Repos")
+	}
+	if _, err := os.Stat(Dir(root, featureID)); !os.IsNotExist(err) {
+		t.Error("worktree should be cleaned up after full success")
 	}
 }

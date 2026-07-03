@@ -72,6 +72,15 @@ type Config struct {
 	SelfMod *SelfModSettings `json:"self_mod_guard,omitempty"`
 	// Evolution 設定 F097 evolve pipeline 的價值閘門與收斂上限；nil 時由 evolution.ResolveEvolution 套全部預設值。
 	Evolution *EvolutionConfig `json:"evolution,omitempty"`
+	// IssueTracker 控制 `4x new`/`4x done` 是否串接 GitHub/GitLab issue 與 MR/PR。
+	// 純 project-level 欄位，預設 false，關閉時所有既有行為零改動。
+	IssueTracker IssueTrackerConfig `json:"issue_tracker,omitempty"`
+}
+
+// IssueTrackerConfig 控制 issue-first MR flow 是否啟用。
+type IssueTrackerConfig struct {
+	// Enabled 為 true 時，`4x new` 建/連 issue，`4x done` 改成 push + 開 MR/PR 取代本地 squash-merge。
+	Enabled bool `json:"enabled"`
 }
 
 // EvolutionConfig 是 .4x/settings.json 內 evolution 區段的設定，描述 candidate feature
