@@ -14,7 +14,7 @@ description: |-
     - 未開啟 `issue_tracker.enabled` 的專案（如 Infinite）行為完全不變。
     - 不做「等待遠端實際合併才轉 done」的狀態機（YAGNI，done = MR 已開）。
     - 不做 issue 自動關閉（abandon 的 feature 留給人工處理）。
-status: not-started
+status: done
 subtasks:
     - id: settings-schema
       name: .4x/settings.json 新增 issue_tracker.enabled 設定
