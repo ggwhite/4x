@@ -136,6 +136,8 @@ func RunReviewTestParallel(ctx context.Context, r *Runner, s *protocol.State, pc
 			Status: fmt.Sprintf("exit-%d", o.result.ExitCode), Runner: o.runnerName, Model: o.model,
 			TokensUsed: o.stats.Tokens, CostUSD: o.stats.CostUSD, DurationMs: o.durationMs,
 		})
+		r.totalTokens += o.stats.Tokens
+		r.totalCostUSD += o.stats.CostUSD
 	}
 
 	for _, o := range outcomes {
