@@ -1031,6 +1031,66 @@
       "last_used": "0001-01-01T00:00:00Z",
       "used_count": 0,
       "status": "candidate"
+    },
+    {
+      "id": "L106",
+      "source_feature": "F127-issue-first-mr-flow",
+      "source_role": "design-reviewer",
+      "category": "design",
+      "content": "為 multi-repo 操作設計「partial-tolerant」（部分失敗不阻擋其他 repo）流程時，逐一核對每個失敗分支的 cleanup/worktree 保留時機是否與既有全成功/全失敗（transactional）路徑一致；照抄 transactional 路徑尾端的無條件 cleanup 呼叫，會在失敗時刪掉尚未成功 push 的本地分支，且可能讓後續重跑因 worktree 消失而被誤判為 Skipped/已完成。",
+      "created_at": "2026-07-03T10:53:46.70181+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L107",
+      "source_feature": "F127-issue-first-mr-flow",
+      "source_role": "acceptor",
+      "category": "testing",
+      "content": "當程式碼透過可注入介面（如 fakeHub/execCommand）呼叫外部 CLI 工具時，除了 fake 覆蓋的單元測試外，必須額外針對「呼叫端傳入的實際引數／工作目錄」寫斷言（或至少一個走真實子行程但捕捉 args 的整合測試），否則像 glab 依賴當前 checkout branch 當 MR source 這類「呼叫端環境假設」的錯誤會被 fake 完全繞過而不被單元測試發現。",
+      "created_at": "2026-07-03T10:53:46.70259+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L108",
+      "source_feature": "F127-issue-first-mr-flow",
+      "source_role": "acceptor",
+      "category": "code-quality",
+      "content": "多 repo 迴圈操作（如對 workspace 全部 repo 逐一 push/開 MR）必須明確限定範圍為 feature 宣告的 repos 子集（如 targetRepos(feat.Repos)），不可直接迭代整個 workspace config；否則未參與 feature 的 repo 會因缺少 feature branch 而在下游操作（如 git rev-list）產生 unknown-revision 錯誤，被誤判為失敗。",
+      "created_at": "2026-07-03T10:53:46.70259+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L109",
+      "source_feature": "F127-issue-first-mr-flow",
+      "source_role": "acceptor",
+      "category": "code-quality",
+      "content": "用「操作失敗（exec error）」與「操作合法回傳 0/空值」共用同一個 fallback 變數（如 count 預設 0、err 時也維持 0）時，兩者語意會被混淆，導致「無法判定」被誤判為「確定沒有變更」而觸發破壞性清理動作（如刪除 worktree/branch）。應顯式區分 error 與合法零值兩條路徑。",
+      "created_at": "2026-07-03T10:53:46.70259+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L110",
+      "source_feature": "F127-issue-first-mr-flow",
+      "source_role": "acceptor",
+      "category": "review",
+      "content": "多輪 sub-reviewer 對同一段程式碼給出衝突判定（一方視為刻意設計 DROP，另一方判為 CRITICAL）時，仲裁應追溯到「刻意設計」主張所依賴的前提條件是否在呼叫端真的成立（例如「glab 用當前 checkout branch 當 source」的前提是呼叫端已 checkout 到該 branch），而非僅憑機制描述本身判定合理性。",
+      "created_at": "2026-07-03T10:53:46.70259+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
     }
   ]
 }
