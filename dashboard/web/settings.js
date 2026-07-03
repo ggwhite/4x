@@ -386,6 +386,48 @@ async function saveGlobalSettings() {
   } catch(e) { showToast('Connection error: ' + e.message); }
 }
 
+// psTierField — 渲染 runner 的 model tier 編輯器（tier 名稱 → model id 的 key-value 列表）。
+// tier 名稱本為自由字串（見 internal/protocol/model.go ResolveTierModel），不限 opus/sonnet，
+// 這裡讓使用者可直接新增/刪除，不用切去 JSON 分頁手改。
+function psTierField(runnerName, tiers) {
+  const entries = Object.entries(tiers || {});
+  return `<div style="margin-bottom:12px">
+    <label style="font-size:13px;color:var(--text-2);display:block;margin-bottom:6px">Tiers</label>
+    <div id="ps-tiers-${escAttr(runnerName)}-wrap" style="display:flex;flex-direction:column;gap:6px">
+      ${entries.map(([k, v]) => psTierRow(runnerName, k, v)).join('')}
+    </div>
+    <div style="display:flex;gap:6px;margin-top:6px">
+      <input id="ps-tiers-${escAttr(runnerName)}-newkey" type="text" placeholder="tier name (e.g. fable5)" style="flex:1;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text-1);font-size:12px;font-family:inherit;outline:none" onkeydown="if(event.key==='Enter'){event.preventDefault();addTier('${escAttr(runnerName)}');}">
+      <input id="ps-tiers-${escAttr(runnerName)}-newval" type="text" placeholder="model id" style="flex:1;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text-1);font-size:12px;font-family:inherit;outline:none" onkeydown="if(event.key==='Enter'){event.preventDefault();addTier('${escAttr(runnerName)}');}">
+      <button type="button" onclick="addTier('${escAttr(runnerName)}')" style="padding:6px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text-2);cursor:pointer">${t('field.add')}</button>
+    </div>
+  </div>`;
+}
+
+function psTierRow(runnerName, key, value) {
+  return `<div data-tier-row style="display:flex;gap:6px;align-items:center">
+    <input value="${escAttr(key)}" data-tier-field="key" onchange="autoSave()" placeholder="tier name" style="flex:1;background:var(--bg-hover);border:1px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text-1);font-size:12px;font-family:inherit;outline:none;box-sizing:border-box">
+    <input value="${escAttr(value)}" data-tier-field="value" onchange="autoSave()" placeholder="model id" style="flex:1;background:var(--bg-hover);border:1px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text-1);font-size:12px;font-family:inherit;outline:none;box-sizing:border-box">
+    <button type="button" onclick="this.closest('[data-tier-row]').remove();autoSave();" style="background:none;border:none;color:var(--text-4);cursor:pointer;padding:0 4px;font-size:16px;line-height:1">&times;</button>
+  </div>`;
+}
+
+// addTier — 從「新增 tier」輸入列讀取 key/value，插入一列新 tier row 並觸發 autoSave。
+function addTier(runnerName) {
+  const keyInput = document.getElementById(`ps-tiers-${runnerName}-newkey`);
+  const valInput = document.getElementById(`ps-tiers-${runnerName}-newval`);
+  if (!keyInput || !valInput) return;
+  const key = keyInput.value.trim();
+  const val = valInput.value.trim();
+  if (!key || !val) return;
+  keyInput.value = '';
+  valInput.value = '';
+  const wrap = document.getElementById(`ps-tiers-${runnerName}-wrap`);
+  if (!wrap) return;
+  wrap.insertAdjacentHTML('beforeend', psTierRow(runnerName, key, val));
+  autoSave();
+}
+
 function renderTagList(containerId, items) {
   const arr = Array.isArray(items) ? items : [];
   return `<div id="${containerId}-wrap" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;min-height:36px">
@@ -539,6 +581,7 @@ function renderProjectSettingsForm() {
       ${psTagField(t('field.args'), 'ps-runner-args-'+name, rc.args)}
       ${psField(t('field.model'), 'ps-runner-model-'+name, rc.model)}
       ${psField(t('field.outputFormat'), 'ps-runner-output-format-'+name, rc.output_format)}
+      ${psTierField(name, rc.tiers)}
       <div style="display:flex;gap:16px;margin-bottom:6px">
         <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:8px"><label class="toggle"><input type="checkbox" id="ps-runner-stdin-${escAttr(name)}"${rc.stdin?' checked':''} onchange="autoSave()"><span class="slider"></span></label> stdin</label>
         <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:8px"><label class="toggle"><input type="checkbox" id="ps-runner-tty-${escAttr(name)}"${rc.tty?' checked':''} onchange="autoSave()"><span class="slider"></span></label> tty</label>
@@ -615,6 +658,7 @@ function addRunner() {
   ${psTagField(t('field.args'), 'ps-runner-args-'+name, [])}
   ${psField(t('field.model'), 'ps-runner-model-'+name, '')}
   ${psField(t('field.outputFormat'), 'ps-runner-output-format-'+name, '')}
+  ${psTierField(name, {})}
   <div style="display:flex;gap:16px;margin-bottom:6px">
     <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:8px"><label class="toggle"><input type="checkbox" id="ps-runner-stdin-${escAttr(name)}" onchange="autoSave()"><span class="slider"></span></label> stdin</label>
     <label style="font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:8px"><label class="toggle"><input type="checkbox" id="ps-runner-tty-${escAttr(name)}" onchange="autoSave()"><span class="slider"></span></label> tty</label>
@@ -628,7 +672,13 @@ function removeRunner(name) {
   if (el) { el.remove(); autoSave(); }
 }
 
+// collectFormData 以 _projectSettings 的深拷貝為底，只覆寫表單實際管理的欄位。
+// 表單沒有對應 UI 的既有欄位（profiles、evolution、self_mod_guard、notifications、
+// roles.*.max_fix_rounds 等）維持原值，不會因為使用者動了一個不相干的欄位就被整段砍掉——
+// 過去用全新 {} 起手直接蓋掉 PUT /api/settings（全量替換）時會把這些欄位靜默清空。
 function collectFormData() {
+  const obj = JSON.parse(JSON.stringify(_projectSettings || {}));
+
   const proj = {};
   // name 是必填，只在非空時設定
   const nameVal = (document.getElementById('ps-proj-name') || {}).value?.trim();
@@ -638,75 +688,87 @@ function collectFormData() {
   proj['language'] = (document.getElementById('ps-proj-lang') || {}).value?.trim() ?? '';
   const tagFields = ['build','test','lint','setup','docs','rules','includes'];
   tagFields.forEach(f => { const items = getTagItems('ps-proj-'+f); if (items.length) proj[f] = items; });
-
-  const obj = { project: proj };
+  obj.project = proj;
 
   const defRunner = (document.getElementById('ps-default') || {}).value?.trim();
-  if (defRunner) obj.default_runner = defRunner;
+  obj.default_runner = defRunner || undefined;
   const defProfile = (document.getElementById('ps-default-profile') || {}).value?.trim();
-  if (defProfile) obj.default_profile = defProfile;
+  obj.default_profile = defProfile || undefined;
   const isolation = (document.getElementById('ps-isolation') || {}).value?.trim();
-  if (isolation) obj.isolation = isolation;
+  obj.isolation = isolation || undefined;
   const maxRunsEl = document.getElementById('ps-maxruns');
-  if (maxRunsEl) { const v = parseInt(maxRunsEl.value); if (v > 0) obj.max_concurrent_runs = v; }
+  if (maxRunsEl) { const v = parseInt(maxRunsEl.value); obj.max_concurrent_runs = v > 0 ? v : undefined; }
   const commit = (document.getElementById('ps-commit') || {}).value?.trim();
-  if (commit) obj.commit = commit;
+  obj.commit = commit || undefined;
   const parallelRT = (document.getElementById('ps-parallel-review-test') || {}).checked;
   obj.parallel_review_test = !!parallelRT;
   const autoDiscover = (document.getElementById('ps-auto-discover') || {}).checked;
   obj.auto_discover_features = !!autoDiscover;
   const hubRepos = getTagItems('ps-hubrepos');
-  if (hubRepos.length) obj.hub_repos = hubRepos;
+  obj.hub_repos = hubRepos.length ? hubRepos : undefined;
   const topRules = getTagItems('ps-rules');
-  if (topRules.length) obj.rules = topRules;
+  obj.rules = topRules.length ? topRules : undefined;
 
-  // Runners
+  // Runners — runner 的存在與否完全由 DOM 決定（新增/移除走 addRunner/removeRunner），
+  // 但個別 runner 內表單沒管理到的欄位（如 quiet、transient_retries）從既有設定繼承。
   const runners = {};
   const runnerWrap = document.getElementById('ps-runners-wrap');
   if (runnerWrap) {
     runnerWrap.querySelectorAll(':scope > [id^="ps-runner-"]').forEach(el => {
       const name = el.id.replace('ps-runner-', '');
       if (!name) return;
-      const rc = {};
+      const rc = Object.assign({}, (obj.runners && obj.runners[name]) || {});
       const cmd = (document.getElementById('ps-runner-cmd-'+name) || {}).value?.trim();
-      if (cmd) rc.command = cmd;
+      if (cmd) rc.command = cmd; else delete rc.command;
       const args = getTagItems('ps-runner-args-'+name);
-      if (args.length) rc.args = args;
+      if (args.length) rc.args = args; else delete rc.args;
       const model = (document.getElementById('ps-runner-model-'+name) || {}).value?.trim();
-      if (model) rc.model = model;
+      if (model) rc.model = model; else delete rc.model;
       const outputFormat = (document.getElementById('ps-runner-output-format-'+name) || {}).value?.trim();
-      if (outputFormat) rc.output_format = outputFormat;
+      if (outputFormat) rc.output_format = outputFormat; else delete rc.output_format;
       const stdin = (document.getElementById('ps-runner-stdin-'+name) || {}).checked;
-      if (stdin) rc.stdin = true;
+      if (stdin) rc.stdin = true; else delete rc.stdin;
       const tty = (document.getElementById('ps-runner-tty-'+name) || {}).checked;
-      if (tty) rc.tty = true;
+      if (tty) rc.tty = true; else delete rc.tty;
+      const tiersWrap = document.getElementById('ps-tiers-'+name+'-wrap');
+      if (tiersWrap) {
+        const tiers = {};
+        tiersWrap.querySelectorAll(':scope > [data-tier-row]').forEach(row => {
+          const k = row.querySelector('[data-tier-field="key"]').value.trim();
+          const v = row.querySelector('[data-tier-field="value"]').value.trim();
+          if (k && v) tiers[k] = v;
+        });
+        if (Object.keys(tiers).length) rc.tiers = tiers; else delete rc.tiers;
+      }
       runners[name] = rc;
     });
   }
-  if (Object.keys(runners).length) obj.runners = runners;
+  obj.runners = Object.keys(runners).length ? runners : undefined;
 
-  // Roles
+  // Roles — 固定 7 個 role 名稱由表單管理欄位覆寫，未管理到的欄位（max_fix_rounds、
+  // parallel_reviewers、angles_per_reviewer、angle_mapping）從既有設定繼承；
+  // 表單清單外若還有其他自訂 role key 也原樣保留。
   const roleNames = ['designer', 'design-reviewer', 'coder', 'reviewer', 'tester', 'deep-reviewer', 'acceptor'];
-  const rolesObj = {};
+  const rolesObj = Object.assign({}, obj.roles || {});
   roleNames.forEach(rn => {
-    const rc = {};
+    const rc = Object.assign({}, rolesObj[rn] || {});
     const model = (document.getElementById('ps-role-model-'+rn) || {}).value?.trim();
-    if (model) rc.model = model;
+    if (model) rc.model = model; else delete rc.model;
     if (rn === 'reviewer' || rn === 'deep-reviewer') {
       const dm = (document.getElementById('ps-role-deepmodel-'+rn) || {}).value?.trim();
-      if (dm) rc.deep_model = dm;
+      if (dm) rc.deep_model = dm; else delete rc.deep_model;
     }
     if (rn === 'tester') {
       const screenshotDir = (document.getElementById('ps-role-screenshot-dir-'+rn) || {}).value?.trim();
-      if (screenshotDir) rc.screenshot_dir = screenshotDir;
+      if (screenshotDir) rc.screenshot_dir = screenshotDir; else delete rc.screenshot_dir;
     }
     const instr = getTagItems('ps-role-instr-'+rn);
-    if (instr.length) rc.instructions = instr;
+    if (instr.length) rc.instructions = instr; else delete rc.instructions;
     const includes = getTagItems('ps-role-includes-'+rn);
-    if (includes.length) rc.includes = includes;
-    if (Object.keys(rc).length) rolesObj[rn] = rc;
+    if (includes.length) rc.includes = includes; else delete rc.includes;
+    if (Object.keys(rc).length) rolesObj[rn] = rc; else delete rolesObj[rn];
   });
-  if (Object.keys(rolesObj).length) obj.roles = rolesObj;
+  obj.roles = Object.keys(rolesObj).length ? rolesObj : undefined;
 
   return obj;
 }
