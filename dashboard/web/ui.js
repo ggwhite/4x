@@ -1068,24 +1068,6 @@ function renderMsgCard(m) {
   return div;
 }
 
-// renderTotalCost 以固定 key `__total__` 增量渲染訊息頁頂部的總價區塊，
-// 用 renderedMsgKeys 比對避免每次 poll 都整頁重繪；即使無訊息（list 為空）
-// 也會被呼叫，避免「有花費但無 artifact」時總價完全消失。
-function renderTotalCost(el, totalCostUSD) {
-  const totalKey = '__total__';
-  const totalHash = totalCostUSD.toFixed(4);
-  if (renderedMsgKeys.get(totalKey) === totalHash) return;
-  let totalEl = el.querySelector('[data-msg-key="__total__"]');
-  if (!totalEl) {
-    totalEl = document.createElement('div');
-    totalEl.dataset.msgKey = totalKey;
-    totalEl.className = 'msg-total-cost text-sm text-zinc-400 mb-2';
-    el.prepend(totalEl);
-  }
-  totalEl.textContent = t('app.totalCost').replace('{amount}', '$' + totalCostUSD.toFixed(4));
-  renderedMsgKeys.set(totalKey, totalHash);
-}
-
 // renderHeaderTotalCost 把總花費顯示在 detail-tabs 列最右邊，不論目前在哪個分頁
 // （總覽／訊息／日誌／截圖）都看得到，跟訊息頁內的 renderTotalCost 共用同一個
 // totalCostUSD 數值，避免兩處各自定義格式造成不一致。
@@ -1112,24 +1094,17 @@ async function loadMessages(id) {
   const totalCostUSD = data.totalCostUSD || 0;
   renderHeaderTotalCost(totalCostUSD);
   if (list.length === 0) {
-    el.querySelectorAll('[data-msg-key]').forEach(node => {
-      if (node.dataset.msgKey === '__total__') return;
-      node.remove();
-    });
-    for (const key of Array.from(renderedMsgKeys.keys())) {
-      if (key !== '__total__') renderedMsgKeys.delete(key);
-    }
+    el.querySelectorAll('[data-msg-key]').forEach(node => node.remove());
+    renderedMsgKeys.clear();
     if (!el.querySelector('.msg-empty')) {
       const emptyEl = document.createElement('div');
       emptyEl.className = 'msg-empty text-zinc-600 text-sm mt-8 text-center';
       emptyEl.textContent = t('app.noArtifacts');
       el.appendChild(emptyEl);
     }
-    renderTotalCost(el, totalCostUSD);
     return;
   }
   const empty = el.querySelector('.msg-empty'); if (empty) empty.remove();
-  renderTotalCost(el, totalCostUSD);
   let added = false;
   list.forEach(m => {
     const key = m.file || m.label;
