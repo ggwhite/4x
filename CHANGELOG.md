@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.10] - 2026-07-03
+
+### Features
+
+- **Issue-first MR flow（F127）** — 新增 `.4x/settings.json` 的 `issue_tracker.enabled` 開關，開啟後 `4x new` 會依 repo 的 git remote 自動判斷 GitHub/GitLab 並建立（或用 `--issue` 連結既有）issue，`4x done` 改為 push branch + 開 MR/PR（帶 `Closes #issue`）取代本地 squash-merge，交由平台走 code review 流程
+- **結構化 e2e 截圖驗證（F128）** — `test-strategy.yaml` 的 `ac_verify_map` 新增 `e2e-screenshot` 合法值，guard 在 testing→accepting 關卡機械驗證宣告此類型的 AC 確實留有截圖檔案，避免條件式的截圖需求被 tester 悄悄跳過
+- **CLI 與 dashboard 總花費更準確（F129）** — 新增 `Workspace.TotalCost` 直接加總 `events.jsonl` 所有 run-end 事件成本；CLI resume 中斷過的 feature 時用它 seed 回總價；dashboard「訊息」頁新增這個權威總價顯示
+
+### Fixes
+
+- **平行 review/test 成本未累加** — reviewer/tester 平行執行時的 cost/tokens 只寫進 events.jsonl，未累加進行程內的總花費統計，導致開啟 `parallel_review_test` 時 CLI 結尾印出的總價低估（實測案例：印 $12.36，實際 $18.90）
+- **Designer 遇到開放式問題不再卡住** — Designer 是一次性、無人可回應的 headless 執行，過去偶爾會在產出必要檔案後反問使用者選項，導致 feature 被誤標 needs-attention；新增 Escalation 區塊教它改寫 `escalation.json`
+
 ## [0.3.9] - 2026-07-02
 
 ### Fixes
