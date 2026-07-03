@@ -1,0 +1,30 @@
+id: F129-accurate-cost-totals
+name: 'F129: Accurate cost totals for CLI and dashboard'
+description: |-
+    現狀：cost 加總在兩個地方都不準確。
+    1. CLI：`orchestrator.Runner.totalCostUSD`（`internal/orchestrator/orchestrator.go:49-53`）是記憶體變數，`NewRunner()` 每次從 0 開始，resume 一個曾中斷過的 run 時不會回頭讀 `events.jsonl` 補回之前行程已花的錢，導致 `4x run` 結束印出的總價偏低。
+    2. Dashboard：`internal/server/feature_handlers.go` 的 `buildPhaseInfo`（369-434 行）用共用 counter 幫「同 round 同 role」多次執行編號當 iteration，3 個平行 deep-reviewer 併發寫 log 時 iteration 常被錯亂分配，導致 `handleMessages`（310 行寫死查 `iteration=1`）拿到空值；`mini-coder`/`re-verifier`（self-heal 迴圈）更完全不在檔名對照表（296-307 行）裡，從未被計入。使用者實測案例：deep-reviewing phase 實際花 $14.14，dashboard 只顯示 $0.82（僅 synthesizer 一項），漏了 91%。
+
+    需求：
+    - `internal/protocol` 新增共用函式（例如 `(w *Workspace) TotalCost(featureID string) (float64, error)`），讀 `events.jsonl` 把所有 `type=="run-end"` 事件的 `cost_usd` 欄位加總，作為單一權威來源，不依賴現有有 bug 的 per-role/iteration 比對邏輯。
+    - CLI：`orchestrator.NewRunner`（或 `cmd/4x/run.go` 的 resume 路徑）在 resume 既有 feature 時呼叫這個函式，seed 進 `r.totalCostUSD`，讓中斷重啟後印出的總價正確反映所有歷史行程花費。
+    - Dashboard：`internal/server/feature_handlers.go` 呼叫同一個函式，在既有 API payload 新增 `totalCostUSD` 欄位；`dashboard/web/ui.js` 在「訊息」頁頂部渲染一個總價區塊。
+
+    約束：
+    - 不修正 `buildPhaseInfo` 既有的 iteration key 併發 bug，也不修 Deep Review 那一行單獨顯示的數字（範圍已明確排除，風險與範圍留待後續另開 feature）。
+    - 不新增第二份持續寫回的累計欄位（不做 state.json 累加計數器），維持 events.jsonl 為單一權威來源，每次即時重新加總。
+    - 不動 dashboard/macos（Swift）——那只是 WKWebView wrapper，實際 UI 都在 dashboard/web/。
+status: not-started
+subtasks:
+    - id: protocol-helper
+      name: internal/protocol 新增 TotalCost 共用函式，加總 events.jsonl 的 run-end cost_usd
+      status: ""
+    - id: cli-resume-seed
+      name: orchestrator.NewRunner resume 時用 TotalCost seed r.totalCostUSD
+      status: ""
+    - id: dashboard-total-field
+      name: internal/server/feature_handlers.go 新增 totalCostUSD API 欄位
+      status: ""
+    - id: dashboard-ui
+      name: dashboard/web/ui.js 訊息頁頂部顯示總價
+      status: ""
