@@ -7,6 +7,7 @@ import (
 	"io"
 	"sort"
 	"strings"
+	"unicode/utf8"
 )
 
 type streamJSONProcessor struct {
@@ -241,7 +242,11 @@ func truncateForLog(s string, max int) string {
 	if max <= 0 || len(s) <= max {
 		return s
 	}
-	return s[:max] + "..."
+	end := max
+	for end > 0 && !utf8.RuneStart(s[end]) {
+		end--
+	}
+	return s[:end] + "..."
 }
 
 func (p *streamJSONProcessor) writeLogf(format string, args ...any) {

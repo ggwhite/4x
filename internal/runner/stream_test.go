@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestStreamProcessor_AssistantText(t *testing.T) {
@@ -179,5 +180,18 @@ func TestStreamProcessor_AssistantTextDelta(t *testing.T) {
 	want := "[assistant] Hello\n[assistant]  world\n"
 	if got := logBuf.String(); got != want {
 		t.Errorf("log = %q, want %q", got, want)
+	}
+}
+
+func TestTruncateForLog_MultibyteBoundary(t *testing.T) {
+	// "百" is 3 bytes (E7 99 BE); the cut point at byte 120 lands on its
+	// first byte, which used to split the rune and yield invalid UTF-8.
+	prefix := strings.Repeat("a", 119)
+	s := prefix + "百盛extra"
+
+	got := truncateForLog(s, 120)
+
+	if !utf8.ValidString(got) {
+		t.Errorf("truncateForLog(%d) produced invalid UTF-8: %q", 120, got)
 	}
 }
