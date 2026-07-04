@@ -88,7 +88,7 @@ Any temp file created during resolution is always cleaned up, even when a later 
 
 ### Stream JSON Mode
 
-Runners with `output_format: "stream-json"` write two files: a readable `.log` for dashboard tailing and a raw `.stream.jsonl` file for debugging. Claude Code uses this mode by default.
+Runners with `output_format: "stream-json"` write two files: a readable `.log` for dashboard tailing and a raw `.stream.jsonl` file for debugging. Claude Code uses this mode by default. Tool-use summaries in the `.log` (e.g. Bash commands) are truncated at a bounded length, cut at a UTF-8 rune boundary so multi-byte characters are never split mid-character.
 
 ### Non-PTY Process Group Handling
 

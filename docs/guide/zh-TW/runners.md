@@ -83,7 +83,7 @@ Placeholder 解析會**大聲失敗**，而非將字面 placeholder 傳給 AI CL
 
 ### Stream JSON 模式
 
-設定 `output_format: "stream-json"` 的 runner 會寫入兩種檔案：dashboard tail 的人類可讀 `.log`，以及供除錯使用的原始 `.stream.jsonl`。Claude Code 預設使用此模式。
+設定 `output_format: "stream-json"` 的 runner 會寫入兩種檔案：dashboard tail 的人類可讀 `.log`，以及供除錯使用的原始 `.stream.jsonl`。Claude Code 預設使用此模式。`.log` 裡的 tool-use 摘要（例如 Bash 指令）會被截斷至固定長度，且截斷點會對齊 UTF-8 字元邊界，避免多位元組字元被從中間切斷。
 
 ### 非 PTY 程序群組處理
 

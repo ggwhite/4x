@@ -83,7 +83,7 @@
 
 ### Stream JSON モード
 
-`output_format: "stream-json"` のランナーは、dashboard が tail する読みやすい `.log` と、デバッグ用の raw `.stream.jsonl` の 2 種類を書き込みます。Claude Code はデフォルトでこのモードを使います。
+`output_format: "stream-json"` のランナーは、dashboard が tail する読みやすい `.log` と、デバッグ用の raw `.stream.jsonl` の 2 種類を書き込みます。Claude Code はデフォルトでこのモードを使います。`.log` 内の tool-use の要約（Bash コマンドなど）は一定の長さで切り詰められますが、切り詰め位置は UTF-8 の文字境界に合わせられ、マルチバイト文字が途中で分断されることはありません。
 
 ### 非 PTY プロセスグループ処理
 

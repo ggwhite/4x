@@ -83,7 +83,7 @@
 
 ### Stream JSON 모드
 
-`output_format: "stream-json"` 러너는 dashboard가 tail하는 읽기 쉬운 `.log`와 디버깅용 raw `.stream.jsonl` 두 파일을 씁니다. Claude Code는 기본적으로 이 모드를 사용합니다.
+`output_format: "stream-json"` 러너는 dashboard가 tail하는 읽기 쉬운 `.log`와 디버깅용 raw `.stream.jsonl` 두 파일을 씁니다. Claude Code는 기본적으로 이 모드를 사용합니다. `.log`의 tool-use 요약(예: Bash 명령어)은 고정된 길이에서 잘리지만, 자르는 지점은 UTF-8 문자 경계에 맞춰져 있어 멀티바이트 문자가 중간에 잘리지 않습니다.
 
 ### 비-PTY 프로세스 그룹 처리
 

@@ -83,7 +83,7 @@ Runner 的 `args` 可包含占位符，CLI 在调用子进程前会将其替换�
 
 ### Stream JSON 模式
 
-设置 `output_format: "stream-json"` 的 runner 会写入两种文件：dashboard tail 的可读 `.log`，以及用于调试的原始 `.stream.jsonl`。Claude Code 默认使用此模式。
+设置 `output_format: "stream-json"` 的 runner 会写入两种文件：dashboard tail 的可读 `.log`，以及用于调试的原始 `.stream.jsonl`。Claude Code 默认使用此模式。`.log` 中的 tool-use 摘要（例如 Bash 命令）会被截断到固定长度，截断点对齐 UTF-8 字符边界，避免多字节字符被从中间切断。
 
 ### 非 PTY 进程组处理
 

@@ -85,7 +85,7 @@ Cualquier archivo temporal creado durante la resolución siempre se limpia, incl
 
 ### Modo Stream JSON
 
-Los runners con `output_format: "stream-json"` escriben dos archivos: un `.log` legible para el tail del dashboard y un `.stream.jsonl` raw para depuración. Claude Code usa este modo por defecto.
+Los runners con `output_format: "stream-json"` escriben dos archivos: un `.log` legible para el tail del dashboard y un `.stream.jsonl` raw para depuración. Claude Code usa este modo por defecto. Los resúmenes de tool-use en el `.log` (p. ej. comandos Bash) se truncan a una longitud fija, cortando en un límite de rune UTF-8 para que los caracteres multibyte nunca se dividan a la mitad.
 
 ### Manejo de grupos de procesos no-PTY
 
