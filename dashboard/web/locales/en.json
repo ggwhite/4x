@@ -20,6 +20,7 @@
   "dashboard.roundsDist": "Rounds Distribution",
   "dashboard.avgRounds": "avg {avg} rounds/task",
   "dashboard.recentCompletions": "Recent Completions",
+  "dashboard.recentCompletionsCost": "Total: {amount}",
   "dashboard.currentlyRunning": "Currently Running",
   "dashboard.pendingReview": "Pending Review",
   "status.inProgress": "In Progress",

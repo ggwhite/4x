@@ -37,6 +37,7 @@ type taskInfo struct {
 	CreatedAt   string   `json:"createdAt,omitempty"`
 	UpdatedAt   string   `json:"updatedAt,omitempty"`
 	Warnings    []string `json:"warnings,omitempty"`
+	CostUSD     float64  `json:"costUsd,omitempty"`
 }
 
 type overviewInfo struct {
@@ -106,6 +107,13 @@ func handleTasks(ws *protocol.CachedWorkspace, w http.ResponseWriter) {
 		}
 		if t.Profile == "" {
 			t.Profile = f.Profile
+		}
+		if t.Status == "done" || t.Status == "abandoned" {
+			if cost, err := ws.TotalCost(f.ID); err == nil {
+				t.CostUSD = cost
+			} else {
+				slog.Warn("failed to compute total cost", "feature", f.ID, "error", err)
+			}
 		}
 		tasks = append(tasks, t)
 	}

@@ -20,6 +20,7 @@
   "dashboard.roundsDist": "라운드 분포",
   "dashboard.avgRounds": "평균 {avg} 라운드/작업",
   "dashboard.recentCompletions": "최근 완료",
+  "dashboard.recentCompletionsCost": "합계：{amount}",
   "dashboard.currentlyRunning": "실행 중",
   "dashboard.pendingReview": "검토 대기",
   "status.inProgress": "진행 중",

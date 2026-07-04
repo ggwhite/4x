@@ -115,6 +115,47 @@ func TestHandleTasks_OneFeature(t *testing.T) {
 	}
 }
 
+// TestHandleTasks_DoneFeatureCost 驗證 done feature 有 events.jsonl 時，
+// handleTasks 回傳的 costUsd 是 run-end 事件 cost_usd 的加總。
+func TestHandleTasks_DoneFeatureCost(t *testing.T) {
+	root := t.TempDir()
+	cfg := protocol.Config{Project: protocol.ProjectConfig{Name: "test"}, Default: "claude"}
+	if err := protocol.Init(root, cfg); err != nil {
+		t.Fatal(err)
+	}
+	rawWs := &protocol.Workspace{Root: root}
+
+	f := feature.Feature{ID: "F002-done-feat", Name: "Done Feature", Status: "done"}
+	if err := rawWs.SaveFeature(f); err != nil {
+		t.Fatal(err)
+	}
+	if err := rawWs.InitFeatureDir("F002-done-feat"); err != nil {
+		t.Fatal(err)
+	}
+	if err := rawWs.AppendEvent("F002-done-feat", protocol.Event{Type: "run-end", CostUSD: 0.5}); err != nil {
+		t.Fatal(err)
+	}
+	if err := rawWs.AppendEvent("F002-done-feat", protocol.Event{Type: "run-end", CostUSD: 0.25}); err != nil {
+		t.Fatal(err)
+	}
+
+	ws := protocol.NewCachedWorkspace(rawWs)
+	rec := httptest.NewRecorder()
+
+	handleTasks(ws, rec)
+
+	var tasks []taskInfo
+	if err := json.NewDecoder(rec.Body).Decode(&tasks); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(tasks) != 1 {
+		t.Fatalf("tasks = %d, want 1", len(tasks))
+	}
+	if got := tasks[0].CostUSD; got != 0.75 {
+		t.Errorf("CostUSD = %v, want 0.75", got)
+	}
+}
+
 // TestHandleEvents_NoFile 驗證 feature 無 events.jsonl 時，handleEvents 回傳空 JSON 陣列 `[]`。
 func TestHandleEvents_NoFile(t *testing.T) {
 	root := t.TempDir()

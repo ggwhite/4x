@@ -20,6 +20,7 @@
   "dashboard.roundsDist": "ラウンド分布",
   "dashboard.avgRounds": "平均 {avg} ラウンド/タスク",
   "dashboard.recentCompletions": "最近の完了",
+  "dashboard.recentCompletionsCost": "合計：{amount}",
   "dashboard.currentlyRunning": "実行中",
   "dashboard.pendingReview": "レビュー待ち",
   "status.inProgress": "実行中",

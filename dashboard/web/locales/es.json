@@ -20,6 +20,7 @@
   "dashboard.roundsDist": "Distribución de rondas",
   "dashboard.avgRounds": "promedio {avg} rondas/tarea",
   "dashboard.recentCompletions": "Completados recientes",
+  "dashboard.recentCompletionsCost": "Total: {amount}",
   "dashboard.currentlyRunning": "En ejecución",
   "dashboard.pendingReview": "Revisión pendiente",
   "status.inProgress": "En progreso",

@@ -707,6 +707,7 @@ function renderDashboard(tasks) {
   const a1=rP*360, a2=a1+rvP*360, a3=a2+pP*360, a4=a3+tP*360;
   const donut = total ? `conic-gradient(#10b981 0deg ${a1}deg,#f59e0b ${a1}deg ${a2}deg,#3b82f6 ${a2}deg ${a3}deg,#a78bfa ${a3}deg ${a4}deg,#22c55e ${a4}deg 360deg)` : 'conic-gradient(#27272a 0deg 360deg)';
   const recent = g.done.slice(0, 8);
+  const doneCost = g.done.reduce((s, f) => s + (f.costUsd || 0), 0);
   const activeTab = openTabs.find(tb => tb.id === activeProjectId);
   const pName = activeTab ? activeTab.name : '4x Live';
   el.innerHTML = `<div class="flex items-center gap-3 mb-6"><span class="text-lg font-bold">${esc(pName)}</span><span class="ml-auto px-3 py-1 text-xs rounded-full" style="border:1px solid var(--border);color:var(--text-2)">${t('dashboard.tasks').replace('{count}', total)}</span></div>
@@ -721,7 +722,7 @@ ${renderDag(tasks)}
 <div class="grid grid-cols-2 gap-4 mb-8">
 <div class="dash-card"><div class="text-[10px] font-bold dash-muted uppercase tracking-wider mb-4">${t('dashboard.status')}</div><div class="flex items-center gap-6"><div class="relative w-28 h-28 flex-shrink-0"><div class="w-28 h-28 rounded-full" style="background:${donut}"></div><div class="absolute inset-3 rounded-full dash-donut-center flex items-center justify-center flex-col"><span class="text-xl font-bold">${total}</span><span class="text-[10px] dash-muted">${t('dashboard.total')}</span></div></div><div class="space-y-2 text-xs"><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>${t('sidebar.running')}<span class="ml-auto dash-sub font-bold">${g.running.length}</span></div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>${t('sidebar.review')}<span class="ml-auto dash-sub font-bold">${g.review.length}</span></div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>${t('sidebar.pending')}<span class="ml-auto dash-sub font-bold">${g.pending.length}</span></div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span>${t('sidebar.todo')}<span class="ml-auto dash-sub font-bold">${g.todo.length}</span></div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>${t('sidebar.done')}<span class="ml-auto dash-sub font-bold">${g.done.length}</span></div></div></div></div>
 <div class="dash-card"><div class="text-[10px] font-bold dash-muted uppercase tracking-wider mb-4">${t('dashboard.roundsDist')}</div><div class="space-y-3">${Object.entries(buckets).map(([l,c])=>{const p=maxB?(c/maxB)*100:0;const co={'1':'#10b981','2':'#3b82f6','3-4':'#f59e0b','5+':'#ef4444'};return `<div class="flex items-center gap-3"><span class="text-xs dash-muted w-8 text-right">${l}R</span><div class="flex-1 h-5 dash-bar-bg rounded overflow-hidden"><div class="h-full rounded" style="width:${p}%;background:${co[l]}"></div></div><span class="text-xs font-bold w-6 text-right" style="color:var(--text-1)">${c}</span></div>`;}).join('')}</div>${doneTasks.length>0?`<div class="text-[10px] dash-muted mt-3">${t('dashboard.avgRounds').replace('{avg}', (doneTasks.reduce((s,d)=>s+d.round,0)/doneTasks.length).toFixed(1))}</div>`:''}</div></div>
-${recent.length>0?`<div class="dash-card"><div class="text-[10px] font-bold dash-muted uppercase tracking-wider mb-4">${t('dashboard.recentCompletions')}</div><div class="space-y-2">${recent.map(f=>{const pt=f.priority!=null&&PRIO_LABELS[f.priority]?`<span style="font-size:9px;padding:1px 5px;border-radius:4px;background:${PRIO_LABELS[f.priority].bg};color:${PRIO_LABELS[f.priority].c};font-weight:600">${PRIO_LABELS[f.priority].l}</span>`:'';const dur=f.createdAt&&f.updatedAt?formatDuration(f.createdAt,f.updatedAt):'';return `<div class="flex items-center gap-2 py-1.5 cursor-pointer rounded px-2 -mx-2 transition-colors" onmouseenter="this.style.background='var(--bg-hover)'" onmouseleave="this.style.background=''" onclick="openFeatureDetail('${f.id}')"><span class="text-emerald-500/60 text-xs">✓</span>${pt}<span class="text-xs font-semibold text-emerald-400/80">${f.id}</span><span class="text-xs dash-sub truncate flex-1">${esc(f.name)}</span>${runnerTags(f.runners)}${dur?`<span class="text-[10px] dash-muted">⏱ ${dur}</span>`:''}${f.round?`<span class="text-[10px] dash-muted">${f.round}R</span>`:''}</div>`;}).join('')}</div></div>`:''}
+${recent.length>0?`<div class="dash-card"><div class="text-[10px] font-bold dash-muted uppercase tracking-wider mb-4 flex items-center justify-between"><span>${t('dashboard.recentCompletions')}</span>${doneCost>0?`<span class="normal-case font-semibold text-emerald-400/70">${t('dashboard.recentCompletionsCost').replace('{amount}', formatCost(doneCost))}</span>`:''}</div><div class="space-y-2">${recent.map(f=>{const pt=f.priority!=null&&PRIO_LABELS[f.priority]?`<span style="font-size:9px;padding:1px 5px;border-radius:4px;background:${PRIO_LABELS[f.priority].bg};color:${PRIO_LABELS[f.priority].c};font-weight:600">${PRIO_LABELS[f.priority].l}</span>`:'';const dur=f.createdAt&&f.updatedAt?formatDuration(f.createdAt,f.updatedAt):'';return `<div class="flex items-center gap-2 py-1.5 cursor-pointer rounded px-2 -mx-2 transition-colors" onmouseenter="this.style.background='var(--bg-hover)'" onmouseleave="this.style.background=''" onclick="openFeatureDetail('${f.id}')"><span class="text-emerald-500/60 text-xs">✓</span>${pt}<span class="text-xs font-semibold text-emerald-400/80">${f.id}</span><span class="text-xs dash-sub truncate flex-1">${esc(f.name)}</span>${runnerTags(f.runners)}${dur?`<span class="text-[10px] dash-muted">⏱ ${dur}</span>`:''}${f.round?`<span class="text-[10px] dash-muted">${f.round}R</span>`:''}${f.costUsd>0?`<span class="text-[10px] dash-muted">${formatCost(f.costUsd)}</span>`:''}</div>`;}).join('')}</div></div>`:''}
 ${g.running.length>0?`<div class="rounded-xl border border-emerald-500/20 bg-emerald-950/20 p-5 mt-4"><div class="text-[10px] font-bold text-emerald-500/70 uppercase tracking-wider mb-4">${t('dashboard.currentlyRunning')}</div><div class="space-y-2">${g.running.map(f=>`<div class="flex items-center gap-3 py-1.5 cursor-pointer hover:bg-emerald-900/20 rounded px-2 -mx-2 transition-colors" onclick="openFeatureDetail('${f.id}')"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span><span class="text-xs font-semibold text-emerald-400">${f.id}</span><span class="text-xs dash-sub truncate flex-1">${esc(f.name)}</span><span class="text-[10px] text-emerald-400/70">${f.phase||''}</span>${f.round?`<span class="text-[10px] dash-muted">R${f.round}</span>`:''}</div>`).join('')}</div></div>`:''}
 ${g.review.length>0?`<div class="rounded-xl border border-amber-500/20 bg-amber-950/20 p-5 mt-4"><div class="text-[10px] font-bold text-amber-500/70 uppercase tracking-wider mb-4">${t('dashboard.pendingReview')}</div><div class="space-y-2">${g.review.map(f=>`<div class="flex items-center gap-3 py-1.5 cursor-pointer hover:bg-amber-900/20 rounded px-2 -mx-2 transition-colors" onclick="openFeatureDetail('${f.id}')"><span class="text-amber-400 text-xs">⏳</span><span class="text-xs font-semibold text-amber-400">${f.id}</span><span class="text-xs dash-sub truncate flex-1">${esc(f.name)}</span>${f.round?`<span class="text-[10px] dash-muted">${f.round}R</span>`:''}<button class="px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/30 rounded hover:bg-amber-500/20 transition-colors" onclick="event.stopPropagation();markDone('${f.id}')">${t('status.done')}</button></div>`).join('')}</div></div>`:''}`;
 }
@@ -1028,6 +1029,11 @@ async function loadDetail(task) {
   switchDetailTab(savedTab);
 }
 
+// formatCost 統一金額顯示格式，供訊息卡片、header 總花費、dashboard 最近完成列表共用。
+function formatCost(amount) {
+  return amount > 0 ? '$' + amount.toFixed(4) : '';
+}
+
 function renderMsgCard(m) {
   const r = ROLES[m.role] || {name:m.role,emoji:'',color:'#666',bg:'rgba(100,100,100,.05)'};
   const div = document.createElement('div');
@@ -1044,7 +1050,7 @@ function renderMsgCard(m) {
   const dur = m.duration > 0 ? `<span class="text-[10px] text-zinc-600 flex-shrink-0">${fmtSec(m.duration)}</span>` : '';
   const modelTag = `<span class="text-[10px] text-zinc-600 flex-shrink-0">${esc(modelLabel)}</span>`;
   const costTag = m.costUsd > 0
-    ? `<span class="text-[10px] text-zinc-600 flex-shrink-0">$${m.costUsd.toFixed(4)}</span>`
+    ? `<span class="text-[10px] text-zinc-600 flex-shrink-0">${formatCost(m.costUsd)}</span>`
     : m.tokensUsed > 0
       ? `<span class="text-[10px] text-zinc-600 flex-shrink-0">${fmtTokens(m.tokensUsed)}</span>`
       : '';
@@ -1074,7 +1080,7 @@ function renderMsgCard(m) {
 function renderHeaderTotalCost(totalCostUSD) {
   const el = document.getElementById('detail-total-cost');
   if (!el) return;
-  el.textContent = totalCostUSD > 0 ? t('app.totalCost').replace('{amount}', '$' + totalCostUSD.toFixed(4)) : '';
+  el.textContent = totalCostUSD > 0 ? t('app.totalCost').replace('{amount}', formatCost(totalCostUSD)) : '';
 }
 
 // loadTotalCost 供非訊息分頁（總覽／日誌／截圖）獨立取得總花費，訊息分頁本身已在

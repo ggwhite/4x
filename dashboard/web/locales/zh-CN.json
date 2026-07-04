@@ -20,6 +20,7 @@
   "dashboard.roundsDist": "轮次分布",
   "dashboard.avgRounds": "平均 {avg} 轮次/任务",
   "dashboard.recentCompletions": "最近完成",
+  "dashboard.recentCompletionsCost": "总计：{amount}",
   "dashboard.currentlyRunning": "运行中",
   "dashboard.pendingReview": "待审查",
   "status.inProgress": "运行中",
