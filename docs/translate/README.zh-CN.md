@@ -28,6 +28,7 @@
 | **Crash Recovery** | Runner 中断 → 从最后保存的状态自动恢复。暂态 API 错误（网络、rate limit）→ 自动 backoff 重试。 |
 | **批量模式** | 依赖感知 DAG 调度、完成后自动合并、批量报告、优雅停止。几十个 feature 排入夜间执行，早上再 review。 |
 | **MCP Server** | Model Context Protocol server，可与 MCP 兼容的 client 集成。 |
+| **Issue-First MR Flow** | 可选的 `issue_tracker` 模式：`4x new` 创建或关联 issue，`4x done` 改为 push branch 并开 PR/MR，取代本地合并。依各 repo 的 remote 自动检测 GitHub 或 GitLab（含自建），无需额外配置。 |
 | **20+ CLI 命令** | `run`、`batch`、`live`、`doctor`、`clean`、`verify`、`mcp`、phase hooks、health check、structured logging 等。 |
 | **自我进化** | 从历史 run 挖掘改进信号、自动发现 feature 充实化、evolution value gate + anti-hack、自我修改 scope guard、持续改进驱动器（`4x evolve`）。4x 从自身失败中学习并自我迭代。 |
 

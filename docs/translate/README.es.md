@@ -28,6 +28,7 @@
 | **Recuperación de fallos** | Runner interrumpido → reanudación automática desde el último estado guardado. Errores transitorios de API (red, límites de tasa) → reintento automático con backoff. |
 | **Modo batch** | Programación DAG con reconocimiento de dependencias, auto-merge al completar, reportes batch, parada elegante. Encola docenas de features durante la noche y revisa por la mañana. |
 | **Servidor MCP** | Servidor Model Context Protocol para integración con clientes compatibles con MCP. |
+| **Flujo Issue-First MR** | Modo opcional `issue_tracker`: `4x new` crea o vincula un issue, `4x done` hace push de la rama y abre un PR/MR en lugar de fusionar localmente. Detecta automáticamente GitHub o GitLab (incluyendo self-hosted) a partir del remote de cada repo — sin configuración adicional. |
 | **20+ comandos CLI** | `run`, `batch`, `live`, `doctor`, `clean`, `verify`, `mcp`, hooks de fase, health checks, logging estructurado, y más. |
 | **Auto-evolución** | Minería de historial de ejecuciones pasadas, enriquecimiento automático de features descubiertas, compuerta de valor de evolución + anti-hack, guardia de alcance para auto-modificación, driver de mejora continua (`4x evolve`). 4x aprende de sus propios fallos y se itera a sí mismo. |
 

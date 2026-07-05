@@ -232,6 +232,7 @@ tailwind.config = {
   </div>
   <img src="assets/dashboard-cost-detail.png" alt="Dashboard cost per phase" class="rounded-xl w-full" style="border:1px solid #30363d;">
   <p class="text-muted text-xs text-center mt-3" data-i18n="costviz.img.caption">Per-step model, duration, and cost — no more end-of-run surprises</p>
+  <p class="text-muted text-xs text-center mt-1" data-i18n="costviz.note">Cost tracking currently works with the Claude Code runner only (stream-json output) — other runners don't report per-round cost yet.</p>
 </section>
 
 <!-- How it works -->
@@ -666,7 +667,8 @@ const i18n = {
     "costviz.p2.desc": "Mix opus for design with sonnet for review and test — the dashboard shows the cost impact of each choice.",
     "costviz.p3.title": "No Surprises",
     "costviz.p3.desc": "Runaway rounds show up immediately in the per-phase view instead of hiding in a single end-of-run total.",
-    "costviz.img.caption": "Per-step model, duration, and cost — no more end-of-run surprises"
+    "costviz.img.caption": "Per-step model, duration, and cost — no more end-of-run surprises",
+    "costviz.note": "Cost tracking currently works with the Claude Code runner only (stream-json output) — other runners don't report per-round cost yet."
   },
   "zh-TW": {
     "hero.desc": "多角色 AI 開發框架，將軟體工程迴圈拆分為四個專業階段 — 設計、實作、審查、測試 — 每個階段由專屬 AI agent 驅動。",
@@ -750,7 +752,8 @@ const i18n = {
     "costviz.p2.desc": "Design 用 opus、review/test 用 sonnet 混著搭 — dashboard 直接顯示每個選擇對成本的影響。",
     "costviz.p3.title": "不會被總數嚇到",
     "costviz.p3.desc": "失控的某一輪在逐 phase 檢視裡馬上現形，不會被藏在跑完才看到的單一總數裡。",
-    "costviz.img.caption": "每個步驟的 model、耗時與成本 — 不會等到跑完才嚇一跳"
+    "costviz.img.caption": "每個步驟的 model、耗時與成本 — 不會等到跑完才嚇一跳",
+    "costviz.note": "目前僅 Claude Code runner（stream-json 輸出）支援成本追蹤，其他 runner 尚未回報每輪花費。"
   },
   "zh-CN": {
     "hero.desc": "多角色 AI 开发框架，将软件工程循环拆分为四个专业阶段 — 设计、编码、审查、测试 — 每个阶段由专属 AI agent 驱动。",
@@ -834,7 +837,8 @@ const i18n = {
     "costviz.p2.desc": "Design 用 opus、review/test 用 sonnet 混着搭 — dashboard 直接显示每个选择对成本的影响。",
     "costviz.p3.title": "不会被总数吓到",
     "costviz.p3.desc": "失控的某一轮在逐 phase 检视里马上现形，不会被藏在跑完才看到的单一总数里。",
-    "costviz.img.caption": "每个步骤的 model、耗时与成本 — 不会等到跑完才吓一跳"
+    "costviz.img.caption": "每个步骤的 model、耗时与成本 — 不会等到跑完才吓一跳",
+    "costviz.note": "目前仅 Claude Code runner（stream-json 输出）支持成本追踪，其他 runner 尚未上报每轮花费。"
   },
   ja: {
     "hero.desc": "ソフトウェア開発ループを4つの専門フェーズに分割するマルチロール AI 開発フレームワーク — 各フェーズは専用 AI エージェントが担当。",
@@ -918,7 +922,8 @@ const i18n = {
     "costviz.p2.desc": "設計には opus、レビューとテストには sonnet を組み合わせる — dashboard は各選択のコストへの影響を表示する。",
     "costviz.p3.title": "驚きはない",
     "costviz.p3.desc": "暴走したラウンドはフェーズ別ビューにすぐ現れ、実行終了時の単一合計に隠れることはない。",
-    "costviz.img.caption": "ステップごとの model、所要時間、コスト — 実行後に驚くことはもうない"
+    "costviz.img.caption": "ステップごとの model、所要時間、コスト — 実行後に驚くことはもうない",
+    "costviz.note": "現時点ではコスト追跡は Claude Code ランナー（stream-json 出力）のみ対応しており、他のランナーはラウンドごとのコストをまだ報告しません。"
   },
   ko: {
     "hero.desc": "소프트웨어 엔지니어링 루프를 4가지 전문 단계로 나누는 다중 역할 AI 개발 프레임워크 — 각 단계는 전담 AI 에이전트가 수행합니다.",
@@ -1002,7 +1007,8 @@ const i18n = {
     "costviz.p2.desc": "설계에는 opus, 리뷰와 테스트에는 sonnet을 조합 — dashboard가 각 선택의 비용 영향을 보여줍니다.",
     "costviz.p3.title": "놀랄 일 없음",
     "costviz.p3.desc": "폭주하는 라운드는 phase별 뷰에 즉시 나타나며, 실행 종료 시 단일 합계에 숨겨지지 않습니다.",
-    "costviz.img.caption": "단계별 model, 소요 시간, 비용 — 실행 후 더 이상 놀랄 일 없음"
+    "costviz.img.caption": "단계별 model, 소요 시간, 비용 — 실행 후 더 이상 놀랄 일 없음",
+    "costviz.note": "현재 비용 추적은 Claude Code 러너(stream-json 출력)에서만 지원되며, 다른 러너는 아직 라운드별 비용을 보고하지 않습니다."
   },
   es: {
     "hero.desc": "Un framework de desarrollo con IA multi-rol que divide el ciclo de ingeniería de software en cuatro fases especializadas — cada una impulsada por un agente de IA dedicado.",
@@ -1086,7 +1092,8 @@ const i18n = {
     "costviz.p2.desc": "Combina opus para diseño con sonnet para revisión y pruebas — el dashboard muestra el impacto en el costo de cada elección.",
     "costviz.p3.title": "Sin sorpresas",
     "costviz.p3.desc": "Las rondas descontroladas aparecen de inmediato en la vista por fase en lugar de ocultarse en un único total al final de la ejecución.",
-    "costviz.img.caption": "Modelo, duración y costo por paso — sin sorpresas al final"
+    "costviz.img.caption": "Modelo, duración y costo por paso — sin sorpresas al final",
+    "costviz.note": "El seguimiento de costos actualmente solo funciona con el runner de Claude Code (salida stream-json) — los demás runners aún no reportan el costo por ronda."
   }
 };
 

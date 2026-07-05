@@ -26,6 +26,7 @@
 | **Crash Recovery** | Runner crash → auto-resume from last saved state. Transient API errors (network, rate limits) → automatic backoff retry. |
 | **Batch Mode** | Dependency-aware DAG scheduling, auto-merge on completion, batch reports, graceful stop. Queue dozens of features and review in the morning. |
 | **MCP Server** | Model Context Protocol server for integration with MCP-compatible clients. |
+| **Issue-First MR Flow** | Optional `issue_tracker` mode: `4x new` creates or links an issue, `4x done` pushes the branch and opens a PR/MR instead of merging locally. Auto-detects GitHub vs. GitLab (including self-hosted) from each repo's remote — no per-repo config needed. |
 | **20+ CLI Commands** | `run`, `batch`, `live`, `doctor`, `clean`, `verify`, `mcp`, phase hooks, health checks, structured logging, and more. |
 | **Self-Evolution** | History mining from past runs, auto-discovered feature enrichment, evolution value gate with anti-hack, self-modification scope guard, and continuous improvement driver (`4x evolve`). 4x learns from its own failures and iterates itself. |
 
