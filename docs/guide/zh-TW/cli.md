@@ -386,7 +386,7 @@ Dashboard 透過 `POST /api/force-done` 加 `{id, reason}` 提供此功能。
 
 管理回顧學習——在 `.4x/learnings.json` 中累積的跨 feature 開發心得。
 
-每個 feature 的 Acceptor 會寫入 `retro-learnings.json`；CLI 將其匯整至 `.4x/learnings.json`。下一個 feature 時，Designer 會從中挑選相關條目存入 `selected-learnings.json`，CLI 再依類別過濾後注入每個角色的 prompt。learnings 完全由 CLI 管理——runner 絕不直接寫入 `learnings.json`，任何 learnings 失敗都只會警告，不阻擋狀態轉換。
+每個 feature 的 Acceptor 會寫入 `retro-learnings.json`；CLI 將其匯整至 `.4x/learnings.json`。CLI 在產每個角色的 prompt 時，會直接依該角色的 category 從 `.4x/learnings.json` 篩選（active/candidate 分桶配額）並注入——不再有 Designer 先挑選的中介步驟。learnings 完全由 CLI 管理——runner 絕不直接寫入 `learnings.json`，任何 learnings 失敗都只會警告，不阻擋狀態轉換。
 
 ```
 4x learn add --category <cat> --content <text>  # 手動新增 learning（standalone session 用）

@@ -103,6 +103,15 @@ interrupted mid-review. If it exists, read it:
 - If Verdict is already filled, verify it is consistent and finish
 Do NOT assume an existing file means the review is done — check the sections.
 
+{{- if .Learnings}}
+
+== Past Learnings ==
+以下是過去 feature 累積、與你這個角色相關的經驗教訓，僅供參考，自行判斷是否適用：
+{{- range .Learnings}}
+- [{{.Category}}] {{.Content}}
+{{- end}}
+{{- end}}
+
 == Role Learnings (optional) ==
 如果你在設計審查中發現了對未來 feature 有價值的教訓（設計文件常見疏漏、規格與實作的落差模式等），可以產出：
 

@@ -107,11 +107,11 @@ If every issue raised during the loop was resolved, write "None — all issues r
 - 不超過 5 條——只留最有價值的
 - 如果這次開發沒什麼特別教訓，寫空 array：{"learnings": []}
 
-{{- if .SelectedLearnings}}
+{{- if .Learnings}}
 
-== Learnings from Past Features ==
-以下是從過去經驗中挑出與本次工作相關的教訓，請納入考量：
-{{- range .SelectedLearnings}}
+== Past Learnings ==
+以下是過去 feature 累積、與你這個角色相關的經驗教訓，僅供參考，自行判斷是否適用：
+{{- range .Learnings}}
 - [{{.Category}}] {{.Content}}
 {{- end}}
 {{- end}}

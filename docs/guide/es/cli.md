@@ -438,7 +438,7 @@ Solo los features en estado `done` o `abandoned` con un directorio de workspace 
 
 Gestionar los aprendizajes retro — lecciones de desarrollo acumuladas a través de features en `.4x/learnings.json`.
 
-El Acceptor de cada feature escribe un `retro-learnings.json`; el CLI lo cosecha en `.4x/learnings.json`. En el siguiente feature, el Designer selecciona las entradas relevantes en `selected-learnings.json`, y el CLI las inyecta (filtradas por categoría) en el prompt de cada rol. Los learnings son gestionados enteramente por el CLI — los runners nunca escriben `learnings.json` directamente, y cualquier fallo de learnings solo advierte sin bloquear las transiciones de estado.
+El Acceptor de cada feature escribe un `retro-learnings.json`; el CLI lo cosecha en `.4x/learnings.json`. Al generar el prompt de cada rol, el CLI filtra directamente `.4x/learnings.json` por la categoría de ese rol (con cupos por bucket active/candidate) e inyecta el resultado — no hay un paso intermedio donde un Designer seleccione primero. Los learnings son gestionados enteramente por el CLI — los runners nunca escriben `learnings.json` directamente, y cualquier fallo de learnings solo advierte sin bloquear las transiciones de estado.
 
 ```
 4x learn add --category <cat> --content <text>  # agregar learning manualmente (sesiones standalone)

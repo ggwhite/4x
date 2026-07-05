@@ -251,7 +251,6 @@ Roles communicate through the `.4x/` directory, not shared context windows.
         ├── baseline.json                # Pre-coding snapshot (HEAD, branch, dirty files)
         ├── task-brief.md                # Designer → Coder: spec + architecture
         ├── retro-learnings.json         # Acceptor → CLI: harvested into learnings.json
-        ├── selected-learnings.json      # Designer → CLI: relevant learning IDs to inject downstream
         ├── acceptance-criteria.md       # Designer → Tester: testable criteria
         ├── test-strategy.yaml           # Designer → Tester: test approach
         ├── final-report.md              # End-of-loop summary

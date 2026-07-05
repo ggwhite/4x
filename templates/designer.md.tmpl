@@ -196,21 +196,9 @@ Rewrite only the sections that need fixing; keep approved sections unchanged.
 {{- if .Learnings}}
 
 == Past Learnings ==
-以下是過去 feature 累積的經驗教訓。從中挑出與本次 feature 相關的 ID，
-寫入 selected-learnings.json：
-
-  {{.DotDir}}/run/{{.Feature.ID}}/selected-learnings.json
-
-格式：
-{
-  "selected": ["L001", "L003"]
-}
-
-只選真正相關的，不相關就寫空 array：{"selected": []}。不超過 10 條。
-
-可用的 learnings：
+以下是過去 feature 累積、與你這個角色相關的經驗教訓，僅供參考，自行判斷是否適用：
 {{- range .Learnings}}
-- [{{.ID}}]{{if eq (printf "%s" .Status) "candidate"}} [candidate]{{end}} ({{.Category}}) {{.Content}}
+- [{{.Category}}] {{.Content}}
 {{- end}}
 {{- end}}
 

@@ -39,10 +39,8 @@ type Data struct {
 	RepoMap          map[string]string
 	// ProfileInstructions 是 test-strategy.yaml profiles 載入後的測試方法論，供 Tester template 注入。
 	ProfileInstructions []ProfileContent
-	// Learnings 是所有 active learnings，供 Designer template 列出供選擇。
+	// Learnings 是本角色相關的 learnings（依 category 篩選 + active/candidate 配額交錯排序），供 template 注入。
 	Learnings []learning.Entry
-	// SelectedLearnings 是已選中且符合本 role category 的 learnings，供後續 role template 注入。
-	SelectedLearnings []learning.Entry
 	// CodeMap 是專案的 exported symbol 摘要（每個 package 一行），讓 agent 不用探索就知道 codebase 結構。
 	CodeMap string
 	// ScreenshotDir 是 settings.json 解析後的 tester 截圖目錄（{feature-id} 已替換），
@@ -157,13 +155,7 @@ func Generate(ctx *Context, role protocol.Role, round, iteration int, runnerName
 	}
 	condensePlan := role != protocol.RoleDesigner && role != protocol.RoleDesignReviewer && !skippedDesigner
 	data.PlanningDoc = LoadPlanningDocs(ws.Root, feature, cfg.DesignDocDirs, condensePlan)
-	if role == protocol.RoleDesigner {
-		data.Learnings = LoadActiveLearnings(ws.DotDir())
-	} else if skippedDesigner && round == 1 && role == protocol.RoleCoder {
-		data.Learnings = LoadActiveLearnings(ws.DotDir())
-	} else {
-		data.SelectedLearnings = LoadSelectedLearnings(ws.DotDir(), feature.ID, role)
-	}
+	data.Learnings = LoadLearningsForRole(ws.DotDir(), role)
 	data.SkippedDesigner = skippedDesigner
 	data.CodeMap = BuildCodeMap(ws.Root)
 	if role == protocol.RoleCoder || role == protocol.RoleMiniCoder {

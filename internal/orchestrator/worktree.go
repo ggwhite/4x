@@ -32,8 +32,7 @@ func SyncFeatureToWorktree(main, wt *protocol.Workspace, featureID string, round
 	dstYAML := filepath.Join(dstFeaturesDir, featureID+".yaml")
 	warn(gitops.CopyFileIfExists(srcYAML, dstYAML), dstYAML)
 
-	// 帶入 SelectedLearningsFile，讓 resume 重建 worktree 時 Designer 先前的選擇不致遺失。
-	for _, name := range []string{protocol.StateFile, protocol.TaskBrief, protocol.Criteria, protocol.TestStratFile, protocol.DesignReviewReport, protocol.SelectedLearningsFile} {
+	for _, name := range []string{protocol.StateFile, protocol.TaskBrief, protocol.Criteria, protocol.TestStratFile, protocol.DesignReviewReport} {
 		dst := filepath.Join(dstDir, name)
 		warn(gitops.CopyFileIfExists(filepath.Join(srcDir, name), dst), dst)
 	}
@@ -65,7 +64,7 @@ func SyncFeatureFromWorktree(wt, main *protocol.Workspace, featureID string, rou
 	for _, name := range []string{
 		protocol.TaskBrief, protocol.Criteria, protocol.TestStratFile,
 		protocol.DesignReviewReport, protocol.FinalReport,
-		protocol.SelectedLearningsFile, protocol.RetroLearningsFile,
+		protocol.RetroLearningsFile,
 	} {
 		if _, err := gitops.CopyFileIfNewer(filepath.Join(srcDir, name), filepath.Join(dstDir, name)); err != nil {
 			errs = append(errs, fmt.Sprintf("%s: %v", name, err))

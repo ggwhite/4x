@@ -438,7 +438,7 @@ pending-review 기능을 완료로 표시합니다. 기능에 worktree(`.worktre
 
 `.4x/learnings.json`에 누적된 개발 교훈인 회고 학습 내역을 관리합니다.
 
-각 기능의 Acceptor가 `retro-learnings.json`을 작성하면, CLI가 이를 `.4x/learnings.json`에 수집합니다. 다음 기능에서 Designer가 관련 항목을 `selected-learnings.json`으로 선택하고, CLI가 이를 각 역할의 프롬프트에 주입합니다(카테고리별 필터링). 학습 내역은 전적으로 CLI가 관리하며 — 러너는 `learnings.json`을 직접 쓰지 않고, 학습 내역 처리 실패 시 경고만 출력하며 상태 전환을 차단하지 않습니다.
+각 기능의 Acceptor가 `retro-learnings.json`을 작성하면, CLI가 이를 `.4x/learnings.json`에 수집합니다. CLI는 각 역할의 프롬프트를 생성할 때 해당 역할의 카테고리로 `.4x/learnings.json`을 직접 필터링(active/candidate 분할 할당)하여 주입합니다 — Designer가 먼저 선택하는 중간 단계는 없습니다. 학습 내역은 전적으로 CLI가 관리하며 — 러너는 `learnings.json`을 직접 쓰지 않고, 학습 내역 처리 실패 시 경고만 출력하며 상태 전환을 차단하지 않습니다.
 
 ```
 4x learn add --category <cat> --content <text>  # learning 수동 추가 (standalone session용)

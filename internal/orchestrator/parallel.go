@@ -91,6 +91,9 @@ func RunReviewTestParallel(ctx context.Context, r *Runner, s *protocol.State, pc
 		return runOutcome{role: role, runnerName: runnerName, model: model, result: res, err: runErr, durationMs: durationMs, stats: stats}
 	}
 
+	prompt.MarkLearningsUsed(ws.DotDir(), prompt.LoadLearningsForRole(ws.DotDir(), protocol.RoleReviewer))
+	prompt.MarkLearningsUsed(ws.DotDir(), prompt.LoadLearningsForRole(ws.DotDir(), protocol.RoleTester))
+
 	var stopSync func()
 	if runnerWs.Root != ws.Root {
 		stopSync = StartLiveSync(runnerWs, ws, featureID, round)

@@ -61,8 +61,6 @@ const (
 	DefaultStaleDays = 90
 	// MaxActiveEntries 是 active learnings 的軟上限，超過只 warn 不自動刪。
 	MaxActiveEntries = 100
-	// MaxSelectedPerRole 是單一 role prompt 注入 learnings 的硬上限。
-	MaxSelectedPerRole = 10
 	// ConsolidateThreshold 是觸發 AI consolidate 的 active 條目門檻。
 	ConsolidateThreshold = 30
 	// FuzzyDupThreshold 是判定 learning 語意重複的 Jaccard 相似度門檻。

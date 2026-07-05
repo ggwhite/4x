@@ -151,11 +151,8 @@ func TestPromptData_DesignerWithLearnings(t *testing.T) {
 	if !strings.Contains(out, "Past Learnings") {
 		t.Error("expected Past Learnings section")
 	}
-	if !strings.Contains(out, "[L001]") || !strings.Contains(out, "always wrap errors") {
+	if !strings.Contains(out, "[code-quality]") || !strings.Contains(out, "always wrap errors") {
 		t.Error("expected L001 content in prompt")
-	}
-	if !strings.Contains(out, "selected-learnings.json") {
-		t.Error("expected selected-learnings.json instruction")
 	}
 }
 
@@ -176,85 +173,6 @@ func TestPromptData_DesignerWithoutLearnings(t *testing.T) {
 	}
 	if strings.Contains(b.String(), "Past Learnings") {
 		t.Error("should not contain Past Learnings when empty")
-	}
-}
-
-func TestLoadSelectedLearnings_FiltersByCategory(t *testing.T) {
-	root := t.TempDir()
-	if err := protocol.Init(root, protocol.Config{}); err != nil {
-		t.Fatal(err)
-	}
-	ws := &protocol.Workspace{Root: root}
-	featureID := "F042-test"
-	if err := ws.InitFeatureDir(featureID); err != nil {
-		t.Fatal(err)
-	}
-
-	store := learning.Store{Version: 1, Entries: []learning.Entry{
-		{ID: "L001", Category: learning.CategoryCodeQuality, Content: "wrap errors", Status: learning.StatusActive},
-		{ID: "L002", Category: learning.CategoryTesting, Content: "test edges", Status: learning.StatusActive},
-		{ID: "L003", Category: learning.CategoryProcess, Content: "escalate early", Status: learning.StatusActive},
-	}}
-	storePath := filepath.Join(ws.DotDir(), protocol.LearningsFile)
-	if err := store.Save(storePath); err != nil {
-		t.Fatal(err)
-	}
-
-	sel := `{"selected": ["L001", "L002", "L003"]}`
-	writeTestFileHelper(t, filepath.Join(ws.FeatureDir(featureID), protocol.SelectedLearningsFile), sel)
-
-	entries := prompt.LoadSelectedLearnings(ws.DotDir(), featureID, protocol.RoleCoder)
-	if len(entries) != 1 || entries[0].ID != "L001" {
-		t.Fatalf("expected [L001] for coder, got %v", entries)
-	}
-
-	entries = prompt.LoadSelectedLearnings(ws.DotDir(), featureID, protocol.RoleTester)
-	if len(entries) != 1 || entries[0].ID != "L002" {
-		t.Fatalf("expected [L002] for tester, got %v", entries)
-	}
-
-	entries = prompt.LoadSelectedLearnings(ws.DotDir(), featureID, protocol.RoleAcceptor)
-	if len(entries) != 1 || entries[0].ID != "L003" {
-		t.Fatalf("expected [L003] for acceptor, got %v", entries)
-	}
-}
-
-func TestLoadSelectedLearnings_NoFile(t *testing.T) {
-	root := t.TempDir()
-	if err := protocol.Init(root, protocol.Config{}); err != nil {
-		t.Fatal(err)
-	}
-	ws := &protocol.Workspace{Root: root}
-
-	entries := prompt.LoadSelectedLearnings(ws.DotDir(), "F042-test", protocol.RoleCoder)
-	if entries != nil {
-		t.Errorf("expected nil when no selected-learnings.json, got %v", entries)
-	}
-}
-
-func TestLoadSelectedLearnings_SkipsNonActive(t *testing.T) {
-	root := t.TempDir()
-	if err := protocol.Init(root, protocol.Config{}); err != nil {
-		t.Fatal(err)
-	}
-	ws := &protocol.Workspace{Root: root}
-	featureID := "F042-test"
-	if err := ws.InitFeatureDir(featureID); err != nil {
-		t.Fatal(err)
-	}
-
-	store := learning.Store{Version: 1, Entries: []learning.Entry{
-		{ID: "L001", Category: learning.CategoryCodeQuality, Content: "a", Status: learning.StatusPromoted},
-		{ID: "L002", Category: learning.CategoryCodeQuality, Content: "b", Status: learning.StatusActive},
-	}}
-	if err := store.Save(filepath.Join(ws.DotDir(), protocol.LearningsFile)); err != nil {
-		t.Fatal(err)
-	}
-	writeTestFileHelper(t, filepath.Join(ws.FeatureDir(featureID), protocol.SelectedLearningsFile), `{"selected":["L001","L002"]}`)
-
-	entries := prompt.LoadSelectedLearnings(ws.DotDir(), featureID, protocol.RoleCoder)
-	if len(entries) != 1 || entries[0].ID != "L002" {
-		t.Fatalf("expected only active L002, got %v", entries)
 	}
 }
 

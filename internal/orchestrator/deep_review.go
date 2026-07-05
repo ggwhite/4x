@@ -135,6 +135,9 @@ func (r *Runner) deepReviewRun(ctx context.Context, s *protocol.State, dp deepRe
 		protocol.ResolveParallelReviewers(r.Cfg, protocol.RoleDeepReviewer),
 		protocol.ResolveAnglesPerReviewer(r.Cfg, protocol.RoleDeepReviewer),
 		selectedAngles)
+
+	prompt.MarkLearningsUsed(r.Ws.DotDir(), prompt.LoadLearningsForRole(r.Ws.DotDir(), protocol.RoleDeepReviewer))
+
 	if len(groups) > 1 {
 		if ok, err := r.runDeepReviewParallel(ctx, s, dp.deepRunner, dp.deepModel, groups, round); !ok || err != nil {
 			return ok, err

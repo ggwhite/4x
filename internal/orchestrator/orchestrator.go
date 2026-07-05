@@ -188,7 +188,6 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 	defer commitWG.Wait()
 
 	var pending *prompt.Prefetch
-	var learningsUsageUpdated bool
 
 	for s.Active {
 		if shouldBreak := r.checkStopSignals(ctx, &s); shouldBreak {
@@ -203,11 +202,6 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 
 		if IsTerminalPhase(phase) {
 			break
-		}
-
-		if !learningsUsageUpdated && phase != protocol.PhaseDesigning && phase != protocol.PhaseDesignReviewing {
-			prompt.UpdateLearningsUsage(r.Ws, featureID)
-			learningsUsageUpdated = true
 		}
 
 		if skipped, err := r.tryPassThrough(&s, role, pc, profileName); skipped || err != nil {
@@ -631,6 +625,7 @@ func (r *Runner) resolvePrompt(pending **prompt.Prefetch, role protocol.Role, s 
 		}
 		promptText = p
 	}
+	prompt.MarkLearningsUsed(r.Ws.DotDir(), prompt.LoadLearningsForRole(r.Ws.DotDir(), role))
 	return promptText
 }
 

@@ -108,6 +108,15 @@ a risky fix:
 
 Format: {"needed": true, "reason": "blocker", "detail": "..."}
 
+{{- if .Learnings}}
+
+== Past Learnings ==
+以下是過去 feature 累積、與你這個角色相關的經驗教訓，僅供參考，自行判斷是否適用：
+{{- range .Learnings}}
+- [{{.Category}}] {{.Content}}
+{{- end}}
+{{- end}}
+
 == Role Learnings (optional) ==
 如果你在修復過程中發現了對未來 feature 有價值的教訓（常見的修復模式、容易引入的問題等），可以產出：
 

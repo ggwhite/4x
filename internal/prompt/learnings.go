@@ -8,86 +8,121 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/ggwhite/4x/internal/learning"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
-// selectedLearningsPayload 是 selected-learnings.json 的結構。
-type selectedLearningsPayload struct {
-	Selected []string `json:"selected"`
-}
+const (
+	// ActiveLearningsQuota 是每角色 prompt 注入的 active learnings 上限。
+	ActiveLearningsQuota = 28
+	// CandidateLearningsQuota 是每角色 prompt 注入的 candidate learnings 保底名額，不受 active 桶大小擠壓。
+	CandidateLearningsQuota = 12
+)
 
-// LoadActiveLearnings 讀取 learnings.json 中所有 active + candidate 條目，供 Designer prompt 列出供選擇。
-// active 條目排前，candidate 排後。任何讀取失敗只 warn 並回傳 nil，不影響 prompt 產生。
-func LoadActiveLearnings(dotDir string) []learning.Entry {
+// LoadLearningsForRole 依 role 對應的 category，從 learnings.json 篩選出該角色相關的 learnings，
+// 分 active/candidate 兩桶取配額後交錯合併回傳（純讀取，不寫入 store）。
+// active 桶依「LastUsed 非零則用 LastUsed，否則用 CreatedAt」新到舊排序，取前 ActiveLearningsQuota 筆；
+// candidate 桶依 CreatedAt 新到舊排序，取前 CandidateLearningsQuota 筆，為保底名額不受 active 桶大小影響。
+// 兩桶交錯合併（round-robin），避免整段 active 排在整段 candidate 之前。
+// 讀取失敗或角色無對應 category 時只 warn 並回傳 nil。
+func LoadLearningsForRole(dotDir string, role protocol.Role) []learning.Entry {
 	storePath := filepath.Join(dotDir, protocol.LearningsFile)
 	store, err := learning.LoadStore(storePath)
 	if err != nil {
 		slog.Warn("load learnings for prompt failed", "error", err)
 		return nil
 	}
-	active := store.ActiveEntries()
-	candidates := store.CandidateEntries()
-	if len(candidates) == 0 {
-		return active
-	}
-	result := make([]learning.Entry, 0, len(active)+len(candidates))
-	result = append(result, active...)
-	result = append(result, candidates...)
-	return result
-}
-
-// LoadSelectedLearnings 讀取 selected-learnings.json，濾出符合 role category 的 active 條目。
-func LoadSelectedLearnings(dotDir, featureID string, role protocol.Role) []learning.Entry {
-	selPath := filepath.Join(dotDir, protocol.RunDir, featureID, protocol.SelectedLearningsFile)
-	data, err := os.ReadFile(selPath)
-	if err != nil {
-		return nil
-	}
-
-	var payload selectedLearningsPayload
-	if err := json.Unmarshal(data, &payload); err != nil {
-		slog.Warn("parse selected-learnings.json failed", "error", err)
-		return nil
-	}
-	if len(payload.Selected) == 0 {
-		return nil
-	}
-
-	storePath := filepath.Join(dotDir, protocol.LearningsFile)
-	store, err := learning.LoadStore(storePath)
-	if err != nil {
-		slog.Warn("load learnings store for injection failed", "error", err)
-		return nil
-	}
-
-	entryMap := make(map[string]learning.Entry, len(store.Entries))
-	for _, e := range store.Entries {
-		entryMap[e.ID] = e
-	}
 
 	categories := learning.CategoriesForRole(string(role))
+	if len(categories) == 0 {
+		return nil
+	}
 	catSet := make(map[learning.Category]bool, len(categories))
 	for _, c := range categories {
 		catSet[c] = true
 	}
 
-	var result []learning.Entry
-	for _, id := range payload.Selected {
-		if len(result) >= learning.MaxSelectedPerRole {
-			break
-		}
-		e, ok := entryMap[id]
-		if !ok || (e.Status != learning.StatusActive && e.Status != learning.StatusCandidate) {
-			continue
-		}
+	var active, candidates []learning.Entry
+	for _, e := range store.Entries {
 		if !catSet[e.Category] {
 			continue
 		}
-		result = append(result, e)
+		// 此二判定式須與 learning.Store.ActiveEntries()/CandidateEntries() 保持一致；
+		// 此處為在單趟迴圈內同時做 category + status 過濾而 inline，日後任一方調整 status 語意時兩處都要同步。
+		switch {
+		case e.Status == learning.StatusActive && !e.Ineffective:
+			active = append(active, e)
+		case e.Status == learning.StatusCandidate:
+			candidates = append(candidates, e)
+		}
+	}
+
+	sort.SliceStable(active, func(i, j int) bool {
+		return learningRecency(active[i]).After(learningRecency(active[j]))
+	})
+	sort.SliceStable(candidates, func(i, j int) bool {
+		return candidates[i].CreatedAt.After(candidates[j].CreatedAt)
+	})
+
+	if len(active) > ActiveLearningsQuota {
+		active = active[:ActiveLearningsQuota]
+	}
+	if len(candidates) > CandidateLearningsQuota {
+		candidates = candidates[:CandidateLearningsQuota]
+	}
+
+	return interleaveLearnings(active, candidates)
+}
+
+// learningRecency 回傳排序用的參考時間：LastUsed 非零則用 LastUsed，否則用 CreatedAt。
+func learningRecency(e learning.Entry) time.Time {
+	if !e.LastUsed.IsZero() {
+		return e.LastUsed
+	}
+	return e.CreatedAt
+}
+
+// interleaveLearnings 將 active 與 candidate 兩桶 round-robin 交錯合併，任一桶取完後接續另一桶剩餘部分。
+func interleaveLearnings(active, candidates []learning.Entry) []learning.Entry {
+	result := make([]learning.Entry, 0, len(active)+len(candidates))
+	i, j := 0, 0
+	for i < len(active) || j < len(candidates) {
+		if i < len(active) {
+			result = append(result, active[i])
+			i++
+		}
+		if j < len(candidates) {
+			result = append(result, candidates[j])
+			j++
+		}
 	}
 	return result
+}
+
+// MarkLearningsUsed 把 entries 標記為「已注入某角色 prompt」：更新 LastUsed/UsedCount，
+// 只呼叫 UpdateUsage，不呼叫 PromoteCandidates——candidate 不因被注入而升級為 active，
+// 避免 active/candidate 分桶配額失去意義。entries 為空時為 no-op，不做任何 I/O。任何失敗只 warn。
+func MarkLearningsUsed(dotDir string, entries []learning.Entry) {
+	if len(entries) == 0 {
+		return
+	}
+	ids := make([]string, len(entries))
+	for i, e := range entries {
+		ids[i] = e.ID
+	}
+
+	storePath := filepath.Join(dotDir, protocol.LearningsFile)
+	store, err := learning.LoadStore(storePath)
+	if err != nil {
+		slog.Warn("load learnings store for usage mark failed", "error", err)
+		return
+	}
+	store.UpdateUsage(ids)
+	if err := store.Save(storePath); err != nil {
+		slog.Warn("save learnings store after usage mark failed", "error", err)
+	}
 }
 
 // HarvestLearnings 收割 feature 的所有 learnings 並追加到 .4x/learnings.json。
@@ -254,34 +289,6 @@ func ApplyConsolidateResult(ws *protocol.Workspace) (int, int, error) {
 		return 0, 0, err
 	}
 	return merged, removed, nil
-}
-
-// UpdateLearningsUsage 在第一個非 Designer phase 時呼叫一次：讀 selected-learnings.json，
-// 更新被選中 learning 的 last_used 與 used_count。任何失敗只 warn，不影響 state transition。
-func UpdateLearningsUsage(ws *protocol.Workspace, featureID string) {
-	selPath := filepath.Join(ws.FeatureDir(featureID), protocol.SelectedLearningsFile)
-	data, err := os.ReadFile(selPath)
-	if err != nil {
-		return
-	}
-
-	var payload selectedLearningsPayload
-	if err := json.Unmarshal(data, &payload); err != nil || len(payload.Selected) == 0 {
-		return
-	}
-
-	storePath := filepath.Join(ws.DotDir(), protocol.LearningsFile)
-	store, err := learning.LoadStore(storePath)
-	if err != nil {
-		slog.Warn("load learnings store for usage update failed", "error", err)
-		return
-	}
-
-	store.UpdateUsage(payload.Selected)
-	store.PromoteCandidates(payload.Selected)
-	if err := store.Save(storePath); err != nil {
-		slog.Warn("save learnings store after usage update failed", "error", err)
-	}
 }
 
 // GenerateLearningsContext 產生 .4x/learnings-context.md，按 category 分組列出所有 active learnings。

@@ -156,26 +156,11 @@ exactly what was already done, so nothing needs to be re-discovered or re-implem
 ## Verification
 - command: result
 
-{{- if and .SkippedDesigner .Learnings}}
+{{- if .Learnings}}
 
-== Past Learnings (select relevant ones) ==
-Designer was skipped, so YOU are responsible for selecting relevant learnings.
-Review the list below, pick the ones relevant to this feature (max 10), and write:
-
-  {{.DotDir}}/run/{{.Feature.ID}}/selected-learnings.json
-
-Format: {"selected": ["L001", "L003"]}
-If none are relevant: {"selected": []}
-
-Available learnings:
+== Past Learnings ==
+以下是過去 feature 累積、與你這個角色相關的經驗教訓，僅供參考，自行判斷是否適用：
 {{- range .Learnings}}
-- [{{.ID}}]{{if eq (printf "%s" .Status) "candidate"}} [candidate]{{end}} ({{.Category}}) {{.Content}}
-{{- end}}
-{{- else if .SelectedLearnings}}
-
-== Learnings from Past Features ==
-以下是從過去經驗中挑出與本次工作相關的教訓，請納入考量：
-{{- range .SelectedLearnings}}
 - [{{.Category}}] {{.Content}}
 {{- end}}
 {{- end}}

@@ -438,7 +438,7 @@ Feature が `pending-review` または `done` フェーズにあり、`.worktree
 
 レトロラーニングを管理します。ラーニングは `.4x/learnings.json` に蓄積される、Feature をまたいだ開発上の学びです。
 
-各 Feature の Acceptor が `retro-learnings.json` を書き込み、CLI がそれを `.4x/learnings.json` に収集します。次の Feature では Designer が関連エントリを `selected-learnings.json` に選択し、CLI がカテゴリでフィルタリングして各ロールのプロンプトに注入します。Learnings は完全に CLI が管理します。Runner が `learnings.json` を直接書き込むことはなく、learnings の失敗は警告のみで状態遷移をブロックしません。
+各 Feature の Acceptor が `retro-learnings.json` を書き込み、CLI がそれを `.4x/learnings.json` に収集します。各ロールのプロンプトを生成する際、CLI はそのロールのカテゴリで `.4x/learnings.json` を直接フィルタリング（active/candidate の配分枠付き）して注入します——Designer が先に選択する中間ステップはありません。Learnings は完全に CLI が管理します。Runner が `learnings.json` を直接書き込むことはなく、learnings の失敗は警告のみで状態遷移をブロックしません。
 
 ```
 4x learn add --category <cat> --content <text>  # learning を手動追加（standalone session 用）

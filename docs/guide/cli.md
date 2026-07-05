@@ -459,7 +459,7 @@ Only features in `done` or `abandoned` status with an existing workspace directo
 
 Manage retro learnings — development lessons accumulated across features in `.4x/learnings.json`.
 
-The Acceptor of each feature writes a `retro-learnings.json`; the CLI harvests it into `.4x/learnings.json`. On the next feature, the Designer picks relevant entries into `selected-learnings.json`, and the CLI injects them (filtered by category) into each role's prompt. learnings are managed entirely by the CLI — runners never write `learnings.json` directly, and any learnings failure only warns without blocking state transitions.
+The Acceptor of each feature writes a `retro-learnings.json`; the CLI harvests it into `.4x/learnings.json`. When generating each role's prompt, the CLI directly filters `.4x/learnings.json` by that role's category (with active/candidate quota buckets) and injects the result — there is no intermediate step where a Designer selects entries first. learnings are managed entirely by the CLI — runners never write `learnings.json` directly, and any learnings failure only warns without blocking state transitions.
 
 ```
 4x learn add --category <cat> --content <text>  # add a learning manually (standalone sessions)
