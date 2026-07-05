@@ -142,3 +142,10 @@ Plugins follow a simple contract — read `.4x/` files, do AI work, write result
 6. Exit with appropriate code (0 = success, 1 = soft fail, 2 = hard error)
 
 No SDK required. No runtime dependency. Just files.
+
+### Escalation & Scope Gaps
+
+Plugin instruction files also define two distinct reporting channels for roles:
+
+- **Escalation** — if a role hits a blocker inside its current task (impossible spec, contradictory criteria), it writes `.4x/run/{feature-id}/rounds/round-{n}/escalation.json` (`{"needed": true, "reason": "...", "detail": "..."}`). Valid reasons: `spec-mismatch`, `criteria-wrong`, `blocker`, `scope-change`.
+- **Scope Gaps** — if a role notices an issue clearly outside the feature's scope that does *not* block its current task (e.g. something that deserves its own feature later), it appends a line to `docs/reference/discovered-feature-gaps.md` instead of expanding scope or self-triggering `4x new`. This is a non-blocking, human-reviewed channel — it does not affect state, exit code, or guard checks.

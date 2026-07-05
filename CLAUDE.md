@@ -126,6 +126,13 @@ ID 自動在 word boundary 截斷；用 `--id` 可指定完整 slug 不截斷。
 
 見 `progress.md` 了解目前進度，`feature_list.json` 列出待做功能。
 
+## End of Session
+
+Session 收尾時：
+
+1. 檢查 `docs/reference/discovered-feature-gaps.md` 有沒有本次 session 新增、尚未處理（沒有 `[已開 FXXX]` 標記）的項目，提醒使用者決定是否要開新 feature。
+2. 若解決過環境、工具、build 相關的坑，且 `docs/dev/troubleshoot.md` 尚無記錄，append 新條目。
+
 ## graphify
 
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
@@ -135,3 +142,5 @@ Rules:
 - If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+
+@.4x/learnings-context.md

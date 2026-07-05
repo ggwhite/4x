@@ -30,7 +30,8 @@
       "新增 public function 必須有繁體中文 GoDoc 註解",
       "探索既有程式碼結構必須先用工具：codegraph_explore MCP（查 symbol-level，精確定位）或 graphify（看模組耦合、呼叫鏈、God node）。worktree 內沒有 codegraph 索引，需指定主工作區路徑：`codegraph explore \"query\" -p /Users/white/github/4x`；graphify 同理：`graphify query \"問題\" --graph /Users/white/github/4x/graphify-out/graph.json`。禁止跳過直接 grep + Read",
       "找檔案、定位 symbol 時先用 codegraph_explore MCP；MCP 不可用或找不到時，改用 Explore agent（subagent_type: Explore），不可直接 find + Read 迴圈代替",
-      "4x session context 啟動時已很重（task-brief + artifacts），禁止用 fork 做分析任務——fork 繼承全部 context 且後續輪數少，啟動成本高於收益。改用 codegraph / Explore agent 替代"
+      "4x session context 啟動時已很重（task-brief + artifacts），禁止用 fork 做分析任務——fork 繼承全部 context 且後續輪數少，啟動成本高於收益。改用 codegraph / Explore agent 替代",
+      "發現明確需要另開 feature、但不阻塞目前任務的範圍外問題時，append 一行到 docs/reference/discovered-feature-gaps.md（不存在就自己建），不要自行擴大目前 feature 的 scope、不要動手做、不要自己呼叫 4x new"
     ],
     "includes": [
       "CLAUDE.md"

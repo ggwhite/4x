@@ -1,0 +1,26 @@
+id: F130-sync-learnings-context-import
+name: 'F130: Sync 未偵測 learnings-context import 遺失'
+description: |-
+    現狀：`comparePlugins()`（`cmd/4x/sync.go:83-142`）只比對兩件事——plugin 檔案本身內容、以及該 plugin 對應的 `@.4x/plugins/{name}` import 行是否存在於根目錄檔案（如 CLAUDE.md）——完全沒有把 `@.4x/learnings-context.md` 這行納入比對。`syncPlugins()`（`cmd/4x/plugin_install.go:107-127`）只有在 `comparePlugins()` 回報有項目不是 current 時，才會呼叫 `installPlugins()`（唯一會執行 `ensureAppendImport` 補上 learnings-context import 的地方）。結果：一旦 plugin 檔案本身與其 import 行都已是最新（穩態，也是最常見狀態），`4x run` 前置的 `syncPlugins()` 會直接跳過，`learnings-context.md` 的 import 行永遠不會被自動補上，且沒有任何錯誤或警告。本 repo（4x 自己 dogfooding）就是活生生案例：`.4x/learnings.json`（60.6K）、`.4x/learnings-context.md`（11.2K）都有大量條目，但根目錄 `CLAUDE.md` 只有一行 `@.4x/plugins/CLAUDE.md`，完全沒有 import learnings-context——代表 `4x learn` 累積的教訓從未真正送進任何角色的 prompt，這個機制形同靜默失效。
+
+    需求：
+    - `comparePlugins()`（`cmd/4x/sync.go:83-142`）新增檢查：對每個有 `RootFile` 的 runner，額外比對其根目錄檔案是否包含 `@.4x/` + `protocol.LearningsContextFile` 這行；缺少時加入 report（`statusCreated`/`statusUpdated`），讓 `4x sync` 的輸出也能顯示這個狀態。
+    - `syncPlugins()`（`cmd/4x/plugin_install.go:107-127`）的 `needSync` 判斷需涵蓋這個新比對項目，讓 learnings-context import 缺失時能正確觸發 `installPlugins()` 補上。
+    - 補上對應的回歸測試，涵蓋「plugin 檔案本身已是最新、但 learnings-context import 缺失」這個情境，確保 `syncPlugins()`/`4x sync` 會偵測並觸發補齊。
+
+    約束：
+    - 不改變 `ensureAppendImport()` 本身的寫入邏輯（本來就是 idempotent 的補行為），只修「什麼情況下會被觸發」。
+    - 不動 `installPlugins()` 對其他 plugin 檔案的複製/覆寫邏輯。
+    - 不寫遷移腳本追溯修復所有既有專案的 CLAUDE.md——使用者之後跑一次 `4x sync` 或 `4x run` 自然就會補上，不需要額外工具。
+status: in-progress
+priority: 1
+subtasks:
+    - id: compare-learnings-import
+      name: comparePlugins() 新增對 learnings-context import 行的比對邏輯
+      status: ""
+    - id: sync-trigger-fix
+      name: syncPlugins() needSync 判斷涵蓋新比對項目
+      status: ""
+    - id: regression-test
+      name: 補測試涵蓋 plugin 檔案已是最新但 learnings-context import 缺失的情境
+      status: ""

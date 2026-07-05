@@ -60,6 +60,7 @@ docs/
 |---|---|---|---|
 | [plugin-contract](reference/plugin-contract.md) | ~30 | Plugin 合約 — invocation、filesystem I/O、heartbeat、exit codes、dry-run | 開發新 plugin、改 plugin 介面 |
 | [cli-reference](reference/cli-reference.md) | ~130 | CLI 指令參考 — init / new / status / check / transition / event / prompt / batch / live | 改 CLI、加新 subcommand、查參數用法 |
+| [discovered-feature-gaps](reference/discovered-feature-gaps.md) | ~5 | 開發過程中發現的範圍外功能缺口清單（不阻塞當下 feature，待使用者排優先度）— 任何角色發現都應 append 一行 | 規劃下一個 feature、或想確認有沒有漏掉的已知缺口時讀 |
 
 ### dev/ — 開發操作知識
 
