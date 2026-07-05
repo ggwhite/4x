@@ -92,6 +92,40 @@ func TestMultiRepo_SetupWorktree_OnlyFeatureRepos(t *testing.T) {
 	}
 }
 
+// TestMultiRepo_SetupWorktree_FastForwardsStaleMain 驗證 multi-repo 模式下，每個
+// repo 開 worktree 前都會各自 fetch + fast-forward 落後的 origin，跟 mono-repo 行為一致。
+func TestMultiRepo_SetupWorktree_FastForwardsStaleMain(t *testing.T) {
+	root, _, ops := setupMultiWorkspace(t)
+	coreDir := filepath.Join(root, "core")
+	branch := gitOutput(coreDir, "symbolic-ref", "--short", "HEAD")
+
+	bareDir := addBareRemote(t, coreDir)
+	runGit(t, coreDir, "push", "-u", "origin", branch)
+
+	cloneDir := t.TempDir()
+	if out, err := exec.Command("git", "clone", bareDir, cloneDir).CombinedOutput(); err != nil {
+		t.Fatalf("git clone: %s", out)
+	}
+	runGit(t, cloneDir, "config", "user.name", "test")
+	runGit(t, cloneDir, "config", "user.email", "test@test")
+	os.WriteFile(filepath.Join(cloneDir, "remote.go"), []byte("package main\n"), 0o644)
+	runGit(t, cloneDir, "add", ".")
+	runGit(t, cloneDir, "commit", "-m", "remote change")
+	runGit(t, cloneDir, "push", "origin", branch)
+
+	wtPath, err := ops.SetupWorktree("feat-stale", nil)
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(coreDir, "remote.go")); err != nil {
+		t.Error("local core main should have fast-forwarded to include origin's new commit")
+	}
+	if _, err := os.Stat(filepath.Join(wtPath, "core", "remote.go")); err != nil {
+		t.Error("core worktree branch should be based on the fast-forwarded main")
+	}
+}
+
 func TestMultiRepo_SetupWorktree_Idempotent(t *testing.T) {
 	_, _, ops := setupMultiWorkspace(t)
 	wtPath1, err := ops.SetupWorktree("feat-idem2", nil)

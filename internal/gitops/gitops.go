@@ -3,6 +3,7 @@ package gitops
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -143,6 +144,31 @@ func CountFileLines(path string) int {
 		lines++
 	}
 	return lines
+}
+
+// syncUpstream 在開 worktree 前，嘗試把 dir 目前分支 fast-forward 到其 upstream tracking
+// branch，避免 issue-first MR 流程下（合併發生在 GitLab/GitHub 端，不觸碰本地 repo）本地
+// main 忘記 pull 太久，讓新 feature 從過期的 base 分岔。本地 squash-merge 流程下 main 本來
+// 就會保持最新，此函式對它是無害的 no-op。
+//
+// fetch/merge 一律非致命：沒有 upstream（無 remote 或未設 tracking）、離線、或本地與遠端已
+// 分岔時，merge --ff-only 本就會乾淨失敗、不動任何東西，直接沿用現有本地 ref 繼續開 worktree，
+// 不會強制覆蓋任何未推送的本地 commit。
+func syncUpstream(dir string) {
+	upstreamOut, err := exec.Command("git", "-C", dir, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}").Output()
+	if err != nil {
+		return
+	}
+	upstream := strings.TrimSpace(string(upstreamOut))
+	remote := strings.SplitN(upstream, "/", 2)[0]
+
+	if out, err := exec.Command("git", "-C", dir, "fetch", remote).CombinedOutput(); err != nil {
+		fmt.Fprintf(os.Stderr, "worktree: git fetch %s failed, using local ref: %s\n", remote, strings.TrimSpace(string(out)))
+		return
+	}
+	if out, err := exec.Command("git", "-C", dir, "merge", "--ff-only", upstream).CombinedOutput(); err != nil {
+		fmt.Fprintf(os.Stderr, "worktree: local branch diverged from %s, using local ref: %s\n", upstream, strings.TrimSpace(string(out)))
+	}
 }
 
 func ensureGitignore(root, entry string) {

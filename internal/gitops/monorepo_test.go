@@ -538,6 +538,77 @@ func TestMonoRepo_PushAndOpenMR_OpenMRFails_PreservesWorktree(t *testing.T) {
 	}
 }
 
+// TestMonoRepo_SetupWorktree_FastForwardsStaleMain 驗證開 worktree 前，本地落後
+// origin main 時會先 fetch + fast-forward，讓新 feature 從最新的 main 分岔，避免
+// issue-first MR 流程下本地 main 忘記 git pull 而讓 worktree 從舊 base 開出。
+func TestMonoRepo_SetupWorktree_FastForwardsStaleMain(t *testing.T) {
+	root, _, ops := setupMonoWorkspace(t)
+	bareDir := addBareRemote(t, root)
+	runGit(t, root, "push", "-u", "origin", "main")
+
+	// 模擬別人已經把新 commit push 到 origin main，本地 root 尚未同步。
+	cloneDir := t.TempDir()
+	if out, err := exec.Command("git", "clone", bareDir, cloneDir).CombinedOutput(); err != nil {
+		t.Fatalf("git clone: %s", out)
+	}
+	runGit(t, cloneDir, "config", "user.name", "test")
+	runGit(t, cloneDir, "config", "user.email", "test@test")
+	os.WriteFile(filepath.Join(cloneDir, "remote.go"), []byte("package main\n"), 0o644)
+	runGit(t, cloneDir, "add", ".")
+	runGit(t, cloneDir, "commit", "-m", "remote change")
+	runGit(t, cloneDir, "push", "origin", "main")
+
+	wtPath, err := ops.SetupWorktree("feat-stale", nil)
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(root, "remote.go")); err != nil {
+		t.Error("local main should have fast-forwarded to include origin's new commit")
+	}
+	if _, err := os.Stat(filepath.Join(wtPath, "remote.go")); err != nil {
+		t.Error("worktree branch should be based on the fast-forwarded main")
+	}
+}
+
+// TestMonoRepo_SetupWorktree_DivergedMainPreserved 驗證本地 main 與 origin 已分岔
+// （雙方都有對方沒有的 commit）時，SetupWorktree 不會失敗、也不會強制覆蓋本地 commit
+// ——fetch+ff-only 在分岔時本就會乾淨失敗，worktree 照樣用現有本地 ref 開出。
+func TestMonoRepo_SetupWorktree_DivergedMainPreserved(t *testing.T) {
+	root, _, ops := setupMonoWorkspace(t)
+	bareDir := addBareRemote(t, root)
+	runGit(t, root, "push", "-u", "origin", "main")
+
+	cloneDir := t.TempDir()
+	if out, err := exec.Command("git", "clone", bareDir, cloneDir).CombinedOutput(); err != nil {
+		t.Fatalf("git clone: %s", out)
+	}
+	runGit(t, cloneDir, "config", "user.name", "test")
+	runGit(t, cloneDir, "config", "user.email", "test@test")
+	os.WriteFile(filepath.Join(cloneDir, "remote.go"), []byte("package main\n"), 0o644)
+	runGit(t, cloneDir, "add", ".")
+	runGit(t, cloneDir, "commit", "-m", "remote change")
+	runGit(t, cloneDir, "push", "origin", "main")
+
+	// root 自己也有一筆未推送的 local commit，跟 origin 分岔。
+	os.WriteFile(filepath.Join(root, "local.go"), []byte("package main\n"), 0o644)
+	runGit(t, root, "add", ".")
+	runGit(t, root, "commit", "-m", "local change")
+	localHead := gitOutput(root, "rev-parse", "HEAD")
+
+	wtPath, err := ops.SetupWorktree("feat-diverged", nil)
+	if err != nil {
+		t.Fatalf("SetupWorktree should not fail on diverged main: %v", err)
+	}
+
+	if afterHead := gitOutput(root, "rev-parse", "HEAD"); afterHead != localHead {
+		t.Errorf("local main HEAD should be unchanged when diverged, got %s want %s", afterHead, localHead)
+	}
+	if _, err := os.Stat(filepath.Join(wtPath, "local.go")); err != nil {
+		t.Error("worktree should be based on preserved local commit")
+	}
+}
+
 func TestMonoRepo_MergeDirtyWorkingTree(t *testing.T) {
 	root, _, ops := setupMonoWorkspace(t)
 	_, err := ops.SetupWorktree("feat-dirty", nil)

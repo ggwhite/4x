@@ -31,6 +31,8 @@ func (m *monoRepo) SetupWorktree(featureID string, _ []string) (string, error) {
 		return wtDir, nil
 	}
 
+	syncUpstream(m.root)
+
 	if err := os.MkdirAll(filepath.Dir(wtDir), 0o755); err != nil {
 		return "", err
 	}

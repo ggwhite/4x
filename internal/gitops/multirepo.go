@@ -42,6 +42,8 @@ func (m *multiRepo) SetupWorktree(featureID string, featureRepos []string) (stri
 		repoPath := filepath.Join(m.root, rc.Path)
 		wtRepoDir := filepath.Join(wtDir, name)
 
+		syncUpstream(repoPath)
+
 		out, err := exec.Command("git", "-C", repoPath, "worktree", "add", wtRepoDir, "-b", branch).CombinedOutput()
 		if err != nil {
 			out2, err2 := exec.Command("git", "-C", repoPath, "worktree", "add", wtRepoDir, branch).CombinedOutput()
