@@ -1,8 +1,10 @@
 package gitops
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +14,26 @@ import (
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/vcshub"
 )
+
+// captureStderr 暫時把 os.Stderr 換成 pipe，執行 fn 後回傳擷取到的內容，供驗證
+// syncUpstream 印到 stderr 的警告訊息（fetch/merge 是同行程呼叫，不是走 subprocess）。
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	orig := os.Stderr
+	os.Stderr = w
+	defer func() { os.Stderr = orig }()
+
+	fn()
+
+	w.Close()
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+	return buf.String()
+}
 
 // fakeHub 是 vcshub.Hub 的測試替身，供 monorepo/multirepo 的 PushAndOpenMR 測試共用。
 // onCall（若設定）會在 OpenMR 被呼叫時收到全部參數；openMRErr 非 nil 時 OpenMR 回傳該錯誤。
@@ -610,6 +632,39 @@ func TestMonoRepo_SetupWorktree_DivergedMainPreserved(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(wtPath, "local.go")); err != nil {
 		t.Error("worktree should be based on preserved local commit")
+	}
+}
+
+// TestMonoRepo_SetupWorktree_LocalAheadOfRemote 驗證本地領先 origin（有未推送的本地
+// commit，origin 沒有新 commit，非分岔）時，SetupWorktree 用本地 HEAD 當 base（fast-
+// forward 對此是 no-op），但會印警告讓使用者知道有未推送的 commit 會被當成新 feature
+// 的起點——不只落後 remote 要處理，超前 remote 也要讓使用者看得到，而非悄悄略過。
+func TestMonoRepo_SetupWorktree_LocalAheadOfRemote(t *testing.T) {
+	root, _, ops := setupMonoWorkspace(t)
+	addBareRemote(t, root)
+	runGit(t, root, "push", "-u", "origin", "main")
+
+	os.WriteFile(filepath.Join(root, "local.go"), []byte("package main\n"), 0o644)
+	runGit(t, root, "add", ".")
+	runGit(t, root, "commit", "-m", "local change")
+	localHead := gitOutput(root, "rev-parse", "HEAD")
+
+	var wtPath string
+	var err error
+	stderr := captureStderr(t, func() {
+		wtPath, err = ops.SetupWorktree("feat-ahead", nil)
+	})
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+	if !strings.Contains(stderr, "ahead") {
+		t.Errorf("expected a warning about local commits ahead of origin, got stderr: %q", stderr)
+	}
+	if afterHead := gitOutput(root, "rev-parse", "HEAD"); afterHead != localHead {
+		t.Errorf("local main HEAD should be unchanged, got %s want %s", afterHead, localHead)
+	}
+	if _, err := os.Stat(filepath.Join(wtPath, "local.go")); err != nil {
+		t.Error("worktree should be based on local HEAD including the unpushed commit")
 	}
 }
 

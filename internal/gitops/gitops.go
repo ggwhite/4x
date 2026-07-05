@@ -166,6 +166,16 @@ func syncUpstream(dir string) {
 		fmt.Fprintf(os.Stderr, "worktree: git fetch %s failed, using local ref: %s\n", remote, strings.TrimSpace(string(out)))
 		return
 	}
+
+	// 不只落後 remote 要處理，超前 remote（本地有未推送的 commit）也該讓使用者知道：
+	// issue-first MR 流程下合併只發生在 GitHub/GitLab 端，本地 main 領先代表有 commit
+	// 是繞過 MR 流程直接進來的，值得提醒，即使 fast-forward 對這個情況本身是無害 no-op。
+	if countOut, err := exec.Command("git", "-C", dir, "rev-list", "--left-right", "--count", upstream+"...HEAD").Output(); err == nil {
+		if parts := strings.Fields(strings.TrimSpace(string(countOut))); len(parts) == 2 && parts[1] != "0" {
+			fmt.Fprintf(os.Stderr, "worktree: local branch is %s commit(s) ahead of %s (not yet pushed) — new worktree branches from local HEAD\n", parts[1], upstream)
+		}
+	}
+
 	if out, err := exec.Command("git", "-C", dir, "merge", "--ff-only", upstream).CombinedOutput(); err != nil {
 		fmt.Fprintf(os.Stderr, "worktree: local branch diverged from %s, using local ref: %s\n", upstream, strings.TrimSpace(string(out)))
 	}
