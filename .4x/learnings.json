@@ -1199,6 +1199,78 @@
       "last_used": "0001-01-01T00:00:00Z",
       "used_count": 0,
       "status": "candidate"
+    },
+    {
+      "id": "L120",
+      "source_feature": "F130-sync-learnings-context-import",
+      "source_role": "coder",
+      "category": "design",
+      "content": "feature description 若寫『對每個有 RootFile 的 runner』做某項檢查，但該行為（如 ensureAppendImport）在 installPlugins() 中其實是對單一硬編碼檔案（CLAUDE.md）無條件執行，不要照字面把檢查泛化到所有 RootFile——先查 docs/design/ 是否已明確限定範圍（本例 self-learning-spec.md 的『CLAUDE.md 整合』小節），否則會把偵測範圍擴大到永遠無法被 installPlugins() 真正修復的檔案，製造新的『偵測到但補不齊』的不收斂 bug。",
+      "created_at": "2026-07-06T00:40:55.825689+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L121",
+      "source_feature": "F130-sync-learnings-context-import",
+      "source_role": "coder",
+      "category": "code-quality",
+      "content": "comparePlugins() 這類回報缺口的函式，新增檢查項目時應重用同一次 os.ReadFile 的結果（同一個 target 只讀一次），而非為新檢查再開一次 I/O；同時給新檢查項目一個與既有 path 不衝突、有語意的 report path（如加尾碼），避免同一檔案兩種狀態的報告互相覆蓋或難以區分。",
+      "created_at": "2026-07-06T00:40:55.825689+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L122",
+      "source_feature": "F130-sync-learnings-context-import",
+      "source_role": "acceptor",
+      "category": "process",
+      "content": "當 feature description 字面要求泛化到多個對象（如所有 runner 的 RootFile），但既有實作只硬編碼支援其中一個對象時，優先以既有實作範圍為準，並在 coder-report 中明確寫出裁決理由與被排除方案的具體風險（例如「泛化會製造永遠回報缺失但永遠修不好的不收斂 bug」），讓 reviewer/tester 能針對裁決本身驗證合理性，而不是預設信任。",
+      "created_at": "2026-07-06T00:40:55.826318+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L123",
+      "source_feature": "F130-sync-learnings-context-import",
+      "source_role": "acceptor",
+      "category": "tooling",
+      "content": "`internal/prompt/learnings.go` 的 `role-learnings.json` 是 per-round 單一固定檔名，多個角色（如 Coder 與 Reviewer）同輪寫入會互相覆蓋，先寫入者的教訓永遠不會被 harvest。未來若要讓多角色的 learnings 都被保留，需改成 per-role 檔名（如 `role-learnings-{role}.json`）或 append 陣列，這是 4x harness 本身的既有限制，不屬於單一 feature 的 scope，應開獨立 feature 處理。",
+      "created_at": "2026-07-06T00:40:55.826318+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L124",
+      "source_feature": "F130-sync-learnings-context-import",
+      "source_role": "acceptor",
+      "category": "testing",
+      "content": "手動端到端驗證涉及 worktree 環境時，容易誤用主 repo 路徑的 binary（例如 `/Users/white/github/4x/bin/4x`）而非 worktree 自身編譯的 binary，導致觀察到不一致或錯誤的結果。應一律使用 worktree 內 `./bin/4x` 的相對路徑或明確絕對路徑，避免路徑混淆造成排查成本。",
+      "created_at": "2026-07-06T00:40:55.826318+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
+    },
+    {
+      "id": "L125",
+      "source_feature": "F130-sync-learnings-context-import",
+      "source_role": "acceptor",
+      "category": "code-quality",
+      "content": "在既有比對/報告結構（如 `comparePlugins()` 的 report slice）中新增一個邏輯獨立的檢查項目時，若該項目與既有項目共用同一個底層資源鍵（如同一個 RootFile 路徑），應為新項目賦予獨立的顯示 path（例如 `\"CLAUDE.md (learnings-context)\"`），避免與既有項目的狀態互相覆蓋或使報告難以區分是哪個檢查產生的狀態。",
+      "created_at": "2026-07-06T00:40:55.826318+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate"
     }
   ]
 }
