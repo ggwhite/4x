@@ -423,7 +423,7 @@ vim .4x/F001/task-brief.md
 ```
 
 효과:
-- 브랜치를 만들기 전, 각 저장소의 현재 브랜치에 upstream tracking branch가 설정되어 있으면 먼저 fetch 후 fast-forward합니다 — 로컬이 이미 최신이면 no-op이고, 원격과 분기된 경우에도 no-op(경고만 출력)이라 push되지 않은 로컬 커밋을 덮어쓰지 않습니다
+- 브랜치를 만들기 전, 각 저장소의 현재 브랜치에 upstream tracking branch가 설정되어 있으면 먼저 fetch 후 fast-forward합니다 — 로컬이 이미 최신이면 no-op이고, 원격과 분기된 경우에도 no-op(경고만 출력)이라 push되지 않은 로컬 커밋을 덮어쓰지 않습니다. 로컬이 원격보다 앞서 있는 경우(분기 없이 push되지 않은 커밋만 있는 경우)에도 경고를 출력합니다 — worktree는 그대로 로컬 HEAD에서 분기되지만, push되지 않은 커밋이 있다는 사실을 알려줍니다
 - 각 기능이 `.worktrees/4x/{feature-id}/`에서 독립적으로 작업
 - 자동으로 브랜치 `4x/{feature-id}` 생성
 - 완료 후 머지 명령어 안내

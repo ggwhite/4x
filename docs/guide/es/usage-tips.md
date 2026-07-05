@@ -421,7 +421,7 @@ Para ejecutar múltiples features simultáneamente o aislar los cambios de la IA
 ```
 
 Qué sucede:
-- Antes de crear la rama, si la rama actual de cada repo tiene configurado un upstream tracking branch, se hace fetch y fast-forward a esa rama — es un no-op si ya estás al día, y también un no-op (con una advertencia) si tu rama local ha divergido del remoto, así que nunca sobrescribe commits locales sin push
+- Antes de crear la rama, si la rama actual de cada repo tiene configurado un upstream tracking branch, se hace fetch y fast-forward a esa rama — es un no-op si ya estás al día, y también un no-op (con una advertencia) si tu rama local ha divergido del remoto, así que nunca sobrescribe commits locales sin push. Si tu rama local está adelantada al remoto (commits sin push, sin divergencia) también se muestra una advertencia — el worktree se crea igualmente desde tu HEAD local, pero te avisa de los commits que aún no se han subido
 - Cada feature se ejecuta en `.worktrees/4x/{feature-id}/` con su propio directorio de trabajo
 - Se crea automáticamente un branch `4x/{feature-id}`
 - Al completarse, el CLI muestra instrucciones de merge

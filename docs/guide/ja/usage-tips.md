@@ -423,7 +423,7 @@ vim .4x/F001/task-brief.md
 ```
 
 効果：
-- ブランチを切る前に、各リポジトリの現在のブランチに upstream tracking branch が設定されていれば fetch して fast-forward する——ローカルが既に最新なら no-op、リモートと分岐している場合も no-op（警告のみ表示）で、未 push のローカル commit を上書きすることはない
+- ブランチを切る前に、各リポジトリの現在のブランチに upstream tracking branch が設定されていれば fetch して fast-forward する——ローカルが既に最新なら no-op、リモートと分岐している場合も no-op（警告のみ表示）で、未 push のローカル commit を上書きすることはない。ローカルがリモートより進んでいる（未 push の commit があるが分岐はしていない）場合も警告を表示する——worktree はそのままローカル HEAD から切られるが、未 push の commit があることを知らせる
 - 各 Feature が `.worktrees/4x/{feature-id}/` で独立して作業
 - ブランチ `4x/{feature-id}` が自動作成
 - 完了時にマージコマンドを提示
