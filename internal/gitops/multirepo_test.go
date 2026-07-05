@@ -106,6 +106,9 @@ func TestMultiRepo_SetupWorktree_FastForwardsStaleMain(t *testing.T) {
 	if out, err := exec.Command("git", "clone", bareDir, cloneDir).CombinedOutput(); err != nil {
 		t.Fatalf("git clone: %s", out)
 	}
+	// bare repo 的 HEAD 預設分支名取決於 CI runner 的 git 全域設定，不保證跟 coreDir 的
+	// 實際分支一致；明確 checkout 避免 clone 出來的 working tree 停在別的分支上。
+	runGit(t, cloneDir, "checkout", branch)
 	runGit(t, cloneDir, "config", "user.name", "test")
 	runGit(t, cloneDir, "config", "user.email", "test@test")
 	os.WriteFile(filepath.Join(cloneDir, "remote.go"), []byte("package main\n"), 0o644)
