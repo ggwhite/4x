@@ -137,6 +137,18 @@ func comparePlugins(root string, cfg protocol.Config) []fileReport {
 				default:
 					report = append(report, fileReport{path: d.RootFile, status: statusCurrent})
 				}
+
+				// installPlugins() 無條件對 CLAUDE.md 附加 learnings-context import（見 ensureAppendImport），
+				// 不受 runner 是否啟用影響；但檔案不存在時 ensureAppendImport 不會建立它，故此處同樣略過。
+				if d.RootFile == "CLAUDE.md" && readErr == nil {
+					learningsImportLine := "@.4x/" + protocol.LearningsContextFile
+					learningsPath := d.RootFile + " (learnings-context)"
+					if strings.Contains(string(rootData), learningsImportLine) {
+						report = append(report, fileReport{path: learningsPath, status: statusCurrent})
+					} else {
+						report = append(report, fileReport{path: learningsPath, status: statusUpdated})
+					}
+				}
 			}
 		}
 	}
