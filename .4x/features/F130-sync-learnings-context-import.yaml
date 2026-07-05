@@ -12,7 +12,7 @@ description: |-
     - 不改變 `ensureAppendImport()` 本身的寫入邏輯（本來就是 idempotent 的補行為），只修「什麼情況下會被觸發」。
     - 不動 `installPlugins()` 對其他 plugin 檔案的複製/覆寫邏輯。
     - 不寫遷移腳本追溯修復所有既有專案的 CLAUDE.md——使用者之後跑一次 `4x sync` 或 `4x run` 自然就會補上，不需要額外工具。
-status: in-progress
+status: done
 priority: 1
 subtasks:
     - id: compare-learnings-import
