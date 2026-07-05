@@ -419,6 +419,7 @@ vim .4x/F001/task-brief.md
 ```
 
 效果：
+- 開分支前，每個 repo 目前分支若設有 upstream tracking branch，會先 fetch 並 fast-forward 到該分支——本地已是最新時是 no-op，本地已與遠端分岔時也是 no-op（只印警告），不會覆蓋任何未推送的本地 commit
 - 每個 feature 在 `.worktrees/4x/{feature-id}/` 獨立工作
 - 自動建 branch `4x/{feature-id}`
 - 完成後 CLI 列印 merge 指令

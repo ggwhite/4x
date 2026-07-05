@@ -79,7 +79,7 @@ Read-heavy endpoints (`/api/tasks`, `/api/overview`, `/api/projects`, `/api/sett
 
 | Endpoint | Method | Description |
 |---|---|---|
-| `/api/tasks` | GET | List all features (includes `warnings` array when a feature YAML has format issues) |
+| `/api/tasks` | GET | List all features (includes `warnings` array when a feature YAML has format issues; `done`/`abandoned` features include `costUsd`, the feature's total cost via `protocol.Workspace.TotalCost`) |
 | `/api/new` | POST | Create a new feature (accepts `name`, `description`, plus optional `customId`, `priority`, `depends`, `rules`, `subtasks`) |
 | `/api/run` | POST | Start a feature run (spawns `4x run` subprocess) |
 | `/api/stop` | POST | Stop a running feature |

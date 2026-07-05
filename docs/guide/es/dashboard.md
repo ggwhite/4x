@@ -75,7 +75,7 @@ Los endpoints de lectura intensiva (`/api/tasks`, `/api/overview`, `/api/project
 
 | Endpoint | Método | Descripción |
 |---|---|---|
-| `/api/tasks` | GET | Listar todos los features (incluye array `warnings` cuando un feature YAML tiene problemas de formato) |
+| `/api/tasks` | GET | Listar todos los features (incluye array `warnings` cuando un feature YAML tiene problemas de formato; los features `done`/`abandoned` incluyen `costUsd`, el coste total del feature calculado vía `protocol.Workspace.TotalCost`) |
 | `/api/new` | POST | Crear un nuevo feature (acepta `name`, `description`, más opcionales `customId`, `priority`, `depends`, `rules`, `subtasks`) |
 | `/api/run` | POST | Iniciar la ejecución de un feature (crea subproceso `4x run`) |
 | `/api/stop` | POST | Detener un feature en ejecución |

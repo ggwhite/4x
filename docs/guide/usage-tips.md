@@ -421,6 +421,7 @@ To run multiple features simultaneously or isolate AI changes from your working 
 ```
 
 What happens:
+- Before branching, each repo's current branch is fetched and fast-forwarded to its upstream tracking branch if one is configured — a no-op if you're already up to date, and a no-op (with a warning) if your local branch has diverged from the remote, so it never overwrites unpushed local commits
 - Each feature runs in `.worktrees/4x/{feature-id}/` with its own working directory
 - A branch `4x/{feature-id}` is created automatically
 - After completion, the CLI prints merge instructions

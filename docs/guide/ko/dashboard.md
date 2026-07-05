@@ -75,7 +75,7 @@ xattr -cr /Applications/4x\ Live.app
 
 | 엔드포인트 | 메서드 | 설명 |
 |---|---|---|
-| `/api/tasks` | GET | 모든 기능 나열 (기능 YAML에 형식 문제가 있을 때 `warnings` 배열 포함) |
+| `/api/tasks` | GET | 모든 기능 나열 (기능 YAML에 형식 문제가 있을 때 `warnings` 배열 포함; `done`/`abandoned` 기능은 `costUsd`(`protocol.Workspace.TotalCost`로 계산한 총 비용) 포함) |
 | `/api/new` | POST | 새 기능 생성 (`name`, `description` 및 선택적 `customId`, `priority`, `depends`, `rules`, `subtasks` 허용) |
 | `/api/run` | POST | 기능 실행 시작 (`4x run` 서브프로세스 생성) |
 | `/api/stop` | POST | 실행 중인 기능 중지 |

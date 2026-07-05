@@ -75,7 +75,7 @@ xattr -cr /Applications/4x\ Live.app
 
 | 端点 | 方法 | 说明 |
 |---|---|---|
-| `/api/tasks` | GET | 列出所有 feature（feature YAML 有格式问题时包含 `warnings` 数组） |
+| `/api/tasks` | GET | 列出所有 feature（feature YAML 有格式问题时包含 `warnings` 数组；`done`/`abandoned` feature 会包含 `costUsd`，即通过 `protocol.Workspace.TotalCost` 算出的该 feature 总花费） |
 | `/api/new` | POST | 创建新 feature（接受 `name`、`description`，以及可选的 `customId`、`priority`、`depends`、`rules`、`subtasks`） |
 | `/api/run` | POST | 启动 feature 运行（生成 `4x run` 子进程） |
 | `/api/stop` | POST | 停止正在运行的 feature |
