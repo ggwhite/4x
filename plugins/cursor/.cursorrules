@@ -50,6 +50,16 @@ If the spec is impossible, contradictory, or you hit a blocker outside your scop
 
 Valid reasons: `spec-mismatch`, `criteria-wrong`, `blocker`, `scope-change`
 
+## Scope Gaps (Non-Blocking Discoveries)
+
+If you notice an issue clearly outside this feature's `scope` that does not block your current task — e.g. something that deserves its own feature later — do not expand scope, do not start working on it, and do not call `4x new` yourself. Append one line to `docs/reference/discovered-feature-gaps.md` (create the file with a one-line header if it doesn't exist yet):
+
+```
+- YYYY-MM-DD [source: {feature-id}] <what you found> — suggested follow-up: <feature name/scope>
+```
+
+This channel does not affect state, exit code, or guard checks — it is a candidate list for periodic human review, not a substitute for `escalation.json` (which is for blockers inside the current task).
+
 ## Key rules
 
 - Stay within the feature's declared `repos` and `scope` paths
