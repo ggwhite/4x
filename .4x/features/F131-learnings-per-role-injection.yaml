@@ -21,7 +21,7 @@ description: |-
     - 不改變 `MaxSelectedPerRole` 以外的既有常數語意；新增的 40（28+12）用清楚命名的新常數表示，不要覆用容易誤解的舊常數名。
 
     subtasks 拆分見下方 subtask 清單。
-status: in-progress
+status: done
 priority: 1
 subtasks:
     - id: load-learnings-for-role
