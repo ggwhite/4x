@@ -130,3 +130,10 @@ Plugin 遵循簡單的合約 — 讀取 `.4x/` 檔案、執行 AI 工作、將�
 6. 以適當的 exit code 結束（0 = 成功、1 = 軟失敗、2 = 硬錯誤）
 
 不需要 SDK。不需要執行時期依賴。只有檔案。
+
+### Escalation 與 Scope Gaps
+
+Plugin 指令檔還定義了兩種角色回報管道：
+
+- **Escalation（升級）** — 若角色在目前任務中遇到阻塞（規格不可行、驗收標準矛盾），會寫入 `.4x/run/{feature-id}/rounds/round-{n}/escalation.json`（`{"needed": true, "reason": "...", "detail": "..."}`）。合法的 reason：`spec-mismatch`、`criteria-wrong`、`blocker`、`scope-change`。
+- **Scope Gaps（範圍外缺口）** — 若角色發現明確超出這個 feature 範圍、但不阻塞目前任務的問題（例如值得另開 feature 處理），會 append 一行到 `docs/reference/discovered-feature-gaps.md`，而不是擴大 scope 或自己呼叫 `4x new`。這是一個非阻斷、由人工審核的管道——不影響 state、exit code 或 guard 檢查。

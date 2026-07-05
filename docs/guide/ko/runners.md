@@ -130,3 +130,10 @@ PTY 자식은 자체 세션/프로세스 그룹에서 실행됩니다. 실행 �
 6. 적절한 코드로 종료 (0 = 성공, 1 = 소프트 실패, 2 = 하드 오류)
 
 SDK 불필요. 런타임 의존성 없음. 파일만 있으면 됩니다.
+
+### 에스컬레이션과 스코프 갭
+
+플러그인 지시 파일은 역할을 위한 두 가지 별개의 보고 채널도 정의합니다:
+
+- **Escalation(에스컬레이션)** — 역할이 현재 작업 중 블로커(불가능한 스펙, 모순된 승인 기준)를 만나면 `.4x/run/{feature-id}/rounds/round-{n}/escalation.json`(`{"needed": true, "reason": "...", "detail": "..."}`)을 작성합니다. 유효한 reason: `spec-mismatch`, `criteria-wrong`, `blocker`, `scope-change`.
+- **Scope Gaps(스코프 갭)** — 역할이 이 feature의 범위를 명확히 벗어나지만 현재 작업을 막지는 않는 문제(예: 별도 feature로 만들 가치가 있는 것)를 발견하면, 스코프를 확장하거나 직접 `4x new`를 호출하는 대신 `docs/reference/discovered-feature-gaps.md`에 한 줄을 추가합니다. 이는 비차단(non-blocking) 채널로, 사람이 검토합니다 — state, exit code, guard 검사에 영향을 주지 않습니다.

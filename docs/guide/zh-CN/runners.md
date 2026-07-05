@@ -130,3 +130,10 @@ PTY 子进程在自己的会话/进程组中运行。当运行上下文被取消
 6. 以适当的退出码退出（0 = 成功，1 = 软失败，2 = 硬错误）
 
 无需 SDK。无运行时依赖。只有文件。
+
+### Escalation 与 Scope Gaps
+
+插件指令文件还定义了两种角色汇报渠道：
+
+- **Escalation（升级）** — 若角色在当前任务中遇到阻塞（规格不可行、验收标准矛盾），会写入 `.4x/run/{feature-id}/rounds/round-{n}/escalation.json`（`{"needed": true, "reason": "...", "detail": "..."}`）。合法的 reason：`spec-mismatch`、`criteria-wrong`、`blocker`、`scope-change`。
+- **Scope Gaps（范围外缺口）** — 若角色发现明确超出该 feature 范围、但不阻塞当前任务的问题（例如值得另开 feature 处理），会 append 一行到 `docs/reference/discovered-feature-gaps.md`，而不是扩大 scope 或自己调用 `4x new`。这是一个非阻断、由人工审核的渠道——不影响 state、exit code 或 guard 检查。

@@ -128,3 +128,10 @@
 6. 適切な終了コードで終了（0 = 成功、1 = ソフト失敗、2 = ハードエラー）
 
 SDK は不要。ランタイム依存もなし。ファイルだけ。
+
+### エスカレーションとスコープギャップ
+
+プラグイン指示ファイルは、ロールのための2つの異なる報告チャネルも定義しています：
+
+- **Escalation（エスカレーション）** — ロールが現在のタスク内でブロッカーに遭遇した場合（仕様が実現不可能、受け入れ基準が矛盾している等）、`.4x/run/{feature-id}/rounds/round-{n}/escalation.json`（`{"needed": true, "reason": "...", "detail": "..."}`）を書き込みます。有効な reason：`spec-mismatch`、`criteria-wrong`、`blocker`、`scope-change`。
+- **Scope Gaps（スコープギャップ）** — ロールがこの feature のスコープ外だが現在のタスクをブロックしない問題（例えば別の feature にする価値があるもの）に気づいた場合、スコープを拡大したり自分で `4x new` を呼び出したりする代わりに、`docs/reference/discovered-feature-gaps.md` に1行追記します。これは非ブロッキングで人間がレビューするチャネルです — state、exit code、guard チェックには影響しません。

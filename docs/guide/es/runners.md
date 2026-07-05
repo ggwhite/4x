@@ -132,3 +132,10 @@ Los plugins siguen un contrato simple — leer archivos de `.4x/`, hacer el trab
 6. Salir con el código apropiado (0 = éxito, 1 = fallo leve, 2 = error grave)
 
 No requiere SDK. No requiere dependencia en tiempo de ejecución. Solo archivos.
+
+### Escalation y Scope Gaps
+
+Los archivos de instrucciones del plugin también definen dos canales de reporte distintos para los roles:
+
+- **Escalation (escalamiento)** — si un rol encuentra un bloqueo dentro de su tarea actual (especificación imposible, criterios contradictorios), escribe `.4x/run/{feature-id}/rounds/round-{n}/escalation.json` (`{"needed": true, "reason": "...", "detail": "..."}`). Razones válidas: `spec-mismatch`, `criteria-wrong`, `blocker`, `scope-change`.
+- **Scope Gaps (vacíos de alcance)** — si un rol nota un problema claramente fuera del alcance de este feature que *no* bloquea su tarea actual (por ejemplo, algo que merece su propio feature más adelante), añade una línea a `docs/reference/discovered-feature-gaps.md` en lugar de expandir el alcance o invocar `4x new` por su cuenta. Este es un canal no bloqueante, revisado por humanos — no afecta el state, exit code, ni los guard checks.
