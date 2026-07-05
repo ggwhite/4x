@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.12] - 2026-07-05
+
+### Features
+
+- **最近完成列表顯示花費** — dashboard「最近完成」卡片標題列顯示所有已完成 feature 的加總花費，每一列也顯示各自金額
+
+### Fixes
+
+- **Worktree 開啟前自動同步本地分支** — `4x run` 開 worktree 前直接用當下 checkout 的 local ref 建立分支；issue-first MR 流程下合併發生在 GitHub/GitLab 端不會更新本地，本地 main 忘記 pull 太久時新 feature 就會從過期的 base 分岔。現在會先 fetch + fast-forward 到 upstream tracking branch：本地落後就同步到最新，本地與遠端已分岔或本地領先（有未推送 commit）時印警告但不強制覆蓋任何本地 commit
+- **Dashboard log 偶爾出現亂碼** — tool_use 摘要（如 Bash 指令）截斷邏輯用 byte 位移切字串，遇到中文等多位元組字元會從中間切斷，寫入 log 後在 SSE 轉發時被替換成亂碼方塊；改為在 UTF-8 字元邊界截斷
+- **Messages 分頁重複顯示總花費** — Messages tab body 內有一行跟 header 重複的總花費顯示，已移除
+
 ## [0.3.11] - 2026-07-03
 
 ### Features
