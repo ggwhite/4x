@@ -1,0 +1,41 @@
+id: F131-learnings-per-role-injection
+name: 'F131: 修正 learnings 注入偏誤：改為每角色直接篩選'
+description: |-
+    現狀：`.4x/learnings.json` 全域累積教訓（`active`＝跨 feature 驗證過、`candidate`＝只出現過一次），但注入 role prompt 的機制有三個疊加的問題（kairos 實測：399 筆中 243 筆 candidate，ws-152 round-2 Designer 選出的 10 筆全是 active，0 筆 candidate）：
+
+    1. `LoadActiveLearnings()`（`internal/prompt/learnings.go:21-39`）回傳「全部」active+candidate、完全沒有數量上限，且 active 一律排在 candidate 前面（`result = append(result, active...); result = append(result, candidates...)`），造成 LLM 選擇時的位置偏誤。純粹改成「依時間排序」無法解決，因為 `Store.UpdateUsage()`（`internal/learning/store.go:350-362`）每次某筆 active 被選中就更新其 `LastUsed`，active 只要被選過一次就會在時間排序上持續佔優勢，形成贏家全拿的迴圈。
+    2. 目前架構是「Designer（或 Designer 被跳過時、round 1 的 Coder 頂替）讀全部清單、選出最多 10 筆寫入 `selected-learnings.json`，其餘角色（Design-Reviewer、Reviewer、Tester、Fixer、Acceptor 等）透過 `LoadSelectedLearnings()`（`internal/prompt/learnings.go:41-91`）依自己的 category 再濾一次那 10 筆」。但 `roleCategoryMap`（`internal/learning/store.go:443-452`）裡 Designer 的 category 是 `{design, process}`，跟 Reviewer 的 `{code-quality, review}`、Tester 的 `{testing, tooling, ops}` 幾乎沒有交集——Designer 選出的 10 筆若集中在 design/process（很可能，因為 Designer 天然從自己視角判斷相關性），下游角色濾完極可能是 0 筆，即使全域池裡明明有相關教訓。
+    3. `design-reviewer.md.tmpl` 與 `fixer.md.tmpl` 雖然 `roleCategoryMap` 已定義了它們的 category，卻從來沒有模板真的渲染 learnings 給它們看，這兩個角色現況完全收不到任何教訓。
+
+    需求：
+    - 在 `internal/prompt/learnings.go` 新增 `LoadLearningsForRole(dotDir string, role protocol.Role) []learning.Entry`：(1) 讀 store，依 `learning.CategoriesForRole(string(role))` 過濾 entries；(2) 分兩桶——active 桶依「`LastUsed` 非零用 `LastUsed`、否則用 `CreatedAt`」新到舊排序，取前 28 筆；candidate 桶依 `CreatedAt` 新到舊排序，取前 12 筆（保底名額，不受 active 桶大小影響）；(3) 交錯排列兩桶（例如輪流各取一筆）合併成單一有序清單回傳，不得出現 active 整塊在前、candidate 整塊在後的排列。
+    - `internal/prompt/prompt.go`（現況約 160-166 行）：移除「`role == Designer` / `skippedDesigner && round==1 && role==Coder` / 其他角色」三分支特判，改成對所有角色統一呼叫 `data.Learnings = LoadLearningsForRole(ws.DotDir(), role)`；同一呼叫點內對回傳清單的每個 ID 呼叫 `store.UpdateUsage(...)` 並存回 `learnings.json`（注入當下即記錄使用，不必等待「選擇」動作）。
+    - 模板改動：`templates/{acceptor,coder,deep-reviewer,designer,reviewer,tester}.md.tmpl` 現有的 `.Learnings`／`.SelectedLearnings` 雙軌渲染統一成單一格式 `- [{{.Category}}] {{.Content}}`（不再顯示 ID、不再有「挑選並寫回 selected-learnings.json」的指示文字）；`templates/design-reviewer.md.tmpl`、`templates/fixer.md.tmpl` 新增相同的 Past Learnings 渲染段落（這兩個角色的 category 早已定義在 `roleCategoryMap`，只是從未接上模板）。
+    - 移除：`LoadActiveLearnings()`、`LoadSelectedLearnings()`、`UpdateLearningsUsage()`（`internal/prompt/learnings.go`）、`protocol.SelectedLearningsFile` 常數在 `internal/orchestrator/worktree.go`（約 35-36、68 行）的引用；`prompt.go` 中 `skippedDesigner` 只為了 learnings 選擇而存在的分支邏輯（`SkippedDesigner` 欄位若仍被其他地方使用則保留，僅移除 learnings 相關的特判）。
+    - 補齊回歸測試：`LoadLearningsForRole` 的 category 過濾正確性（每個角色只看到自己 category 的條目）、candidate 保底名額不受 active 數量擠壓（active 遠超過 28 筆時 candidate 仍能取滿 12 筆）、交錯排序（清單中不應連續一大段同狀態）、cap 上限（超過 40 筆時確實截斷）、`UpdateUsage` 在注入當下正確標記所有回傳 ID。
+
+    約束：
+    - 不改 `.4x/learnings.json` 的 `Entry` schema，不需要任何資料遷移；既有的 `selected-learnings.json` 檔案直接停止讀取即可，不用寫清除/遷移腳本。
+    - 不改動 `learning.Category` 白名單、`MarkStale`／`MarkIneffective`／`Harvest`（fuzzy match 升級 candidate→active）／`ApplyConsolidation`（AI consolidate）這些既有生命週期機制。
+    - 不做「依 feature 語意相關性」的 LLM 預先篩選——篩選完全交給角色讀取清單時的自然判斷，不新增 embedding／關鍵字比對等機制。
+    - 不改變 `MaxSelectedPerRole` 以外的既有常數語意；新增的 40（28+12）用清楚命名的新常數表示，不要覆用容易誤解的舊常數名。
+
+    subtasks 拆分見下方 subtask 清單。
+status: not-started
+priority: 1
+subtasks:
+    - id: load-learnings-for-role
+      name: internal/prompt/learnings.go 新增 LoadLearningsForRole：category 過濾 + active/candidate quota 分桶 + 交錯排序 + cap
+      status: ""
+    - id: promptgo-unify-callsite
+      name: prompt.go 移除三分支特判，統一呼叫 LoadLearningsForRole 並在注入當下呼叫 UpdateUsage
+      status: ""
+    - id: template-unify-and-extend
+      name: 6 個既有模板統一渲染格式，design-reviewer/fixer 新增 Past Learnings 段落
+      status: ""
+    - id: remove-legacy
+      name: 刪除 LoadActiveLearnings/LoadSelectedLearnings/UpdateLearningsUsage/SelectedLearningsFile 相關程式碼與引用
+      status: ""
+    - id: regression-tests
+      name: 補齊 category 過濾/quota 保底/交錯排序/cap/UpdateUsage 呼叫的單元測試
+      status: ""
