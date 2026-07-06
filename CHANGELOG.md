@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.13] - 2026-07-06
+
+### Features
+
+- **角色範圍外發現的非阻斷回報管道** — plugin 角色契約新增 Scope Gaps 章節：角色發現明確需要另開 feature、但不阻塞目前任務的範圍外問題時，append 一行到 `docs/reference/discovered-feature-gaps.md`，不自行擴大 scope 或呼叫 `4x new`，作為給人審核的候選清單。`4x init` 建立的新專案開箱即有這條規則
+
+### Fixes
+
+- **4x sync 偵測不到 learnings-context import 遺失** — `comparePlugins()`/`syncPlugins()` 只要 plugin 檔案本身與其 import 行都已是最新，就永遠不會偵測到 `@.4x/learnings-context.md` 這行 import 缺失，導致 `4x learn` 累積的教訓可能從未真正送進任何角色的 prompt，且沒有任何警告；現在會一併檢查這行
+- **Learnings 選取偏誤，下游角色可能收不到任何過去教訓** — 過去 Designer 讀取全部 active+candidate 學習條目時 active 固定排在最前面，造成 candidate 幾乎選不上；選出的清單又依各角色自己的 category 再過濾一次，但各角色 category 幾乎沒有交集，導致 Reviewer/Tester 等角色常常收到 0 筆相關教訓。改為每個角色依自己的 category 直接篩選、active/candidate 各有保底名額並交錯呈現，同時補上 design-reviewer/fixer 兩個角色原本從未渲染過的 Past Learnings 區塊
+
+### Docs
+
+- **README 補上 Issue-First MR Flow、landing page 標註 cost tracking 限制** — README Key Features 表格新增 Issue-First MR Flow 一列（先前只寫在 concepts.md，README 看不到），5 語言翻譯同步；landing page Cost Visibility 區塊標註目前只有 Claude Code runner 會回報花費，其他 runner 尚未支援，6 語言 i18n 同步
+
 ## [0.3.12] - 2026-07-05
 
 ### Features
