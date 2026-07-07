@@ -9,6 +9,8 @@ description: >
 
 # 4x Autopilot
 
+> **WARNING: owner-only，全自動 merge。** 本 skill 會不停頓地自動 merge MR，僅供 repo owner 使用；非 owner 請勿安裝或執行。
+
 Owner 專用自動駕駛 skill。搭配 `/loop` 持續輪詢 4x 狀態，驅動 feature 完整生命週期。
 
 ## 核心原則

@@ -530,6 +530,24 @@ Miner 是纯 CLI/protocol 层扫描——从不调用 LLM，也不创建 feature
 
 ---
 
+## `4x skills`
+
+管理本仓库 `skills/` 目录中打包的 skill。安装采用 **仅 symlink** 方式 —— 4x 将 `skills/<name>/` 链接到 `~/.claude/skills/<name>`，因此之后 `git pull` 会自动更新 skill，无需重新安装。请在 4x 仓库内执行这些命令（`skills/` 目录通过从当前目录向上查找定位）。
+
+```
+4x skills list [--json]     # 列出可用 skill（名称 + 描述）
+4x skills install <name>    # 将 skills/<name>/ 链接到 ~/.claude/skills/<name>
+4x skills remove <name>     # 移除 ~/.claude/skills/<name> symlink
+```
+
+- `list` 用 `✓` 标记已安装的 skill，并对 owner-only skill（如 `4x-autopilot`）标注 WARNING。
+- `install` 是幂等的 —— 重新安装已链接的 skill 不做任何操作。它拒绝覆盖真实目录或指向别处的 symlink。
+- `remove` 只删除 symlink；绝不删除仓库内的文件，且拒绝删除真实（非 symlink）条目。
+
+安装 `4x-autopilot` 会打印 WARNING：它是 owner-only（全自动 merge）。
+
+---
+
 ## `4x batch`
 
 多个 feature 的批量操作。

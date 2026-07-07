@@ -532,6 +532,24 @@ Miner는 순수 CLI/프로토콜 계층 스캔으로 — LLM을 호출하지 않
 
 ---
 
+## `4x skills`
+
+이 저장소의 `skills/` 디렉터리에 포함된 skill을 관리합니다. 설치는 **symlink 전용** — 4x는 `skills/<name>/`을 `~/.claude/skills/<name>`에 링크하므로, 이후 `git pull`을 하면 재설치 없이 skill이 자동으로 업데이트됩니다. 이 명령들은 4x 저장소 내부에서 실행하세요(`skills/` 디렉터리는 현재 디렉터리에서 위로 거슬러 올라가며 찾습니다).
+
+```
+4x skills list [--json]     # 사용 가능한 skill 목록 (이름 + 설명)
+4x skills install <name>    # skills/<name>/을 ~/.claude/skills/<name>에 링크
+4x skills remove <name>     # ~/.claude/skills/<name> symlink 제거
+```
+
+- `list`는 설치된 skill을 `✓`로 표시하고, owner-only skill(예: `4x-autopilot`)을 WARNING으로 표시합니다.
+- `install`은 멱등적입니다 — 이미 링크된 skill을 다시 설치해도 아무 일도 일어나지 않습니다. 실제 디렉터리나 다른 곳을 가리키는 symlink 덮어쓰기는 거부합니다.
+- `remove`는 symlink만 삭제합니다. 저장소 내부 파일은 절대 삭제하지 않으며, 실제(symlink이 아닌) 항목의 삭제는 거부합니다.
+
+`4x-autopilot`을 설치하면 WARNING이 출력됩니다: 이는 owner-only(완전 자동 merge)입니다.
+
+---
+
 ## `4x batch`
 
 여러 기능에 대한 배치 작업입니다.

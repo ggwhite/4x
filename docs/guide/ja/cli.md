@@ -532,6 +532,24 @@ miner は純粋な CLI/プロトコル層スキャンです。LLM を呼び出�
 
 ---
 
+## `4x skills`
+
+このリポジトリの `skills/` ディレクトリに同梱された skill を管理します。インストールは **symlink のみ** — 4x は `skills/<name>/` を `~/.claude/skills/<name>` にリンクするため、後で `git pull` すると再インストールせずに skill が自動更新されます。これらのコマンドは 4x リポジトリ内で実行してください（`skills/` ディレクトリはカレントディレクトリから上に辿って検出されます）。
+
+```
+4x skills list [--json]     # 利用可能な skill を一覧表示（名前 + 説明）
+4x skills install <name>    # skills/<name>/ を ~/.claude/skills/<name> にリンク
+4x skills remove <name>     # ~/.claude/skills/<name> の symlink を削除
+```
+
+- `list` はインストール済みの skill を `✓` で示し、owner-only の skill（例: `4x-autopilot`）を WARNING で表示します。
+- `install` は冪等です — すでにリンク済みの skill を再インストールしても何も起きません。実ディレクトリや別の場所を指す symlink の上書きは拒否します。
+- `remove` は symlink のみを削除します。リポジトリ内のファイルは決して削除せず、実体（symlink でない）エントリの削除は拒否します。
+
+`4x-autopilot` をインストールすると WARNING が表示されます: これは owner-only（完全自動マージ）です。
+
+---
+
 ## `4x batch`
 
 複数 Feature のバッチ操作。

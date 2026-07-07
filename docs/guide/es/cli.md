@@ -532,6 +532,24 @@ Reporta cada archivo como creado, actualizado o vigente.
 
 ---
 
+## `4x skills`
+
+Gestiona las skills incluidas en el directorio `skills/` de este repositorio. La instalación es **solo por symlink** — 4x enlaza `skills/<name>/` en `~/.claude/skills/<name>`, de modo que un `git pull` posterior actualiza la skill automáticamente sin reinstalar. Ejecuta estos comandos dentro del repositorio de 4x (el directorio `skills/` se localiza subiendo desde el directorio actual).
+
+```
+4x skills list [--json]     # lista las skills disponibles (nombre + descripción)
+4x skills install <name>    # enlaza skills/<name>/ en ~/.claude/skills/<name>
+4x skills remove <name>     # elimina el symlink ~/.claude/skills/<name>
+```
+
+- `list` marca las skills instaladas con un `✓` y señala las skills owner-only (p. ej. `4x-autopilot`) con un WARNING.
+- `install` es idempotente — reinstalar una skill ya enlazada no hace nada. Se niega a sobrescribir un directorio real o un symlink que apunte a otro lugar.
+- `remove` solo elimina symlinks; nunca borra archivos dentro del repositorio y se niega a borrar una entrada real (no symlink).
+
+Instalar `4x-autopilot` imprime un WARNING: es owner-only (merge totalmente automático).
+
+---
+
 ## `4x batch`
 
 Operaciones batch para múltiples features.

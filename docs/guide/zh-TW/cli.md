@@ -532,6 +532,24 @@ Key 使用 dotted path。支援的格式：
 
 ---
 
+## `4x skills`
+
+管理本 repo `skills/` 目錄中打包的 skill。安裝採 **僅 symlink** 方式 —— 4x 把 `skills/<name>/` 連結到 `~/.claude/skills/<name>`，因此之後 `git pull` 會自動更新 skill，不需重新安裝。請在 4x repo 內執行這些命令（`skills/` 目錄透過從當前目錄往上尋找定位）。
+
+```
+4x skills list [--json]     # 列出可用 skill（名稱 + 描述）
+4x skills install <name>    # 把 skills/<name>/ 連結到 ~/.claude/skills/<name>
+4x skills remove <name>     # 移除 ~/.claude/skills/<name> symlink
+```
+
+- `list` 用 `✓` 標記已安裝的 skill，並對 owner-only skill（如 `4x-autopilot`）標注 WARNING。
+- `install` 是冪等的 —— 重新安裝已連結的 skill 不做任何動作。它拒絕覆蓋真實目錄或指向別處的 symlink。
+- `remove` 只刪除 symlink；絕不刪除 repo 內的檔案，且拒絕刪除真實（非 symlink）項目。
+
+安裝 `4x-autopilot` 會印出 WARNING：它是 owner-only（全自動 merge）。
+
+---
+
 ## `4x batch`
 
 多個 feature 的批次操作。
