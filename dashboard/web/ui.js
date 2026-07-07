@@ -226,7 +226,6 @@ function showShortcutsHelp(initialTab) {
         + p('<code>4x new</code> — ' + (t('help.cmdNew') || 'Create a new feature'))
         + p('<code>4x run</code> — ' + (t('help.cmdRun') || 'Run the Design→Code→Review→Test loop'))
         + p('<code>4x status</code> — ' + (t('help.cmdStatus') || 'Show feature status'))
-        + p('<code>4x batch</code> — ' + (t('help.cmdBatch') || 'Batch operations for multiple features'))
         + p('<code>4x clean</code> — ' + (t('help.cmdClean') || 'Remove workspace artifacts for completed features'))
         + p('<code>4x live</code> — ' + (t('help.cmdLive') || 'Start the dashboard server'))
         + p('<code>4x check</code> — ' + (t('help.cmdCheck') || 'Run guardrail checks'))
@@ -569,131 +568,6 @@ function renderDag(tasks) {
     </svg></div></div>`;
 }
 
-// renderBatchPanel 依 /api/batch/status 渲染 batch 控制區：Start/Stop/Continue、執行指示、
-// 衝突提示卡與佇列進度（done 打勾、running 標記、waiting 顯示佇列位置）。
-function renderBatchPanel(status) {
-  const running = !!(status && status.running);
-  const conflict = status && status.conflict;
-
-  let controls;
-  if (running) {
-    controls = `<span class="batch-running-ind"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span>${t('batch.running')}</span>
-      <button onclick="stopBatch()" class="batch-btn batch-btn-stop">${t('batch.stop')}</button>`;
-  } else {
-    controls = `<button onclick="replanBatch()" class="batch-btn batch-btn-replan">${t('batch.replan')}</button>
-      <button onclick="startBatch()" class="batch-btn batch-btn-start">${t('batch.start')}</button>`;
-  }
-
-  let conflictCard = '';
-  if (conflict) {
-    const files = (conflict.files || []).map(f => `<li>${esc(f)}</li>`).join('');
-    const repo = conflict.conflictRepo ? `<span class="batch-conflict-repo">${esc(conflict.conflictRepo)}</span>` : '';
-    conflictCard = `<div class="batch-conflict">
-      <div class="batch-conflict-title">⚠ ${t('batch.conflictTitle').replace('{id}', esc(conflict.featureId || ''))} ${repo}</div>
-      ${files ? `<ul class="batch-conflict-files">${files}</ul>` : ''}
-      <button onclick="continueBatch()" class="batch-btn batch-btn-continue">${t('batch.continue')}</button>
-    </div>`;
-  }
-
-  // 上次 batch 報告：batch 沒在跑且有報告時，渲染可展開的摘要卡（outcome 色碼 + 完成/失敗/剩餘 + 總耗時）。
-  let lastReportHtml = '';
-  if (!running && status && status.lastReport) {
-    const rep = status.lastReport;
-    const OC = {
-      completed:   { c: '#34d399', bg: 'rgba(52,211,153,.15)' },
-      stopped:     { c: '#facc15', bg: 'rgba(250,204,21,.15)' },
-      interrupted: { c: '#fb923c', bg: 'rgba(251,146,60,.15)' },
-      crashed:     { c: '#f87171', bg: 'rgba(248,113,113,.15)' },
-    };
-    const oc = OC[rep.outcome] || OC.completed;
-    const dur = formatDuration(rep.durationMs || 0);
-    const rows = (rep.features || []).map(f => {
-      const fdur = f.durationMs ? formatDuration(f.durationMs) : '—';
-      const stop = f.stopReason ? `<span class="batch-report-stop">${esc(f.stopReason)}</span>` : '';
-      return `<div class="batch-report-row"><span class="batch-report-row-id">${esc(f.id)}</span><span class="batch-report-row-name">${esc(f.name || '')}</span><span class="batch-report-row-status">${esc(f.finalStatus || '')}</span><span class="batch-report-row-meta">${t('batch.reportRounds').replace('{n}', f.rounds || 0)} · ${fdur}</span>${stop}</div>`;
-    }).join('');
-    const panic = rep.panicMessage ? `<div class="batch-report-panic">${t('batch.panicMessage')}: ${esc(rep.panicMessage)}</div>` : '';
-    lastReportHtml = `<div class="batch-report">
-      <button type="button" class="batch-report-head" onclick="toggleBatchReport()">
-        <span id="batch-report-chevron" class="batch-report-chevron">${_batchReportOpen ? '▾' : '▸'}</span>
-        <span class="batch-report-label">${t('batch.lastReport')}</span>
-        <span class="batch-report-badge" style="color:${oc.c};background:${oc.bg}">${t('batch.outcome.' + rep.outcome) || rep.outcome}</span>
-        <span class="batch-report-counts">${t('batch.reportCompleted').replace('{n}', rep.completed)} · ${t('batch.reportFailed').replace('{n}', rep.failed)} · ${t('batch.reportRemaining').replace('{n}', rep.remaining)}</span>
-        <span class="batch-report-dur">${t('batch.reportDuration').replace('{d}', dur)}</span>
-      </button>
-      <div id="batch-report-detail" class="batch-report-detail${_batchReportOpen ? '' : ' hidden'}">${rows}${panic}</div>
-    </div>`;
-  }
-
-  let queueHtml = '';
-  if (status && status.queue && status.queue.length) {
-    const completed = status.queue.filter(q => q.state === 'done' || q.state === 'error');
-    const active = status.queue.filter(q => q.state !== 'done' && q.state !== 'error');
-    let waitNum = 0;
-    const renderItem = q => {
-      let icon, cls;
-      if (q.state === 'done') { icon = '✓'; cls = 'done'; }
-      else if (q.state === 'error') { icon = '⚠'; cls = 'error'; }
-      else if (q.state === 'running') { icon = '▶'; cls = 'running'; }
-      else { waitNum++; icon = '#' + waitNum; cls = 'waiting'; }
-      const pri = q.priority != null && PRIO_LABELS[q.priority] ? `<span style="font-size:9px;padding:1px 5px;border-radius:4px;background:${PRIO_LABELS[q.priority].bg};color:${PRIO_LABELS[q.priority].c};font-weight:600">${PRIO_LABELS[q.priority].l}</span>` : '';
-      return `<div class="batch-q-item batch-q-${cls}"><span class="batch-q-icon">${icon}</span>${pri}<span class="batch-q-id">${esc(q.featureId)}</span><span class="batch-q-name">${esc(q.name || '')}</span></div>`;
-    };
-    queueHtml = active.map(renderItem).join('') + (completed.length ? `<div class="batch-q-divider"></div>` + completed.map(renderItem).join('') : '');
-  }
-
-  return `<div class="dash-card mb-4" id="batch-panel"><div class="flex items-center gap-2 mb-3">
-      <span class="text-[10px] font-bold dash-muted uppercase tracking-wider">${t('batch.title')}</span>
-      <div class="ml-auto flex items-center gap-2">${controls}</div>
-    </div>${conflictCard}${lastReportHtml}${queueHtml ? `<div class="batch-queue">${queueHtml}</div>` : ''}</div>`;
-}
-
-// _batchReportOpen 記住「上次 batch 報告」展開狀態，跨輪詢重繪保持不變。
-let _batchReportOpen = false;
-
-// toggleBatchReport 展開/收合上次 batch 報告詳情（class toggle，不重繪整個面板以免閃爍）。
-function toggleBatchReport() {
-  _batchReportOpen = !_batchReportOpen;
-  const d = document.getElementById('batch-report-detail');
-  const c = document.getElementById('batch-report-chevron');
-  if (d) d.classList.toggle('hidden', !_batchReportOpen);
-  if (c) c.textContent = _batchReportOpen ? '▾' : '▸';
-}
-
-// startBatch 先彈確認對話框（避免誤觸），確認後 POST /api/batch/start 啟動 batch run。
-function startBatch() {
-  showConfirm(t('batch.confirmTitle'), t('batch.confirmMsg'), async () => {
-    const res = await fetch(apiBase() + '/api/batch/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-    if (!res.ok) { showToast(t('batch.startFailed').replace('{error}', await res.text())); return; }
-    load();
-  });
-}
-
-function replanBatch() {
-  fetch(apiBase() + '/api/batch/replan', { method: 'POST' }).then(async res => {
-    if (!res.ok) { showToast(t('batch.replanFailed').replace('{error}', await res.text())); return; }
-    showToast(t('batch.replanOk'));
-    load();
-  });
-}
-
-// stopBatch 送出 graceful 停止信號（batch 跑完當前 feature 後結束）。
-function stopBatch() {
-  fetch(apiBase() + '/api/batch/stop', { method: 'POST' }).then(async res => {
-    if (!res.ok) { showToast(t('batch.stopFailed').replace('{error}', await res.text())); return; }
-    showToast(t('batch.stopOk'));
-    load();
-  });
-}
-
-// continueBatch 在使用者解完衝突後呼叫：後端先清衝突信號再重啟 batch。
-function continueBatch() {
-  fetch(apiBase() + '/api/batch/continue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(async res => {
-    if (!res.ok) { showToast(t('batch.continueFailed').replace('{error}', await res.text())); return; }
-    load();
-  });
-}
-
 function renderDashboard(tasks) {
   const el = document.getElementById('dashboard');
   if (current) { el.classList.add('hidden'); return; }
@@ -717,14 +591,13 @@ function renderDashboard(tasks) {
 <div class="dash-card text-center"><div class="text-3xl font-bold text-blue-400">${g.pending.length}</div><div class="text-xs dash-muted mt-1 uppercase tracking-wider">${t('sidebar.pending')}</div></div>
 <div class="dash-card text-center"><div class="text-3xl font-bold text-purple-400">${g.todo.length}</div><div class="text-xs dash-muted mt-1 uppercase tracking-wider">${t('sidebar.todo')}</div></div>
 <div class="dash-card text-center"><div class="text-3xl font-bold text-green-400">${g.done.length}</div><div class="text-xs dash-muted mt-1 uppercase tracking-wider">${t('sidebar.done')}</div></div></div>
-${renderBatchPanel(lastBatchStatus)}
-${renderDag(tasks)}
 <div class="grid grid-cols-2 gap-4 mb-8">
 <div class="dash-card"><div class="text-[10px] font-bold dash-muted uppercase tracking-wider mb-4">${t('dashboard.status')}</div><div class="flex items-center gap-6"><div class="relative w-28 h-28 flex-shrink-0"><div class="w-28 h-28 rounded-full" style="background:${donut}"></div><div class="absolute inset-3 rounded-full dash-donut-center flex items-center justify-center flex-col"><span class="text-xl font-bold">${total}</span><span class="text-[10px] dash-muted">${t('dashboard.total')}</span></div></div><div class="space-y-2 text-xs"><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>${t('sidebar.running')}<span class="ml-auto dash-sub font-bold">${g.running.length}</span></div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>${t('sidebar.review')}<span class="ml-auto dash-sub font-bold">${g.review.length}</span></div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>${t('sidebar.pending')}<span class="ml-auto dash-sub font-bold">${g.pending.length}</span></div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span>${t('sidebar.todo')}<span class="ml-auto dash-sub font-bold">${g.todo.length}</span></div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>${t('sidebar.done')}<span class="ml-auto dash-sub font-bold">${g.done.length}</span></div></div></div></div>
 <div class="dash-card"><div class="text-[10px] font-bold dash-muted uppercase tracking-wider mb-4">${t('dashboard.roundsDist')}</div><div class="space-y-3">${Object.entries(buckets).map(([l,c])=>{const p=maxB?(c/maxB)*100:0;const co={'1':'#10b981','2':'#3b82f6','3-4':'#f59e0b','5+':'#ef4444'};return `<div class="flex items-center gap-3"><span class="text-xs dash-muted w-8 text-right">${l}R</span><div class="flex-1 h-5 dash-bar-bg rounded overflow-hidden"><div class="h-full rounded" style="width:${p}%;background:${co[l]}"></div></div><span class="text-xs font-bold w-6 text-right" style="color:var(--text-1)">${c}</span></div>`;}).join('')}</div>${doneTasks.length>0?`<div class="text-[10px] dash-muted mt-3">${t('dashboard.avgRounds').replace('{avg}', (doneTasks.reduce((s,d)=>s+d.round,0)/doneTasks.length).toFixed(1))}</div>`:''}</div></div>
 ${recent.length>0?`<div class="dash-card"><div class="text-[10px] font-bold dash-muted uppercase tracking-wider mb-4 flex items-center justify-between"><span>${t('dashboard.recentCompletions')}</span>${doneCost>0?`<span class="normal-case font-semibold text-emerald-400/70">${t('dashboard.recentCompletionsCost').replace('{amount}', formatCost(doneCost))}</span>`:''}</div><div class="space-y-2">${recent.map(f=>{const pt=f.priority!=null&&PRIO_LABELS[f.priority]?`<span style="font-size:9px;padding:1px 5px;border-radius:4px;background:${PRIO_LABELS[f.priority].bg};color:${PRIO_LABELS[f.priority].c};font-weight:600">${PRIO_LABELS[f.priority].l}</span>`:'';const dur=f.createdAt&&f.updatedAt?formatDuration(f.createdAt,f.updatedAt):'';return `<div class="flex items-center gap-2 py-1.5 cursor-pointer rounded px-2 -mx-2 transition-colors" onmouseenter="this.style.background='var(--bg-hover)'" onmouseleave="this.style.background=''" onclick="openFeatureDetail('${f.id}')"><span class="text-emerald-500/60 text-xs">✓</span>${pt}<span class="text-xs font-semibold text-emerald-400/80">${f.id}</span><span class="text-xs dash-sub truncate flex-1">${esc(f.name)}</span>${runnerTags(f.runners)}${dur?`<span class="text-[10px] dash-muted">⏱ ${dur}</span>`:''}${f.round?`<span class="text-[10px] dash-muted">${f.round}R</span>`:''}${f.costUsd>0?`<span class="text-[10px] dash-muted">${formatCost(f.costUsd)}</span>`:''}</div>`;}).join('')}</div></div>`:''}
 ${g.running.length>0?`<div class="rounded-xl border border-emerald-500/20 bg-emerald-950/20 p-5 mt-4"><div class="text-[10px] font-bold text-emerald-500/70 uppercase tracking-wider mb-4">${t('dashboard.currentlyRunning')}</div><div class="space-y-2">${g.running.map(f=>`<div class="flex items-center gap-3 py-1.5 cursor-pointer hover:bg-emerald-900/20 rounded px-2 -mx-2 transition-colors" onclick="openFeatureDetail('${f.id}')"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span><span class="text-xs font-semibold text-emerald-400">${f.id}</span><span class="text-xs dash-sub truncate flex-1">${esc(f.name)}</span><span class="text-[10px] text-emerald-400/70">${f.phase||''}</span>${f.round?`<span class="text-[10px] dash-muted">R${f.round}</span>`:''}</div>`).join('')}</div></div>`:''}
-${g.review.length>0?`<div class="rounded-xl border border-amber-500/20 bg-amber-950/20 p-5 mt-4"><div class="text-[10px] font-bold text-amber-500/70 uppercase tracking-wider mb-4">${t('dashboard.pendingReview')}</div><div class="space-y-2">${g.review.map(f=>`<div class="flex items-center gap-3 py-1.5 cursor-pointer hover:bg-amber-900/20 rounded px-2 -mx-2 transition-colors" onclick="openFeatureDetail('${f.id}')"><span class="text-amber-400 text-xs">⏳</span><span class="text-xs font-semibold text-amber-400">${f.id}</span><span class="text-xs dash-sub truncate flex-1">${esc(f.name)}</span>${f.round?`<span class="text-[10px] dash-muted">${f.round}R</span>`:''}<button class="px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/30 rounded hover:bg-amber-500/20 transition-colors" onclick="event.stopPropagation();markDone('${f.id}')">${t('status.done')}</button></div>`).join('')}</div></div>`:''}`;
+${g.review.length>0?`<div class="rounded-xl border border-amber-500/20 bg-amber-950/20 p-5 mt-4"><div class="text-[10px] font-bold text-amber-500/70 uppercase tracking-wider mb-4">${t('dashboard.pendingReview')}</div><div class="space-y-2">${g.review.map(f=>`<div class="flex items-center gap-3 py-1.5 cursor-pointer hover:bg-amber-900/20 rounded px-2 -mx-2 transition-colors" onclick="openFeatureDetail('${f.id}')"><span class="text-amber-400 text-xs">⏳</span><span class="text-xs font-semibold text-amber-400">${f.id}</span><span class="text-xs dash-sub truncate flex-1">${esc(f.name)}</span>${f.round?`<span class="text-[10px] dash-muted">${f.round}R</span>`:''}<button class="px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/30 rounded hover:bg-amber-500/20 transition-colors" onclick="event.stopPropagation();markDone('${f.id}')">${t('status.done')}</button></div>`).join('')}</div></div>`:''}
+${renderDag(tasks)}`;
 }
 
 const _sectionCollapsed = { done: true };
@@ -892,14 +765,12 @@ function renderSidebar() {
 
 async function load() {
   if (!activeProjectId) { renderProjectPicker(); return; }
-  const [tasks, runs, batchStatus] = await Promise.all([
+  const [tasks, runs] = await Promise.all([
     fetch(apiBase()+'/api/tasks').then(r => r.json()).catch(() => []),
     fetch(apiBase()+'/api/runs').then(r => r.ok ? r.json() : []).catch(() => []),
-    fetch(apiBase()+'/api/batch/status').then(r => r.ok ? r.json() : null).catch(() => null),
   ]);
   lastTasks = tasks || [];
   activeRuns = runs || [];
-  lastBatchStatus = batchStatus;
   renderSidebar();
   if (!current) renderDashboard(lastTasks);
   else {
