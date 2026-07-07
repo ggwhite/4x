@@ -4,7 +4,9 @@ Real-time monitoring of your AI development loop.
 
 ## macOS Gatekeeper
 
-The 4x Live app is not signed with an Apple Developer certificate. macOS will block it on first launch.
+Unsigned builds of the 4x Live app (produced by `make package-macos` without a Developer ID) are ad-hoc signed only. macOS blocks them on first launch. A signed **and notarized** release (see [macOS release build](#macos-release-build) below) opens without any Gatekeeper prompt.
+
+If you have an unsigned build, allow it via either option:
 
 **Option A: Remove quarantine attribute (recommended)**
 
@@ -19,6 +21,41 @@ xattr -cr /Applications/4x\ Live.app
 3. Scroll down to the **Security** section — you'll see a message about the blocked app
 4. Click **Open Anyway**, then enter your password or use Touch ID
 5. macOS remembers your choice for future launches
+
+## macOS release build
+
+`make dashboard-release` produces a signed and notarized `.dmg` in one shot: cross-compile the darwin binaries → package the `.app`/`.dmg` → sign with a Developer ID Application certificate → submit for Apple notarization → staple the ticket. The end result opens with no Gatekeeper prompt.
+
+Local development is unaffected: `make package-macos` still builds an ad-hoc–signed `.dmg` with no certificate required.
+
+### Prerequisites
+
+- An Apple Developer Program account with a **Developer ID Application** certificate installed in your login keychain (verify with `security find-identity -v -p codesigning`).
+- Notarization credentials — either an **App Store Connect API key** (recommended) or an **Apple ID + app-specific password**.
+
+### Configuration
+
+Certificates and credentials are read from environment variables or a `.env` file at the repo root — never committed (`.env` is git-ignored). Copy `.env.example` to `.env` and fill in your values:
+
+```bash
+cp .env.example .env
+```
+
+| Variable | Purpose |
+|---|---|
+| `CODESIGN_IDENTITY` | Developer ID Application certificate name (e.g. `Developer ID Application: Your Name (TEAMID)`). Unset → ad-hoc signing. |
+| `NOTARY_KEY_PATH` / `NOTARY_KEY_ID` / `NOTARY_ISSUER_ID` | App Store Connect API key (`.p8` path, Key ID, Issuer ID). |
+| `NOTARY_APPLE_ID` / `NOTARY_PASSWORD` / `NOTARY_TEAM_ID` | Alternative: Apple ID email, app-specific password, Team ID. |
+
+Provide **one** of the two notarization credential sets; the API key takes precedence if both are present.
+
+### Run
+
+```bash
+make dashboard-release
+```
+
+The notarization submit step (`xcrun notarytool submit --wait`) blocks until Apple returns a verdict — usually a few minutes. On success the ticket is stapled to `dist/4x-Live.dmg`.
 
 ## Starting the Dashboard
 

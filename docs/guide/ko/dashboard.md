@@ -4,7 +4,9 @@ AI 개발 루프의 실시간 모니터링.
 
 ## macOS Gatekeeper
 
-4x Live 앱은 Apple Developer 인증서로 서명되지 않았습니다. macOS가 첫 실행 시 차단합니다.
+서명되지 않은 4x Live 앱(Developer ID 없이 `make package-macos`로 생성)은 ad-hoc 서명만 되어 있어 macOS가 첫 실행 시 차단합니다. 서명**되고 공증된** 릴리스 버전(아래 [macOS 릴리스 빌드](#macos-릴리스-빌드) 참조)은 Gatekeeper 알림 없이 열립니다.
+
+서명되지 않은 빌드가 있다면 다음 중 한 가지 방법으로 허용하세요:
 
 **방법 A: 격리 속성 제거 (권장)**
 
@@ -19,6 +21,41 @@ xattr -cr /Applications/4x\ Live.app
 3. **보안** 섹션까지 스크롤 — 차단된 앱에 대한 메시지가 표시됨
 4. **확인 없이 열기**를 클릭, 비밀번호를 입력하거나 Touch ID로 확인
 5. macOS가 선택을 기억하여 이후에는 묻지 않습니다
+
+## macOS 릴리스 빌드
+
+`make dashboard-release`는 서명 및 공증된 `.dmg`를 한 번에 생성합니다: darwin 바이너리 크로스 컴파일 → `.app`/`.dmg` 패키징 → Developer ID Application 인증서로 서명 → Apple 공증 제출 → 티켓 staple. 최종 결과물은 Gatekeeper 알림 없이 열립니다.
+
+로컬 개발에는 영향이 없습니다: `make package-macos`는 인증서 없이 ad-hoc 서명된 `.dmg`를 계속 빌드합니다.
+
+### 사전 요구 사항
+
+- 로그인 키체인에 **Developer ID Application** 인증서가 설치된 Apple Developer Program 계정(`security find-identity -v -p codesigning`으로 확인).
+- 공증 자격 증명 — **App Store Connect API key**(권장) 또는 **Apple ID + 앱 암호** 중 하나.
+
+### 설정
+
+인증서와 자격 증명은 환경 변수 또는 repo 루트의 `.env` 파일에서 읽으며 절대 commit되지 않습니다(`.env`는 git-ignore됨). `.env.example`을 `.env`로 복사하고 값을 채웁니다:
+
+```bash
+cp .env.example .env
+```
+
+| 변수 | 용도 |
+|---|---|
+| `CODESIGN_IDENTITY` | Developer ID Application 인증서 이름(예: `Developer ID Application: Your Name (TEAMID)`). 미설정 → ad-hoc 서명. |
+| `NOTARY_KEY_PATH` / `NOTARY_KEY_ID` / `NOTARY_ISSUER_ID` | App Store Connect API key(`.p8` 경로, Key ID, Issuer ID). |
+| `NOTARY_APPLE_ID` / `NOTARY_PASSWORD` / `NOTARY_TEAM_ID` | 대안: Apple ID email, 앱 암호, Team ID. |
+
+두 공증 자격 증명 세트 중 **하나**를 제공하세요. 둘 다 있으면 API key가 우선합니다.
+
+### 실행
+
+```bash
+make dashboard-release
+```
+
+공증 제출 단계(`xcrun notarytool submit --wait`)는 Apple이 결과를 반환할 때까지 차단됩니다 — 보통 몇 분. 성공하면 티켓이 `dist/4x-Live.dmg`에 staple됩니다.
 
 ## 대시보드 시작
 

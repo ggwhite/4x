@@ -8,6 +8,14 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# 載入 repo 根目錄的 .env（若存在）——簽名 identity 等機密不 commit，改由 .env 或環境變數提供
+if [ -f "$ROOT/.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "$ROOT/.env"
+  set +a
+fi
+
 VERSION="${VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo dev)}"
 DIST="$ROOT/dist"
 BUILD="$ROOT/dist/macos-build"
@@ -74,12 +82,20 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-# 5. Ad-hoc codesign with hardened runtime（抑制 WKWebView 觸發的 Apple Music / 照片 等無關權限對話框）
-echo "==> codesign (ad-hoc + hardened runtime)"
+# 5. Codesign with hardened runtime（抑制 WKWebView 觸發的 Apple Music / 照片 等無關權限對話框）
+#    設定 CODESIGN_IDENTITY（Developer ID Application）時用正式簽名並加 --timestamp（公證前置條件）；
+#    未設定則退回 ad-hoc（--sign -），維持本地開發不簽名直接 build 的行為。
 ENTITLEMENTS="$ROOT/dashboard/macos/4xLive.entitlements"
-codesign --force --sign - --options runtime "$MACOS_DIR/4x"
-codesign --force --sign - --options runtime --entitlements "$ENTITLEMENTS" "$MACOS_DIR/4xLive"
-codesign --force --sign - --options runtime --entitlements "$ENTITLEMENTS" "$APP"
+if [ -n "${CODESIGN_IDENTITY:-}" ]; then
+  echo "==> codesign (Developer ID: $CODESIGN_IDENTITY)"
+  SIGN_ARGS=(--force --sign "$CODESIGN_IDENTITY" --options runtime --timestamp)
+else
+  echo "==> codesign (ad-hoc + hardened runtime)"
+  SIGN_ARGS=(--force --sign - --options runtime)
+fi
+codesign "${SIGN_ARGS[@]}" "$MACOS_DIR/4x"
+codesign "${SIGN_ARGS[@]}" --entitlements "$ENTITLEMENTS" "$MACOS_DIR/4xLive"
+codesign "${SIGN_ARGS[@]}" --entitlements "$ENTITLEMENTS" "$APP"
 
 # 6. 產 dmg（含 Applications 捷徑）
 echo "==> creating dmg"

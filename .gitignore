@@ -17,6 +17,9 @@ vendor/
 !.4x/settings.json
 !.4x/features/
 
+# Secrets / local env (簽名、公證憑證)
+.env
+
 # OS
 .DS_Store
 Thumbs.db

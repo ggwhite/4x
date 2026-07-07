@@ -4,7 +4,9 @@
 
 ## macOS Gatekeeper
 
-4x Live app 未经 Apple Developer 签名。macOS 会在首次启动时阻止。
+未签名的 4x Live app（由 `make package-macos` 在未提供 Developer ID 时产出）仅做 ad-hoc 签名，macOS 会在首次启动时阻止。已签名**并公证**的正式版本（见下方 [macOS 正式版打包](#macos-正式版打包)）打开时不会有任何 Gatekeeper 提示。
+
+若你手上是未签名版本，可用以下任一方法允许：
 
 **方法 A：移除隔离属性（推荐）**
 
@@ -19,6 +21,41 @@ xattr -cr /Applications/4x\ Live.app
 3. 向下滚动至**安全性**区域 — 会看到被阻止的 app 消息
 4. 点击**仍要打开**，输入密码或使用 Touch ID 确认
 5. macOS 会记住你的选择，之后不再询问
+
+## macOS 正式版打包
+
+`make dashboard-release` 一键产出已签名并公证的 `.dmg`：交叉编译 darwin binary → 打包 `.app`/`.dmg` → 用 Developer ID Application 证书签名 → 提交 Apple 公证 → staple 票证。最终产物打开时不会有 Gatekeeper 提示。
+
+本地开发不受影响：`make package-macos` 仍会产出 ad-hoc 签名的 `.dmg`，不需要任何证书。
+
+### 前置需求
+
+- 一个 Apple Developer Program 账号，且 login keychain 已安装 **Developer ID Application** 证书（可用 `security find-identity -v -p codesigning` 确认）。
+- 公证凭据 — 使用 **App Store Connect API key**（推荐）或 **Apple ID + app 专用密码**其中一种。
+
+### 配置
+
+证书与密钥从环境变量或 repo 根目录的 `.env` 读取，绝不 commit（`.env` 已列入 git-ignore）。将 `.env.example` 复制为 `.env` 并填入实际值：
+
+```bash
+cp .env.example .env
+```
+
+| 变量 | 用途 |
+|---|---|
+| `CODESIGN_IDENTITY` | Developer ID Application 证书名称（如 `Developer ID Application: Your Name (TEAMID)`）。未设置 → ad-hoc 签名。 |
+| `NOTARY_KEY_PATH` / `NOTARY_KEY_ID` / `NOTARY_ISSUER_ID` | App Store Connect API key（`.p8` 路径、Key ID、Issuer ID）。 |
+| `NOTARY_APPLE_ID` / `NOTARY_PASSWORD` / `NOTARY_TEAM_ID` | 替代方案：Apple ID email、app 专用密码、Team ID。 |
+
+两组公证凭据择一提供；两者都设置时以 API key 优先。
+
+### 运行
+
+```bash
+make dashboard-release
+```
+
+公证提交步骤（`xcrun notarytool submit --wait`）会阻塞至 Apple 返回结果 — 通常数分钟。成功后票证会 staple 到 `dist/4x-Live.dmg`。
 
 ## 启动仪表盘
 

@@ -1,4 +1,4 @@
-.PHONY: build install test clean lint check-mod vuln check-docs check-docs-sync check-i18n check-guide-i18n check-schema-sync package-macos
+.PHONY: build install test clean lint check-mod vuln check-docs check-docs-sync check-i18n check-guide-i18n check-schema-sync package-macos dashboard-binaries dashboard-release
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
@@ -43,3 +43,14 @@ check-schema-sync:
 
 package-macos:
 	@bash scripts/package-macos.sh
+
+# 交叉編譯 macOS app 打包所需的 darwin universal binary（arm64 + amd64）
+dashboard-binaries:
+	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags "-s -w -X main.version=$(VERSION)" -o bin/4x-darwin-arm64 ./cmd/4x
+	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags "-s -w -X main.version=$(VERSION)" -o bin/4x-darwin-amd64 ./cmd/4x
+
+# 一鍵發布：build → sign（Developer ID）→ notarize → staple
+# 需先在 .env 或環境變數設定 CODESIGN_IDENTITY 及公證憑證，設定方式見 docs/guide/dashboard.md
+dashboard-release: dashboard-binaries
+	@bash scripts/package-macos.sh
+	@bash scripts/notarize-macos.sh

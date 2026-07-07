@@ -4,7 +4,9 @@ AI 開発ループのリアルタイム監視。
 
 ## macOS Gatekeeper
 
-4x Live アプリは Apple Developer 証明書で署名されていません。macOS が初回起動時にブロックします。
+未署名の 4x Live アプリ（Developer ID なしで `make package-macos` が生成）は ad-hoc 署名のみで、macOS が初回起動時にブロックします。署名**かつ公証済み**のリリース版（下記 [macOS リリースビルド](#macos-リリースビルド)を参照）は Gatekeeper の確認なしで開けます。
+
+未署名ビルドの場合は、以下のいずれかの方法で許可してください：
 
 **方法 A：隔離属性を削除（推奨）**
 
@@ -19,6 +21,41 @@ xattr -cr /Applications/4x\ Live.app
 3. **セキュリティ**セクションまでスクロール — ブロックされたアプリのメッセージが表示される
 4. **このまま開く**をクリック、パスワードを入力するか Touch ID で確認
 5. macOS は次回以降の選択を記憶します
+
+## macOS リリースビルド
+
+`make dashboard-release` は署名・公証済みの `.dmg` を一括で生成します：darwin バイナリのクロスコンパイル → `.app`/`.dmg` のパッケージング → Developer ID Application 証明書での署名 → Apple への公証提出 → チケットの staple。最終成果物は Gatekeeper の確認なしで開けます。
+
+ローカル開発には影響しません：`make package-macos` は引き続き証明書不要で ad-hoc 署名の `.dmg` をビルドします。
+
+### 前提条件
+
+- ログインキーチェーンに **Developer ID Application** 証明書がインストールされた Apple Developer Program アカウント（`security find-identity -v -p codesigning` で確認）。
+- 公証用の認証情報 — **App Store Connect API key**（推奨）または **Apple ID + App 用パスワード**のいずれか。
+
+### 設定
+
+証明書と認証情報は環境変数またはリポジトリ直下の `.env` ファイルから読み込まれ、commit されません（`.env` は git-ignore 済み）。`.env.example` を `.env` にコピーして値を記入します：
+
+```bash
+cp .env.example .env
+```
+
+| 変数 | 用途 |
+|---|---|
+| `CODESIGN_IDENTITY` | Developer ID Application 証明書名（例：`Developer ID Application: Your Name (TEAMID)`）。未設定 → ad-hoc 署名。 |
+| `NOTARY_KEY_PATH` / `NOTARY_KEY_ID` / `NOTARY_ISSUER_ID` | App Store Connect API key（`.p8` パス、Key ID、Issuer ID）。 |
+| `NOTARY_APPLE_ID` / `NOTARY_PASSWORD` / `NOTARY_TEAM_ID` | 代替：Apple ID email、App 用パスワード、Team ID。 |
+
+2 つの公証認証情報セットのうち**いずれか**を指定します。両方ある場合は API key が優先されます。
+
+### 実行
+
+```bash
+make dashboard-release
+```
+
+公証提出ステップ（`xcrun notarytool submit --wait`）は Apple が判定を返すまでブロックします — 通常は数分。成功するとチケットが `dist/4x-Live.dmg` に staple されます。
 
 ## ダッシュボードの起動
 
