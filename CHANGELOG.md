@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.14] - 2026-07-07
+
+### Features
+
+- **Learnings 獨立檔名** — 同 round 內各角色的 learnings 改為寫入 `{role}-learnings.json`（如 `coder-learnings.json`），harvester 以 glob 收割全部，不再被最後一個角色覆寫；向下相容舊的 `role-learnings.json`
+- **Resume/Phase transition 對齊** — `SmartResumePhase` 加入 `ProfileConfig` 參數，deep-review PASS 後會依 profile 決定走 Fixing 或 Accepting，與 live-run 路徑行為一致
+- **驗證工具強化** — `check-docs-sync` 對刪除/搬遷的檔案自動 grep docs 內舊路徑、未 commit 的變更加 WARNING 提示；`check-guide-i18n` heading 數量不符時列出雙方具體 heading 供對照
+- **Coder 驗證 Guardrail** — 框架在 coder 完成後自動跑 `make check-docs-sync` + `check-i18n`，結果寫入 `docs-gate.json` artifact，reviewer 不再需要手動重跑驗證
+- **Runner 層刪舊產出** — runner 執行前先清除上一輪殘留的產出檔（如 `gate-verdicts.json`），讓 runner 回 nil 卻沒寫新檔時退化為明確的 parse error，不再靜默吃 stale data
+- **4x skills CLI** — 新增 `4x skills list/install/remove` 子命令，以 symlink 管理 repo `skills/` 目錄下的 skill 安裝到 `~/.claude/skills/`；owner-only skill 安裝時顯示 WARNING
+
+### CI
+
+- **CI Release 簽名公證** — release workflow 改用 `make dashboard-release`，匯入 Developer ID 憑證做 codesign + notarization，GitHub Release 產出的 .dmg 不再被 Gatekeeper 擋
+
+### Internal
+
+- **Dashboard macOS app 簽名與公證** — 本地 `make dashboard-release` 支援 Developer ID Application 簽名 + notarytool 公證 + staple，產出可直接分發的 .dmg
+- **4x-autopilot / 4x-audit skill 搬進 repo** — skill 檔案從外部搬入 `skills/` 目錄，搭配 `4x skills install` 使用
+- **Token 優化** — 精簡 role template 與 prompt 注入，降低每輪 token 消耗
+
 ## [0.3.13] - 2026-07-06
 
 ### Features
