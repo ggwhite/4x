@@ -1392,10 +1392,9 @@ func TestRunLoop_DeepReviewExecuted(t *testing.T) {
 		t.Errorf("phase = %s, want pending-review", final.Phase)
 	}
 
-	// deep-review-report 為乾淨 PASS（無 critical/warning）時，fixing phase 被跳過（F132）。
 	wantPhases := []protocol.Phase{
 		protocol.PhaseDesigning, protocol.PhaseDesignReviewing, protocol.PhaseCoding, protocol.PhaseReviewing,
-		protocol.PhaseTesting, protocol.PhaseDeepReviewing, protocol.PhaseAccepting,
+		protocol.PhaseTesting, protocol.PhaseDeepReviewing, protocol.PhaseFixing, protocol.PhaseAccepting,
 	}
 	if len(mock.phases) != len(wantPhases) {
 		t.Fatalf("ran %d phases, want %d: %v", len(mock.phases), len(wantPhases), mock.phases)
@@ -1448,11 +1447,10 @@ func TestRunLoop_DeepReviewSelfHeal(t *testing.T) {
 		t.Errorf("round = %d, want 1 (self-heal must not increment round)", final.Round)
 	}
 
-	// deep-review-report 為乾淨 PASS（無 critical/warning）時，fixing phase 被跳過（F132）。
 	wantRoles := []protocol.Role{
 		protocol.RoleDesigner, protocol.RoleDesignReviewer, protocol.RoleCoder, protocol.RoleReviewer,
 		protocol.RoleTester, protocol.RoleDeepReviewer, protocol.RoleMiniCoder,
-		protocol.RoleReVerifier, protocol.RoleAcceptor,
+		protocol.RoleReVerifier, protocol.RoleFixer, protocol.RoleAcceptor,
 	}
 	if len(mock.roles) != len(wantRoles) {
 		t.Fatalf("ran %d roles, want %d: %v", len(mock.roles), len(wantRoles), mock.roles)

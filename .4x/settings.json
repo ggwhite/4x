@@ -193,7 +193,7 @@
       ]
     },
     "design-reviewer": {
-      "model": "sonnet",
+      "model": "opus",
       "instructions": [
         "逐項比對 task-brief 與 feature YAML description 的需求——有遺漏或矛盾就 FAIL",
         "檢查 acceptance-criteria 是否每項都可自動化驗證（go test / CLI output），模糊描述就 FAIL",
@@ -202,7 +202,7 @@
       ]
     },
     "coder": {
-      "model": "sonnet",
+      "model": "opus",
       "instructions": [
         "每次改動後跑 make build && make test && make lint（包含 go vet + gofmt + golangci-lint），改到 locale 或 docs 時加跑 make check-i18n && make check-guide-i18n && make check-docs-sync",
         "寫 coder-report 前必須跑 make lint 確保零錯誤——unused import、未使用變數、格式問題都必須在此階段自行修掉，不可讓 reviewer 打槍",
@@ -220,7 +220,7 @@
       ]
     },
     "reviewer": {
-      "model": "sonnet",
+      "model": "opus",
       "deep_model": "opus",
       "instructions": [
         "驗證 symbol 是否存在、caller 是否正確、interface 是否被實作，必須用 codegraph_explore MCP，禁止 grep -rn symbol 搜尋迴圈",
@@ -248,6 +248,13 @@
       ],
       "includes": [
         "docs/dev/troubleshoot.md"
+      ]
+    },
+    "fixer": {
+      "model": "sonnet",
+      "instructions": [
+        "只修 deep-review-report.md 列出的 finding，不自行擴大範圍",
+        "修完後跑 make build && make test && make lint 確認無回歸"
       ]
     },
     "acceptor": {

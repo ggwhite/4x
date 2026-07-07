@@ -1,0 +1,35 @@
+id: F132-token-optimization
+name: 'F132: Token Optimization'
+description: 基於 Superpowers v6 啟發的五項 token 優化：(1) deep-review PASS 時跳過冗餘 Fixer (2) orchestrator 預算 review-package.md 給 reviewer 讀檔取代自跑 git diff (3) built-in profiles 填入 per-role model 路由 (4) reviewer template 加 UNVERIFIABLE_FROM_DIFF 狀態減少無效探索 (5) 進 acceptor 前生成 acceptance-summary.md 減少重複讀報告
+status: done
+priority: 2
+profile: standard
+subtasks:
+    - id: skip-redundant-fixer
+      name: deep-review verdict=PASS 時跳過 fixer 直接進 accepting
+      status: ""
+    - id: review-package
+      name: orchestrator 在 coding→reviewing 轉換時預算 diff 寫成 review-package.md
+      status: ""
+    - id: base-commit-tracking
+      name: state.json 記錄 baseCommit 供 review package 計算 diff
+      status: ""
+    - id: per-role-model
+      name: built-in profiles 填入 per-phase Model 值並確認 runner 消費
+      status: ""
+    - id: unverifiable-from-diff
+      name: reviewer/deep-reviewer template 加 UNVERIFIABLE 指引
+      status: ""
+    - id: acceptance-summary
+      name: 進 acceptor 前生成 acceptance-summary.md 彙整各報告
+      status: ""
+    - id: template-update
+      name: reviewer/deep-reviewer/acceptor template 改讀預算檔案
+      status: ""
+rules:
+    - 不改 state machine transitions 表
+    - 不合併 reviewer 和 tester
+    - 不壓 plan/task-brief 字數
+    - 不引入新的 phase 或 role
+    - review-package 解析失敗時 fallback 讓 reviewer 自己跑 git diff
+    - acceptance-summary 解析失敗時 fallback 讓 acceptor 讀原始報告

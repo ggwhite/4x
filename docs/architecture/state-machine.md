@@ -36,7 +36,7 @@
 | `testing` | `deep-reviewing` | Tester verdict: pass |
 | `testing` | `amending` | Tester verdict: fail |
 | `deep-reviewing` | `fixing` | Deep review verdict: pass |
-| `deep-reviewing` | `accepting` | Deep review verdict: pass, and either fixing not in profile or the report is a clean pass (no critical/warning issues) |
+| `deep-reviewing` | `accepting` | Deep review verdict: pass (fixing phase not in profile) |
 | `deep-reviewing` | `amending` | Deep review self-heal exhausted |
 | `fixing` | `accepting` | Fixer outputs verified present |
 | `fixing` | `amending` | Fixer escalation |

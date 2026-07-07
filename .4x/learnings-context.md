@@ -13,7 +13,7 @@
 - 重構改變呼叫路徑時，要同步搜尋並更新描述舊路徑的註解（含括號內實作提示），否則正是此 feature 想消除的『邏輯漂移』縮影。
 - 純拆檔重構的 feature spec 應明確限制 scope（只改指定檔案），避免 Coder 順手改到 README 等不相關檔案
 - 錯誤訊息設計應避免前綴與 ID 重疊（如 'AC AC-2 has no evidence'），直接用 ID 本身加描述詞（如 'AC-2: no evidence'）更清晰。
-- Template 中用同一個 bool flag（$parallel）同時控制「平行模式」與「有角度限縮」時，加入第三個 else if 分支處理「非平行但有篩選」情境，避免標頭文字與 body 內容不一致
+- 設計 fallback 邏輯時（如無匹配 mapping 則跑全部角度），若 template 用同一個 bool flag（如 $parallel）同時控制「平行模式」與「有角度限縮」，需加入第三個 else if 分支處理「非平行但有篩選」情境，並確認標頭文字能正確反映三種情境：平行限縮、非平行限縮、全部角度，避免標頭文字與 body 內容不一致。
 - export 舊 private function 時，同步移除不再需要的 import（如 "os"），應在 Coder 階段一次完成，不留給 Reviewer 指出。
 - 修改 template 檔（如 acceptor.md.tmpl）時，必須對照 main branch 的最新版本確認既有的「(if present)」守衛與 fallback 引導文字未被誤刪
 - 新增 guard 函式時，對 coding/amending 共用同一 case 區塊的情境，應同時補上兩個 phase 的獨立測試（即使邏輯相同），以保持測試覆蓋對稱性。
@@ -28,7 +28,6 @@
 - 讀檔回空 pool 不報錯的 API（LoadCandidates）在編排命令中會把「前置步驟沒跑」遮蔽成「靜默成功 exit 0」；對手動操作的子命令應對缺前置輸入給明確 error。
 - report 的統計欄位（如 deduped）要明確定義來源語意，不要把不同階段的丟棄數（本輪 mine 去重 vs pool-wide PreVeto）相加塞進同一數字，避免多輪累積後誤導使用者。
 - Feature spec 的「已知位置」清單若不完整，Coder 會照規格範圍作業，殘留問題需後續 feature 補；Designer 應於 spec 加入 grep 掃全庫的步驟，確保已知清單完整
-- 設計 fallback 邏輯時（如無匹配 mapping 則跑全部角度），要同步確認 template 標頭文字能正確反映三種情境：平行限縮、非平行限縮、全部角度
 - 純 rename refactor 類 feature 可跳過 Designer 直接進 Coder，但 feature YAML 的 description 需明列「哪些 caller 要一併改名」，避免 Coder 遺漏內部呼叫點。
 - fallback 路徑的 ac_results 自動合成與正常路徑的手動填入必須在設計階段明確區分——避免在 task-brief 中混淆兩條路徑的責任邊界
 - 復用既有結構（VerifyEvidence / runGroup 語意）作為 build-gate 輸出格式，可大幅降低 Orchestrator 和測試的理解成本；設計新 guard 時應優先考慮能否複用現有資料結構。

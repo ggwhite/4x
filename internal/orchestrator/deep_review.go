@@ -617,13 +617,12 @@ func deepGuardCheck(ws *protocol.Workspace, featureID string, s *protocol.State,
 }
 
 // deepTransitionAccepting 把 state 從 deep-reviewing 推進到下一個 phase 並寫回，
-// 供自癒循環在 deep review PASS 時放行。若 profile 啟用 fixing phase 且 deep-review-report.md
-// 仍留有 warning（非乾淨 PASS）則轉到 fixing 處理；乾淨 PASS（無 critical、無 warning）
-// 時代表已無待修項，直接跳過 fixing 轉到 accepting，避免 fixer 空跑一整個 session。
+// 供自癒循環在 deep review PASS 時放行。若 profile 啟用 fixing phase 則轉到 fixing，
+// 否則轉到 accepting（保持未啟用 fixing 的 profile 行為不變）。
 func deepTransitionAccepting(ws *protocol.Workspace, featureID string, s *protocol.State, pc protocol.ProfileConfig) (bool, error) {
 	targetPhase := protocol.PhaseAccepting
 	targetRole := protocol.RoleAcceptor
-	if pc.EnablesPhase(protocol.PhaseFixing) && !DeepReviewCleanPass(ws, featureID, s.Round) {
+	if pc.EnablesPhase(protocol.PhaseFixing) {
 		targetPhase = protocol.PhaseFixing
 		targetRole = protocol.RoleFixer
 	}
