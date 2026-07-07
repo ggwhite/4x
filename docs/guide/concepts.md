@@ -217,6 +217,7 @@ init → designing → design-reviewing → coding → reviewing → testing →
 | `designing` | `task-brief.md` or `acceptance-criteria.md` missing | → `needs-attention` |
 | `coding` / `amending` | `escalation.json` with `spec-mismatch`, `criteria-wrong`, or `scope-change` | → `designing` |
 | `coding` / `amending` | `build-gate.json` missing or `passed=false` | → `needs-attention` (orchestrator safety net; normally the Coder agent self-fixes via `4x check` loop) |
+| `coding` / `amending` | `project.docs_check` set and a docs/i18n check fails | `docs-gate.json` written with `passed=false` + a WARN; **non-blocking** — surfaces the framework-run result so the Coder fixes doc drift in-round instead of the Reviewer catching it a round later |
 | `reviewing` | Review not passed (requires explicit `PASS` or `CONDITIONAL PASS` verdict AND zero `[CRITICAL]`/`[WARNING]` issues in the report) | → `amending` |
 | `testing` | `verify.json` not passed or artifacts missing | → `amending` |
 | `testing` | Guard gate retryable errors only (e.g., missing `manual_check_results` or AC evidence) | Auto-retry tester once with `guard-feedback.json`; second failure → `needs-attention` |
@@ -268,6 +269,7 @@ Roles communicate through the `.4x/` directory, not shared context windows.
             ├── acceptance-summary.md      # Orchestrator-generated digest of verify/review/deep-review reports for the Acceptor
             ├── verify.json                # {passed, round, role, commands[], ac_results[], manual_check_results[]}
             ├── build-gate.json            # Build+lint gate results (written by 4x check in coding/amending phase)
+            ├── docs-gate.json             # Docs/i18n sync gate results (written by 4x check when project.docs_check is set; non-blocking)
             ├── guard-feedback.json        # Guard retry errors (written on retryable guard failure)
             └── escalation.json            # {needed, reason, detail}
 ```

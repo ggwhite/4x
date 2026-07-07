@@ -49,6 +49,22 @@ func BuildGateGroups(cfg protocol.ProjectConfig) ([]Group, error) {
 	return []Group{{Name: "build-gate", Commands: commands}}, nil
 }
 
+// DocsGateGroups 從 settings.json 的 DocsCheck 指令組合出 docs-gate groups。
+// 與 BuildGateGroups 不同，每個 DocsCheck 指令各自成為一個獨立 group，
+// 讓 RunGroups 平行執行且互不連帶 skip——docs/i18n 檢查彼此獨立，coder 應一次看到
+// 全部問題，而非在第一個失敗後其餘被標 Skipped。DocsCheck 未設定時回傳 error，
+// 讓呼叫端據以判斷此專案是否啟用 docs-gate（opt-in，見 F136）。
+func DocsGateGroups(cfg protocol.ProjectConfig) ([]Group, error) {
+	if len(cfg.DocsCheck) == 0 {
+		return nil, fmt.Errorf("settings.json has no docs_check commands for docs-gate")
+	}
+	groups := make([]Group, 0, len(cfg.DocsCheck))
+	for _, cmd := range cfg.DocsCheck {
+		groups = append(groups, Group{Name: "docs-gate", Commands: []string{cmd}})
+	}
+	return groups, nil
+}
+
 // ResolveGroups 從 TestStrategy 解析出 verify groups。
 // verify_groups 存在時依 group 名稱排序後回傳（確保輸出順序穩定可測）；
 // 否則 fallback 到 verify_commands 作為單一 default group，commands 維持原序。

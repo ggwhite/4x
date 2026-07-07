@@ -90,6 +90,7 @@
   "field.lint": "Lint",
   "field.setup": "Setup",
   "field.docs": "Docs",
+  "field.docsCheck": "Docs Check",
   "field.rules": "Rules",
   "field.includes": "Includes",
   "field.command": "Command",

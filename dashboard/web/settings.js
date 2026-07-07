@@ -519,6 +519,7 @@ function renderProjectSettingsForm() {
   html += psTagField(t('field.lint'), 'ps-proj-lint', proj.lint);
   html += psTagField(t('field.setup'), 'ps-proj-setup', proj.setup);
   html += psTagField(t('field.docs'), 'ps-proj-docs', proj.docs);
+  html += psTagField(t('field.docsCheck'), 'ps-proj-docs_check', proj.docs_check);
   html += psTagField(t('field.rules'), 'ps-proj-rules', proj.rules);
   html += psTagField(t('field.includes'), 'ps-proj-includes', proj.includes);
   html += `</div>`;
@@ -686,7 +687,7 @@ function collectFormData() {
   // description / language 是選填，空字串也要送出讓後端覆蓋舊值（避免無法清空）
   proj['description'] = (document.getElementById('ps-proj-desc') || {}).value?.trim() ?? '';
   proj['language'] = (document.getElementById('ps-proj-lang') || {}).value?.trim() ?? '';
-  const tagFields = ['build','test','lint','setup','docs','rules','includes'];
+  const tagFields = ['build','test','lint','setup','docs','docs_check','rules','includes'];
   tagFields.forEach(f => { const items = getTagItems('ps-proj-'+f); if (items.length) proj[f] = items; });
   obj.project = proj;
 

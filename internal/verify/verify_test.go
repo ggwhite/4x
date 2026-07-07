@@ -216,6 +216,39 @@ func TestBuildGateGroups_LintOnly(t *testing.T) {
 	}
 }
 
+func TestDocsGateGroups_OneGroupPerCommand(t *testing.T) {
+	cfg := protocol.ProjectConfig{
+		DocsCheck: []string{"make check-docs-sync", "make check-i18n", "make check-guide-i18n"},
+	}
+	groups, err := DocsGateGroups(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 每個指令各自成獨立 group，才能被 RunGroups 平行執行且互不連帶 skip。
+	if len(groups) != 3 {
+		t.Fatalf("expected 3 groups (one per command), got %d", len(groups))
+	}
+	for i, g := range groups {
+		if g.Name != "docs-gate" {
+			t.Fatalf("group %d: expected name 'docs-gate', got %q", i, g.Name)
+		}
+		if len(g.Commands) != 1 {
+			t.Fatalf("group %d: expected 1 command, got %d", i, len(g.Commands))
+		}
+	}
+	if groups[0].Commands[0] != "make check-docs-sync" {
+		t.Fatalf("expected first command 'make check-docs-sync', got %q", groups[0].Commands[0])
+	}
+}
+
+func TestDocsGateGroups_Empty(t *testing.T) {
+	cfg := protocol.ProjectConfig{}
+	_, err := DocsGateGroups(cfg)
+	if err == nil {
+		t.Fatal("expected error when docs_check is empty (opt-in signal)")
+	}
+}
+
 func TestRunGroups_AllPass(t *testing.T) {
 	groups := []Group{
 		{Name: "a", Commands: []string{"echo hello"}},

@@ -143,4 +143,7 @@ if [ "$needs_update" -eq 0 ]; then
 else
   echo ""
   echo "NEEDS_UPDATE" >&2
+  # exit 非零讓 NEEDS_UPDATE 成為機器可驗的失敗訊號（與 check-i18n 一致）：
+  # 先前只寫 stderr 卻 exit 0，導致 docs-gate 及任何自動化都誤判為通過（F136）。
+  exit 1
 fi

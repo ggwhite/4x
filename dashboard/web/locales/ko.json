@@ -90,6 +90,7 @@
   "field.lint": "린트",
   "field.setup": "설정",
   "field.docs": "문서",
+  "field.docsCheck": "문서 검사",
   "field.rules": "규칙",
   "field.includes": "포함",
   "field.command": "명령어",

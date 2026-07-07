@@ -167,9 +167,14 @@ type ProjectConfig struct {
 	Build       []string `json:"build,omitempty"`
 	Test        []string `json:"test,omitempty"`
 	Lint        []string `json:"lint,omitempty"`
-	Docs        []string `json:"docs,omitempty"`
-	Rules       []string `json:"rules,omitempty"`
-	Includes    []string `json:"includes,omitempty"`
+	// DocsCheck 是文件/多語系同步的驗證指令（如 make check-docs-sync、check-i18n）。
+	// 由 coding/amending phase 的 docs-gate 於框架層自動執行，結果寫入 docs-gate.json，
+	// 讓 coder 在 coder-report 中對這些驗證的聲明可被獨立核對（見 F136）。
+	// 未設定時 docs-gate 完全跳過，非 4x 專案（無此類指令）不受影響。
+	DocsCheck []string `json:"docs_check,omitempty"`
+	Docs      []string `json:"docs,omitempty"`
+	Rules     []string `json:"rules,omitempty"`
+	Includes  []string `json:"includes,omitempty"`
 }
 
 // RunnerConfig 是 LLM runner 的設定

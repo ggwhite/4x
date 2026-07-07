@@ -90,6 +90,7 @@
   "field.lint": "程式碼檢查",
   "field.setup": "設定",
   "field.docs": "文件",
+  "field.docsCheck": "文件檢查",
   "field.rules": "規則",
   "field.includes": "包含",
   "field.command": "命令",

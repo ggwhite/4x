@@ -12,6 +12,11 @@
     "lint": [
       "make lint"
     ],
+    "docs_check": [
+      "make check-docs-sync",
+      "make check-i18n",
+      "make check-guide-i18n"
+    ],
     "docs": [
       "docs/AGENTS.md",
       "docs/reference/plugin-contract.md",

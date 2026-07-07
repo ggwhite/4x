@@ -56,6 +56,7 @@ func Check(ws *protocol.Workspace, featureID string, detector ScopeDetector) Che
 	checkBacklogDrift(ws, featureID, &r)
 	checkSymlinks(ws, featureID, &r)
 	checkBuildGate(ws, featureID, &r)
+	checkDocsGate(ws, featureID, &r)
 	checkTestStrategyVerifyTypes(ws, featureID, &r)
 
 	return r
@@ -696,6 +697,72 @@ func checkBuildGate(ws *protocol.Workspace, featureID string, r *CheckResult) {
 			}
 		}
 		r.Errors = append(r.Errors, fmt.Sprintf("build-gate failed: %s", strings.Join(failedCmds, "; ")))
+	}
+}
+
+// checkDocsGate 在 coding/amending phase 執行 settings.json 的 docs_check 指令
+// （如 make check-docs-sync、check-i18n），結果寫入 docs-gate.json。
+//
+// 與 build-gate 不同，docs-gate 為「非阻塞」：驗證失敗只記 WARN、不設 r.Pass=false，
+// 以符合 F136 的「不阻塞 coder 主要工作流」約束。其價值在於產出框架權威 artifact——
+// 現況是 coder 常憑記憶在 coder-report 寫「check-docs-sync OK」而非真實輸出，reviewer
+// 得親自重跑才發現 NEEDS_UPDATE、多耗一輪；docs-gate 讓框架在 coding 階段就跑出可信結果，
+// coder 於 4x check 輸出即看到 WARN、reviewer 也可直接讀 artifact 而不必重跑。
+//
+// docs_check 未設定時完全跳過（不記 warn），確保非 4x 專案（無此類指令）不受影響。
+func checkDocsGate(ws *protocol.Workspace, featureID string, r *CheckResult) {
+	state, err := ws.ReadState(featureID)
+	if err != nil {
+		return
+	}
+	if state.Phase != protocol.PhaseCoding && state.Phase != protocol.PhaseAmending {
+		return
+	}
+
+	cfg, err := ws.ReadConfig()
+	if err != nil {
+		r.Warns = append(r.Warns, fmt.Sprintf("docs-gate: cannot read settings.json: %v", err))
+		return
+	}
+	groups, err := verify.DocsGateGroups(cfg.Project)
+	if err != nil {
+		// docs_check 未設定屬正常（opt-in），靜默跳過不記 warn。
+		return
+	}
+
+	roundDir := ws.RoundDir(featureID, state.Round)
+	if err := os.MkdirAll(roundDir, 0o755); err != nil {
+		r.Warns = append(r.Warns, fmt.Sprintf("docs-gate: cannot create round dir: %v", err))
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+
+	evidence, warns := runGroupsAcrossRoots(ctx, groups, gitops.ScopeRoots(ws.Root, featureID))
+	r.Warns = append(r.Warns, warns...)
+	evidence.Round = state.Round
+	evidence.Role = protocol.RoleCoder
+
+	data, err := json.MarshalIndent(evidence, "", "  ")
+	if err != nil {
+		r.Warns = append(r.Warns, fmt.Sprintf("docs-gate: marshal error: %v", err))
+		return
+	}
+	outPath := filepath.Join(roundDir, protocol.DocsGateFile)
+	if err := os.WriteFile(outPath, data, 0o644); err != nil {
+		r.Warns = append(r.Warns, fmt.Sprintf("docs-gate: write error: %v", err))
+		return
+	}
+
+	if !evidence.Passed {
+		var failedCmds []string
+		for _, cmd := range evidence.Commands {
+			if cmd.ExitCode != 0 && !cmd.Skipped {
+				failedCmds = append(failedCmds, fmt.Sprintf("%s (exit %d)", cmd.Command, cmd.ExitCode))
+			}
+		}
+		r.Warns = append(r.Warns, fmt.Sprintf("docs-gate: docs/i18n verification reported issues (see %s), fix before finishing: %s", protocol.DocsGateFile, strings.Join(failedCmds, "; ")))
 	}
 }
 

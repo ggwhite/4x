@@ -90,6 +90,7 @@
   "field.lint": "リント",
   "field.setup": "セットアップ",
   "field.docs": "ドキュメント",
+  "field.docsCheck": "ドキュメントチェック",
   "field.rules": "ルール",
   "field.includes": "インクルード",
   "field.command": "コマンド",

@@ -90,6 +90,7 @@
   "field.lint": "Linting",
   "field.setup": "Configuración",
   "field.docs": "Documentación",
+  "field.docsCheck": "Verificación de docs",
   "field.rules": "Reglas",
   "field.includes": "Incluye",
   "field.command": "Comando",

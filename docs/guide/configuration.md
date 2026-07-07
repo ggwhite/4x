@@ -14,6 +14,7 @@ You can also edit this file visually from the **4x Live dashboard** — click th
     "build": ["go build ./..."],
     "test": ["go test ./..."],
     "lint": ["go vet ./..."],
+    "docs_check": ["make check-docs-sync"],
     "setup": [],
     "docs": [],
     "rules": []
@@ -58,6 +59,7 @@ You can also edit this file visually from the **4x Live dashboard** — click th
 | `build` | Build commands |
 | `test` | Test commands |
 | `lint` | Lint commands |
+| `docs_check` | Docs/i18n sync verification commands (e.g., `make check-docs-sync`). Run by the framework's docs-gate during `coding`/`amending`; results written to `docs-gate.json` (non-blocking). Empty → docs-gate skipped |
 | `setup` | Setup commands (e.g., `docker-compose up -d`) |
 | `description` | Project description (optional) |
 | `docs` | Documentation file paths for Designer reference |

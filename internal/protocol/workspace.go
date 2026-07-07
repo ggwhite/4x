@@ -43,6 +43,7 @@ const (
 	TestReport         = "test-report.md"
 	VerifyFile         = "verify.json"
 	BuildGateFile      = "build-gate.json"
+	DocsGateFile       = "docs-gate.json"
 	GuardFeedback      = "guard-feedback.json"
 	EscalationFile     = "escalation.json"
 	StopFile           = "stop"
