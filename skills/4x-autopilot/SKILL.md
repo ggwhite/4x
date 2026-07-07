@@ -114,6 +114,7 @@ ls .worktrees/4x/
 1. 過濾 `status == "not-started"` 的 feature
 2. 如果使用者透過參數指定了 feature-id，優先選它
 3. 否則按 `priority` ASC, `id` ASC 排序，取第一個
+   - **注意**：`4x status --json` 不包含 priority 欄位，必須從 `.4x/features/<id>.yaml` 讀取 `priority` 值（未設定視為 999）
 4. 如果 feature 有 `depends` 欄位，確認所有依賴 feature 都是 `status: done`，不是就跳過選下一個
 
 ### Step D: 啟動
