@@ -57,6 +57,21 @@ make dashboard-release
 
 公証提出ステップ（`xcrun notarytool submit --wait`）は Apple が判定を返すまでブロックします — 通常は数分。成功するとチケットが `dist/4x-Live.dmg` に staple されます。
 
+### CI（GitHub Actions）リリース
+
+`Release` ワークフロー（`.github/workflows/release.yml`）は `macos` ジョブで `make dashboard-release` を実行するため、タグ付きリリースは署名・公証済みの `.dmg` を配布します。以下のリポジトリ secret を設定してください（Settings → Secrets and variables → Actions）：
+
+| Secret | 用途 |
+|---|---|
+| `MACOS_CERTIFICATE_P12` | `.p12` としてエクスポートした Developer ID Application 証明書の Base64（`base64 -i cert.p12 \| pbcopy`）。 |
+| `MACOS_CERTIFICATE_PASSWORD` | `.p12` を保護するパスワード。 |
+| `MACOS_CODESIGN_IDENTITY` | `CODESIGN_IDENTITY` として渡す証明書名（例：`Developer ID Application: Your Name (TEAMID)`）。 |
+| `NOTARY_KEY_P8` | App Store Connect API キー `.p8` の Base64。 |
+| `NOTARY_KEY_ID` | API キー ID。 |
+| `NOTARY_ISSUER_ID` | API キーの Issuer ID。 |
+
+ワークフローは証明書を一時 keychain にインポートし、API キーを runner の一時ファイルに書き出し、パッケージング後に両方を削除します — secret は環境変数で渡され、ログに出力されず、runner に残りません。
+
 ## ダッシュボードの起動
 
 ```bash

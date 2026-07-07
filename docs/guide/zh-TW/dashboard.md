@@ -57,6 +57,21 @@ make dashboard-release
 
 公證提交步驟（`xcrun notarytool submit --wait`）會阻塞至 Apple 回傳結果 — 通常數分鐘。成功後票證會 staple 到 `dist/4x-Live.dmg`。
 
+### CI（GitHub Actions）發布
+
+`Release` 工作流程（`.github/workflows/release.yml`）在其 `macos` job 上執行 `make dashboard-release`，因此打 tag 的發布會產出已簽名並公證的 `.dmg`。請設定以下 repository secret（Settings → Secrets and variables → Actions）：
+
+| Secret | 用途 |
+|---|---|
+| `MACOS_CERTIFICATE_P12` | 匯出為 `.p12` 的 Developer ID Application 憑證的 Base64（`base64 -i cert.p12 \| pbcopy`）。 |
+| `MACOS_CERTIFICATE_PASSWORD` | 保護 `.p12` 的密碼。 |
+| `MACOS_CODESIGN_IDENTITY` | 作為 `CODESIGN_IDENTITY` 傳入的憑證名稱（如 `Developer ID Application: Your Name (TEAMID)`）。 |
+| `NOTARY_KEY_P8` | App Store Connect API key `.p8` 的 Base64。 |
+| `NOTARY_KEY_ID` | API key ID。 |
+| `NOTARY_ISSUER_ID` | API key Issuer ID。 |
+
+工作流程會將憑證匯入臨時 keychain，並將 API key 寫入 runner 臨時檔案，打包後刪除兩者 — secret 透過環境變數傳入，不會輸出到 log，也不會殘留在 runner 上。
+
 ## 啟動儀表板
 
 ```bash

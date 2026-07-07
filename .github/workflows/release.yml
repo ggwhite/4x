@@ -106,7 +106,6 @@ jobs:
 
   macos:
     name: Package macOS .dmg
-    needs: build-binaries
     runs-on: macos-latest
     permissions:
       contents: read
@@ -115,23 +114,48 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download darwin arm64 binary
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
-          name: 4x-darwin-arm64
-          path: bin
+          go-version-file: go.mod
 
-      - name: Download darwin amd64 binary
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
-        with:
-          name: 4x-darwin-amd64
-          path: bin
+      # 匯入 Developer ID Application 憑證到臨時 keychain，供 codesign 使用。
+      # 憑證與密碼從 GitHub Secrets 讀取；keychain 密碼在此步驟內臨機產生，不需額外 secret。
+      - name: Import Developer ID certificate
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          CERT_PATH="$RUNNER_TEMP/certificate.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
+          echo "$MACOS_CERTIFICATE_P12" | base64 --decode > "$CERT_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$MACOS_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" > /dev/null
+          security list-keychain -d user -s "$KEYCHAIN_PATH" \
+            $(security list-keychains -d user | sed s/\"//g)
+          rm -f "$CERT_PATH"
 
-      - name: Make binaries executable
-        run: chmod +x bin/4x-darwin-arm64 bin/4x-darwin-amd64
+      # 將 App Store Connect API key（.p8）寫入檔案，供 notarytool 使用。
+      - name: Write notarization API key
+        env:
+          NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+        run: echo "$NOTARY_KEY_P8" | base64 --decode > "$RUNNER_TEMP/notary_key.p8"
 
-      - name: Package .dmg
-        run: make package-macos
+      # 交叉編譯 darwin 通用 binary → 打包 .app/.dmg → Developer ID 簽名 → 公證 → staple。
+      - name: Package, sign & notarize .dmg
+        env:
+          CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          export NOTARY_KEY_PATH="$RUNNER_TEMP/notary_key.p8"
+          make dashboard-release
 
       - name: Verify universal binary (lipo)
         run: |
@@ -143,6 +167,13 @@ jobs:
         with:
           name: 4x-Live-macos-${{ github.ref_name }}
           path: dist/4x-Live.dmg
+
+      # 清理臨時 keychain 與 API key，避免機密殘留在 runner。
+      - name: Clean up signing credentials
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/build.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/notary_key.p8" "$RUNNER_TEMP/certificate.p12"
 
   windows:
     name: Package Windows .exe

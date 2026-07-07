@@ -57,6 +57,21 @@ make dashboard-release
 
 El paso de envío a notarización (`xcrun notarytool submit --wait`) se bloquea hasta que Apple devuelve un veredicto — normalmente unos minutos. Al tener éxito, el ticket se grapa a `dist/4x-Live.dmg`.
 
+### Lanzamiento en CI (GitHub Actions)
+
+El workflow `Release` (`.github/workflows/release.yml`) ejecuta `make dashboard-release` en su job `macos`, de modo que las releases con tag publican un `.dmg` firmado y notarizado. Configura estos secrets del repositorio (Settings → Secrets and variables → Actions):
+
+| Secret | Propósito |
+|---|---|
+| `MACOS_CERTIFICATE_P12` | Base64 del certificado Developer ID Application exportado como `.p12` (`base64 -i cert.p12 \| pbcopy`). |
+| `MACOS_CERTIFICATE_PASSWORD` | Contraseña que protege el `.p12`. |
+| `MACOS_CODESIGN_IDENTITY` | Nombre del certificado pasado como `CODESIGN_IDENTITY` (p. ej. `Developer ID Application: Your Name (TEAMID)`). |
+| `NOTARY_KEY_P8` | Base64 de la clave de la API de App Store Connect `.p8`. |
+| `NOTARY_KEY_ID` | ID de la clave de la API. |
+| `NOTARY_ISSUER_ID` | ID del emisor de la clave de la API. |
+
+El workflow importa el certificado a un keychain temporal y escribe la clave de la API en un archivo temporal del runner, y luego elimina ambos tras el empaquetado — los secrets se pasan mediante variables de entorno, nunca se muestran en los logs y nunca persisten en el runner.
+
 ## Iniciar el dashboard
 
 ```bash
