@@ -45,6 +45,7 @@
       "description": "最新一輪觸及的受保護檔案路徑（相對 scope root）"
     },
     "selfModApproved": { "type": "boolean", "description": "人工是否已透過 --approve-self-mod 核可受保護路徑變更" },
-    "guardRetries": { "type": "integer", "description": "全域 guard retry 次數（跨 round 累計）" }
+    "guardRetries": { "type": "integer", "description": "全域 guard retry 次數（跨 round 累計）" },
+    "baseCommit": { "type": "string", "description": "首次進入 coding phase 時的 HEAD commit sha，供 review-package.md 計算 diff" }
   }
 }

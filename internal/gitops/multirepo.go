@@ -450,3 +450,45 @@ func (m *multiRepo) CaptureBaseline(featureID string, featureRepos []string) err
 	}
 	return os.WriteFile(filepath.Join(m.ws.FeatureDir(featureID), protocol.BaselineFile), data, 0o644)
 }
+
+// GenerateReviewPackage 為 multi-repo workspace 逐 repo 產出 review package。單一 baseCommit
+// 無法套用到多個各自獨立 git history 的 repo，故此模式改用 baseline.json 記錄的 per-repo Head
+// 作為每個 repo 各自的 base（同樣在首次進 coding 時擷取，語意與 monorepo 的 baseCommit 一致）；
+// baseCommit 參數在此模式下不使用。
+func (m *multiRepo) GenerateReviewPackage(featureID, _ string) (string, error) {
+	baseline, err := loadBaseline(m.ws, featureID)
+	if err != nil {
+		return "", fmt.Errorf("load baseline for review package: %w", err)
+	}
+	repoHead := make(map[string]string, len(baseline.Repos))
+	for _, br := range baseline.Repos {
+		repoHead[br.Name] = br.Head
+	}
+
+	wtDir := Dir(m.root, featureID)
+	_, wtErr := os.Stat(wtDir)
+	wtActive := wtErr == nil
+
+	var b strings.Builder
+	b.WriteString("# Review Package\n\n")
+	found := false
+	for name, rc := range m.cfg.Workspace.Repos {
+		repoPath := filepath.Join(m.root, rc.Path)
+		wtRepoDir := filepath.Join(wtDir, name)
+		if isLinkedWorktree(wtRepoDir) {
+			repoPath = wtRepoDir
+		} else if wtActive {
+			continue
+		}
+		section := reviewPackageSection(repoPath, repoHead[name], "###")
+		if section == "" {
+			continue
+		}
+		found = true
+		fmt.Fprintf(&b, "## Repo: %s\n\n%s\n", name, section)
+	}
+	if !found {
+		return "", fmt.Errorf("no diff produced for feature %s", featureID)
+	}
+	return b.String(), nil
+}

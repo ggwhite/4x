@@ -11,6 +11,12 @@ You MUST create this file before finishing:
 Use the Write tool. Do NOT just print the content — write to disk.
 
 == Inputs ==
+0. Read: {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/acceptance-summary.md (if present) —
+   it pre-aggregates the AC status table, round report verdicts, unverifiable items, and verification
+   commands from this round. Prefer it over re-reading the raw reports below. Only dig into a raw
+   report (task-brief, acceptance-criteria, review-report, test-report, deep-review-report) when you
+   need more detail on a specific AC than the summary provides. If acceptance-summary.md does not
+   exist, fall back to reading the raw reports directly.
 {{- if .SkippedDesigner}}
 1. Read: {{.DotDir}}/features/{{.Feature.ID}}.yaml — the original design intent and acceptance criteria (Designer was skipped, no task-brief or acceptance-criteria)
 {{- else}}

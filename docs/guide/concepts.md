@@ -246,7 +246,7 @@ Roles communicate through the `.4x/` directory, not shared context windows.
 ├── templates/                      # Optional project-level prompt template overrides (4x init --dump-templates)
 └── run/                            # Runtime artifacts (per-feature working directories)
     └── {feature-id}/
-        ├── state.json                   # Phase, role, round, active, runner, runners, stopReason, profile
+        ├── state.json                   # Phase, role, round, active, runner, runners, stopReason, profile, baseCommit
         ├── events.jsonl                 # Audit trail
         ├── baseline.json                # Pre-coding snapshot (HEAD, branch, dirty files)
         ├── task-brief.md                # Designer → Coder: spec + architecture
@@ -260,15 +260,19 @@ Roles communicate through the `.4x/` directory, not shared context windows.
         │   └── round-{N}-synthesizer.log         # Synthesizer merging the partial reports
         └── rounds/round-{N}/
             ├── coder-report.md            # What the Coder did
+            ├── review-package.md          # Orchestrator-budgeted diff (commits/stat/full diff) for reviewer/deep-reviewer, replacing a self-run git diff
             ├── review-report.md           # Reviewer findings + verdict
             ├── test-report.md             # Tester results
             ├── deep-review-partial-{i}.md # One parallel sub-reviewer's findings (when fanned out)
             ├── deep-review-report.md      # Merged deep review (synthesizer output, or single-agent)
+            ├── acceptance-summary.md      # Orchestrator-generated digest of verify/review/deep-review reports for the Acceptor
             ├── verify.json                # {passed, round, role, commands[], ac_results[], manual_check_results[]}
             ├── build-gate.json            # Build+lint gate results (written by 4x check in coding/amending phase)
             ├── guard-feedback.json        # Guard retry errors (written on retryable guard failure)
             └── escalation.json            # {needed, reason, detail}
 ```
+
+`review-package.md` and `acceptance-summary.md` are best-effort budgeting artifacts the orchestrator writes to cut down on the reviewer/deep-reviewer/acceptor re-deriving context from scratch. On first entering `coding` (round 1), the loop captures the current HEAD as `state.json`'s `baseCommit` (mono-repo only; multi-repo relies on each repo's `baseline.json` instead). On every `coding`/`amending` → `reviewing` transition, it writes `review-package.md` with the commits/file-stat/full diff since `baseCommit`. Before entering `accepting`, it regenerates `acceptance-summary.md` from the round's `verify.json`, `review-report.md`, and `deep-review-report.md`. Both are generated on a best-effort basis — if there's nothing to summarize yet (e.g. no `baseCommit`) the file is simply not written, and the corresponding templates (`reviewer.md.tmpl`, `deep-reviewer.md.tmpl`, `acceptor.md.tmpl`) fall back to reading the original sources themselves.
 
 ### Batch Signal Files
 

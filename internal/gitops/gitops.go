@@ -26,6 +26,11 @@ type Ops interface {
 	DetectChangedFiles(featureID string) []protocol.ChangedFile
 	CaptureBaseline(featureID string, featureRepos []string) error
 	IsMultiRepo() bool
+	// GenerateReviewPackage 回傳 baseCommit..HEAD 的 commits/file-stat/full-diff 彙整 markdown，
+	// 供 orchestrator 在 coding/amending → reviewing 轉換時預算寫成 review-package.md，
+	// 讓 reviewer/deep-reviewer 讀檔取代自跑 git diff。baseCommit 或 diff 產出皆為空時回傳 error，
+	// 呼叫端應 fallback 跳過寫檔，讓 role 走 template 既有的自跑 git diff 路徑。
+	GenerateReviewPackage(featureID, baseCommit string) (string, error)
 }
 
 // vcshubNew 對應 vcshub.New，測試可覆寫以注入 fakeHub。
@@ -64,6 +69,11 @@ func Dir(root, featureID string) string {
 // Branch 回傳 feature 對應的 branch 名稱（兩種模式共用）。
 func Branch(featureID string) string {
 	return "4x/" + featureID
+}
+
+// HeadCommit 回傳 dir 所在 git 工作目錄目前的 HEAD commit sha，非 git repo 或指令失敗時回空字串。
+func HeadCommit(dir string) string {
+	return gitOutput(dir, "rev-parse", "HEAD")
 }
 
 func gitOutput(dir string, args ...string) string {
@@ -115,6 +125,27 @@ func changedFilesIn(dir, pathPrefix string) []protocol.ChangedFile {
 	}
 
 	return files
+}
+
+// reviewPackageSection 回傳單一 git 工作目錄從 base 到 HEAD 的 commits/stat/diff 區段字串，
+// headingLevel 控制 markdown 標題層級（monorepo 用 "##"、multi-repo 巢狀在 repo 標題下用 "###"）。
+// base 為空，或該 range 的 commits/stat/diff 三者皆空（無變更）時回傳空字串，供呼叫端判斷跳過。
+func reviewPackageSection(dir, base, headingLevel string) string {
+	if base == "" {
+		return ""
+	}
+	rangeSpec := base + "..HEAD"
+	commits := gitOutput(dir, "log", "--oneline", rangeSpec)
+	stat := gitOutput(dir, "diff", "--stat", rangeSpec)
+	diff := gitOutput(dir, "diff", rangeSpec)
+	if commits == "" && stat == "" && diff == "" {
+		return ""
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s Commits\n\n```\n%s\n```\n\n", headingLevel, commits)
+	fmt.Fprintf(&b, "%s File Changes\n\n```\n%s\n```\n\n", headingLevel, stat)
+	fmt.Fprintf(&b, "%s Full Diff\n\n```diff\n%s\n```\n", headingLevel, diff)
+	return b.String()
 }
 
 // ParseNumstatCount 解析 numstat 的 added/deleted 欄位，binary 檔的 "-" 視為 0。

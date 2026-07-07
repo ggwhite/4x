@@ -8,7 +8,11 @@ You MUST create this file before finishing:
 Use the Write tool. Do NOT just print the content — write to disk.
 
 == Inputs ==
-1. Run: git diff HEAD (or git diff --cached) to see changed files
+1. Read: {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/review-package.md (if present) —
+   it contains the commits, file-stat, and full diff for this round already pre-computed.
+   Do NOT run git diff / git log / git show yourself to gather this information.
+   If review-package.md does not exist, fallback to running git diff HEAD (or git diff --cached)
+   yourself to see changed files.
 {{- if .SkippedDesigner}}
 2. Read: {{.DotDir}}/features/{{.Feature.ID}}.yaml (feature spec — no task-brief because Designer was skipped)
 {{- else}}
@@ -75,6 +79,20 @@ PASS / FAIL / CONDITIONAL PASS
 - critical/HIGH: blocks transition, must fix
 - warning/MEDIUM: should fix
 - low/INFO: log only
+
+== UNVERIFIABLE_FROM_DIFF ==
+
+Some requirements cannot be verified from the current diff alone, e.g.:
+- Cross-task integration behavior
+- Runtime / performance characteristics
+- Items that require actually running tests to confirm
+- Behavior involving files not touched in this round
+
+For these:
+1. Mark them as `[UNVERIFIABLE]`, explaining why they cannot be verified
+2. Do NOT run extensive git/grep/cat commands exploring the codebase just to verify these
+3. These items do NOT count toward the PASS/FAIL verdict (not a warning or critical)
+4. They will be carried forward to the acceptor layer
 
 == Incremental Writing & Resume ==
 Write review-report.md incrementally — create the file with the header and empty table first,

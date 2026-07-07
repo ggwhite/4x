@@ -232,6 +232,9 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 		if phase == protocol.PhaseAccepting && s.Round >= 3 {
 			r.runRoundSummarizer(ctx, s)
 		}
+		if phase == protocol.PhaseAccepting {
+			r.generateAcceptanceSummary(s.Round)
+		}
 
 		if stop, err := r.runHealthCheck(ctx, &s); err != nil {
 			return nil, err
@@ -365,6 +368,9 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 		if next == protocol.PhaseTesting && phase == protocol.PhaseTesting {
 			newState.GuardRetries++
 			cleanupTesterRetry(r.Ws, featureID, s.Round)
+		}
+		if next == protocol.PhaseReviewing && (phase == protocol.PhaseCoding || phase == protocol.PhaseAmending) {
+			r.generateReviewPackage(newState.Round, newState.BaseCommit)
 		}
 
 		s = newState
@@ -584,10 +590,76 @@ func (r *Runner) runHealthCheck(ctx context.Context, s *protocol.State) (bool, e
 }
 
 func (r *Runner) captureBaseline(s *protocol.State) error {
-	if s.Phase == protocol.PhaseCoding && s.Round == 1 {
-		return CaptureBaselineOnce(r.Ws, r.Ops, r.featureID(), r.Feature.Repos)
+	if s.Phase != protocol.PhaseCoding || s.Round != 1 {
+		return nil
 	}
+	if err := CaptureBaselineOnce(r.Ws, r.Ops, r.featureID(), r.Feature.Repos); err != nil {
+		return err
+	}
+	r.captureBaseCommit(s)
 	return nil
+}
+
+// captureBaseCommit 在首次進入 coding phase 時記錄當下 HEAD 為 s.BaseCommit，供 review-package.md
+// 計算 diff 的起點（僅 mono-repo 使用；multi-repo 各 repo 有獨立歷史，改用 baseline.json 的
+// per-repo Head，見 gitops.multiRepo.GenerateReviewPackage）。已設定過就不重複擷取（冪等，
+// 避免 resume 時 HEAD 已因先前輪次的 commit 前進而覆寫掉正確的 base）。取得失敗只 warn，
+// 不阻斷流程——review package 生成階段會因 BaseCommit 為空而 fallback 跳過寫檔。
+func (r *Runner) captureBaseCommit(s *protocol.State) {
+	if s.BaseCommit != "" {
+		return
+	}
+	root := gitops.ScopeRoot(r.Ws.Root, r.featureID())
+	sha := gitops.HeadCommit(root)
+	if sha == "" {
+		return
+	}
+	s.BaseCommit = sha
+	if err := r.Ws.WriteState(r.featureID(), *s); err != nil {
+		slog.Warn("write state (base commit) failed", "feature", r.featureID(), "error", err)
+	}
+}
+
+// generateReviewPackage 在 coding/amending → reviewing 轉換時，用 Ops 預算 baseCommit..HEAD 的
+// commits/stat/diff 寫成 review-package.md，供 reviewer/deep-reviewer 讀檔取代自跑 git diff。
+// 產生失敗（如尚無 baseCommit、無 diff）只 warn 不阻斷流程——reviewer template 在檔案不存在時
+// 會 fallback 自跑 git diff（見 templates/reviewer.md.tmpl）。
+func (r *Runner) generateReviewPackage(round int, baseCommit string) {
+	featureID := r.featureID()
+	content, err := r.Ops.GenerateReviewPackage(featureID, baseCommit)
+	if err != nil || content == "" {
+		slog.Warn("generate review package failed, reviewer will fallback to running git diff itself",
+			"feature", featureID, "round", round, "error", err)
+		return
+	}
+	roundDir := r.Ws.RoundDir(featureID, round)
+	if err := os.MkdirAll(roundDir, 0o755); err != nil {
+		slog.Warn("mkdir round dir for review package failed", "feature", featureID, "round", round, "error", err)
+		return
+	}
+	if err := os.WriteFile(filepath.Join(roundDir, protocol.ReviewPackage), []byte(content), 0o644); err != nil {
+		slog.Warn("write review package failed", "feature", featureID, "round", round, "error", err)
+	}
+}
+
+// generateAcceptanceSummary 在進 accepting phase 前（每次進入 accepting 都重新產生，維持最新）
+// 解析本輪 verify.json / review-report.md / deep-review-report.md，彙整成 acceptance-summary.md，
+// 供 Acceptor 讀取取代重複讀取原始報告全文。無資料可彙整或解析失敗時不寫檔，acceptor template
+// 會 fallback 讀原始報告。
+func (r *Runner) generateAcceptanceSummary(round int) {
+	featureID := r.featureID()
+	content := GenerateAcceptanceSummary(r.Ws, featureID, round)
+	if content == "" {
+		return
+	}
+	roundDir := r.Ws.RoundDir(featureID, round)
+	if err := os.MkdirAll(roundDir, 0o755); err != nil {
+		slog.Warn("mkdir round dir for acceptance summary failed", "feature", featureID, "round", round, "error", err)
+		return
+	}
+	if err := os.WriteFile(filepath.Join(roundDir, protocol.AcceptanceSummaryFile), []byte(content), 0o644); err != nil {
+		slog.Warn("write acceptance summary failed", "feature", featureID, "round", round, "error", err)
+	}
 }
 
 func (r *Runner) resolveRunnerAndModel(phase protocol.Phase, role protocol.Role, pc protocol.ProfileConfig, s *protocol.State) (string, string, error) {

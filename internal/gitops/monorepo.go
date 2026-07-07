@@ -269,3 +269,16 @@ func (m *monoRepo) CaptureBaseline(featureID string, featureRepos []string) erro
 	}
 	return os.WriteFile(filepath.Join(m.ws.FeatureDir(featureID), protocol.BaselineFile), data, 0o644)
 }
+
+// GenerateReviewPackage 回傳 baseCommit..HEAD 的 commits/stat/diff 彙整 markdown。
+func (m *monoRepo) GenerateReviewPackage(featureID, baseCommit string) (string, error) {
+	if baseCommit == "" {
+		return "", fmt.Errorf("no base commit recorded for feature %s", featureID)
+	}
+	root := ScopeRoot(m.root, featureID)
+	section := reviewPackageSection(root, baseCommit, "##")
+	if section == "" {
+		return "", fmt.Errorf("no diff produced for base commit %s", baseCommit)
+	}
+	return "# Review Package\n\n" + section, nil
+}

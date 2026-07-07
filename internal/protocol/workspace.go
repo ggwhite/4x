@@ -79,6 +79,14 @@ const (
 
 	// DeepReviewAnglesFile 是 deep review 角度選擇結果的 artifact，記錄本次選了哪些角度及原因。
 	DeepReviewAnglesFile = "deep-review-angles.json"
+
+	// ReviewPackage 是 orchestrator 在 coding/amending → reviewing 轉換時預算的 diff 彙整檔
+	// （commits/file-stat/full-diff），供 reviewer/deep-reviewer 讀檔取代自跑 git diff/log。
+	ReviewPackage = "review-package.md"
+
+	// AcceptanceSummaryFile 是 orchestrator 在進 accepting 前彙整各報告產出的檔案，
+	// 供 Acceptor 讀取取代重複讀取 review/test/deep-review report 全文。
+	AcceptanceSummaryFile = "acceptance-summary.md"
 )
 
 // Workspace 管理 .4x/ 目錄的讀寫

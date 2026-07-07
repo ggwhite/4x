@@ -74,6 +74,20 @@ func ParseReviewVerdict(content string) protocol.ReviewResult {
 	return result
 }
 
+// DeepReviewCleanPass 判斷指定 round 的 deep-review-report.md 是否為「乾淨 PASS」：
+// verdict 通過且無 critical、無 warning。與 ReviewPassed（容許 CONDITIONAL PASS 帶 warning）
+// 不同，此函式用於決定 fixing phase 是否還有東西可修——warning 存在時代表 deep-reviewer
+// 仍留下待處理項，須經 fixing 處理；完全乾淨的 PASS 才可跳過 fixing 直接進 accepting。
+func DeepReviewCleanPass(ws *protocol.Workspace, featureID string, round int) bool {
+	roundDir := ws.RoundDir(featureID, round)
+	data, err := os.ReadFile(filepath.Join(roundDir, protocol.DeepReviewReport))
+	if err != nil {
+		return false
+	}
+	result := ParseReviewVerdict(string(data))
+	return result.Passed && result.CriticalCount == 0 && result.WarningCount == 0
+}
+
 // ReviewFailCount 回傳指定 round 的 review-report.md 失敗計數（critical + warning）。
 // 供 run loop 判斷連續輪次是否有進展（失敗數下降）使用；report 不存在時回 0。
 func ReviewFailCount(ws *protocol.Workspace, featureID string, round int) int {

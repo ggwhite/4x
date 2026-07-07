@@ -33,6 +33,9 @@ type State struct {
 	SelfModApproved bool `json:"selfModApproved,omitempty"`
 	// GuardRetries 記錄全域 guard retry 次數（跨 round 累計），超過上限時停止重試。
 	GuardRetries int `json:"guardRetries,omitempty"`
+	// BaseCommit 記錄 feature 首次進入 coding phase 時的 HEAD commit sha，供 review-package.md
+	// 計算 diff 使用。amending 階段沿用同一個 base，讓 review package 累積本 feature 的完整 diff。
+	BaseCommit string `json:"baseCommit,omitempty"`
 }
 
 // Event 是 events.jsonl 的一行

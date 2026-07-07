@@ -727,6 +727,138 @@ func TestRunLoop_BaselineFailureBlocksCoder(t *testing.T) {
 	}
 }
 
+// TestRunLoop_BaseCommitCaptured 驗證：首次進入 coding phase（round 1）時，
+// captureBaseCommit 會把當下 HEAD 記錄進 state.BaseCommit 並持久化寫回 state.json（F132）。
+func TestRunLoop_BaseCommitCaptured(t *testing.T) {
+	root := t.TempDir()
+	gitRun := func(dir string, args ...string) {
+		t.Helper()
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(),
+			"GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@test.com",
+			"GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@test.com",
+		)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %s - %v", args, out, err)
+		}
+	}
+	gitRun(root, "git", "init")
+	os.WriteFile(filepath.Join(root, "main.go"), []byte("package main"), 0o644)
+	gitRun(root, "git", "add", ".")
+	gitRun(root, "git", "commit", "-m", "init")
+
+	wantSHA := strings.TrimSpace(func() string {
+		out, err := exec.Command("git", "-C", root, "rev-parse", "HEAD").Output()
+		if err != nil {
+			t.Fatalf("git rev-parse HEAD: %v", err)
+		}
+		return string(out)
+	}())
+
+	cfg := protocol.Config{
+		Project: protocol.ProjectConfig{Name: "base-commit-test"},
+		Default: "mock",
+		Runners: map[string]protocol.RunnerConfig{"mock": {Command: "echo"}},
+		ModelTiers: map[string]map[string]string{
+			"sonnet": {"mock": "mock-sonnet"},
+			"haiku":  {"mock": "mock-haiku"},
+		},
+	}
+	if err := protocol.Init(root, cfg); err != nil {
+		t.Fatal(err)
+	}
+	ws := &protocol.Workspace{Root: root}
+	if err := ws.InitFeatureDir("feat-base-commit"); err != nil {
+		t.Fatal(err)
+	}
+	ws.SaveFeature(feature.Feature{ID: "feat-base-commit", Name: "Base Commit Test", Status: "not-started"})
+	f, _ := ws.LoadFeature("feat-base-commit")
+
+	s := protocol.State{
+		FeatureID: "feat-base-commit", Phase: protocol.PhaseInit,
+		MaxRounds: 5, Active: true, Runner: "mock",
+	}
+	ws.WriteState("feat-base-commit", s)
+
+	mock := &mockRunner{ws: ws, featureID: "feat-base-commit", outcomes: []mockOutcome{
+		{}, {}, {reviewVerdict: "PASS"}, {testPassed: true}, {},
+	}}
+
+	if err := runLoop(context.Background(), ws, ws, f, cfg, s, nil, func(string, string, string) runner.Runner { return mock }, "never", "", nil); err != nil {
+		t.Fatalf("runLoop error: %v", err)
+	}
+
+	final, err := ws.ReadState("feat-base-commit")
+	if err != nil {
+		t.Fatalf("ReadState: %v", err)
+	}
+	if final.BaseCommit != wantSHA {
+		t.Errorf("state.BaseCommit = %q, want %q", final.BaseCommit, wantSHA)
+	}
+}
+
+// TestRunLoop_ReviewPackageWritten 驗證：coding → reviewing 轉換時，
+// generateReviewPackage 會把 Ops.GenerateReviewPackage 的內容寫進該 round 的 review-package.md（F132）。
+func TestRunLoop_ReviewPackageWritten(t *testing.T) {
+	ws := setupLoopWorkspace(t, "feat-review-pkg")
+	feature, _ := ws.LoadFeature("feat-review-pkg")
+	cfg, _ := ws.ReadConfig()
+
+	s := protocol.State{
+		FeatureID: "feat-review-pkg", Phase: protocol.PhaseInit,
+		MaxRounds: 5, Active: true, Runner: "mock",
+	}
+	ws.WriteState("feat-review-pkg", s)
+
+	mock := &mockRunner{ws: ws, featureID: "feat-review-pkg", outcomes: []mockOutcome{
+		{}, {}, {reviewVerdict: "PASS"}, {testPassed: true}, {},
+	}}
+	ops := &mockOps{reviewPackageContent: "# Review Package\n\nfake diff content\n"}
+
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, ops, func(string, string, string) runner.Runner { return mock }, "never", "", nil); err != nil {
+		t.Fatalf("runLoop error: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(ws.RoundDir("feat-review-pkg", 1), protocol.ReviewPackage))
+	if err != nil {
+		t.Fatalf("review-package.md not written: %v", err)
+	}
+	if !strings.Contains(string(data), "fake diff content") {
+		t.Errorf("review-package.md content = %q, want it to contain the Ops-provided content", data)
+	}
+}
+
+// TestRunLoop_AcceptanceSummaryWritten 驗證：進入 accepting phase 前，
+// generateAcceptanceSummary 會把彙整內容寫進該 round 的 acceptance-summary.md（F132）。
+func TestRunLoop_AcceptanceSummaryWritten(t *testing.T) {
+	ws := setupLoopWorkspace(t, "feat-accept-summary")
+	feature, _ := ws.LoadFeature("feat-accept-summary")
+	cfg, _ := ws.ReadConfig()
+
+	s := protocol.State{
+		FeatureID: "feat-accept-summary", Phase: protocol.PhaseInit,
+		MaxRounds: 5, Active: true, Runner: "mock",
+	}
+	ws.WriteState("feat-accept-summary", s)
+
+	mock := &mockRunner{ws: ws, featureID: "feat-accept-summary", outcomes: []mockOutcome{
+		{}, {}, {reviewVerdict: "PASS"}, {testPassed: true}, {},
+	}}
+
+	if err := runLoop(context.Background(), ws, ws, feature, cfg, s, nil, func(string, string, string) runner.Runner { return mock }, "never", "", nil); err != nil {
+		t.Fatalf("runLoop error: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(ws.RoundDir("feat-accept-summary", 1), protocol.AcceptanceSummaryFile))
+	if err != nil {
+		t.Fatalf("acceptance-summary.md not written: %v", err)
+	}
+	if !strings.Contains(string(data), "# Acceptance Summary") {
+		t.Errorf("acceptance-summary.md content = %q, want it to start with the summary heading", data)
+	}
+}
+
 func TestParseReviewVerdict(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -1247,8 +1379,7 @@ func TestRunLoop_DeepReviewExecuted(t *testing.T) {
 		{},                      // coding
 		{reviewVerdict: "PASS"}, // reviewing
 		{testPassed: true},      // testing
-		{reviewVerdict: "PASS"}, // deep-reviewing
-		{},                      // fixing
+		{reviewVerdict: "PASS"}, // deep-reviewing (clean PASS — fixing skipped, see F132)
 		{},                      // accepting
 	}}
 
@@ -1261,9 +1392,10 @@ func TestRunLoop_DeepReviewExecuted(t *testing.T) {
 		t.Errorf("phase = %s, want pending-review", final.Phase)
 	}
 
+	// deep-review-report 為乾淨 PASS（無 critical/warning）時，fixing phase 被跳過（F132）。
 	wantPhases := []protocol.Phase{
 		protocol.PhaseDesigning, protocol.PhaseDesignReviewing, protocol.PhaseCoding, protocol.PhaseReviewing,
-		protocol.PhaseTesting, protocol.PhaseDeepReviewing, protocol.PhaseFixing, protocol.PhaseAccepting,
+		protocol.PhaseTesting, protocol.PhaseDeepReviewing, protocol.PhaseAccepting,
 	}
 	if len(mock.phases) != len(wantPhases) {
 		t.Fatalf("ran %d phases, want %d: %v", len(mock.phases), len(wantPhases), mock.phases)
@@ -1300,8 +1432,7 @@ func TestRunLoop_DeepReviewSelfHeal(t *testing.T) {
 		{testPassed: true},      // tester pass
 		{reviewVerdict: "FAIL"}, // deep-reviewer FAIL → self-heal
 		{},                      // mini-coder (writes coder-report)
-		{reviewVerdict: "PASS"}, // re-verifier → deep-review-report PASS
-		{},                      // fixer
+		{reviewVerdict: "PASS"}, // re-verifier → deep-review-report clean PASS (fixing skipped, see F132)
 		{},                      // acceptor
 	}}
 
@@ -1317,10 +1448,11 @@ func TestRunLoop_DeepReviewSelfHeal(t *testing.T) {
 		t.Errorf("round = %d, want 1 (self-heal must not increment round)", final.Round)
 	}
 
+	// deep-review-report 為乾淨 PASS（無 critical/warning）時，fixing phase 被跳過（F132）。
 	wantRoles := []protocol.Role{
 		protocol.RoleDesigner, protocol.RoleDesignReviewer, protocol.RoleCoder, protocol.RoleReviewer,
 		protocol.RoleTester, protocol.RoleDeepReviewer, protocol.RoleMiniCoder,
-		protocol.RoleReVerifier, protocol.RoleFixer, protocol.RoleAcceptor,
+		protocol.RoleReVerifier, protocol.RoleAcceptor,
 	}
 	if len(mock.roles) != len(wantRoles) {
 		t.Fatalf("ran %d roles, want %d: %v", len(mock.roles), len(wantRoles), mock.roles)
@@ -1487,6 +1619,9 @@ func TestRunLoop_DeepReviewMiniCoderScopeExceed(t *testing.T) {
 // mockOps 實作 gitops.Ops 介面，讓測試可注入可控的 ScopeDetector。
 type mockOps struct {
 	changedRepos []string
+	// reviewPackageContent 由 GenerateReviewPackage 直接回傳，讓測試不需真正的 git repo
+	// 即可驗證 Runner 端把內容寫進 review-package.md 的接線邏輯（F132）。
+	reviewPackageContent string
 }
 
 func (m *mockOps) SetupWorktree(_ string, _ []string) (string, error) { return "", nil }
@@ -1498,6 +1633,9 @@ func (m *mockOps) DetectChangedRepos(_ string) []string               { return m
 func (m *mockOps) DetectChangedFiles(_ string) []protocol.ChangedFile { return nil }
 func (m *mockOps) CaptureBaseline(_ string, _ []string) error         { return nil }
 func (m *mockOps) IsMultiRepo() bool                                  { return false }
+func (m *mockOps) GenerateReviewPackage(_, _ string) (string, error) {
+	return m.reviewPackageContent, nil
+}
 
 // TestRunLoop_GuardFailStopsLoop 驗證：非 designer runner 完成後若 guard.Check 回傳 Pass==false，
 // loop 立即停止並轉入 needs-attention，StopReason 包含 guard error 摘要。
