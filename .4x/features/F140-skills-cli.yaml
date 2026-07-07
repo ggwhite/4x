@@ -16,6 +16,6 @@ description: |-
     - install 冪等（已安裝就跳過）
     - remove 只移除 symlink，不刪 repo 內的檔案
     - autopilot skill 加 WARNING 提示「owner-only，全自動 merge」
-status: not-started
+status: done
 priority: 3
 profile: standard
