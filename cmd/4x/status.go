@@ -330,16 +330,19 @@ type statusListJSON struct {
 }
 
 type statusItemJSON struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Status    string `json:"status"`
-	Priority  *int   `json:"priority,omitempty"`
-	Phase     string `json:"phase,omitempty"`
-	Role      string `json:"role,omitempty"`
-	Round     int    `json:"round,omitempty"`
-	MaxRounds int    `json:"maxRounds,omitempty"`
-	Active    bool   `json:"active"`
-	Runner    string `json:"runner,omitempty"`
+	ID        string   `json:"id"`
+	Name      string   `json:"name"`
+	Status    string   `json:"status"`
+	Priority  *int     `json:"priority,omitempty"`
+	Profile   string   `json:"profile,omitempty"`
+	Depends   []string `json:"depends,omitempty"`
+	Phase     string   `json:"phase,omitempty"`
+	Role      string   `json:"role,omitempty"`
+	Round     int      `json:"round,omitempty"`
+	MaxRounds int      `json:"maxRounds,omitempty"`
+	Active    bool     `json:"active"`
+	Runner    string   `json:"runner,omitempty"`
+	Pid       int      `json:"pid,omitempty"`
 }
 
 func showAllFeaturesJSON(ws *protocol.Workspace) error {
@@ -354,6 +357,8 @@ func showAllFeaturesJSON(ws *protocol.Workspace) error {
 			Name:     f.Name,
 			Status:   string(f.Status),
 			Priority: f.Priority,
+			Profile:  f.Profile,
+			Depends:  f.Depends,
 		}
 		if s, err := ws.ReadState(f.ID); err == nil {
 			item.Phase = string(s.Phase)
@@ -362,6 +367,7 @@ func showAllFeaturesJSON(ws *protocol.Workspace) error {
 			item.MaxRounds = s.MaxRounds
 			item.Active = s.Active
 			item.Runner = s.Runner
+			item.Pid = s.Pid
 		}
 		items = append(items, item)
 	}
