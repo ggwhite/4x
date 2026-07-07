@@ -15,6 +15,6 @@ description: |-
     - 向下相容：harvester 也讀舊的 role-learnings.json（相容既有 run 目錄）
     - RoleLearningsFile 結構保持不變（內含 role 欄位）
     - 不改變 learnings 的 consolidate / context 生成邏輯
-status: not-started
-profile: standard
+status: done
 priority: 1
+profile: standard
