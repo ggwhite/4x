@@ -348,10 +348,14 @@ func evolveGate(ctx context.Context, ws *protocol.Workspace, cfg protocol.Config
 		if perr != nil {
 			return nil, nil, perr
 		}
+		verdictsPath := filepath.Join(dot, protocol.GateVerdictsFile)
+		// 先刪上一輪殘留的 verdicts，避免 gate runner 回 nil 卻沒寫新檔時，
+		// ParseVerdicts 靜默讀到 stale data。
+		runner.CleanStaleOutputs(verdictsPath)
 		if _, rerr := deps.gateRunner.Run(ctx, prompt); rerr != nil {
 			return nil, nil, fmt.Errorf("gate runner: %w", rerr)
 		}
-		verdicts, perr = evolution.ParseVerdicts(filepath.Join(dot, protocol.GateVerdictsFile))
+		verdicts, perr = evolution.ParseVerdicts(verdictsPath)
 		if perr != nil {
 			return nil, nil, fmt.Errorf("gate role produced no parseable verdicts: %w", perr)
 		}

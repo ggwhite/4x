@@ -236,7 +236,7 @@ Pipeline steps:
 
 1. **mine** — scan `.4x/` for failure signals (escalations / stuck features / recurring FAIL patterns), dedupe, merge into `.4x/candidates.json`.
 2. **gate pre** — Jaccard dedupe survivors to `.4x/gate-input.json`.
-3. **gate role** — spawn the `gate` LLM role to write `.4x/gate-verdicts.json`.
+3. **gate role** — clear any stale `.4x/gate-verdicts.json` from a prior round, then spawn the `gate` LLM role to write a fresh one; if the role returns without writing, parsing fails loudly instead of silently reusing stale verdicts.
 4. **gate post** — apply the non-overridable veto + convergence caps, write `.4x/accepted-candidates.json`.
 5. **enrich + enqueue** — materialize each accepted candidate into a `not-started` feature YAML (on enrich failure it falls back to a bare feature built from the candidate text, marked `enriched=false`).
 6. **auto-run** (optional) — run the meta-loop for each enqueued feature, protected by the F098 self-mod scope guard.

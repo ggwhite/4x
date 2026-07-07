@@ -48,6 +48,8 @@ Use `4x sync` to re-deploy plugin files after updating the binary.
 4x run F001 --runner claude
     │
 	    ├── Generate prompt for current role
+	    ├── Clear known stale output artifacts from the prior round
+	    │     (so a runner that returns without writing fails loudly, not on stale data)
 	    ├── Invoke runner subprocess with prompt
 	    │     claude --dangerously-skip-permissions -p "..." --output-format stream-json --verbose
 	    ├── Capture output to .4x/run/F001/logs/round-N-role.log
