@@ -140,11 +140,12 @@ func archiveDesignArtifact(ws *protocol.Workspace, featureID string, round, iter
 
 // RecoverState 檢查是否需要 resume recovery，若需要則依 artifacts 推斷正確的 phase 並修正 state。
 // 回傳修正後的 state（可能與輸入相同）與 error。
-func RecoverState(ws *protocol.Workspace, featureID string, s protocol.State, cfg protocol.Config) (protocol.State, error) {
+// pc 為本次 run 解析出的 profile 設定，往下傳給 SmartResumePhase 對齊 Fixing 判斷。
+func RecoverState(ws *protocol.Workspace, featureID string, s protocol.State, cfg protocol.Config, pc protocol.ProfileConfig) (protocol.State, error) {
 	if !NeedsResumeRecovery(s) {
 		return s, nil
 	}
-	resumePhase, resumeRole, resumeSub := SmartResumePhase(ws, featureID, s.Round, cfg)
+	resumePhase, resumeRole, resumeSub := SmartResumePhase(ws, featureID, s.Round, cfg, pc)
 	if resumePhase != s.Phase {
 		fmt.Printf("  recovering %s → %s (round %d, max rounds: %d)\n", s.Phase, resumePhase, s.Round, s.MaxRounds)
 		ns, err := state.RecoverTo(s, resumePhase, resumeRole)

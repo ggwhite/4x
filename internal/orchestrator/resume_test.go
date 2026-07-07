@@ -55,7 +55,7 @@ func resolveResume(t *testing.T, ws *protocol.Workspace, featureID string, s pro
 	if !NeedsResumeRecovery(s) {
 		return s
 	}
-	rp, rr, _ := SmartResumePhase(ws, featureID, s.Round, protocol.Config{})
+	rp, rr, _ := SmartResumePhase(ws, featureID, s.Round, protocol.Config{}, protocol.ProfileConfig{})
 	if rp == s.Phase {
 		return s
 	}
@@ -71,7 +71,7 @@ func TestSmartResume_DeepReviewFail(t *testing.T) {
 	const fid = "F-deep"
 	seedFullRoundDeepFail(t, ws, fid, 1)
 
-	phase, role, _ := SmartResumePhase(ws, fid, 1, protocol.Config{})
+	phase, role, _ := SmartResumePhase(ws, fid, 1, protocol.Config{}, protocol.ProfileConfig{})
 	if phase != protocol.PhaseAmending {
 		t.Errorf("phase = %s, want %s", phase, protocol.PhaseAmending)
 	}
@@ -203,7 +203,7 @@ func TestSmartResume_Paths(t *testing.T) {
 			ws := &protocol.Workspace{Root: t.TempDir()}
 			const fid = "F-paths"
 			tt.seed(t, ws, fid)
-			phase, role, _ := SmartResumePhase(ws, fid, tt.round, protocol.Config{})
+			phase, role, _ := SmartResumePhase(ws, fid, tt.round, protocol.Config{}, protocol.ProfileConfig{})
 			if phase != tt.wantPhase {
 				t.Errorf("phase = %s, want %s", phase, tt.wantPhase)
 			}
@@ -212,6 +212,71 @@ func TestSmartResume_Paths(t *testing.T) {
 			}
 		})
 	}
+}
+
+// fixingProfile 回傳一個啟用 fixing phase 的 ProfileConfig，供 resume Fixing 判斷測試使用。
+func fixingProfile() protocol.ProfileConfig {
+	return protocol.ProfileConfig{
+		Phases: []protocol.PhaseSpec{{Phase: string(protocol.PhaseFixing)}},
+	}
+}
+
+// seedDeepReviewPass 寫出一整輪通過到 deep-review PASS 的 artifacts（不含 fixer-report）。
+func seedDeepReviewPass(t *testing.T, ws *protocol.Workspace, fid string) {
+	t.Helper()
+	writeRoundFile(t, ws, fid, 1, protocol.CoderReport, completeCoderReport)
+	writeRoundFile(t, ws, fid, 1, protocol.ReviewReport, reviewPassReport)
+	writeRoundFile(t, ws, fid, 1, protocol.TestReport, "# Test\n")
+	writeRoundFile(t, ws, fid, 1, protocol.VerifyFile, verifyPassedJSON)
+	writeRoundFile(t, ws, fid, 1, protocol.DeepReviewReport, reviewPassReport)
+}
+
+func TestSmartResume_DeepReviewPass_FixingProfile(t *testing.T) {
+	// profile 啟用 fixing 且尚未跑過 fixer → resume 應對齊 deepTransitionAccepting，走 Fixing。
+	t.Run("fixer not run → fixing", func(t *testing.T) {
+		ws := &protocol.Workspace{Root: t.TempDir()}
+		const fid = "F-fix"
+		seedDeepReviewPass(t, ws, fid)
+
+		phase, role, _ := SmartResumePhase(ws, fid, 1, protocol.Config{}, fixingProfile())
+		if phase != protocol.PhaseFixing {
+			t.Errorf("phase = %s, want %s", phase, protocol.PhaseFixing)
+		}
+		if role != protocol.RoleFixer {
+			t.Errorf("role = %s, want %s", role, protocol.RoleFixer)
+		}
+	})
+
+	// fixer-report 已完整 → fixer 跑完，跳過 Fixing 直接進 Accepting（保持冪等）。
+	t.Run("fixer done → accepting", func(t *testing.T) {
+		ws := &protocol.Workspace{Root: t.TempDir()}
+		const fid = "F-fix-done"
+		seedDeepReviewPass(t, ws, fid)
+		writeRoundFile(t, ws, fid, 1, protocol.FixerReport, completeCoderReport)
+
+		phase, role, _ := SmartResumePhase(ws, fid, 1, protocol.Config{}, fixingProfile())
+		if phase != protocol.PhaseAccepting {
+			t.Errorf("phase = %s, want %s", phase, protocol.PhaseAccepting)
+		}
+		if role != protocol.RoleAcceptor {
+			t.Errorf("role = %s, want %s", role, protocol.RoleAcceptor)
+		}
+	})
+
+	// profile 未啟用 fixing → 維持既有行為，直接進 Accepting。
+	t.Run("fixing disabled → accepting", func(t *testing.T) {
+		ws := &protocol.Workspace{Root: t.TempDir()}
+		const fid = "F-nofix"
+		seedDeepReviewPass(t, ws, fid)
+
+		phase, role, _ := SmartResumePhase(ws, fid, 1, protocol.Config{}, protocol.ProfileConfig{})
+		if phase != protocol.PhaseAccepting {
+			t.Errorf("phase = %s, want %s", phase, protocol.PhaseAccepting)
+		}
+		if role != protocol.RoleAcceptor {
+			t.Errorf("role = %s, want %s", role, protocol.RoleAcceptor)
+		}
+	})
 }
 
 func TestResume_DeepFixCrashScenario(t *testing.T) {
@@ -508,7 +573,7 @@ func TestSmartResume_DeepSubPhase(t *testing.T) {
 		const fid = "F-srsub"
 		seedToDeepReview(t, ws, fid)
 		writeRoundFile(t, ws, fid, 1, prompt.DeepReviewPartialName(1), completePartial)
-		phase, role, sub := SmartResumePhase(ws, fid, 1, parallelCfg(3))
+		phase, role, sub := SmartResumePhase(ws, fid, 1, parallelCfg(3), protocol.ProfileConfig{})
 		if phase != protocol.PhaseDeepReviewing || role != protocol.RoleDeepReviewer || sub != protocol.SubPhaseReviewing {
 			t.Errorf("got (%s, %s, %s), want (deep-reviewing, deep-reviewer, reviewing)", phase, role, sub)
 		}
@@ -521,7 +586,7 @@ func TestSmartResume_DeepSubPhase(t *testing.T) {
 		for i := 1; i <= 3; i++ {
 			writeRoundFile(t, ws, fid, 1, prompt.DeepReviewPartialName(i), completePartial)
 		}
-		phase, role, sub := SmartResumePhase(ws, fid, 1, parallelCfg(3))
+		phase, role, sub := SmartResumePhase(ws, fid, 1, parallelCfg(3), protocol.ProfileConfig{})
 		if phase != protocol.PhaseDeepReviewing || role != protocol.RoleSynthesizer || sub != protocol.SubPhaseSynthesizing {
 			t.Errorf("got (%s, %s, %s), want (deep-reviewing, synthesizer, synthesizing)", phase, role, sub)
 		}
@@ -531,7 +596,7 @@ func TestSmartResume_DeepSubPhase(t *testing.T) {
 		ws := &protocol.Workspace{Root: t.TempDir()}
 		const fid = "F-srsub"
 		seedFullRoundDeepFail(t, ws, fid, 1)
-		phase, role, sub := SmartResumePhase(ws, fid, 1, parallelCfg(3))
+		phase, role, sub := SmartResumePhase(ws, fid, 1, parallelCfg(3), protocol.ProfileConfig{})
 		if phase != protocol.PhaseAmending || role != protocol.RoleCoder || sub != "" {
 			t.Errorf("got (%s, %s, %q), want (amending, coder, \"\")", phase, role, sub)
 		}

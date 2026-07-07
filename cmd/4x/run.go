@@ -164,7 +164,7 @@ func newRunCmd() *cobra.Command {
 			if err := ws.InitFeatureDir(featureID); err != nil {
 				return err
 			}
-			s, err := initOrResumeState(ws, featureID, p.runnerName, p.maxRounds, cfg)
+			s, err := initOrResumeState(ws, featureID, p.runnerName, p.maxRounds, cfg, feature)
 			if err != nil {
 				return err
 			}
@@ -240,7 +240,7 @@ func setupWorktree(ws *protocol.Workspace, ops gitops.Ops, cfg protocol.Config, 
 }
 
 // initOrResumeState 初始化或恢復 feature 的 state，含 resume recovery
-func initOrResumeState(ws *protocol.Workspace, featureID, runnerName string, maxRounds int, cfg protocol.Config) (protocol.State, error) {
+func initOrResumeState(ws *protocol.Workspace, featureID, runnerName string, maxRounds int, cfg protocol.Config, feature feat.Feature) (protocol.State, error) {
 	s := protocol.State{
 		FeatureID: featureID, Phase: protocol.PhaseInit,
 		MaxRounds: maxRounds, Active: true, Runner: runnerName,
@@ -265,7 +265,11 @@ func initOrResumeState(ws *protocol.Workspace, featureID, runnerName string, max
 	if s.Phase == protocol.PhaseDone {
 		return s, fmt.Errorf("feature %s is already done", featureID)
 	}
-	s, err = orchestrator.RecoverState(ws, featureID, s, cfg)
+	_, pc, err := protocol.ResolveProfile(cfg, feature, s.Profile)
+	if err != nil {
+		return s, err
+	}
+	s, err = orchestrator.RecoverState(ws, featureID, s, cfg, pc)
 	if err != nil {
 		return s, err
 	}

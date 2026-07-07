@@ -31,7 +31,9 @@ func NeedsResumeRecovery(s protocol.State) bool {
 
 // SmartResumePhase 檢查當前 round 的 artifacts 決定 resume 起點。
 // 已完成的步驟不重跑；只從第一個缺失或失敗的步驟開始。
-func SmartResumePhase(ws *protocol.Workspace, featureID string, round int, cfg protocol.Config) (protocol.Phase, protocol.Role, protocol.SubPhase) {
+// pc 為本次 run 解析出的 profile 設定，用於在 deep-review PASS 後對齊
+// deepTransitionAccepting 的 Fixing 判斷：profile 啟用 fixing 且尚未跑過 fixer 時先走 Fixing。
+func SmartResumePhase(ws *protocol.Workspace, featureID string, round int, cfg protocol.Config, pc protocol.ProfileConfig) (protocol.Phase, protocol.Role, protocol.SubPhase) {
 	if round == 0 {
 		return protocol.PhaseDesigning, protocol.RoleDesigner, ""
 	}
@@ -74,6 +76,13 @@ func SmartResumePhase(ws *protocol.Workspace, featureID string, round int, cfg p
 	}
 	if !ReviewPassed(ws, featureID, round, protocol.DeepReviewReport) {
 		return protocol.PhaseAmending, protocol.RoleCoder, ""
+	}
+
+	// deep-review PASS：對齊 deepTransitionAccepting——profile 啟用 fixing 時先走 Fixing，
+	// 否則直接進 Accepting。已寫出 fixer-report 表示 fixer 跑完，跳過避免重跑（保持冪等）。
+	if pc.EnablesPhase(protocol.PhaseFixing) &&
+		!CoderReportComplete(filepath.Join(roundDir, protocol.FixerReport)) {
+		return protocol.PhaseFixing, protocol.RoleFixer, ""
 	}
 
 	return protocol.PhaseAccepting, protocol.RoleAcceptor, ""
