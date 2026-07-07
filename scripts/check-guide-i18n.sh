@@ -53,13 +53,18 @@ for en_file in "${EN_FILES[@]}"; do
         echo "$extra" | sed 's/^/  /'
       fi
     else
-      # 其他檔案：heading 會被翻譯，只比對各層級的數量
+      # 其他檔案：heading 會被翻譯，無法逐字比對，改比對各層級數量；
+      # 數量不符時列出雙方 heading 供人工對照，指出缺哪個 heading 的翻譯。
       for level in "## " "### "; do
         en_count=$(grep -c "^${level}" "$en_file" 2>/dev/null || echo 0)
         lang_count=$(grep -c "^${level}" "$lang_file" 2>/dev/null || echo 0)
 
         if [ "$en_count" != "$lang_count" ]; then
           echo "ERROR: $lang/$basename '${level}' heading count mismatch: en=$en_count $lang=$lang_count"
+          echo "  en headings:"
+          grep "^${level}" "$en_file" 2>/dev/null | sed 's/^/    /' || true
+          echo "  $lang headings:"
+          grep "^${level}" "$lang_file" 2>/dev/null | sed 's/^/    /' || true
           exit_code=1
         fi
       done
