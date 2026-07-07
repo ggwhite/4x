@@ -38,7 +38,7 @@
 - Coder 開始前應先執行 `make check-docs`，確認 pre-existing 文件缺漏（如 `4x retry`）不會在本 feature 的 CI 驗證中攔截，避免留給後續 round 修復。
 - 若發現既有 roleCategoryMap 缺少某個 role（如 fixer），應在同一 feature 順手補齊，而非另開 feature，減少技術債累積
 - 自動刷新附帶操作（如 GenerateLearningsContext）應在主流程成功路徑上呼叫，失敗只 warn 不 fatal，這樣才不會因次要功能阻塞核心操作。
-- 在 docs/guide/*.md 新增任何層級的標題（## 或 ###）都會觸發 make check-guide-i18n 的 heading 數量比對失敗，須同步在 es/ja/ko/zh-CN/zh-TW 五個語系檔案補上對應翻譯段落，不能只改英文版。
+- 在 docs/guide/*.md 新增任何層級的標題（## 或 ###）都會觸發 make check-guide-i18n 的 heading 數量比對失敗（例如對 concepts.md 新增 '### ' 標題會破壞與 es/ja/ko/zh-CN/zh-TW 五語系 concepts.md 的 heading 數量對應），須同步在五個語系檔案補上對應翻譯段落，不能只改英文版；但該檢查只比對 heading（##/###）數量、不比對 prose 內容，若只是新增說明文字或列表項目而未新增標題，則不需要同步語系檔案。
 
 ## review
 - 命令層產出多個關聯集合（如 candidates 與其衍生 learnings）時，去重/同步邏輯應同時涵蓋所有關聯集合，避免一方被濾除後另一方變孤兒；設計 AC 時要明確界定關聯資料是否需一對一存活。
@@ -47,7 +47,7 @@
 - git diff main..HEAD 顯示的「刪除」可能是 branch 落後 main 的比較假象；判定 scope 違規前先用 merge-base（git diff $(git merge-base main HEAD)..HEAD）查證，避免誤報。
 - INFO 等級的 pre-existing 問題應在 review-report 明確標示為「範圍外、不阻擋」，避免 Acceptor 誤判為 OPEN blocking issue
 - CONDITIONAL PASS 的修正項目應在同輪 Coder 階段處理完畢後再交 Reviewer，避免 open warning 進入 Acceptor；若 Acceptor 收到時仍有未處理的 CONDITIONAL PASS 項目，應標記 needs-attention 並列出 open issue，不可因 AC 全數通過而直接 ready-for-review。
-- coder-report 宣稱的 make check-docs-sync/check-i18n 等驗證結果不可照單全收，Reviewer 應親自重跑一次比對，本輪就抓到 coder-report 誤報 check-docs-sync 為 OK 但實際輸出 NEEDS_UPDATE
+- coder-report 宣稱的 make check-docs-sync/check-i18n 等驗證結果不可照單全收，Reviewer 應以當前分支真正的比對基準（預設 BASE=main，省略 BASE 參數讓腳本自己判斷）親自重跑一次比對，不可只信任先前快取或片面判斷——已多次抓到 coder-report 誤報 check-docs-sync 為 OK，但實際輸出 NEEDS_UPDATE，且點名的 doc 內容確有真實缺口（例如 API 回應形狀破壞性變更未寫進 docs/guide/dashboard.md）。
 
 ## testing
 - 對「重跑/idempotency」類命令，AC 與測試必須明確涵蓋「對未變動輸入重跑結果穩定」案例，且避免用固定 slice 的 fake 掩蓋真實非決定性來源（如 map iteration order）

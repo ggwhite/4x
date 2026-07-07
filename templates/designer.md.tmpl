@@ -105,6 +105,8 @@ The Verify column classifies how each AC should be verified:
 - skip: already verified by Reviewer or not applicable — Tester skips this AC
 Default to unit-test when uncertain. The Guard rejects execution-type ACs without command output.
 
+When a feature adds or modifies configuration/settings, include at least one AC that verifies the value is actually consumed at the call site (not just stored or merged). An isolated unit test on the merge function is insufficient — the AC should trace to the real consumer.
+
 == test-strategy.yaml format ==
 web: false
 api: false

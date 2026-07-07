@@ -1,0 +1,19 @@
+id: F134-learnings-per-role
+name: 'F134: Learnings 獨立檔名'
+description: |-
+    現狀：
+    - 同 round 內 6 個 role（coder/reviewer/tester/fixer/deep-reviewer/design-reviewer）都寫同一個 role-learnings.json
+    - 後執行的 role 覆寫前者，harvestRoleLearnings 每 round 只讀一份
+    - coder/reviewer 的 learnings 100% 被丟棄，只留最後一個 role 的
+
+    需求：
+    - 檔名改為 {role}-learnings.json（如 coder-learnings.json、reviewer-learnings.json）
+    - harvestRoleLearnings 改為 glob 搜尋 *-learnings.json
+    - 更新所有 role template 中的檔名引用
+
+    約束：
+    - 向下相容：harvester 也讀舊的 role-learnings.json（相容既有 run 目錄）
+    - RoleLearningsFile 結構保持不變（內含 role 欄位）
+    - 不改變 learnings 的 consolidate / context 生成邏輯
+status: not-started
+priority: 1

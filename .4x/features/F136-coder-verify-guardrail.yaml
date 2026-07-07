@@ -1,0 +1,17 @@
+id: F136-coder-verify-guardrail
+name: 'F136: Coder 驗證 Guardrail'
+description: |-
+    現狀：
+    - Coder 在 coder-report 中憑記憶寫「make check-docs-sync OK」而非貼真實輸出
+    - Reviewer 親自重跑才發現 NEEDS_UPDATE，多耗一輪（5+ 次）
+    - 框架沒有機制確保 coder 的驗證聲明可信
+
+    需求：
+    - 方案 A: Coder template 加 guardrail，要求貼上驗證指令的原始輸出截取
+    - 方案 B: 框架在 coder 完成後自動跑 make check-docs-sync + check-i18n，把結果寫入 artifact
+
+    約束：
+    - 不增加 coder 的 token 成本超過 5%
+    - 不阻塞 coder 的主要工作流
+status: not-started
+priority: 2

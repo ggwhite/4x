@@ -1,0 +1,19 @@
+id: F135-verify-tools-enhance
+name: 'F135: 驗證工具強化'
+description: |-
+    現狀：
+    - check-docs-sync 不涵蓋 prose 內硬編碼路徑、非英文翻譯版、docs/architecture/
+    - check-docs-sync 用 git diff main...HEAD，未 commit 的修改不算已更新
+    - check-guide-i18n 只報 heading 數量不符，不列具體缺失的 heading
+    - Coder 反覆誤報 check-docs-sync 為 OK（6+ 次）
+
+    需求：
+    - check-docs-sync 對 file relocation/delete 類變更自動 grep docs 內舊路徑
+    - check-docs-sync 輸出加 WARNING 提示未 commit 的變更不納入比對
+    - check-guide-i18n 改報具體缺失的 heading（哪個檔案的哪個 heading 缺翻譯）
+
+    約束：
+    - 不改變 check-docs 的核心 symbol-to-doc 映射邏輯
+    - 腳本仍用 bash，不引入新的依賴
+status: not-started
+priority: 2

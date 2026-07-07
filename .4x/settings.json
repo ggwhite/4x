@@ -250,13 +250,6 @@
         "docs/dev/troubleshoot.md"
       ]
     },
-    "fixer": {
-      "model": "sonnet",
-      "instructions": [
-        "只修 deep-review-report.md 列出的 finding，不自行擴大範圍",
-        "修完後跑 make build && make test && make lint 確認無回歸"
-      ]
-    },
     "acceptor": {
       "model": "sonnet",
       "instructions": [

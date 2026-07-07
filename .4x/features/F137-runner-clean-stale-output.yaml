@@ -1,0 +1,17 @@
+id: F137-runner-clean-stale-output
+name: 'F137: Runner 層刪舊產出'
+description: |-
+    現狀：
+    - LLM runner 產出檔（如 gate-verdicts.json）在下一輪執行前不會被刪除
+    - 若 runner 回 nil 卻沒寫新檔，框架靜默讀取上一輪殘留的舊資料
+    - 已記錄在 learnings (L019) 但仍需框架層修正
+
+    需求：
+    - Runner 層在寫出產出檔前自動刪除上一輪同名殘留檔
+    - 或在 runner 開始前清除已知的產出檔列表
+
+    約束：
+    - 不影響非 LLM 產出的 artifact（如手動建立的 escalation.json）
+    - 刪除操作記 log（slog.Debug）以利排查
+status: not-started
+priority: 2

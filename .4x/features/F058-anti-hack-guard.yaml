@@ -1,5 +1,0 @@
-id: F058-anti-hack-guard
-name: 'F058: Anti-Hack Guardrails for Metric-Driven Features'
-description: 三道防線（holdout、殘酷指標、非hack論述）防止 agent 在指標驅動任務中取巧灌數字
-status: abandoned
-priority: 3

@@ -97,16 +97,6 @@ func NextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) 
 		}
 		return protocol.PhaseNeedsAttention, "", strings.Join(result.Errors, "; ")
 
-	case protocol.PhaseDeepReviewing:
-		report := filepath.Join(ws.RoundDir(featureID, s.Round), protocol.DeepReviewReport)
-		if _, err := os.Stat(report); err != nil {
-			return protocol.PhaseNeedsAttention, "", "missing-artifact: " + protocol.DeepReviewReport
-		}
-		if ReviewPassed(ws, featureID, s.Round, protocol.DeepReviewReport) {
-			return protocol.PhaseFixing, protocol.RoleFixer, ""
-		}
-		return protocol.PhaseNeedsAttention, "", "deep-review self-heal exhausted"
-
 	case protocol.PhaseFixing:
 		if esc := ReadEscalation(ws, featureID, s.Round); esc.Needed {
 			if IsDesignerEscalation(esc.Reason) {

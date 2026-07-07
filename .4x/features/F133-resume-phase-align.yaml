@@ -1,0 +1,16 @@
+id: F133-resume-phase-align
+name: 'F133: Resume/Phase transition 對齊'
+description: |-
+    現狀：
+    - SmartResumePhase (resume.go) 在 deep-review PASS 後一律跳 Accepting，不檢查 profile 是否啟用 Fixing
+    - live-run 的 deepTransitionAccepting 會依 profile 決定走 Fixing 或 Accepting
+    - NextPhaseAfter 中 PhaseDeepReviewing case 已作為死碼清理（已完成）
+
+    需求：
+    - SmartResumePhase 加入 ProfileConfig 參數，對齊 deepTransitionAccepting 的 Fixing 判斷邏輯
+
+    約束：
+    - 不改變 live-run 路徑的行為
+    - 不引入新的 phase 或 role
+status: not-started
+priority: 2

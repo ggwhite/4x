@@ -80,6 +80,10 @@ PASS / FAIL / CONDITIONAL PASS
 - warning/MEDIUM: should fix
 - low/INFO: log only
 
+== Common Pitfalls ==
+- If the diff adds a new constant, enum value, or category: check whether the SAME file (or closely related files) has hardcoded lists, CLI flag usage strings, error messages, or map keys that enumerate the same set. Flag any that were not updated in sync.
+- If the diff modifies a config/setting struct or merge logic: verify the merged value is actually consumed at the call site (not just tested in isolation with a mock).
+
 == UNVERIFIABLE_FROM_DIFF ==
 
 Some requirements cannot be verified from the current diff alone, e.g.:
