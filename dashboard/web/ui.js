@@ -561,7 +561,7 @@ function renderDag(tasks) {
     </g>`;
   });
 
-  return `<div class="dash-card mb-4" id="dag-view"><div class="text-[10px] font-bold dash-muted uppercase tracking-wider mb-3">${t('dag.title')}</div>
+  return `<div class="dash-card mt-8 mb-4" id="dag-view"><div class="text-[10px] font-bold dash-muted uppercase tracking-wider mb-3">${t('dag.title')}</div>
     <div class="dag-scroll"><svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
       <defs><marker id="dag-arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="var(--text-4)"/></marker></defs>
       ${svgEdges}${svgNodes}
