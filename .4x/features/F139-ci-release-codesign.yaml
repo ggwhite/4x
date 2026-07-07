@@ -15,6 +15,6 @@ description: |-
     約束：
     - 不影響本地開發流程
     - Secrets 不出現在 log 中
-status: not-started
+status: done
 priority: 3
 profile: standard
