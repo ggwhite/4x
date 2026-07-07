@@ -42,7 +42,7 @@ var roleTemplateFiles = map[protocol.Role]string{
 	protocol.RoleReVerifier:      "re-verifier.md.tmpl",
 	protocol.RoleSynthesizer:     "synthesizer.md.tmpl",
 	protocol.RoleGate:            "gate.md.tmpl",
-	protocol.RoleConsolidator:    "consolidate.md.tmpl",
+	protocol.RoleConsolidator:    "consolidator.md.tmpl",
 	protocol.RoleRoundSummarizer: "round-summarizer.md.tmpl",
 }
 

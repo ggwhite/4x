@@ -45,6 +45,10 @@ func runnerInstalls(name string) []pluginInstall {
 		return []pluginInstall{
 			{EmbedPath: "cursor/.cursorrules", PluginName: "cursorrules", RootFile: ".cursorrules"},
 		}
+	case "opencode":
+		return []pluginInstall{
+			{EmbedPath: "opencode/AGENTS.md", PluginName: "opencode-AGENTS.md", RootFile: "AGENTS.md"},
+		}
 	}
 	return nil
 }

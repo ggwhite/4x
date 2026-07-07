@@ -6,7 +6,7 @@ import (
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
-// 合法的 phase 轉換表（對齊 docs/design.md §4）
+// 合法的 phase 轉換表
 // blocked 和 needs-attention 是 universal target，由 CanTransition 特殊處理
 var transitions = map[protocol.Phase][]protocol.Phase{
 	protocol.PhaseInit:            {protocol.PhaseDesigning},

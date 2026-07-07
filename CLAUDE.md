@@ -20,9 +20,15 @@ internal/
   protocol/          .4x/ 檔案格式、Workspace 讀寫、型別定義
   state/             狀態機（phase transition）
   guard/             Guardrail 檢查（scope/baseline/required files）
-  batch/             Batch DAG 排程
+  orchestrator/      Run loop 核心編排邏輯
   runner/            Runner 介面與子程序執行
+  batch/             Batch DAG 排程
+  feature/           Feature CRUD 操作
+  doctor/            專案健康檢查
+  prompt/            Role prompt 模板渲染
+  gitops/            Git 操作（diff/worktree/changed files）
   server/            SSE + REST server（Dashboard 用）
+  ...                （其餘：enrich, envutil, evolution, health, hook, learning, logging, mcp, schemasync, vcshub, verify）
 plugins/
   claude-code/       Claude Code runner instructions
   gemini/            Gemini CLI runner instructions
@@ -30,6 +36,7 @@ plugins/
   agy/               Antigravity CLI runner instructions
   copilot/           Copilot CLI runner instructions
   cursor/            Cursor rules (.cursorrules)
+  opencode/          OpenCode runner instructions
   embed.go           go:embed 將 plugin 檔嵌入 binary
 dashboard/
   macos/             Swift native app
@@ -41,18 +48,21 @@ docs/                權威設計規格（見 docs/AGENTS.md 索引）
 ## State Machine
 
 ```
-init → designing → design-reviewing → coding → reviewing → testing → deep-reviewing → accepting → pending-review → done
-                                        ↑          ↓           ↓            ↓
-                                        └── amending ←──────────┴────────────┘
-design-reviewing → designing (FAIL)
-any → blocked / needs-attention
+init → designing → design-reviewing → coding → reviewing → testing → deep-reviewing → fixing ─┐
+            ↑              ↓              ↑        ↓          ↓↺          ↓                     ↓
+            ↑         designing(FAIL)     ↑    amending ←─────┴───────────┤                 accepting
+            ↑                             ↑        ↓                      ↓                     ↓
+            └─────────────────────────────┴────────┴──────────────────────┘              pending-review
+                                                                                              ↓
+                                                                                            done
+any → blocked / needs-attention / done / abandoned（done 和 abandoned 為不可逆終態）
 ```
 
 合法轉換定義在 `internal/state/machine.go`。
 
 ## Protocol (.4x/ directory)
 
-所有 role 間的通訊走 `.4x/` 目錄內的檔案。Schema 定義在 `internal/protocol/types.go`，常量在 `internal/protocol/workspace.go`。
+所有 role 間的通訊走 `.4x/` 目錄內的檔案。型別定義在 `internal/protocol/domain.go`，列舉 SoT 在 `internal/protocol/enums.go`，常量在 `internal/protocol/workspace.go`。
 
 ## Development Rules
 
@@ -124,7 +134,7 @@ ID 自動在 word boundary 截斷；用 `--id` 可指定完整 slug 不截斷。
 
 ## Current State
 
-見 `progress.md` 了解目前進度，`feature_list.json` 列出待做功能。
+用 `4x status` 查看目前進度，`.4x/features/` 目錄下的 YAML 檔列出所有功能。
 
 ## End of Session
 
