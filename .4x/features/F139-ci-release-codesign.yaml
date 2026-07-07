@@ -1,0 +1,20 @@
+id: F139-ci-release-codesign
+name: 'F139: CI Release 簽名公證'
+description: |-
+    現狀：
+    - F138 加了 make dashboard-release 做本地 Developer ID 簽名 + notarization
+    - .github/workflows/release.yml 的 macos job 仍用 make package-macos（ad-hoc 簽名）
+    - GitHub Release 產出的 .dmg 未經公證，使用者下載後仍被 Gatekeeper 擋
+
+    需求：
+    - release workflow 改呼叫 make dashboard-release
+    - 設定 GitHub Secrets：Developer ID certificate (.p12)、App Store Connect API key
+    - workflow 中匯出對應環境變數供 codesign + notarytool 使用
+    - 文件更新 docs/guide/dashboard.md 說明 CI 設定方式
+
+    約束：
+    - 不影響本地開發流程
+    - Secrets 不出現在 log 中
+status: not-started
+priority: 3
+profile: standard

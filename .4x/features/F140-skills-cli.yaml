@@ -1,0 +1,21 @@
+id: F140-skills-cli
+name: 'F140: 4x skills CLI 子命令'
+description: |-
+    現狀：
+    - 4x-autopilot 和 4x-audit skill 已搬進 repo 的 skills/ 目錄
+    - 安裝方式是手動 symlink 到 ~/.claude/skills/
+    - 其他使用者 clone repo 後不知道有 skill 可用、也不知道怎麼安裝
+
+    需求：
+    - 4x skills list — 列出 skills/ 目錄下所有可用 skill（名稱 + description）
+    - 4x skills install <name> — symlink skills/<name>/ 到 ~/.claude/skills/<name>
+    - 4x skills remove <name> — 移除 ~/.claude/skills/<name> 的 symlink
+
+    約束：
+    - 只處理 symlink，不複製檔案（git pull 自動更新）
+    - install 冪等（已安裝就跳過）
+    - remove 只移除 symlink，不刪 repo 內的檔案
+    - autopilot skill 加 WARNING 提示「owner-only，全自動 merge」
+status: not-started
+priority: 3
+profile: standard
