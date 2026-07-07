@@ -16,4 +16,5 @@ description: |-
     - RoleLearningsFile 結構保持不變（內含 role 欄位）
     - 不改變 learnings 的 consolidate / context 生成邏輯
 status: not-started
+profile: standard
 priority: 1

@@ -14,4 +14,5 @@ description: |-
     - 不影響非 LLM 產出的 artifact（如手動建立的 escalation.json）
     - 刪除操作記 log（slog.Debug）以利排查
 status: not-started
+profile: standard
 priority: 2

@@ -13,4 +13,5 @@ description: |-
     - 不改變 live-run 路徑的行為
     - 不引入新的 phase 或 role
 status: not-started
+profile: standard
 priority: 2

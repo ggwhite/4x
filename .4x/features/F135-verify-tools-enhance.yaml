@@ -16,4 +16,5 @@ description: |-
     - 不改變 check-docs 的核心 symbol-to-doc 映射邏輯
     - 腳本仍用 bash，不引入新的依賴
 status: not-started
+profile: standard
 priority: 2

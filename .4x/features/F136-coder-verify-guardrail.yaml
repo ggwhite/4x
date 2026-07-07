@@ -14,4 +14,5 @@ description: |-
     - 不增加 coder 的 token 成本超過 5%
     - 不阻塞 coder 的主要工作流
 status: not-started
+profile: quick
 priority: 2
