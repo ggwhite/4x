@@ -12,6 +12,6 @@ description: |-
     約束：
     - 不改變 live-run 路徑的行為
     - 不引入新的 phase 或 role
-status: not-started
-profile: standard
+status: done
 priority: 2
+profile: standard
