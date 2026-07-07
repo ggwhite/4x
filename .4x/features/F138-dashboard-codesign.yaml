@@ -1,0 +1,21 @@
+id: F138-dashboard-codesign
+name: 'F138: Dashboard macOS app 簽名與公證'
+description: |-
+    現狀：
+    - 4x dashboard macOS app 未經 code signing 和 notarization
+    - 使用者下載後被 Gatekeeper 擋住，顯示「來自不明開發者」
+    - Apple Developer Program 帳號已通過審核（YuChen）
+
+    需求：
+    - 在 Makefile 或 build script 加入 code signing 步驟（使用 Developer ID Application certificate）
+    - 加入 notarization 步驟（xcrun notarytool submit + xcrun stapler staple）
+    - 支援 make dashboard-release 一鍵完成 build → sign → notarize → staple
+    - 簽名用的 identity 和 team ID 從環境變數或 .env 讀取，不硬編碼
+
+    約束：
+    - 不影響本地開發的 make dashboard（不簽名直接 build）
+    - 不把憑證或密碼 commit 到 repo
+    - notarization 需要 App Store Connect API key 或 Apple ID + app-specific password，設定方式寫在 docs/guide/dashboard.md
+status: not-started
+priority: 2
+profile: standard
