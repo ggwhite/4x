@@ -35,7 +35,7 @@ A **pipeline profile** is a list of **phases**, and per phase it can override th
 
 Profile phases may only be chosen from the selectable whitelist (`designing`, `coding`, `reviewing`, `deep-reviewing`, `fixing`, `testing`, `accepting`); `coding` is always required. A phase not in the active profile is skipped — the loop transitions along the same valid state edges without invoking that runner.
 
-**Selection** (high→low): `--profile` wins; then the feature YAML's `profile` field (a named profile that must exist in `profiles` or the built-ins, else an error — lets `4x batch run` apply a different profile per feature); then `default_profile`; then priority-based auto-select when a `profiles` section exists (highest priority → `full`, then `normal`, then `quick`), else `full`. On an interactive terminal 4x prompts with a numbered menu (default `default_profile`) when none of the higher-priority sources resolve it.
+**Selection** (high→low): `--profile` wins; then the feature YAML's `profile` field (a named profile that must exist in `profiles` or the built-ins, else an error); then `default_profile`; then priority-based auto-select when a `profiles` section exists (highest priority → `full`, then `normal`, then `quick`), else `full`. On an interactive terminal 4x prompts with a numbered menu (default `default_profile`) when none of the higher-priority sources resolve it.
 
 **Per-phase runner/model precedence** (high→low): this-run-only `--phase-override <phase>:<runner>:<model>` (also sent by the dashboard run dialog; never persisted) > manual `--runner` > the feature YAML's `phase_overrides.<phase>.{runner,model}` > the profile's per-phase `runner`/`model` > `default_runner` / the role's configured model (`roles.<role>.model` → runner model → default tier). The dashboard run dialog previews the merged result via `POST /api/run/preview`, which shares the same `ResolvePipeline` resolution path the run loop uses, so the preview matches what actually executes.
 
@@ -235,11 +235,6 @@ Roles communicate through the `.4x/` directory, not shared context windows.
 .4x/
 ├── settings.json                    # Project config
 ├── plugins/                         # Runner instruction files
-├── batch-plan.json                  # Batch execution plan
-├── batch-stop                       # Graceful stop signal
-├── batch-pid                        # PID of running batch subprocess (server orphan adoption)
-├── batch-conflict.json              # Batch auto-merge conflict signal (paused)
-├── batch-report.json                # Last batch run report (stats + per-feature outcome)
 ├── features/
 │   └── {id}.yaml                    # Feature definition (canonical source)
 ├── learnings.json                  # Retro learnings store (accumulated across features)
@@ -275,27 +270,6 @@ Roles communicate through the `.4x/` directory, not shared context windows.
 ```
 
 `review-package.md` and `acceptance-summary.md` are best-effort budgeting artifacts the orchestrator writes to cut down on the reviewer/deep-reviewer/acceptor re-deriving context from scratch. On first entering `coding` (round 1), the loop captures the current HEAD as `state.json`'s `baseCommit` (mono-repo only; multi-repo relies on each repo's `baseline.json` instead). On every `coding`/`amending` → `reviewing` transition, it writes `review-package.md` with the commits/file-stat/full diff since `baseCommit`. Before entering `accepting`, it regenerates `acceptance-summary.md` from the round's `verify.json`, `review-report.md`, and `deep-review-report.md`. Both are generated on a best-effort basis — if there's nothing to summarize yet (e.g. no `baseCommit`) the file is simply not written, and the corresponding templates (`reviewer.md.tmpl`, `deep-reviewer.md.tmpl`, `acceptor.md.tmpl`) fall back to reading the original sources themselves.
-
-### Batch Signal Files
-
-Two top-level signal files coordinate a running batch with external observers (the CLI and the dashboard):
-
-- **`batch-stop`** — an empty marker file. `4x batch run` polls for it between features and stops gracefully once it exists (see [Batch Mode](batch.md)).
-- **`batch-conflict.json`** — written when batch auto-merge hits a merge conflict and pauses. It carries enough detail for the dashboard to render the conflict without re-running git:
-
-  ```json
-  {
-    "featureId": "F003-oauth",
-    "featureName": "OAuth login",
-    "conflictRepo": "core",
-    "files": ["internal/auth/token.go"],
-    "detectedAt": "2026-06-15T00:00:00Z"
-  }
-  ```
-
-  `conflictRepo` is empty in monorepo mode. The file is cleared at the start of each batch run and when the user continues a paused batch.
-
-- **`batch-report.json`** — written when a batch run ends (normally, stopped, interrupted, or crashed). Unlike the two signal files above it persists between runs as the "last batch report" the dashboard shows when no batch is active. It records the `outcome`, overall counts (`total` / `completed` / `failed` / `remaining`), the runner, total duration, and a per-feature breakdown (final status, rounds, stop reason); a `crashed` outcome also carries `panicMessage`. Written atomically (temp file + rename) so the dashboard never reads a half-written report.
 
 ### Atomic State Writes
 
@@ -378,7 +352,7 @@ By default, 4x operates in monorepo mode. To work across multiple repositories, 
 }
 ```
 
-Each entry maps a repo name to its path (relative to the workspace root) and an optional `hub` flag. Hub repos are shared infrastructure that multiple features may touch — they are excluded from the scope clustering in `4x batch plan`.
+Each entry maps a repo name to its path (relative to the workspace root) and an optional `hub` flag. Hub repos are shared infrastructure that multiple features may touch — they are excluded from scope-based clustering when features are grouped by which repos they touch.
 
 In monorepo mode (no `workspace.repos`), all scope checks and git operations use the single repo root.
 

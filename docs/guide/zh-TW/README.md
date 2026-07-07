@@ -12,5 +12,4 @@
 | [設定](configuration.md) | Settings、模型覆寫、語系、runner 設定 |
 | [Runner 與 Plugin](runners.md) | 支援的 runner、plugin 合約、撰寫 plugin |
 | [儀表板](dashboard.md) | 4x Live 多專案儀表板 |
-| [批次模式](batch.md) | 依賴感知的批次執行 |
 | [使用技巧與最佳實踐](usage-tips.md) | Feature 粒度、model 選擇、troubleshooting、實戰建議 |

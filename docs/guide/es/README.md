@@ -12,5 +12,4 @@ Documentación completa del framework de desarrollo con IA multi-rol 4x.
 | [Configuración](configuration.md) | Settings, sobrecargas de modelos, locale, configuración de runners |
 | [Runners y plugins](runners.md) | Runners soportados, contrato de plugins, creación de plugins |
 | [Dashboard](dashboard.md) | Dashboard multi-proyecto 4x Live |
-| [Modo batch](batch.md) | Ejecución batch con reconocimiento de dependencias |
 | [Consejos de uso y buenas prácticas](usage-tips.md) | Granularidad de features, selección de modelos, troubleshooting, consejos prácticos |

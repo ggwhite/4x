@@ -96,7 +96,7 @@
 
 | 필드 | 설명 |
 |---|---|
-| `hub_repos` | 공유 리포지토리 (배치 DAG 그룹화용) |
+| `hub_repos` | 공유 리포지토리 (리포지토리 기반 범위 클러스터링에서 제외) |
 | `isolation` | `"worktree"`로 설정하면 기능을 git worktree에서 실행 |
 | `max_concurrent_runs` | 대시보드 서버를 통한 최대 동시 실행 수 |
 | `commit` | 커밋 전략: `"per-round"` (기본값), `"on-done"`, 또는 `"never"` |

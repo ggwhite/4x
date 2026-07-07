@@ -50,7 +50,7 @@ Create a new feature with optional metadata.
 | `--rule` | Rule reference (repeatable) |
 | `--depends` | Dependency feature ID (repeatable) |
 | `--priority` | Priority level (0=critical, 1=high, 2=medium, 3=low) |
-| `--profile` | Pipeline profile written to the feature YAML (`full`/`normal`/`quick` or custom); applied per-feature on `4x batch run` |
+| `--profile` | Pipeline profile written to the feature YAML (`full`/`normal`/`quick` or custom); applied per-feature on `4x run` |
 | `--repo` | Repository in scope (repeatable) |
 | `--issue` | Link an existing issue in `"repo:id-or-url"` format (repeatable); repo prefix optional for single-repo features. Only used when `issue_tracker.enabled` is set (see [Concepts](concepts.md#issue-first-mr-flow)) |
 | `--json` | Output as JSON |
@@ -573,74 +573,6 @@ Installing `4x-autopilot` prints a WARNING: it is owner-only (fully automatic me
 
 ---
 
-## `4x batch`
-
-Batch operations for multiple features.
-
-### `4x batch plan`
-
-Generate a dependency-aware execution plan.
-
-```
-4x batch plan [--dry-run] [--max-chain <n>]
-```
-
-| Flag | Default | Description |
-|---|---|---|
-| `--dry-run` | `false` | Print schedule without writing file |
-| `--max-chain` | `4` | Maximum chain length per cluster |
-
-Writes `.4x/batch-plan.json`.
-
-### `4x batch next`
-
-Show the next eligible feature to run (based on the plan and current status).
-
-```
-4x batch next [--json]
-```
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--json` | `false` | Output in JSON format with subtask frontier |
-
-Without `--json`, prints the feature ID as plain text (backward compatible). With `--json`, outputs a JSON object including `subtaskFrontier` — the subtasks whose dependencies are all completed. Returns `null` in JSON mode when no eligible features remain.
-
-### `4x batch run`
-
-Run eligible features sequentially in dependency order.
-
-```
-4x batch run [--runner <name>] [--max-rounds <n>] [--timeout <seconds>] [--no-auto-merge]
-```
-
-| Flag | Default | Description |
-|---|---|---|
-| `--runner` | config default | Runner plugin name |
-| `--max-rounds` | `5` | Max rounds per feature |
-| `--timeout` | `3600` | Per-phase timeout in seconds |
-| `--no-auto-merge` | `false` | Leave each completed feature at `pending-review` instead of auto-merging back to main |
-
-Polls for `.4x/batch-stop` file between features for graceful shutdown.
-
-When the run ends — whether it finishes normally, is stopped, is interrupted (`SIGTERM`/`SIGINT`), or crashes — it writes a `.4x/batch-report.json` summarizing the run (`outcome`, completed/failed/remaining counts, runner, duration, and each feature's final status). See [Batch Mode → Run Report](batch.md#run-report).
-
-By default, after a feature completes (reaches `pending-review`), the batch automatically merges its worktree branch back to main so the next feature branches from the updated main — enabling unattended continuous batches. On a merge conflict the batch pauses gracefully, leaving the feature at `pending-review` and the worktree intact, and writes a `.4x/batch-conflict.json` signal file (feature, conflicting repo, files) so the [dashboard](dashboard.md) can display the conflict; resolve the conflict, run `4x merge <id>`, then re-run `4x batch run` to continue. The conflict signal is cleared at the start of each run. Non-conflict merge errors print a warning and the batch continues with the next feature. Pass `--no-auto-merge` to restore the old behavior (features stop at `pending-review` for manual review).
-
-If `isolation: "worktree"` is set in config, each feature runs in its own isolated worktree. In multi-repo mode, each feature gets a composite worktree (`.worktrees/4x/<feature-id>/`) with per-repo sub-directories, and commits are made per round (not deferred to completion). Hub repos (from `hub_repos` config or `workspace.repos[*].hub: true`) are excluded from shared-repo clustering to allow parallel execution.
-
-### `4x batch stop`
-
-Signal the running batch to stop after the current feature completes.
-
-```
-4x batch stop
-```
-
-Creates a `.4x/batch-stop` signal file.
-
----
-
 ## `4x live [path...]`
 
 Start the 4x Live dashboard server.
@@ -696,12 +628,10 @@ Each tool is a thin wrapper that invokes the matching `4x` subcommand with `--js
 | `4x_merge` | `merge` |
 | `4x_mine` | `mine` |
 
-**Batch & maintenance**
+**Maintenance**
 
 | Tool | CLI command |
 |---|---|
-| `4x_batch_next` | `batch next` |
-| `4x_batch_stop` | `batch stop` |
 | `4x_clean` | `clean` |
 | `4x_doctor` | `doctor` |
 | `4x_learn_add` | `learn add` |
@@ -721,4 +651,4 @@ Each tool is a thin wrapper that invokes the matching `4x` subcommand with `--js
 | `4x_config_list` | `config list` |
 | `4x_gate` | `gate --pre` / `gate --post` |
 
-Orchestration and interactive commands (`init`, `sync`, `live`, `prompt`, `event`, `batch run`, `batch plan`) are intentionally not exposed as MCP tools.
+Orchestration and interactive commands (`init`, `sync`, `live`, `prompt`, `event`) are intentionally not exposed as MCP tools.

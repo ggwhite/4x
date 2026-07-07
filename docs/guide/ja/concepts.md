@@ -212,11 +212,6 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
 .4x/
 ├── settings.json                    # プロジェクト設定
 ├── plugins/                         # ランナー指示ファイル
-├── batch-plan.json                  # バッチ実行計画
-├── batch-stop                       # グレースフル停止シグナル
-├── batch-pid                        # 実行中のバッチサブプロセスの PID（サーバー孤立プロセス回収用）
-├── batch-conflict.json              # バッチ自動マージコンフリクトシグナル（一時停止中）
-├── batch-report.json                # 前回のバッチ実行レポート（統計 + Feature ごとの結果）
 ├── features/
 │   └── {id}.yaml                    # Feature 定義（正規ソース）
 └── run/                            # ランタイム成果物（feature ごとの作業ディレクトリ）
@@ -241,27 +236,6 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
             ├── verify.json                # {passed, round, role, commands[]}
             └── escalation.json            # {needed, reason, detail}
 ```
-
-### バッチシグナルファイル
-
-2つのトップレベルシグナルファイルが、実行中のバッチと外部オブザーバー（CLI およびダッシュボード）を連携させます：
-
-- **`batch-stop`** -- 空のマーカーファイル。`4x batch run` は Feature 間でこのファイルをポーリングし、存在すればグレースフルに停止します（[バッチモード](batch.md) を参照）。
-- **`batch-conflict.json`** -- バッチの自動マージでマージコンフリクトが発生し一時停止した際に書き込まれます。ダッシュボードが git を再実行せずにコンフリクトを表示するのに十分な情報を含みます：
-
-  ```json
-  {
-    "featureId": "F003-oauth",
-    "featureName": "OAuth login",
-    "conflictRepo": "core",
-    "files": ["internal/auth/token.go"],
-    "detectedAt": "2026-06-15T00:00:00Z"
-  }
-  ```
-
-  モノリポモードでは `conflictRepo` は空です。このファイルは各バッチ実行の開始時、および一時停止したバッチの継続時にクリアされます。
-
-- **`batch-report.json`** -- バッチ実行の終了時（正常終了、停止、中断、クラッシュ）に書き込まれます。上記2つのシグナルファイルと異なり、バッチが非アクティブ時に「前回のバッチレポート」としてダッシュボードが表示するため、実行間で保持されます。`outcome`、全体のカウント（`total`/`completed`/`failed`/`remaining`）、ランナー、合計所要時間、Feature ごとの内訳（最終ステータス、ラウンド数、停止理由）を記録します。`crashed` の場合は `panicMessage` も含まれます。アトミックに書き込まれます（一時ファイル + リネーム）ので、ダッシュボードが不完全なレポートを読むことはありません。
 
 ### アトミック状態書き込み
 
@@ -343,7 +317,7 @@ hooks: {}    # オプション：フェーズフック（settings.json と同形
 }
 ```
 
-各エントリはリポジトリ名をパス（ワークスペースルートからの相対パス）とオプションの `hub` フラグにマッピングします。ハブリポジトリは複数の Feature が触れる共有インフラで、`4x batch plan` のスコープクラスタリングから除外されます。
+各エントリはリポジトリ名をパス（ワークスペースルートからの相対パス）とオプションの `hub` フラグにマッピングします。ハブリポジトリは複数の Feature が触れる共有インフラで、リポジトリベースのスコープクラスタリングから除外されます。
 
 モノリポモード（`workspace.repos` なし）では、すべてのスコープチェックと git 操作が単一のリポジトリルートを使用します。
 

@@ -430,16 +430,6 @@ vim .4x/F001/task-brief.md
 # 若有 merge conflict，手動解決後執行：4x merge F001
 ```
 
-## Batch 使用時機
-
-| 情境 | 用 `4x run` | 用 `4x batch run` |
-|---|---|---|
-| 做一個 feature | OK | — |
-| 做多個有依賴的 feature | 要手動排序 | 自動處理依賴順序 |
-| 跑一晚上消化 backlog | — | OK，搭配 `batch stop` 隨時停 |
-
-Batch 的 commit 策略固定是 `"never"`——所有改動都在 working tree，完成後由人工 review 再 commit。
-
 ## Dashboard 使用情境
 
 ```bash
@@ -518,7 +508,7 @@ blocked: F001-user-model is not done (status: coding)
 這是**選用功能**——4x 內建的 `web` 測試 profile 不需要 gstack 也能運作。daemon 最適合以下情境：
 
 - 你的專案需要登入（保留 session 省去每輪重新驗證）
-- 你以 batch 模式跑多個 feature（全部共用一個 browser 實例）
+- 你同時跑多個 feature（全部共用一個 browser 實例）
 - 你想要低於 200ms 的 browser 回應時間，而非冷啟動延遲
 
 ### 安裝

@@ -45,7 +45,7 @@ func wsRoute(mux *http.ServeMux, method, pattern string, resolver WorkspaceResol
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		ws, _, _, err := resolver(r)
+		ws, _, err := resolver(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -62,7 +62,7 @@ func pmRoute(mux *http.ServeMux, method, pattern string, resolver WorkspaceResol
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		ws, pm, _, err := resolver(r)
+		ws, pm, err := resolver(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -75,22 +75,6 @@ func pmRoute(mux *http.ServeMux, method, pattern string, resolver WorkspaceResol
 	})
 }
 
-// bmRoute 註冊需要 workspace + BatchManager 的單一 HTTP method 路由。
-func bmRoute(mux *http.ServeMux, method, pattern string, resolver WorkspaceResolver, handler func(*protocol.CachedWorkspace, *BatchManager, http.ResponseWriter, *http.Request)) {
-	mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != method {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		ws, _, bm, err := resolver(r)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		handler(ws, bm, w, r)
-	})
-}
-
 // featureRoute 註冊以 URL 尾段作為 feature ID 的 GET 路由，自動驗證 ID 格式。
 func featureRoute(mux *http.ServeMux, pattern string, resolver WorkspaceResolver, handler func(*protocol.CachedWorkspace, string, http.ResponseWriter, *http.Request)) {
 	mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
@@ -98,7 +82,7 @@ func featureRoute(mux *http.ServeMux, pattern string, resolver WorkspaceResolver
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		ws, _, _, err := resolver(r)
+		ws, _, err := resolver(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -120,7 +104,7 @@ func NewMux(resolver WorkspaceResolver) http.Handler {
 
 	// Feature CRUD
 	mux.HandleFunc("/api/tasks", func(w http.ResponseWriter, r *http.Request) {
-		ws, _, _, err := resolver(r)
+		ws, _, err := resolver(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -149,31 +133,18 @@ func NewMux(resolver WorkspaceResolver) http.Handler {
 		handlePostStop(pm, w, r)
 	})
 
-	// Batch operations
-	bmRoute(mux, http.MethodGet, "/api/batch/status", resolver, func(ws *protocol.CachedWorkspace, bm *BatchManager, w http.ResponseWriter, _ *http.Request) {
-		handleBatchStatus(ws, bm, w)
-	})
-	bmRoute(mux, http.MethodPost, "/api/batch/start", resolver, handlePostBatchStart)
-	bmRoute(mux, http.MethodPost, "/api/batch/stop", resolver, func(_ *protocol.CachedWorkspace, bm *BatchManager, w http.ResponseWriter, _ *http.Request) {
-		handlePostBatchStop(bm, w)
-	})
-	bmRoute(mux, http.MethodPost, "/api/batch/continue", resolver, handlePostBatchContinue)
-	bmRoute(mux, http.MethodPost, "/api/batch/replan", resolver, func(ws *protocol.CachedWorkspace, bm *BatchManager, w http.ResponseWriter, _ *http.Request) {
-		handlePostBatchReplan(ws, bm, w)
-	})
-
 	// Settings (multi-method)
 	mux.HandleFunc("/api/settings", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
-			ws, _, _, err := resolver(r)
+			ws, _, err := resolver(r)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 			handleGetSettings(ws, w)
 		case http.MethodPut:
-			ws, pm, _, err := resolver(r)
+			ws, pm, err := resolver(r)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
@@ -181,7 +152,7 @@ func NewMux(resolver WorkspaceResolver) http.Handler {
 			handlePutSettings(ws, w, r)
 			reloadProcessManager(ws, pm)
 		case http.MethodPatch:
-			ws, _, _, err := resolver(r)
+			ws, _, err := resolver(r)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
@@ -192,7 +163,7 @@ func NewMux(resolver WorkspaceResolver) http.Handler {
 		}
 	})
 	mux.HandleFunc("/api/settings/profiles/", func(w http.ResponseWriter, r *http.Request) {
-		ws, _, _, err := resolver(r)
+		ws, _, err := resolver(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -207,7 +178,7 @@ func NewMux(resolver WorkspaceResolver) http.Handler {
 		}
 	})
 	mux.HandleFunc("/api/settings/roles/", func(w http.ResponseWriter, r *http.Request) {
-		ws, _, _, err := resolver(r)
+		ws, _, err := resolver(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -248,7 +219,7 @@ func NewMux(resolver WorkspaceResolver) http.Handler {
 		handleEvolveReport(ws, w)
 	})
 	mux.HandleFunc("/api/events/", func(w http.ResponseWriter, r *http.Request) {
-		ws, _, _, err := resolver(r)
+		ws, _, err := resolver(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -261,7 +232,7 @@ func NewMux(resolver WorkspaceResolver) http.Handler {
 		handleEvents(ws, featureID, w)
 	})
 	mux.HandleFunc("/api/logs/", func(w http.ResponseWriter, r *http.Request) {
-		ws, _, _, err := resolver(r)
+		ws, _, err := resolver(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -275,7 +246,7 @@ func NewMux(resolver WorkspaceResolver) http.Handler {
 		handleLogs(ws, rest, w)
 	})
 	mux.HandleFunc("/api/features/", func(w http.ResponseWriter, r *http.Request) {
-		ws, _, _, err := resolver(r)
+		ws, _, err := resolver(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -285,7 +256,7 @@ func NewMux(resolver WorkspaceResolver) http.Handler {
 
 	// SSE streams
 	mux.HandleFunc("/sse/events/", func(w http.ResponseWriter, r *http.Request) {
-		ws, _, _, err := resolver(r)
+		ws, _, err := resolver(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -298,7 +269,7 @@ func NewMux(resolver WorkspaceResolver) http.Handler {
 		handleSSE(ws, featureID, w, r)
 	})
 	mux.HandleFunc("/sse/logs/", func(w http.ResponseWriter, r *http.Request) {
-		ws, _, _, err := resolver(r)
+		ws, _, err := resolver(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -330,10 +301,9 @@ func NewMux(resolver WorkspaceResolver) http.Handler {
 	return mux
 }
 
-// newMux 是接受固定 ws/pm/bm 的 thin wrapper，讓注入特定 BatchManager 的測試與內部呼叫者
-// 不必自行組 resolver。
-func newMux(ws *protocol.CachedWorkspace, pm *ProcessManager, bm *BatchManager) http.Handler {
-	return NewMux(staticResolver(ws, pm, bm))
+// newMux 是接受固定 ws/pm 的 thin wrapper，讓測試與內部呼叫者不必自行組 resolver。
+func newMux(ws *protocol.CachedWorkspace, pm *ProcessManager) http.Handler {
+	return NewMux(staticResolver(ws, pm))
 }
 
 // Start 啟動 dashboard web server。
@@ -508,6 +478,11 @@ func writeJSONError(w http.ResponseWriter, code int, msg string) {
 	w.WriteHeader(code)
 	payload, _ := json.Marshal(map[string]string{"error": msg})
 	w.Write(payload)
+}
+
+func mergedConfig(ws *protocol.CachedWorkspace) protocol.Config {
+	cfg, _ := ws.LoadMergedConfig()
+	return cfg
 }
 
 func readIfExists(path string) string {

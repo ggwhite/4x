@@ -113,10 +113,6 @@ make dashboard-release
 
 개요에서는 모든 기능의 의존성 그래프를 인라인 SVG로 렌더링합니다 — 외부 차트 라이브러리(d3, mermaid, chart.js)는 로드하지 않습니다. 기능은 의존성 깊이에 따라 레이어로 배치되며, 엣지는 각 기능에서 의존하는 기능으로 연결됩니다. 노드 색상은 단계 상태를 따릅니다: 녹색 = done, 파란색 = 실행 중(활성 실행 또는 coding/reviewing/testing 같은 진행 중 단계), 회색 = todo, 빨간색 = blocked / needs-attention. 노드를 클릭하면 기능 카드를 클릭하는 것과 같은 경로로 해당 기능의 상세 페이지가 열립니다. 그래프는 캐시된 `/api/tasks` 데이터에서 매 폴링 주기마다 재구성되므로, 기능이 진행됨에 따라 색상이 실시간으로 업데이트됩니다.
 
-## 배치 패널
-
-개요에는 [배치 제어 API](#배치-제어)로 지원되는 배치 제어 패널도 있습니다. **배치 시작 / 중지 / 계속** 버튼(시작은 실행 전에 확인 요청), 실행 중 표시기, 기능별 진행 상태(완료 체크, 실행 중 마커, 대기 위치)가 포함된 예정 대기열, 그리고 병합 충돌로 배치가 일시정지된 경우 기능, 리포, 충돌 파일과 함께 배치 계속 액션이 있는 충돌 카드가 표시됩니다. 패널은 대시보드의 나머지와 같은 폴링 루프에서 `GET /api/batch/status`로 갱신됩니다.
-
 ## 서버 API
 
 대시보드는 REST 및 SSE 엔드포인트를 노출합니다:
@@ -134,10 +130,6 @@ make dashboard-release
 | `/api/done` | POST | 기능을 완료로 표시; worktree가 있으면 자동 병합 (멀티 리포: 전부 성공 또는 전부 실패) |
 | `/api/clean` | POST | 프로젝트 내 모든 정리 가능(done/abandoned) 기능의 워크스페이스 아티팩트 제거 |
 | `/api/runs` | GET | 활성 실행 나열 |
-| `/api/batch/start` | POST | 배치 실행 시작 (`4x batch run` 서브프로세스); 미해결 배치 충돌 시 409 |
-| `/api/batch/stop` | POST | 배치 정상 중지 (`.4x/batch-stop` 기록) |
-| `/api/batch/continue` | POST | 충돌 신호 지우고 배치 재시작 (worktree에서 충돌 해결 후) |
-| `/api/batch/status` | GET | 배치 실행 상태, 예정 대기열, 현재 기능, 충돌 신호 |
 | `/api/events/{id}` | GET | 기능의 이벤트 가져오기 |
 | `/api/overview/{id}` | GET | 기능 개요 가져오기 (YAML 필드 + spec/plan 내용, 공유 `protocol.ResolveDesignDoc`를 통해 해석 — [설계 문서 해석](concepts.md#설계-문서-해석) 참조) |
 | `/api/messages/{id}` | GET | 기능의 메시지 가져오기 |
@@ -190,32 +182,6 @@ make dashboard-release
 
 정리할 것이 없으면 응답은 `{"cleaned":0,"freed":0,"freed_human":"0B","features":[]}`입니다.
 
-#### 배치 제어
-
-대시보드는 터미널로 돌아가지 않고도 배치 실행을 처음부터 끝까지 제어할 수 있습니다. 전용 `BatchManager`(기능별 `ProcessManager`와 별도)가 프로젝트의 단일 `4x batch run` 서브프로세스를 관리합니다 — 한 번에 하나의 배치만 실행 가능합니다.
-
-- **시작** (`POST /api/batch/start`) — UI가 먼저 확인하여 실수로 실행하는 것을 방지한 후 실행을 시작합니다. `.4x/batch-conflict.json`이 아직 존재하면 엔드포인트가 **HTTP 409**를 반환하므로 부실 충돌을 먼저 해결하거나 계속해야 합니다. 요청 본문에 `{runner, maxRounds}`를 담을 수 있으며, 생략된 필드는 병합된 프로젝트/사용자 설정으로 폴백합니다.
-- **중지** (`POST /api/batch/stop`) — 정상 중지를 위해 `.4x/batch-stop`을 기록합니다(배치가 현재 기능을 완료한 후 종료). 서브프로세스를 **kill하지 않습니다**.
-- **계속** (`POST /api/batch/continue`) — `.4x/batch-conflict.json`을 지우고 배치를 재시작합니다. worktree에서 충돌을 해결한 후 사용합니다.
-- **상태** (`GET /api/batch/status`) — 실행 플래그, 예정 대기열, 현재 기능, 충돌 신호(또는 `null`), `lastReport`(파싱된 `.4x/batch-report.json` 또는 보고서가 없으면 생략)를 반환합니다:
-
-  ```json
-  {
-    "running": true,
-    "queue": [
-      {"featureId": "F001-auth", "name": "Auth", "status": "done", "state": "done", "position": 0},
-      {"featureId": "F002-api", "name": "API", "status": "coding", "state": "running", "position": 1}
-    ],
-    "currentFeature": "F002-api",
-    "conflict": null,
-    "lastReport": null
-  }
-  ```
-
-  대기열은 `batch.PlanBatch`에서 구성되므로 CLI와 동일한 의존성 및 우선순위 순서를 따릅니다. 각 항목의 `state`는 `done`(기능 완료 / ready-for-review), `running`(완료되지 않은 활성 실행), `error`(blocked / needs-attention), 또는 `waiting`이며, `position`은 미완료 항목에 번호를 매깁니다(`done`과 `error` 제외).
-
-  `lastReport`는 가장 최근 배치 실행의 보고서(`outcome`, 카운트, 러너, 소요 시간, 기능별 분석 — [배치 모드](batch.md#run-report) 참조)를 담습니다. 배치가 실행 중이 아닐 때, 패널은 이를 기능별 상세로 펼칠 수 있는 "마지막 배치 보고서" 요약 카드로 렌더링합니다; `crashed` 결과의 경우 `panicMessage`도 표시합니다.
-
 ### 스크린샷 탭
 
 기능 상세에는 해당 기능에 스크린샷이 존재할 때 **스크린샷** 탭이 포함됩니다. 스크린샷은 라운드별로 그룹화되어 썸네일로 표시되며, 라이트박스에서 좌/우 탐색과 ESC로 닫기가 가능합니다.
@@ -243,17 +209,17 @@ make dashboard-release
 
 #### 워크스페이스 해석
 
-리프 라우트(`/api/tasks`, `/api/settings`, `/api/run`, `/api/batch/*`, `/sse/events/...` 등)는 `NewMux`(`internal/server/server.go`)에서 **한 번만** 정의됩니다. 고정된 워크스페이스를 바인딩하는 대신, `NewMux`는 `WorkspaceResolver`를 받습니다 — 들어오는 요청에서 대상 `*protocol.CachedWorkspace`, `*ProcessManager`, `*BatchManager`를 반환하는 함수(또는 오류). 각 데이터 백업 핸들러는 먼저 해석기를 호출하며, 이들이 필요 없는 라우트(`/api/user-config`, `/api/supported-runners`, `/api/locales`, 정적 에셋)는 건너뜁니다. 이를 통해 단일 및 다중 프로젝트 모드가 이전에 각각 가지고 있던 ~150줄의 중복 핸들러 등록이 제거됩니다.
+리프 라우트(`/api/tasks`, `/api/settings`, `/api/run`, `/sse/events/...` 등)는 `NewMux`(`internal/server/server.go`)에서 **한 번만** 정의됩니다. 고정된 워크스페이스를 바인딩하는 대신, `NewMux`는 `WorkspaceResolver`를 받습니다 — 들어오는 요청에서 대상 `*protocol.CachedWorkspace`와 `*ProcessManager`를 반환하는 함수(또는 오류). 각 데이터 백업 핸들러는 먼저 해석기를 호출하며, 이들이 필요 없는 라우트(`/api/user-config`, `/api/supported-runners`, `/api/locales`, 정적 에셋)는 건너뜁니다. 이를 통해 단일 및 다중 프로젝트 모드가 이전에 각각 가지고 있던 ~150줄의 중복 핸들러 등록이 제거됩니다.
 
 두 개의 해석기가 두 모드를 지원합니다:
 
-- **`singleResolver(ws, pm)`** — 단일 프로젝트 모드(`server.Start`). 하나의 워크스페이스를 클로저로 감싸고 항상 같은 `ws`/`pm`/`bm` 트리플을 반환합니다.
+- **`singleResolver(ws, pm)`** — 단일 프로젝트 모드(`server.Start`). 하나의 워크스페이스를 클로저로 감싸고 항상 같은 `ws`/`pm` 쌍을 반환합니다.
 - **`multiResolver(reg)`** — 다중 프로젝트 모드(`NewMultiMux`). 해석은 세 단계 흐름입니다:
   1. **접두사 디스패치 (외부 mux).** `NewMultiMux`가 `/api/project/`와 `/sse/project/` 핸들러를 등록하여 `/api/project/{id}` (또는 `/sse/project/{id}`) 접두사를 제거하고, `getEntry(id)`로 항목을 조회하며(알 수 없는 id → **404**), `r.URL.Path`를 나머지 하위 경로로 재작성하고, 해석된 항목을 요청 `context`에 주입한 후 공유 내부 `NewMux` 핸들러로 전달합니다. 접두사 제거는 외부 mux에서 해야 합니다 — `http.ServeMux`는 핸들러를 실행하기 **전에** 선택하므로, 제거되지 않은 `/api/project/{id}/api/tasks`는 정적 `/` 라우트에만 매칭됩니다.
   2. **컨텍스트 읽기.** 내부 핸들러에서 `multiResolver`는 먼저 1단계에서 주입된 항목을 요청 컨텍스트에서 확인하고, 있으면 직접 반환합니다.
   3. **접두사 없는 호환.** 주입된 항목이 없으면(접두사 없는 경로) `reg.Count()`에 의존합니다: `0` → **400** `프로젝트 미로드`, `1` → 해당 단일 프로젝트, `>=2` → **400** `여러 프로젝트 로드됨 — /api/project/{id}… 사용 필요`.
 
-`NewMultiMux` 자체는 글로벌 엔드포인트(`/api/projects`, `/api/projects/`, `/api/browse`)와 두 개의 접두사 디스패처, 그리고 공유 `inner := NewMux(multiResolver(reg))`로 전달하는 캐치올만 등록합니다. 프로젝트 추가 시 항목별 mux를 더 이상 구성하지 않습니다; `registryEntry`는 `id`/`ws`/`pm`/`bm`만 담습니다.
+`NewMultiMux` 자체는 글로벌 엔드포인트(`/api/projects`, `/api/projects/`, `/api/browse`)와 두 개의 접두사 디스패처, 그리고 공유 `inner := NewMux(multiResolver(reg))`로 전달하는 캐치올만 등록합니다. 프로젝트 추가 시 항목별 mux를 더 이상 구성하지 않습니다; `registryEntry`는 `id`/`ws`/`pm`만 담습니다.
 
 ## 키보드 단축키
 

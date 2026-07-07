@@ -212,11 +212,6 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
 .4x/
 ├── settings.json                    # 專案設定
 ├── plugins/                         # Runner 指令檔
-├── batch-plan.json                  # 批次執行計畫
-├── batch-stop                       # 優雅停止信號
-├── batch-pid                        # 執行中批次子程序的 PID（伺服器孤立程序認領用）
-├── batch-conflict.json              # 批次自動 merge conflict 信號（暫停狀態）
-├── batch-report.json                # 最近一次批次執行報告（統計 + 每 feature 結果）
 ├── features/
 │   └── {id}.yaml                    # Feature 定義（正式來源）
 └── run/                            # 執行期產物（每個 feature 的工作目錄）
@@ -241,27 +236,6 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
             ├── verify.json                # {passed, round, role, commands[]}
             └── escalation.json            # {needed, reason, detail}
 ```
-
-### 批次信號檔
-
-兩個頂層信號檔協調執行中的批次與外部觀察者（CLI 和儀表板）：
-
-- **`batch-stop`** — 空的標記檔。`4x batch run` 在 feature 之間輪詢它，存在時優雅停止（見 [Batch Mode](batch.md)）。
-- **`batch-conflict.json`** — 當批次自動 merge 碰到 merge conflict 並暫停時寫入。攜帶足夠資訊讓儀表板渲染衝突而無需重跑 git：
-
-  ```json
-  {
-    "featureId": "F003-oauth",
-    "featureName": "OAuth login",
-    "conflictRepo": "core",
-    "files": ["internal/auth/token.go"],
-    "detectedAt": "2026-06-15T00:00:00Z"
-  }
-  ```
-
-  monorepo 模式下 `conflictRepo` 為空。此檔案在每次批次執行開始時和使用者繼續暫停的批次時被清除。
-
-- **`batch-report.json`** — 批次執行結束時寫入（正常完成、停止、中斷或 crash）。不同於上述兩個信號檔，它在執行之間持續存在，作為儀表板在無批次活躍時顯示的「最近批次報告」。記錄 `outcome`、總計數（`total` / `completed` / `failed` / `remaining`）、runner、總耗時、以及每 feature 明細（最終狀態、輪次、停止原因）；`crashed` outcome 還攜帶 `panicMessage`。以原子方式寫入（暫存檔 + rename），儀表板不會讀到寫了一半的報告。
 
 ### 原子狀態寫入
 
@@ -343,7 +317,7 @@ hooks: {}    # 選用的 phase hooks（格式與 settings.json 相同）
 }
 ```
 
-每個項目將 repo 名稱映射到路徑（相對於 workspace 根目錄）和選用的 `hub` 旗標。Hub repo 是多個 feature 可能觸及的共用基礎設施——它們在 `4x batch plan` 的範圍群組化中被排除。
+每個項目將 repo 名稱映射到路徑（相對於 workspace 根目錄）和選用的 `hub` 旗標。Hub repo 是多個 feature 可能觸及的共用基礎設施——它們在以 repo 為單位的範圍群組化中被排除。
 
 monorepo 模式下（無 `workspace.repos`），所有範圍檢查和 git 操作使用單一 repo 根目錄。
 

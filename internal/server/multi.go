@@ -27,7 +27,6 @@ type registryEntry struct {
 	id string
 	ws *protocol.CachedWorkspace
 	pm *ProcessManager
-	bm *BatchManager
 }
 
 // ProjectRegistry 管理多個 workspace 的 in-memory 註冊表
@@ -59,10 +58,8 @@ func (r *ProjectRegistry) Add(ws *protocol.Workspace) string {
 	}
 	cws := protocol.NewCachedWorkspace(ws)
 	pm := newProcessManagerFromConfig(cws.Workspace)
-	bm := NewBatchManager(cws.Workspace, selfBinary())
-	bm.Adopt()
 	r.ids[id] = true
-	r.entries = append(r.entries, &registryEntry{id: id, ws: cws, pm: pm, bm: bm})
+	r.entries = append(r.entries, &registryEntry{id: id, ws: cws, pm: pm})
 	slog.Info("project added", "id", id, "path", ws.Root)
 	return id
 }
@@ -76,11 +73,6 @@ func (r *ProjectRegistry) Remove(id string) bool {
 		if e.id == id {
 			if e.pm != nil {
 				e.pm.Shutdown()
-			}
-			if e.bm != nil && e.bm.Running() {
-				if err := e.bm.Stop(); err != nil {
-					fmt.Fprintf(os.Stderr, "warn: failed to stop batch for project %s: %v\n", e.id, err)
-				}
 			}
 			r.entries = append(r.entries[:i], r.entries[i+1:]...)
 			delete(r.ids, id)
@@ -98,11 +90,6 @@ func (r *ProjectRegistry) ShutdownAll() {
 	for _, e := range r.entries {
 		if e.pm != nil {
 			e.pm.Shutdown()
-		}
-		if e.bm != nil && e.bm.Running() {
-			if err := e.bm.Shutdown(); err != nil {
-				fmt.Fprintf(os.Stderr, "warn: failed to shut down batch for project %s: %v\n", e.id, err)
-			}
 		}
 	}
 }

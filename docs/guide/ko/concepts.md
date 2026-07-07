@@ -212,11 +212,6 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
 .4x/
 ├── settings.json                    # 프로젝트 설정
 ├── plugins/                         # 러너 지침 파일
-├── batch-plan.json                  # 배치 실행 계획
-├── batch-stop                       # 정상 종료 신호
-├── batch-pid                        # 실행 중인 배치 서브프로세스의 PID (서버 고아 프로세스 인수)
-├── batch-conflict.json              # 배치 자동 병합 충돌 신호 (일시정지)
-├── batch-report.json                # 마지막 배치 실행 보고서 (통계 + 기능별 결과)
 ├── features/
 │   └── {id}.yaml                    # 기능 정의 (정식 소스)
 └── run/                            # 런타임 산출물 (feature별 작업 디렉토리)
@@ -241,27 +236,6 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
             ├── verify.json                # {passed, round, role, commands[]}
             └── escalation.json            # {needed, reason, detail}
 ```
-
-### 배치 신호 파일
-
-두 개의 최상위 신호 파일이 실행 중인 배치와 외부 관찰자(CLI 및 대시보드)를 조율합니다:
-
-- **`batch-stop`** — 빈 마커 파일. `4x batch run`이 기능 사이에서 이 파일을 폴링하고 존재하면 정상 종료합니다([배치 모드](batch.md) 참조).
-- **`batch-conflict.json`** — 배치 자동 병합이 병합 충돌에 부딪혀 일시정지할 때 기록됩니다. git을 다시 실행하지 않고도 대시보드가 충돌을 렌더링할 수 있도록 충분한 정보를 담고 있습니다:
-
-  ```json
-  {
-    "featureId": "F003-oauth",
-    "featureName": "OAuth login",
-    "conflictRepo": "core",
-    "files": ["internal/auth/token.go"],
-    "detectedAt": "2026-06-15T00:00:00Z"
-  }
-  ```
-
-  `conflictRepo`는 모노레포 모드에서는 비어 있습니다. 이 파일은 각 배치 실행 시작 시와 사용자가 일시정지된 배치를 계속할 때 지워집니다.
-
-- **`batch-report.json`** — 배치 실행이 종료될 때(정상, 중지, 인터럽트 또는 크래시) 기록됩니다. 위의 두 신호 파일과 달리 "마지막 배치 보고서"로 실행 간에 유지되며, 배치가 활성 상태가 아닐 때 대시보드에 표시됩니다. `outcome`, 전체 카운트(`total` / `completed` / `failed` / `remaining`), 러너, 총 소요 시간, 기능별 분석(최종 상태, 라운드, 중지 사유)을 기록하며, `crashed` 결과에는 `panicMessage`도 포함됩니다. 원자적으로 기록(임시 파일 + rename)되므로 대시보드가 반쯤 쓰인 보고서를 읽는 일은 없습니다.
 
 ### 워크트리 경로 복구
 
@@ -343,7 +317,7 @@ hooks: {}    # 선택적 단계 훅 (settings.json과 동일한 형식)
 }
 ```
 
-각 항목은 리포지토리 이름을 경로(워크스페이스 루트 기준 상대 경로)와 선택적 `hub` 플래그에 매핑합니다. Hub 리포지토리는 여러 기능이 접근할 수 있는 공유 인프라로, `4x batch plan`의 범위 클러스터링에서 제외됩니다.
+각 항목은 리포지토리 이름을 경로(워크스페이스 루트 기준 상대 경로)와 선택적 `hub` 플래그에 매핑합니다. Hub 리포지토리는 여러 기능이 접근할 수 있는 공유 인프라로, 리포지토리 기반 범위 클러스터링에서 제외됩니다.
 
 모노레포 모드(`workspace.repos` 없음)에서는 모든 범위 검사와 git 작업이 단일 리포지토리 루트를 사용합니다.
 

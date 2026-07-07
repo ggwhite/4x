@@ -432,16 +432,6 @@ vim .4x/F001/task-brief.md
 # 合并冲突时，手动解决后运行：4x merge F001
 ```
 
-## Batch 使用时机
-
-| 情境 | 用 `4x run` | 用 `4x batch run` |
-|---|---|---|
-| 做一个 feature | OK | — |
-| 做多个有依赖的 feature | 要手动排序 | 自动处理依赖顺序 |
-| 跑一晚上消化 backlog | — | OK，搭配 `batch stop` 随时停 |
-
-Batch 的 commit 策略固定是 `"never"`——所有改动都在 working tree，完成后由人工 review 再 commit。
-
 ## Dashboard 使用情境
 
 ```bash
@@ -520,7 +510,7 @@ blocked: F001-user-model is not done (status: coding)
 这是**可选的**——4x 内置的 `web` 测试配置文件无需 gstack 也能正常工作。以下场景使用守护进程最有价值：
 
 - 你的项目需要登录（会话持久化省去每轮重新认证）
-- 你以批量模式运行多个 feature（所有 feature 共用一个浏览器实例）
+- 你同时运行多个 feature（所有 feature 共用一个浏览器实例）
 - 你希望浏览器响应时间低于 200ms，而非等冷启动
 
 ### 安装

@@ -443,19 +443,3 @@ func TestGetLocaleEnMultiMux(t *testing.T) {
 	}
 }
 
-// AC-15：batch 路由在多專案模式 /api/project/{id}/api/batch/status 也可達。
-func TestMultiMux_BatchStatusViaPrefix(t *testing.T) {
-	ws := setupMultiWorkspace(t, "my-project")
-	reg := NewProjectRegistry()
-	id := reg.Add(ws)
-
-	recentPath := t.TempDir() + "/recent.json"
-	rec := serveRequest(t, NewMultiMux(reg, recentPath), http.MethodGet, "/api/project/"+id+"/api/batch/status", "")
-	if rec.Code != 200 {
-		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
-	}
-	var resp batchStatusResponse
-	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-}

@@ -113,10 +113,6 @@ make dashboard-release
 
 概要画面では、すべての Feature の依存関係グラフがインライン SVG としてレンダリングされます。外部チャートライブラリ（d3、mermaid、chart.js）は読み込みません。Feature は依存関係の深さでレイヤー配置され、エッジは各 Feature からその依存先に描画されます。ノードの色はフェーズステータスに従います：緑 = done、青 = 実行中（アクティブな実行、または coding/reviewing/testing のような進行中フェーズ）、灰色 = todo、赤 = blocked / needs-attention。ノードをクリックするとその Feature の詳細が開きます（Feature カードのクリックと同じパス）。グラフはポーリングサイクルごとにキャッシュされた `/api/tasks` データから再構築されるため、Feature の進行に合わせてリアルタイムに色が更新されます。
 
-## バッチパネル
-
-概要画面には[バッチ制御 API](#batch-control) をバックエンドとするバッチコントロールパネルもあります。**Start / Stop / Continue Batch** ボタン（Start は実行前に確認表示）、実行中インジケーター、Feature ごとの進捗（完了チェック、実行中マーカー、待機位置）を含むスケジュールキュー、マージコンフリクトでバッチが一時停止した場合は Feature、リポジトリ、コンフリクトファイルを表示するコンフリクトカードと Continue Batch アクションが表示されます。パネルはダッシュボードの他の部分と同じポーリングループで `GET /api/batch/status` から更新されます。
-
 ## サーバー API
 
 ダッシュボードは REST と SSE のエンドポイントを公開します：
@@ -134,10 +130,6 @@ make dashboard-release
 | `/api/done` | POST | Feature を完了としてマーク；worktree がある場合は自動マージ（マルチリポジトリ：オール・オア・ナッシング） |
 | `/api/clean` | POST | プロジェクト内のすべてのクリーン可能な（done/abandoned）Feature のワークスペースアーティファクトを削除 |
 | `/api/runs` | GET | アクティブな実行をリスト |
-| `/api/batch/start` | POST | バッチ実行を開始（`4x batch run` サブプロセス）；未解決のコンフリクトがある場合は 409 |
-| `/api/batch/stop` | POST | バッチをグレースフルに停止（`.4x/batch-stop` を書き込み） |
-| `/api/batch/continue` | POST | コンフリクトシグナルをクリアしてバッチを再開（worktree でのコンフリクト解決後） |
-| `/api/batch/status` | GET | バッチの実行状態、スケジュールキュー、現在の Feature、コンフリクトシグナル |
 | `/api/events/{id}` | GET | Feature のイベントを取得 |
 | `/api/overview/{id}` | GET | Feature の概要を取得（YAML フィールド + spec/plan 内容、共有 `protocol.ResolveDesignDoc` で解決。[Design Doc Resolution](concepts.md#design-doc-resolution) を参照） |
 | `/api/messages/{id}` | GET | Feature のメッセージを取得 |
@@ -190,32 +182,6 @@ make dashboard-release
 
 クリーン対象がない場合のレスポンス：`{"cleaned":0,"freed":0,"freed_human":"0B","features":[]}`。
 
-#### バッチ制御
-
-ダッシュボードはターミナルに戻らずにバッチ実行をエンドツーエンドで操作できます。専用の `BatchManager`（Feature ごとの `ProcessManager` とは別）が、プロジェクトの単一の `4x batch run` サブプロセスを管理します。一度に実行できるバッチは1つだけです。
-
-- **Start**（`POST /api/batch/start`）-- UI は誤操作を防ぐため事前に確認を表示してから実行を開始します。`.4x/batch-conflict.json` がまだ存在する場合は **HTTP 409** を返すため、ステイルなコンフリクトは先に解決または Continue する必要があります。リクエストボディに `{runner, maxRounds}` を含めることができ、省略されたフィールドはマージ済みのプロジェクト/ユーザー設定にフォールバックします。
-- **Stop**（`POST /api/batch/stop`）-- `.4x/batch-stop` を書き込んでグレースフルに停止します（バッチは現在の Feature を完了してから終了）。サブプロセスを kill **しません**。
-- **Continue**（`POST /api/batch/continue`）-- `.4x/batch-conflict.json` をクリアしてバッチを再開します。worktree でのコンフリクト解決後に使用します。
-- **Status**（`GET /api/batch/status`）-- 実行フラグ、スケジュールキュー、現在の Feature、コンフリクトシグナル（または `null`）、`lastReport`（パース済みの `.4x/batch-report.json`、存在しない場合は省略）を返します：
-
-  ```json
-  {
-    "running": true,
-    "queue": [
-      {"featureId": "F001-auth", "name": "Auth", "status": "done", "state": "done", "position": 0},
-      {"featureId": "F002-api", "name": "API", "status": "coding", "state": "running", "position": 1}
-    ],
-    "currentFeature": "F002-api",
-    "conflict": null,
-    "lastReport": null
-  }
-  ```
-
-  キューは `batch.PlanBatch` から構築され、CLI と同じ依存関係・優先度順序に従います。各アイテムの `state` は `done`（Feature が done / ready-for-review）、`running`（done でないアクティブな実行）、`error`（blocked / needs-attention）、`waiting` のいずれかです。`position` は未完了アイテム（`done` と `error` を除く）に番号を付けます。
-
-  `lastReport` は最新のバッチ実行レポート（`outcome`、カウント、ランナー、所要時間、Feature ごとの内訳。[バッチモード](batch.md#run-report) を参照）を含みます。バッチが実行されていない場合、パネルはこれを「前回のバッチレポート」サマリーカードとしてレンダリングし、Feature ごとの詳細に展開できます。`crashed` の場合は `panicMessage` も表示されます。
-
 ### スクリーンショットタブ
 
 Feature 詳細にはスクリーンショットが存在する場合、**Screenshots** タブが含まれます。スクリーンショットはラウンドごとにグループ化され、サムネイルとして表示されます。ライトボックスで開くと、左右ナビゲーションと ESC で閉じることができます。
@@ -243,17 +209,17 @@ Feature 詳細にはスクリーンショットが存在する場合、**Screens
 
 #### ワークスペース解決
 
-リーフルート（`/api/tasks`、`/api/settings`、`/api/run`、`/api/batch/*`、`/sse/events/...` など）は `NewMux`（`internal/server/server.go`）で**一度だけ**定義されます。`NewMux` は固定のワークスペースをバインドする代わりに `WorkspaceResolver` を受け取ります。これは受信リクエストから対象の `*protocol.CachedWorkspace`、その `*ProcessManager`、`*BatchManager` を返す関数です（またはエラー）。データバックドの各ハンドラは最初にリゾルバを呼び出します。不要なルート（`/api/user-config`、`/api/supported-runners`、`/api/locales`、静的アセット）はスキップします。これにより、シングルプロジェクトモードとマルチプロジェクトモードで以前それぞれ必要だった約150行の重複ハンドラ登録が不要になります。
+リーフルート（`/api/tasks`、`/api/settings`、`/api/run`、`/sse/events/...` など）は `NewMux`（`internal/server/server.go`）で**一度だけ**定義されます。`NewMux` は固定のワークスペースをバインドする代わりに `WorkspaceResolver` を受け取ります。これは受信リクエストから対象の `*protocol.CachedWorkspace` とその `*ProcessManager` を返す関数です（またはエラー）。データバックドの各ハンドラは最初にリゾルバを呼び出します。不要なルート（`/api/user-config`、`/api/supported-runners`、`/api/locales`、静的アセット）はスキップします。これにより、シングルプロジェクトモードとマルチプロジェクトモードで以前それぞれ必要だった約150行の重複ハンドラ登録が不要になります。
 
 2つのリゾルバが2つのモードをバックします：
 
-- **`singleResolver(ws, pm)`** -- シングルプロジェクトモード（`server.Start`）。1つのワークスペースをクロージャし、常に同じ `ws`/`pm`/`bm` トリプルを返します。
+- **`singleResolver(ws, pm)`** -- シングルプロジェクトモード（`server.Start`）。1つのワークスペースをクロージャし、常に同じ `ws`/`pm` ペアを返します。
 - **`multiResolver(reg)`** -- マルチプロジェクトモード（`NewMultiMux`）。解決は3ステップのフローです：
   1. **プレフィックスディスパッチ（外部 mux）。** `NewMultiMux` は `/api/project/` と `/sse/project/` ハンドラを登録し、`/api/project/{id}`（または `/sse/project/{id}`）プレフィックスを除去、`getEntry(id)` でエントリを検索（不明な id → **404**）、`r.URL.Path` を残りのサブパスに書き換え、解決済みエントリをリクエスト `context` に注入してから、共有内部 `NewMux` ハンドラに転送します。
   2. **コンテキスト読み取り。** 内部ハンドラ内で、`multiResolver` はステップ 1 で注入されたエントリをリクエストコンテキストから確認し、存在する場合は直接返します。
   3. **プレフィックスなしの互換性。** エントリが注入されていない場合（プレフィックスなしのパス）、`reg.Count()` にフォールバック：`0` → **400** `no projects loaded`、`1` → その唯一のプロジェクト、`>=2` → **400** `multiple projects loaded -- use /api/project/{id}...`。
 
-`NewMultiMux` 自体はグローバルエンドポイント（`/api/projects`、`/api/projects/`、`/api/browse`）と2つのプレフィックスディスパッチャ、および共有 `inner := NewMux(multiResolver(reg))` に転送するキャッチオールのみを登録します。プロジェクトの追加でエントリごとの mux は構築されません。`registryEntry` は `id`/`ws`/`pm`/`bm` のみを保持します。
+`NewMultiMux` 自体はグローバルエンドポイント（`/api/projects`、`/api/projects/`、`/api/browse`）と2つのプレフィックスディスパッチャ、および共有 `inner := NewMux(multiResolver(reg))` に転送するキャッチオールのみを登録します。プロジェクトの追加でエントリごとの mux は構築されません。`registryEntry` は `id`/`ws`/`pm` のみを保持します。
 
 ## キーボードショートカット
 

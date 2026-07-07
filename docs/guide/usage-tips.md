@@ -432,16 +432,6 @@ What happens:
 # On merge conflict, resolve manually then run: 4x merge F001
 ```
 
-## When to Use Batch Mode
-
-| Scenario | Use `4x run` | Use `4x batch run` |
-|---|---|---|
-| Single feature | OK | — |
-| Multiple features with dependencies | Must order manually | Handles dependency order automatically |
-| Overnight backlog processing | — | OK, use `batch stop` to halt anytime |
-
-Batch mode uses commit strategy `"never"` — all changes stay in the working tree for human review before committing.
-
 ## Dashboard Usage
 
 ```bash
@@ -520,7 +510,7 @@ Complete the dependency first, or manually mark it done:
 This is **optional** — 4x's built-in `web` test profile works without gstack. The daemon is most useful when:
 
 - Your project requires login (session persistence saves re-authentication each round)
-- You run multiple features in batch (all share one browser instance)
+- You run multiple features concurrently (all share one browser instance)
 - You want sub-200ms browser response times instead of cold-start delays
 
 ### Setup

@@ -212,11 +212,6 @@ Los roles se comunican a través del directorio `.4x/`, no a través de ventanas
 .4x/
 ├── settings.json                    # Configuración del proyecto
 ├── plugins/                         # Archivos de instrucciones de runners
-├── batch-plan.json                  # Plan de ejecución batch
-├── batch-stop                       # Señal de detención controlada
-├── batch-pid                        # PID del subproceso batch en ejecución (adopción de huérfanos del servidor)
-├── batch-conflict.json              # Señal de conflicto de auto-merge del batch (pausado)
-├── batch-report.json                # Último reporte de ejecución batch (estadísticas + resultado por feature)
 ├── features/
 │   └── {id}.yaml                    # Definición del feature (fuente canónica)
 └── run/                            # Artefactos de ejecución (directorios de trabajo por feature)
@@ -241,27 +236,6 @@ Los roles se comunican a través del directorio `.4x/`, no a través de ventanas
             ├── verify.json                # {passed, round, role, commands[]}
             └── escalation.json            # {needed, reason, detail}
 ```
-
-### Archivos señal del batch
-
-Dos archivos señal a nivel raíz coordinan un batch en ejecución con observadores externos (el CLI y el dashboard):
-
-- **`batch-stop`** — un archivo marcador vacío. `4x batch run` lo verifica entre features y se detiene de forma controlada cuando existe (ver [Modo batch](batch.md)).
-- **`batch-conflict.json`** — se escribe cuando el auto-merge del batch encuentra un conflicto y se pausa. Contiene suficiente detalle para que el dashboard muestre el conflicto sin re-ejecutar git:
-
-  ```json
-  {
-    "featureId": "F003-oauth",
-    "featureName": "OAuth login",
-    "conflictRepo": "core",
-    "files": ["internal/auth/token.go"],
-    "detectedAt": "2026-06-15T00:00:00Z"
-  }
-  ```
-
-  `conflictRepo` está vacío en modo monorepo. El archivo se limpia al inicio de cada ejecución batch y cuando el usuario continúa un batch pausado.
-
-- **`batch-report.json`** — se escribe cuando una ejecución batch termina (normalmente, por detención, interrupción o crash). A diferencia de los dos archivos señal anteriores, persiste entre ejecuciones como el "último reporte batch" que el dashboard muestra cuando no hay un batch activo. Registra el `outcome`, conteos generales (`total` / `completed` / `failed` / `remaining`), el runner, la duración total y un desglose por feature (estado final, rondas, razón de detención); un outcome `crashed` también lleva `panicMessage`. Se escribe de forma atómica (archivo temporal + renombrado) para que el dashboard nunca lea un reporte a medio escribir.
 
 ### Escrituras atómicas de estado
 
@@ -343,7 +317,7 @@ Por defecto, 4x opera en modo monorepo. Para trabajar con múltiples repositorio
 }
 ```
 
-Cada entrada mapea un nombre de repo a su ruta (relativa a la raíz del workspace) y un flag `hub` opcional. Los repos hub son infraestructura compartida que múltiples features pueden tocar — se excluyen del agrupamiento por alcance en `4x batch plan`.
+Cada entrada mapea un nombre de repo a su ruta (relativa a la raíz del workspace) y un flag `hub` opcional. Los repos hub son infraestructura compartida que múltiples features pueden tocar — se excluyen del agrupamiento por alcance basado en repos.
 
 En modo monorepo (sin `workspace.repos`), todas las verificaciones de alcance y operaciones git usan la raíz del repo único.
 

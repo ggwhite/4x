@@ -12,7 +12,7 @@ func TestSingleResolver(t *testing.T) {
 	resolver := singleResolver(ws, nil)
 
 	r, _ := http.NewRequest("GET", "/api/tasks", nil)
-	got, pm, bm, err := resolver(r)
+	got, pm, err := resolver(r)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -21,9 +21,6 @@ func TestSingleResolver(t *testing.T) {
 	}
 	if pm != nil {
 		t.Error("pm should be nil")
-	}
-	if bm == nil {
-		t.Error("bm should be non-nil")
 	}
 }
 
@@ -35,7 +32,7 @@ func TestMultiResolver_CompatSingleProject(t *testing.T) {
 	resolver := multiResolver(reg)
 
 	r, _ := http.NewRequest("GET", "/api/tasks", nil)
-	got, _, _, err := resolver(r)
+	got, _, err := resolver(r)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +49,7 @@ func TestMultiResolver_CompatMultiProject(t *testing.T) {
 	resolver := multiResolver(reg)
 
 	r, _ := http.NewRequest("GET", "/api/tasks", nil)
-	if _, _, _, err := resolver(r); err == nil {
+	if _, _, err := resolver(r); err == nil {
 		t.Error("expected error for multiple projects")
 	}
 }
@@ -63,7 +60,7 @@ func TestMultiResolver_CompatZeroProject(t *testing.T) {
 	resolver := multiResolver(reg)
 
 	r, _ := http.NewRequest("GET", "/api/tasks", nil)
-	if _, _, _, err := resolver(r); err == nil {
+	if _, _, err := resolver(r); err == nil {
 		t.Error("expected error for zero projects")
 	}
 }
@@ -78,11 +75,11 @@ func TestMultiResolver_ContextInjected(t *testing.T) {
 
 	r, _ := http.NewRequest("GET", "/api/tasks", nil)
 	r = r.WithContext(withResolvedProject(r.Context(), entry))
-	got, pm, bm, err := resolver(r)
+	got, pm, err := resolver(r)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != entry.ws || pm != entry.pm || bm != entry.bm {
-		t.Error("resolver should return injected entry's ws/pm/bm")
+	if got != entry.ws || pm != entry.pm {
+		t.Error("resolver should return injected entry's ws/pm")
 	}
 }

@@ -96,7 +96,7 @@
 
 | 欄位 | 說明 |
 |---|---|
-| `hub_repos` | 共用的 repository（用於批次 DAG 分組） |
+| `hub_repos` | 共用的 repository（排除在以 repo 為單位的範圍群組化之外） |
 | `isolation` | 設為 `"worktree"` 以在 git worktree 中執行 feature |
 | `max_concurrent_runs` | 透過儀表板伺服器的最大同時執行數 |
 | `commit` | Commit 策略：`"per-round"`（預設）、`"on-done"` 或 `"never"` |

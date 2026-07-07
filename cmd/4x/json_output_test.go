@@ -297,24 +297,6 @@ func TestGate_JSON_Pre(t *testing.T) {
 	}
 }
 
-func TestBatchStop_JSON(t *testing.T) {
-	dir, _ := initWorkspace(t)
-	out, err := run4x(dir, "batch", "stop", "--json")
-	if err != nil {
-		t.Fatalf("batch stop --json failed: %v\n%s", err, out)
-	}
-
-	var result struct {
-		Stopped bool `json:"stopped"`
-	}
-	if err := json.Unmarshal([]byte(out), &result); err != nil {
-		t.Fatalf("invalid JSON: %v\n%s", err, out)
-	}
-	if !result.Stopped {
-		t.Error("stopped = false, want true")
-	}
-}
-
 func TestLearnList_JSON(t *testing.T) {
 	dir, _ := initWorkspace(t)
 	// learnings.json 缺檔 → LoadStore 回空 store → entries 空。

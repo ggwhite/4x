@@ -46,11 +46,7 @@ const (
 	DocsGateFile       = "docs-gate.json"
 	GuardFeedback      = "guard-feedback.json"
 	EscalationFile     = "escalation.json"
-	StopFile           = "stop"
-	BatchStopFile      = "batch-stop"
-	BatchConflictFile  = "batch-conflict.json"
-	BatchReportFile    = "batch-report.json"
-	BatchPIDFile       = "batch-pid"
+	StopFile = "stop"
 
 	// CandidatesFile 是 .4x/candidates.json，history miner（4x mine）掃描歷史失敗訊號後
 	// 產出的 candidate pool（候選 feature + 候選 learnings），供後續 F097 閘門決定是否升級。

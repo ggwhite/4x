@@ -113,10 +113,6 @@ make dashboard-release
 
 概览以内联 SVG 渲染所有 feature 的依赖图——不加载外部图表库（d3、mermaid、chart.js）。Feature 按依赖深度分层布局；边从每个 feature 连向它依赖的 feature。节点颜色跟随阶段状态：绿色 = done，蓝色 = 运行中（活跃运行或进行中的阶段如 coding/reviewing/testing），灰色 = 待做，红色 = blocked / needs-attention。点击节点打开该 feature 的详情，与点击 feature 卡片路径相同。图表在每个轮询周期从缓存的 `/api/tasks` 数据重建，颜色随 feature 推进实时更新。
 
-## 批量面板
-
-概览还包含一个批量控制面板，由[批量控制 API](#batch-control) 驱动。显示 **Start / Stop / Continue Batch** 按钮（Start 在启动前确认），运行指示器，带每个 feature 进度的调度队列（done 勾号、运行标记或等待位置），以及——当合并冲突暂停批量时——冲突卡片，列出 feature、仓库和冲突文件及 Continue Batch 操作。面板与仪表盘其余部分在同一轮询循环中从 `GET /api/batch/status` 刷新。
-
 ## 服务器 API
 
 仪表盘暴露 REST 和 SSE 端点：
@@ -134,10 +130,6 @@ make dashboard-release
 | `/api/done` | POST | 将 feature 标记为完成；如果有 worktree 则自动合并（多仓库：全有或全无） |
 | `/api/clean` | POST | 删除项目中所有可清理（done/abandoned）feature 的工作区产物 |
 | `/api/runs` | GET | 列出活跃的运行 |
-| `/api/batch/start` | POST | 启动批量运行（`4x batch run` 子进程）；如果存在未解决的批量冲突则返回 409 |
-| `/api/batch/stop` | POST | 优雅停止批量（写入 `.4x/batch-stop`） |
-| `/api/batch/continue` | POST | 清除冲突信号并重启批量（在 worktree 中解决冲突后使用） |
-| `/api/batch/status` | GET | 批量运行状态、调度队列、当前 feature 和冲突信号 |
 | `/api/events/{id}` | GET | 获取 feature 的事件 |
 | `/api/overview/{id}` | GET | 获取 feature 概览（YAML 字段 + spec/plan 内容，通过共享的 `protocol.ResolveDesignDoc` 解析——参见[设计文档解析](concepts.md#design-doc-resolution)） |
 | `/api/messages/{id}` | GET | 获取 feature 的消息 |
@@ -190,32 +182,6 @@ make dashboard-release
 
 无可清理内容时响应为 `{"cleaned":0,"freed":0,"freed_human":"0B","features":[]}`。
 
-#### 批量控制
-
-仪表盘可以端到端驱动批量运行而无需回到终端。专用的 `BatchManager`（独立于每个 feature 的 `ProcessManager`）管理一个项目的单个 `4x batch run` 子进程——同一时间只允许一个批量运行。
-
-- **Start**（`POST /api/batch/start`）— UI 先确认以避免误触，然后启动运行。如果 `.4x/batch-conflict.json` 仍然存在，端点返回 **HTTP 409**，因此过期冲突必须先解决或继续。请求体可携带 `{runner, maxRounds}`；省略的字段回退到合并后的项目/用户配置。
-- **Stop**（`POST /api/batch/stop`）— 写入 `.4x/batch-stop` 以优雅停止（批量完成当前 feature 后退出）。不会杀掉子进程。
-- **Continue**（`POST /api/batch/continue`）— 清除 `.4x/batch-conflict.json`，然后重启批量。在 worktree 中解决冲突后使用。
-- **Status**（`GET /api/batch/status`）— 返回运行标志、调度队列、当前 feature、冲突信号（或 `null`），以及 `lastReport`（解析后的 `.4x/batch-report.json`，无报告时省略）：
-
-  ```json
-  {
-    "running": true,
-    "queue": [
-      {"featureId": "F001-auth", "name": "Auth", "status": "done", "state": "done", "position": 0},
-      {"featureId": "F002-api", "name": "API", "status": "coding", "state": "running", "position": 1}
-    ],
-    "currentFeature": "F002-api",
-    "conflict": null,
-    "lastReport": null
-  }
-  ```
-
-  队列由 `batch.PlanBatch` 构建，遵循与 CLI 相同的依赖+优先级排序。每个条目的 `state` 为 `done`（feature 完成/待审查）、`running`（活跃运行且未完成）、`error`（blocked/needs-attention）或 `waiting`；`position` 编号未完成项（排除 `done` 和 `error`）。
-
-  `lastReport` 携带最近一次批量运行的报告（`outcome`、计数、runner、持续时间和每个 feature 的明细——参见 [Batch 模式](batch.md#run-report)）。无批量运行时，面板将其渲染为"上次批量报告"摘要卡片，可展开查看每个 feature 的详情；`crashed` 结果还会显示 `panicMessage`。
-
 ### 截图标签页
 
 Feature 详情中包含**截图**标签页（当该 feature 存在截图时）。截图按轮次分组，以缩略图显示，可在灯箱中打开并左右导航，ESC 关闭。
@@ -243,17 +209,17 @@ Feature 详情中包含**截图**标签页（当该 feature 存在截图时）�
 
 #### 工作区解析
 
-叶子路由（`/api/tasks`、`/api/settings`、`/api/run`、`/api/batch/*`、`/sse/events/...` 等）在 `NewMux`（`internal/server/server.go`）中**只定义一次**。`NewMux` 不绑定固定工作区，而是接受一个 `WorkspaceResolver`——一个给定传入请求返回目标 `*protocol.CachedWorkspace`、其 `*ProcessManager` 和 `*BatchManager`（或错误）的函数。每个数据驱动的处理器先调用解析器；不需要它们的路由（`/api/user-config`、`/api/supported-runners`、`/api/locales`、静态资源）跳过。这消除了单项目和多项目模式以前各自携带的约 150 行重复处理器注册。
+叶子路由（`/api/tasks`、`/api/settings`、`/api/run`、`/sse/events/...` 等）在 `NewMux`（`internal/server/server.go`）中**只定义一次**。`NewMux` 不绑定固定工作区，而是接受一个 `WorkspaceResolver`——一个给定传入请求返回目标 `*protocol.CachedWorkspace` 和其 `*ProcessManager`（或错误）的函数。每个数据驱动的处理器先调用解析器；不需要它们的路由（`/api/user-config`、`/api/supported-runners`、`/api/locales`、静态资源）跳过。这消除了单项目和多项目模式以前各自携带的约 150 行重复处理器注册。
 
 两个解析器支持两种模式：
 
-- **`singleResolver(ws, pm)`** — 单项目模式（`server.Start`）。闭包持有一个工作区，始终返回相同的 `ws`/`pm`/`bm` 三元组。
+- **`singleResolver(ws, pm)`** — 单项目模式（`server.Start`）。闭包持有一个工作区，始终返回相同的 `ws`/`pm` 二元组。
 - **`multiResolver(reg)`** — 多项目模式（`NewMultiMux`）。解析是三步流程：
   1. **前缀分发（外层 mux）。** `NewMultiMux` 注册 `/api/project/` 和 `/sse/project/` 处理器，剥离 `/api/project/{id}`（或 `/sse/project/{id}`）前缀，通过 `getEntry(id)` 查找条目（未知 id → **404**），将 `r.URL.Path` 改写为剩余子路径，将解析后的条目注入请求 `context`，然后转发给共享的内层 `NewMux` 处理器。前缀剥离必须在外层 mux 中完成，因为 `http.ServeMux` 在运行前就选择了处理器——未剥离的 `/api/project/{id}/api/tasks` 只会匹配静态 `/` 路由。
   2. **Context 读取。** 在内层处理器中，`multiResolver` 先检查请求 context 中步骤 1 注入的条目，存在时直接返回。
   3. **无前缀兼容。** 未注入条目时（无前缀路径），回退到 `reg.Count()`：`0` → **400** `no projects loaded`、`1` → 该唯一项目、`>=2` → **400** `multiple projects loaded — use /api/project/{id}...`。
 
-`NewMultiMux` 本身只注册全局端点（`/api/projects`、`/api/projects/`、`/api/browse`）加上两个前缀分发器和一个转发到共享 `inner := NewMux(multiResolver(reg))` 的 catch-all。添加项目不再构建每个条目的 mux；`registryEntry` 仅携带 `id`/`ws`/`pm`/`bm`。
+`NewMultiMux` 本身只注册全局端点（`/api/projects`、`/api/projects/`、`/api/browse`）加上两个前缀分发器和一个转发到共享 `inner := NewMux(multiResolver(reg))` 的 catch-all。添加项目不再构建每个条目的 mux；`registryEntry` 仅携带 `id`/`ws`/`pm`。
 
 ## 键盘快捷键
 

@@ -117,10 +117,6 @@ The **Project Settings** modal complements the raw Form/JSON editors with three 
 
 The overview renders a dependency graph of all features as inline SVG — no external charting library (d3, mermaid, chart.js) is loaded. Features are laid out in layers by dependency depth; edges run from each feature to the features it depends on. Node color follows phase status: green = done, blue = running (active run or an in-progress phase such as coding/reviewing/testing/fixing), gray = todo, red = blocked / needs-attention. Clicking a node opens that feature's detail, the same path as clicking a feature card. The graph is rebuilt from the cached `/api/tasks` data on every polling cycle, so colors update live as features advance.
 
-## Batch Panel
-
-The overview also hosts a batch control panel backed by the [Batch Control API](#batch-control). It shows **Start / Stop / Continue Batch** buttons (Start is confirmed before launching), a running indicator, the scheduled queue with per-feature progress (done check, running marker, or waiting position), and — when a merge conflict pauses the batch — a conflict card listing the feature, repo, and conflicting files alongside the Continue Batch action. The panel refreshes from `GET /api/batch/status` on the same polling loop as the rest of the dashboard.
-
 ## Server API
 
 The dashboard exposes REST and SSE endpoints:
@@ -138,10 +134,6 @@ Read-heavy endpoints (`/api/tasks`, `/api/overview`, `/api/projects`, `/api/sett
 | `/api/done` | POST | Mark feature as done; auto-merges worktree if present (multi-repo: all-or-nothing) |
 | `/api/clean` | POST | Remove workspace artifacts for all cleanable (done/abandoned) features in the project |
 | `/api/runs` | GET | List active runs |
-| `/api/batch/start` | POST | Start a batch run (`4x batch run` subprocess); 409 if a batch conflict is unresolved |
-| `/api/batch/stop` | POST | Gracefully stop the batch (writes `.4x/batch-stop`) |
-| `/api/batch/continue` | POST | Clear the conflict signal and restart the batch (after resolving in the worktree) |
-| `/api/batch/status` | GET | Batch running state, scheduled queue, current feature, and conflict signal |
 | `/api/events/{id}` | GET | Get events for a feature |
 | `/api/overview/{id}` | GET | Get feature overview (YAML fields + spec/plan content, resolved via the shared `protocol.ResolveDesignDoc` — see [Design Doc Resolution](concepts.md#design-doc-resolution)) |
 | `/api/messages/{id}` | GET | Get messages for a feature, plus the feature's authoritative total cost (see below) |
@@ -209,32 +201,6 @@ Non-`POST` requests return **HTTP 405**. Each feature is cleaned independently; 
 
 When there is nothing to clean the response is `{"cleaned":0,"freed":0,"freed_human":"0B","features":[]}`.
 
-#### Batch Control
-
-The dashboard can drive a batch run end-to-end without dropping back to the terminal. A dedicated `BatchManager` (separate from the per-feature `ProcessManager`) owns the single `4x batch run` subprocess for a project — only one batch may run at a time.
-
-- **Start** (`POST /api/batch/start`) — the UI confirms first to avoid accidental launches, then starts the run. If `.4x/batch-conflict.json` still exists, the endpoint returns **HTTP 409** so a stale conflict must be resolved or continued first. The request body may carry `{runner, maxRounds}`; omitted fields fall back to the merged project/user config.
-- **Stop** (`POST /api/batch/stop`) — writes `.4x/batch-stop` for a graceful stop (the batch finishes the current feature, then exits). It does **not** kill the subprocess.
-- **Continue** (`POST /api/batch/continue`) — clears `.4x/batch-conflict.json`, then restarts the batch. Use after resolving the conflict in the worktree.
-- **Status** (`GET /api/batch/status`) — returns the running flag, the scheduled queue, the current feature, the conflict signal (or `null`), and `lastReport` (the parsed `.4x/batch-report.json`, or omitted when no report exists):
-
-  ```json
-  {
-    "running": true,
-    "queue": [
-      {"featureId": "F001-auth", "name": "Auth", "status": "done", "state": "done", "position": 0},
-      {"featureId": "F002-api", "name": "API", "status": "coding", "state": "running", "position": 1}
-    ],
-    "currentFeature": "F002-api",
-    "conflict": null,
-    "lastReport": null
-  }
-  ```
-
-  The queue is built from `batch.PlanBatch` so it honors the same dependency-and-priority ordering as the CLI. Each item's `state` is `done` (feature done / ready-for-review), `running` (an active run that isn't done), `error` (blocked / needs-attention), or `waiting`; `position` numbers the unfinished items (excludes `done` and `error`).
-
-  `lastReport` carries the most recent batch run's report (`outcome`, counts, runner, duration, and per-feature breakdown — see [Batch Mode](batch.md#run-report)). When no batch is running, the panel renders it as a "last batch report" summary card that expands to per-feature detail; for a `crashed` outcome it also surfaces the `panicMessage`.
-
 ### Screenshots Tab
 
 Feature detail includes a **Screenshots** tab when screenshots exist for that feature. Screenshots are grouped by round, displayed as thumbnails, and can be opened in a lightbox with left/right navigation and ESC-to-close.
@@ -262,17 +228,17 @@ With multiple projects, endpoints are prefixed with `/api/project/{project-id}/.
 
 #### Workspace Resolution
 
-The leaf routes (`/api/tasks`, `/api/settings`, `/api/run`, `/api/batch/*`, `/sse/events/...`, …) are defined **once** in `NewMux` (`internal/server/server.go`). Rather than binding a fixed workspace, `NewMux` takes a `WorkspaceResolver` — a function that, given the incoming request, returns the target `*protocol.CachedWorkspace`, its `*ProcessManager`, and its `*BatchManager` (or an error). Each data-backed handler calls the resolver first; routes that need none of them (`/api/user-config`, `/api/supported-runners`, `/api/locales`, static assets) skip it. This removes the ~150 lines of duplicated handler registration that single- and multi-project mode previously each carried.
+The leaf routes (`/api/tasks`, `/api/settings`, `/api/run`, `/sse/events/...`, …) are defined **once** in `NewMux` (`internal/server/server.go`). Rather than binding a fixed workspace, `NewMux` takes a `WorkspaceResolver` — a function that, given the incoming request, returns the target `*protocol.CachedWorkspace` and its `*ProcessManager` (or an error). Each data-backed handler calls the resolver first; routes that need none of them (`/api/user-config`, `/api/supported-runners`, `/api/locales`, static assets) skip it. This removes the ~150 lines of duplicated handler registration that single- and multi-project mode previously each carried.
 
 Two resolvers back the two modes:
 
-- **`singleResolver(ws, pm)`** — single-project mode (`server.Start`). Closes over one workspace and always returns the same `ws`/`pm`/`bm` triple.
+- **`singleResolver(ws, pm)`** — single-project mode (`server.Start`). Closes over one workspace and always returns the same `ws`/`pm` pair.
 - **`multiResolver(reg)`** — multi-project mode (`NewMultiMux`). Resolution is a three-step flow:
   1. **Prefix dispatch (outer mux).** `NewMultiMux` registers `/api/project/` and `/sse/project/` handlers that strip the `/api/project/{id}` (or `/sse/project/{id}`) prefix, look up the entry via `getEntry(id)` (unknown id → **404**), rewrite `r.URL.Path` to the remaining sub-path, inject the resolved entry into the request `context`, and forward to the shared inner `NewMux` handler. The prefix strip must happen in the outer mux because `http.ServeMux` selects the handler **before** it runs — an un-stripped `/api/project/{id}/api/tasks` would only ever match the static `/` route.
   2. **Context read.** Inside the inner handler, `multiResolver` first checks the request context for the entry injected in step 1 and returns it directly when present.
   3. **No-prefix compat.** When no entry was injected (an unprefixed path), it falls back on `reg.Count()`: `0` → **400** `no projects loaded`, `1` → that sole project, `≥2` → **400** `multiple projects loaded — use /api/project/{id}…`.
 
-`NewMultiMux` itself only registers the global endpoints (`/api/projects`, `/api/projects/`, `/api/browse`) plus the two prefix dispatchers and a catch-all that forwards to the single shared `inner := NewMux(multiResolver(reg))`. Adding a project no longer builds a per-entry mux; `registryEntry` carries just `id`/`ws`/`pm`/`bm`.
+`NewMultiMux` itself only registers the global endpoints (`/api/projects`, `/api/projects/`, `/api/browse`) plus the two prefix dispatchers and a catch-all that forwards to the single shared `inner := NewMux(multiResolver(reg))`. Adding a project no longer builds a per-entry mux; `registryEntry` carries just `id`/`ws`/`pm`.
 
 ## Keyboard Shortcuts
 

@@ -212,11 +212,6 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
 .4x/
 ├── settings.json                    # 项目配置
 ├── plugins/                         # Runner 指令文件
-├── batch-plan.json                  # 批量执行计划
-├── batch-stop                       # 优雅停止信号
-├── batch-pid                        # 运行中的批量子进程 PID（服务器孤儿收养）
-├── batch-conflict.json              # 批量自动合并冲突信号（暂停）
-├── batch-report.json                # 上次批量运行报告（统计 + 每个 feature 结果）
 ├── features/
 │   └── {id}.yaml                    # Feature 定义（权威源）
 └── run/                            # 运行时产物（每个 feature 的工作目录）
@@ -241,27 +236,6 @@ init → designing → coding → reviewing → testing → deep-reviewing → a
             ├── verify.json                # {passed, round, role, commands[]}
             └── escalation.json            # {needed, reason, detail}
 ```
-
-### 批量信号文件
-
-两个顶层信号文件协调运行中的批量与外部观察者（CLI 和仪表盘）：
-
-- **`batch-stop`** — 空标记文件。`4x batch run` 在 feature 之间轮询它，存在即优雅停止（参见 [Batch 模式](batch.md)）。
-- **`batch-conflict.json`** — 批量自动合并遇到合并冲突并暂停时写入。携带足够的细节供仪表盘渲染冲突而无需重新运行 git：
-
-  ```json
-  {
-    "featureId": "F003-oauth",
-    "featureName": "OAuth login",
-    "conflictRepo": "core",
-    "files": ["internal/auth/token.go"],
-    "detectedAt": "2026-06-15T00:00:00Z"
-  }
-  ```
-
-  单仓库模式下 `conflictRepo` 为空。该文件在每次批量运行开始时以及用户继续暂停的批量时清除。
-
-- **`batch-report.json`** — 批量运行结束时写入（正常、停止、中断或崩溃）。与上述两个信号文件不同，它在运行间持久保存，作为仪表盘在没有活跃批量时显示的"上次批量报告"。记录 `outcome`、总计数（`total`/`completed`/`failed`/`remaining`）、runner、总持续时间，以及每个 feature 的明细（最终状态、轮次、停止原因）；`crashed` 结果还携带 `panicMessage`。原子写入（临时文件 + 重命名），仪表盘永远不会读到半写的报告。
 
 ### 原子状态写入
 
@@ -343,7 +317,7 @@ hooks: {}    # 可选的阶段钩子（与 settings.json 格式相同）
 }
 ```
 
-每个条目将仓库名映射到其路径（相对于工作区根目录）和可选的 `hub` 标志。Hub 仓库是多个 feature 可能涉及的共享基础设施——它们被排除在 `4x batch plan` 的范围集群之外。
+每个条目将仓库名映射到其路径（相对于工作区根目录）和可选的 `hub` 标志。Hub 仓库是多个 feature 可能涉及的共享基础设施——它们被排除在基于仓库的范围集群之外。
 
 单仓库模式下（无 `workspace.repos`），所有范围检查和 git 操作使用单个仓库根目录。
 

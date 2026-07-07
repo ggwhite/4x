@@ -84,7 +84,7 @@ If `{model}` is not present in `args`, the runner auto-appends `--model <model>`
 
 #### Transient retry
 
-When a runner subprocess exits non-zero **and** its captured stderr matches a known transient error pattern (`socket closed`, `connection reset`, `connection refused`, `rate limit` / `429`, `5xx` server errors, `i/o timeout`, etc.), 4x automatically re-runs the same command with exponential backoff (default base 1s, capped at 30s), up to `transient_retries` times. A retry that eventually succeeds returns exit 0 transparently, so a batch run is not interrupted by a network hiccup.
+When a runner subprocess exits non-zero **and** its captured stderr matches a known transient error pattern (`socket closed`, `connection reset`, `connection refused`, `rate limit` / `429`, `5xx` server errors, `i/o timeout`, etc.), 4x automatically re-runs the same command with exponential backoff (default base 1s, capped at 30s), up to `transient_retries` times. A retry that eventually succeeds returns exit 0 transparently, so a long-running feature run is not interrupted by a network hiccup.
 
 Non-transient failures (compilation errors, assertion failures, panics), exit 0, context cancel/timeout, and command-launch failures are never retried, and the final attempt's exit code semantics (0/1/2) are unchanged.
 
@@ -106,7 +106,7 @@ Non-transient failures (compilation errors, assertion failures, panics), exit 0,
 
 | Field | Description |
 |---|---|
-| `hub_repos` | Shared repositories (for batch DAG grouping) |
+| `hub_repos` | Shared repositories (excluded from repo-based scope clustering) |
 | `isolation` | Set to `"worktree"` to run features in git worktrees |
 | `max_concurrent_runs` | Max concurrent runs via the dashboard server |
 | `commit` | Commit strategy: `"per-round"` (default), `"on-done"`, or `"never"` |

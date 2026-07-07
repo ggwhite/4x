@@ -96,7 +96,7 @@ Si `{model}` no está presente en `args`, el runner agrega automáticamente `--m
 
 | Campo | Descripción |
 |---|---|
-| `hub_repos` | Repositorios compartidos (para agrupación de DAG en batch) |
+| `hub_repos` | Repositorios compartidos (excluidos del agrupamiento por alcance basado en repos) |
 | `isolation` | Establecer como `"worktree"` para ejecutar features en git worktrees |
 | `max_concurrent_runs` | Ejecuciones concurrentes máximas vía el servidor del dashboard |
 | `commit` | Estrategia de commits: `"per-round"` (predeterminado), `"on-done"` o `"never"` |

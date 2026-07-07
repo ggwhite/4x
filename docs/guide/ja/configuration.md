@@ -96,7 +96,7 @@
 
 | フィールド | 説明 |
 |---|---|
-| `hub_repos` | 共有リポジトリ（バッチ DAG のグルーピング用） |
+| `hub_repos` | 共有リポジトリ（リポジトリ単位のスコープクラスタリングから除外） |
 | `isolation` | `"worktree"` に設定すると、Feature を git worktree で実行 |
 | `max_concurrent_runs` | ダッシュボードサーバー経由の最大同時実行数 |
 | `commit` | コミット戦略：`"per-round"`（デフォルト）、`"on-done"`、または `"never"` |

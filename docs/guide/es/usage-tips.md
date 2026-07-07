@@ -432,16 +432,6 @@ Qué sucede:
 # En caso de conflicto de merge, resolver manualmente y ejecutar: 4x merge F001
 ```
 
-## Cuándo usar batch
-
-| Escenario | Usar `4x run` | Usar `4x batch run` |
-|---|---|---|
-| Un solo feature | OK | — |
-| Múltiples features con dependencias | Hay que ordenar manualmente | Maneja el orden de dependencias automáticamente |
-| Procesar el backlog durante la noche | — | OK, usa `batch stop` para detenerse cuando quieras |
-
-El modo batch usa la estrategia de commits `"never"` — todos los cambios quedan en el working tree para revisión humana antes de comitear.
-
 ## Escenarios de uso del dashboard
 
 ```bash
@@ -520,7 +510,7 @@ Completa la dependencia primero, o márcala como terminada manualmente:
 Esto es **opcional** — el perfil de test `web` integrado de 4x funciona sin gstack. El daemon es más útil cuando:
 
 - Tu proyecto requiere login (la persistencia de sesión evita re-autenticarse en cada ronda)
-- Ejecutas múltiples features en batch (todas comparten una misma instancia del navegador)
+- Ejecutas múltiples features en paralelo (todas comparten una misma instancia del navegador)
 - Quieres tiempos de respuesta del navegador inferiores a 200ms en lugar de los delays del arranque en frío
 
 ### Configuración

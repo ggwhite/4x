@@ -12,5 +12,4 @@
 | [配置](configuration.md) | 设置、模型覆盖、语言、runner 配置 |
 | [Runner 与插件](runners.md) | 支持的 runner、插件合约、编写插件 |
 | [仪表盘](dashboard.md) | 4x Live 多项目仪表盘 |
-| [批量模式](batch.md) | 依赖感知的批量执行 |
 | [使用技巧与最佳实践](usage-tips.md) | Feature 粒度、模型选择、故障排除、实战建议 |

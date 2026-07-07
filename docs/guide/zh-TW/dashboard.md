@@ -113,10 +113,6 @@ make dashboard-release
 
 Overview 以 inline SVG 渲染所有 feature 的依賴圖——不載入外部圖表函式庫（d3、mermaid、chart.js）。Feature 依依賴深度分層排列；邊從每個 feature 連到它依賴的 feature。節點顏色依階段狀態：綠色 = done、藍色 = 執行中（活躍的 run 或 coding/reviewing/testing 等進行中階段）、灰色 = todo、紅色 = blocked / needs-attention。點擊節點開啟該 feature 的詳情，與點擊 feature 卡片的路徑相同。圖形在每次輪詢週期從快取的 `/api/tasks` 資料重建，因此顏色隨 feature 推進即時更新。
 
-## 批次面板
-
-Overview 還包含一個批次控制面板，背後使用[批次控制 API](#batch-control)。它顯示 **Start / Stop / Continue Batch** 按鈕（Start 在啟動前會先確認）、執行中指示器、排程佇列（每個 feature 的進度顯示為完成勾號、執行中標記或等待位置），以及——當 merge conflict 暫停批次時——一張衝突卡片，列出 feature、repo 和衝突檔案以及 Continue Batch 操作。面板從 `GET /api/batch/status` 在與儀表板其餘部分相同的輪詢迴圈中重新整理。
-
 ## 伺服器 API
 
 儀表板提供 REST 和 SSE 端點：
@@ -134,10 +130,6 @@ Overview 還包含一個批次控制面板，背後使用[批次控制 API](#bat
 | `/api/done` | POST | 標記 feature 為完成；若有 worktree 則自動 merge（多 repo：all-or-nothing） |
 | `/api/clean` | POST | 移除專案中所有可清理（done/abandoned）feature 的 workspace artifact |
 | `/api/runs` | GET | 列出活躍的執行 |
-| `/api/batch/start` | POST | 啟動批次執行（`4x batch run` 子程序）；若有未解決的衝突則回傳 409 |
-| `/api/batch/stop` | POST | 優雅停止批次（寫入 `.4x/batch-stop`） |
-| `/api/batch/continue` | POST | 清除衝突信號並重啟批次（解完 worktree 中的衝突後使用） |
-| `/api/batch/status` | GET | 批次執行狀態、排程佇列、當前 feature 和衝突信號 |
 | `/api/events/{id}` | GET | 取得 feature 的事件 |
 | `/api/overview/{id}` | GET | 取得 feature overview（YAML 欄位 + spec/plan 內容，透過共用的 `protocol.ResolveDesignDoc` 解析——見[設計文件解析](concepts.md#design-doc-resolution)） |
 | `/api/messages/{id}` | GET | 取得 feature 的訊息 |
@@ -189,32 +181,6 @@ Overview 還包含一個批次控制面板，背後使用[批次控制 API](#bat
 | `features` | string[] | 已清理的 feature ID（無可清理時為 `[]`） |
 
 無可清理時回應為 `{"cleaned":0,"freed":0,"freed_human":"0B","features":[]}`。
-
-#### 批次控制
-
-儀表板可從頭到尾驅動批次執行，無需回到終端。專用的 `BatchManager`（與每 feature 的 `ProcessManager` 分開）管理一個專案的單一 `4x batch run` 子程序——同時只能有一個批次執行。
-
-- **Start**（`POST /api/batch/start`）— UI 先確認以避免意外啟動，然後開始執行。若 `.4x/batch-conflict.json` 仍存在，端點回傳 **HTTP 409**，必須先解決或繼續過時的衝突。請求 body 可帶 `{runner, maxRounds}`；省略的欄位退回合併後的專案/使用者設定。
-- **Stop**（`POST /api/batch/stop`）— 寫入 `.4x/batch-stop` 以優雅停止（批次完成當前 feature 後退出）。**不會** kill 子程序。
-- **Continue**（`POST /api/batch/continue`）— 清除 `.4x/batch-conflict.json`，然後重啟批次。在 worktree 中解完衝突後使用。
-- **Status**（`GET /api/batch/status`）— 回傳執行旗標、排程佇列、當前 feature、衝突信號（或 `null`），以及 `lastReport`（解析的 `.4x/batch-report.json`，無報告時省略）：
-
-  ```json
-  {
-    "running": true,
-    "queue": [
-      {"featureId": "F001-auth", "name": "Auth", "status": "done", "state": "done", "position": 0},
-      {"featureId": "F002-api", "name": "API", "status": "coding", "state": "running", "position": 1}
-    ],
-    "currentFeature": "F002-api",
-    "conflict": null,
-    "lastReport": null
-  }
-  ```
-
-  佇列由 `batch.PlanBatch` 建立，因此遵循與 CLI 相同的依賴和優先序排序。每個項目的 `state` 為 `done`（feature done / ready-for-review）、`running`（活躍的 run 且非 done）、`error`（blocked / needs-attention）或 `waiting`；`position` 為未完成項目的編號（排除 `done` 和 `error`）。
-
-  `lastReport` 攜帶最近一次批次執行的報告（`outcome`、計數、runner、耗時和每 feature 明細——見 [Batch Mode](batch.md#run-report)）。無批次執行時，面板將其渲染為「最近批次報告」摘要卡片，可展開查看每 feature 詳情；`crashed` outcome 還會顯示 `panicMessage`。
 
 ### 截圖分頁
 

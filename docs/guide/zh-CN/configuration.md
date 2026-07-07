@@ -96,7 +96,7 @@
 
 | 字段 | 说明 |
 |---|---|
-| `hub_repos` | 共享仓库（用于批量 DAG 分组） |
+| `hub_repos` | 共享仓库（排除在基于仓库的范围集群之外） |
 | `isolation` | 设为 `"worktree"` 以在 git worktree 中运行 feature |
 | `max_concurrent_runs` | 通过仪表盘服务器的最大并发运行数 |
 | `commit` | 提交策略：`"per-round"`（默认）、`"on-done"` 或 `"never"` |

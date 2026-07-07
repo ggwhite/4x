@@ -174,33 +174,3 @@ func TestTerminateRun_NilCmd(t *testing.T) {
 	}
 }
 
-// TestTerminateProcess_SignalErrorAfterDoneClosed 驗證 batch 版 terminateProcess 在 Signal 失敗
-// 但 done 已關閉（程序其實已結束）時視為正常，回傳 nil。
-func TestTerminateProcess_SignalErrorAfterDoneClosed(t *testing.T) {
-	fake := &fakeCmd{signalErr: errors.New("already exited")}
-	done := make(chan struct{})
-	close(done)
-
-	if err := terminateProcess(fake, done); err != nil {
-		t.Fatalf("terminateProcess: %v", err)
-	}
-	if fake.killed {
-		t.Error("Kill should not be called when done already closed")
-	}
-}
-
-// TestBatchManager_Start_LauncherStartError 驗證 BatchManager 也能用假 launcher 測到啟動失敗，
-// 且失敗後 running 維持 false（不需真的產生子程序）。
-func TestBatchManager_Start_LauncherStartError(t *testing.T) {
-	ws := setupPMWorkspace(t)
-	bm := NewBatchManager(ws, "unused")
-	fake := &fakeLauncher{cmd: &fakeCmd{startErr: errors.New("start failed")}}
-	bm.launcher = fake
-
-	if err := bm.Start("test", 5); err == nil {
-		t.Fatal("expected error when cmd.Start fails")
-	}
-	if bm.Running() {
-		t.Error("Running should be false after failed Start")
-	}
-}
