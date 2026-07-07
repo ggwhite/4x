@@ -16,6 +16,6 @@ description: |-
     - 不影響本地開發的 make dashboard（不簽名直接 build）
     - 不把憑證或密碼 commit 到 repo
     - notarization 需要 App Store Connect API key 或 Apple ID + app-specific password，設定方式寫在 docs/guide/dashboard.md
-status: not-started
+status: done
 priority: 2
 profile: standard
