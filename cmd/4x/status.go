@@ -333,6 +333,7 @@ type statusItemJSON struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
 	Status    string `json:"status"`
+	Priority  *int   `json:"priority,omitempty"`
 	Phase     string `json:"phase,omitempty"`
 	Role      string `json:"role,omitempty"`
 	Round     int    `json:"round,omitempty"`
@@ -349,9 +350,10 @@ func showAllFeaturesJSON(ws *protocol.Workspace) error {
 	items := make([]statusItemJSON, 0, len(features))
 	for _, f := range features {
 		item := statusItemJSON{
-			ID:     f.ID,
-			Name:   f.Name,
-			Status: string(f.Status),
+			ID:       f.ID,
+			Name:     f.Name,
+			Status:   string(f.Status),
+			Priority: f.Priority,
 		}
 		if s, err := ws.ReadState(f.ID); err == nil {
 			item.Phase = string(s.Phase)
