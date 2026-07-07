@@ -67,6 +67,9 @@ func handleLogs(ws *protocol.CachedWorkspace, rest string, w http.ResponseWriter
 			logs = append(logs, li)
 		}
 		sort.Slice(logs, func(i, j int) bool {
+			if logs[i].StartedAt != nil && logs[j].StartedAt != nil {
+				return *logs[i].StartedAt < *logs[j].StartedAt
+			}
 			return logSortKey(logs[i].Name) < logSortKey(logs[j].Name)
 		})
 		w.Header().Set("Content-Type", "application/json")
@@ -197,7 +200,8 @@ func parseRoleTimings(featureDir string) map[string]roleTiming {
 		case "run-end":
 			if start, ok := starts[key]; ok {
 				ms := ev.Ts.Sub(start).Milliseconds()
-				timings[key] = roleTiming{DurationMs: &ms}
+				s := start.UTC().Format(time.RFC3339)
+				timings[key] = roleTiming{DurationMs: &ms, StartedAt: &s}
 				ended[key] = true
 			}
 		}
@@ -206,11 +210,11 @@ func parseRoleTimings(featureDir string) map[string]roleTiming {
 		if ended[key] {
 			continue
 		}
+		s := ts.UTC().Format(time.RFC3339)
 		if !lastEventTs.IsZero() && lastEventTs.After(ts) {
 			ms := lastEventTs.Sub(ts).Milliseconds()
-			timings[key] = roleTiming{DurationMs: &ms}
+			timings[key] = roleTiming{DurationMs: &ms, StartedAt: &s}
 		} else {
-			s := ts.UTC().Format(time.RFC3339)
 			timings[key] = roleTiming{StartedAt: &s}
 		}
 	}

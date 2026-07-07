@@ -248,7 +248,7 @@ func TestLogKeyFromEvent_DesignerIterates(t *testing.T) {
 }
 
 // TestParseRoleTimings 驗證 parseRoleTimings 從 events.jsonl 正確解析各 role 的計時資訊。
-// 已有 run-end 的 role 帶 DurationMs；只有 phase-start 的 role 帶 StartedAt。
+// 所有 role 都帶 StartedAt（供排序）；已有 run-end 的 role 額外帶 DurationMs。
 func TestParseRoleTimings(t *testing.T) {
 	ws := setupServerWorkspace(t)
 	featureDir := ws.FeatureDir("test-feat")
@@ -290,8 +290,13 @@ func TestParseRoleTimings(t *testing.T) {
 			t.Errorf("coder DurationMs = %d, want %d", *ct.DurationMs, wantMs)
 		}
 	}
-	if ct.StartedAt != nil {
-		t.Errorf("coder StartedAt should be nil (already ended)")
+	if ct.StartedAt == nil {
+		t.Errorf("coder StartedAt should not be nil (tracks start time for chronological sorting)")
+	} else {
+		wantStart := coderStart.UTC().Format(time.RFC3339)
+		if *ct.StartedAt != wantStart {
+			t.Errorf("coder StartedAt = %s, want %s", *ct.StartedAt, wantStart)
+		}
 	}
 
 	// reviewer 應有 StartedAt 或 DurationMs（以 lastEventTs 估算），不應為 nil。
