@@ -126,7 +126,7 @@ func MarkLearningsUsed(dotDir string, entries []learning.Entry) {
 }
 
 // HarvestLearnings 收割 feature 的所有 learnings 並追加到 .4x/learnings.json。
-// 來源有二：(1) 各角色在 round 目錄產出的 role-learnings.json，(2) Acceptor 的 retro-learnings.json。
+// 來源有二：(1) 各角色在 round 目錄產出的 {role}-learnings.json，(2) Acceptor 的 retro-learnings.json。
 // 屬 nice-to-have，任何錯誤只 warn，絕不影響 state transition。
 func HarvestLearnings(ws *protocol.Workspace, featureID string) {
 	storePath := filepath.Join(ws.DotDir(), protocol.LearningsFile)
@@ -194,18 +194,25 @@ func harvestRoleLearnings(store *learning.Store, ws *protocol.Workspace, feature
 		if !entry.IsDir() {
 			continue
 		}
-		rlPath := filepath.Join(roundsDir, entry.Name(), protocol.RoleLearningsFileName)
-		role, learnings, err := learning.ParseRoleLearningsFile(rlPath)
+		// glob 出該輪所有 {role}-learnings.json（含舊版 role-learnings.json），
+		// 讓同輪多個角色的 learnings 都被收割，而非只留最後寫入者。
+		matches, err := filepath.Glob(filepath.Join(roundsDir, entry.Name(), protocol.RoleLearningsGlob))
 		if err != nil {
 			continue
 		}
-		if len(learnings) == 0 {
-			continue
-		}
-		added := store.Harvest(featureID, role, learnings)
-		if added > 0 {
-			slog.Debug("harvested role learnings", "feature", featureID, "role", role, "round", entry.Name(), "added", added)
-			totalAdded += added
+		for _, rlPath := range matches {
+			role, learnings, err := learning.ParseRoleLearningsFile(rlPath)
+			if err != nil {
+				continue
+			}
+			if len(learnings) == 0 {
+				continue
+			}
+			added := store.Harvest(featureID, role, learnings)
+			if added > 0 {
+				slog.Debug("harvested role learnings", "feature", featureID, "role", role, "round", entry.Name(), "added", added)
+				totalAdded += added
+			}
 		}
 	}
 	return totalAdded

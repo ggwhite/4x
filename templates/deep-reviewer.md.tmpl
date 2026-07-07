@@ -292,7 +292,7 @@ Do NOT assume an existing file means the review is done — check which angles w
 == Role Learnings (optional) ==
 如果你在深度 review 中發現了對未來 feature 有價值的教訓（反覆出現的架構問題、隱藏的相依性等），可以產出：
 
-  {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/role-learnings.json
+  {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/deep-reviewer-learnings.json
 
 格式：
 {
@@ -312,7 +312,7 @@ Do NOT assume an existing file means the review is done — check which angles w
 
 == Constraints ==
 - You may NOT modify source code
-- You may ONLY write {{$reportFile}} and role-learnings.json — do NOT write final-report.md or any other protocol file
+- You may ONLY write {{$reportFile}} and deep-reviewer-learnings.json — do NOT write final-report.md or any other protocol file
 - Every issue must have concrete evidence (file path, line number, code snippet)
 - Do not repeat issues already found in review-report.md
 - Report Statistics section even when all findings are dropped — show you did the work

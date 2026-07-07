@@ -69,7 +69,8 @@ const (
 	LearningsFile         = "learnings.json"          // .4x/learnings.json，跨 feature 累積的 learnings 庫
 	LearningsContextFile  = "learnings-context.md"    // .4x/learnings-context.md，active learnings 的 markdown snapshot
 	RetroLearningsFile    = "retro-learnings.json"    // .4x/{feature-id}/retro-learnings.json，Acceptor 產出
-	RoleLearningsFileName = "role-learnings.json"     // rounds/round-{n}/role-learnings.json，各角色產出
+	RoleLearningsFileName = "role-learnings.json"     // 舊版單一固定檔名，harvester 仍讀取以相容既有 run 目錄
+	RoleLearningsGlob     = "*-learnings.json"        // rounds/round-{n}/{role}-learnings.json，各角色獨立檔名的 glob
 	ConsolidateInputFile  = "consolidate-input.json"  // .4x/consolidate-input.json，供 consolidate runner 讀
 	ConsolidateResultFile = "consolidate-result.json" // .4x/consolidate-result.json，consolidate runner 產出
 

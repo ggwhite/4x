@@ -123,7 +123,7 @@ Do NOT assume an existing file means the review is done — check which items ha
 == Role Learnings (optional) ==
 如果你在 review 過程中發現了對未來 feature 有價值的教訓（反覆出現的問題模式、容易遺漏的檢查項等），可以產出：
 
-  {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/role-learnings.json
+  {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/reviewer-learnings.json
 
 格式：
 {
@@ -143,5 +143,5 @@ Do NOT assume an existing file means the review is done — check which items ha
 
 == Constraints ==
 - You may NOT modify source code
-- You may ONLY write review-report.md and role-learnings.json — do NOT write final-report.md or any other protocol file
+- You may ONLY write review-report.md and reviewer-learnings.json — do NOT write final-report.md or any other protocol file
 - PASS only when zero critical AND zero warning issues
