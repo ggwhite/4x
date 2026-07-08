@@ -112,6 +112,71 @@ func TestDesignerYAMLMod_NotDesigning_Skip(t *testing.T) {
 	}
 }
 
+func TestDesignerYAMLMod_OrchestratorStatusFlip_Pass(t *testing.T) {
+	ws := setupDesignerYAMLWorkspace(t)
+	f := feat.Feature{ID: "F001-test", Name: "Test", Description: "desc", Status: feat.StatusNotStarted}
+	commitFeatureYAML(t, ws, f)
+
+	f.Status = feat.StatusInProgress
+	ws.SaveFeature(f)
+	writeState(t, ws, "F001-test", protocol.State{Phase: protocol.PhaseDesigning, Round: 1})
+
+	r := CheckResult{Pass: true}
+	checkDesignerYAMLMod(ws, "F001-test", &r)
+	if !r.Pass {
+		t.Errorf("expected pass for orchestrator status flip not-started → in-progress, got errors: %v", r.Errors)
+	}
+}
+
+func TestDesignerYAMLMod_EmptyStatusFlip_Pass(t *testing.T) {
+	ws := setupDesignerYAMLWorkspace(t)
+	f := feat.Feature{ID: "F001-test", Name: "Test", Description: "desc"}
+	commitFeatureYAML(t, ws, f)
+
+	f.Status = feat.StatusInProgress
+	ws.SaveFeature(f)
+	writeState(t, ws, "F001-test", protocol.State{Phase: protocol.PhaseDesigning, Round: 1})
+
+	r := CheckResult{Pass: true}
+	checkDesignerYAMLMod(ws, "F001-test", &r)
+	if !r.Pass {
+		t.Errorf("expected pass for orchestrator status flip \"\" → in-progress, got errors: %v", r.Errors)
+	}
+}
+
+func TestDesignerYAMLMod_OtherStatusChange_Fail(t *testing.T) {
+	ws := setupDesignerYAMLWorkspace(t)
+	f := feat.Feature{ID: "F001-test", Name: "Test", Description: "desc", Status: feat.StatusNotStarted}
+	commitFeatureYAML(t, ws, f)
+
+	f.Status = feat.StatusDone
+	ws.SaveFeature(f)
+	writeState(t, ws, "F001-test", protocol.State{Phase: protocol.PhaseDesigning, Round: 1})
+
+	r := CheckResult{Pass: true}
+	checkDesignerYAMLMod(ws, "F001-test", &r)
+	if r.Pass {
+		t.Error("expected fail when status changed to done (not an orchestrator flip)")
+	}
+}
+
+func TestDesignerYAMLMod_StatusFlipPlusNameChange_Fail(t *testing.T) {
+	ws := setupDesignerYAMLWorkspace(t)
+	f := feat.Feature{ID: "F001-test", Name: "Test", Description: "desc", Status: feat.StatusNotStarted}
+	commitFeatureYAML(t, ws, f)
+
+	f.Status = feat.StatusInProgress
+	f.Name = "Modified Name"
+	ws.SaveFeature(f)
+	writeState(t, ws, "F001-test", protocol.State{Phase: protocol.PhaseDesigning, Round: 1})
+
+	r := CheckResult{Pass: true}
+	checkDesignerYAMLMod(ws, "F001-test", &r)
+	if r.Pass {
+		t.Error("expected fail when name changed even alongside an orchestrator status flip")
+	}
+}
+
 func TestDesignerYAMLMod_NoChange_Pass(t *testing.T) {
 	ws := setupDesignerYAMLWorkspace(t)
 	f := feat.Feature{ID: "F001-test", Name: "Test", Description: "desc", Status: feat.StatusNotStarted, Repos: []string{"repo-a"}}

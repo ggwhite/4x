@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 	"gopkg.in/yaml.v3"
 )
@@ -45,7 +46,7 @@ func checkDesignerYAMLMod(ws *protocol.Workspace, featureID string, r *CheckResu
 	if fmtPriority(currentFeature.Priority) != fmtPriority(orig.Priority) {
 		diffs = append(diffs, fmt.Sprintf("priority: %s → %s", fmtPriority(orig.Priority), fmtPriority(currentFeature.Priority)))
 	}
-	if string(currentFeature.Status) != orig.Status {
+	if string(currentFeature.Status) != orig.Status && !isOrchestratorStatusFlip(orig.Status, currentFeature.Status) {
 		diffs = append(diffs, fmt.Sprintf("status: %s → %s", orig.Status, currentFeature.Status))
 	}
 	if currentFeature.Profile != orig.Profile {
@@ -81,6 +82,14 @@ type featureSnapshot struct {
 	Subtasks    []struct {
 		ID string `yaml:"id"`
 	} `yaml:"subtasks"`
+}
+
+// isOrchestratorStatusFlip 判斷 status 變更是否為 orchestrator 於 run-start
+// 自行寫入的 not-started（或未設定）→ in-progress 轉換；此轉換非 Designer 所為，
+// 不計入 designer YAML 違規。
+func isOrchestratorStatusFlip(orig string, current feature.Status) bool {
+	return (orig == string(feature.StatusNotStarted) || orig == "") &&
+		current == feature.StatusInProgress
 }
 
 func gitShowFile(root, path string) (string, error) {
