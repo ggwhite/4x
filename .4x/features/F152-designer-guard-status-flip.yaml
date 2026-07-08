@@ -1,7 +1,7 @@
 id: F152-designer-guard-status-flip
 name: 'F152: designer guard 忽略 orchestrator status flip'
 description: |-
-    現狀：orchestrator 於 run-start 會把 feature YAML 的 status: done 自動改為 in-progress；designer 階段手動跑 4x check 時，guard 以 git HEAD 比對 feature YAML，把這個 orchestrator 自身的 status flip 誤判為「designer modified non-repos fields」，造成假陽性（F146 run 中實測）。
+    現狀：orchestrator 於 run-start 會把 feature YAML 的 status: not-started 自動改為 in-progress；designer 階段手動跑 4x check 時，guard 以 git HEAD 比對 feature YAML，把這個 orchestrator 自身的 status flip 誤判為「designer modified non-repos fields」，造成假陽性（F146 run 中實測）。
 
     需求：
     - designer guard 比對 feature YAML 時忽略 orchestrator 自身寫入的 status 轉換（not-started → in-progress），或改以 run baseline（run 開始時的快照）而非 git HEAD 作為比對基準
@@ -10,7 +10,7 @@ description: |-
     約束：
     - 「designer 只能改 repos 欄位」的既有 guard 語意不變
     - 不放寬其他 role 對 feature YAML 的保護
-status: not-started
+status: done
 priority: 1
 profile: standard
 subtasks:
