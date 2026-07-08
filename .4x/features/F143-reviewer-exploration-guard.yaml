@@ -1,0 +1,30 @@
+id: F143-reviewer-exploration-guard
+name: 'F143: reviewer 探索行為硬約束'
+description: |-
+    現狀：F132 已有 review-package.md 預算 diff 機制，但 kairos 實測 reviewer 85% 的 Bash 呼叫仍是 grep/cat/git diff/git log 自行探索——prompt 指示被無視（reviewer.md.tmpl 明寫不要自己跑 git）。另實測 review-package.md 可膨脹到 326KB（kairos ws-168 round-4），reviewer 每輪全吞。
+
+    需求：
+    - review-package.md 除 diff 外預附「變更檔案的完整內容」，設總量上限（如 100KB），超過上限改列檔案路徑清單並註明可自行讀取
+    - review-package 產生時若超過上限，log 提示並在檔頭標註截斷策略，不可靜默
+    - guard/hook 層攔截 reviewer role 執行 git diff/log/show，回覆訊息引導改讀 review-package.md（軟性引導非硬失敗，不影響 build/test 指令）
+    - 攔截只針對 reviewer/deep-reviewer role，其他 role 不受影響
+
+    約束：
+    - 不可攔截 make build/test/lint 等驗證指令
+    - review 品質不可下降：AC 需包含對照既有 feature 的 review 行為驗證
+    - 不改 reviewer 的 verdict 邏輯與報告格式
+status: not-started
+priority: 2
+profile: normal
+subtasks:
+    - id: package-full-content
+      name: review-package 預附變更檔全文與上限策略
+      status: ""
+    - id: guard-git-intercept
+      name: guard/hook 攔截 reviewer 的 git 探索指令
+      status: ""
+    - id: quality-verification
+      name: 對照驗證 review 品質與整合測試
+      status: ""
+rules:
+    - 'spec: docs/design/token-optimization-v2-plan.md（B2 節）'

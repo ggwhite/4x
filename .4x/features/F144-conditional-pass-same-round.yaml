@@ -1,0 +1,30 @@
+id: F144-conditional-pass-same-round
+name: 'F144: CONDITIONAL PASS 同輪收斂'
+description: |-
+    現狀：learnings 反覆記錄「CONDITIONAL PASS 的修正項目流到下一輪才處理」，造成整輪 retry（coder 是最貴 role），retry 佔 pipeline 總成本 27.8%。目前 orchestrator 把 CONDITIONAL PASS 當 PASS 放行，問題延遲到 accepting 才爆開重跑。
+
+    需求：
+    - orchestrator 在 reviewing/deep-reviewing 後偵測 verdict 為 CONDITIONAL PASS，同輪派一次輕量 coder 收掉 conditional 項目，再進下一 phase
+    - 輕量 coder 的 prompt 只含 conditional 項目清單與相關檔案路徑，不給全套 context（可評估複用既有 mini-coder 機制）
+    - conditional 項目全數處理完才轉 phase；處理後重跑一次 reviewer 確認（或由 guard 驗證修正涵蓋所有點名項目）
+    - 狀態機轉換必須合法（對照 internal/state/machine.go），新增轉換需同步更新狀態機與其測試
+
+    約束：
+    - 不改變純 PASS 與純 FAIL 的既有流程
+    - 輕量 coder 不可擴 scope：只能修 conditional 點名的項目
+    - deep-review PASS 跳 fixer 的 F132 行為維持不變
+status: not-started
+priority: 2
+profile: full
+subtasks:
+    - id: detect-conditional
+      name: orchestrator 偵測 CONDITIONAL PASS 與狀態機轉換設計
+      status: ""
+    - id: mini-coder-dispatch
+      name: 同輪輕量 coder 派工與 prompt 組裝
+      status: ""
+    - id: verify-loop
+      name: 修正後確認機制與整合測試
+      status: ""
+rules:
+    - 'spec: docs/design/token-optimization-v2-plan.md（B3 節）'

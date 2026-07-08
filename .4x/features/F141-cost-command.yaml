@@ -1,0 +1,32 @@
+id: F141-cost-command
+name: 'F141: 4x cost 成本觀測指令'
+description: |-
+    現狀：cost 資料齊全（.4x/run/**/*.stream.jsonl 的 total_cost_usd/usage/duration_ms，internal/runner/stream.go:25-32；events.jsonl run-end 事件，internal/protocol/state.go:57-61），dashboard 有 per-feature 顯示，但 CLI 沒有任何入口，跨 feature 的 per-role 成本歸因要手寫 script。
+
+    需求：
+    - 新增 cmd/4x/cost.go：預設彙總所有 feature 的 per-role 成本表（呼叫數/總USD/平均USD/佔比）
+    - --feature <id> 篩選單一 feature，顯示 per-round per-role 明細
+    - --by-round 顯示各輪成本與 retry（round>=2）佔比
+    - --json 輸出結構化結果
+    - 資料來源以 stream.jsonl 為主（涵蓋最完整），events.jsonl 為輔
+    - docs/guide/cli.md 同步新增 cost 小節（make check-docs 會攔）
+
+    約束：
+    - 只讀取既有檔案，不改任何 run 資料
+    - 不引入新外部依賴
+    - 對缺 cost 欄位的舊 run 要能跳過並統計 skipped 數，不可 crash
+status: not-started
+priority: 1
+profile: quick
+subtasks:
+    - id: cost-aggregate
+      name: 實作 per-role 成本彙總與 cost.go 指令骨架
+      status: ""
+    - id: cost-flags
+      name: 實作 --feature/--by-round/--json
+      status: ""
+    - id: cost-docs-tests
+      name: docs/guide/cli.md 與 CLI 整合測試（含 --json）
+      status: ""
+rules:
+    - 'spec: docs/design/token-optimization-v2-plan.md（B4 節）'

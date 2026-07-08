@@ -1,0 +1,32 @@
+id: F142-amending-delta-injection
+name: 'F142: amending 輪 delta 注入'
+description: |-
+    現狀：internal/prompt/prompt.go:167-176 在 round>1 時把 round-{n-1}/review-report.md 與 test-report.md 全文注入 coder prompt（templates/coder.md.tmpl 的 PrevReviewReport/PrevTestReport），含已 PASS 的 checklist、格式樣板、已解決項。retry 輪佔 pipeline 總成本 27.8%，這是最貴路徑上的冗餘。
+
+    需求：
+    - 注入前抽取 review-report 的 ## Issues（僅 FAIL/CONDITIONAL 項）與 ## Verdict 段落 verbatim，其餘丟棄
+    - test-report 只保留 FAIL/SKIP 的 AC 列與 Verdict
+    - 抽取失敗（找不到預期 heading）時 fallback 注入全文，寧可多花 token 不可漏資訊，fallback 要有測試覆蓋
+    - 可複用 internal/orchestrator/acceptance_summary.go 既有的 ParseReviewVerdict 或抽共用 helper
+    - review PASS + test FAIL 的重試情境，不再注入整份已 PASS 的 review-report
+    - templates/reviewer.md.tmpl 的 ## Issues heading 是抽取契約，模板加註不可改名
+
+    約束：
+    - Issues/Verdict 內容原文逐字保留，不可改寫或摘要
+    - 不改變 round=1 的行為
+    - 不修改 review-report/test-report 的產出格式本身
+status: not-started
+priority: 1
+profile: normal
+subtasks:
+    - id: extract-helper
+      name: 實作報告段落抽取 helper（含 fallback）與單元測試
+      status: ""
+    - id: inject-delta
+      name: prompt.go 注入點改用 delta，模板加抽取契約註記
+      status: ""
+    - id: regression-tests
+      name: PASS+FAIL 混合情境與 heading 缺失 fallback 的整合測試
+      status: ""
+rules:
+    - 'spec: docs/design/token-optimization-v2-plan.md（B1 節）'
