@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-07-08
+
+### Features
+
+- **`4x cost` 成本觀測指令** — 彙整 run 產出的 stream log 成本資料，支援 per-role / per-round / per-feature 分群與 JSON 輸出；以 `logs/*.stream.jsonl` 為主要資料來源，`events.jsonl` 為 fallback
+- **Amending 輪 delta 注入** — reviewer/tester FAIL 後的 amending 輪，prompt 只注入失敗項與 verdict delta（而非全文），減少重複 token 消耗
+- **Reviewer 探索行為硬約束** — review-package.md 預附變更檔全文（100KB 共享預算），搭配 `4x guard-tool` PreToolUse hook 攔截 reviewer/deep-reviewer 的 `git diff/log/show` 探索指令，軟性引導改讀 review-package
+- **CONDITIONAL PASS 同輪收斂** — reviewer 給出 CONDITIONAL PASS 時，同輪內由 mini-coder 修復殘留 issue 後重跑 reviewer，避免不必要的 amending round
+- **Recovery 尊重人為 phase 介入** — `SmartResumePhase` 新增 `ManualPhase` 欄位，`4x transition` / `4x retry --to` 設定後 recovery 不再覆蓋
+- **Worktree 環境完整性** — worktree scaffold 後自動裁切 `go.work` 只保留 scope repo，並支援 `settings.json` 宣告式 `post_scaffold_hooks`
+- **Roles 白名單擴充** — `ConfigurableRoles()` 納入 fixer 與 mini-coder，支援 per-role model 路由；`4x doctor` 與 `roleCategoryMap` 同步更新
+- **Learnings 生命週期老化** — candidate 且 `used_count=0` 超過 `candidate_max_idle_days`（預設 30 天）自動標 stale；`4x learn prune` 可清理過時 learnings
+- **Check scope 誤判修正** — `hub_repos` 白名單排除 scope 檢查、tester 對 e2e repo 放行、diff 基準改用 merge-base 避免跨 branch 誤報
+- **Profile-aware 角色 prompt** — 渲染時注入 profile phase 清單與角色產出物契約，解決 Tester 越界寫 final-report、Acceptor 在精簡 profile 拒收等問題
+- **4x-audit reconcile 收尾** — audit skill 新增 Step 6 Reconcile（回標 gaps、4x clean、learn remove），Source 2 只掃非 done feature 降噪
+- **Designer/Reviewer template 強化** — Designer 加 AC checklist 與 Premise Verification 段；Reviewer 加 Evidence Requirement 段
+
+### Fixes
+
+- **Pre-existing lint debt 清零** — 移除 4 個 unused function + 1 個 staticcheck（`fmt.Sprintf` 無格式化參數）
+- **Tester parallel_review_test 拒跑** — tester prompt 加 parallel 模式說明，避免 state.json 顯示 reviewing 時 tester 拒絕執行
+- **`conditional-pass-residual` event 登錄** — 補登到 `AllEventTypes()` 與 `event.schema.json`
+- **Retry log 覆蓋** — retry 時 log 改用 append 避免覆蓋舊紀錄
+- **`--timeout` 預設值** — 移除 1 小時預設限制，改為不限時
+
+### Internal
+
+- **Token 優化 Batch A** — 移除 learnings 雙重注入（每 role 省 ~3k tokens）、CodeMap 只給 designer/coder/reviewer、六模板 learnings JSON 壓單行
+- **Model 路由文件** — 新增各 role × 各 runner 建議模型對照表
+
 ## [0.3.15] - 2026-07-08
 
 ### Features
