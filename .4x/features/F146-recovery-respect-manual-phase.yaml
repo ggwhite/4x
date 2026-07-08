@@ -14,7 +14,7 @@ description: |-
     - 真 crash 情境的既有 SmartResumePhase 行為不變（既有 resume 測試全數保持通過）
     - 不改狀態機合法轉換表本身
     - RecoverTo 的繞過語意保留給 recovery 內部使用，不對外擴散
-status: not-started
+status: in-progress
 priority: 1
 profile: normal
 subtasks:
