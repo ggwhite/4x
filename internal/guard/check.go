@@ -360,10 +360,16 @@ func checkACEvidence(ts protocol.TestStrategy, evidence protocol.VerifyEvidence,
 		}
 	}
 
+	// ac_checks-bound AC 以 exit code 重算為權威；任何一條重算失敗時，top-level
+	// passed=true 即為謊報（手改 top-level 不可繞過 guard）——收集後統一檢查。
+	var acChecksFailed []string
+
 	for _, ac := range evidence.ACResults {
 		// ac_checks-bound AC：以實際 exit code 為權威判定，豁免 prose executionPattern 檢查。
 		if len(ts.ACChecks[ac.ID]) > 0 {
-			checkACChecksConsistency(ac, r)
+			if !checkACChecksConsistency(ts.ACChecks[ac.ID], ac, r) {
+				acChecksFailed = append(acChecksFailed, ac.ID)
+			}
 			continue
 		}
 		vt := ""
@@ -427,26 +433,77 @@ func checkACEvidence(ts protocol.TestStrategy, evidence protocol.VerifyEvidence,
 			}
 		}
 	}
+
+	if evidence.Passed && len(acChecksFailed) > 0 {
+		r.Pass = false
+		r.Errors = append(r.Errors, fmt.Sprintf(
+			"verify.json claims passed=true but ac_checks recomputation failed for %s — top-level passed is recomputed by 4x verify, do not hand-edit",
+			strings.Join(acChecksFailed, ", ")))
+		r.RetryableErrors++
+	}
 }
 
-// checkACChecksConsistency 對綁定 ac_checks 的單一 AC 以 exit code 為權威重算 passed：
-// checks 為空 → 擋（防 Tester 覆寫掉 CLI 寫的 Checks）；ac.Passed 與 CommandsPassed(checks)
-// 重算結果不一致 → 擋（LLM 謊報偵測）。這類 AC 有真 exit code，故豁免 prose executionPattern 檢查。
-func checkACChecksConsistency(ac protocol.ACEvidence, r *CheckResult) {
+// checkACChecksConsistency 對綁定 ac_checks 的單一 AC 以 exit code 為權威重算 passed，
+// 回傳重算結果（true = 該 AC 實際通過）。這類 AC 有真 exit code，故豁免 prose
+// executionPattern 檢查，但依序強制：
+//   - checks 為空 → 擋（防 Tester 覆寫掉 CLI 寫的 Checks）；
+//   - 記錄的 command 序列與 test-strategy.yaml 宣告的 ac_checks 不一致 → 擋
+//     （SoT 比對，防整組換成 `true` 這類假命令）；
+//   - ac.Passed 與重算不一致 → 擋（LLM 謊報偵測）；
+//   - 重算失敗 → 擋（AC 未通過就是未通過，不因 passed 欄位一致而放行）；
+//     ctx 逾時/取消（check 的 Error 非空）給明確訊息，而非籠統的 AC failed。
+//
+// 重算採 verify.ACChecksPassed 的全執行語意——skipped 條目不得充當通過。
+func checkACChecksConsistency(expectedCmds []string, ac protocol.ACEvidence, r *CheckResult) bool {
 	if len(ac.Checks) == 0 {
 		r.Pass = false
 		r.Errors = append(r.Errors, fmt.Sprintf(
 			"%s: has ac_checks but verify.json ac_results missing check results — do not hand-edit; re-run 4x verify", ac.ID))
 		r.RetryableErrors++
-		return
+		return false
 	}
-	recomputed := verify.CommandsPassed(ac.Checks)
+
+	mismatch := len(ac.Checks) != len(expectedCmds)
+	if !mismatch {
+		for i := range ac.Checks {
+			if ac.Checks[i].Command != expectedCmds[i] {
+				mismatch = true
+				break
+			}
+		}
+	}
+	if mismatch {
+		r.Pass = false
+		r.Errors = append(r.Errors, fmt.Sprintf(
+			"%s: verify.json check commands do not match test-strategy.yaml ac_checks — do not hand-edit; re-run 4x verify", ac.ID))
+		r.RetryableErrors++
+		return false
+	}
+
+	recomputed := verify.ACChecksPassed(ac.Checks)
 	if ac.Passed != recomputed {
 		r.Pass = false
 		r.Errors = append(r.Errors, fmt.Sprintf(
 			"%s: verify.json claims passed=%v but ac_checks exit codes say %v", ac.ID, ac.Passed, recomputed))
 		r.RetryableErrors++
 	}
+	if !recomputed {
+		r.Pass = false
+		r.RetryableErrors++
+		interrupted := false
+		for _, c := range ac.Checks {
+			if c.Error != "" && !c.Skipped && c.ExitCode != 0 {
+				interrupted = true
+				r.Errors = append(r.Errors, fmt.Sprintf(
+					"%s: check %q did not finish (%s) — not a code failure; re-run 4x verify with a larger --timeout", ac.ID, c.Command, c.Error))
+			}
+		}
+		if !interrupted {
+			r.Errors = append(r.Errors, fmt.Sprintf(
+				"%s: ac_checks failed — all checks must run and exit 0 (exit codes are authoritative)", ac.ID))
+		}
+	}
+	return recomputed
 }
 
 // checkScreenshotRequirement 驗證宣告 verify_type=e2e-screenshot 的 AC 有留下截圖證據，

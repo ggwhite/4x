@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/ggwhite/4x/internal/protocol"
@@ -101,10 +103,17 @@ func newVerifyCmd() *cobra.Command {
 					})
 				}
 				evidence.ACResults = acResults
-			} else if len(ts.ACChecks) > 0 {
-				// ac_checks 為權威判定路徑（與 fallback 合成互斥）：對每條綁定 ac_checks 的
-				// AC 實際執行命令，以 exit code 決定 passed，併入 verify.json 的 ac_results。
-				acResults := verify.RunACChecks(ctx, ts.ACChecks, ws.Root)
+			}
+			if len(ts.ACChecks) > 0 {
+				// ac_checks 為權威判定路徑，執行與否獨立於 fallback 判斷——test-strategy
+				// 只宣告 ac_checks（無 verify_commands/verify_groups）時也必須執行，否則
+				// guard 要求 check 結果但 verify 永不產生，形成死循環。對每條綁定 ac_checks
+				// 的 AC 實際執行命令，以 exit code 決定 passed，併入 verify.json 的 ac_results。
+				// timeout 預算獨立於 verify groups（另起 context），避免 groups 耗盡預算後
+				// ac_checks 全被 ctx cancel 記成假失敗。
+				acCtx, acCancel := context.WithTimeout(context.Background(), timeout)
+				acResults := verify.RunACChecks(acCtx, ts.ACChecks, ws.Root)
+				acCancel()
 				evidence.ACResults = append(evidence.ACResults, acResults...)
 				for _, ac := range acResults {
 					if !ac.Passed {
@@ -129,7 +138,7 @@ func newVerifyCmd() *cobra.Command {
 			if jsonOut {
 				fmt.Println(string(outData))
 			} else {
-				printVerifySummary(evidence)
+				printVerifySummary(os.Stdout, evidence)
 			}
 
 			if !evidence.Passed {
@@ -147,33 +156,47 @@ func newVerifyCmd() *cobra.Command {
 	return cmd
 }
 
-// printVerifySummary 印出 verify 結果摘要表格（GROUP / COMMAND / EXIT / DURATION）。
-func printVerifySummary(ev protocol.VerifyEvidence) {
-	fmt.Println()
-	fmt.Printf("%-12s %-40s %6s %10s\n", "GROUP", "COMMAND", "EXIT", "DURATION")
-	fmt.Printf("%-12s %-40s %6s %10s\n",
+// printVerifySummary 印出 verify 結果摘要表格（GROUP / COMMAND / EXIT / DURATION），
+// 含 verify groups 的 commands 與每條 ac_checks AC 的 check 執行結果（group 欄為 AC ID）。
+func printVerifySummary(w io.Writer, ev protocol.VerifyEvidence) {
+	fmt.Fprintln(w)
+	fmt.Fprintf(w, "%-12s %-40s %6s %10s\n", "GROUP", "COMMAND", "EXIT", "DURATION")
+	fmt.Fprintf(w, "%-12s %-40s %6s %10s\n",
 		pad("-", 12), pad("-", 40), pad("-", 6), pad("-", 10))
 
 	for _, c := range ev.Commands {
-		status := fmt.Sprintf("%d", c.ExitCode)
-		dur := fmt.Sprintf("%dms", c.DurationMs)
-		if c.Skipped {
-			status = "SKIP"
-			dur = "-"
+		printVerifyRow(w, c)
+	}
+	for _, ac := range ev.ACResults {
+		for _, c := range ac.Checks {
+			printVerifyRow(w, c)
 		}
-		cmdDisplay := c.Command
-		if len(cmdDisplay) > 40 {
-			cmdDisplay = cmdDisplay[:37] + "..."
-		}
-		fmt.Printf("%-12s %-40s %6s %10s\n", c.Group, cmdDisplay, status, dur)
 	}
 
-	fmt.Println()
+	fmt.Fprintln(w)
 	if ev.Passed {
-		fmt.Println("PASSED")
+		fmt.Fprintln(w, "PASSED")
 	} else {
-		fmt.Println("FAILED")
+		fmt.Fprintln(w, "FAILED")
 	}
+}
+
+// printVerifyRow 印出摘要表格的單一 command 列；skipped 顯示 SKIP、
+// ctx 逾時/取消（Error 非空）顯示原因取代 exit code。
+func printVerifyRow(w io.Writer, c protocol.VerifyCommand) {
+	status := fmt.Sprintf("%d", c.ExitCode)
+	dur := fmt.Sprintf("%dms", c.DurationMs)
+	if c.Skipped {
+		status = "SKIP"
+		dur = "-"
+	} else if c.Error != "" {
+		status = strings.ToUpper(c.Error)
+	}
+	cmdDisplay := c.Command
+	if len(cmdDisplay) > 40 {
+		cmdDisplay = cmdDisplay[:37] + "..."
+	}
+	fmt.Fprintf(w, "%-12s %-40s %6s %10s\n", c.Group, cmdDisplay, status, dur)
 }
 
 // pad 回傳 s 重複 n 次組成的字串，用於畫摘要表格的分隔線。

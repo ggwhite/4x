@@ -193,8 +193,10 @@ artifact). A fake-verification linter rejects commands that only grep source cod
 `printf ok`, `true`, or `:` — these pass without verifying anything. If a check legitimately needs
 to grep source (e.g. confirming a generated .go file contains a symbol), append the literal escape
 token `4x-lint:allow` to the command and it is allowed unconditionally. Exit-code convention is
-exit 0 = PASS with no per-check expected-code field; for "expect no match" use shell idiom such as
-`! grep -q foo file`.
+exit 0 = PASS with no per-check expected-code field. For "expect no match" assertions, `! grep -q
+foo <output-file>` against generated output is fine, but `! grep` against Go source is still
+source-grepping and is rejected by the linter — a grep-style assertion on source must be paired
+with at least one check that actually executes the program, or carry `4x-lint:allow`.
 
 ac_checks:
   AC-1: ["go test ./internal/foo -run TestBar"]

@@ -3,6 +3,9 @@ package verify
 import (
 	"context"
 	"testing"
+	"time"
+
+	"github.com/ggwhite/4x/internal/protocol"
 )
 
 // TestRunACChecks 用真實子程序命令驗證：全 exit 0 → Passed=true；含失敗命令 → Passed=false
@@ -92,6 +95,12 @@ func TestLintACCheck(t *testing.T) {
 		{"grep-docs", "grep -q ac_checks docs/architecture/protocol.md", false},
 		{"allow-escape", "grep -q sym gen.go # 4x-lint:allow", false},
 		{"echo-piped", "echo hi | grep hi", false},
+		{"negated-grep-source", "! grep -q foo internal/x.go", true},
+		{"negated-grep-output", "! grep -q foo out.txt", false},
+		{"paren-grep-source", "(grep foo internal/x.go)", true},
+		{"compound-echo-then-real", "echo case-1 && bin/4x status", false},
+		{"compound-all-echo", "echo a && echo b", true},
+		{"compound-echo-semicolon", "echo start; printf done", true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -103,6 +112,50 @@ func TestLintACCheck(t *testing.T) {
 				t.Errorf("LintACCheck(%q) = %q (rejected), want \"\" (allowed)", tc.cmd, reason)
 			}
 		})
+	}
+}
+
+// TestACChecksPassed 驗證 ac_checks 的嚴格通過語意：全部執行且 exit 0 才算過，
+// skipped 條目視為未達成（不得充當通過），空清單不算過。（review Blocker 3）
+func TestACChecksPassed(t *testing.T) {
+	cases := []struct {
+		name string
+		cmds []protocol.VerifyCommand
+		want bool
+	}{
+		{"all-exit-zero", []protocol.VerifyCommand{{Command: "a", ExitCode: 0}, {Command: "b", ExitCode: 0}}, true},
+		{"one-fails", []protocol.VerifyCommand{{Command: "a", ExitCode: 1}}, false},
+		{"skipped-not-pass", []protocol.VerifyCommand{{Command: "a", ExitCode: 1, Skipped: true}}, false},
+		{"skipped-zero-not-pass", []protocol.VerifyCommand{{Command: "a", ExitCode: 0, Skipped: true}}, false},
+		{"empty", nil, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := ACChecksPassed(tc.cmds); got != tc.want {
+				t.Errorf("ACChecksPassed(%s) = %v, want %v", tc.name, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestRunACChecksTimeoutMarked 驗證 ctx 超時導致的失敗在結果上可辨識：
+// check 的 Error 欄位標 "timeout"，該 AC Passed=false。（review Finding 7）
+func TestRunACChecksTimeoutMarked(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+	results := RunACChecks(ctx, map[string][]string{"AC-1": {"sleep 5"}}, t.TempDir())
+	if len(results) != 1 {
+		t.Fatalf("expected 1 AC result, got %d", len(results))
+	}
+	ac := results[0]
+	if ac.Passed {
+		t.Error("timed-out check must not pass")
+	}
+	if len(ac.Checks) != 1 {
+		t.Fatalf("expected 1 check, got %d", len(ac.Checks))
+	}
+	if ac.Checks[0].Error != "timeout" {
+		t.Errorf("check Error = %q, want \"timeout\"", ac.Checks[0].Error)
 	}
 }
 

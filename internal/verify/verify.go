@@ -192,6 +192,16 @@ func executeCommand(ctx context.Context, cmdStr, group, workDir string) protocol
 		summary = summary[:250] + "\n...\n" + summary[len(summary)-250:]
 	}
 
+	errMsg := ""
+	if err != nil {
+		switch ctx.Err() {
+		case context.DeadlineExceeded:
+			errMsg = "timeout"
+		case context.Canceled:
+			errMsg = "canceled"
+		}
+	}
+
 	return protocol.VerifyCommand{
 		Command:    cmdStr,
 		ExitCode:   exitCode,
@@ -200,5 +210,6 @@ func executeCommand(ctx context.Context, cmdStr, group, workDir string) protocol
 		StartedAt:  start,
 		FinishedAt: finished,
 		Group:      group,
+		Error:      errMsg,
 	}
 }

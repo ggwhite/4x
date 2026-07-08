@@ -46,6 +46,10 @@ type VerifyCommand struct {
 	FinishedAt       time.Time `json:"finishedAt"`
 	Group            string    `json:"group,omitempty"`
 	Skipped          bool      `json:"skipped,omitempty"`
+	// Error 標記命令未正常完成的原因（"timeout" = ctx 逾時被砍、"canceled" = ctx 被取消），
+	// 由 executeCommand 寫入。空字串表示命令正常跑完（exit code 即最終結果）。
+	// guard 據此對 timeout 類失敗給明確錯誤訊息，而非籠統的 AC failed。
+	Error string `json:"error,omitempty"`
 }
 
 // HealthCheck 是 testing phase 啟動前的環境檢查設定。

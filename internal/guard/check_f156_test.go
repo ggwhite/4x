@@ -150,6 +150,151 @@ func TestCheckACChecksConsistency(t *testing.T) {
 	})
 }
 
+// TestACChecksFailingACBlocks 驗證綁定 ac_checks 的 AC 重算失敗時一律擋，
+// 且 top-level passed=true 時額外報謊報 error——手改 top-level passed 不可繞過 guard。
+// （review Blocker 2）
+func TestACChecksFailingACBlocks(t *testing.T) {
+	ts := protocol.TestStrategy{
+		ACChecks: map[string][]string{"AC-1": {"go test ./..."}},
+	}
+
+	t.Run("consistent-failure-still-blocks", func(t *testing.T) {
+		// ac.Passed=false 與 checks exit 1 一致（無謊報），但 AC 實際失敗 → 仍須擋。
+		ev := protocol.VerifyEvidence{
+			Passed: true, // 手改 top-level
+			ACResults: []protocol.ACEvidence{{
+				ID:       "AC-1",
+				Passed:   false,
+				Evidence: []string{"$ go test → exit 1"},
+				Checks:   []protocol.VerifyCommand{{Command: "go test ./...", ExitCode: 1}},
+			}},
+		}
+		r := CheckResult{Pass: true}
+		checkACEvidence(ts, ev, &r)
+		if r.Pass {
+			t.Fatal("expected block when an ac_checks-bound AC fails by exit code")
+		}
+		if !hasErrContaining(r.Errors, "AC-1") {
+			t.Fatalf("expected error naming AC-1, got %v", r.Errors)
+		}
+	})
+
+	t.Run("top-level-passed-lie-blocked", func(t *testing.T) {
+		ev := protocol.VerifyEvidence{
+			Passed: true,
+			ACResults: []protocol.ACEvidence{{
+				ID:       "AC-1",
+				Passed:   false,
+				Evidence: []string{"$ go test → exit 1"},
+				Checks:   []protocol.VerifyCommand{{Command: "go test ./...", ExitCode: 1}},
+			}},
+		}
+		r := CheckResult{Pass: true}
+		checkACEvidence(ts, ev, &r)
+		if !hasErrContaining(r.Errors, "claims passed=true") {
+			t.Fatalf("expected top-level passed lie error, got %v", r.Errors)
+		}
+	})
+}
+
+// TestACChecksSkippedBypassBlocked 驗證把 checks 全標 skipped 不能充當通過：
+// 重算採「全部執行且 exit 0」語意，skipped 條目視為未達成。（review Blocker 3）
+func TestACChecksSkippedBypassBlocked(t *testing.T) {
+	ts := protocol.TestStrategy{
+		ACChecks: map[string][]string{"AC-1": {"go test ./..."}},
+	}
+	ev := protocol.VerifyEvidence{
+		Passed: true,
+		ACResults: []protocol.ACEvidence{{
+			ID:       "AC-1",
+			Passed:   true,
+			Evidence: []string{"$ go test → skipped"},
+			Checks:   []protocol.VerifyCommand{{Command: "go test ./...", ExitCode: 1, Skipped: true}},
+		}},
+	}
+	r := CheckResult{Pass: true}
+	checkACEvidence(ts, ev, &r)
+	if r.Pass {
+		t.Fatal("expected block when all checks are marked skipped")
+	}
+	if !hasErrContaining(r.Errors, "AC-1") {
+		t.Fatalf("expected error naming AC-1, got %v", r.Errors)
+	}
+}
+
+// TestACChecksCommandSubstitutionBlocked 驗證 verify.json 記錄的 check 命令必須與
+// test-strategy.yaml 宣告的 ac_checks 一致（SoT 比對）——整組換成假命令即擋。（review Finding 4）
+func TestACChecksCommandSubstitutionBlocked(t *testing.T) {
+	ts := protocol.TestStrategy{
+		ACChecks: map[string][]string{"AC-1": {"go test ./..."}},
+	}
+
+	t.Run("substituted-command-blocked", func(t *testing.T) {
+		ev := protocol.VerifyEvidence{
+			Passed: true,
+			ACResults: []protocol.ACEvidence{{
+				ID:       "AC-1",
+				Passed:   true,
+				Evidence: []string{"$ true → exit 0"},
+				Checks:   []protocol.VerifyCommand{{Command: "true", ExitCode: 0}},
+			}},
+		}
+		r := CheckResult{Pass: true}
+		checkACEvidence(ts, ev, &r)
+		if r.Pass {
+			t.Fatal("expected block when recorded check commands differ from test-strategy ac_checks")
+		}
+		if !hasErrContaining(r.Errors, "AC-1") || !hasErrContaining(r.Errors, "do not match") {
+			t.Fatalf("expected command-mismatch error naming AC-1, got %v", r.Errors)
+		}
+	})
+
+	t.Run("count-mismatch-blocked", func(t *testing.T) {
+		ev := protocol.VerifyEvidence{
+			Passed: true,
+			ACResults: []protocol.ACEvidence{{
+				ID:       "AC-1",
+				Passed:   true,
+				Evidence: []string{"$ go test → exit 0"},
+				Checks: []protocol.VerifyCommand{
+					{Command: "go test ./...", ExitCode: 0},
+					{Command: "true", ExitCode: 0},
+				},
+			}},
+		}
+		r := CheckResult{Pass: true}
+		checkACEvidence(ts, ev, &r)
+		if r.Pass {
+			t.Fatal("expected block when recorded check count differs from test-strategy ac_checks")
+		}
+	})
+}
+
+// TestACChecksTimeoutExplicitError 驗證 ctx 超時導致的 check 失敗給明確 timeout 訊息，
+// 而非籠統的 AC failed。（review Finding 7）
+func TestACChecksTimeoutExplicitError(t *testing.T) {
+	ts := protocol.TestStrategy{
+		ACChecks: map[string][]string{"AC-1": {"go test ./..."}},
+	}
+	ev := protocol.VerifyEvidence{
+		Passed: false,
+		ACResults: []protocol.ACEvidence{{
+			ID:       "AC-1",
+			Passed:   false,
+			Evidence: []string{"$ go test → exit -1"},
+			Checks:   []protocol.VerifyCommand{{Command: "go test ./...", ExitCode: -1, Error: "timeout"}},
+		}},
+	}
+	r := CheckResult{Pass: true}
+	checkACEvidence(ts, ev, &r)
+	if r.Pass {
+		t.Fatal("expected block when a check timed out")
+	}
+	if !hasErrContaining(r.Errors, "timeout") {
+		t.Fatalf("expected explicit timeout error, got %v", r.Errors)
+	}
+}
+
 // TestBackwardCompatNoACChecks 反向回歸 pin：test-strategy 無 ac_checks 時，checkACChecksSchema 立即
 // return（不擋），checkACEvidence 走既有 prose-evidence 路徑（execution 類需執行輸出）。（AC-8 guard 部分）
 func TestBackwardCompatNoACChecks(t *testing.T) {
