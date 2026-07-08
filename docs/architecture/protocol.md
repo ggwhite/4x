@@ -166,7 +166,8 @@ Each feature gets a directory at `.4x/run/{feature-id}/`. The CLI creates it whe
   "since":                 "2026-06-10T09:10:00Z",  // when current phase started
   "consecutiveNoProgress": 0,               // incremented when verify.json shows no change
   "lastFailCount":         0,               // reviewer or tester failures in latest round
-  "stopReason":            ""               // populated when active=false; see escalation
+  "stopReason":            "",              // populated when active=false; see escalation
+  "parallelReview":        false            // true only while reviewer/tester run in parallel
 }
 ```
 
@@ -180,6 +181,7 @@ Field notes:
 | `consecutiveNoProgress` | Reset to 0 on any verify improvement; triggers escalation at threshold. |
 | `lastFailCount` | Number of issues found by Reviewer/Tester in the most recent run. |
 | `stopReason` | One of: `max-rounds`, `escalated`, `blocked`, `manual`, `done`. |
+| `parallelReview` | Per-run signal: true while reviewer/tester run in parallel (parallel_review_test mode); reset to false before any transition out of reviewing. |
 
 ## 3.5 `events.jsonl` Schema
 

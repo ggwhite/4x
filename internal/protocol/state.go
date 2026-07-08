@@ -41,6 +41,13 @@ type State struct {
 	// 依磁碟 artifacts 重推導，並在消費後清除（避免下一輪真 crash 時仍被當成人為介入）。
 	// 正常 run loop 內部的 state.Transition 不設置此旗標，故 recovery 對真 crash 的行為維持不變。
 	ManualPhase bool `json:"manualPhase,omitempty"`
+	// ParallelReview 是 per-run 訊號：為 true 表示本輪 reviewer 與 tester 正並行執行於同一個
+	// reviewing phase（parallel_review_test 模式）。tester agent 的自保啟發式會讀 state.json，
+	// 若發現 phase=reviewing/role=reviewer 而非 tester 便可能拒絕執行；此旗標讓 tester/reviewer
+	// 的 prompt 能明確識別「並行執行合法」。生命週期由 RunReviewTestParallel 掌控：進入並行段落
+	// 前（SyncFeatureToWorktree 之前）設為 true 並寫入 main state.json 以傳播到 worktree；兩者
+	// 完成後、任何 transition 之前設回 false，確保標記不外漏到後續 phase。序列路徑不設此欄位。
+	ParallelReview bool `json:"parallelReview,omitempty"`
 }
 
 // Event 是 events.jsonl 的一行

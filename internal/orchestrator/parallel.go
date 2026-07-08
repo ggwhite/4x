@@ -59,6 +59,12 @@ func RunReviewTestParallel(ctx context.Context, r *Runner, s *protocol.State, pc
 		return resolveErr("tester model", err)
 	}
 
+	// per-run parallel 訊號：進入並行段落前寫入 main state.json，讓後續 SyncFeatureToWorktree
+	// （複製清單含 StateFile）把 parallelReview:true 傳播到 worktree；非 worktree 模式下 runner
+	// 直接讀 main 也已是 true。tester/reviewer 的自保啟發式據此識別並行執行合法（DR-1/DR-2）。
+	s.ParallelReview = true
+	LogStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+
 	if runnerWs.Root != ws.Root {
 		SyncFeatureToWorktree(ws, runnerWs, featureID, round)
 	}
@@ -117,6 +123,12 @@ func RunReviewTestParallel(ctx context.Context, r *Runner, s *protocol.State, pc
 			slog.Warn("sync from worktree failed", "feature", featureID, "round", round, "error", serr)
 		}
 	}
+
+	// 離開並行段落：重置 main state.json 的 parallel 訊號，確保 true 不外漏到後續 phase／收斂。
+	// SyncFeatureFromWorktree / StartLiveSync 不回抄 state.json，故 worktree 殘留的 true 不會覆蓋
+	// 此處寫回的 false；後續若走 worktree 的 phase 會各自以 main 的 false 重新覆蓋 worktree（DR-2）。
+	s.ParallelReview = false
+	LogStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
 
 	for _, o := range outcomes {
 		if o.err != nil {
@@ -185,6 +197,16 @@ func RunReviewTestParallel(ctx context.Context, r *Runner, s *protocol.State, pc
 			return parallelTransition(ws, featureID, s, protocol.PhaseAmending, protocol.RoleCoder)
 		}
 		return parallelNeedsAttention(ws, featureID, s, esc.Reason)
+	}
+
+	// F144 同輪 CONDITIONAL PASS 收斂：序列路徑在 reviewing 後呼叫同一個 runReviewConvergence，
+	// parallel 路徑先前漏接，reviewer 的 warning 直接放行到後續 phase。此處複用序列路徑的 helper
+	// 接上收斂（非 CONDITIONAL 情境為 no-op）。收斂會就地覆寫 review-report.md，故其後的 reviewOK
+	// 必須在收斂之後才計算（維持既有程式碼位置）。此時 parallelReview 已設回 false（見上方重置）。
+	if cont, err := r.runReviewConvergence(ctx, s, pc); err != nil {
+		return false, err
+	} else if !cont {
+		return false, nil
 	}
 
 	reviewOK := ReviewPassed(ws, featureID, round, protocol.ReviewReport)

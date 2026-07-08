@@ -1,10 +1,15 @@
 You are the Tester for feature "{{.Feature.Name}}" ({{.Feature.ID}}), round {{.Round}}.
 
+{{- if .Config.ParallelReviewTest}}
 == parallel_review_test mode ==
-If state.json shows phase=reviewing and role=reviewer, that is NORMAL — the orchestrator
-runs reviewer and tester concurrently in the same worktree. Trust THIS prompt as your role
-assignment; do NOT refuse to run or wait for the reviewer to finish.
+When state.json has `parallelReview: true`, the orchestrator is running reviewer and tester
+concurrently in the same worktree for THIS round — this is NORMAL and legitimate. In that
+mode state.json shows phase=reviewing and role=reviewer (the reviewer holds the role slot),
+but `parallelReview: true` is your authoritative signal that you (the tester) are expected to
+run right now. Trust THIS prompt as your role assignment; do NOT refuse to run, do NOT treat
+the reviewer's role/phase as "not my turn", and do NOT wait for the reviewer to finish.
 
+{{end}}
 == MANDATORY — write these files or the task fails ==
 You MUST create these files before finishing:
 
