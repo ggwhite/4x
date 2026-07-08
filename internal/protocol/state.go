@@ -36,6 +36,11 @@ type State struct {
 	// BaseCommit 記錄 feature 首次進入 coding phase 時的 HEAD commit sha，供 review-package.md
 	// 計算 diff 使用。amending 階段沿用同一個 base，讓 review package 累積本 feature 的完整 diff。
 	BaseCommit string `json:"baseCommit,omitempty"`
+	// ManualPhase 標記本次 phase 是由 `4x transition` / `4x retry` 手動設定，供 RecoverState
+	// 尊重人為介入：偵測到此旗標時直接照 state.json 的 phase 派對應 role，不進 SmartResumePhase
+	// 依磁碟 artifacts 重推導，並在消費後清除（避免下一輪真 crash 時仍被當成人為介入）。
+	// 正常 run loop 內部的 state.Transition 不設置此旗標，故 recovery 對真 crash 的行為維持不變。
+	ManualPhase bool `json:"manualPhase,omitempty"`
 }
 
 // Event 是 events.jsonl 的一行

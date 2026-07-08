@@ -114,6 +114,8 @@ If the feature is in `blocked` or `needs-attention` phase, automatically recover
 
 Before running deep review, 4x selects which of the 11 review angles to run based on the diff-affected file paths. The `angle_mapping` in `roles.deep-reviewer` maps path prefixes (and `*`-prefixed suffix patterns like `*_test.go`) to angle numbers; only matched angles are dispatched. When no file matches any rule, all 11 angles run as a safety fallback. The selection is recorded in `deep-review-angles.json` in the round directory. To force all angles: pass `--all-angles` to `4x run`, or set `deep_review_all_angles: true` in the feature YAML. See [Configuration → Angle Mapping](configuration.md#angle-mapping) for the default mapping and customization.
 
+When `4x run` starts on a feature that already has a `state.json`, it performs crash recovery: `SmartResumePhase` derives the resume start point from the on-disk artifacts of the current round (e.g. a missing/incomplete `coder-report.md` resumes at `coding`) rather than blindly trusting the recorded phase. The one exception is a phase set by a manual `4x transition` / `4x retry --to <phase>` — such a phase carries a `manualPhase` flag and is honored as-is (role derived from the phase, no artifact-based re-derivation), so a deliberate human intervention is never overwritten back to an earlier phase. The flag is consumed on the first recovery, so a genuine crash on the next round still goes through normal artifact-based recovery.
+
 If a run crashes mid `deep-reviewing`, recovery is incremental rather than restarting the whole (expensive) deep review. `SmartResumePhase` (in `internal/orchestrator`) inspects the on-disk artifacts and restores the matching `subPhase`: any missing/incomplete `deep-review-partial-{i}.md` resumes at `reviewing` and only the missing sub-reviewers are re-spawned (`MissingDeepPartials`), reusing each index's original angle group; all partials present but an incomplete report resumes at `synthesizing` (sub-reviewers skipped, only the synthesizer re-runs); a complete-but-FAILed report routes to `amending` as before. A partial counts as complete only when it carries the `## Statistics` sentinel section (`DeepPartialComplete`). See [Concepts → Deep Review SubPhase & Crash Recovery](concepts.md#deep-review-subphase--crash-recovery).
 
 Automatically checks dependency gate — blocks if depended features are not done.
@@ -225,6 +227,8 @@ Default target phase is `accepting` (re-run the Acceptor after the human fixes i
 | Flag | Description |
 |------|-------------|
 | `--to <phase>` | Target phase to recover to (default: `accepting`) |
+
+The phase set by a manual `transition` / `retry --to <phase>` is respected by the subsequent `4x run` recovery: it is marked with a `manualPhase` flag so `SmartResumePhase` does not override it back to an earlier phase derived from on-disk artifacts. This means `retry --to deep-reviewing` actually resumes at `deep-reviewing` instead of being pulled back to `coding`.
 
 Errors if the feature is not currently in `needs-attention` or `blocked`.
 

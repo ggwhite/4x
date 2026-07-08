@@ -84,6 +84,9 @@ func retryTransition(ws *protocol.Workspace, featureID string, target protocol.P
 		return protocol.State{}, "", fmt.Errorf("cannot transition %s → %s: %w", s.Phase, target, err)
 	}
 	newState.Active = true
+	// 人為介入旗標：child 的 4x run recovery 要尊重此手動 phase，
+	// 不被 SmartResumePhase 依磁碟 artifacts 重推導覆蓋（RecoverState 消費後清除）。
+	newState.ManualPhase = true
 
 	if err := ws.WriteState(featureID, newState); err != nil {
 		return protocol.State{}, "", err

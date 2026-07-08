@@ -96,6 +96,10 @@ func newTransitionCmd() *cobra.Command {
 				newState.Active = false
 			}
 
+			// 人為介入旗標：後續 4x run 的 resume recovery 要尊重此手動 phase，
+			// 不被 SmartResumePhase 依磁碟 artifacts 重推導覆蓋（RecoverState 消費後清除）。
+			newState.ManualPhase = true
+
 			if err := ws.WriteState(featureID, newState); err != nil {
 				return err
 			}

@@ -142,6 +142,16 @@ func archiveDesignArtifact(ws *protocol.Workspace, featureID string, round, iter
 // 回傳修正後的 state（可能與輸入相同）與 error。
 // pc 為本次 run 解析出的 profile 設定，往下傳給 SmartResumePhase 對齊 Fixing 判斷。
 func RecoverState(ws *protocol.Workspace, featureID string, s protocol.State, cfg protocol.Config, pc protocol.ProfileConfig) (protocol.State, error) {
+	// 人為介入：`4x transition` / `4x retry` 手動設定的 phase 必須被尊重，直接照 state.json
+	// 的 phase 派對應 role，不進 SmartResumePhase 依磁碟 artifacts 重推導回更早的 phase。
+	if s.ManualPhase {
+		s.ManualPhase = false // 消費後清除，避免下一輪真 crash 時仍被當成人為介入
+		s.SubPhase = ""       // 人為指定 phase，從該 phase 起點重新開始
+		if role := state.PhaseToRole(s.Phase); role != "" {
+			s.Role = role
+		}
+		return s, nil
+	}
 	if !NeedsResumeRecovery(s) {
 		return s, nil
 	}

@@ -634,3 +634,55 @@ func TestWriteState_ClearsSubPhaseOutsideDeepReview(t *testing.T) {
 		t.Errorf("SubPhase = %q, want synthesizing (preserved in deep-reviewing)", got2.SubPhase)
 	}
 }
+
+// TestRecoverState_HonorsManualPhase 驗證人為 transition/retry 設定的 phase 被尊重：
+// round-1 無 coder-report（SmartResumePhase 會回 coding），但 ManualPhase=true 時
+// RecoverState 應照 state.json 的 deep-reviewing 派 deep-reviewer，並在消費後清除旗標。
+func TestRecoverState_HonorsManualPhase(t *testing.T) {
+	ws := &protocol.Workspace{Root: t.TempDir()}
+	const fid = "F-manual"
+	// 不 seed coder-report：確認若走 SmartResumePhase 會被推導回 coding。
+	s := protocol.State{
+		FeatureID:   fid,
+		Phase:       protocol.PhaseDeepReviewing,
+		Round:       1,
+		ManualPhase: true,
+		Active:      true,
+	}
+	got, err := RecoverState(ws, fid, s, protocol.Config{}, protocol.ProfileConfig{})
+	if err != nil {
+		t.Fatalf("RecoverState error: %v", err)
+	}
+	if got.Phase != protocol.PhaseDeepReviewing {
+		t.Errorf("Phase = %s, want %s (manual phase honored, not推導回 coding)", got.Phase, protocol.PhaseDeepReviewing)
+	}
+	if got.Role != protocol.RoleDeepReviewer {
+		t.Errorf("Role = %s, want %s", got.Role, protocol.RoleDeepReviewer)
+	}
+	if got.ManualPhase {
+		t.Error("ManualPhase should be cleared after consumption, got true")
+	}
+}
+
+// TestRecoverState_CrashPathUnchanged 驗證非人為路徑行為不變：ManualPhase=false 時
+// 仍經 SmartResumePhase 依 artifacts 推導。coding round-1 無 coder-report → 維持 coding。
+func TestRecoverState_CrashPathUnchanged(t *testing.T) {
+	ws := &protocol.Workspace{Root: t.TempDir()}
+	const fid = "F-crash"
+	s := protocol.State{
+		FeatureID:   fid,
+		Phase:       protocol.PhaseCoding,
+		Round:       1,
+		ManualPhase: false,
+		Active:      true,
+	}
+	got, err := RecoverState(ws, fid, s, protocol.Config{}, protocol.ProfileConfig{})
+	if err != nil {
+		t.Fatalf("RecoverState error: %v", err)
+	}
+	if got.Phase != protocol.PhaseCoding {
+		t.Errorf("Phase = %s, want %s (crash path via SmartResumePhase)", got.Phase, protocol.PhaseCoding)
+	}
+	// 注意：SmartResumePhase 回的 phase 與輸入相同時，RecoverState 不呼叫 RecoverTo，
+	// 故 Role 維持輸入值（既有行為）—— crash path 只驗 phase 不變，不驗 Role。
+}

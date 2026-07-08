@@ -58,6 +58,27 @@ func TestRetry_FromBlocked(t *testing.T) {
 	}
 }
 
+func TestRetry_SetsManualPhase(t *testing.T) {
+	ws := setupLoopWorkspace(t, "feat-retry-manual")
+	writeRetryState(t, ws, "feat-retry-manual", protocol.PhaseNeedsAttention)
+
+	newState, _, err := retryTransition(ws, "feat-retry-manual", protocol.PhaseDeepReviewing)
+	if err != nil {
+		t.Fatalf("retryTransition error: %v", err)
+	}
+	if !newState.ManualPhase {
+		t.Error("ManualPhase should be true after retry (manual phase intervention)")
+	}
+	// 讀回持久化的 state 也應帶旗標，供 child run 的 RecoverState 尊重。
+	got, err := ws.ReadState("feat-retry-manual")
+	if err != nil {
+		t.Fatalf("ReadState error: %v", err)
+	}
+	if !got.ManualPhase {
+		t.Error("persisted ManualPhase should be true after retry")
+	}
+}
+
 func TestRetry_CustomTargetPhase(t *testing.T) {
 	ws := setupLoopWorkspace(t, "feat-retry-amend")
 	writeRetryState(t, ws, "feat-retry-amend", protocol.PhaseNeedsAttention)
