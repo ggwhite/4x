@@ -244,22 +244,6 @@ func readJSON[T any](path string) (T, error) {
 	return v, nil
 }
 
-// readJSONOptional 讀取 JSON 檔案並反序列化為 *T；檔案不存在時回傳 (nil, nil)。
-func readJSONOptional[T any](path string) (*T, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	var v T
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, err
-	}
-	return &v, nil
-}
-
 // writeJSON 將值以 indented JSON 寫入指定路徑（附結尾換行）。
 func writeJSON(path string, v any) error {
 	data, err := json.MarshalIndent(v, "", "  ")
@@ -267,15 +251,6 @@ func writeJSON(path string, v any) error {
 		return err
 	}
 	return os.WriteFile(path, append(data, '\n'), 0o644)
-}
-
-// writeJSONAtomic 以 AtomicWriteFile 原子寫入 indented JSON，適用於 concurrent 讀者場景。
-func writeJSONAtomic(dir, finalName, tmpPattern string, v any) error {
-	data, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		return err
-	}
-	return AtomicWriteFile(dir, finalName, tmpPattern, append(data, '\n'), 0o644)
 }
 
 // clearFile 刪除指定檔案；檔案不存在時不視為錯誤。

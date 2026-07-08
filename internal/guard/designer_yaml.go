@@ -40,7 +40,7 @@ func checkDesignerYAMLMod(ws *protocol.Workspace, featureID string, r *CheckResu
 		diffs = append(diffs, fmt.Sprintf("name: %q → %q", orig.Name, currentFeature.Name))
 	}
 	if currentFeature.Description != orig.Description {
-		diffs = append(diffs, fmt.Sprintf("description changed"))
+		diffs = append(diffs, "description changed")
 	}
 	if fmtPriority(currentFeature.Priority) != fmtPriority(orig.Priority) {
 		diffs = append(diffs, fmt.Sprintf("priority: %s → %s", fmtPriority(orig.Priority), fmtPriority(currentFeature.Priority)))

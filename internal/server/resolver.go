@@ -20,13 +20,6 @@ func singleResolver(ws *protocol.CachedWorkspace, pm *ProcessManager) WorkspaceR
 	}
 }
 
-// staticResolver 回傳固定二元組（ws/pm）的 resolver，供 newMux thin wrapper 與測試使用。
-func staticResolver(ws *protocol.CachedWorkspace, pm *ProcessManager) WorkspaceResolver {
-	return func(r *http.Request) (*protocol.CachedWorkspace, *ProcessManager, error) {
-		return ws, pm, nil
-	}
-}
-
 // multiResolver 用於多專案模式：優先讀外層 prefix dispatch 注入 context 的已解析專案；
 // 無 prefix（向後相容）時依 registry 內專案數量決定回傳唯一專案或錯誤。
 func multiResolver(reg *ProjectRegistry) WorkspaceResolver {

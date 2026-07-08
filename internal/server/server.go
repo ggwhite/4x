@@ -301,11 +301,6 @@ func NewMux(resolver WorkspaceResolver) http.Handler {
 	return mux
 }
 
-// newMux 是接受固定 ws/pm 的 thin wrapper，讓測試與內部呼叫者不必自行組 resolver。
-func newMux(ws *protocol.CachedWorkspace, pm *ProcessManager) http.Handler {
-	return NewMux(staticResolver(ws, pm))
-}
-
 // Start 啟動 dashboard web server。
 func Start(ws *protocol.CachedWorkspace, pm *ProcessManager, port int) error {
 	return http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", port), logging.Middleware(NewMux(singleResolver(ws, pm))))
