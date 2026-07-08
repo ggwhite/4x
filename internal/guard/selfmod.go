@@ -129,6 +129,11 @@ func checkSelfMod(ws *protocol.Workspace, featureID string, detector ScopeDetect
 	paths := make([]string, 0, len(hits))
 	for _, h := range hits {
 		paths = append(paths, h.Path)
+		// *_test.go 不計入 diff budget：補測不應被行數上限逼成分批 commit 或
+		// 犧牲可讀性；路徑仍列入 SelfModPaths 供 test-gate 判定「附帶測試」。
+		if strings.HasSuffix(h.Path, "_test.go") {
+			continue
+		}
 		totalLines += h.Lines
 	}
 

@@ -166,3 +166,42 @@ func TestCheckSelfModTestGate(t *testing.T) {
 		}
 	})
 }
+
+// TestCheck_SelfModTestFilesExemptFromBudget 驗證 F155：受保護路徑的 *_test.go
+// 行數不計入 diff budget（補測不應觸頂），但路徑仍列入 SelfModPaths 供 test-gate
+// 判定「附帶測試」。
+func TestCheck_SelfModTestFilesExemptFromBudget(t *testing.T) {
+	ws := prepCodingWorkspace(t, "feat-testbudget")
+	ops := &fakeSelfModOps{files: []protocol.ChangedFile{
+		{Path: "internal/state/machine.go", Lines: DefaultSelfModMaxDiffLines - 10},
+		{Path: "internal/state/machine_test.go", Lines: 500},
+	}}
+
+	r := Check(ws, "feat-testbudget", ops)
+
+	if hasError(r.Errors, "exceeds budget") {
+		t.Errorf("test-file lines must not count toward budget, got: %v", r.Errors)
+	}
+	if r.SelfModDiffLines != DefaultSelfModMaxDiffLines-10 {
+		t.Errorf("SelfModDiffLines = %d, want %d (prod lines only)", r.SelfModDiffLines, DefaultSelfModMaxDiffLines-10)
+	}
+	if len(r.SelfModPaths) != 2 {
+		t.Errorf("SelfModPaths = %v, want both prod and test paths kept", r.SelfModPaths)
+	}
+}
+
+// TestCheck_SelfModProdOverBudgetWithTests 驗證 production 行數自身超限時，
+// 即使附帶測試檔仍要擋下。
+func TestCheck_SelfModProdOverBudgetWithTests(t *testing.T) {
+	ws := prepCodingWorkspace(t, "feat-prodover")
+	ops := &fakeSelfModOps{files: []protocol.ChangedFile{
+		{Path: "internal/state/machine.go", Lines: DefaultSelfModMaxDiffLines + 1},
+		{Path: "internal/state/machine_test.go", Lines: 10},
+	}}
+
+	r := Check(ws, "feat-prodover", ops)
+
+	if r.Pass || !hasError(r.Errors, "exceeds budget") {
+		t.Errorf("prod lines over budget must still fail, errors: %v", r.Errors)
+	}
+}

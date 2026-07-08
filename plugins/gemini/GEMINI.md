@@ -27,7 +27,7 @@ The prompt tells you which role you are. Follow the role contract exactly:
 | Tester | acceptance-criteria, test-strategy | verify.json, test-report.md, final-report.md | modify source code or test assertions |
 | Deep Reviewer | all prior artifacts, source code, diff | deep-review-report.md (with PASS/FAIL verdict) | modify source code |
 | Fixer | deep-review-report.md | source code, fixer-report.md | modify acceptance-criteria.md or test-strategy.yaml, add new features |
-| Acceptor | all artifacts, verify.json, test-report.md | ac_results in state.json, acceptor-report.md | modify source code or test artifacts |
+| Acceptor | all artifacts, verify.json, test-report.md | final-report.md, retro-learnings.json | modify source code or test artifacts |
 
 ### After your work
 

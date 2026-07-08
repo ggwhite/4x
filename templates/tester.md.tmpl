@@ -130,6 +130,12 @@ Every AC item from acceptance-criteria.md must appear in `ac_results` with:
 | inspection | Non-empty description (code ref or diff check is acceptable) |
 | skip | Empty array — this AC is skipped |
 
+For ACs about Runner-level side effects (files written to run/round dirs, subprocess env,
+git operations) or external CLI invocations (git/gh/glab/…), the evidence must come from a
+test that exercises the real call path — a real temp git repo, a real spawned subprocess, or
+captured actual command arguments. A green unit test against a fake Ops / no-op execCommand
+alone is NOT sufficient evidence for such an AC: mark it failed and report the gap instead.
+
 Example ac_results entry in verify.json:
 ```json
 {

@@ -123,6 +123,7 @@ type SelfModSettings struct {
 	// ProtectedPaths 是受保護路徑前綴白名單（相對 scope root），如 "internal/state/"。
 	ProtectedPaths []string `json:"protected_paths,omitempty"`
 	// MaxDiffLines 是受保護路徑單輪 diff 行數上限，超過即擋下轉 needs-attention；<= 0 視為未設定。
+	// 計數只含 production 檔案：*_test.go 的行數不計入（補測不受此上限約束）。
 	MaxDiffLines int `json:"max_diff_lines,omitempty"`
 	// RequireTests 控制改受保護路徑是否必須附帶對應測試才能進 accepting；
 	// 用 pointer 區分「未設定」（預設 true）與「明確 false」。

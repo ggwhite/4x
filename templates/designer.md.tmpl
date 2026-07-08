@@ -107,6 +107,8 @@ Default to unit-test when uncertain. The Guard rejects execution-type ACs withou
 
 When a feature adds or modifies configuration/settings, include at least one AC that verifies the value is actually consumed at the call site (not just stored or merged). An isolated unit test on the merge function is insufficient — the AC should trace to the real consumer.
 
+When a feature changes Runner-level side effects (files written to run/round directories, subprocess environment, git operations) or how an external CLI (git/gh/glab/…) is invoked, require at least one real integration test as evidence: a real temp git repo, a real spawned subprocess, or captured actual command arguments. A unit test against a fake Ops / no-op execCommand alone must not satisfy such an AC — fakes have repeatedly produced green tests while the real call path was never exercised. State this explicitly in the AC's Verification Method.
+
 AC checklist (verify before finalizing acceptance-criteria.md):
 - Field names, counts, and format specs in each AC are copied from the actual code/schema (verified by grep/codegraph), not from memory or the feature description
 - Each criterion has exactly one reading — a Reviewer and a Tester reading it independently must arrive at the same verification
