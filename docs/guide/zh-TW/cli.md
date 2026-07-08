@@ -129,6 +129,30 @@ Review 判定必須以 `PASS` 開頭才算通過。`## Verdict` 標題與判定�
 
 ---
 
+## `4x cost`
+
+從各 runner 寫出的 stream log 彙整跨 feature 的 run 成本。純唯讀，不會更動任何 run 資料。
+
+```
+4x cost                       # 所有 feature 的 per-role 成本表
+4x cost --feature <id>        # 單一 feature 的 per-round per-role 明細
+4x cost --by-round            # 各輪成本 + retry（round>=2）佔比
+4x cost --feature <id> --by-round  # 單一 feature 的逐輪明細
+4x cost --json                # 結構化輸出（上述任一視圖）
+```
+
+| Flag | 說明 |
+|---|---|
+| `--feature <id>` | 只看單一 feature，顯示 per-round per-role 明細 |
+| `--by-round` | 依 round 彙總並顯示 retry（round>=2）佔比 |
+| `--json` | 以 JSON 輸出 |
+
+資料來源以 `logs/*.stream.jsonl` 為主（每個 role invocation 一檔，含 `total_cost_usd`），檔名編碼 round 與 role；某 feature 完全沒有 stream log（較舊的 run）時，退回 `events.jsonl` 的 `run-end` 事件為輔。缺 `total_cost_usd` 欄位的 stream log 會被跳過並回報 `Skipped N stream log(s)` 計數，而非直接失敗。
+
+預設表格顯示 `ROLE / CALLS / TOTAL($) / AVG($) / PCT(%)`，依總成本排序，並附一列 `TOTAL`。`--by-round` 另加 `TYPE` 欄（round 0–1 為 `initial`，round≥2 為 `retry`），並以 USD 與百分比回報 retry 佔比。
+
+---
+
 ## `4x subtask <feature-id> <subtask-id>`
 
 更新 feature 內某個子任務的狀態。

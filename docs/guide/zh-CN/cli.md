@@ -127,6 +127,30 @@
 
 ---
 
+## `4x cost`
+
+从各 runner 写出的 stream log 汇总跨 feature 的 run 成本。纯只读，不会改动任何 run 数据。
+
+```
+4x cost                       # 所有 feature 的 per-role 成本表
+4x cost --feature <id>        # 单一 feature 的 per-round per-role 明细
+4x cost --by-round            # 各轮成本 + retry（round>=2）占比
+4x cost --feature <id> --by-round  # 单一 feature 的逐轮明细
+4x cost --json                # 结构化输出（上述任一视图）
+```
+
+| Flag | 说明 |
+|---|---|
+| `--feature <id>` | 只看单一 feature，显示 per-round per-role 明细 |
+| `--by-round` | 依 round 汇总并显示 retry（round>=2）占比 |
+| `--json` | 以 JSON 输出 |
+
+数据来源以 `logs/*.stream.jsonl` 为主（每个 role invocation 一档，含 `total_cost_usd`），档名编码 round 与 role；某 feature 完全没有 stream log（较旧的 run）时，退回 `events.jsonl` 的 `run-end` 事件为辅。缺 `total_cost_usd` 字段的 stream log 会被跳过并回报 `Skipped N stream log(s)` 计数，而非直接失败。
+
+默认表格显示 `ROLE / CALLS / TOTAL($) / AVG($) / PCT(%)`，依总成本排序，并附一行 `TOTAL`。`--by-round` 另加 `TYPE` 列（round 0–1 为 `initial`，round≥2 为 `retry`），并以 USD 与百分比回报 retry 占比。
+
+---
+
 ## `4x subtask <feature-id> <subtask-id>`
 
 更新 feature 内某个子任务的状态。

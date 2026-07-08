@@ -129,6 +129,30 @@
 
 ---
 
+## `4x cost`
+
+각 runner가 남긴 stream 로그에서 feature 전반의 run 비용을 집계합니다. 읽기 전용이며 run 데이터를 변경하지 않습니다.
+
+```
+4x cost                       # 모든 feature의 per-role 비용 표
+4x cost --feature <id>        # 단일 feature의 per-round per-role 상세
+4x cost --by-round            # 라운드별 비용 + retry(round>=2) 비중
+4x cost --feature <id> --by-round  # 단일 feature의 라운드별 상세
+4x cost --json                # 구조화된 출력(위 뷰 중 하나)
+```
+
+| Flag | 설명 |
+|---|---|
+| `--feature <id>` | 단일 feature로 필터링하고 per-round per-role 상세를 표시 |
+| `--by-round` | 라운드별로 집계하고 retry(round>=2) 비중을 표시 |
+| `--json` | JSON으로 출력 |
+
+데이터 소스는 `logs/*.stream.jsonl`이 우선이며(role invocation당 한 파일, `total_cost_usd` 포함), 파일명에 round와 role이 인코딩됩니다. stream 로그가 전혀 없는 feature(오래된 run)는 `events.jsonl`의 `run-end` 이벤트를 보조로 사용합니다. `total_cost_usd` 필드가 없는 stream 로그는 건너뛰고 `Skipped N stream log(s)` 카운트로 보고하며 실패로 처리하지 않습니다.
+
+기본 표는 총 비용 기준으로 정렬된 `ROLE / CALLS / TOTAL($) / AVG($) / PCT(%)`와 `TOTAL` 행을 표시합니다. `--by-round`는 `TYPE` 열(round 0–1은 `initial`, round≥2는 `retry`)을 추가하고 retry 비중을 USD와 백분율로 보고합니다.
+
+---
+
 ## `4x subtask <feature-id> <subtask-id>`
 
 기능 내 하위 작업의 상태를 업데이트합니다.

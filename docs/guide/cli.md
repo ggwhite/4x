@@ -148,6 +148,30 @@ For single feature detail (`4x status <feature-id>`), if screenshots exist, it a
 
 ---
 
+## `4x cost`
+
+Aggregate run cost across features from the stream logs each runner writes. Read-only — it never touches run data.
+
+```
+4x cost                       # per-role cost table across all features
+4x cost --feature <id>        # per-round per-role detail for one feature
+4x cost --by-round            # per-round totals + retry (round>=2) share
+4x cost --feature <id> --by-round  # per-round detail for one feature
+4x cost --json                # structured output (any view above)
+```
+
+| Flag | Description |
+|---|---|
+| `--feature <id>` | Filter to a single feature; show per-round per-role detail |
+| `--by-round` | Group by round and show the retry (round>=2) share |
+| `--json` | Output as JSON |
+
+Data source is `logs/*.stream.jsonl` (one file per role invocation, carrying `total_cost_usd`); the filename encodes round and role. `events.jsonl` `run-end` events are used as a fallback for any feature that has no stream logs (older runs). Stream logs that lack a `total_cost_usd` field are skipped and reported as a `Skipped N stream log(s)` count rather than causing a failure.
+
+The default table shows `ROLE / CALLS / TOTAL($) / AVG($) / PCT(%)` sorted by total cost, plus a `TOTAL` row. `--by-round` adds a `TYPE` column (`initial` for rounds 0–1, `retry` for round≥2) and reports the retry share in USD and percent.
+
+---
+
 ## `4x subtask <feature-id> <subtask-id>`
 
 Update the status of a subtask within a feature.

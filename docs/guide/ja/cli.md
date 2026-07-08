@@ -129,6 +129,30 @@ Feature のステータスを表示します。
 
 ---
 
+## `4x cost`
+
+各 runner が書き出す stream log から feature 全体の run コストを集計します。読み取り専用で、run データを変更しません。
+
+```
+4x cost                       # 全 feature の role 別コスト表
+4x cost --feature <id>        # 単一 feature の round 別・role 別明細
+4x cost --by-round            # round 別合計 + retry（round>=2）比率
+4x cost --feature <id> --by-round  # 単一 feature の round 別明細
+4x cost --json                # 構造化出力（上記いずれかのビュー）
+```
+
+| Flag | 説明 |
+|---|---|
+| `--feature <id>` | 単一 feature に絞り込み、round 別・role 別の明細を表示 |
+| `--by-round` | round 単位で集計し、retry（round>=2）の比率を表示 |
+| `--json` | JSON で出力 |
+
+データソースは `logs/*.stream.jsonl` を主とし（role invocation ごとに 1 ファイル、`total_cost_usd` を含む）、ファイル名に round と role がエンコードされています。stream log が一切ない feature（古い run）については、`events.jsonl` の `run-end` イベントを補助として使用します。`total_cost_usd` フィールドを欠く stream log はスキップされ、失敗とはせず `Skipped N stream log(s)` のカウントとして報告されます。
+
+デフォルトの表は総コスト順にソートされた `ROLE / CALLS / TOTAL($) / AVG($) / PCT(%)` と `TOTAL` 行を表示します。`--by-round` は `TYPE` 列（round 0–1 は `initial`、round≥2 は `retry`）を追加し、retry 比率を USD とパーセントで報告します。
+
+---
+
 ## `4x subtask <feature-id> <subtask-id>`
 
 Feature 内のサブタスクのステータスを更新します。

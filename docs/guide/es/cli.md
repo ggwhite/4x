@@ -129,6 +129,30 @@ Para detalle de un feature individual (`4x status <feature-id>`), si existen cap
 
 ---
 
+## `4x cost`
+
+Agrega el costo de las ejecuciones entre features a partir de los stream logs que escribe cada runner. Solo lectura: nunca modifica los datos de ejecución.
+
+```
+4x cost                       # tabla de costo por rol en todos los features
+4x cost --feature <id>        # detalle por ronda y por rol de un feature
+4x cost --by-round            # totales por ronda + proporción de retry (round>=2)
+4x cost --feature <id> --by-round  # detalle por ronda de un feature
+4x cost --json                # salida estructurada (cualquiera de las vistas)
+```
+
+| Flag | Descripción |
+|---|---|
+| `--feature <id>` | Filtrar a un solo feature; mostrar detalle por ronda y por rol |
+| `--by-round` | Agrupar por ronda y mostrar la proporción de retry (round>=2) |
+| `--json` | Salida en JSON |
+
+La fuente de datos es `logs/*.stream.jsonl` de forma principal (un archivo por invocación de rol, con `total_cost_usd`); el nombre del archivo codifica la ronda y el rol. Los eventos `run-end` de `events.jsonl` se usan como respaldo para cualquier feature que no tenga stream logs (ejecuciones antiguas). Los stream logs que carecen del campo `total_cost_usd` se omiten y se reportan como un conteo `Skipped N stream log(s)` en lugar de provocar un fallo.
+
+La tabla por defecto muestra `ROLE / CALLS / TOTAL($) / AVG($) / PCT(%)` ordenada por costo total, más una fila `TOTAL`. `--by-round` agrega una columna `TYPE` (`initial` para las rondas 0–1, `retry` para round≥2) y reporta la proporción de retry en USD y porcentaje.
+
+---
+
 ## `4x subtask <feature-id> <subtask-id>`
 
 Actualizar el estado de una subtarea dentro de un feature.

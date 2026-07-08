@@ -170,6 +170,8 @@ Returns a JSON object (not a bare array):
 | `messages` | array \| null | Same message entries as before; `null` when the feature has no artifacts yet |
 | `totalCostUSD` | float | Sum of `cost_usd` across every `run-end` event in the feature's `events.jsonl` (via `protocol.Workspace.TotalCost`), covering all past runs including interrupted/resumed ones |
 
+The dashboard surfaces this per-feature total; for a per-role / per-round breakdown on the command line (across all features or one feature), use `4x cost` (see `docs/guide/cli.md`), which reads the same run logs (`logs/*.stream.jsonl`, with `events.jsonl` as fallback).
+
 #### `POST /api/done` Response
 
 Returns HTTP 200 in the normal case. The `status` field is `"done"` only after the state transition succeeds. If merge conflict or merge error occurs, `status` remains `"pending-review"`. Error cases (invalid JSON, missing `id`, feature not found, wrong phase, internal failures) return their HTTP status (400/404/500) with a JSON body `{"error":"..."}` and `Content-Type: application/json`, so clients can parse all responses as JSON uniformly. Additional fields indicate merge result:
