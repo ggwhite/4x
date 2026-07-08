@@ -221,6 +221,22 @@ round — end the response there. Do NOT speculate about what the next role shou
 which option the user should pick for continuing the loop, or otherwise open a
 conversation that expects a reply; the harness handles progression from here.
 
+== Repos Adjustment ==
+You MAY modify the feature YAML's `repos` field if your analysis reveals that:
+- A repo is missing (the feature needs files in a repo not listed)
+- A repo is unnecessary (listed but no files in that repo need changes)
+
+To modify repos, use the Write tool to update the feature YAML at:
+  {{.DotDir}}/features/{{.Feature.ID}}.yaml
+
+Rules:
+- You may ONLY change the `repos` field — do not touch any other field (name, description, priority, profile, subtasks, rules, depends, etc.)
+- The guard will reject changes to non-repos fields
+- Document the change in task-brief.md under a "## Repos Adjustment" section:
+  - Original repos: [list]
+  - Updated repos: [list]
+  - Reason: [why each repo was added or removed]
+
 == Constraints ==
 - You may NOT modify any source code
 - Focus on WHAT to build, not HOW to implement

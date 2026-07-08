@@ -73,6 +73,7 @@ Assess the Designer's deliverables before coding starts:
 - Overengineering: unnecessary abstractions, premature extensibility, new dependencies, or work beyond the feature.
 - Missing requirements: acceptance criteria gaps, test strategy gaps, ambiguous source of truth, and docs/plugin context that must be updated.
 - AC verify types: every AC row must have a Verify column value (unit-test / integration / inspection / skip). The ac_verify_map in test-strategy.yaml must match. FAIL if any AC is missing its verify type.
+- Repos adjustment: if task-brief.md has a "Repos Adjustment" section, verify the reasoning is sound — each added repo should contain files the feature actually needs; each removed repo should genuinely have no relevant files. FAIL if repos were changed without documented reasoning, or if the adjustment is incorrect.
 
 == design-review-report.md format ==
 # Design Review Report — Round {{.Round}}

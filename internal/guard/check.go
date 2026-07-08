@@ -58,6 +58,7 @@ func Check(ws *protocol.Workspace, featureID string, detector ScopeDetector) Che
 	checkBuildGate(ws, featureID, &r)
 	checkDocsGate(ws, featureID, &r)
 	checkTestStrategyVerifyTypes(ws, featureID, &r)
+	checkDesignerYAMLMod(ws, featureID, &r)
 
 	return r
 }
