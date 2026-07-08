@@ -346,6 +346,8 @@ Commands can be organised into groups via `verify_groups`: groups run in paralle
 
 **Fallback**: when `test-strategy.yaml` does not exist (e.g. Designer was skipped by the profile), verify automatically falls back to the project's `build`/`test`/`lint` commands from `settings.json`, grouped under a single `"fallback"` group. The fallback path also auto-generates `ac_results` entries (one per non-skipped command), so the `testing → accepting` guard passes without manual intervention.
 
+**Executable AC checks**: when `test-strategy.yaml` declares `ac_checks` (binding an AC ID to one or more commands), verify runs each command, records the real exit codes into that AC's `ac_results[].checks`, and sets the AC's `passed` from those exit codes (all exit 0 = passed). Any failing `ac_check` AC makes the whole verify fail (non-zero exit). This exit-code result is authoritative — the guard recomputes `passed` from `checks` and overrides any hand-written value. When `ac_checks` is absent, behavior is unchanged.
+
 Parallel execution is handled entirely by the CLI — no LLM involved. The Tester role calls this command instead of running verify commands itself; humans can also run it standalone for debugging.
 
 ```

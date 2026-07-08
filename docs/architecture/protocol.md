@@ -287,6 +287,27 @@ Written by the Tester after running verification. Also written (partially) after
 }
 ```
 
+Per-AC results live under `ac_results`. When an AC is bound to `ac_checks` in `test-strategy.yaml`,
+`4x verify` executes those commands and records each one under `ac_results[].checks` (a list of
+`VerifyCommand` with the real `exitCode`), setting that AC's `passed` from the exit codes (all
+exit 0 = passed). The guard recomputes `passed` from `checks` and treats it as authoritative —
+overriding any hand-written `passed` — and blocks if `checks` is missing for an ac_checks-bound AC
+or if `passed` disagrees with the exit codes.
+
+```jsonc
+"ac_results": [
+  {
+    "id": "AC-1",
+    "passed": true,
+    "verify_type": "unit-test",
+    "evidence": ["$ go test ./internal/foo -run TestBar → exit 0 (12ms)"],
+    "checks": [
+      { "command": "go test ./internal/foo -run TestBar", "exitCode": 0, "durationMs": 12 }
+    ]
+  }
+]
+```
+
 ## 3.8 Report Formats
 
 All reports are Markdown or YAML files written by role plugins. The CLI only checks for their existence; it does not parse their content (except `test-strategy.yaml` and `verify.json`).
@@ -354,7 +375,25 @@ levels:
 baseline_command: go test ./backend/...
 verify_commands:
   - go test -tags=integration ./backend/...
+
+ac_verify_map:
+  AC-1: unit-test
+  AC-2: integration
+
+ac_checks:
+  AC-1: ["go test ./backend/internal/todo/... -run TestList"]
+  AC-2: ["curl -sf http://localhost:8080/v1/todos"]
 ```
+
+`ac_checks` (optional, opt-in) binds each execution-type AC to one or more executable check
+commands. Each command is judged purely by exit code: all commands exit 0 = the AC PASSES, any
+non-zero = FAIL. This is authoritative — `4x verify` records the results into `verify.json` under
+`ac_results[].checks` and the guard recomputes each AC's `passed` from those exit codes, overriding
+any hand-written `passed`. Once `ac_checks` is declared, the guard enforces completeness: every
+execution-type AC in `ac_verify_map` must bind at least one check. A fake-verification linter
+rejects checks that only grep source code, `echo`/`printf`, `true`, or `:`; append the literal
+token `4x-lint:allow` to a command to bypass the linter (e.g. when legitimately grepping generated
+output). When `ac_checks` is absent, behavior is unchanged (prose-evidence path).
 
 #### `coder-report.md` (Coder output)
 

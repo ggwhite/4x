@@ -180,6 +180,26 @@ ac_verify_map:
   AC-2: integration
   AC-3: inspection
 
+ac_checks binds each execution-type AC (unit-test / integration / execution) to one or more
+executable check commands. Each command is judged purely by exit code: all commands exit 0 = the
+AC PASSES, any non-zero = FAIL. This exit code is authoritative — `4x verify` writes the result
+into verify.json and the guard recomputes each AC's passed from it, overriding any hand-written
+passed. When you declare ac_checks (opt-in), the guard enforces completeness: EVERY execution-type
+AC in ac_verify_map must have a non-empty ac_checks entry, or `4x check` blocks. inspection / skip
+type ACs need no check.
+
+Each command MUST actually execute the program under test (run a test, run the CLI, diff a real
+artifact). A fake-verification linter rejects commands that only grep source code, `echo PASS`,
+`printf ok`, `true`, or `:` — these pass without verifying anything. If a check legitimately needs
+to grep source (e.g. confirming a generated .go file contains a symbol), append the literal escape
+token `4x-lint:allow` to the command and it is allowed unconditionally. Exit-code convention is
+exit 0 = PASS with no per-check expected-code field; for "expect no match" use shell idiom such as
+`! grep -q foo file`.
+
+ac_checks:
+  AC-1: ["go test ./internal/foo -run TestBar"]
+  AC-3: ["bin/app --help | grep -q newflag"]
+
 == Incremental Writing & Resume ==
 Write task-brief.md incrementally as you analyze — do not wait until the end.
 After analyzing each major area (goal, tasks, scope), write that section to disk immediately.

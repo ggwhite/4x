@@ -101,6 +101,16 @@ func newVerifyCmd() *cobra.Command {
 					})
 				}
 				evidence.ACResults = acResults
+			} else if len(ts.ACChecks) > 0 {
+				// ac_checks 為權威判定路徑（與 fallback 合成互斥）：對每條綁定 ac_checks 的
+				// AC 實際執行命令，以 exit code 決定 passed，併入 verify.json 的 ac_results。
+				acResults := verify.RunACChecks(ctx, ts.ACChecks, ws.Root)
+				evidence.ACResults = append(evidence.ACResults, acResults...)
+				for _, ac := range acResults {
+					if !ac.Passed {
+						evidence.Passed = false
+					}
+				}
 			}
 
 			roundDir := ws.RoundDir(featureID, round)

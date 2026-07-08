@@ -47,6 +47,7 @@ coverage.out
 
 # Runner artifacts
 .gocache/
+.cache/
 *-coder-report.md
 *-review-report.md
 .threat-model-state/

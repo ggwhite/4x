@@ -12,6 +12,9 @@ type ACEvidence struct {
 	Passed     bool     `json:"passed"`
 	Evidence   []string `json:"evidence"`
 	VerifyType string   `json:"verify_type,omitempty"` // Tester 寫入供記錄；Guard 從 TestStrategy.ACVerifyMap 判斷
+	// Checks 是 ac_checks 命令的實際執行結果（由 `4x verify` 寫入，非 Tester 手填）。
+	// guard 從這裡的 exit code 重新計算 Passed，作為權威判定。為空表示此 AC 未綁定 ac_checks。
+	Checks []VerifyCommand `json:"checks,omitempty"`
 }
 
 // VerifyEvidence 是 rounds/round-N/verify.json 的結構
@@ -76,6 +79,10 @@ type TestStrategy struct {
 	// testing phase 起（含 testing 之後回到的 amending），這些 repo 的變更不算 scope violation
 	// （Tester 必要寫入放行）；為空時行為與舊版完全一致。granularity 為 repo 層級，比照 Config.HubRepos。
 	E2ERepos []string `yaml:"e2e_repos,omitempty" json:"e2e_repos,omitempty"`
+	// ACChecks 綁定每條 AC 到一或多條可執行 check 命令。key 為 AC ID（如 "AC-1"）。
+	// 命令以 exit code 判定：全部 exit 0 = 該 AC PASS，任一非 0 = FAIL——此為權威判定，
+	// 覆蓋 verify.json 內 Tester 自報的 passed。為空時行為與舊版完全一致（回退 prose evidence）。
+	ACChecks map[string][]string `yaml:"ac_checks,omitempty" json:"ac_checks,omitempty"`
 }
 
 // ManualCheck 是 Designer 在 test-strategy.yaml 定義的手動驗證步驟。

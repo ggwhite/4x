@@ -160,6 +160,23 @@ The guard will block testing → accepting if:
 - Any execution-type AC evidence lacks command output patterns
 - Any non-skip AC has empty evidence
 
+== ac_checks (auto-filled by 4x verify — DO NOT overwrite) ==
+If test-strategy.yaml declares `ac_checks`, `4x verify` ALREADY fills in the `ac_results` entry for
+every AC bound to a check: it runs each check command, records the real exit code in `checks`, and
+sets `passed` from those exit codes (all exit 0 = passed). When you read verify.json these entries
+already exist.
+
+When you update `ac_results` you MUST PRESERVE these CLI-produced entries — this is a MERGE, not an
+overwrite:
+- Do NOT delete an entry that has a non-empty `checks` array.
+- Do NOT change its `passed` or its `checks`. You may only APPEND supplementary notes to its
+  `evidence`.
+- Only ADD new `ac_results` entries for ACs that have NO `ac_checks`; those you fill in the usual way.
+
+Reminder: the guard recomputes `passed` for every ac_checks-bound AC from the recorded exit codes.
+Hand-editing `passed` to disagree with the exit codes only gets caught as an inconsistency and
+blocks — do not do it.
+
 == expectedExitCode（驗證指令「成功 = 非 0 exit」時必填） ==
 verify.json 的 command entry 預設以 exit code 0 判定成功（guard W7 交叉驗證）。若驗證指令
 本質上「非 0 exit 才算通過」——最常見的是 `grep`/`rg` 預期查無結果（exit 1 = 通過）——必須

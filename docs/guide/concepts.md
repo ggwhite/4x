@@ -579,6 +579,8 @@ manual_checks:
 
 The Tester must execute each step and record actual output as evidence in `verify.json` under `manual_check_results` (`VerifyEvidence.ManualCheckResults`). The guard blocks `testing → accepting` if any manual check has no result or empty evidence. If the failure is retryable, the tester gets one automatic retry with guard errors injected via `guard-feedback.json`; a second failure escalates to `needs-attention`.
 
+For deterministic, exit-code-driven AC verification the Designer can instead declare `ac_checks` in `test-strategy.yaml` (`TestStrategy.ACChecks` in `internal/protocol/verify.go`), binding each execution-type AC to one or more commands. `4x verify` runs them and records the real exit codes into `ac_results[].checks` (`ACEvidence.Checks`), and the guard recomputes each AC's `passed` from those exit codes as the authoritative verdict — overriding any hand-written `passed`. Once `ac_checks` is declared, the guard also enforces that every execution-type AC binds at least one check, and a fake-verification linter rejects checks that only grep source, `echo`, `true`, or `:`. See `docs/architecture/protocol.md` for the full format.
+
 ### Built-in profiles
 
 Four profiles ship embedded in the binary (`templates/profiles/*.md`, exposed via `templates.ProfilesFS`):

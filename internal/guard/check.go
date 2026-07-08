@@ -58,6 +58,7 @@ func Check(ws *protocol.Workspace, featureID string, detector ScopeDetector) Che
 	checkBuildGate(ws, featureID, &r)
 	checkDocsGate(ws, featureID, &r)
 	checkTestStrategyVerifyTypes(ws, featureID, &r)
+	checkACChecksSchema(ws, featureID, &r)
 	checkDesignerYAMLMod(ws, featureID, &r)
 
 	return r
@@ -262,6 +263,56 @@ func checkTestStrategyVerifyTypes(ws *protocol.Workspace, featureID string, r *C
 	}
 }
 
+// checkACChecksSchema 在 test-strategy.yaml 宣告 ac_checks 時（opt-in 執行式判定），
+// 對每條 check 命令做假驗證 lint，並強制完整性（DR-3 presence-based 契約）：
+//   - 未宣告 ac_checks（len==0）→ 立即 return（舊格式向後相容，不因缺 ac_checks 而擋）。
+//   - 已宣告 → (a) lint 每條命令（空命令列 / LintACCheck 回非空即擋）；
+//     (b) ac_verify_map 非空時，其每一條 execution 類（needsExec）AC 必須有非空 ac_checks
+//     entry，缺者擋；inspection/skip 類豁免。ac_verify_map 為空時跳過完整性強制（DR-3 邊界）。
+//
+// 這讓 Designer 跑 4x check 當下就抓到假驗證與「宣告 ac_checks 卻漏綁 execution AC」，
+// 不用拖到 testing。每個新增 error 比照既有分支 RetryableErrors++（Designer 同輪可修）。
+func checkACChecksSchema(ws *protocol.Workspace, featureID string, r *CheckResult) {
+	ts, err := ws.ReadTestStrategy(featureID)
+	if err != nil || len(ts.ACChecks) == 0 {
+		return
+	}
+
+	// (a) lint 每條命令。
+	for acID, cmds := range ts.ACChecks {
+		if len(cmds) == 0 {
+			r.Pass = false
+			r.Errors = append(r.Errors, fmt.Sprintf("test-strategy.yaml: ac_checks[%s] has no commands", acID))
+			r.RetryableErrors++
+			continue
+		}
+		for _, cmd := range cmds {
+			if reason := verify.LintACCheck(cmd); reason != "" {
+				r.Pass = false
+				r.Errors = append(r.Errors, fmt.Sprintf("test-strategy.yaml: ac_checks[%s] command %q rejected: %s", acID, cmd, reason))
+				r.RetryableErrors++
+			}
+		}
+	}
+
+	// (b) 完整性強制：ac_verify_map 非空時，每條 execution 類 AC 必須綁 ac_checks。
+	if len(ts.ACVerifyMap) == 0 {
+		return
+	}
+	for acID, vt := range ts.ACVerifyMap {
+		vtype, valid := acVerifyTypes[vt]
+		if !valid || !vtype.needsExec {
+			continue
+		}
+		if len(ts.ACChecks[acID]) == 0 {
+			r.Pass = false
+			r.Errors = append(r.Errors, fmt.Sprintf(
+				"test-strategy.yaml: AC %s (verify_type=%s) has no ac_checks entry — when ac_checks is declared, every execution-type AC must bind at least one executable check", acID, vt))
+			r.RetryableErrors++
+		}
+	}
+}
+
 // acVerifyType 定義合法的 AC 驗證類型。needsExec 表示是否需要執行輸出作為 evidence。
 type acVerifyType struct{ needsExec bool }
 
@@ -290,7 +341,31 @@ func checkACEvidence(ts protocol.TestStrategy, evidence protocol.VerifyEvidence,
 
 	verifyMap := ts.ACVerifyMap
 
+	// ac_checks-bound AC 的權威判定不可靠 ac_results 是否被 Tester 保留：只要
+	// test-strategy 宣告了某 AC 的 ac_checks，verify.json 就必須有對應 entry。
+	// 若整筆缺失（被 Tester 刪除或手動編輯掉），直接擋下——否則刪 entry 即可繞過 exit-code 重算。
+	resultByID := make(map[string]struct{}, len(evidence.ACResults))
 	for _, ac := range evidence.ACResults {
+		resultByID[ac.ID] = struct{}{}
+	}
+	for acID, cmds := range ts.ACChecks {
+		if len(cmds) == 0 {
+			continue
+		}
+		if _, ok := resultByID[acID]; !ok {
+			r.Pass = false
+			r.Errors = append(r.Errors, fmt.Sprintf(
+				"%s: has ac_checks but verify.json ac_results missing check results — do not hand-edit; re-run 4x verify", acID))
+			r.RetryableErrors++
+		}
+	}
+
+	for _, ac := range evidence.ACResults {
+		// ac_checks-bound AC：以實際 exit code 為權威判定，豁免 prose executionPattern 檢查。
+		if len(ts.ACChecks[ac.ID]) > 0 {
+			checkACChecksConsistency(ac, r)
+			continue
+		}
 		vt := ""
 		if verifyMap != nil {
 			if v, ok := verifyMap[ac.ID]; ok {
@@ -351,6 +426,26 @@ func checkACEvidence(ts protocol.TestStrategy, evidence protocol.VerifyEvidence,
 				r.RetryableErrors++
 			}
 		}
+	}
+}
+
+// checkACChecksConsistency 對綁定 ac_checks 的單一 AC 以 exit code 為權威重算 passed：
+// checks 為空 → 擋（防 Tester 覆寫掉 CLI 寫的 Checks）；ac.Passed 與 CommandsPassed(checks)
+// 重算結果不一致 → 擋（LLM 謊報偵測）。這類 AC 有真 exit code，故豁免 prose executionPattern 檢查。
+func checkACChecksConsistency(ac protocol.ACEvidence, r *CheckResult) {
+	if len(ac.Checks) == 0 {
+		r.Pass = false
+		r.Errors = append(r.Errors, fmt.Sprintf(
+			"%s: has ac_checks but verify.json ac_results missing check results — do not hand-edit; re-run 4x verify", ac.ID))
+		r.RetryableErrors++
+		return
+	}
+	recomputed := verify.CommandsPassed(ac.Checks)
+	if ac.Passed != recomputed {
+		r.Pass = false
+		r.Errors = append(r.Errors, fmt.Sprintf(
+			"%s: verify.json claims passed=%v but ac_checks exit codes say %v", ac.ID, ac.Passed, recomputed))
+		r.RetryableErrors++
 	}
 }
 
