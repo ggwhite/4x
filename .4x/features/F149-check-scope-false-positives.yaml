@@ -11,7 +11,7 @@ description: |-
     約束：
     - 不放寬真正的 scope 違規偵測——三項修正都要有對應的「仍會抓到真違規」反向測試
     - internal/guard 為 protected path，改動需完整單元測試
-status: not-started
+status: done
 priority: 2
 profile: normal
 subtasks:
