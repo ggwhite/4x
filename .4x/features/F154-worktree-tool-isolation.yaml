@@ -11,7 +11,7 @@ description: |-
     約束：
     - 不引入新外部依賴
     - 主工作區（非 worktree）的既有行為不變
-status: not-started
+status: done
 priority: 2
 profile: standard
 subtasks:

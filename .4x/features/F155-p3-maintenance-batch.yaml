@@ -12,7 +12,7 @@ description: |-
     約束：
     - 四個子項互相獨立，可分批 commit、獨立驗收
     - 不改 self-mod guard 對受保護路徑的其他語意
-status: not-started
+status: done
 priority: 3
 profile: quick
 subtasks:
