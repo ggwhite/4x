@@ -13,7 +13,7 @@ description: |-
     - 不可攔截 make build/test/lint 等驗證指令
     - review 品質不可下降：AC 需包含對照既有 feature 的 review 行為驗證
     - 不改 reviewer 的 verdict 邏輯與報告格式
-status: in-progress
+status: done
 priority: 2
 profile: normal
 subtasks:
