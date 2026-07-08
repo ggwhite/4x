@@ -55,6 +55,7 @@ Use `4x sync` to re-deploy plugin files after updating the binary.
 	    ├── Capture output to .4x/run/F001/logs/round-N-role.log
 	    │     (parallel deep review: round-N-deep-reviewer-{i}.log + round-N-synthesizer.log)
     │     (deep review self-heal: round-N-deep-fix-{i}.log + round-N-deep-reverify-{i}.log)
+    │     (reviewing conditional-pass convergence: round-N-review-fix-{i}.log + round-N-reviewer-{i+1}.log)
     ├── Check output artifacts
     └── Transition state, repeat
 ```

@@ -333,6 +333,19 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 
 		archiveDesignArtifact(r.Ws, featureID, s.Round, iteration, role)
 
+		// F144：reviewing phase 偵測到 CONDITIONAL PASS 時，於同一 round、同一 phase 內派
+		// mini-coder 收掉 warning 並重跑 reviewer 確認，再交回 NextPhaseAfter 照常轉換。
+		// parallel review-test 路徑由 RunReviewTestParallel 接管（routePhase），不走此處。
+		if phase == protocol.PhaseReviewing && !r.Cfg.ParallelReviewTest {
+			cont, cerr := r.runReviewConvergence(ctx, &s, pc)
+			if cerr != nil {
+				return nil, cerr
+			}
+			if !cont {
+				break
+			}
+		}
+
 		next, nextRole, stopReason := NextPhaseAfter(r.Ws, featureID, s)
 
 		if (next == protocol.PhaseNeedsAttention || next == protocol.PhaseBlocked) && nextRole == "" {

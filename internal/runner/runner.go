@@ -638,6 +638,14 @@ func DeepReverifyLogFileName(round, iteration int) string {
 	return fmt.Sprintf("round-%d-deep-reverify-%d.log", round, iteration)
 }
 
+// ReviewFixLogFileName 產生 reviewing phase 同輪收斂循環中 mini-coder 的 log 檔名：
+// round-<round>-review-fix-<iteration>.log。命名刻意與主 reviewer log
+// （IterationLogFileName 產生的 round-<round>-reviewer[-<iter>].log）區隔，
+// 避免 CONDITIONAL PASS 收斂的 mini-coder log 覆蓋主 reviewer log。
+func ReviewFixLogFileName(round, iteration int) string {
+	return fmt.Sprintf("round-%d-review-fix-%d.log", round, iteration)
+}
+
 // DeepReviewerLogFileName 產生平行 deep review 模式下第 index 個 sub-reviewer 的 log 檔名：
 // round-<round>-deep-reviewer-<index>.log（index 為 1-based）。每個 sub-reviewer 用各自的
 // log 檔，不與其他 sub-reviewer 共用，讓 dashboard 能分檔即時追蹤。

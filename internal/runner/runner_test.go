@@ -603,6 +603,23 @@ func TestDeepReviewerLogFileName(t *testing.T) {
 	}
 }
 
+// TestReviewFixLogFileName 驗證 reviewing 同輪收斂的 mini-coder log 檔名格式，且與主 reviewer
+// log（IterationLogFileName 產生）不同名，避免覆蓋主 reviewer log（F144 AC-11）。
+func TestReviewFixLogFileName(t *testing.T) {
+	if got := ReviewFixLogFileName(1, 1); got != "round-1-review-fix-1.log" {
+		t.Errorf("got %q, want round-1-review-fix-1.log", got)
+	}
+	if got := ReviewFixLogFileName(2, 3); got != "round-2-review-fix-3.log" {
+		t.Errorf("got %q, want round-2-review-fix-3.log", got)
+	}
+	if ReviewFixLogFileName(1, 1) == IterationLogFileName(1, "reviewer", 1) {
+		t.Error("ReviewFixLogFileName must differ from the main reviewer log name")
+	}
+	if !strings.Contains(ReviewFixLogFileName(1, 1), "review-fix") {
+		t.Error("ReviewFixLogFileName should contain identifiable 'review-fix' fragment")
+	}
+}
+
 // TestIterationLogFileName 驗證同一 round 內某 role 重複執行時（例如
 // design-reviewing FAIL 打回 designing 又再次進 design-reviewing，round 本身不會變動），
 // 第 1 次沿用既有 round-<N>-<role>.log 格式（向下相容），第 2 次以後才加上 -<iteration>

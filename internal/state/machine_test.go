@@ -322,3 +322,32 @@ func TestShouldStop_Continue(t *testing.T) {
 		t.Error("ShouldStop = true, want false (should continue)")
 	}
 }
+
+// TestTransitions_ReviewingOutEdges_Unchanged 守住 F144 Design Ruling 1：reviewing 同輪收斂
+// 以 mini-coder 子 role 於同一 phase 內完成，不新增任何 state machine 轉換。故 reviewing 的
+// 出邊集合必須維持 {testing, amending}（長度 2），不得因 F144 多出其他出邊。
+func TestTransitions_ReviewingOutEdges_Unchanged(t *testing.T) {
+	edges := transitions[protocol.PhaseReviewing]
+	if len(edges) != 2 {
+		t.Fatalf("transitions[reviewing] out-edge count = %d, want 2 (%v)", len(edges), edges)
+	}
+	want := map[protocol.Phase]bool{
+		protocol.PhaseTesting:  true,
+		protocol.PhaseAmending: true,
+	}
+	for _, e := range edges {
+		if !want[e] {
+			t.Errorf("unexpected reviewing out-edge %q; F144 must not add new reviewing transitions", e)
+		}
+		delete(want, e)
+	}
+	for missing := range want {
+		t.Errorf("missing expected reviewing out-edge %q", missing)
+	}
+	if !CanTransition(protocol.PhaseReviewing, protocol.PhaseTesting) {
+		t.Error("CanTransition(reviewing, testing) = false, want true")
+	}
+	if !CanTransition(protocol.PhaseReviewing, protocol.PhaseAmending) {
+		t.Error("CanTransition(reviewing, amending) = false, want true")
+	}
+}

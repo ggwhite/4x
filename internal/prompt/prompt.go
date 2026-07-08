@@ -59,6 +59,14 @@ type Data struct {
 	// PrevDiff 是前幾輪 coder 從 baseline 到目前的 git diff（amending 時使用），
 	// 讓 coder 不用重新探索就知道已經改了什麼。超過 maxDiffLines 行時截斷。
 	PrevDiff string
+	// SelfHealSource 是 mini-coder 建立 fix 清單的來源報告檔名。空字串時由 Generate
+	// 對 RoleMiniCoder 預設為 protocol.DeepReviewReport（deep-reviewing 自癒路徑不變）；
+	// reviewing 同輪收斂則透過 WithConditionalSource(protocol.ReviewReport) 設為 review-report.md。
+	SelfHealSource string
+	// ReviewingConvergence 為 true 表示這個 mini-coder 跑在 reviewing 同輪收斂路徑（fix 來源是
+	// review-report.md、由 reviewer 產出、phase 為 reviewing）；false 表示 deep-reviewing 自癒
+	// 路徑。供模板切換 phase/role 框架用語，避免收斂路徑仍顯示 deep-review 專屬字樣。
+	ReviewingConvergence bool
 	// 以下欄位僅平行 deep review 模式使用：
 	ReviewerIndex     int
 	ReviewerCount     int
@@ -185,6 +193,12 @@ func Generate(ctx *Context, role protocol.Role, round, iteration int, runnerName
 	for _, opt := range opts {
 		opt(&data)
 	}
+	// mini-coder 的 fix 來源報告：未由 WithConditionalSource 指定時預設 deep-review-report.md，
+	// 維持既有 deep-reviewing 自癒路徑不變。
+	if role == protocol.RoleMiniCoder && data.SelfHealSource == "" {
+		data.SelfHealSource = protocol.DeepReviewReport
+	}
+	data.ReviewingConvergence = role == protocol.RoleMiniCoder && data.SelfHealSource == protocol.ReviewReport
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
 		return "", err

@@ -50,7 +50,7 @@ func (r *Runner) runDeepReviewPhase(ctx context.Context, s *protocol.State) (boo
 		return cont, err
 	}
 
-	if ReviewPassed(r.Ws, r.featureID(), s.Round, protocol.DeepReviewReport) {
+	if r.deepReviewClearsToAccepting(s.Round, dp.pc) {
 		AutoDiscoverFeatures(ctx, r.Ws, r.Feature, r.Cfg, s.Round, r.newEnrichRunner(dp.deepRunner, s.Round))
 		return deepTransitionAccepting(r.Ws, r.featureID(), s, dp.pc)
 	}
@@ -197,6 +197,20 @@ func writeAngleSelection(ws *protocol.Workspace, featureID string, round int, se
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		slog.Warn("write angle selection failed", "feature", featureID, "error", err)
 	}
+}
+
+// deepReviewClearsToAccepting 判斷本 round 的 deep-review-report.md 是否可直接放行
+// accepting/fixing（不進 self-heal）。F144 補洞後的放行規則：
+//   - 乾淨 PASS（DeepReviewCleanPass）→ 恆放行（F132「乾淨 PASS 跳 fixer」行為不變）。
+//   - CONDITIONAL PASS 帶 warning 且 profile 啟用 fixing → 放行（交 fixer 處理，現況不變）。
+//   - CONDITIONAL PASS 帶 warning 但未啟用 fixing → 回 false，改交 deepReviewSelfHeal 至少
+//     嘗試修掉 warning（取代過去的靜默放行 accepting）。
+//   - FAIL → 回 false，交 deepReviewSelfHeal（現況不變）。
+func (r *Runner) deepReviewClearsToAccepting(round int, pc protocol.ProfileConfig) bool {
+	if DeepReviewCleanPass(r.Ws, r.featureID(), round) {
+		return true
+	}
+	return ReviewPassed(r.Ws, r.featureID(), round, protocol.DeepReviewReport) && pc.EnablesPhase(protocol.PhaseFixing)
 }
 
 // deepReviewSelfHeal 在 deep review FAIL 時跑內部自癒循環（mini-coder + re-verifier），
@@ -512,18 +526,27 @@ func (r *Runner) runSynthesizer(ctx context.Context, s *protocol.State, runnerNa
 }
 
 // runDeepSubRole 在 deep-reviewing phase 內 spawn 一個子 role（deep-reviewer / mini-coder /
-// re-verifier），處理 phase-start/run-end event、prompt 產生、runner 執行與 worktree 同步，
-// 並分類 context cancel / runner error / hard error / soft fail。phase 全程維持 deep-reviewing。
+// re-verifier）。薄 wrapper，委派給 phase-agnostic 的 runSubRole，phase 固定 deep-reviewing。
+// opts 為可選的 prompt Option，用於注入角度選擇等參數。
+func (r *Runner) runDeepSubRole(ctx context.Context, s *protocol.State, role protocol.Role, runnerName, model, logName string, round, iteration int, opts ...prompt.Option) (bool, error) {
+	return r.runSubRole(ctx, s, protocol.PhaseDeepReviewing, role, runnerName, model, logName, round, iteration, opts...)
+}
+
+// runSubRole 在指定 phase 內 spawn 一個子 role，處理 phase-start/run-end event、prompt 產生、
+// runner 執行、worktree 同步與 token/cost 統計累加，並分類 context cancel / runner error /
+// hard error / soft fail。此機制與 phase 無關——event 的 Phase 欄位與人類可讀訊息前綴皆由傳入
+// 的 phase 決定（訊息前綴用 string(phase)，恰為 "deep-reviewing" / "reviewing"）。deep-reviewing
+// 自癒循環與 reviewing 同輪收斂共用同一實作，避免錯誤處理／統計邏輯雙邊漂移。
 //
 // 回傳 (ok, err)：ok 為 true 表示 runner 正常結束，caller 可繼續；ok 為 false 且 err 為 nil
 // 表示已寫入終止狀態（needs-attention / blocked）；err 非 nil 表示 hard error 或 cancel。
-// opts 為可選的 prompt Option，用於注入角度選擇等參數。
-func (r *Runner) runDeepSubRole(ctx context.Context, s *protocol.State, role protocol.Role, runnerName, model, logName string, round, iteration int, opts ...prompt.Option) (bool, error) {
+func (r *Runner) runSubRole(ctx context.Context, s *protocol.State, phase protocol.Phase, role protocol.Role, runnerName, model, logName string, round, iteration int, opts ...prompt.Option) (bool, error) {
 	ws := r.Ws
 	featureID := r.featureID()
+	label := string(phase)
 
 	ws.AppendEvent(featureID, protocol.Event{
-		Type: "phase-start", Phase: protocol.PhaseDeepReviewing, Role: role, Round: round,
+		Type: "phase-start", Phase: phase, Role: role, Round: round,
 		Runner: runnerName, Model: model,
 	})
 
@@ -544,9 +567,9 @@ func (r *Runner) runDeepSubRole(ctx context.Context, s *protocol.State, role pro
 	}
 
 	if model != "" {
-		fmt.Printf("[round %d] deep-reviewing (%s) — invoking %s (model: %s)\n", round, role, runnerName, model)
+		fmt.Printf("[round %d] %s (%s) — invoking %s (model: %s)\n", round, label, role, runnerName, model)
 	} else {
-		fmt.Printf("[round %d] deep-reviewing (%s) — invoking %s\n", round, role, runnerName)
+		fmt.Printf("[round %d] %s (%s) — invoking %s\n", round, label, role, runnerName)
 	}
 
 	invokeStart := time.Now()
@@ -568,13 +591,13 @@ func (r *Runner) runDeepSubRole(ctx context.Context, s *protocol.State, role pro
 
 	if runErr != nil {
 		if ctx.Err() == context.Canceled {
-			StopState(ws, featureID, s, "interrupted", fmt.Sprintf("deep-reviewing (%s) interrupted by signal (round %d)", role, round))
+			StopState(ws, featureID, s, "interrupted", fmt.Sprintf("%s (%s) interrupted by signal (round %d)", label, role, round))
 			return false, ctx.Err()
 		}
 		s.Phase = protocol.PhaseNeedsAttention
-		StopState(ws, featureID, s, "runner-error", fmt.Sprintf("deep-reviewing (%s) runner failed (round %d): %v", role, round, runErr))
+		StopState(ws, featureID, s, "runner-error", fmt.Sprintf("%s (%s) runner failed (round %d): %v", label, role, round, runErr))
 		ws.AppendEvent(featureID, protocol.Event{
-			Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: role, Round: round,
+			Type: "run-end", Phase: phase, Role: role, Round: round,
 			Status: "error", Detail: runErr.Error(), Runner: runnerName, Model: model,
 			TokensUsed: stats.Tokens, CostUSD: stats.CostUSD, DurationMs: invokeDur.Milliseconds(),
 		})
@@ -582,18 +605,18 @@ func (r *Runner) runDeepSubRole(ctx context.Context, s *protocol.State, role pro
 	}
 
 	ws.AppendEvent(featureID, protocol.Event{
-		Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: role, Round: round,
+		Type: "run-end", Phase: phase, Role: role, Round: round,
 		Status: fmt.Sprintf("exit-%d", result.ExitCode), Runner: runnerName, Model: model,
 		TokensUsed: stats.Tokens, CostUSD: stats.CostUSD, DurationMs: invokeDur.Milliseconds(),
 	})
 
 	if runner.IsHardError(result) {
-		StopState(ws, featureID, s, "hard-error", fmt.Sprintf("deep-reviewing (%s) runner returned hard error (exit 2) (round %d)", role, round))
+		StopState(ws, featureID, s, "hard-error", fmt.Sprintf("%s (%s) runner returned hard error (exit 2) (round %d)", label, role, round))
 		return false, fmt.Errorf("runner returned hard error (exit 2)")
 	}
 	if runner.IsSoftFail(result) {
 		s.Phase = protocol.PhaseBlocked
-		StopState(ws, featureID, s, "soft-fail", fmt.Sprintf("deep-reviewing (%s) runner returned soft-fail (exit %d) (round %d)", role, runner.ExitSoftFail, round))
+		StopState(ws, featureID, s, "soft-fail", fmt.Sprintf("%s (%s) runner returned soft-fail (exit %d) (round %d)", label, role, runner.ExitSoftFail, round))
 		LogSyncErr(ws.SyncFeatureStatus(featureID, protocol.PhaseBlocked), featureID, protocol.PhaseBlocked)
 		return false, nil
 	}

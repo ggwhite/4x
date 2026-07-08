@@ -74,6 +74,30 @@ func ParseReviewVerdict(content string) protocol.ReviewResult {
 	return result
 }
 
+// ReviewConditionalPass 判斷 review-report 內容是否為「CONDITIONAL PASS」：
+// verdict 通過（PASS / CONDITIONAL PASS）、無 critical，但至少有一個 warning。
+//
+// 邊界差異（三者共用 ParseReviewVerdict，只差 warning 條件）：
+//   - ReviewPassed（= Passed && CriticalCount==0）：容許 warning，warning 有無皆回 true。
+//   - DeepReviewCleanPass（= Passed && CriticalCount==0 && WarningCount==0）：乾淨 PASS，有 warning 即 false。
+//   - ReviewConditionalPass（= Passed && CriticalCount==0 && WarningCount>0）：介於兩者之間，
+//     專指「通過但仍留有 warning 待收斂」——純 PASS（無 warning）與含 critical 的 FAIL 皆回 false。
+func ReviewConditionalPass(content string) bool {
+	result := ParseReviewVerdict(content)
+	return result.Passed && result.CriticalCount == 0 && result.WarningCount > 0
+}
+
+// ReviewConditionalPassAtRound 讀取指定 round 的 review report（reportFile 一般為
+// protocol.ReviewReport）並回傳其是否為 ReviewConditionalPass；讀檔失敗回 false。
+func ReviewConditionalPassAtRound(ws *protocol.Workspace, featureID string, round int, reportFile string) bool {
+	roundDir := ws.RoundDir(featureID, round)
+	data, err := os.ReadFile(filepath.Join(roundDir, reportFile))
+	if err != nil {
+		return false
+	}
+	return ReviewConditionalPass(string(data))
+}
+
 // DeepReviewCleanPass 判斷指定 round 的 deep-review-report.md 是否為「乾淨 PASS」：
 // verdict 通過且無 critical、無 warning。與 ReviewPassed（容許 CONDITIONAL PASS 帶 warning）
 // 不同，此函式用於決定 fixing phase 是否還有東西可修——warning 存在時代表 deep-reviewer
