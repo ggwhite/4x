@@ -1,0 +1,29 @@
+id: F148-worktree-environment-integrity
+name: 'F148: Worktree 環境完整性'
+description: |-
+    現狀：4x scaffold worktree 時只 checkout feature YAML repos 欄位所列的 repo，卻原樣複製 go.work，Go toolchain 因缺 module 導致 build/vet/test 全面失敗；且 scaffold 後沒有標準化 setup 步驟，使用端每個 feature 都要手動補 chmod +x、symlink sibling repo、npm install。kairos 實測這是 learnings 重複率最高的根因群：go.work partial-checkout 22 次、worktree setup 22 次、verify/lint 腳本失敗 12 次，合計近 70 條重複 learnings。
+
+    需求：
+    - scaffold 建 worktree 時偵測 go.work：自動裁切為只含實際 checkout 的 module，或對缺失 repo 建 detached worktree（兩案擇一，Designer 評估後裁決並在 task-brief 說明理由）
+    - 新增 post-scaffold hook：settings.json 新增欄位（如 worktree.post_scaffold，字串陣列）宣告命令清單，scaffold 完成後在 worktree 根目錄依序執行；單一命令失敗 slog.Warn 並繼續，不 fatal
+    - hook 執行的 stdout/stderr 寫入該 feature 的 run log，可觀察可診斷
+
+    約束：
+    - hook 內容由使用端專案自理，4x 不內建任何專案特定邏輯（chmod/symlink/npm install 都寫在使用端 settings）
+    - 不改變沒有 go.work 的專案的 scaffold 行為
+    - 不引入新外部依賴
+status: not-started
+priority: 1
+profile: normal
+subtasks:
+    - id: gowork-handling
+      name: go.work 裁切或 detached worktree 方案實作與測試
+      status: ""
+    - id: post-scaffold-hook
+      name: settings 欄位 + hook 執行器 + log 整合
+      status: ""
+    - id: docs
+      name: docs/guide 補 worktree 環境說明與 hook 範例
+      status: ""
+rules:
+    - hook 失敗只 warn 不 fatal，遵循既有 best-effort 附帶操作慣例

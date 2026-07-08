@@ -1,0 +1,26 @@
+id: F149-check-scope-false-positives
+name: 'F149: check scope 誤判修正'
+description: |-
+    現狀：4x check 的 scope violation 檢查有三類已知誤判（kairos 實測 14 次 learnings）：(1) hub 工作區 repo（hub_repos）內的變更被當成 scope 違規；(2) Tester 對 e2e repo（如 kairos-e2e）的必要寫入（測試腳本、截圖）被擋；(3) diff 基準未用 merge-base——並行 feature 的殘留 diff 或 branch 落後 main 會造成假陽性（learnings 已有「git diff main..HEAD 假刪除要用 merge-base 查證」的教訓，guard 本身仍未修）。
+
+    需求：
+    - hub_repos 所列 repo 排除 scope 檢查，或提供 settings 白名單欄位
+    - testing phase 時，對 test-strategy.yaml 宣告的 e2e 產出路徑放行寫入
+    - scope 檢查的 diff 基準改用 git merge-base，避免 branch 落後與並行殘留造成假陽性
+
+    約束：
+    - 不放寬真正的 scope 違規偵測——三項修正都要有對應的「仍會抓到真違規」反向測試
+    - internal/guard 為 protected path，改動需完整單元測試
+status: not-started
+priority: 2
+profile: normal
+subtasks:
+    - id: hub-repos-exclusion
+      name: hub_repos 排除邏輯與測試
+      status: ""
+    - id: tester-e2e-allowance
+      name: testing phase e2e 路徑放行與測試
+      status: ""
+    - id: merge-base-diff
+      name: diff 基準改 merge-base 與測試
+      status: ""

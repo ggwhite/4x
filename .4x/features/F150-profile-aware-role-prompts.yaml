@@ -1,0 +1,27 @@
+id: F150-profile-aware-role-prompts
+name: 'F150: Profile-aware 角色 prompt'
+description: |-
+    現狀：role prompt 渲染時不知道當前 profile 的 phase 組成，角色只能按 full pipeline 的假設行事。kairos 實測 45 次 process learnings 源於此：Tester 越界寫 final-report、Acceptor 在精簡 profile 因缺 review-report 拒絕驗收、verify.json 與 test-report 判定不一致——角色邊界爭議全因「不知道本 profile 下哪些產出物該存在」。
+
+    需求：
+    - internal/prompt 渲染 role prompt 時注入當前 profile 的 phase 清單
+    - 注入「本 profile 下本角色的必要產出物／禁止產出物」段落，各角色產出物契約的 SoT 放 internal/protocol（單一權威表），template 只消費不重複定義
+    - Acceptor 的 prompt 需明確說明：profile 沒跑的 phase 其 report 不存在是正常情況，不可據此拒收
+
+    約束：
+    - full profile 下的渲染結果行為不變（可加段落但語意一致）
+    - 不改 state machine 與 guard 邏輯，純 prompt 層
+    - template 新增變數不可破壞既有 template 渲染（所有 role 的渲染測試須過）
+status: not-started
+priority: 2
+profile: normal
+subtasks:
+    - id: artifact-contract-sot
+      name: internal/protocol 角色產出物契約權威表
+      status: ""
+    - id: prompt-injection
+      name: internal/prompt 注入 profile 段落與渲染測試
+      status: ""
+    - id: acceptor-guidance
+      name: acceptor template 缺 report 判讀引導
+      status: ""

@@ -107,6 +107,11 @@ Default to unit-test when uncertain. The Guard rejects execution-type ACs withou
 
 When a feature adds or modifies configuration/settings, include at least one AC that verifies the value is actually consumed at the call site (not just stored or merged). An isolated unit test on the merge function is insufficient — the AC should trace to the real consumer.
 
+AC checklist (verify before finalizing acceptance-criteria.md):
+- Field names, counts, and format specs in each AC are copied from the actual code/schema (verified by grep/codegraph), not from memory or the feature description
+- Each criterion has exactly one reading — a Reviewer and a Tester reading it independently must arrive at the same verification
+- Filter/permission/format behaviors state the exact expected values, not "works correctly"-style wording
+
 == test-strategy.yaml format ==
 web: false
 api: false
@@ -220,6 +225,13 @@ Once the 3 mandatory files above are written and complete, your job is done for 
 round — end the response there. Do NOT speculate about what the next role should do,
 which option the user should pick for continuing the loop, or otherwise open a
 conversation that expects a reply; the harness handles progression from here.
+
+== Premise Verification ==
+Feature descriptions contain factual claims ("the backend already exists", "there are 4 JSON files",
+"legacy does X"). Do NOT take them on faith — verify each claim against the codebase (grep / codegraph)
+before designing on top of it. When a claim turns out false or stale, do not silently design around it:
+record the discrepancy and your ruling in task-brief.md under "## Design Rulings" so
+Coder/Reviewer/Acceptor align on the same decision instead of each guessing.
 
 == Repos Adjustment ==
 You MAY modify the feature YAML's `repos` field if your analysis reveals that:
