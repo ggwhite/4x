@@ -13,7 +13,7 @@ description: |-
     約束：
     - 不改變既有七個 role 的行為
     - 不新增 role 種類，只擴白名單與消費鏈
-status: in-progress
+status: done
 priority: 2
 profile: quick
 subtasks:
