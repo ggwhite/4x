@@ -58,6 +58,7 @@ func AllSubPhases() []SubPhase {
 // 無任何 emitter，故不列入。
 func AllEventTypes() []string {
 	return []string{
+		"conditional-pass-residual",
 		"escalation",
 		"feature-discovered",
 		"force-done",

@@ -44,8 +44,8 @@ func TestAllSubPhases(t *testing.T) {
 func TestAllEventTypes(t *testing.T) {
 	types := AllEventTypes()
 	assertNonEmptyNoDup(t, "AllEventTypes", types)
-	if len(types) != 15 {
-		t.Errorf("AllEventTypes() 應回傳 15 個值，實際 %d 個：%v", len(types), types)
+	if len(types) != 16 {
+		t.Errorf("AllEventTypes() 應回傳 16 個值，實際 %d 個：%v", len(types), types)
 	}
 	for _, excluded := range []string{"phase-end", "step", "verify", "scope-check", "blocked", "heartbeat", "subtask-done"} {
 		for _, v := range types {

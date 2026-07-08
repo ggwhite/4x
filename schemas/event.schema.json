@@ -9,7 +9,7 @@
     "phase": { "type": "string" },
     "type": {
       "type": "string",
-      "enum": ["escalation", "feature-discovered", "force-done", "guard-fail", "health-check-failed", "hook", "phase-skipped", "phase-start", "run-end", "run-error", "run-output", "run-start", "self-mod-approved", "self-mod-detected", "transition"]
+      "enum": ["conditional-pass-residual", "escalation", "feature-discovered", "force-done", "guard-fail", "health-check-failed", "hook", "phase-skipped", "phase-start", "run-end", "run-error", "run-output", "run-start", "self-mod-approved", "self-mod-detected", "transition"]
     },
     "role": { "type": "string" },
     "round": { "type": "integer" },
