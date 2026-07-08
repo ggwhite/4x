@@ -82,7 +82,7 @@ Run the Design-Code-Review-Test loop for a feature.
 |---|---|---|
 | `--runner` | config default | Runner plugin name |
 | `--max-rounds` | `5` | Maximum loop iterations |
-| `--timeout` | `3600` | Per-phase timeout in seconds |
+| `--timeout` | `0` | Per-phase timeout in seconds (`0` = no limit) |
 | `--dry-run` | `false` | Print role prompts without calling LLM |
 | `--json` | `false` | Start run and return JSON immediately |
 | `--profile` | auto | Pipeline profile (`full`/`normal`/`quick` or custom); overrides `default_profile`/priority auto-select |

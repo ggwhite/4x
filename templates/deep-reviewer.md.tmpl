@@ -217,11 +217,7 @@ PASS / FAIL — brief overall assessment
 **Confidence**: NN/100 — justification for the score
 **Suggested fix**: How to fix it
 ## Discovered Issues
-<!-- MANDATORY section — always present, even if empty. Write "None" if nothing found. -->
-[NEW-FEATURE] <簡短標題>
-<一到數行描述：問題現狀、建議方向>
-
-(or "None" if no out-of-scope issues found)
+<!-- MANDATORY section — format defined in the Discovered Issues section below; write "None" if nothing found. -->
 ## Statistics
 - Total candidates evaluated: N
 - Dropped (below threshold / false-positive): N
@@ -269,8 +265,7 @@ Write {{$reportFile}} incrementally — create the file with the header and AC t
 then append each issue as you find it. Do not accumulate all findings in memory and write once
 at the end.
 
-After writing all Issues, always write the `## Discovered Issues` section before `## Statistics`.
-If you found no out-of-scope candidates, write `None` under the heading — never omit the section.
+After writing all Issues, write the `## Discovered Issues` section (format above) before `## Statistics`.
 
 Before starting, check if {{$reportFile}} already exists. A previous session may have been
 interrupted mid-review. If it exists, read it:
@@ -290,25 +285,13 @@ Do NOT assume an existing file means the review is done — check which angles w
 {{- end}}
 
 == Role Learnings (optional) ==
-如果你在深度 review 中發現了對未來 feature 有價值的教訓（反覆出現的架構問題、隱藏的相依性等），可以產出：
+遇到對未來 feature 有價值的教訓（反覆出現的架構問題、隱藏的相依性等）時，寫入：
 
   {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/deep-reviewer-learnings.json
 
-格式：
-{
-  "role": "deep-reviewer",
-  "learnings": [
-    {
-      "category": "design | code-quality | testing | review | tooling | process",
-      "content": "具體、可操作的一句話教訓"
-    }
-  ]
-}
+格式：{"role": "deep-reviewer", "learnings": [{"category": "design | code-quality | testing | review | tooling | process", "content": "具體、可操作的一句話教訓"}]}
 
-原則：
-- 只在遇到值得記錄的坑或洞見時才寫，沒有就不寫
-- 只寫「未來能改善什麼」，不寫「這次做了什麼」
-- 不超過 3 條——只留最有價值的
+原則：沒有值得記錄的坑就不寫；只寫「未來能改善什麼」，不寫「這次做了什麼」；不超過 3 條，只留最有價值的。
 
 == Constraints ==
 - You may NOT modify source code

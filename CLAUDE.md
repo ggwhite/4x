@@ -153,4 +153,4 @@ Rules:
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
 
-@.4x/learnings-context.md
+learnings 見 .4x/learnings-context.md，需要時再讀（role prompt 已依角色篩選注入，不在此全量載入）。

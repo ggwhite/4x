@@ -157,7 +157,9 @@ func Generate(ctx *Context, role protocol.Role, round, iteration int, runnerName
 	data.PlanningDoc = LoadPlanningDocs(ws.Root, feature, cfg.DesignDocDirs, condensePlan)
 	data.Learnings = LoadLearningsForRole(ws.DotDir(), role)
 	data.SkippedDesigner = skippedDesigner
-	data.CodeMap = BuildCodeMap(ws.Root)
+	if role == protocol.RoleDesigner || role == protocol.RoleCoder || role == protocol.RoleReviewer {
+		data.CodeMap = BuildCodeMap(ws.Root)
+	}
 	if role == protocol.RoleCoder || role == protocol.RoleMiniCoder {
 		if !skippedDesigner {
 			if b, err := os.ReadFile(briefPath); err == nil {

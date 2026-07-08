@@ -42,11 +42,6 @@ Use the Write tool. Do NOT just print the content — write to disk.
 - {{.}}
 {{- end}}
 {{- end}}
-{{- if .CodeMap}}
-
-== Codebase Map (exported symbols per package) ==
-{{.CodeMap}}
-{{- end}}
 {{- if .RoleIncludes}}
 {{range .RoleIncludes}}
 
@@ -146,27 +141,10 @@ The guard will block testing → accepting if:
 - Any non-skip AC has empty evidence
 
 == expectedExitCode（驗證指令「成功 = 非 0 exit」時必填） ==
-`4x verify` 產生的 verify.json 中，每個 command entry 預設用 exit code 0 判斷是否成功。
-但有些驗證指令天生「成功時 exit code 非 0」——最常見的是 `grep`/`rg` 預期查無結果
-（exit 1 才代表沒找到，也就是驗證通過）。這種情況下，你必須在該 command entry 手動
-加上 `expectedExitCode`，guard 的交叉驗證（W7）才會拿它（而非預設的 0）與實際
-`exitCode` 比對，而不是把非 0 exit 誤判為「你謊報 passed」。
-
-範例：驗證某段已刪除的 legacy 程式碼不再被引用，指令是 `grep -r "OldFunc" ./src`，
-預期「查無結果」（exit 1）才代表通過：
-
-```json
-{
-  "command": "grep -r \"OldFunc\" ./src",
-  "exitCode": 1,
-  "expectedExitCode": 1,
-  "summary": "0 matches — OldFunc has been fully removed"
-}
-```
-
-未設定 `expectedExitCode` 時，W7 一律預設期望 0。若你的驗證指令本質上是「非 0
-exit 才算成功」卻沒標這個欄位，guard 會把它當成謊報攔下，即使你的 verify.json
-標了 `passed: true` 也一樣。
+verify.json 的 command entry 預設以 exit code 0 判定成功（guard W7 交叉驗證）。若驗證指令
+本質上「非 0 exit 才算通過」——最常見的是 `grep`/`rg` 預期查無結果（exit 1 = 通過）——必須
+在該 entry 加上 `expectedExitCode`（如 `"exitCode": 1, "expectedExitCode": 1`），否則 W7
+會把非 0 exit 判為謊報 passed 而攔下，即使標了 `passed: true` 也一樣。
 
 == Manual Checks (REQUIRED if defined) ==
 If test-strategy.yaml contains `manual_checks`, you MUST execute every one.
@@ -259,26 +237,13 @@ Evidence rules by verify_type:
 If ac_verify_map is not present in test-strategy.yaml, ALL ACs default to execution — you must provide command output for every single AC.
 
 == Role Learnings (optional) ==
-如果你在測試過程中發現了對未來 feature 有價值的教訓（測試環境問題、容易遺漏的測試場景等），可以產出：
+遇到對未來 feature 有價值的教訓（測試環境問題、容易遺漏的測試場景等）時，寫入：
 
   {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/tester-learnings.json
 
-格式：
-{
-  "role": "tester",
-  "learnings": [
-    {
-      "category": "design | code-quality | testing | review | tooling | process | ops",
-      "content": "具體、可操作的一句話教訓"
-    }
-  ]
-}
+格式：{"role": "tester", "learnings": [{"category": "design | code-quality | testing | review | tooling | process | ops", "content": "具體、可操作的一句話教訓"}]}
 
-原則：
-- 環境、工具、帳號、workaround 等操作問題也值得記錄，用 category "ops"
-- 只在遇到值得記錄的坑或洞見時才寫，沒有就不寫
-- 只寫「未來能改善什麼」，不寫「這次做了什麼」
-- 不超過 3 條——只留最有價值的
+原則：沒有值得記錄的坑就不寫；只寫「未來能改善什麼」，不寫「這次做了什麼」；環境、工具、帳號、workaround 等操作問題用 category "ops"；不超過 3 條，只留最有價值的。
 
 == Constraints ==
 - Do NOT modify source code — only run tests and report
