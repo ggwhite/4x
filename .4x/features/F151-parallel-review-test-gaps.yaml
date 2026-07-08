@@ -11,7 +11,7 @@ description: |-
     約束：
     - 非 parallel 路徑行為不變
     - 不改狀態機合法轉換表
-status: not-started
+status: done
 priority: 1
 profile: normal
 subtasks:
