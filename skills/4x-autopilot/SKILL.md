@@ -19,6 +19,7 @@ Owner 專用自動駕駛 skill。搭配 `/loop` 持續輪詢 4x 狀態，驅動 
 - **序列執行**：一次只跑一個 feature，完成後才 pick 下一個
 - **全自動**：不停頓等確認，包括 merge MR
 - **專案無關**：所有專案特定值（repo 清單、GitLab 路徑）從 `.4x/settings.json` 動態讀取
+- **永不停機**：除非「沒有 not-started feature 可跑」或「使用者主動說暫停/停止」，否則不可停下來。完成一個 feature 後必須立即 IDLE-PICK 下一個，不可印 session 摘要、不可問「要繼續嗎？」、不可等確認。這是最高優先規則，違反等同 bug。
 
 ## 前置：讀取專案設定
 
@@ -332,9 +333,9 @@ ls .worktrees/4x/<feature>/ 2>/dev/null
 
 ### Step 7: 完成
 
-印 log：`<id>: <name> 完成`（USE_GITLAB 時附 MR URLs）
+印 log（一行）：`<id>: <name> 完成`（USE_GITLAB 時附 MR URLs）
 
-進入 IDLE-PICK。
+**禁止**在這裡印 session 累計摘要、問使用者要不要繼續、或做任何等待確認的動作。直接進入 IDLE-PICK 選下一個 feature。
 
 ## ScheduleWakeup 規則
 
