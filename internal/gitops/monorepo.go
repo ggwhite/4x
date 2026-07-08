@@ -276,7 +276,8 @@ func (m *monoRepo) GenerateReviewPackage(featureID, baseCommit string) (string, 
 		return "", fmt.Errorf("no base commit recorded for feature %s", featureID)
 	}
 	root := ScopeRoot(m.root, featureID)
-	section := reviewPackageSection(root, baseCommit, "##")
+	budget := reviewPackageContentBudget
+	section := reviewPackageSection(root, baseCommit, "##", &budget)
 	if section == "" {
 		return "", fmt.Errorf("no diff produced for base commit %s", baseCommit)
 	}

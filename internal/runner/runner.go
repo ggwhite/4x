@@ -43,6 +43,11 @@ type SubprocessRunner struct {
 	// backoffBase 是指數退避的基準間隔；<=0 時套用 defaultBackoffBase。
 	// 測試可注入極小值（如 1ms）加速重試迴圈。
 	backoffBase time.Duration
+	// ExtraEnv 是額外注入子程序環境變數（如 FOURX_ROLE / FOURX_REVIEW_PACKAGE）。
+	// 由 orchestrator 只對 reviewer/deep-reviewer 角色的 SubprocessRunner 設定；其他角色為 nil。
+	// 當 Config.Command == "claude" 且 len(ExtraEnv) > 0 時，buildArgs 額外注入 PreToolUse
+	// hook settings（guard-tool），攔截 reviewer 自跑 git diff/log/show。不改任何函式簽章。
+	ExtraEnv []string
 }
 
 // resolveMaxRetries 解析有效的暫態重試上限：
@@ -147,6 +152,7 @@ func (r *SubprocessRunner) runOnce(ctx context.Context, prompt string) (*Result,
 	usePty := protocol.BoolVal(r.Config.Tty) && logFile != nil
 
 	env := enrichedEnv()
+	env = append(env, r.ExtraEnv...)
 	command := resolveCommand(r.Config.Command, env)
 
 	var cmd *exec.Cmd
@@ -321,7 +327,53 @@ func (r *SubprocessRunner) buildArgs(prompt string) ([]string, func(), error) {
 		args = append(args, "--model", r.ModelOverride)
 	}
 
+	// 只對 claude runner 且有注入 ExtraEnv（即 reviewer/deep-reviewer）時，寫一個 PreToolUse
+	// hook settings temp file 並 append --settings，讓 Claude Code 呼叫 `4x guard-tool` 攔截
+	// reviewer 自跑 git diff/log/show。其他 role（ExtraEnv 為 nil）或非 claude runner 不注入。
+	if r.Config.Command == "claude" && len(r.ExtraEnv) > 0 {
+		settingsPath, settingsCleanup, err := writeGuardToolSettings()
+		if err != nil {
+			return nil, cleanup, fmt.Errorf("runner %s: write guard-tool settings: %w", r.Name, err)
+		}
+		args = append(args, "--settings", settingsPath)
+		cleanup = chainCleanup(cleanup, settingsCleanup)
+	}
+
 	return args, cleanup, nil
+}
+
+// guardToolSettingsJSON 是注入 claude runner 的 PreToolUse hook settings 內容：對每個 Bash
+// 工具呼叫先跑 `$FOURX_BIN guard-tool`（由 enrichedEnv 提供 FOURX_BIN，經 shell 展開）。
+const guardToolSettingsJSON = `{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"\"$FOURX_BIN\" guard-tool"}]}]}}`
+
+// writeGuardToolSettings 寫出 PreToolUse hook settings temp file，回傳路徑與 cleanup。
+func writeGuardToolSettings() (string, func(), error) {
+	f, err := os.CreateTemp("", "4x-guard-settings-*.json")
+	if err != nil {
+		return "", nil, err
+	}
+	if _, err := f.WriteString(guardToolSettingsJSON); err != nil {
+		f.Close()
+		os.Remove(f.Name())
+		return "", nil, err
+	}
+	f.Close()
+	path := f.Name()
+	return path, func() { os.Remove(path) }, nil
+}
+
+// chainCleanup 把兩個 cleanup func 串成一個（任一為 nil 時回傳另一個），維持與既有 cleanup 契約一致。
+func chainCleanup(a, b func()) func() {
+	if a == nil {
+		return b
+	}
+	if b == nil {
+		return a
+	}
+	return func() {
+		a()
+		b()
+	}
 }
 
 func IsSoftFail(r *Result) bool {

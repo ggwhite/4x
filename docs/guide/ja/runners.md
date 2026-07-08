@@ -97,6 +97,10 @@
 
 `stdin: true` のランナー（Codex）は、コマンドライン引数の代わりに標準入力でプロンプトを受け取ります。
 
+### レビュアーの git 探索ガード（claude のみ）
+
+`reviewer` および `deep-reviewer` ロールでは、`claude` ランナーが Claude Code の PreToolUse フック（`4x guard-tool` を呼び出す一時的な `--settings` ファイル経由）と `FOURX_ROLE` / `FOURX_REVIEW_PACKAGE` 環境変数を注入します。ラウンドの `review-package.md` が存在する場合、レビュアー自身の `git diff` / `git log` / `git show` 呼び出しは、その事前計算されたパッケージ（サイズ上限内で各変更ファイルの全内容も埋め込まれるようになりました）を指すメッセージとともにソフトに拒否されます。これは claude 固有で、他のロール・他のランナー・build/test/lint コマンドには一切影響せず、実行を失敗させることもありません。パッケージが存在しない場合、レビュアーは自分で git を実行するフォールバックに戻ります。
+
 ## ロールごとに異なるモデルを使用する
 
 `.4x/settings.json` で設定します：

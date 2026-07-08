@@ -617,6 +617,17 @@ Without paths, loads recent projects from `~/.4x/recent-projects.json` (LRU, max
 
 ---
 
+## `4x guard-tool`
+
+<!-- alias: 4x guardtool -->
+Internal PreToolUse hook (hidden, machine use only). The `claude` runner injects this hook for the `reviewer`/`deep-reviewer` roles so that, when the review-package.md for the round exists, the reviewer's own `git diff`/`git log`/`git show` calls are softly denied with a message pointing to review-package.md. It reads the Claude Code hook JSON from stdin and the `FOURX_ROLE` / `FOURX_REVIEW_PACKAGE` environment variables; any parse failure or non-matching command is allowed (exit 0). It never blocks build/test/lint or other roles, and never fails the run.
+
+```
+echo '{"tool_name":"Bash","tool_input":{"command":"git diff HEAD"}}' | FOURX_ROLE=reviewer FOURX_REVIEW_PACKAGE=/path/to/review-package.md 4x guard-tool
+```
+
+---
+
 ## `4x mcp`
 
 Start the Model Context Protocol (MCP) server.

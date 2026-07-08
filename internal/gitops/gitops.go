@@ -2,16 +2,28 @@
 package gitops
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/vcshub"
 )
+
+// reviewPackageContentBudget 是 review-package 預附「變更檔全文」的總量上限（byte）。
+// multi-repo 模式下此上限為跨 repo 共享（見 multiRepo.GenerateReviewPackage），
+// 超過後剩餘檔案改列路徑清單，避免 package 無限膨脹被 reviewer 全吞。
+const reviewPackageContentBudget = 100 * 1024
+
+// ReviewPackageTruncatedMarker 是 review-package 變更檔全文因超過上限而截斷時，
+// 於「Changed File Contents」段開頭放置的檔頭標註起頭字串。orchestrator 以
+// strings.Contains 偵測此標記記一筆截斷 log（非靜默）。
+const ReviewPackageTruncatedMarker = "> review-package truncated"
 
 // Ops 封裝所有 git 操作，根據 workspace config 決定 monorepo 或 multi-repo 模式。
 type Ops interface {
@@ -130,7 +142,9 @@ func changedFilesIn(dir, pathPrefix string) []protocol.ChangedFile {
 // reviewPackageSection 回傳單一 git 工作目錄從 base 到 HEAD 的 commits/stat/diff 區段字串，
 // headingLevel 控制 markdown 標題層級（monorepo 用 "##"、multi-repo 巢狀在 repo 標題下用 "###"）。
 // base 為空，或該 range 的 commits/stat/diff 三者皆空（無變更）時回傳空字串，供呼叫端判斷跳過。
-func reviewPackageSection(dir, base, headingLevel string) string {
+// 在既有 Full Diff 之後 append changedFileContentsSection 的輸出（受 budget 共享上限約束），
+// 讓 reviewer 無需自跑 git 或 Read 即可看到變更檔全文。
+func reviewPackageSection(dir, base, headingLevel string, budget *int) string {
 	if base == "" {
 		return ""
 	}
@@ -145,6 +159,78 @@ func reviewPackageSection(dir, base, headingLevel string) string {
 	fmt.Fprintf(&b, "%s Commits\n\n```\n%s\n```\n\n", headingLevel, commits)
 	fmt.Fprintf(&b, "%s File Changes\n\n```\n%s\n```\n\n", headingLevel, stat)
 	fmt.Fprintf(&b, "%s Full Diff\n\n```diff\n%s\n```\n", headingLevel, diff)
+	if contents := changedFileContentsSection(dir, base, headingLevel, budget); contents != "" {
+		b.WriteString("\n")
+		b.WriteString(contents)
+	}
+	return b.String()
+}
+
+// changedFileContentsSection 回傳 base..HEAD 各變更檔的工作目錄全文區段（在共享 budget 上限內），
+// headingLevel 與 reviewPackageSection 一致。逐檔依路徑排序（輸出穩定），跳過已刪除檔（工作目錄
+// 不存在）與 binary 檔（內容含 NUL byte）。每 inline 一檔即 *budget -= len(content)；某檔全文超過
+// 剩餘 budget 時改列於「Files Not Inlined」路徑清單。發生截斷時於段開頭放一行以
+// ReviewPackageTruncatedMarker 起頭的檔頭標註（非靜默）。base 為空或無變更檔時回傳空字串。
+func changedFileContentsSection(dir, base, headingLevel string, budget *int) string {
+	if base == "" {
+		return ""
+	}
+	nameOnly := gitOutput(dir, "diff", "--name-only", base+"..HEAD")
+	if nameOnly == "" {
+		return ""
+	}
+	paths := strings.Split(nameOnly, "\n")
+	sort.Strings(paths)
+
+	var inlined []string
+	var notInlined []string
+	for _, p := range paths {
+		if p == "" {
+			continue
+		}
+		full := filepath.Join(dir, p)
+		info, err := os.Stat(full)
+		if err != nil || info.IsDir() {
+			continue // 已刪除檔或非一般檔
+		}
+		data, err := os.ReadFile(full)
+		if err != nil {
+			continue
+		}
+		if bytes.IndexByte(data, 0) >= 0 {
+			continue // binary 檔
+		}
+		content := string(data)
+		if len(content) <= *budget {
+			*budget -= len(content)
+			inlined = append(inlined, fmt.Sprintf("```%s\n%s\n```", p, content))
+		} else {
+			notInlined = append(notInlined, p)
+		}
+	}
+
+	if len(inlined) == 0 && len(notInlined) == 0 {
+		return ""
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s Changed File Contents\n\n", headingLevel)
+	if len(notInlined) > 0 {
+		fmt.Fprintf(&b, "%s（已 inline %d 檔 / 剩餘 %d 檔僅列路徑 / 上限 %dKB）\n\n",
+			ReviewPackageTruncatedMarker, len(inlined), len(notInlined), reviewPackageContentBudget/1024)
+	}
+	for _, f := range inlined {
+		b.WriteString(f)
+		b.WriteString("\n\n")
+	}
+	if len(notInlined) > 0 {
+		fmt.Fprintf(&b, "%s Files Not Inlined (over budget — read them yourself)\n\n", headingLevel)
+		b.WriteString("以下檔案因超過總量上限未附全文，可用 Read/grep/cat 自行讀取：\n\n")
+		for _, p := range notInlined {
+			fmt.Fprintf(&b, "- %s\n", p)
+		}
+		b.WriteString("\n")
+	}
 	return b.String()
 }
 

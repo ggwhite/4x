@@ -101,6 +101,10 @@ El hijo PTY se ejecuta en su propia sesión/grupo de procesos. Cuando el context
 
 Los runners con `stdin: true` (Codex) reciben el prompt vía entrada estándar en lugar de argumentos de línea de comandos.
 
+### Guard de exploración git del revisor (solo claude)
+
+Para los roles `reviewer` y `deep-reviewer`, el runner `claude` inyecta un hook PreToolUse de Claude Code (mediante un archivo `--settings` temporal que llama a `4x guard-tool`) junto con las variables de entorno `FOURX_ROLE` / `FOURX_REVIEW_PACKAGE`. Cuando existe el `review-package.md` de la ronda, las llamadas propias del revisor a `git diff` / `git log` / `git show` se deniegan suavemente con un mensaje que apunta a ese paquete pre-computado (que ahora también incluye el contenido completo de cada archivo modificado dentro de un límite de tamaño). Es específico de claude y nunca afecta a otros roles, otros runners ni a los comandos build/test/lint, y nunca hace fallar la ejecución; si el paquete no existe, el revisor recurre a ejecutar git por su cuenta.
+
 ## Usar diferentes modelos por rol
 
 Configurar en `.4x/settings.json`:

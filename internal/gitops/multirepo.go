@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -469,10 +470,21 @@ func (m *multiRepo) GenerateReviewPackage(featureID, _ string) (string, error) {
 	_, wtErr := os.Stat(wtDir)
 	wtActive := wtErr == nil
 
+	// 依 repo 名稱排序，鎖定 deterministic 迭代順序：Go map range 順序隨機，
+	// 若沿用會讓「跨 repo 共享預算下哪個 repo 先消耗 / 被截斷」不可重現、AC-3 測試 flaky。
+	names := make([]string, 0, len(m.cfg.Workspace.Repos))
+	for name := range m.cfg.Workspace.Repos {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
 	var b strings.Builder
 	b.WriteString("# Review Package\n\n")
 	found := false
-	for name, rc := range m.cfg.Workspace.Repos {
+	// budget 在 repo loop 之前初始化一次，loop 內各 repo 共享同一預算池（跨 repo 共享上限）。
+	budget := reviewPackageContentBudget
+	for _, name := range names {
+		rc := m.cfg.Workspace.Repos[name]
 		repoPath := filepath.Join(m.root, rc.Path)
 		wtRepoDir := filepath.Join(wtDir, name)
 		if isLinkedWorktree(wtRepoDir) {
@@ -480,7 +492,7 @@ func (m *multiRepo) GenerateReviewPackage(featureID, _ string) (string, error) {
 		} else if wtActive {
 			continue
 		}
-		section := reviewPackageSection(repoPath, repoHead[name], "###")
+		section := reviewPackageSection(repoPath, repoHead[name], "###", &budget)
 		if section == "" {
 			continue
 		}

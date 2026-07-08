@@ -112,9 +112,13 @@ Use the Write tool. Do NOT just print the content — write to disk.
 3. Read: {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/coder-report.md — see what was changed
 4. Read: {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/review-report.md — see what the checklist reviewer already caught
 5. Read: {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/review-package.md (if present) — the
-   actual diff for this round, already pre-computed. Do NOT run git diff / git log yourself to get
-   this. If review-package.md does not exist, fallback to running git diff HEAD yourself.
+   actual diff for this round, already pre-computed. It now also includes the full contents of each
+   changed file (within a size budget) under a "Changed File Contents" section, so you do not need to
+   run git or Read those source files yourself; files over the budget are listed under "Files Not
+   Inlined" for you to Read/grep/cat. Do NOT run git diff / git log yourself to get this.
+   If review-package.md does not exist, fallback to running git diff HEAD yourself.
 6. Read the FULL SOURCE FILES that were changed (not just the diff) — context matters
+   (changed files' full contents are already in review-package.md's "Changed File Contents" section)
 {{- if .ProjectIncludes}}
 {{range .ProjectIncludes}}
 

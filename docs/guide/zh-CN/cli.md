@@ -590,6 +590,17 @@ Miner 是纯 CLI/protocol 层扫描——从不调用 LLM，也不创建 feature
 
 ---
 
+## `4x guard-tool`
+
+<!-- alias: 4x guardtool -->
+内部 PreToolUse 钩子（隐藏，仅供机器调用）。`claude` runner 会为 `reviewer`/`deep-reviewer` 角色注入此钩子：当本轮的 review-package.md 存在时，reviewer 自行执行的 `git diff`/`git log`/`git show` 会被软性拒绝，并给出指向 review-package.md 的提示。它从 stdin 读取 Claude Code 钩子 JSON，从 `FOURX_ROLE` / `FOURX_REVIEW_PACKAGE` 环境变量读取角色与包路径；任何解析失败或不匹配的命令一律放行（exit 0）。它不会阻断 build/test/lint 或其他角色，也不会让运行失败。
+
+```
+echo '{"tool_name":"Bash","tool_input":{"command":"git diff HEAD"}}' | FOURX_ROLE=reviewer FOURX_REVIEW_PACKAGE=/path/to/review-package.md 4x guard-tool
+```
+
+---
+
 ## `4x mcp`
 
 启动 Model Context Protocol (MCP) 服务器。

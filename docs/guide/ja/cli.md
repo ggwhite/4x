@@ -592,6 +592,17 @@ miner は純粋な CLI/プロトコル層スキャンです。LLM を呼び出�
 
 ---
 
+## `4x guard-tool`
+
+<!-- alias: 4x guardtool -->
+内部の PreToolUse フック（隠しコマンド、機械用）。`claude` runner が `reviewer`/`deep-reviewer` ロール向けに注入します。ラウンドの review-package.md が存在する場合、レビュアー自身の `git diff`/`git log`/`git show` 呼び出しは review-package.md を指すメッセージとともにソフトに拒否されます。Claude Code の hook JSON を stdin から、`FOURX_ROLE` / `FOURX_REVIEW_PACKAGE` 環境変数を読み取ります。parse 失敗や非該当コマンドは許可されます（exit 0）。build/test/lint や他のロールをブロックせず、実行を失敗させることもありません。
+
+```
+echo '{"tool_name":"Bash","tool_input":{"command":"git diff HEAD"}}' | FOURX_ROLE=reviewer FOURX_REVIEW_PACKAGE=/path/to/review-package.md 4x guard-tool
+```
+
+---
+
 ## `4x mcp`
 
 Model Context Protocol (MCP) サーバーを起動します。

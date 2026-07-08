@@ -99,6 +99,10 @@ PTY 子程序在自己的 session/程序群組中執行。當執行 context 被�
 
 設定 `stdin: true` 的 runner（Codex）透過標準輸入而非命令列參數接收 prompt。
 
+### Reviewer git 探索防護（僅 claude）
+
+對於 `reviewer` 與 `deep-reviewer` 角色，`claude` runner 會注入一個 Claude Code PreToolUse hook（透過呼叫 `4x guard-tool` 的暫時 `--settings` 檔）以及 `FOURX_ROLE` / `FOURX_REVIEW_PACKAGE` 環境變數。當本輪的 `review-package.md` 存在時，reviewer 自跑的 `git diff` / `git log` / `git show` 會被軟性拒絕，並給出指向該預先產生 package（現在還在大小上限內嵌入每個變更檔的完整內容）的提示。這是 claude 專屬的，絕不影響其他角色、其他 runner 或 build/test/lint 指令，也不會讓執行失敗；若該 package 不存在，reviewer 會 fallback 自行執行 git。
+
 ## 為不同角色使用不同模型
 
 在 `.4x/settings.json` 中設定：

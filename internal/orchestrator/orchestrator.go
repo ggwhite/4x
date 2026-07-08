@@ -265,6 +265,7 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 		iteration := nextRoleIteration(roleRoundIter, s.Round, role)
 		logPath := filepath.Join(runner.LogDir(r.Ws, featureID), runner.IterationLogFileName(s.Round, string(role), iteration))
 		rn := r.NewRunner(phaseRunner, logPath, model)
+		setReviewerExtraEnv(rn, role, filepath.Join(r.Ws.RoundDir(featureID, s.Round), protocol.ReviewPackage))
 
 		commitWG.Wait()
 
@@ -640,6 +641,11 @@ func (r *Runner) generateReviewPackage(round int, baseCommit string) {
 	}
 	if err := os.WriteFile(filepath.Join(roundDir, protocol.ReviewPackage), []byte(content), 0o644); err != nil {
 		slog.Warn("write review package failed", "feature", featureID, "round", round, "error", err)
+		return
+	}
+	if strings.Contains(content, gitops.ReviewPackageTruncatedMarker) {
+		slog.Warn("review package truncated: changed file contents exceeded budget, some files listed as paths only",
+			"feature", featureID, "round", round, "budget_kb", 100)
 	}
 }
 

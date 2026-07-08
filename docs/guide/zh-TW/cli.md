@@ -592,6 +592,17 @@ Key 使用 dotted path。支援的格式：
 
 ---
 
+## `4x guard-tool`
+
+<!-- alias: 4x guardtool -->
+內部 PreToolUse hook（隱藏，僅供機器呼叫）。`claude` runner 會為 `reviewer`/`deep-reviewer` 角色注入此 hook：當本輪的 review-package.md 存在時，reviewer 自跑的 `git diff`/`git log`/`git show` 會被軟性拒絕，並給出指向 review-package.md 的提示。它從 stdin 讀取 Claude Code hook JSON，從 `FOURX_ROLE` / `FOURX_REVIEW_PACKAGE` 環境變數讀取角色與 package 路徑；任何 parse 失敗或不匹配的指令一律放行（exit 0）。它不會阻斷 build/test/lint 或其他角色，也不會讓執行失敗。
+
+```
+echo '{"tool_name":"Bash","tool_input":{"command":"git diff HEAD"}}' | FOURX_ROLE=reviewer FOURX_REVIEW_PACKAGE=/path/to/review-package.md 4x guard-tool
+```
+
+---
+
 ## `4x mcp`
 
 啟動 Model Context Protocol（MCP）伺服器。

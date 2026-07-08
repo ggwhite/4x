@@ -99,6 +99,10 @@ PTY 子进程在自己的会话/进程组中运行。当运行上下文被取消
 
 `stdin: true` 的 runner（Codex）通过标准输入接收 prompt，而不是命令行参数。
 
+### Reviewer git 探索防护（仅 claude）
+
+对于 `reviewer` 与 `deep-reviewer` 角色，`claude` runner 会注入一个 Claude Code PreToolUse 钩子（通过调用 `4x guard-tool` 的临时 `--settings` 文件）以及 `FOURX_ROLE` / `FOURX_REVIEW_PACKAGE` 环境变量。当本轮的 `review-package.md` 存在时，reviewer 自行执行的 `git diff` / `git log` / `git show` 会被软性拒绝，并给出指向该预先计算包（现在还在大小预算内嵌入每个变更文件的完整内容）的提示。这是 claude 专属的，绝不影响其他角色、其他 runner 或 build/test/lint 命令，也不会让运行失败；若该包不存在，reviewer 会回退到自行执行 git。
+
 ## 为不同角色使用不同模型
 
 在 `.4x/settings.json` 中配置：

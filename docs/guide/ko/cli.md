@@ -592,6 +592,17 @@ Miner는 순수 CLI/프로토콜 계층 스캔으로 — LLM을 호출하지 않
 
 ---
 
+## `4x guard-tool`
+
+<!-- alias: 4x guardtool -->
+내부 PreToolUse 훅(숨김, 기계 전용). `claude` runner가 `reviewer`/`deep-reviewer` 역할에 주입합니다. 해당 라운드의 review-package.md가 존재하면 리뷰어가 직접 실행하는 `git diff`/`git log`/`git show` 호출이 review-package.md를 가리키는 메시지와 함께 부드럽게 거부됩니다. Claude Code 훅 JSON을 stdin에서, `FOURX_ROLE` / `FOURX_REVIEW_PACKAGE` 환경 변수를 읽습니다. 파싱 실패나 일치하지 않는 명령은 허용됩니다(exit 0). build/test/lint나 다른 역할을 막지 않으며 실행을 실패시키지 않습니다.
+
+```
+echo '{"tool_name":"Bash","tool_input":{"command":"git diff HEAD"}}' | FOURX_ROLE=reviewer FOURX_REVIEW_PACKAGE=/path/to/review-package.md 4x guard-tool
+```
+
+---
+
 ## `4x mcp`
 
 Model Context Protocol (MCP) 서버를 시작합니다.

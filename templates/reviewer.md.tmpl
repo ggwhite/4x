@@ -10,6 +10,10 @@ Use the Write tool. Do NOT just print the content — write to disk.
 == Inputs ==
 1. Read: {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/review-package.md (if present) —
    it contains the commits, file-stat, and full diff for this round already pre-computed.
+   review-package.md now also includes the full contents of each changed file (within a size
+   budget) under a "Changed File Contents" section, so you do NOT need to Read source files or
+   run git yourself to see them. Files over the budget are listed under "Files Not Inlined" —
+   read those with Read/grep/cat as needed.
    Do NOT run git diff / git log / git show yourself to gather this information.
    If review-package.md does not exist, fallback to running git diff HEAD (or git diff --cached)
    yourself to see changed files.

@@ -99,6 +99,10 @@ PTY 자식은 자체 세션/프로세스 그룹에서 실행됩니다. 실행 �
 
 `stdin: true`인 러너(Codex)는 커맨드 라인 인수 대신 표준 입력으로 프롬프트를 받습니다.
 
+### 리뷰어 git 탐색 가드 (claude 전용)
+
+`reviewer` 및 `deep-reviewer` 역할에서 `claude` 러너는 Claude Code PreToolUse 훅(`4x guard-tool`을 호출하는 임시 `--settings` 파일 경유)과 `FOURX_ROLE` / `FOURX_REVIEW_PACKAGE` 환경 변수를 주입합니다. 해당 라운드의 `review-package.md`가 존재하면 리뷰어가 직접 실행하는 `git diff` / `git log` / `git show` 호출이 사전 계산된 그 패키지(이제 크기 예산 내에서 변경된 각 파일의 전체 내용도 포함)를 가리키는 메시지와 함께 부드럽게 거부됩니다. 이는 claude 전용이며 다른 역할, 다른 러너, build/test/lint 명령에 전혀 영향을 주지 않고 실행을 실패시키지도 않습니다. 패키지가 없으면 리뷰어는 직접 git을 실행하는 폴백으로 돌아갑니다.
+
 ## 역할별 다른 모델 사용
 
 `.4x/settings.json`에서 설정합니다:
