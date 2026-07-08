@@ -13,7 +13,7 @@ description: |-
     - mutation testing 不在本 feature 範圍（未來視成效另開）
     - 舊 feature 不回填；無 ac_checks 的舊格式 test-strategy 走既有路徑，向下相容
     - linter 需有 allowlist 機制，不能把合法的 grep 驗證（如檢查產出物內容）全部擋掉
-status: not-started
+status: done
 priority: 1
 profile: normal
 subtasks:
