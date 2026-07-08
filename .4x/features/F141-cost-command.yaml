@@ -15,7 +15,7 @@ description: |-
     - 只讀取既有檔案，不改任何 run 資料
     - 不引入新外部依賴
     - 對缺 cost 欄位的舊 run 要能跳過並統計 skipped 數，不可 crash
-status: not-started
+status: done
 priority: 1
 profile: quick
 subtasks:
