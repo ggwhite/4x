@@ -199,8 +199,9 @@ Examples:
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 	cmd.Flags().StringVar(&customID, "id", "", "custom slug for feature ID (skips auto-truncation)")
 	cmd.Flags().StringVar(&desc, "desc", "", "feature description (defaults to name)")
-	cmd.Flags().StringSliceVar(&subtasks, "subtask", nil, `subtask in "id:name" format (can be repeated); name may contain colons`)
-	cmd.Flags().StringSliceVar(&rules, "rule", nil, "rule reference (can be repeated)")
+	// subtask 與 rule 是自由文字（可含逗號），用 StringArrayVar 避免 StringSliceVar 的逗號切割。
+	cmd.Flags().StringArrayVar(&subtasks, "subtask", nil, `subtask in "id:name" format (can be repeated); name may contain colons`)
+	cmd.Flags().StringArrayVar(&rules, "rule", nil, "rule reference (can be repeated)")
 	cmd.Flags().StringSliceVar(&depends, "depends", nil, "dependency feature ID (can be repeated)")
 	cmd.Flags().IntVar(&priority, "priority", 0, "priority level (0=critical, 1=high, 2=medium, 3=low)")
 	cmd.Flags().StringVar(&profileName, "profile", "", "pipeline profile written to feature YAML (e.g. full/normal/quick)")
