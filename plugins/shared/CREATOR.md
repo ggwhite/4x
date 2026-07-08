@@ -26,7 +26,7 @@
    - **profile**：依 Profile 選擇規則判斷（有 spec/plan 通常用 `standard`，使用者指定時從之）
    - **priority**：從 spec 的優先序或重要性段落取得（未提及時詢問使用者）
    - **repos**：從影響範圍或架構段落取得
-   - **subtasks**：從 plan 的 Task 列表轉換，或從 spec 的功能列表拆解（每個含 id + name，視內容複雜度加 description）
+   - **subtasks**：從 plan 的 Task 列表轉換，或從 spec 的功能列表拆解（每個含 id + name；description 不經 CLI，建檔後編輯 YAML 補上）
    - **rules**：從約束、紅線、不做的事段落取得
 4. 執行 `4x new "<name>"` 產生 YAML 骨架（若 spec 檔名的 slug 與自動截斷結果不同，加 `--id <slug>` 保持一致；有關聯 issue 時加 `--issue`）
 5. 讀取產生的 `.4x/features/{id}.yaml`
@@ -41,7 +41,7 @@
    - Q2：用什麼 profile 跑？（參考 Profile 選擇段落，不確定時建議 `standard`）
    - Q3：優先序多高？（產生 priority：0=critical, 1=high, 2=medium, 3=low）
    - Q4：會動到哪些模組或檔案？（產生 repos）
-   - Q5：怎樣算做完？列出驗收標準（產生 subtasks，含 id:name，視需要加 description）
+   - Q5：怎樣算做完？列出驗收標準（產生 subtasks，含 id:name；需要 description 時建檔後編輯 YAML 補上）
    - Q6：有什麼不能做的限制？（產生 rules）
    - Q7（視需要）：有沒有依賴其他 feature？有沒有關聯的 issue？
 2. 執行 `4x new "<name>"` 產生 YAML 骨架（加上所有已知 flags：`--profile`、`--priority` 等）
@@ -64,7 +64,7 @@ repos:                          # 如果只有 self，可省略
   - "."
 depends:                        # 依賴的 feature ID（省略表示無依賴）
   - "F0XX-other-feature"
-subtasks:                       # 2-8 個，每個可獨立驗證
+subtasks:                       # 2-6 個，每個可獨立驗證（超過 6 個見「規模紅線」）
   - id: {kebab-case-slug}
     name: "{具體描述}"
     status: ""                  # 4x new 產生空字串，不是 "not-started"
@@ -72,6 +72,19 @@ subtasks:                       # 2-8 個，每個可獨立驗證
 rules:                          # 具體可檢查的約束
   - "..."
 ```
+
+### 規模紅線（建立階段強制檢查）
+
+單一 feature 必須是一條可獨立驗證的 vertical slice。填 YAML 前先檢查，出現以下**任一**訊號，就必須在建立階段拆成多個 feature 並用 `depends` 串接，不可先建大的再說：
+
+- repos 超過 4 個
+- subtasks 超過 6 個
+- description 涵蓋多個互不依賴的活動/頁面/機制
+
+拆分原則：
+
+- 同機制家族可併一條；互不相關的一定分開
+- 共用前置（框架、套件引入）抽成獨立 feature，讓其他 feature 用 `depends` 指向它
 
 ### 對應 CLI flags
 
@@ -82,7 +95,7 @@ rules:                          # 具體可檢查的約束
 | priority | `--priority` | 數字 0-3 |
 | repos | `--repo` | 可重複 |
 | depends | `--depends` | feature ID，可重複 |
-| subtasks | `--subtask` | `"id:name"` 或 `"id:name:description"`，可重複 |
+| subtasks | `--subtask` | `"id:name"`，可重複；第一個冒號前是 id，其餘整段是 name（name 可含冒號，如 `10:00`、`group:artifact`、URL）；description 由建檔後編輯 YAML 提供 |
 | rules | `--rule` | 可重複 |
 | id (自訂 slug) | `--id` | 完整 slug，跳過自動截斷 |
 | issue | `--issue` | `"repo:id-or-url"` 格式，可重複；單 repo 可省略前綴 |
@@ -114,7 +127,7 @@ Profile 決定 feature 跑哪些 phase。讀取 `.4x/settings.json` 的 `profile
 - **profile**：根據上方判斷規則選擇，不確定時問使用者
 - **description**：說明 what 和 why，不只重複 name
 - **priority**：根據緊急程度設定，問答式引導時主動詢問
-- **subtasks**：每個 subtask 的 id 用 kebab-case，name 描述具體可驗證的結果；description 選填，用於補充 name 不足以表達的上下文
+- **subtasks**：每個 subtask 的 id 用 kebab-case，name 描述具體可驗證的結果；description 選填（建檔後編輯 YAML 填入），用於補充 name 不足以表達的上下文
 - **rules**：寫具體約束（「不能修改 X」「必須通過 Y」），不寫空話
 
 ## 不做的事
