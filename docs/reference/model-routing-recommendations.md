@@ -83,8 +83,17 @@ model 字串填 runner 自己認得的 model flag 值（claude runner 可用 `op
 4x run F0XX --phase-override coding:claude:opus
 ```
 
-解析優先序：`--phase-override` > feature YAML > profile PhaseSpec.Model > runner 預設
-（見 `internal/protocol/override.go` 的 ResolvePhaseModel）。
+解析優先序：`--phase-override` > feature YAML > profile PhaseSpec.Model >
+roles[role].Model > runner 預設（見 `internal/protocol/override.go` 的 ResolvePhaseModel）。
+
+⚠️ 兩個踩過的坑（2026-07-08 實查）：
+
+1. **tier 別名 vs 固定版號**：tiers 設 `"opus": "opus"`（別名）會讓 claude CLI 自動解析到
+   最新版 Opus；設 `"opus": "claude-opus-4-6"` 則釘死版本。**user 層 `~/.4x/settings.json`
+   的 tiers 若釘了舊版號，會在 project settings 載入失敗時成為 fallback**，造成「以為在跑
+   4.8 其實在跑 4.6」。升級模型世代後記得檢查 user 層有無過時 pin。
+2. **roles 白名單目前不含 fixer / mini-coder**（F145 追蹤中），在白名單修好前無法對這兩個
+   role 做 per-role model 設定，它們會 fallback 到 runner 預設 tier。
 
 ## 反面清單（實測踩過的坑）
 

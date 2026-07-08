@@ -1,0 +1,27 @@
+id: F145-roles-whitelist-fixer-minicoder
+name: 'F145: roles 白名單納入 fixer 與 mini-coder'
+description: |-
+    現狀：settings.json 的 roles 區塊驗證白名單只允許 designer/design-reviewer/coder/reviewer/deep-reviewer/tester/acceptor，但 fixer 與 mini-coder 是真實存在的 role（internal/protocol/domain.go），導致無法對它們做 per-role model 路由。實例：kairos 856404a 加了 roles.fixer entry 後 settings 載入直接失敗。
+
+    需求：
+    - 找到 roles 白名單驗證位置（settings 載入/validate 路徑），納入 fixer 與 mini-coder
+    - ResolveModel 對 mini-coder 的解析鏈需能吃到 roles.mini-coder.model
+    - doctor 的 canonicalRoles 清單同步（目前已列 fixer，確認 mini-coder）
+    - 檢查 roleCategoryMap（internal/learning/store.go）是否含 fixer/mini-coder，缺就順手補
+    - 白名單集合大小相關測試改用 SoT accessor，不硬編碼數字
+
+    約束：
+    - 不改變既有七個 role 的行為
+    - 不新增 role 種類，只擴白名單與消費鏈
+status: not-started
+priority: 2
+profile: quick
+subtasks:
+    - id: whitelist
+      name: 擴充 roles 驗證白名單與測試
+      status: ""
+    - id: consume-chain
+      name: 確認 mini-coder model 解析鏈與 roleCategoryMap 同步
+      status: ""
+rules:
+    - 'spec: docs/reference/discovered-feature-gaps.md 2026-07-08 條目'

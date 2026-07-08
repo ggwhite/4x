@@ -236,6 +236,7 @@
       ]
     },
     "deep-reviewer": {
+      "model": "opus",
       "max_fix_rounds": 2,
       "parallel_reviewers": 3
     },
