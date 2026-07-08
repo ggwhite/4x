@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -153,6 +154,7 @@ func (r *SubprocessRunner) runOnce(ctx context.Context, prompt string) (*Result,
 
 	env := enrichedEnv()
 	env = append(env, r.ExtraEnv...)
+	env = gitops.ApplyWorktreeEnv(env, r.Workspace.Root)
 	command := resolveCommand(r.Config.Command, env)
 
 	var cmd *exec.Cmd

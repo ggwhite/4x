@@ -138,6 +138,8 @@ Non-transient failures (compilation errors, assertion failures, panics), exit 0,
 }
 ```
 
+**Worktree tool environment isolation.** When a runner (or a `test-strategy.yaml` verify command) executes inside a linked worktree, 4x injects worktree-local tool settings so results don't leak across worktrees: `GOLANGCI_LINT_CACHE` points at `<worktree>/.cache/golangci-lint` (golangci-lint's cache stores absolute paths, so a shared cache produces false lint errors referencing sibling worktrees; `GOCACHE` stays shared because Go's build cache is content-addressed and path-independent). Additionally, if the worktree contains an executable `bin/4x` (i.e. you are developing 4x itself and the feature branch built its own binary), `FOURX_BIN` is pinned to that worktree-local binary and its directory is prepended to `PATH` — guard-tool hooks and manual testing then exercise the freshly built branch binary instead of the main workspace's stale one; the pinned path is logged (`worktree env: FOURX_BIN pinned…`). Note that code-intelligence indexes built in the main workspace (e.g. a `codegraph` MCP index) do not cover commits made inside a worktree and return main-workspace absolute paths — point such tools at the main workspace explicitly and treat their view of worktree-only changes as stale.
+
 ### Auto-Discover Features
 
 When `auto_discover_features` is `true`, the run loop parses the final deep review report (`deep-review-report.md`) after it **passes** and turns each `[NEW-FEATURE]` marker into a new feature YAML — capturing out-of-scope issues the deep reviewer spotted instead of letting them get buried.
