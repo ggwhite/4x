@@ -186,7 +186,7 @@ func TestRunReviewConvergence_PurePass_NoMiniCoder(t *testing.T) {
 	r := newConvergeRunner(ws, cfg, feature, fakeConvergeOps{}, script)
 
 	s, _ := ws.ReadState(feature.ID)
-	cont, err := r.runReviewConvergence(context.Background(), &s, resolvePC(t, cfg, feature))
+	cont, _, err := r.runReviewConvergence(context.Background(), &s, resolvePC(t, cfg, feature))
 	if err != nil {
 		t.Fatalf("runReviewConvergence: %v", err)
 	}
@@ -209,7 +209,7 @@ func TestRunReviewConvergence_PureFail_NoMiniCoder(t *testing.T) {
 	r := newConvergeRunner(ws, cfg, feature, fakeConvergeOps{}, script)
 
 	s, _ := ws.ReadState(feature.ID)
-	cont, err := r.runReviewConvergence(context.Background(), &s, resolvePC(t, cfg, feature))
+	cont, _, err := r.runReviewConvergence(context.Background(), &s, resolvePC(t, cfg, feature))
 	if err != nil {
 		t.Fatalf("runReviewConvergence: %v", err)
 	}
@@ -234,7 +234,7 @@ func TestRunReviewConvergence_ConditionalThenClean(t *testing.T) {
 
 	s, _ := ws.ReadState(feature.ID)
 	roundBefore := s.Round
-	cont, err := r.runReviewConvergence(context.Background(), &s, resolvePC(t, cfg, feature))
+	cont, _, err := r.runReviewConvergence(context.Background(), &s, resolvePC(t, cfg, feature))
 	if err != nil {
 		t.Fatalf("runReviewConvergence: %v", err)
 	}
@@ -268,7 +268,7 @@ func TestRunReviewConvergence_ScopeExceed(t *testing.T) {
 	r := newConvergeRunner(ws, cfg, feature, ops, script)
 
 	s, _ := ws.ReadState(feature.ID)
-	cont, err := r.runReviewConvergence(context.Background(), &s, resolvePC(t, cfg, feature))
+	cont, _, err := r.runReviewConvergence(context.Background(), &s, resolvePC(t, cfg, feature))
 	if err != nil {
 		t.Fatalf("runReviewConvergence: %v", err)
 	}
@@ -300,7 +300,7 @@ func TestRunReviewConvergence_ResidualPassthrough(t *testing.T) {
 	maxFix := protocol.ResolveMaxFixRounds(cfg, protocol.RoleReviewer)
 
 	s, _ := ws.ReadState(feature.ID)
-	cont, err := r.runReviewConvergence(context.Background(), &s, resolvePC(t, cfg, feature))
+	cont, _, err := r.runReviewConvergence(context.Background(), &s, resolvePC(t, cfg, feature))
 	if err != nil {
 		t.Fatalf("runReviewConvergence: %v", err)
 	}

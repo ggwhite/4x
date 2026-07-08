@@ -203,18 +203,38 @@ func RunReviewTestParallel(ctx context.Context, r *Runner, s *protocol.State, pc
 	// parallel 路徑先前漏接，reviewer 的 warning 直接放行到後續 phase。此處複用序列路徑的 helper
 	// 接上收斂（非 CONDITIONAL 情境為 no-op）。收斂會就地覆寫 review-report.md，故其後的 reviewOK
 	// 必須在收斂之後才計算（維持既有程式碼位置）。此時 parallelReview 已設回 false（見上方重置）。
-	if cont, err := r.runReviewConvergence(ctx, s, pc); err != nil {
+	cont, converged, err := r.runReviewConvergence(ctx, s, pc)
+	if err != nil {
 		return false, err
-	} else if !cont {
+	}
+	if !cont {
 		return false, nil
 	}
 
+	// 收斂期間 mini-coder / 重跑 reviewer 可能寫入新 escalation.json（上方首次讀取在收斂之前），
+	// 收斂後重讀一次再路由，對齊序列路徑在 testing 轉換時重讀 escalation 的語意。
+	if esc := ReadEscalation(ws, featureID, round); esc.Needed {
+		if IsDesignerEscalation(esc.Reason) {
+			return parallelTransition(ws, featureID, s, protocol.PhaseAmending, protocol.RoleCoder)
+		}
+		return parallelNeedsAttention(ws, featureID, s, esc.Reason)
+	}
+
 	reviewOK := ReviewPassed(ws, featureID, round, protocol.ReviewReport)
-	vs := CheckVerify(ws, featureID, round)
 
 	if !reviewOK {
 		return parallelTransition(ws, featureID, s, protocol.PhaseAmending, protocol.RoleCoder)
 	}
+
+	// 收斂套用過程式碼變更時，本輪 tester 平行產出的 verify.json 對不上修改後的程式碼，不可
+	// 沿用：清掉 stale tester artifacts、放棄 testing→deep-reviewing 快速雙轉換，只轉入 testing
+	// 讓 tester 重跑（對齊序列語意——序列路徑的 tester 本來就在收斂之後的 testing phase 才執行）。
+	if converged {
+		cleanupTesterRetry(ws, featureID, round)
+		return parallelTransition(ws, featureID, s, protocol.PhaseTesting, protocol.RoleTester)
+	}
+
+	vs := CheckVerify(ws, featureID, round)
 	if vs != VerifyOK {
 		testReportOK := ReviewPassed(ws, featureID, round, protocol.TestReport)
 		if testReportOK {

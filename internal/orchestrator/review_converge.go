@@ -18,20 +18,22 @@ import (
 // 才爆整輪 retry。全程維持 protocol.PhaseReviewing、round 不變，複用 deep-reviewing 自癒循環的
 // mini-coder 子 role 模式，不需新增任何 state machine 轉換。
 //
-// 回傳 (cont, err)：
+// 回傳 (cont, changed, err)：
 //   - cont 為 true 表示收斂已結束（或不適用），主迴圈應照常呼叫 NextPhaseAfter——它讀最終
 //     review-report.md 判定：乾淨 / 仍 CONDITIONAL PASS → testing；翻出 critical → amending。
+//   - changed 為 true 表示 mini-coder 至少執行過一次，收斂已（可能）套用程式碼變更；parallel
+//     路徑據此判定本輪 tester 平行產出的 verify.json 已 stale，須轉入 testing 讓 tester 重跑。
 //   - cont 為 false 且 err 為 nil 表示 mini-coder scope 越界已落入 needs-attention 終態，主迴圈應 break。
 //   - err 非 nil 表示 hard error 或 context cancel，直接中止。
 //
 // 進入條件：僅當目前 round 的 review-report.md 為 ReviewConditionalPass；純 PASS / 純 FAIL 一律
-// 不進入，直接回 (true, nil) 讓主迴圈照常轉換（保證不改變純 PASS 與純 FAIL 流程）。
-func (r *Runner) runReviewConvergence(ctx context.Context, s *protocol.State, pc protocol.ProfileConfig) (bool, error) {
+// 不進入，直接回 (true, false, nil) 讓主迴圈照常轉換（保證不改變純 PASS 與純 FAIL 流程）。
+func (r *Runner) runReviewConvergence(ctx context.Context, s *protocol.State, pc protocol.ProfileConfig) (cont bool, changed bool, err error) {
 	featureID := r.featureID()
 	round := s.Round
 
 	if !ReviewConditionalPassAtRound(r.Ws, featureID, round, protocol.ReviewReport) {
-		return true, nil
+		return true, false, nil
 	}
 
 	maxFix := protocol.ResolveMaxFixRounds(r.Cfg, protocol.RoleReviewer)
@@ -40,24 +42,24 @@ func (r *Runner) runReviewConvergence(ctx context.Context, s *protocol.State, pc
 	reviewRunner, err := protocol.ResolvePhaseRunner(r.Cfg, r.Feature, pc, protocol.PhaseReviewing, reviewRunnerManual)
 	if err != nil {
 		StopState(r.Ws, featureID, s, "runner-error", fmt.Sprintf("review-convergence runner resolution failed: %v", err))
-		return false, fmt.Errorf("review-convergence runner resolution failed: %w", err)
+		return false, false, fmt.Errorf("review-convergence runner resolution failed: %w", err)
 	}
 	reviewModel, err := protocol.ResolvePhaseModel(r.Cfg, r.Feature, pc, protocol.PhaseReviewing, protocol.RoleReviewer, reviewRunner, reviewModelManual)
 	if err != nil {
 		StopState(r.Ws, featureID, s, "model-error", fmt.Sprintf("review-convergence reviewer model resolution failed: %v", err))
-		return false, fmt.Errorf("review-convergence reviewer model resolution failed: %w", err)
+		return false, false, fmt.Errorf("review-convergence reviewer model resolution failed: %w", err)
 	}
 	_, coderModelManual := protocol.EffectiveManual(r.RunOverrides, protocol.PhaseCoding, r.ManualRunner)
 	coderModel, err := protocol.ResolvePhaseModel(r.Cfg, r.Feature, pc, protocol.PhaseCoding, protocol.RoleCoder, reviewRunner, coderModelManual)
 	if err != nil {
 		StopState(r.Ws, featureID, s, "model-error", fmt.Sprintf("review-convergence mini-coder model resolution failed: %v", err))
-		return false, fmt.Errorf("review-convergence mini-coder model resolution failed: %w", err)
+		return false, false, fmt.Errorf("review-convergence mini-coder model resolution failed: %w", err)
 	}
 	// mini-coder 預設沿用 coder model，但 roles.mini-coder.model 若有設定則優先。
 	miniCoderModel, err := protocol.ResolveMiniCoderModel(r.Cfg, reviewRunner, coderModel)
 	if err != nil {
 		StopState(r.Ws, featureID, s, "model-error", fmt.Sprintf("review-convergence mini-coder model resolution failed: %v", err))
-		return false, fmt.Errorf("review-convergence mini-coder model resolution failed: %w", err)
+		return false, false, fmt.Errorf("review-convergence mini-coder model resolution failed: %w", err)
 	}
 
 	for iter := 1; iter <= maxFix; iter++ {
@@ -71,12 +73,13 @@ func (r *Runner) runReviewConvergence(ctx context.Context, s *protocol.State, pc
 		s.Role = protocol.RoleMiniCoder
 		s.SubPhase = protocol.SubPhaseFixing
 		if werr := r.Ws.WriteState(featureID, *s); werr != nil {
-			return false, fmt.Errorf("write state (review mini-coder): %w", werr)
+			return false, changed, fmt.Errorf("write state (review mini-coder): %w", werr)
 		}
+		changed = true
 		if ok, rerr := r.runReviewSubRole(ctx, s, protocol.RoleMiniCoder, reviewRunner, miniCoderModel,
 			runner.ReviewFixLogFileName(round, iter), round, iter,
 			prompt.WithConditionalSource(protocol.ReviewReport)); !ok || rerr != nil {
-			return ok, rerr
+			return ok, changed, rerr
 		}
 
 		if r.CommitStrategy == "per-round" && r.RunnerWs.Root != r.Ws.Root {
@@ -97,7 +100,7 @@ func (r *Runner) runReviewConvergence(ctx context.Context, s *protocol.State, pc
 				Type: "guard-fail", Phase: protocol.PhaseReviewing, Role: protocol.RoleMiniCoder,
 				Round: round, Detail: s.StopMessage, Runner: s.Runner,
 			})
-			return false, nil
+			return false, changed, nil
 		}
 
 		// 重生 review-package.md：mini-coder 已改碼（並可能在 per-round + worktree 模式推進 HEAD），
@@ -110,11 +113,11 @@ func (r *Runner) runReviewConvergence(ctx context.Context, s *protocol.State, pc
 		s.Role = protocol.RoleReviewer
 		s.SubPhase = protocol.SubPhaseReviewing
 		if werr := r.Ws.WriteState(featureID, *s); werr != nil {
-			return false, fmt.Errorf("write state (review re-run): %w", werr)
+			return false, changed, fmt.Errorf("write state (review re-run): %w", werr)
 		}
 		if ok, rerr := r.runReviewSubRole(ctx, s, protocol.RoleReviewer, reviewRunner, reviewModel,
 			runner.IterationLogFileName(round, string(protocol.RoleReviewer), iter+1), round, 0); !ok || rerr != nil {
-			return ok, rerr
+			return ok, changed, rerr
 		}
 	}
 
@@ -132,9 +135,9 @@ func (r *Runner) runReviewConvergence(ctx context.Context, s *protocol.State, pc
 	s.Role = protocol.RoleReviewer
 	s.SubPhase = ""
 	if werr := r.Ws.WriteState(featureID, *s); werr != nil {
-		return false, fmt.Errorf("write state (review convergence end): %w", werr)
+		return false, changed, fmt.Errorf("write state (review convergence end): %w", werr)
 	}
-	return true, nil
+	return true, changed, nil
 }
 
 // runReviewSubRole 在 reviewing phase 內 spawn 一個收斂子 role（mini-coder / reviewer）。薄

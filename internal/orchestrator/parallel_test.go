@@ -3,6 +3,7 @@ package orchestrator
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,6 +32,11 @@ type parallelScript struct {
 	reviewerCalls   int
 	testerCalls     int
 	miniCalls       int
+
+	// testerErr 非 nil 時 tester runner 直接回傳該錯誤（模擬 runner 失敗路徑）。
+	testerErr error
+	// miniAction 非 nil 時在 mini-coder 被呼叫時執行（模擬收斂期間寫 escalation 等副作用）。
+	miniAction func()
 
 	reviewerSawParallel bool
 	testerSawParallel   bool
@@ -71,6 +77,9 @@ func (ps *parallelScript) newRunner(_, logPath, _ string) runner.Runner {
 		switch {
 		case strings.Contains(base, "review-fix"):
 			ps.miniCalls++
+			if ps.miniAction != nil {
+				ps.miniAction()
+			}
 		case strings.Contains(base, "reviewer"):
 			ps.reviewerCalls++
 			ps.reviewerSawParallel = sawParallel
@@ -86,6 +95,9 @@ func (ps *parallelScript) newRunner(_, logPath, _ string) runner.Runner {
 		case strings.Contains(base, "tester"):
 			ps.testerCalls++
 			ps.testerSawParallel = sawParallel
+			if ps.testerErr != nil {
+				return nil, ps.testerErr
+			}
 			_ = os.MkdirAll(roundDir, 0o755)
 			_ = os.WriteFile(filepath.Join(roundDir, protocol.VerifyFile), passingVerify(ps.round), 0o644)
 			_ = os.WriteFile(filepath.Join(roundDir, protocol.TestReport), []byte("# Test Report\n## Verdict\nPASS\n"), 0o644)
@@ -215,9 +227,10 @@ func TestRunReviewTestParallel_WorktreeSignalPropagation(t *testing.T) {
 	}
 }
 
-// TestRunReviewTestParallel_ConditionalConvergence 驗證 AC-7：reviewer 首次 CONDITIONAL PASS
-// 時 RunReviewTestParallel 呼叫 runReviewConvergence，觸發 mini-coder ≥1 次並重跑 reviewer ≥1 次；
-// 收斂為乾淨 PASS 後推進 deep-reviewing、round 不變、全程 phase 維持 reviewing 直到收斂結束。
+// TestRunReviewTestParallel_ConditionalConvergence 驗證 AC-7 + F151 review Finding 1：reviewer
+// 首次 CONDITIONAL PASS 時 RunReviewTestParallel 呼叫 runReviewConvergence，觸發 mini-coder ≥1 次
+// 並重跑 reviewer ≥1 次。收斂套用過程式碼變更，本輪 tester 平行產出的 verify.json 已 stale——
+// 必須清掉並只轉入 testing 讓 tester 重跑，不可沿用 stale verify.json 雙跳 deep-reviewing。
 func TestRunReviewTestParallel_ConditionalConvergence(t *testing.T) {
 	root := t.TempDir()
 	ws, cfg, feature := setupParallelWS(t, root, "F151-cond")
@@ -232,7 +245,7 @@ func TestRunReviewTestParallel_ConditionalConvergence(t *testing.T) {
 		t.Fatalf("RunReviewTestParallel: %v", err)
 	}
 	if !cont {
-		t.Fatal("cont = false, want true (converged clean PASS should advance)")
+		t.Fatal("cont = false, want true (converged clean PASS should hand back to main loop)")
 	}
 	if script.miniCalls < 1 {
 		t.Errorf("mini-coder called %d times, want >=1 (conditional-pass convergence)", script.miniCalls)
@@ -244,7 +257,137 @@ func TestRunReviewTestParallel_ConditionalConvergence(t *testing.T) {
 	if s.Round != roundBefore {
 		t.Errorf("round changed %d → %d, want unchanged", roundBefore, s.Round)
 	}
-	if s.Phase != protocol.PhaseDeepReviewing {
-		t.Errorf("phase = %q, want deep-reviewing after convergence", s.Phase)
+	if s.Phase != protocol.PhaseTesting {
+		t.Errorf("phase = %q, want testing (convergence applied code changes; tester must re-run)", s.Phase)
+	}
+	if s.Role != protocol.RoleTester {
+		t.Errorf("role = %q, want tester", s.Role)
+	}
+	if _, err := os.Stat(filepath.Join(ws.RoundDir(feature.ID, 1), protocol.VerifyFile)); !os.IsNotExist(err) {
+		t.Errorf("stale verify.json still present after convergence (stat err = %v), want removed", err)
+	}
+}
+
+// TestRunReviewTestParallel_RunnerError_ResetsParallelFlag 驗證 F151 review Finding 5 失敗路徑：
+// tester runner 失敗時 RunReviewTestParallel 回傳 error，但 main state.json 的 parallelReview
+// 仍已重設為 false，不殘留到後續 resume。
+func TestRunReviewTestParallel_RunnerError_ResetsParallelFlag(t *testing.T) {
+	root := t.TempDir()
+	ws, cfg, feature := setupParallelWS(t, root, "F151-err")
+	script := &parallelScript{ws: ws, featureID: feature.ID, round: 1,
+		reviewerReports: []string{cleanPassReport}, testerErr: errors.New("tester runner boom")}
+	r := newParallelRunner(ws, ws, cfg, feature, fakeConvergeOps{}, script)
+
+	s, _ := ws.ReadState(feature.ID)
+	cont, err := RunReviewTestParallel(context.Background(), r, &s, resolvePC(t, cfg, feature))
+	if err == nil {
+		t.Fatal("err = nil, want tester runner error")
+	}
+	if cont {
+		t.Error("cont = true, want false on runner error")
+	}
+	if s.ParallelReview {
+		t.Error("in-memory state ParallelReview = true after runner error, want false")
+	}
+	if got, _ := ws.ReadState(feature.ID); got.ParallelReview {
+		t.Error("main state.json parallelReview = true after runner error, want false")
+	}
+}
+
+// TestRunReviewTestParallel_ConvergenceEscalation 驗證 F151 review Finding 2：收斂期間
+// mini-coder 寫入的 escalation.json 不可被丟棄——收斂完成後須重讀並依既有語意路由
+// （非 designer reason → needs-attention）。
+func TestRunReviewTestParallel_ConvergenceEscalation(t *testing.T) {
+	root := t.TempDir()
+	ws, cfg, feature := setupParallelWS(t, root, "F151-esc")
+	script := &parallelScript{ws: ws, featureID: feature.ID, round: 1, reviewerReports: []string{condPassReport, cleanPassReport}}
+	script.miniAction = func() {
+		writeFile(t, filepath.Join(ws.RoundDir(feature.ID, 1), protocol.EscalationFile),
+			`{"needed": true, "reason": "blocker", "detail": "cannot fix warning without out-of-scope change"}`)
+	}
+	r := newParallelRunner(ws, ws, cfg, feature, fakeConvergeOps{}, script)
+
+	s, _ := ws.ReadState(feature.ID)
+	cont, err := RunReviewTestParallel(context.Background(), r, &s, resolvePC(t, cfg, feature))
+	if err != nil {
+		t.Fatalf("RunReviewTestParallel: %v", err)
+	}
+	if cont {
+		t.Error("cont = true, want false (escalation written during convergence must stop the loop)")
+	}
+	if s.Phase != protocol.PhaseNeedsAttention {
+		t.Errorf("phase = %q, want needs-attention (post-convergence escalation must be honored)", s.Phase)
+	}
+	if s.StopMessage != "blocker" {
+		t.Errorf("stop message = %q, want %q", s.StopMessage, "blocker")
+	}
+}
+
+// TestParallelReviewRouted_GateComplement 驗證 F151 review Finding 3：routePhase 的 parallel
+// 路由條件與 RunLoop 的 serial 收斂 gate 共用 parallelReviewRouted、彼此互補——
+// parallel_review_test=true 但 profile 缺 tester（如內建 quick）時不路由 parallel 路徑，
+// serial gate（!parallelReviewRouted）因而為 true，CONDITIONAL PASS 收斂不會兩頭落空。
+func TestParallelReviewRouted_GateComplement(t *testing.T) {
+	root := t.TempDir()
+	ws, cfg, feature := setupParallelWS(t, root, "F151-gate")
+	r := newParallelRunner(ws, ws, cfg, feature, fakeConvergeOps{}, &parallelScript{ws: ws, featureID: feature.ID, round: 1})
+
+	_, quickPC, err := protocol.ResolveProfile(cfg, feature, "quick")
+	if err != nil {
+		t.Fatalf("ResolveProfile(quick): %v", err)
+	}
+	if r.parallelReviewRouted(quickPC) {
+		t.Error("parallelReviewRouted(quick) = true, want false (no tester in profile → serial convergence must run)")
+	}
+	s, _ := ws.ReadState(feature.ID)
+	routed, _, err := r.routePhase(context.Background(), &s, quickPC)
+	if err != nil {
+		t.Fatalf("routePhase: %v", err)
+	}
+	if routed {
+		t.Error("routePhase routed reviewing with quick profile, want serial path")
+	}
+
+	_, fullPC, err := protocol.ResolveProfile(cfg, feature, "full")
+	if err != nil {
+		t.Fatalf("ResolveProfile(full): %v", err)
+	}
+	if !r.parallelReviewRouted(fullPC) {
+		t.Error("parallelReviewRouted(full) = false, want true (reviewer+tester enabled, parallel_review_test on)")
+	}
+
+	cfgOff := cfg
+	cfgOff.ParallelReviewTest = false
+	rOff := newParallelRunner(ws, ws, cfgOff, feature, fakeConvergeOps{}, &parallelScript{ws: ws, featureID: feature.ID, round: 1})
+	if rOff.parallelReviewRouted(fullPC) {
+		t.Error("parallelReviewRouted = true with parallel_review_test=false, want false")
+	}
+}
+
+// TestRecoverState_ClearsParallelReview 驗證 F151 review Finding 4：process 在 parallel 段落
+// 內硬死、state.json 殘留 parallelReview:true 時，RecoverState 一律清除（不論是否觸發
+// phase recovery），避免 stale 訊號被後續每次 WriteState 一路帶著。
+func TestRecoverState_ClearsParallelReview(t *testing.T) {
+	root := t.TempDir()
+	ws, cfg, feature := setupParallelWS(t, root, "F151-recover")
+
+	// 不觸發 phase recovery 的 early-return 路徑（designing / round 0）。
+	s := protocol.State{FeatureID: feature.ID, Phase: protocol.PhaseDesigning, Role: protocol.RoleDesigner, Round: 0, Active: true, ParallelReview: true}
+	got, err := RecoverState(ws, feature.ID, s, cfg, resolvePC(t, cfg, feature))
+	if err != nil {
+		t.Fatalf("RecoverState: %v", err)
+	}
+	if got.ParallelReview {
+		t.Error("ParallelReview = true after RecoverState (early-return path), want false")
+	}
+
+	// 觸發 phase recovery 的路徑（reviewing / round 1，模擬並行段落內硬死）。
+	s = protocol.State{FeatureID: feature.ID, Phase: protocol.PhaseReviewing, Role: protocol.RoleReviewer, Round: 1, Active: true, ParallelReview: true}
+	got, err = RecoverState(ws, feature.ID, s, cfg, resolvePC(t, cfg, feature))
+	if err != nil {
+		t.Fatalf("RecoverState (recovery path): %v", err)
+	}
+	if got.ParallelReview {
+		t.Error("ParallelReview = true after RecoverState (recovery path), want false")
 	}
 }

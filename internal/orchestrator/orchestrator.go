@@ -148,6 +148,10 @@ func archiveDesignArtifact(ws *protocol.Workspace, featureID string, round, iter
 // 回傳修正後的 state（可能與輸入相同）與 error。
 // pc 為本次 run 解析出的 profile 設定，往下傳給 SmartResumePhase 對齊 Fixing 判斷。
 func RecoverState(ws *protocol.Workspace, featureID string, s protocol.State, cfg protocol.Config, pc protocol.ProfileConfig) (protocol.State, error) {
+	// per-run parallel 訊號只在 RunReviewTestParallel 的並行段落內為 true；process 若在段落內
+	// 硬死，state.json 會殘留 parallelReview:true。resume 起點一律清除，避免之後每次
+	// WriteState 一路帶著 stale 訊號。
+	s.ParallelReview = false
 	// 人為介入：`4x transition` / `4x retry` 手動設定的 phase 必須被尊重，直接照 state.json
 	// 的 phase 派對應 role，不進 SmartResumePhase 依磁碟 artifacts 重推導回更早的 phase。
 	if s.ManualPhase {
@@ -351,9 +355,11 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 
 		// F144：reviewing phase 偵測到 CONDITIONAL PASS 時，於同一 round、同一 phase 內派
 		// mini-coder 收掉 warning 並重跑 reviewer 確認，再交回 NextPhaseAfter 照常轉換。
-		// parallel review-test 路徑由 RunReviewTestParallel 接管（routePhase），不走此處。
-		if phase == protocol.PhaseReviewing && !r.Cfg.ParallelReviewTest {
-			cont, cerr := r.runReviewConvergence(ctx, &s, pc)
+		// parallel review-test 路徑由 RunReviewTestParallel 接管（routePhase）並在其內收斂；
+		// 未被 parallel 路徑接管（含 parallel_review_test=true 但 profile 缺 tester）一律走此處，
+		// 與 routePhase 共用 parallelReviewRouted 判斷，確保 CONDITIONAL PASS 不會兩頭落空。
+		if phase == protocol.PhaseReviewing && !r.parallelReviewRouted(pc) {
+			cont, _, cerr := r.runReviewConvergence(ctx, &s, pc)
 			if cerr != nil {
 				return nil, cerr
 			}
@@ -529,6 +535,15 @@ func (r *Runner) tryPassThrough(s *protocol.State, role protocol.Role, pc protoc
 	return true, nil
 }
 
+// parallelReviewRouted 回報 reviewing phase 是否會由 parallel review/test 路徑
+// （RunReviewTestParallel）接管：parallel_review_test 開啟且 profile 同時啟用 reviewer
+// 與 tester。routePhase 的路由條件與 RunLoop 的 serial 收斂 gate 都以此為唯一判斷來源，
+// 兩處互補、避免條件漂移造成 CONDITIONAL PASS 收斂兩頭落空。
+func (r *Runner) parallelReviewRouted(pc protocol.ProfileConfig) bool {
+	return r.Cfg.ParallelReviewTest &&
+		pc.EnablesRole(protocol.RoleReviewer) && pc.EnablesRole(protocol.RoleTester)
+}
+
 // routePhase 處理需要特殊路徑的 phase（parallel review/test、deep-reviewing）。
 // 回傳 (routed, cont, err)：routed 為 true 表示該 phase 已由特殊路徑接管；
 // 此時 cont 為 true 表示主迴圈應 continue，cont 為 false 表示應 break。
@@ -536,8 +551,7 @@ func (r *Runner) tryPassThrough(s *protocol.State, role protocol.Role, pc protoc
 func (r *Runner) routePhase(ctx context.Context, s *protocol.State, pc protocol.ProfileConfig) (routed, cont bool, err error) {
 	phase := s.Phase
 
-	if phase == protocol.PhaseReviewing && r.Cfg.ParallelReviewTest &&
-		pc.EnablesRole(protocol.RoleReviewer) && pc.EnablesRole(protocol.RoleTester) {
+	if phase == protocol.PhaseReviewing && r.parallelReviewRouted(pc) {
 		cont, err = RunReviewTestParallel(ctx, r, s, pc)
 		return true, cont, err
 	}
