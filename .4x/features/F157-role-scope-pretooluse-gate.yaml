@@ -1,0 +1,29 @@
+id: F157-role-scope-pretooluse-gate
+name: 'F157: Role-scope 即時攔截（PreToolUse gate）'
+description: |-
+    現狀：guard 的 scope/role 寫入檢查只在角色完成後由 4x check 事後判定，越界寫入要到 check 才發現，浪費整輪 runner 成本。evolve-loop 用 PreToolUse kernel hook 在 Edit/Write 當下即時攔截。
+
+    需求：
+    - 新增 4x check --path <file> 快速單檔模式：讀 state.json 的當前 role/phase 與 feature scope，判定該檔對當前角色可否寫入，exit 0=允許、非 0=拒絕並在 stderr 說明原因；毫秒級回應，不跑完整 guard 流程
+    - claude-code plugin 提供 PreToolUse hook 接線：Edit/Write 工具呼叫前先跑單檔模式，拒絕時阻止寫入；提供 .claude/settings.json 設定範例或由 4x init/doctor 協助寫入
+    - 其他 runner（gemini/codex/copilot 等）無 hook 機制者維持既有事後 check，行為不變
+
+    約束：
+    - 判定邏輯全部留在 4x CLI，hook 只是 plugin 層接線——維持 LLM-agnostic 架構，CLI 層不呼叫 LLM
+    - 單檔模式為唯讀判定：不改 state、不寫 event log（避免高頻呼叫產生 log spam）
+    - 非 4x run 情境（無 state.json）時單檔模式直接 exit 0 放行
+status: not-started
+priority: 2
+profile: normal
+subtasks:
+    - id: check-path-mode
+      name: 4x check --path 單檔快速判定模式
+      status: ""
+    - id: claude-plugin-hook
+      name: claude-code plugin PreToolUse hook 接線與設定範例
+      status: ""
+    - id: docs
+      name: docs/guide 與 plugin-contract 文件更新
+      status: ""
+rules:
+    - '來源: evolve-loop 三層信任架構（trust-architecture.md）借鏡分析 2026-07-09'

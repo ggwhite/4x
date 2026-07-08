@@ -1,0 +1,29 @@
+id: F162-verify-command-allowlist
+name: 'F162: Verify 命令 allowlist 硬化'
+description: |-
+    現狀：internal/verify/verify.go 的 executeCommand 用 sh -c 直接執行來自 AI 產出 test-strategy.yaml 的命令，惡意或幻覺命令（rm、curl 外洩資料）無任何攔截。independent-analysis 列為第二高價值 mitigation。
+
+    需求：
+    - settings.json 新增 verify 允許命令前綴清單欄位（如 go test、make、npm run），verify 執行每條命令前比對；不在清單的命令拒絕執行，產生明確錯誤並可觸發 escalation
+    - 未設定清單時維持現狀（向下相容），但 4x doctor 輸出 WARN 建議設定；4x init 可產生依專案 build/test/lint 命令推導的預設清單——細節由 Designer 裁決
+    - 拒絕紀錄寫入 verify.json，Tester/Acceptor 可觀察到「命令被攔」而非誤判為驗證通過
+
+    約束：
+    - 不做 OS 層 sandbox（不在本 feature 範圍）
+    - 攔截必須顯式失敗，不能讓 pipeline 靜默跳過驗證繼續走
+    - 比對邏輯為 deterministic 前綴/pattern 比對，不呼叫 LLM
+status: not-started
+priority: 1
+profile: normal
+subtasks:
+    - id: settings-field
+      name: verify allowlist settings 欄位與 schema
+      status: ""
+    - id: verify-enforcement
+      name: executeCommand 前置比對與拒絕紀錄
+      status: ""
+    - id: doctor-init
+      name: doctor WARN 與 init 預設清單
+      status: ""
+rules:
+    - '來源: docs/reference/independent-analysis.md Security Assessment #2；與 F156 predicate linter 互補（本 feature 抓危險命令，F156 抓假驗證）'

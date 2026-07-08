@@ -1,0 +1,26 @@
+id: F160-designer-challenge-doc-guard
+name: 'F160: Designer 前提挑戰與 docs 刪除 guard'
+description: |-
+    現狀：(1) Designer 對 spec/plan 傾向照單全收，learnings 多次記載 task-brief 應主動標出並裁決矛盾，但缺乏 forcing function。(2) docs/ 是權威設計規格，guard 卻不擋刪除，角色可能在重構時誤刪規格文件。evolve-loop 的 intent phase 強制挑戰至少一個前提，並有 doc-deletion guard（禁刪只准歸檔）。
+
+    需求：
+    - designer template 加強制段落：task-brief 開頭必須列出「至少一個被挑戰過的前提」（spec/plan 與現況程式碼的矛盾、過時假設），或明確聲明「無可挑戰前提」並附理由
+    - guard 對 task-brief.md 檢查該段落存在（結構檢查，不判內容品質）
+    - guard 新增 doc-deletion 檢查：diff 中出現 docs/**（或 settings 宣告的保護路徑）純刪除時標違規；git rename/move 不算刪除
+
+    約束：
+    - 前提挑戰是 forcing function，guard 只驗段落存在，不用 LLM 判定內容
+    - doc-deletion guard 允許歸檔搬移（rename 偵測），只擋淨刪除
+    - 保護路徑清單可由 settings 覆寫，預設 docs/
+status: not-started
+priority: 3
+profile: normal
+subtasks:
+    - id: designer-challenge-section
+      name: designer template 強制前提挑戰段落與 guard 結構檢查
+      status: ""
+    - id: doc-deletion-guard
+      name: docs 純刪除 guard 與 settings 保護路徑
+      status: ""
+rules:
+    - '來源: evolve-loop intent phase / doc-deletion guard 借鏡分析 2026-07-09'

@@ -154,3 +154,5 @@ Rules:
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
 
 learnings 見 .4x/learnings-context.md，需要時再讀（role prompt 已依角色篩選注入，不在此全量載入）。
+
+@.4x/learnings-context.md

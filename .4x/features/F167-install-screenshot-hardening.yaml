@@ -1,0 +1,30 @@
+id: F167-install-screenshot-hardening
+name: 'F167: 安裝驗證與 screenshot 路徑硬化'
+description: |-
+    現狀：(1) install 路徑沒有 checksum 驗證，release asset 被竄改無從察覺（supply chain 風險）。(2) server 的 screenshot/browse 端點可讀檔案系統，路徑限制不足，存在 path traversal 疑慮。
+
+    需求：
+    - release 產出 checksum 檔（如 SHA256SUMS），install script 下載後驗證；docs 說明手動驗證步驟
+    - screenshot/browse API 將可存取範圍限制在專案根目錄內：拒絕 ../ 遍歷、絕對路徑跳脫、symlink 跳脫
+    - 補 path traversal 的整合測試（惡意路徑樣本集）
+
+    約束：
+    - codesign/notarize 已有 CI 流程（F138/F139），本 feature 只補 checksum 與文件，不動簽章流程
+    - screenshot 既有合法使用情境（專案內截圖）行為不變
+status: not-started
+priority: 3
+profile: normal
+subtasks:
+    - id: install-checksum
+      name: release checksum 產出與 install 驗證
+      status: ""
+    - id: screenshot-path-guard
+      name: server 路徑正規化與邊界檢查
+      status: ""
+    - id: traversal-tests
+      name: path traversal 測試
+      status: ""
+rules:
+    - '來源: docs/reference/independent-analysis.md Security Assessment #5 #6'
+depends:
+    - F161-dashboard-auth

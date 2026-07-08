@@ -1,0 +1,29 @@
+id: F165-cli-orchestrator-coverage
+name: 'F165: CLI 與 orchestrator 測試覆蓋提升'
+description: |-
+    現狀：整體 statement coverage 約 58%，cmd/4x 與 internal/orchestrator 是覆蓋最低的兩層，而跨 feature 行為、phase 轉換邊界、錯誤路徑正集中在這兩層。independent-analysis 指出這是信心缺口。
+
+    需求：
+    - 先盤點 cmd/4x 與 internal/orchestrator 的當前 coverage，列出未覆蓋的主要分支（phase 轉換、錯誤路徑、flag 組合）
+    - 依盤點結果補整合測試，優先覆蓋 run loop 的轉換分支與失敗恢復路徑
+    - 兩個 package 各提升至少 15 個百分點（Designer 依盤點實況調整具體目標並寫入 AC）
+
+    約束：
+    - 禁止套套邏輯測試湊 coverage（測試必須斷言行為，不能只求執行到）
+    - 不改 production 行為；測試過程發現的 bug 記錄到 discovered-feature-gaps，不在本 feature 修
+    - 測試檔與被測程式同目錄，用標準 testing package
+status: not-started
+priority: 2
+profile: normal
+subtasks:
+    - id: coverage-audit
+      name: 盤點兩 package 未覆蓋分支
+      status: ""
+    - id: orchestrator-tests
+      name: orchestrator 整合測試補強
+      status: ""
+    - id: cmd-tests
+      name: CLI 命令層測試補強
+      status: ""
+rules:
+    - '來源: docs/reference/independent-analysis.md Weakness #6'

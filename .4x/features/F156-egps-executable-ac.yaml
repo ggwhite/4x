@@ -1,0 +1,33 @@
+id: F156-egps-executable-ac
+name: 'F156: EGPS 執行式 AC 判定與假驗證 linter'
+description: |-
+    現狀：Tester 依 test-strategy.yaml 跑 verify 命令並寫 verify.json + AC evidence，但 AC 判定實質依賴 LLM prose evidence——learnings 已多次記載 coder-report 誤報驗證結果、孤立單測綠燈不等於端到端生效。evolve-loop 的 EGPS 證明「可執行 predicate 的 exit code 即判定 + 假驗證 linter」可結構性解決此問題。
+
+    需求：
+    - test-strategy.yaml schema 擴充：每條 AC 綁定至少一條可執行 check 命令（如 ac_checks 欄位），exit code 0/非 0 即為該 AC PASS/FAIL 的權威判定
+    - internal/verify 執行 ac_checks 並把每條 exit code 寫入 verify.json 的 ACResults；guard/Acceptor 以 exit code 為準，Tester prose evidence 降為補充說明
+    - 新增 predicate linter（guard 或 verify 層）：偵測假驗證 pattern——只 grep source 不執行程式、echo PASS、true、空命令——違規判 FAIL 或要求 escalation
+    - Designer/Tester template 同步更新：產出 test-strategy 時每條 AC 必須給可執行 check
+
+    約束：
+    - mutation testing 不在本 feature 範圍（未來視成效另開）
+    - 舊 feature 不回填；無 ac_checks 的舊格式 test-strategy 走既有路徑，向下相容
+    - linter 需有 allowlist 機制，不能把合法的 grep 驗證（如檢查產出物內容）全部擋掉
+status: not-started
+priority: 1
+profile: normal
+subtasks:
+    - id: schema-ac-checks
+      name: test-strategy.yaml 擴充 ac_checks 欄位與 schema 驗證
+      status: ""
+    - id: verify-exit-code
+      name: verify 執行 ac_checks 並以 exit code 寫入 ACResults 作為權威判定
+      status: ""
+    - id: predicate-linter
+      name: 假驗證 pattern linter 與 allowlist
+      status: ""
+    - id: templates
+      name: designer/tester template 更新
+      status: ""
+rules:
+    - '來源: evolve-loop EGPS（docs/architecture/egps-v10.md）借鏡分析 2026-07-09'

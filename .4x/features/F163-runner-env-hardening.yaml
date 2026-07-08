@@ -1,0 +1,30 @@
+id: F163-runner-env-hardening
+name: 'F163: Runner 子程序環境硬化'
+description: |-
+    現狀：runner 子程序繼承完整父環境，敏感變數（各種 TOKEN/KEY/SECRET、AWS 認證）全數暴露給自主執行的 AI 子程序；prompt temp 檔與 run log 以預設權限建立，同機其他使用者可讀。
+
+    需求：
+    - spawn runner 前依 denylist pattern 過濾環境變數（預設含 *_TOKEN、*_KEY、*_SECRET、AWS_*、GITHUB_TOKEN 等，settings 可增減）
+    - per-runner allowlist 放行該 runner 運作必需的認證變數（如 claude runner 需要的 ANTHROPIC_API_KEY / CLAUDE_*），預設清單內建於各 plugin 定義
+    - prompt temp 檔與 run log 以 0600 權限建立
+    - 過濾了哪些變數以 slog.Debug 揭示，可診斷
+
+    約束：
+    - 不得濾掉 runner 正常運作必需的變數（PATH、HOME、per-runner 認證），過濾造成 runner 起不來屬 bug
+    - F154 的 worktree env 注入（GOLANGCI_LINT_CACHE、FOURX_BIN）行為不變，在過濾之後套用
+    - 不引入外部依賴
+status: not-started
+priority: 2
+profile: normal
+subtasks:
+    - id: env-filter
+      name: denylist 過濾與 settings 欄位
+      status: ""
+    - id: per-runner-allowlist
+      name: 各 plugin 必需變數 allowlist
+      status: ""
+    - id: file-perms
+      name: temp/prompt/log 檔 0600
+      status: ""
+rules:
+    - '來源: docs/reference/independent-analysis.md Security Assessment #3 #4'

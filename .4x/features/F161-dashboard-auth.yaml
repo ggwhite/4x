@@ -1,0 +1,33 @@
+id: F161-dashboard-auth
+name: 'F161: Dashboard server bearer-token 認證'
+description: |-
+    現狀：internal/server 的 REST/SSE API 綁 localhost 但完全無認證（已驗證 server package 無任何 Authorization 檢查），同機任意程序或惡意網頁（DNS rebinding、CSRF 打 localhost）可呼叫 POST /api/done、POST /api/clean 等變更狀態的端點。independent-analysis 將此列為最高價值 mitigation。
+
+    需求：
+    - 4x live 啟動時產生 per-session 隨機 token，寫入本機已知位置（權限 0600，不進 git），server middleware 驗證所有變更狀態的端點
+    - 支援 Authorization: Bearer header；SSE 的 EventSource 無法帶 header，需同時支援 query param token
+    - dashboard 各前端（web / macOS / Tauri）讀取 token 並帶上
+    - 未帶或錯誤 token 回 401；settings 可明示 opt-out 停用認證
+
+    約束：
+    - 只綁 localhost 的行為不變，認證是加在其上的第二層
+    - token 只存本機檔案，不得寫入任何會被 commit 的路徑
+    - 既有 API 回應格式不變，只加認證層
+status: not-started
+priority: 1
+profile: normal
+subtasks:
+    - id: token-issue
+      name: live 啟動產生 session token 與落地檔案
+      status: ""
+    - id: middleware
+      name: server 認證 middleware（header + query param）
+      status: ""
+    - id: clients
+      name: web/macOS/Tauri 前端帶 token
+      status: ""
+    - id: docs
+      name: dashboard 文件更新
+      status: ""
+rules:
+    - '來源: docs/reference/independent-analysis.md Security Assessment #1'

@@ -1,0 +1,32 @@
+id: F159-learnings-confidence-demote
+name: 'F159: Learnings confidence 與 active 老化（F147 補完）'
+description: |-
+    現狀：F147 只處理「candidate 且 used_count=0」的老化；internal/learning/store.go 已有 last_used/used_count 欄位但沒有 confidence，learning 一旦升為 active 就永久佔用注入 token，久未命中也不會 demote。evolve-loop 的 lesson 有 confidence 與 birth→reinforce→age-out 完整生命週期，並以此控 context token。
+
+    需求：
+    - Learning 增加 confidence 分數（新欄位或以 used_count/last_used 推導），命中時 reinforce 提升
+    - active learning 久未命中（last_used 超過閾值，settings 可設定，預設 90 天）自動 demote 回 candidate，交由 F147 既有 candidate 老化機制後續處理
+    - learnings-context 注入 role prompt 時依 confidence/新鮮度排序，超過 token 上限截斷低分條目
+    - 4x learn prune --dry-run 同步預覽哪些 active 會被 demote
+
+    約束：
+    - promoted 狀態不自動 demote（人工升的由人工降）
+    - 不改 learnings.json schema 版本，新欄位加 omitempty 向下相容
+    - 排序與截斷只影響注入內容，不刪除 store 內的資料
+status: not-started
+priority: 3
+profile: normal
+subtasks:
+    - id: confidence-field
+      name: confidence 欄位/推導與 reinforce 邏輯
+      status: ""
+    - id: active-demote
+      name: active 久未命中自動 demote 與 settings 閾值
+      status: ""
+    - id: injection-ranking
+      name: 注入時排序與 token 上限截斷
+      status: ""
+rules:
+    - '來源: evolve-loop self-evolution.md 借鏡分析 2026-07-09；接續 F147'
+depends:
+    - F147-learnings-lifecycle-aging

@@ -1,0 +1,29 @@
+id: F166-profile-advisor
+name: 'F166: Profile advisor（依規模建議 profile）'
+description: |-
+    現狀：profile（quick/normal/full）全靠人工判斷，learnings 已記載「God Object 拆分類 refactor 適合 lite profile」等經驗，independent-analysis 也指出成本結構性高、應選擇性套用完整流程——但目前沒有任何自動化建議。
+
+    需求：
+    - 4x new / 4x run 時依 feature 的 deterministic 訊號（subtask 數、scope 檔案數、description 長度、priority、是否 refactor 類關鍵字）給出 profile 建議並輸出理由
+    - 只建議不強制：未指定 --profile 時顯示建議；非互動情境的採用行為由 Designer 裁決
+    - heuristic 規則參數放 settings 可調，不 hardcode
+
+    約束：
+    - feature YAML 已明示 profile 時完全不介入（尊重 feature.profile 優先於 default_profile 的既有優先序）
+    - 純 deterministic heuristic，CLI 層不呼叫 LLM
+    - 不改變任何未觸發建議情境的既有輸出
+status: not-started
+priority: 3
+profile: normal
+subtasks:
+    - id: heuristic
+      name: 規模訊號 heuristic 與單元測試
+      status: ""
+    - id: cli-integration
+      name: new/run 建議輸出與採用流程
+      status: ""
+    - id: docs
+      name: profile 選擇指南更新
+      status: ""
+rules:
+    - '來源: docs/reference/independent-analysis.md Weakness #3 + evolve-loop dynamic-model-routing 借鏡'

@@ -1,0 +1,33 @@
+id: F158-per-role-runner-routing
+name: 'F158: Per-role runner 路由（跨 model 對抗審查）'
+description: |-
+    現狀：一個 feature 全程使用同一 runner，Reviewer/Deep Reviewer 與 Coder 同 model family，同族思維盲點容易 rubber-stamp。evolve-loop 刻意讓 auditor 用與 builder 不同的 model family 做對抗審查，並證實有效。
+
+    需求：
+    - settings.json 與 feature YAML 支援 per-role runner 覆寫（如 roles.deep-reviewer.runner: codex），優先序：feature YAML > project settings > 既有預設 runner
+    - orchestrator runOnce 依當前 role 解析出實際 runner 後再執行
+    - 4x doctor 檢查所有被覆寫指定的 runner 是否已安裝可用
+    - docs/guide 說明跨 model 審查的動機與建議配置（Deep Reviewer 用不同 family）
+
+    約束：
+    - 未設定任何覆寫時，行為與現狀完全一致
+    - 不做自動 model 選擇或 advisor（未來另議），本 feature 只做顯式設定的路由
+    - 覆寫解析失敗（runner 不存在）時 fail fast 並給明確錯誤，不靜默 fallback
+status: not-started
+priority: 2
+profile: normal
+subtasks:
+    - id: settings-schema
+      name: settings 與 feature YAML 的 per-role runner 欄位
+      status: ""
+    - id: orchestrator-routing
+      name: runOnce 依 role 解析 runner
+      status: ""
+    - id: doctor-check
+      name: doctor 驗證覆寫 runner 可用性
+      status: ""
+    - id: docs
+      name: 跨 model 審查配置指南
+      status: ""
+rules:
+    - '來源: evolve-loop multi-llm-review.md 借鏡分析 2026-07-09'
