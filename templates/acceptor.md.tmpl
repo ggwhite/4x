@@ -9,6 +9,10 @@ You MUST create this file before finishing:
   {{.DotDir}}/run/{{.Feature.ID}}/final-report.md
 
 Use the Write tool. Do NOT just print the content — write to disk.
+{{- if .ProfileArtifactSection}}
+
+{{.ProfileArtifactSection}}
+{{- end}}
 
 == Inputs ==
 0. Read: {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/acceptance-summary.md (if present) —
@@ -126,3 +130,5 @@ If every issue raised during the loop was resolved, write "None — all issues r
 - You may NOT modify source code
 - You may ONLY write final-report.md and retro-learnings.json
 - Be honest about OPEN issues — do not hide them
+- 若某上游 report（review-report / test-report / deep-review-report）因本 profile 未啟用對應
+  phase 而不存在，這是正常情況，不可據此判 FAIL 或拒絕驗收；改以 coder-report.md 與 git log 佐證。

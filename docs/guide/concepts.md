@@ -41,6 +41,8 @@ Profile phases may only be chosen from the selectable whitelist (`designing`, `c
 
 The legacy `roles: []` / `coder_model` profile format is still parsed and normalized into phases on load (backward compatible). See [Configuration](configuration.md) for the `profiles`, `default_profile`, `parallel_review_test`, and phase-override settings.
 
+**Profile-aware artifact contract.** When a role prompt is rendered for one of the six executing roles (coder, reviewer, tester, deep-reviewer, fixer, acceptor), 4x injects a short *artifact contract* section derived from the active profile. It lists the phases the profile runs, the artifacts this role MUST produce, the artifacts owned by other active roles (do-not-write), and — crucially — the upstream reports that this profile does **not** produce, so a missing report (e.g. `review-report.md` / `deep-review-report.md` in a lean profile) is stated to be EXPECTED and not grounds to FAIL or reject acceptance. The contract data is a single source of truth in `internal/protocol` (per-role produces/consumes table); `internal/prompt` formats it into the injected section. Designer and design-reviewer prompts are intentionally excluded.
+
 ### Review: Two Phases
 
 1. **Checklist review** (standard model) — checks against project hard rules: security, concurrency, error handling, style

@@ -38,11 +38,13 @@ func newPromptCmd() *cobra.Command {
 				return err
 			}
 
+			// best-effort 讀 state：供 profile 注入（F150）以及 role="" 時回填 role/round。
+			// 讀不到時，只有在未指定 --role 的情況下才是致命錯誤。
+			s, stateErr := ws.ReadState(featureID)
 			r := protocol.Role(role)
 			if r == "" {
-				s, err := ws.ReadState(featureID)
-				if err != nil {
-					return fmt.Errorf("no --role specified and cannot read state: %w", err)
+				if stateErr != nil {
+					return fmt.Errorf("no --role specified and cannot read state: %w", stateErr)
 				}
 				r = state.PhaseToRole(s.Phase)
 				if round == 0 {
@@ -56,6 +58,9 @@ func newPromptCmd() *cobra.Command {
 			}
 
 			pctx := &prompt.Context{Ws: ws, RunnerWs: ws, Feature: feature, Cfg: cfg}
+			if stateErr == nil {
+				pctx.Profile = s.Profile
+			}
 			p, err := prompt.Generate(pctx, r, round, 0, runner)
 			if err != nil {
 				return err

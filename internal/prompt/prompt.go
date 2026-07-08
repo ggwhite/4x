@@ -19,6 +19,9 @@ type Context struct {
 	RunnerWs *protocol.Workspace
 	Feature  feat.Feature
 	Cfg      protocol.Config
+	// Profile 是已解析的 profile 名稱（如 state.json 的 profile 欄位）。
+	// 空字串代表由 ResolveProfile(cfg, feature, "") 依 feature/default 決定。
+	Profile string
 }
 
 // Data 收納一個 role prompt 模板所需的全部資料。
@@ -73,6 +76,13 @@ type Data struct {
 	AssignedAngles    []int
 	PartialReportName string
 	PartialReports    []IncludeContent
+	// ProfileName 是本次 render 解析出的 profile 名稱；解析失敗時為空。
+	ProfileName string
+	// ProfilePhases 是本 profile 已啟用的 phase 名稱（canonical 順序）；解析失敗時為空。
+	ProfilePhases []string
+	// ProfileArtifactSection 是 profile-aware 產出物契約段落（僅 6 個執行角色注入），
+	// 由 FormatProfileArtifactSection 產生；不注入時為空，template 據此省略整段。
+	ProfileArtifactSection string
 }
 
 // IncludeContent 是一個被載入的檔案內容，含路徑與內文。
@@ -189,6 +199,16 @@ func Generate(ctx *Context, role protocol.Role, round, iteration int, runnerName
 	}
 	if role == protocol.RoleTester {
 		data.GuardFeedback = readGuardFeedback(ws, feature.ID, round)
+	}
+	// F150：注入 profile-aware 產出物契約段落。解析出當前 profile 後填 ProfileName/
+	// ProfilePhases；僅對列入 ArtifactContract 的執行角色（6 個）填 ProfileArtifactSection。
+	// 解析失敗時三欄位留零值，渲染行為與現況一致（不注入段落）。
+	if profileName, pc, perr := protocol.ResolveProfile(cfg, feature, ctx.Profile); perr == nil {
+		data.ProfileName = profileName
+		data.ProfilePhases = pc.EnabledPhaseNames()
+		if _, ok := protocol.ArtifactContract(role); ok {
+			data.ProfileArtifactSection = FormatProfileArtifactSection(profileName, pc, role)
+		}
 	}
 	for _, opt := range opts {
 		opt(&data)

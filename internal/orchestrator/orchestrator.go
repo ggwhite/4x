@@ -65,12 +65,18 @@ func (r *Runner) featureID() string {
 
 // promptCtx 從 Runner 組裝 prompt.Context
 func (r *Runner) promptCtx() *prompt.Context {
-	return &prompt.Context{
+	ctx := &prompt.Context{
 		Ws:       r.Ws,
 		RunnerWs: r.RunnerWs,
 		Feature:  r.Feature,
 		Cfg:      r.Cfg,
 	}
+	// F150：best-effort 帶入 state.json 的 profile，供 prompt 注入 profile-aware 段落；
+	// 讀不到（如 run 尚未寫 state）則留空，走 ResolveProfile fallback。
+	if s, err := r.Ws.ReadState(r.featureID()); err == nil {
+		ctx.Profile = s.Profile
+	}
+	return ctx
 }
 
 // RunStats 是從 runner log 解析出的執行統計

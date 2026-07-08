@@ -10,6 +10,10 @@ You MUST create this file before finishing. The system checks it exists.
   {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/fixer-report.md
 
 Use the Write tool to create the file. Do NOT just print the content — write to disk.
+{{- if .ProfileArtifactSection}}
+
+{{.ProfileArtifactSection}}
+{{- end}}
 
 == Inputs (read ONLY these) ==
 1. Read: {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/deep-review-report.md

@@ -17,6 +17,10 @@ If verify.json passed is true, you MUST also create:
   {{.DotDir}}/run/{{.Feature.ID}}/final-report.md
 
 Use the Write tool. Do NOT just print the content — write to disk.
+{{- if .ProfileArtifactSection}}
+
+{{.ProfileArtifactSection}}
+{{- end}}
 
 == Inputs ==
 {{- if .SkippedDesigner}}
