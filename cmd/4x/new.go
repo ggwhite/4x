@@ -199,7 +199,7 @@ Examples:
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 	cmd.Flags().StringVar(&customID, "id", "", "custom slug for feature ID (skips auto-truncation)")
 	cmd.Flags().StringVar(&desc, "desc", "", "feature description (defaults to name)")
-	cmd.Flags().StringSliceVar(&subtasks, "subtask", nil, `subtask in "id:name" format (can be repeated)`)
+	cmd.Flags().StringSliceVar(&subtasks, "subtask", nil, `subtask in "id:name" format (can be repeated); name may contain colons`)
 	cmd.Flags().StringSliceVar(&rules, "rule", nil, "rule reference (can be repeated)")
 	cmd.Flags().StringSliceVar(&depends, "depends", nil, "dependency feature ID (can be repeated)")
 	cmd.Flags().IntVar(&priority, "priority", 0, "priority level (0=critical, 1=high, 2=medium, 3=low)")
@@ -229,18 +229,16 @@ func repoPath(root string, cfg protocol.Config, name string) string {
 	return root
 }
 
-// parseSubtask 解析 "id:name" 或 "id:name:description" 格式的 subtask 字串。
+// parseSubtask 解析 "id:name" 格式的 subtask 字串：第一個冒號前為 id，
+// 其餘整段為 name，name 內的冒號原樣保留（時間 10:00、group:artifact、URL 都是合法內容）。
+// description 不走 CLI，建檔後編輯 YAML 補上。
 func parseSubtask(s string) (feature.Subtask, error) {
-	parts := strings.SplitN(s, ":", 3)
-	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
-		return feature.Subtask{}, fmt.Errorf("subtask format must be \"id:name\" or \"id:name:description\", got %q", s)
+	parts := strings.SplitN(s, ":", 2)
+	if len(parts) < 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
+		return feature.Subtask{}, fmt.Errorf("subtask format must be \"id:name\", got %q", s)
 	}
-	st := feature.Subtask{
+	return feature.Subtask{
 		ID:   strings.TrimSpace(parts[0]),
 		Name: strings.TrimSpace(parts[1]),
-	}
-	if len(parts) == 3 {
-		st.Description = strings.TrimSpace(parts[2])
-	}
-	return st, nil
+	}, nil
 }

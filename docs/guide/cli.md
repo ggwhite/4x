@@ -46,7 +46,7 @@ Create a new feature with optional metadata.
 |---|---|
 | `--id` | Custom slug for feature ID (skips auto-truncation) |
 | `--desc` | Feature description (defaults to title) |
-| `--subtask` | Subtask in `"id:name"` or `"id:name:description"` format (repeatable) |
+| `--subtask` | Subtask in `"id:name"` format (repeatable); id is the part before the first colon, name may contain colons (e.g. `10:00`, `group:artifact`, URLs); set description by editing the YAML afterward |
 | `--rule` | Rule reference (repeatable) |
 | `--depends` | Dependency feature ID (repeatable) |
 | `--priority` | Priority level (0=critical, 1=high, 2=medium, 3=low) |

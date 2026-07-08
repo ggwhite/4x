@@ -46,7 +46,7 @@
 |---|---|
 | `--id` | 自訂 feature ID slug（跳過自動截斷） |
 | `--desc` | Feature 描述（預設與標題相同） |
-| `--subtask` | 子任務，格式為 `"id:name"` 或 `"id:name:description"`（可重複） |
+| `--subtask` | 子任務，格式為 `"id:name"`（可重複）；第一個冒號前是 id，其餘整段是 name（name 可含冒號，如 `10:00`、`group:artifact`、URL）；description 由建檔後編輯 YAML 提供 |
 | `--rule` | 規則引用（可重複） |
 | `--depends` | 依賴的 feature ID（可重複） |
 | `--priority` | 優先順序（0=critical、1=high、2=medium、3=low） |

@@ -46,7 +46,7 @@
 |---|---|
 | `--id` | Feature ID のカスタム slug（自動截断をスキップ） |
 | `--desc` | Feature の説明（デフォルトはタイトル） |
-| `--subtask` | `"id:name"` または `"id:name:description"` 形式のサブタスク（繰り返し指定可能） |
+| `--subtask` | `"id:name"` 形式のサブタスク（繰り返し指定可能）。最初のコロンより前が id、残り全体が name（name にはコロンを含められる。例：`10:00`、`group:artifact`、URL）。description は作成後に YAML を編集して設定 |
 | `--rule` | ルール参照（繰り返し指定可能） |
 | `--depends` | 依存する Feature ID（繰り返し指定可能） |
 | `--priority` | 優先度（0=critical、1=high、2=medium、3=low） |

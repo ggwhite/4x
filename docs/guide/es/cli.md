@@ -46,7 +46,7 @@ Crear un nuevo feature con metadatos opcionales.
 |---|---|
 | `--id` | Slug personalizado para el ID del feature (omite el truncamiento automático) |
 | `--desc` | Descripción del feature (por defecto usa el título) |
-| `--subtask` | Subtarea en formato `"id:name"` o `"id:name:description"` (repetible) |
+| `--subtask` | Subtarea en formato `"id:name"` (repetible); id es la parte antes del primer dos puntos, name puede contener dos puntos (p. ej. `10:00`, `group:artifact`, URLs); la description se establece editando el YAML después |
 | `--rule` | Referencia a regla (repetible) |
 | `--depends` | ID de feature del que depende (repetible) |
 | `--priority` | Nivel de prioridad (0=crítica, 1=alta, 2=media, 3=baja) |

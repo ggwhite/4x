@@ -46,7 +46,7 @@
 |---|---|
 | `--id` | 기능 ID의 커스텀 slug (자동 잘림 건너뜀) |
 | `--desc` | 기능 설명 (기본값: 제목과 동일) |
-| `--subtask` | `"id:name"` 또는 `"id:name:description"` 형식의 하위 작업 (반복 가능) |
+| `--subtask` | `"id:name"` 형식의 하위 작업 (반복 가능); 첫 번째 콜론 앞이 id, 나머지 전체가 name (name에 콜론 포함 가능, 예: `10:00`, `group:artifact`, URL); description은 생성 후 YAML을 편집하여 설정 |
 | `--rule` | 규칙 참조 (반복 가능) |
 | `--depends` | 의존 기능 ID (반복 가능) |
 | `--priority` | 우선순위 수준 (0=긴급, 1=높음, 2=보통, 3=낮음) |
