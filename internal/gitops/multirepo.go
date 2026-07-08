@@ -57,6 +57,7 @@ func (m *multiRepo) SetupWorktree(featureID string, featureRepos []string) (stri
 
 	m.copyWorkspaceFiles(wtDir)
 	m.ensureDotDir(wtDir)
+	runPostScaffold(m.cfg, m.ws, wtDir, featureID)
 	return wtDir, nil
 }
 
@@ -111,8 +112,33 @@ func (m *multiRepo) copyWorkspaceFiles(wtDir string) {
 		if e.IsDir() {
 			continue
 		}
+		// go.work / go.work.sum 由 copyGoWork 專責處理（裁切 use，避免指向未 checkout 的目錄）。
+		if name == "go.work" || name == "go.work.sum" {
+			continue
+		}
 		copyFileIfExists(filepath.Join(m.root, name), filepath.Join(wtDir, name)) //nolint:errcheck // best-effort 複製 dot 檔，缺檔可接受
 	}
+
+	m.copyGoWork(wtDir)
+}
+
+// copyGoWork 把 workspace 根目錄的 go.work 裁切後寫入 wtDir，只保留實際 checkout 進 worktree
+// （wtDir/<rel>/go.mod 存在）的 module。無 go.work 時什麼都不做（保持既有行為）；裁切後無任何
+// use 保留時整個 omit go.work（連同 go.work.sum 一併不寫），讓各 module 以 standalone go.mod build。
+func (m *multiRepo) copyGoWork(wtDir string) {
+	data, err := os.ReadFile(filepath.Join(m.root, "go.work"))
+	if err != nil {
+		return
+	}
+	out, anyKept := filterGoWorkUses(string(data), func(rel string) bool {
+		_, statErr := os.Stat(filepath.Join(wtDir, rel, "go.mod"))
+		return statErr == nil
+	})
+	if !anyKept {
+		return
+	}
+	os.WriteFile(filepath.Join(wtDir, "go.work"), []byte(out), 0o644)
+	copyFileIfExists(filepath.Join(m.root, "go.work.sum"), filepath.Join(wtDir, "go.work.sum")) //nolint:errcheck // best-effort 複製 sum，缺檔可接受
 }
 
 func (m *multiRepo) ensureDotDir(wtDir string) {

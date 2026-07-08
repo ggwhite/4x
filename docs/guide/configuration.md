@@ -119,6 +119,24 @@ Non-transient failures (compilation errors, assertion failures, panics), exit 0,
 | `test_profiles` | Custom or overridden test profile definitions (keyed by profile name) |
 | `max_discovered_features` | Max features auto-created per run; unset or `<= 0` applies the default (`3`) |
 | `notifications` | Enable OS notifications on run completion (default `true` when unset). Set to `false` to disable; the project value overrides the user-level setting. `4x run --no-notify` overrides both |
+| `workspace` (go.work) | In multi-repo mode, `go.work` is automatically pruned when scaffolding a worktree; see below |
+| `worktree.post_scaffold` | Commands run in the worktree root right after scaffolding; see below |
+
+**Multi-repo `go.work` pruning.** In multi-repo mode a feature only checks out the repos it declares, but the workspace root `go.work` still lists every module via `use ./…`. Copied verbatim, those `use` entries would point at directories that were never checked out, so `go build/vet/test` fail across the board. When setting up a worktree 4x therefore prunes `go.work`, keeping only the modules actually present (`<worktree>/<repo>/go.mod` exists). If nothing remains, `go.work` (and `go.work.sum`) is omitted entirely so each module builds from its standalone `go.mod`. Monorepo worktrees are untouched (whole-repo checkout already contains every module). Workspaces without a `go.work` are unaffected.
+
+**`worktree.post_scaffold`.** A string array of shell commands run in order in the worktree root immediately after it is scaffolded (mono and multi both). Use it for project-specific environment init that 4x does not build in. A failing command only logs a warning and the remaining commands still run — scaffolding never aborts. Combined stdout/stderr is appended to `<.4x>/run/<feature-id>/logs/post-scaffold.log`, and each command emits a `hook` / `post-scaffold` event. Only new worktrees run the hook; an existing worktree (idempotent re-scaffold) skips it.
+
+```json
+{
+  "worktree": {
+    "post_scaffold": [
+      "chmod +x scripts/*.sh",
+      "ln -sf ../shared/config.yaml config.yaml",
+      "npm install --prefix web"
+    ]
+  }
+}
+```
 
 ### Auto-Discover Features
 

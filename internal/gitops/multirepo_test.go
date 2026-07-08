@@ -20,10 +20,16 @@ func setupMultiWorkspace(t *testing.T) (root string, ws *protocol.Workspace, ops
 	root = t.TempDir()
 
 	for _, name := range []string{"core", "gate"} {
-		initGitRepo(t, filepath.Join(root, name))
+		dir := filepath.Join(root, name)
+		initGitRepo(t, dir)
+		// 每個 repo 各自 commit 一份 go.mod，讓 go.work 裁切（依 wtDir/<name>/go.mod 是否存在
+		// 判定保留）在測試中反映真實的 Go module 佈局。
+		os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module "+name+"\n\ngo 1.26\n"), 0o644)
+		runGit(t, dir, "add", "go.mod")
+		runGit(t, dir, "commit", "-m", "add go.mod")
 	}
 
-	os.WriteFile(filepath.Join(root, "go.work"), []byte("go 1.26\nuse ./core\nuse ./gate\n"), 0o644)
+	os.WriteFile(filepath.Join(root, "go.work"), []byte("go 1.26\n\nuse ./core\nuse ./gate\n"), 0o644)
 
 	cfg := protocol.Config{
 		Project: protocol.ProjectConfig{Name: "multi-test"},

@@ -70,7 +70,7 @@ func New(root string, ws *protocol.Workspace, cfg protocol.Config) Ops {
 	if len(cfg.Workspace.Repos) > 0 {
 		return &multiRepo{root: root, ws: ws, cfg: cfg}
 	}
-	return &monoRepo{root: root, ws: ws}
+	return &monoRepo{root: root, ws: ws, cfg: cfg}
 }
 
 // Dir 回傳 worktree 組合目錄的路徑（兩種模式共用）。

@@ -75,6 +75,15 @@ type Config struct {
 	// IssueTracker 控制 `4x new`/`4x done` 是否串接 GitHub/GitLab issue 與 MR/PR。
 	// 純 project-level 欄位，預設 false，關閉時所有既有行為零改動。
 	IssueTracker IssueTrackerConfig `json:"issue_tracker,omitempty"`
+	// Worktree 是 scaffold worktree 相關的設定（如 post-scaffold hook）。
+	Worktree WorktreeConfig `json:"worktree,omitempty"`
+}
+
+// WorktreeConfig 是 settings.json 內 worktree 區段的設定。
+type WorktreeConfig struct {
+	// PostScaffold 宣告 scaffold 建立 worktree 後、在 worktree 根目錄依序執行的命令清單；
+	// 單一命令失敗只 warn 不中止 scaffold。內容由使用端專案自理（4x 不內建專案特定邏輯）。
+	PostScaffold []string `json:"post_scaffold,omitempty"`
 }
 
 // IssueTrackerConfig 控制 issue-first MR flow 是否啟用。

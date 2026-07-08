@@ -154,6 +154,28 @@ func TestMonoRepo_SetupWorktree(t *testing.T) {
 	}
 }
 
+// TestMonoRepo_SetupWorktree_GoWorkUntouched 驗證 AC-6：monorepo 完全不觸碰 go.work——
+// whole-repo checkout 會原樣帶入 committed 的 go.work，不裁切、不新建、不刪除。
+func TestMonoRepo_SetupWorktree_GoWorkUntouched(t *testing.T) {
+	root, _, ops := setupMonoWorkspace(t)
+	original := "go 1.26\n\nuse ./sub-a\nuse ./sub-b\n"
+	os.WriteFile(filepath.Join(root, "go.work"), []byte(original), 0o644)
+	runGit(t, root, "add", "go.work")
+	runGit(t, root, "commit", "-m", "add go.work")
+
+	wtPath, err := ops.SetupWorktree("feat-gowork-mono", nil)
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(wtPath, "go.work"))
+	if err != nil {
+		t.Fatalf("go.work should be present in whole-repo checkout: %v", err)
+	}
+	if string(data) != original {
+		t.Errorf("monorepo go.work should be untouched:\ngot:  %q\nwant: %q", string(data), original)
+	}
+}
+
 func TestMonoRepo_SetupWorktree_Idempotent(t *testing.T) {
 	_, _, ops := setupMonoWorkspace(t)
 	wtPath1, err := ops.SetupWorktree("feat-idem", nil)

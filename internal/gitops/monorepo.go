@@ -16,6 +16,7 @@ import (
 type monoRepo struct {
 	root string
 	ws   *protocol.Workspace
+	cfg  protocol.Config
 }
 
 func (m *monoRepo) IsMultiRepo() bool { return false }
@@ -46,6 +47,7 @@ func (m *monoRepo) SetupWorktree(featureID string, _ []string) (string, error) {
 	}
 
 	m.ensureDotDir(wtDir)
+	runPostScaffold(m.cfg, m.ws, wtDir, featureID)
 	return wtDir, nil
 }
 
