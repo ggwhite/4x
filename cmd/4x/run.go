@@ -215,7 +215,7 @@ func newRunCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&runnerName, "runner", "", "runner plugin name (default: config default)")
 	cmd.Flags().IntVar(&maxRounds, "max-rounds", 0, "max iteration rounds (default: 5)")
-	cmd.Flags().IntVar(&timeout, "timeout", 3600, "plugin timeout in seconds")
+	cmd.Flags().IntVar(&timeout, "timeout", 0, "plugin timeout in seconds (0 = no limit)")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "print prompts without calling plugin")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "start run and return JSON immediately")
 	cmd.Flags().StringVar(&profileFlag, "profile", "", "pipeline profile (full/normal/quick or custom); overrides priority-based auto-select")
