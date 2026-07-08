@@ -368,7 +368,7 @@ Deterministic checks enforced by the CLI — not dependent on AI judgment.
 |---|---|
 | **Required files** | Verifies phase-appropriate artifacts exist (e.g., `task-brief.md` after designing) |
 | **Baseline** | Captures pre-coding state (HEAD, branch, dirty files); warns if dirty files exist |
-| **Scope** | In monorepo mode: compares `git diff --name-only HEAD` top-level directories against feature's declared repos. In multi-repo mode: uses `gitops.Ops.DetectChangedRepos()` across all workspace repos |
+| **Scope** | In monorepo mode: compares `git diff --name-only HEAD` top-level directories against feature's declared repos. In multi-repo mode: uses `gitops.Ops.DetectChangedRepos()` across all workspace repos. Hub repos (`hub_repos` / `workspace.repos[].hub`) are always excluded. Repos listed in `test-strategy.yaml`'s `e2e_repos` (`TestStrategy.E2ERepos` in `internal/protocol/verify.go`) are excluded once the run has reached the testing phase (and any amending that follows it — detected by a prior round's `verify.json`), so a Tester writing e2e specs to a dedicated e2e repo is not flagged; before testing (coding/reviewing, or a `reviewing → amending` that never ran testing) those repos are still flagged. Empty/unset `e2e_repos` behaves exactly as before |
 | **Dependencies** | Blocks `4x run` if depended features are not done |
 | **Backlog drift** | Warns when `.4x/features/*.yaml` and external mirrors are out of sync |
 | **Build gate** | In coding/amending phase: runs `settings.json` build + lint commands, writes `build-gate.json`. Failure blocks the round; the Coder agent should fix and re-run `4x check` |

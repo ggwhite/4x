@@ -72,6 +72,10 @@ type TestStrategy struct {
 	// ACVerifyMap 標記每條 AC 的驗證類型（unit-test / integration / inspection / skip）。
 	// Guard 依此決定 evidence 品質要求；未列出的 AC 預設 execution（從嚴）。
 	ACVerifyMap map[string]string `yaml:"ac_verify_map,omitempty" json:"ac_verify_map,omitempty"`
+	// E2ERepos 列出本 feature 的 e2e 測試產出所在的獨立 repo 名稱（如 kairos-e2e）。
+	// testing phase 起（含 testing 之後回到的 amending），這些 repo 的變更不算 scope violation
+	// （Tester 必要寫入放行）；為空時行為與舊版完全一致。granularity 為 repo 層級，比照 Config.HubRepos。
+	E2ERepos []string `yaml:"e2e_repos,omitempty" json:"e2e_repos,omitempty"`
 }
 
 // ManualCheck 是 Designer 在 test-strategy.yaml 定義的手動驗證步驟。

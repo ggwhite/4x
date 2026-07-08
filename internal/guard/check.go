@@ -526,6 +526,25 @@ func checkScope(ws *protocol.Workspace, featureID string, detector ScopeDetector
 		}
 	}
 
+	// e2e repo（test-strategy.yaml e2e_repos）在 testing phase（含）之後的合法寫入放行，
+	// 比照 hubRepos 的排除機制。讀 state 失敗時 phase 視為空字串（fail-safe → 一律不放行）；
+	// 讀 test-strategy 失敗時 e2eRepoSet 維持空（fail-safe，比照 hubRepos 讀 config 失敗維持空 map
+	// 的慣例，不因讀檔失敗而靜默放行）。
+	var phase protocol.Phase
+	if st, stErr := ws.ReadState(featureID); stErr == nil {
+		phase = st.Phase
+	}
+	e2eRepoSet := make(map[string]bool)
+	if ts, tsErr := ws.ReadTestStrategy(featureID); tsErr == nil {
+		for _, repo := range ts.E2ERepos {
+			e2eRepoSet[repo] = true
+		}
+	}
+	// amending 在 state machine 中有 testing 前後兩類來源，純 phase 名稱無法區分；
+	// 以「本 run 是否已跑過 testing」（任一 round 有 verify.json）作為額外閘門（見 DR-4）。
+	e2eAllowed := e2eAllowedPhase(phase) ||
+		(phase == protocol.PhaseAmending && testingHasRun(ws, featureID))
+
 	var changedRepos []string
 	if detector != nil {
 		changedRepos = detector.DetectChangedRepos(featureID)
@@ -536,11 +555,53 @@ func checkScope(ws *protocol.Workspace, featureID string, detector ScopeDetector
 		if hubRepos[repo] {
 			continue
 		}
+		if e2eAllowed && e2eRepoSet[repo] {
+			continue
+		}
 		if !allowedRepos[repo] {
 			r.Pass = false
 			r.Errors = append(r.Errors, fmt.Sprintf("scope violation: repo %q not in feature repos", repo))
 		}
 	}
+}
+
+// e2eAllowedPhase 回報 phase 是否為 testing（含）之後、且不需額外判斷即可放行 e2e 產出的 phase。
+// 這些 phase 只會在 Tester 跑過 testing 後才可能到達（deep-reviewing/fixing/accepting 依 state machine
+// 皆在 testing 之後），故對宣告的 e2e repo 放行；coding/reviewing/designing 等 testing 之前的 phase 回 false。
+// 注意：amending 不在此清單（它 testing 前後皆可達），由 checkScope 另以 testingHasRun 區分（見 DR-4）。
+func e2eAllowedPhase(p protocol.Phase) bool {
+	switch p {
+	case protocol.PhaseTesting,
+		protocol.PhaseDeepReviewing,
+		protocol.PhaseFixing,
+		protocol.PhaseAccepting,
+		protocol.PhasePendingReview,
+		protocol.PhaseDone:
+		return true
+	default:
+		return false
+	}
+}
+
+// testingHasRun 回報本 feature 的 run 中是否已有任一 round 產出 verify.json，
+// 作為「Tester 已跑過 testing」的單調痕跡；掃描 ws.FeatureDir(featureID)/RoundsDir 下
+// 任一 round-{n}/verify.json（protocol.VerifyFile）是否存在。讀目錄失敗或不存在時回 false（fail-safe）。
+func testingHasRun(ws *protocol.Workspace, featureID string) bool {
+	roundsDir := filepath.Join(ws.FeatureDir(featureID), protocol.RoundsDir)
+	entries, err := os.ReadDir(roundsDir)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if !e.IsDir() || !strings.HasPrefix(e.Name(), "round-") {
+			continue
+		}
+		verifyPath := filepath.Join(roundsDir, e.Name(), protocol.VerifyFile)
+		if _, err := os.Stat(verifyPath); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 // detectChangedRepos 找出哪些子目錄有 uncommitted changes。
