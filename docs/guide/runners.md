@@ -38,7 +38,7 @@ Additionally, shared instruction files are deployed to `.4x/plugins/shared/` for
 
 | File | Purpose |
 |---|---|
-| `shared/CREATOR.md` | Feature Creator flow — guides AI through `4x new` scaffold |
+| `shared/CREATOR.md` | Feature Creator flow — guides AI through `4x new` scaffold, including scale red lines (repos > 4, subtasks > 6, or a description spanning unrelated concerns must be split into multiple features linked with `depends` at creation time) |
 
 Use `4x sync` to re-deploy plugin files after updating the binary.
 

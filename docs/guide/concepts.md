@@ -326,6 +326,8 @@ deep_review_all_angles: false  # force deep review to run all 11 angles (ignores
 
 `status` mirrors `state.json` phase for quick listing. Valid values: `not-started`, `in-progress`, `ready-for-review`, `needs-attention`, `blocked`, `done`, `abandoned`. `abandoned` features are treated as completed (won't block dependencies) but display with strikethrough in the dashboard. `depends` lists feature IDs that must be done (or abandoned) before this feature can run. `repos` lists the repository names (from `workspace.repos`) that this feature touches; empty means all repos in scope.
 
+An unrecognized `status` (or other format issue) does not fail loading — the CLI loads the feature in loose mode and logs a WARN naming the field, the offending value, and the list of valid values.
+
 #### Design Doc Resolution
 
 The dashboard overview and the `4x prompt` planning-doc injection locate a feature's spec/plan through one shared resolver (`protocol.ResolveDesignDoc`), so both always see the same document. Resolution order per doc type (`spec`/`plan`):
