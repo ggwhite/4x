@@ -13,7 +13,7 @@ description: |-
     - 不動 active/promoted 狀態的 learning——老化只針對從未被使用的 candidate
     - 不自動刪除，只標 stale；實際刪除仍由 prune 的既有確認流程把關
     - 不改 learnings.json 的 schema 版本，stale 沿用既有 status 列舉值
-status: not-started
+status: done
 priority: 2
 profile: normal
 subtasks:
