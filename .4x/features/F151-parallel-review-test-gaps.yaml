@@ -1,0 +1,28 @@
+id: F151-parallel-review-test-gaps
+name: 'F151: parallel review-test 路徑補洞'
+description: |-
+    現狀：parallel_review_test 模式（ParallelReviewTest==true，走 RunReviewTestParallel）有兩個缺口：(1) tester 與 reviewer 同時啟動，但 state.json 只記錄 phase=reviewing / role=reviewer，tester agent 讀 state.json 發現不是自己的 phase 會自保拒絕執行，導致 tester 無產出觸發 amending（F142 實測）。(2) reviewer 的 CONDITIONAL PASS 不走 F144 的同輪收斂路徑，warning 直接放行到後續 phase（F144 刻意 out of scope 未接線）。
+
+    需求：
+    - state.json 加 parallel 標記（或等價信號），讓 tester/reviewer 都能識別自己在 parallel 模式下合法執行；tester prompt 同步說明 parallel 模式
+    - RunReviewTestParallel 路徑接上 F144 的同輪 CONDITIONAL PASS 收斂：reviewer warning 在同輪由 coder 處理後再交 reviewer 確認
+    - 補 orchestrator 測試：parallel 模式下 tester 正常產出 verify.json/test-report.md；CONDITIONAL PASS 進同輪收斂
+
+    約束：
+    - 非 parallel 路徑行為不變
+    - 不改狀態機合法轉換表
+status: not-started
+priority: 1
+profile: normal
+subtasks:
+    - id: parallel-state-signal
+      name: state.json parallel 標記與 tester prompt 識別
+      status: ""
+    - id: conditional-pass-wiring
+      name: parallel 路徑接同輪 CONDITIONAL PASS 收斂
+      status: ""
+    - id: tests
+      name: parallel 模式 orchestrator 測試
+      status: ""
+rules:
+    - '來源: docs/reference/discovered-feature-gaps.md 2026-07-08 F142/F144 兩條'

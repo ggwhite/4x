@@ -1,0 +1,28 @@
+id: F153-docs-sync-suppression
+name: 'F153: check-docs-sync 誤報抑制機制'
+description: |-
+    現狀：check-docs-sync 是 file/prefix → doc 的粗粒度啟發式映射（internal/protocol/ → concepts.md、cmd/4x/ → cli.md 等），目錄下任何改動都被點名 NEEDS_UPDATE；check-guide-i18n 只比對六語系 heading 數量。兩者反覆誤報，累積 15 條 learnings，每個 feature 都要在 task-brief/deep-review 手動聲明「可接受的 false-positive」，重複消耗 coder/reviewer 輪次。F135/F136 只修過 exit-code，映射粒度未動。
+
+    需求：
+    - check-docs-sync 提供 suppression/allowlist 機制（如 .docsyncignore 或 mapping 註記），讓已知誤報不需逐 feature 重複聲明；或升級為 symbol-level 映射（比對變更的 exported symbol 是否出現在 doc）
+    - check-guide-i18n 改為結構化 heading 對應比對，或至少輸出具體缺漏的 heading 而非只報數量差
+    - 盤點現有已知誤報來源，建立初始 allowlist
+
+    約束：
+    - 真實的 docs 缺漏仍必須被抓到，不能把檢查弱化成永遠 OK
+    - CI 對 make check-docs 的既有驗證不變
+status: not-started
+priority: 2
+profile: normal
+subtasks:
+    - id: suppression
+      name: docs-sync suppression/allowlist 機制
+      status: ""
+    - id: i18n-diff
+      name: guide-i18n 結構化比對與缺漏明細
+      status: ""
+    - id: seed-allowlist
+      name: 初始 allowlist 與既有誤報盤點
+      status: ""
+rules:
+    - '來源: audit 2026-07-08 systemic issue（15 條 learnings：L068/L096/L115/L126/L133/L144/L167/L206 等）'

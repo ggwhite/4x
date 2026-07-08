@@ -1,0 +1,32 @@
+id: F155-p3-maintenance-batch
+name: 'F155: P3 維護雜項批次'
+description: |-
+    現狀：audit 收斂出四個低影響但反覆出現的維護債：(1) .4x/plugins/*.md 角色表寫「Acceptor Writes: acceptor-report.md」，與 templates/acceptor.md.tmpl（只寫 final-report.md 與 retro-learnings.json）不一致（F150 發現的文件債）；(2) self-mod guard 的 max_diff_lines 把新增 *_test.go 行數計入受保護預算，逼 coder 犧牲測試可讀性或分批 commit（3 條 learnings）；(3) 列舉/欄位在 SoT 之外還硬編碼於錯誤訊息 valid 清單、CLI usage 字串、集合大小數字等處，新增值易漏改（4 條 learnings）；(4) fake 單測綠燈掩蓋端到端未生效，AC evidence 接受純 mock 測試（4 條 learnings）。
+
+    需求：
+    - 校正所有 plugin 角色表（CLAUDE.md/GEMINI.md/cursorrules/codex-AGENTS.md 等）與 runtime（templates + guard）一致
+    - self-mod guard diff budget 排除純新增的 *_test.go，或給測試檔獨立較寬上限
+    - 新增 go test 對照 SoT accessor，偵測平行維護的硬編碼列舉清單
+    - test-strategy 模板／acceptor guard 要求 Runner 級副作用與外部 CLI 呼叫至少有一個真實整合測試作 evidence，不接受純 fake 單測
+
+    約束：
+    - 四個子項互相獨立，可分批 commit、獨立驗收
+    - 不改 self-mod guard 對受保護路徑的其他語意
+status: not-started
+priority: 3
+profile: quick
+subtasks:
+    - id: role-table-sync
+      name: plugin 角色表與 runtime 對齊
+      status: ""
+    - id: testfile-budget
+      name: self-mod guard 測試檔豁免
+      status: ""
+    - id: enum-parallel-check
+      name: 平行列舉清單偵測測試
+      status: ""
+    - id: e2e-evidence
+      name: 真實整合測試 evidence 政策
+      status: ""
+rules:
+    - '來源: audit 2026-07-08 P3 項目（gaps F150 條目 + learnings L070/L101/L105、L059/L078/L104/L155、L006/L107/L127/L128）'

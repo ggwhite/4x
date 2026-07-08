@@ -1,0 +1,28 @@
+id: F154-worktree-tool-isolation
+name: 'F154: worktree 工具環境隔離'
+description: |-
+    現狀：feature 在獨立 worktree 執行時，工具鏈仍指向主工作區：golangci-lint 快取殘留 sibling worktree 路徑產生誤報；codegraph 回傳主工作區絕對路徑且索引不含 worktree 新 commit；$FOURX_BIN 與手動測試誤用主 repo 的舊 binary。累積 6 條 learnings（L082/L095/L124/L141/L145/L152）。F148 只處理了 go.work 裁切與 post-scaffold hook，未隔離工具快取與 binary 指向。
+
+    需求：
+    - scaffold/run 進 worktree 時設定 per-worktree 的 GOLANGCI_LINT_CACHE / GOCACHE（或等價隔離），避免跨 worktree 快取污染造成 lint 誤報
+    - runner 環境將 $FOURX_BIN 預設指向 worktree-local 的 ./bin/4x（build 後），run log 明示實際使用的 binary 路徑
+    - docs/guide 標註 codegraph 在 worktree 的索引落差與正確用法（指定主工作區路徑）
+
+    約束：
+    - 不引入新外部依賴
+    - 主工作區（非 worktree）的既有行為不變
+status: not-started
+priority: 2
+profile: standard
+subtasks:
+    - id: cache-isolation
+      name: per-worktree lint/go cache 隔離
+      status: ""
+    - id: binary-pinning
+      name: FOURX_BIN worktree-local 指向與 run log 揭示
+      status: ""
+    - id: docs
+      name: codegraph worktree 索引落差文件
+      status: ""
+rules:
+    - '來源: audit 2026-07-08 systemic issue（6 條 learnings：L082/L095/L124/L141/L145/L152）'
