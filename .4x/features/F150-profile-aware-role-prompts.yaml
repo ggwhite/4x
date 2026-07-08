@@ -12,7 +12,7 @@ description: |-
     - full profile 下的渲染結果行為不變（可加段落但語意一致）
     - 不改 state machine 與 guard 邏輯，純 prompt 層
     - template 新增變數不可破壞既有 template 渲染（所有 role 的渲染測試須過）
-status: not-started
+status: done
 priority: 2
 profile: normal
 subtasks:
