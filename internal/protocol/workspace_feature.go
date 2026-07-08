@@ -155,7 +155,7 @@ func (w *Workspace) loadFeatureLoose(id string) (feature.Feature, error) {
 	}
 	if len(warnings) > 0 {
 		f.Warnings = warnings
-		slog.Warn("feature YAML has format issues", "id", id, "warnings", len(warnings))
+		slog.Warn("feature YAML has format issues", "id", id, "warnings", strings.Join(warnings, "; "))
 	}
 	return f, nil
 }
