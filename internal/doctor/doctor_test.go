@@ -22,6 +22,8 @@ func findCheck(checks []Check, section, name string) *Check {
 }
 
 // hasSeverity 回報指定 section 是否存在任一條符合 severity 的 check。
+func intPtr(n int) *int { return &n }
+
 func hasSeverity(checks []Check, section string, sev Severity) bool {
 	for _, c := range checks {
 		if c.Section == section && c.Severity == sev {
@@ -543,6 +545,8 @@ func TestCheckEvolution(t *testing.T) {
 		{"floor too high", protocol.Config{Evolution: &protocol.EvolutionConfig{ValueFloor: 1.5}}, true},
 		{"negative cap", protocol.Config{Evolution: &protocol.EvolutionConfig{MaxAcceptPerRun: -1}}, true},
 		{"dedup out of range", protocol.Config{Evolution: &protocol.EvolutionConfig{DedupThreshold: 2}}, true},
+		{"candidate_max_idle_days negative", protocol.Config{Evolution: &protocol.EvolutionConfig{CandidateMaxIdleDays: intPtr(-1)}}, true},
+		{"candidate_max_idle_days zero ok", protocol.Config{Evolution: &protocol.EvolutionConfig{CandidateMaxIdleDays: intPtr(0)}}, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -555,5 +559,25 @@ func TestCheckEvolution(t *testing.T) {
 				t.Errorf("fail = %v, want %v (checks=%+v)", gotFail, tc.wantFail, checks)
 			}
 		})
+	}
+}
+
+// TestCheckEvolution_CandidateMaxIdleDaysDetail 驗證負值 FAIL 具正確 Name 與 Detail（AC-7）。
+func TestCheckEvolution_CandidateMaxIdleDaysDetail(t *testing.T) {
+	checks := checkEvolution(protocol.Config{Evolution: &protocol.EvolutionConfig{CandidateMaxIdleDays: intPtr(-5)}})
+	found := false
+	for _, c := range checks {
+		if c.Section == sectionEvolution && c.Name == "candidate_max_idle_days" {
+			found = true
+			if c.Severity != SeverityFail {
+				t.Errorf("severity = %v, want FAIL", c.Severity)
+			}
+			if !strings.Contains(c.Detail, "must be >= 0") {
+				t.Errorf("detail = %q, want contains 'must be >= 0'", c.Detail)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("no candidate_max_idle_days check found (checks=%+v)", checks)
 	}
 }

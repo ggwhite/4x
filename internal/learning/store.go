@@ -59,6 +59,8 @@ const (
 const (
 	// DefaultStaleDays 是判定 learning 過期的天數門檻。
 	DefaultStaleDays = 90
+	// DefaultCandidateMaxIdleDays 是判定「從未使用的 candidate」老化為 stale 的預設天數門檻。
+	DefaultCandidateMaxIdleDays = 30
 	// MaxActiveEntries 是 active learnings 的軟上限，超過只 warn 不自動刪。
 	MaxActiveEntries = 100
 	// ConsolidateThreshold 是觸發 AI consolidate 的 active 條目門檻。
@@ -268,6 +270,25 @@ func (s *Store) MarkStale(staleDays int) {
 			s.Entries[i].Status = StatusStale
 		}
 	}
+}
+
+// MarkCandidatesStale 把「從未被使用（UsedCount==0）且 CreatedAt 超過 maxIdleDays 天」的
+// candidate 條目標記為 stale，回傳新標記數。maxIdleDays <= 0 時視為停用老化，直接回傳 0 不動任何條目。
+// 只掃 status==candidate；active/promoted/既有 stale 一律不碰（見 F147 約束）。
+func (s *Store) MarkCandidatesStale(maxIdleDays int) int {
+	if maxIdleDays <= 0 {
+		return 0
+	}
+	cutoff := time.Now().Add(-time.Duration(maxIdleDays) * 24 * time.Hour)
+	marked := 0
+	for i := range s.Entries {
+		e := &s.Entries[i]
+		if e.Status == StatusCandidate && e.UsedCount == 0 && e.CreatedAt.Before(cutoff) {
+			e.Status = StatusStale
+			marked++
+		}
+	}
+	return marked
 }
 
 // ActiveEntries 回傳所有 status==active 且非 ineffective 的條目，保持原始順序。

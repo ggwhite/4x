@@ -11,6 +11,8 @@ const (
 	defaultMaxBacklogUndone = 15
 	defaultDedupThreshold   = 0.6
 	defaultMaxIdleRounds    = 3
+
+	defaultCandidateMaxIdleDays = 30
 )
 
 // ResolvedEvolution 為填妥預設值後的 evolution 設定，供 veto 邏輯直接取用。
@@ -24,6 +26,9 @@ type ResolvedEvolution struct {
 	// MaxIdleRounds 為 anti-spin 早退門檻：<= 0 表示停用（永遠跑），正數才啟用。
 	// 來源 EvolutionConfig.MaxIdleRounds 為 nil 時套預設 3，非 nil 照值（含明確的 0/負數）。
 	MaxIdleRounds int
+	// CandidateMaxIdleDays 為 candidate 老化門檻：來源 EvolutionConfig.CandidateMaxIdleDays 為 nil 時
+	// 套預設 30，非 nil 照值（含明確的 0=停用老化）。
+	CandidateMaxIdleDays int
 }
 
 // ResolveEvolution 把 cfg.Evolution 的零值數值欄位補上預設值後回傳。
@@ -59,6 +64,12 @@ func ResolveEvolution(cfg protocol.Config) ResolvedEvolution {
 		r.MaxIdleRounds = defaultMaxIdleRounds
 	} else {
 		r.MaxIdleRounds = *e.MaxIdleRounds
+	}
+	// CandidateMaxIdleDays 同樣用 sentinel pointer：nil → 預設 30；非 nil → 照值（含明確的 0=停用）。
+	if e.CandidateMaxIdleDays == nil {
+		r.CandidateMaxIdleDays = defaultCandidateMaxIdleDays
+	} else {
+		r.CandidateMaxIdleDays = *e.CandidateMaxIdleDays
 	}
 	return r
 }

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/ggwhite/4x/internal/evolution"
 	"github.com/ggwhite/4x/internal/learning"
 	"github.com/ggwhite/4x/internal/prompt"
 	"github.com/ggwhite/4x/internal/protocol"
@@ -196,16 +197,24 @@ func newLearnPruneCmd() *cobra.Command {
 		Use:   "prune",
 		Short: "Remove all stale learnings",
 		RunE: withJsonError(&jsonOutput, func(cmd *cobra.Command, args []string) error {
-			storePath, err := findLearningsPath()
+			ws, err := findWorkspace()
 			if err != nil {
 				return err
 			}
+			storePath := filepath.Join(ws.DotDir(), protocol.LearningsFile)
 			store, err := learning.LoadStore(storePath)
 			if err != nil {
 				return err
 			}
 
+			cfg, err := ws.LoadMergedConfig()
+			if err != nil {
+				return err
+			}
+			resolved := evolution.ResolveEvolution(cfg)
+
 			store.MarkStale(learning.DefaultStaleDays)
+			store.MarkCandidatesStale(resolved.CandidateMaxIdleDays)
 
 			staleIDs := []string{}
 			for _, e := range store.Entries {
@@ -354,15 +363,24 @@ func newLearnContextCmd() *cobra.Command {
 	return cmd
 }
 
-// findLearningsPath 從 cwd 往上找 .4x/，回傳 learnings.json 的完整路徑。
-func findLearningsPath() (string, error) {
+// findWorkspace 從 cwd 往上找 .4x/，回傳對應的 workspace。
+func findWorkspace() (*protocol.Workspace, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	ws, err := protocol.Find(cwd)
 	if err != nil {
-		return "", fmt.Errorf("not in a 4x project: %w", err)
+		return nil, fmt.Errorf("not in a 4x project: %w", err)
+	}
+	return ws, nil
+}
+
+// findLearningsPath 從 cwd 往上找 .4x/，回傳 learnings.json 的完整路徑。
+func findLearningsPath() (string, error) {
+	ws, err := findWorkspace()
+	if err != nil {
+		return "", err
 	}
 	return filepath.Join(ws.DotDir(), protocol.LearningsFile), nil
 }

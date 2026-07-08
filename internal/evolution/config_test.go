@@ -60,3 +60,32 @@ func TestResolveEvolution_MaxIdleRounds(t *testing.T) {
 		})
 	}
 }
+
+// TestResolveEvolution_CandidateMaxIdleDays 驗證 nil/0/正數的 resolve 結果（AC-6、L013）。
+func TestResolveEvolution_CandidateMaxIdleDays(t *testing.T) {
+	cases := []struct {
+		name string
+		in   *int
+		want int
+	}{
+		{"nil 套預設 30", nil, 30},
+		{"明確 0 停用", intPtr(0), 0},
+		{"正數照值", intPtr(45), 45},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := protocol.Config{Evolution: &protocol.EvolutionConfig{CandidateMaxIdleDays: tc.in}}
+			got := ResolveEvolution(cfg).CandidateMaxIdleDays
+			if got != tc.want {
+				t.Errorf("CandidateMaxIdleDays = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestResolveEvolution_CandidateMaxIdleDays_NilConfig 驗證 Evolution==nil 時 resolve 出預設 30。
+func TestResolveEvolution_CandidateMaxIdleDays_NilConfig(t *testing.T) {
+	if got := ResolveEvolution(protocol.Config{}).CandidateMaxIdleDays; got != 30 {
+		t.Errorf("CandidateMaxIdleDays = %d, want 30", got)
+	}
+}

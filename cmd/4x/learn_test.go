@@ -102,6 +102,128 @@ func TestLearnPrune(t *testing.T) {
 	}
 }
 
+func ptrInt(n int) *int { return &n }
+
+type prunePayload struct {
+	Removed  int      `json:"removed"`
+	DryRun   bool     `json:"dryRun"`
+	StaleIDs []string `json:"staleIds"`
+}
+
+func contains(ss []string, target string) bool {
+	for _, s := range ss {
+		if s == target {
+			return true
+		}
+	}
+	return false
+}
+
+// TestLearnPrune_AgesCandidate 驗證 candidate_max_idle_days 被 `4x learn prune` 消費：
+// 閾值內的舊未用 candidate 會出現在 dry-run 的 staleIds，且 dry-run 不刪除（AC-8）。
+func TestLearnPrune_AgesCandidate(t *testing.T) {
+	root := t.TempDir()
+	if err := protocol.Init(root, protocol.Config{Project: protocol.ProjectConfig{Name: "test"}, Evolution: &protocol.EvolutionConfig{CandidateMaxIdleDays: ptrInt(1)}}); err != nil {
+		t.Fatal(err)
+	}
+	storePath := filepath.Join(root, protocol.DirName, protocol.LearningsFile)
+	store := learning.Store{Version: 1, Entries: []learning.Entry{
+		{ID: "C001", Category: learning.CategoryDesign, Content: "old candidate", Status: learning.StatusCandidate, UsedCount: 0, CreatedAt: time.Now().Add(-48 * time.Hour)},
+	}}
+	if err := store.Save(storePath); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Chdir(root)
+	out := captureStdout(t, func() {
+		cmd := newLearnPruneCmd()
+		cmd.SetArgs([]string{"--dry-run", "--json"})
+		if err := cmd.Execute(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	var result prunePayload
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
+		t.Fatalf("failed to parse JSON output %q: %v", out, err)
+	}
+	if !contains(result.StaleIDs, "C001") {
+		t.Errorf("expected staleIds to contain C001, got %v", result.StaleIDs)
+	}
+	// dry-run 不得刪除：store 仍保有該 candidate。
+	reloaded, _ := learning.LoadStore(storePath)
+	if len(reloaded.Entries) != 1 {
+		t.Errorf("dry-run should not delete; got %d entries", len(reloaded.Entries))
+	}
+}
+
+// TestLearnPrune_AgingDisabled 驗證 candidate_max_idle_days=0（停用）時 prune 不老化 candidate（AC-9）。
+func TestLearnPrune_AgingDisabled(t *testing.T) {
+	root := t.TempDir()
+	if err := protocol.Init(root, protocol.Config{Project: protocol.ProjectConfig{Name: "test"}, Evolution: &protocol.EvolutionConfig{CandidateMaxIdleDays: ptrInt(0)}}); err != nil {
+		t.Fatal(err)
+	}
+	storePath := filepath.Join(root, protocol.DirName, protocol.LearningsFile)
+	store := learning.Store{Version: 1, Entries: []learning.Entry{
+		{ID: "C001", Category: learning.CategoryDesign, Content: "old candidate", Status: learning.StatusCandidate, UsedCount: 0, CreatedAt: time.Now().Add(-48 * time.Hour)},
+	}}
+	if err := store.Save(storePath); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Chdir(root)
+	out := captureStdout(t, func() {
+		cmd := newLearnPruneCmd()
+		cmd.SetArgs([]string{"--dry-run", "--json"})
+		if err := cmd.Execute(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	var result prunePayload
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
+		t.Fatalf("failed to parse JSON output %q: %v", out, err)
+	}
+	if contains(result.StaleIDs, "C001") {
+		t.Errorf("aging disabled (=0) but C001 was aged: %v", result.StaleIDs)
+	}
+}
+
+// TestLearnList_StatusStale 驗證 `4x learn list --status stale` 能列出 stale 條目（被老化的 candidate；AC-11 / DR-3）。
+func TestLearnList_StatusStale(t *testing.T) {
+	root := t.TempDir()
+	if err := protocol.Init(root, protocol.Config{}); err != nil {
+		t.Fatal(err)
+	}
+	storePath := filepath.Join(root, protocol.DirName, protocol.LearningsFile)
+	store := learning.Store{Version: 1, Entries: []learning.Entry{
+		{ID: "S001", Category: learning.CategoryDesign, Content: "aged candidate", Status: learning.StatusStale, CreatedAt: time.Now()},
+		{ID: "A001", Category: learning.CategoryDesign, Content: "active", Status: learning.StatusActive, CreatedAt: time.Now()},
+	}}
+	if err := store.Save(storePath); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Chdir(root)
+	out := captureStdout(t, func() {
+		cmd := newLearnListCmd()
+		cmd.SetArgs([]string{"--status", "stale", "--json"})
+		if err := cmd.Execute(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	var result struct {
+		Entries []learning.Entry `json:"entries"`
+	}
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
+		t.Fatalf("failed to parse JSON output %q: %v", out, err)
+	}
+	if len(result.Entries) != 1 || result.Entries[0].ID != "S001" {
+		t.Errorf("expected only S001 stale entry, got %+v", result.Entries)
+	}
+}
+
 func TestLearnAdd_Success(t *testing.T) {
 	root := t.TempDir()
 	if err := protocol.Init(root, protocol.Config{}); err != nil {

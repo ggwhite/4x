@@ -114,6 +114,50 @@ func TestMarkStale_MarksOldEntries(t *testing.T) {
 	}
 }
 
+func TestMarkCandidatesStale(t *testing.T) {
+	old := time.Now().Add(-40 * 24 * time.Hour)
+	newStore := func() Store {
+		return Store{Version: 1, Entries: []Entry{
+			{ID: "C001", Status: StatusCandidate, UsedCount: 0, CreatedAt: old},        // 老、未用 → stale
+			{ID: "C002", Status: StatusCandidate, UsedCount: 2, CreatedAt: old},        // 老、有用 → 不動
+			{ID: "A001", Status: StatusActive, UsedCount: 0, CreatedAt: old},           // active → 不動
+			{ID: "P001", Status: StatusPromoted, UsedCount: 0, CreatedAt: old},         // promoted → 不動
+			{ID: "C003", Status: StatusCandidate, UsedCount: 0, CreatedAt: time.Now()}, // 剛建立 → 不動
+		}}
+	}
+
+	t.Run("老且未用的 candidate 被標 stale，其餘不動", func(t *testing.T) {
+		s := newStore()
+		marked := s.MarkCandidatesStale(30)
+		if marked != 1 {
+			t.Errorf("marked = %d, want 1", marked)
+		}
+		want := map[string]Status{
+			"C001": StatusStale,
+			"C002": StatusCandidate,
+			"A001": StatusActive,
+			"P001": StatusPromoted,
+			"C003": StatusCandidate,
+		}
+		for _, e := range s.Entries {
+			if e.Status != want[e.ID] {
+				t.Errorf("%s status = %s, want %s", e.ID, e.Status, want[e.ID])
+			}
+		}
+	})
+
+	t.Run("maxIdleDays=0 為停用，回傳 0 且不動任何條目", func(t *testing.T) {
+		s := newStore()
+		marked := s.MarkCandidatesStale(0)
+		if marked != 0 {
+			t.Errorf("marked = %d, want 0", marked)
+		}
+		if s.Entries[0].Status != StatusCandidate {
+			t.Errorf("C001 should stay candidate when disabled, got %s", s.Entries[0].Status)
+		}
+	})
+}
+
 func TestActiveEntries(t *testing.T) {
 	s := Store{Version: 1, Entries: []Entry{
 		{ID: "L001", Status: StatusActive, Category: CategoryDesign, Content: "a"},

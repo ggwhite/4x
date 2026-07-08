@@ -496,7 +496,7 @@ The Acceptor of each feature writes a `retro-learnings.json`; the CLI harvests i
 4x learn list --category=testing  # filter by category
 4x learn list --status=active     # filter by status (active, candidate, stale, promoted)
 4x learn list --ineffective       # only show ineffective entries (used≥3 + 30d + same-category churn)
-4x learn prune                    # mark stale (>90 days unused) entries and remove them
+4x learn prune                    # mark stale (active >90d unused; idle candidates) and remove them
 4x learn prune --dry-run          # preview stale entries without removing
 4x learn promote <id>             # mark a learning as promoted (kept but no longer injected)
 4x learn remove <id>              # remove a learning entry
@@ -508,6 +508,7 @@ The Acceptor of each feature writes a `retro-learnings.json`; the CLI harvests i
 
 - Categories: `design`, `code-quality`, `testing`, `review`, `tooling`, `process`, `ops`
 - Status: `active` (injectable), `candidate` (new harvest, pending cross-feature validation), `stale` (>90 days unused, auto-marked on read), `promoted` (upgraded to template/instructions)
+- `4x learn prune` also ages out never-used candidates: a `candidate` with `used_count=0` created more than `evolution.candidate_max_idle_days` ago (default 30; set to 0 to disable aging) is marked `stale` so the sample pool actually converges. Aging only fires from `prune` and never touches active/promoted entries; `--dry-run` previews the aged candidates without removing them
 - Candidate entries are shown with `*` suffix on ID; they auto-promote to active when independently produced by a different feature or selected by a Designer
 - Ineffective entries are active learnings marked with `active!` status when: used ≥ 3 times, activated > 30 days ago, and the same category keeps producing new learnings — indicating the learning isn't reducing repeat issues
 - A soft cap of 100 active entries triggers a warning suggesting `4x learn prune` — entries are never auto-deleted

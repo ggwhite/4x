@@ -134,6 +134,9 @@ func checkEvolution(cfg protocol.Config) []Check {
 	if e.DedupThreshold < 0 || e.DedupThreshold > 1 {
 		checks = append(checks, Check{Section: sectionEvolution, Name: "dedup_threshold", Severity: SeverityFail, Detail: "must be in [0,1]"})
 	}
+	if e.CandidateMaxIdleDays != nil && *e.CandidateMaxIdleDays < 0 {
+		checks = append(checks, Check{Section: sectionEvolution, Name: "candidate_max_idle_days", Severity: SeverityFail, Detail: "must be >= 0"})
+	}
 	if len(checks) == 0 {
 		checks = append(checks, Check{Section: sectionEvolution, Name: "config", Severity: SeverityPass, Detail: "evolution settings valid"})
 	}
