@@ -446,6 +446,7 @@ var roleCategoryMap = map[string][]Category{
 	"deep-reviewer":   {CategoryCodeQuality, CategoryReview, CategoryDesign},
 	"tester":          {CategoryTesting, CategoryTooling, CategoryOps},
 	"fixer":           {CategoryCodeQuality, CategoryTooling, CategoryOps},
+	"mini-coder":      {CategoryCodeQuality, CategoryTooling, CategoryOps},
 	"acceptor":        {CategoryProcess},
 }
 

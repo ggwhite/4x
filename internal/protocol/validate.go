@@ -5,14 +5,16 @@ import (
 	"strings"
 )
 
-var validRoleNames = map[string]bool{
-	string(RoleDesigner):       true,
-	string(RoleDesignReviewer): true,
-	string(RoleCoder):          true,
-	string(RoleReviewer):       true,
-	string(RoleDeepReviewer):   true,
-	string(RoleTester):         true,
-	string(RoleAcceptor):       true,
+// validRoleNames 由 ConfigurableRoles() SoT 推導，避免與白名單清單各自維護而漂移。
+var validRoleNames = buildRoleNameSet()
+
+func buildRoleNameSet() map[string]bool {
+	roles := ConfigurableRoles()
+	m := make(map[string]bool, len(roles))
+	for _, r := range roles {
+		m[string(r)] = true
+	}
+	return m
 }
 
 var validIsolations = map[string]bool{
@@ -141,9 +143,10 @@ func ValidateState(s State) error {
 }
 
 func roleNameList() string {
-	roles := []string{
-		string(RoleDesigner), string(RoleDesignReviewer), string(RoleCoder), string(RoleReviewer),
-		string(RoleDeepReviewer), string(RoleTester), string(RoleAcceptor),
+	roles := ConfigurableRoles()
+	parts := make([]string, len(roles))
+	for i, r := range roles {
+		parts[i] = string(r)
 	}
-	return strings.Join(roles, ", ")
+	return strings.Join(parts, ", ")
 }

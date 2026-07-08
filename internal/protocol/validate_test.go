@@ -119,6 +119,20 @@ func TestValidateConfig_InvalidRoleName(t *testing.T) {
 	}
 }
 
+func TestValidateConfig_FixerAndMiniCoderRoles(t *testing.T) {
+	// F145：fixer 與 mini-coder 為合法 role 名稱，可設 per-role model。
+	c := Config{
+		Project: ProjectConfig{Name: "test"},
+		Roles: map[string]RoleConfig{
+			"fixer":      {Model: "opus"},
+			"mini-coder": {Model: "sonnet"},
+		},
+	}
+	if err := ValidateConfig(c); err != nil {
+		t.Fatalf("fixer/mini-coder should be valid roles: %v", err)
+	}
+}
+
 func TestValidateConfig_ProfileMissingCoder(t *testing.T) {
 	c := Config{
 		Project: ProjectConfig{Name: "test"},

@@ -41,6 +41,15 @@ func AllRoles() []Role {
 	}
 }
 
+// ConfigurableRoles 回傳可在 settings.json roles 區塊設定 per-role model 的 Role 集合（白名單 SoT）。
+// 即全部 pipeline 角色（AllRoles，含 fixer）再加上 deep-reviewing / reviewing 自癒循環的
+// mini-coder 子 role——mini-coder 可透過 roles.mini-coder.model 做獨立 model 路由，故納入白名單。
+// 其餘子 role（re-verifier/synthesizer）與非 pipeline 角色（gate/consolidator/round-summarizer）
+// 目前不支援 per-role model 設定，故不列入。
+func ConfigurableRoles() []Role {
+	return append(AllRoles(), RoleMiniCoder)
+}
+
 // AllSubPhases 回傳全部 4 個 SubPhase 常量（enum SoT）。
 func AllSubPhases() []SubPhase {
 	return []SubPhase{

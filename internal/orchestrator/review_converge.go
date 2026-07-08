@@ -53,6 +53,12 @@ func (r *Runner) runReviewConvergence(ctx context.Context, s *protocol.State, pc
 		StopState(r.Ws, featureID, s, "model-error", fmt.Sprintf("review-convergence mini-coder model resolution failed: %v", err))
 		return false, fmt.Errorf("review-convergence mini-coder model resolution failed: %w", err)
 	}
+	// mini-coder 預設沿用 coder model，但 roles.mini-coder.model 若有設定則優先。
+	miniCoderModel, err := protocol.ResolveMiniCoderModel(r.Cfg, reviewRunner, coderModel)
+	if err != nil {
+		StopState(r.Ws, featureID, s, "model-error", fmt.Sprintf("review-convergence mini-coder model resolution failed: %v", err))
+		return false, fmt.Errorf("review-convergence mini-coder model resolution failed: %w", err)
+	}
 
 	for iter := 1; iter <= maxFix; iter++ {
 		// 已乾淨 PASS 或翻 FAIL（非 CONDITIONAL PASS）→ 收斂完成，交回主迴圈。
@@ -67,7 +73,7 @@ func (r *Runner) runReviewConvergence(ctx context.Context, s *protocol.State, pc
 		if werr := r.Ws.WriteState(featureID, *s); werr != nil {
 			return false, fmt.Errorf("write state (review mini-coder): %w", werr)
 		}
-		if ok, rerr := r.runReviewSubRole(ctx, s, protocol.RoleMiniCoder, reviewRunner, coderModel,
+		if ok, rerr := r.runReviewSubRole(ctx, s, protocol.RoleMiniCoder, reviewRunner, miniCoderModel,
 			runner.ReviewFixLogFileName(round, iter), round, iter,
 			prompt.WithConditionalSource(protocol.ReviewReport)); !ok || rerr != nil {
 			return ok, rerr

@@ -99,6 +99,17 @@ func ResolveModel(cfg Config, runnerName string, role Role) (string, error) {
 	return ResolveTierModel(cfg, runnerName, tier)
 }
 
+// ResolveMiniCoderModel 解析 deep-reviewing / reviewing 自癒循環中 mini-coder 使用的 model name。
+// mini-coder 是 coding 性質的子 role，預設沿用 coder 已解析出的 model（fallbackModel），確保未特別
+// 設定時行為不變；若使用者在 roles.mini-coder.model 明確設定 tier，則以該設定優先，讓 mini-coder 可
+// 獨立於 coder 做 per-role model 路由。fallbackModel 由 caller 以 coder 的 ResolvePhaseModel 結果傳入。
+func ResolveMiniCoderModel(cfg Config, runnerName, fallbackModel string) (string, error) {
+	if rc, ok := cfg.Roles[string(RoleMiniCoder)]; ok && rc.Model != "" {
+		return ResolveTierModel(cfg, runnerName, rc.Model)
+	}
+	return fallbackModel, nil
+}
+
 // ResolveTierModel 把抽象 tier 解析為指定 runner 認識的實際 model name。
 // 優先序：runners[name].tiers[tier] > model_tiers[tier][runner] > error。
 // 供 ResolveModel、ResolvePhaseModel 共用，也供 caller 對 DefaultDeepTier 做 fallback 解析。

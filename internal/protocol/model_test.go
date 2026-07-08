@@ -2,6 +2,53 @@ package protocol
 
 import "testing"
 
+func TestResolveMiniCoderModel_FallbackToCoder(t *testing.T) {
+	// 未設 roles.mini-coder.model 時，沿用 caller 傳入的 coder model。
+	cfg := Config{
+		Runners: map[string]RunnerConfig{"claude": {Command: "claude"}},
+	}
+	got, err := ResolveMiniCoderModel(cfg, "claude", "coder-opus")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "coder-opus" {
+		t.Errorf("got %q, want fallback %q", got, "coder-opus")
+	}
+}
+
+func TestResolveMiniCoderModel_RoleOverride(t *testing.T) {
+	// roles.mini-coder.model 有設定時優先於 fallback。
+	cfg := Config{
+		ModelTiers: map[string]map[string]string{
+			"haiku": {"claude": "claude-haiku"},
+		},
+		Runners: map[string]RunnerConfig{"claude": {Command: "claude"}},
+		Roles: map[string]RoleConfig{
+			"mini-coder": {Model: "haiku"},
+		},
+	}
+	got, err := ResolveMiniCoderModel(cfg, "claude", "coder-opus")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "claude-haiku" {
+		t.Errorf("got %q, want %q", got, "claude-haiku")
+	}
+}
+
+func TestResolveMiniCoderModel_RoleTierUnresolvable(t *testing.T) {
+	// roles.mini-coder.model 設了但 runner 解不出該 tier → error（不 pass-through tier）。
+	cfg := Config{
+		Runners: map[string]RunnerConfig{"claude": {Command: "claude"}},
+		Roles: map[string]RoleConfig{
+			"mini-coder": {Model: "ghost-tier"},
+		},
+	}
+	if _, err := ResolveMiniCoderModel(cfg, "claude", "coder-opus"); err == nil {
+		t.Fatal("expected error for unresolvable mini-coder tier")
+	}
+}
+
 func TestResolveModel_RoleTier(t *testing.T) {
 	cfg := Config{
 		ModelTiers: map[string]map[string]string{

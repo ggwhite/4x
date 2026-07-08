@@ -227,6 +227,12 @@ func (r *Runner) deepReviewSelfHeal(ctx context.Context, s *protocol.State, dp d
 		StopState(r.Ws, featureID, s, "model-error", fmt.Sprintf("coder model resolution failed: %v", err))
 		return false, fmt.Errorf("coder model resolution failed: %w", err)
 	}
+	// mini-coder 預設沿用 coder model，但 roles.mini-coder.model 若有設定則優先。
+	miniCoderModel, err := protocol.ResolveMiniCoderModel(r.Cfg, dp.deepRunner, coderModel)
+	if err != nil {
+		StopState(r.Ws, featureID, s, "model-error", fmt.Sprintf("mini-coder model resolution failed: %v", err))
+		return false, fmt.Errorf("mini-coder model resolution failed: %w", err)
+	}
 	reviewModel, err := protocol.ResolveModel(r.Cfg, dp.deepRunner, protocol.RoleReviewer)
 	if err != nil {
 		StopState(r.Ws, featureID, s, "model-error", fmt.Sprintf("reviewer model resolution failed: %v", err))
@@ -242,7 +248,7 @@ func (r *Runner) deepReviewSelfHeal(ctx context.Context, s *protocol.State, dp d
 			return false, fmt.Errorf("write state (mini-coder): %w", err)
 		}
 		if ok, err := r.runDeepSubRole(ctx, s,
-			protocol.RoleMiniCoder, dp.deepRunner, coderModel, runner.DeepFixLogFileName(round, iter), round, iter); !ok || err != nil {
+			protocol.RoleMiniCoder, dp.deepRunner, miniCoderModel, runner.DeepFixLogFileName(round, iter), round, iter); !ok || err != nil {
 			return ok, err
 		}
 

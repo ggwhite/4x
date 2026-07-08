@@ -72,6 +72,7 @@ const (
 )
 
 // canonicalRoles 是 doctor 會逐一解析 model 的標準 role 集合（deep-reviewer 另以 deep_model 檢查）。
+// 含 mini-coder：其可透過 roles.mini-coder.model 做獨立 model 路由，需一併驗證能否解析。
 var canonicalRoles = []protocol.Role{
 	protocol.RoleDesigner,
 	protocol.RoleDesignReviewer,
@@ -79,6 +80,7 @@ var canonicalRoles = []protocol.Role{
 	protocol.RoleReviewer,
 	protocol.RoleTester,
 	protocol.RoleFixer,
+	protocol.RoleMiniCoder,
 	protocol.RoleAcceptor,
 }
 

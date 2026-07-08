@@ -33,6 +33,25 @@ func TestAllRoles(t *testing.T) {
 	}
 }
 
+func TestConfigurableRoles(t *testing.T) {
+	roles := ConfigurableRoles()
+	assertNonEmptyNoDup(t, "ConfigurableRoles", roles)
+	// 白名單 = 全部 pipeline 角色（AllRoles）+ mini-coder；大小以 SoT accessor 推導，不硬編碼。
+	if want := len(AllRoles()) + 1; len(roles) != want {
+		t.Errorf("ConfigurableRoles() 應回傳 %d 個值（len(AllRoles())+1），實際 %d 個：%v", want, len(roles), roles)
+	}
+	got := make(map[Role]bool, len(roles))
+	for _, r := range roles {
+		got[r] = true
+	}
+	// fixer 與 mini-coder 必須在白名單內（F145 需求）。
+	for _, want := range []Role{RoleFixer, RoleMiniCoder} {
+		if !got[want] {
+			t.Errorf("ConfigurableRoles() 應包含 %q", want)
+		}
+	}
+}
+
 func TestAllSubPhases(t *testing.T) {
 	subPhases := AllSubPhases()
 	assertNonEmptyNoDup(t, "AllSubPhases", subPhases)
