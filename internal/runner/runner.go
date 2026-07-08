@@ -133,9 +133,12 @@ func (r *SubprocessRunner) runOnce(ctx context.Context, prompt string) (*Result,
 	var logFile *os.File
 	if r.LogPath != "" {
 		if err := os.MkdirAll(filepath.Dir(r.LogPath), 0o755); err == nil {
-			if f, err := os.Create(r.LogPath); err == nil {
+			if f, err := os.OpenFile(r.LogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644); err == nil {
 				logFile = f
 				defer logFile.Close()
+				if info, _ := f.Stat(); info != nil && info.Size() > 0 {
+					fmt.Fprintf(f, "\n\n--- retry %s ---\n\n", time.Now().Format("2006-01-02 15:04:05"))
+				}
 			}
 		}
 	}
@@ -222,7 +225,7 @@ func (r *SubprocessRunner) runOnce(ctx context.Context, prompt string) (*Result,
 // 讓 os/exec 共用單一 fd，避免對非執行緒安全的 processor 並行寫入。
 func (r *SubprocessRunner) runStreamJSON(ctx context.Context, cmd *exec.Cmd, logFile *os.File, start time.Time, prompt string, tail io.Writer) (*Result, error) {
 	rawPath := strings.TrimSuffix(r.LogPath, ".log") + ".stream.jsonl"
-	rawFile, err := os.Create(rawPath)
+	rawFile, err := os.OpenFile(rawPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("runner %s failed to create stream log: %w", r.Name, err)
 	}
