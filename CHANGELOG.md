@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.15] - 2026-07-08
+
+### Features
+
+- **Designer 可修改 repos** — Designer 分析 codebase 後可直接修改 feature YAML 的 `repos` 欄位（僅限 repos），不需 escalate 浪費一輪；guard 層新增 `checkDesignerYAMLMod` 阻擋非 repos 欄位的修改，Design Reviewer 同步檢查變更合理性
+- **`4x status --json` 補齊欄位** — 加入 `priority`、`profile`、`depends`、`pid` 欄位，讓外部工具（autopilot skill）可直接從 JSON 取得完整資訊
+
+### Fixes
+
+- **狀態機圖對齊** — CLAUDE.md 的 ASCII 狀態機圖補上 `fixing` 階段及所有合法轉換邊，修正過時的 `types.go` / `feature_list.json` / `progress.md` 引用
+- **角色表補齊** — 全部 7 個 plugin 的角色合約表補上 Deep Reviewer 和 Acceptor
+- **Architecture 樹狀圖更新** — 補上 orchestrator/doctor/feature/gitops/prompt/opencode 等子目錄
+- **opencode runner 註冊** — `plugin_install.go` 新增 opencode runner 的 init 安裝邏輯
+- **Template 命名修正** — `consolidate.md.tmpl` 重命名為 `consolidator.md.tmpl` 對齊 role 常量
+- **Dashboard DAG 間距** — DAG 視覺化加 `mt-8` 修正與上方 section 的間距
+
+### Internal
+
+- **移除 batch 指令** — `4x batch`（plan/next/run/stop）由 4x-autopilot skill 完全取代；刪除 CLI 子命令、`internal/batch/` package、server batch handlers/process、protocol batch types、dashboard batch panel（含 CSS 和 6 語系 i18n keys）；server resolver 簽名從 `(ws, pm, bm, err)` 簡化為 `(ws, pm, err)`；淨刪約 6,000 行
+- **Dashboard batch panel 移除** — 主畫面移除批次控制面板，圓環圖/回合分佈/最近完成直接接在 stats 下方，DAG 移至底部
+
 ## [0.3.14] - 2026-07-07
 
 ### Features
