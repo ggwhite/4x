@@ -15,7 +15,7 @@ description: |-
     - Issues/Verdict 內容原文逐字保留，不可改寫或摘要
     - 不改變 round=1 的行為
     - 不修改 review-report/test-report 的產出格式本身
-status: not-started
+status: done
 priority: 1
 profile: normal
 subtasks:
