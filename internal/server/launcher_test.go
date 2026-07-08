@@ -173,4 +173,3 @@ func TestTerminateRun_NilCmd(t *testing.T) {
 		t.Errorf("terminateRun with nil Cmd = %v, want nil", err)
 	}
 }
-

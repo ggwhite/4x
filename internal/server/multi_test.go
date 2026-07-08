@@ -442,4 +442,3 @@ func TestGetLocaleEnMultiMux(t *testing.T) {
 		t.Errorf("Cache-Control = %s, want no-cache", cc)
 	}
 }
-

@@ -1134,7 +1134,6 @@ func TestStopSignalLifecycle(t *testing.T) {
 	}
 }
 
-
 func TestSyncFeatureStatus(t *testing.T) {
 	ws := setupWorkspace(t)
 
