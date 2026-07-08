@@ -62,6 +62,7 @@ Use the Write tool. Do NOT just print the content — write to disk.
 {{.Content}}
 {{- end}}
 {{- end}}
+{{- /* F142 契約：下方 `## Issues` 與 `## Verdict` 兩個 heading 是 internal/prompt (delta.go extractReviewDelta) 的 delta 抽取契約，amending 輪只注入這兩段。改名或刪除會讓 delta 抽取 fallback 回全文，勿動。 */}}
 
 == review-report.md format ==
 # Review Report — Round {{.Round}}

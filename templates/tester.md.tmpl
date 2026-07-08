@@ -185,6 +185,7 @@ Example manual_check_results in verify.json:
 ```
 
 Do NOT mark a manual_check as passed by reading code — you must show actual command output.
+{{- /* F142 契約：下方 `## Results` 表格與 `## Verdict` heading 是 internal/prompt (delta.go extractTestDelta) 的 delta 抽取契約，amending 輪只注入 FAIL/SKIP 列 + Verdict。改名或刪除會讓 delta 抽取 fallback 回全文，勿動。 */}}
 
 == test-report.md format ==
 # Test Report — Round {{.Round}}

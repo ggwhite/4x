@@ -169,10 +169,12 @@ func Generate(ctx *Context, role protocol.Role, round, iteration int, runnerName
 		if round > 1 {
 			prevRound := ws.RoundDir(feature.ID, round-1)
 			if b, err := os.ReadFile(filepath.Join(prevRound, protocol.ReviewReport)); err == nil {
-				data.PrevReviewReport = string(b)
+				// F142：只注入 review delta（Issues + Verdict），抽取失敗則 fallback 全文。
+				data.PrevReviewReport, _ = extractReviewDelta(string(b))
 			}
 			if b, err := os.ReadFile(filepath.Join(prevRound, protocol.TestReport)); err == nil {
-				data.PrevTestReport = string(b)
+				// F142：只注入 test delta（FAIL/SKIP 列 + Verdict），抽取失敗則 fallback 全文。
+				data.PrevTestReport, _ = extractTestDelta(string(b))
 			}
 			data.PrevDiff = BaselineDiff(ws, feature.ID)
 		}
