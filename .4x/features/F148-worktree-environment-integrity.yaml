@@ -12,7 +12,7 @@ description: |-
     - hook 內容由使用端專案自理，4x 不內建任何專案特定邏輯（chmod/symlink/npm install 都寫在使用端 settings）
     - 不改變沒有 go.work 的專案的 scaffold 行為
     - 不引入新外部依賴
-status: not-started
+status: done
 priority: 1
 profile: normal
 subtasks:
