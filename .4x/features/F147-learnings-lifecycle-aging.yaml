@@ -1,0 +1,30 @@
+id: F147-learnings-lifecycle-aging
+name: 'F147: Learnings 生命週期老化'
+description: |-
+    現狀：learnings 只有 candidate/active（部分專案另有 promoted）狀態，internal/learning/store.go 已有 MarkStale/MarkIneffective/Prune，但沒有任何機制自動把過時 learning 標為 stale——4x repo 144 條 learnings 中 stale 為 0，kairos 511 條中 stale 也是 0，`4x learn prune` 形同虛設。kairos 有 214 條 candidate 從未被使用（used_count=0），含大量一次性環境備忘，永久留存並污染 4x-audit 的「反覆模式」偵測樣本池。
+
+    需求：
+    - 新增老化機制：status=candidate 且 used_count=0 且 created_at 超過閾值天數（預設 30 天）的 learning 自動標為 stale
+    - 老化觸發點：`4x learn prune` 執行前先跑老化（讓 prune 一次完成「標 stale + 清除」），並提供 `--dry-run` 預覽哪些會被標
+    - 閾值可設定：.4x/settings.json 的 evolution 區塊新增 candidate_max_idle_days 欄位（預設 30，0 = 停用老化）
+    - `4x learn list` 輸出需能區分 stale 條目（既有欄位若已支援則確認顯示即可）
+
+    約束：
+    - 不動 active/promoted 狀態的 learning——老化只針對從未被使用的 candidate
+    - 不自動刪除，只標 stale；實際刪除仍由 prune 的既有確認流程把關
+    - 不改 learnings.json 的 schema 版本，stale 沿用既有 status 列舉值
+status: not-started
+priority: 2
+profile: normal
+subtasks:
+    - id: aging-logic
+      name: internal/learning 新增 candidate 老化函式與單元測試
+      status: ""
+    - id: prune-integration
+      name: 4x learn prune 整合老化與 --dry-run
+      status: ""
+    - id: settings-field
+      name: evolution.candidate_max_idle_days 設定欄位與 doctor 檢查
+      status: ""
+rules:
+    - 老化判定只看 used_count=0 的 candidate，不碰 active/promoted
