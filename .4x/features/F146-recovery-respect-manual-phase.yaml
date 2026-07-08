@@ -1,0 +1,31 @@
+id: F146-recovery-respect-manual-phase
+name: 'F146: recovery 不得覆蓋人為 phase 介入'
+description: |-
+    現狀：4x run 對已存在 state 的 feature 一律呼叫 RecoverState（cmd/4x/run.go:272，只判斷 !existing.Active，不判斷是否真的 crash）。RecoverState（internal/orchestrator/orchestrator.go:144-159）經 NeedsResumeRecovery（resume.go:16-30，deep-reviewing 且 round>0 恆為 true）進入 SmartResumePhase（resume.go:51-53），後者只看磁碟 artifacts 完全不看 state.json 的 phase——round-N/coder-report.md 不存在就推回 coding，並用 RecoverTo（internal/state/machine.go:94-107）繞過合法轉換表強制寫入。結果：使用者手動 4x transition 或 4x retry --to deep-reviewing 都會被無條件覆蓋回 coding（retry 內部就是 transition + run，一樣被 RecoverState 重推導）。kairos ws-168 實測兩次手動 transition 都在數秒內被覆蓋，導致 feature 只能 force-done 收尾。與 F132 時期已發現的「needs-attention → retry 跳過 amending」同根。
+
+    需求：
+    - state 新增人為介入訊號（如 manual_phase bool 或 transition source 欄位），transition/retry --to 寫入 phase 時設置
+    - RecoverState 開頭偵測到人為介入訊號時 early-return，直接照 state.json 的 phase 派 role，並在消費後清除旗標
+    - 根本面：區分「crash recovery」與「乾淨停止後 resume」兩條路徑——只有偵測到真 crash（active=true 但 process 已死、殘留 lock）才跑 SmartResumePhase
+    - 補 resume_test.go 案例：手動 transition 到 deep-reviewing 後 run，必須派 deep-reviewer 而非 coder
+    - docs/guide 補記 resume/recovery 行為與 retry --to 的語意（目前 grep 不到任何 RecoverState/SmartResume 說明，屬文件缺口）
+
+    約束：
+    - 真 crash 情境的既有 SmartResumePhase 行為不變（既有 resume 測試全數保持通過）
+    - 不改狀態機合法轉換表本身
+    - RecoverTo 的繞過語意保留給 recovery 內部使用，不對外擴散
+status: not-started
+priority: 1
+profile: normal
+subtasks:
+    - id: manual-flag
+      name: state 人為介入訊號與 transition/retry 寫入
+      status: ""
+    - id: recover-gate
+      name: RecoverState 尊重人為 phase 與 crash 判別
+      status: ""
+    - id: tests-docs
+      name: resume 測試案例與 docs/guide recovery 行為說明
+      status: ""
+rules:
+    - '證據: kairos ws-168 run.log「recovering deep-reviewing → coding (round 7)」與 events.jsonl 06:44:57→06:45:10 時間軸'
