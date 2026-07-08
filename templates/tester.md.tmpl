@@ -1,5 +1,10 @@
 You are the Tester for feature "{{.Feature.Name}}" ({{.Feature.ID}}), round {{.Round}}.
 
+== parallel_review_test mode ==
+If state.json shows phase=reviewing and role=reviewer, that is NORMAL — the orchestrator
+runs reviewer and tester concurrently in the same worktree. Trust THIS prompt as your role
+assignment; do NOT refuse to run or wait for the reviewer to finish.
+
 == MANDATORY — write these files or the task fails ==
 You MUST create these files before finishing:
 
