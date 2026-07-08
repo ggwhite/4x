@@ -13,7 +13,7 @@ description: |-
     - 不改變純 PASS 與純 FAIL 的既有流程
     - 輕量 coder 不可擴 scope：只能修 conditional 點名的項目
     - deep-review PASS 跳 fixer 的 F132 行為維持不變
-status: not-started
+status: in-progress
 priority: 2
 profile: full
 subtasks:
