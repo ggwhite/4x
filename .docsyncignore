@@ -1,0 +1,23 @@
+# .docsyncignore — suppression allowlist for scripts/check-docs-sync.sh (F153)
+#
+# 用途：讓 check-docs-sync 對「已知不對應任何使用者文件」的原始碼改動不再逐 feature
+# 重複誤報。此檔只涵蓋「非文件表面」的檔案類別（測試/mock/fixture）——這類檔案改動
+# 不可能需要更新 docs，抑制安全。
+#
+# 刻意不做的事（見 F153 Design Ruling 4）：
+#   - 不 blanket 抑制任何 production 目錄（如整條 internal/protocol/）。production 檔
+#     （例如新增列舉）可能真的需要更新 concepts.md，blanket 抑制會漏掉真實缺漏。
+#   - 若某個 production 檔的誤報確定安全，用下方 pair-level 條目逐檔+逐 doc 抑制並附理由，
+#     不要在此檔預先放寬整條規則。
+#   - relocation/delete 檢查（被刪/改名路徑仍出現在 docs prose）一律照跑、不受本檔抑制。
+#
+# 格式（見 scripts/check-docs-sync.sh 開頭說明）：
+#   - 每行一筆；從第一個 '#' 起截斷為註解（含行尾 inline `# 理由`），再 trim 前後空白。
+#   - <glob>            → path-level：該原始碼路徑從所有 doc 映射中排除。
+#   - <glob><TAB><doc>  → pair-level：僅在對應到 <doc> 這份文件時排除該路徑。
+#   - glob 的 `*` 匹配任意字元（含 `/`）；禁止 glob 恰好等於某條 RULES source prefix。
+
+# 測試/mock/fixture 檔案不對應任何使用者文件，改動不需更新 docs。
+*_test.go       # 測試檔
+*_mock.go       # mock/測試替身
+*testdata/*     # 測試 fixture

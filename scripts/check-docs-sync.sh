@@ -37,6 +37,98 @@ plugins/	docs/guide/runners.md
 internal/server/	docs/guide/dashboard.md
 internal/batch/	docs/guide/batch.md"
 
+# source prefixes of every RULES entry (first tab-separated column). Used to
+# reject any .docsyncignore glob that would disable a whole rule (see .docsyncignore).
+RULES_PREFIXES=$(echo "$RULES" | cut -f1)
+
+# --- load .docsyncignore (suppression allowlist) -----------------------------
+# Format (see .docsyncignore header): one entry per line. Parse rule (F153
+# Design Ruling 7): strip from the FIRST '#' to end (covers both whole-line
+# comments and trailing "# 理由"), then trim surrounding whitespace; skip blanks.
+# Remaining content is path-level (no TAB, single glob) or pair-level
+# (glob<TAB>doc). glob semantics match the RULES `case` matcher: `*` matches any
+# character including `/`. If .docsyncignore is absent, behaviour is identical
+# to the pre-F153 script (no suppression).
+PATH_ENTRIES=""
+PAIR_ENTRIES=""
+DOCSYNCIGNORE=".docsyncignore"
+if [ -f "$DOCSYNCIGNORE" ]; then
+  ds_tab=$(printf '\t')
+  while IFS= read -r rawline || [ -n "$rawline" ]; do
+    # strip comment from the first '#' (source paths never contain '#')
+    line="${rawline%%#*}"
+    # trim leading whitespace (preserves any internal TAB separator)
+    line="${line#"${line%%[![:space:]]*}"}"
+    # trim trailing whitespace
+    line="${line%"${line##*[![:space:]]}"}"
+    [ -z "$line" ] && continue
+    case "$line" in
+      *"$ds_tab"*) ds_glob="${line%%"$ds_tab"*}" ;;
+      *)           ds_glob="$line" ;;
+    esac
+    # guard (F153 Ruling 4): reject a glob that exactly equals a RULES source
+    # prefix — it would silently disable an entire mapping rule.
+    ds_skip=0
+    while IFS= read -r ds_p; do
+      [ "$ds_glob" = "$ds_p" ] && ds_skip=1 && break
+    done <<EOF
+$RULES_PREFIXES
+EOF
+    if [ "$ds_skip" -eq 1 ]; then
+      echo "WARNING: .docsyncignore glob '$ds_glob' equals a RULES source prefix; ignoring to avoid disabling the whole rule." >&2
+      continue
+    fi
+    case "$line" in
+      *"$ds_tab"*) PAIR_ENTRIES="${PAIR_ENTRIES}${line}
+" ;;
+      *)           PATH_ENTRIES="${PATH_ENTRIES}${ds_glob}
+" ;;
+    esac
+  done < "$DOCSYNCIGNORE"
+fi
+
+# temp file to collect suppressed (doc, file) pairs for the informational
+# stderr block. Populated by apply_suppression, which runs in a pipe subshell.
+SUPPRESS_FILE=$(mktemp)
+trap 'rm -f "$SUPPRESS_FILE"' EXIT
+
+# apply_suppression: filter a stream of "doc<TAB>file" lines. A pair is dropped
+# when a path-level glob matches file, or a pair-level glob matches file AND its
+# doc equals the pair's doc. Dropped pairs are appended to SUPPRESS_FILE.
+# NOTE: defined at top level so the `case` inside is parsed here (not re-parsed
+# inside the `$( ... )` that calls map_check — bash 3.2 mis-parses that).
+apply_suppression() {
+  while IFS=$'\t' read -r sup_doc sup_file; do
+    sup_hit=0
+    if [ -n "$PATH_ENTRIES" ]; then
+      while IFS= read -r sup_g; do
+        [ -z "$sup_g" ] && continue
+        case "$sup_file" in
+          $sup_g) sup_hit=1; break ;;
+        esac
+      done <<EOF
+$PATH_ENTRIES
+EOF
+    fi
+    if [ "$sup_hit" -eq 0 ] && [ -n "$PAIR_ENTRIES" ]; then
+      while IFS=$'\t' read -r sup_g sup_d; do
+        [ -z "$sup_g" ] && continue
+        [ "$sup_d" != "$sup_doc" ] && continue
+        case "$sup_file" in
+          $sup_g) sup_hit=1; break ;;
+        esac
+      done <<EOF
+$PAIR_ENTRIES
+EOF
+    fi
+    if [ "$sup_hit" -eq 1 ]; then
+      printf '%s\t%s\n' "$sup_doc" "$sup_file" >> "$SUPPRESS_FILE"
+    else
+      printf '%s\t%s\n' "$sup_doc" "$sup_file"
+    fi
+  done
+}
+
 # collect docs that also changed in the same diff range (already updated)
 UPDATED_DOCS=""
 for file in $DIFF_FILES; do
@@ -55,7 +147,7 @@ map_check() {
         "${pattern}"*) echo "$doc	$file" ;;
       esac
     done
-  done | sort -t$'\t' -k1,1 | {
+  done | apply_suppression | sort -t$'\t' -k1,1 | {
     found=0
     prev_doc=""
     skip_doc=""
@@ -101,6 +193,15 @@ map_check() {
   }
 }
 MAP_OUTPUT=$(map_check)
+
+# informational (F153 Ruling 6): report suppressed (doc, file) pairs on stderr.
+# This is purely informational and must NOT change the exit code.
+if [ -s "$SUPPRESS_FILE" ]; then
+  echo "Suppressed via .docsyncignore:" >&2
+  sort -u "$SUPPRESS_FILE" | while IFS=$'\t' read -r sup_doc sup_file; do
+    echo "  $sup_doc <- $sup_file" >&2
+  done
+fi
 
 if [ -n "$MAP_OUTPUT" ]; then
   echo "$MAP_OUTPUT"

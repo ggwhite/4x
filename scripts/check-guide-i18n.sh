@@ -54,17 +54,29 @@ for en_file in "${EN_FILES[@]}"; do
       fi
     else
       # 其他檔案：heading 會被翻譯，無法逐字比對，改比對各層級數量；
-      # 數量不符時列出雙方 heading 供人工對照，指出缺哪個 heading 的翻譯。
+      # 數量不符時改為「位置對齊」逐列輸出，缺席側填 (missing)，讓人一眼看出
+      # 是第幾個 heading 缺翻譯，而非丟兩坨清單自行比對。
       for level in "## " "### "; do
-        en_count=$(grep -c "^${level}" "$en_file" 2>/dev/null || echo 0)
-        lang_count=$(grep -c "^${level}" "$lang_file" 2>/dev/null || echo 0)
+        en_headings=$(grep "^${level}" "$en_file" 2>/dev/null || true)
+        lang_headings=$(grep "^${level}" "$lang_file" 2>/dev/null || true)
+        # count non-empty lines (avoids grep -c's "0" on empty leaking into arithmetic)
+        en_count=$(printf '%s' "$en_headings" | grep -c . || true)
+        lang_count=$(printf '%s' "$lang_headings" | grep -c . || true)
 
         if [ "$en_count" != "$lang_count" ]; then
           echo "ERROR: $lang/$basename '${level}' heading count mismatch: en=$en_count $lang=$lang_count"
-          echo "  en headings:"
-          grep "^${level}" "$en_file" 2>/dev/null | sed 's/^/    /' || true
-          echo "  $lang headings:"
-          grep "^${level}" "$lang_file" 2>/dev/null | sed 's/^/    /' || true
+          echo "  idx | en | $lang"
+          max=$en_count
+          [ "$lang_count" -gt "$max" ] && max=$lang_count
+          i=1
+          while [ "$i" -le "$max" ]; do
+            en_h=$(printf '%s\n' "$en_headings" | sed -n "${i}p")
+            lang_h=$(printf '%s\n' "$lang_headings" | sed -n "${i}p")
+            [ -z "$en_h" ] && en_h="(missing)"
+            [ -z "$lang_h" ] && lang_h="(missing)"
+            echo "  $i | $en_h | $lang_h"
+            i=$((i + 1))
+          done
           exit_code=1
         fi
       done

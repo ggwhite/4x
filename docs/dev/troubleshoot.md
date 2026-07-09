@@ -66,3 +66,10 @@
 - **原因**：`go vet ./...` 在有 `go.work` 的 workspace 根目錄下不認得多模組結構
 - **解法**：settings.json 的 lint 指令不要用 `go vet ./...`，改用逐 repo cd 的腳本（如 `./lint.sh`），或用 `go vet all`
 - **來源**：Kairos ws-108（v0.3.5）
+
+### check-docs-sync 對測試/mock/fixture 檔誤報 doc 需更新
+
+- **症狀**：`make check-docs-sync` 因改了 `internal/server/foo_test.go`、`*_mock.go` 或 testdata fixture 而點名對應 doc（如 dashboard.md）需更新，但這些檔案根本沒有使用者文件表面
+- **原因**：check-docs-sync 的 RULES 是「source prefix → doc」的粗粒度正向映射，prefix 下的測試/mock/fixture 檔會被連坐點名
+- **解法**：repo 根目錄的 `.docsyncignore` 提供 suppression allowlist。每行一筆，從第一個 `#` 起截斷為註解（含行尾 inline `# 理由`）再 trim；`<glob>` 為 path-level（從所有 doc 映射排除），`<glob><TAB><doc>` 為 pair-level（僅排除該 doc）。glob 的 `*` 匹配任意字元含 `/`。**禁止** glob 恰好等於某條 RULES source prefix（會整條停用規則，腳本會 WARNING 並忽略該筆）。被抑制的 (doc, file) 會印到 stderr、不改變 exit code。relocation/delete 檢查（被刪路徑仍出現在 docs prose）不受抑制、一律照跑。production 檔的誤報刻意不 blanket 抑制——如確定安全請用 pair-level 條目逐檔加理由。
+- **來源**：F153
