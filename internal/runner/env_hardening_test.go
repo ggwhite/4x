@@ -192,6 +192,73 @@ func TestRun_StreamLogPerms0600(t *testing.T) {
 	}
 }
 
+// TestRun_LogFilePerms0600_PreExistingFile 驗證 pre-F163 遺留、world-readable（0644）的
+// 舊 .log 檔，在以 O_APPEND 開啟寫入後會被收斂為 0600，而非只在建檔當下生效
+// （F163 post-merge 缺陷7）。
+func TestRun_LogFilePerms0600_PreExistingFile(t *testing.T) {
+	binDir := t.TempDir()
+	writeScript(t, binDir, "test-runner", "#!/bin/sh\necho hi\nexit 0\n")
+	logDir := t.TempDir()
+	logPath := filepath.Join(logDir, "round-1-coder.log")
+	if err := os.WriteFile(logPath, []byte("pre-existing\n"), 0o644); err != nil {
+		t.Fatalf("seed pre-existing log: %v", err)
+	}
+
+	r := &SubprocessRunner{
+		Workspace: &protocol.Workspace{Root: t.TempDir()},
+		Name:      "test",
+		LogPath:   logPath,
+		Config: protocol.RunnerConfig{
+			Command: filepath.Join(binDir, "test-runner"),
+			Args:    []string{"-p", "{prompt}"},
+		},
+	}
+	if _, err := r.Run(context.Background(), "x"); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	info, err := os.Stat(logPath)
+	if err != nil {
+		t.Fatalf("stat log: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Errorf("pre-existing log perm after append-open = %o, want 0600", perm)
+	}
+}
+
+// TestRun_StreamLogPerms0600_PreExistingFile 同上，針對 stream-json 模式的 .stream.jsonl
+// （F163 post-merge 缺陷7）。
+func TestRun_StreamLogPerms0600_PreExistingFile(t *testing.T) {
+	binDir := t.TempDir()
+	writeScript(t, binDir, "test-runner", "#!/bin/sh\necho '{\"type\":\"x\"}'\nexit 0\n")
+	logDir := t.TempDir()
+	logPath := filepath.Join(logDir, "round-1-coder.log")
+	streamPath := strings.TrimSuffix(logPath, ".log") + ".stream.jsonl"
+	if err := os.WriteFile(streamPath, []byte("{}\n"), 0o644); err != nil {
+		t.Fatalf("seed pre-existing stream log: %v", err)
+	}
+
+	r := &SubprocessRunner{
+		Workspace: &protocol.Workspace{Root: t.TempDir()},
+		Name:      "test",
+		LogPath:   logPath,
+		Config: protocol.RunnerConfig{
+			Command:      filepath.Join(binDir, "test-runner"),
+			Args:         []string{"-p", "{prompt}"},
+			OutputFormat: "stream-json",
+		},
+	}
+	if _, err := r.Run(context.Background(), "x"); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	info, err := os.Stat(streamPath)
+	if err != nil {
+		t.Fatalf("stat stream log: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Errorf("pre-existing stream log perm after append-open = %o, want 0600", perm)
+	}
+}
+
 // TestBuildArgs_PromptTempPerms0600 回歸鎖定 R1：{promptFile} 與 claude guard-settings
 // temp 檔皆為 0600（AC-9）。
 func TestBuildArgs_PromptTempPerms0600(t *testing.T) {

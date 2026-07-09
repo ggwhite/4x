@@ -1,9 +1,12 @@
 package runner
 
 import (
+	"bytes"
+	"log/slog"
 	"reflect"
 	"runtime"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/ggwhite/4x/internal/protocol"
@@ -29,10 +32,46 @@ func TestDefaultEnvDenylist(t *testing.T) {
 	want := []string{
 		"*_TOKEN", "*_KEY", "*_SECRET", "*_PASSWORD", "*_CREDENTIALS",
 		"*_SECRETS", "AWS_*", "SECRET_*", "GITHUB_TOKEN", "GH_TOKEN",
+		"DATABASE_URL", "REDIS_URL", "MONGODB_URI", "PGPASSWORD", "MYSQL_PWD",
 	}
 	got := DefaultEnvDenylist()
 	if !reflect.DeepEqual(sortedCopy(got), sortedCopy(want)) {
 		t.Errorf("DefaultEnvDenylist() = %v, want set %v", got, want)
+	}
+}
+
+// TestFilterEnv_CredentialKeywordSubstring 驗證不遵循 `*_KEYWORD` 命名慣例的常見憑證變數
+// （PGPASSWORD、MYSQL_PWD 前面無底線、DATABASE_URL/REDIS_URL/MONGODB_URI 不含關鍵字後綴）
+// 仍會被過濾（F163 post-merge 缺陷1）。
+func TestFilterEnv_CredentialKeywordSubstring(t *testing.T) {
+	env := []string{
+		"PGPASSWORD=x",
+		"MYSQL_PWD=y",
+		"DATABASE_URL=postgres://u:p@host/db",
+		"REDIS_URL=redis://host",
+		"MONGODB_URI=mongodb://host",
+		"DB_PASSWD=z",       // substring PASSWD
+		"SOME_CREDENTIAL=w", // substring CREDENTIAL
+		"EDITOR=vim",        // 應保留
+	}
+	kept, filtered := FilterEnv(env, DefaultEnvDenylist(), nil)
+	for _, k := range []string{"PGPASSWORD", "MYSQL_PWD", "DATABASE_URL", "REDIS_URL", "MONGODB_URI", "DB_PASSWD", "SOME_CREDENTIAL"} {
+		if !contains(filtered, k) {
+			t.Errorf("%q should have been filtered, filtered=%v", k, filtered)
+		}
+	}
+	if !contains(kept, "EDITOR=vim") {
+		t.Errorf("EDITOR=vim should be kept, kept=%v", kept)
+	}
+}
+
+// TestFilterEnv_CredentialKeywordCanBeRescuedByAllowlist 驗證 substring 誤擋（如 TOKENIZER）
+// 可透過 allowlist 救回（F163 post-merge 缺陷1 的權衡設計）。
+func TestFilterEnv_CredentialKeywordCanBeRescuedByAllowlist(t *testing.T) {
+	env := []string{"MY_TOKENIZER=keep-me"}
+	kept, _ := FilterEnv(env, DefaultEnvDenylist(), []string{"MY_TOKENIZER"})
+	if !contains(kept, "MY_TOKENIZER=keep-me") {
+		t.Errorf("MY_TOKENIZER should be rescued by allowlist, kept=%v", kept)
 	}
 }
 
@@ -82,7 +121,8 @@ func TestFilterEnv_AllowlistWins(t *testing.T) {
 	}
 }
 
-// TestDefaultRunnerEnvAllowlist 驗證 per-runner allowlist 內容與未知 runner 回空（AC-2）。
+// TestDefaultRunnerEnvAllowlist 驗證 per-runner allowlist 內容；未知 runner 仍回傳 base
+// allowlist（GITHUB_TOKEN/GH_TOKEN，AC-2、F163 post-merge 缺陷6）。
 func TestDefaultRunnerEnvAllowlist(t *testing.T) {
 	claude := DefaultRunnerEnvAllowlist("claude", "claude")
 	for _, want := range []string{"ANTHROPIC_API_KEY", "ANTHROPIC_*", "CLAUDE_*"} {
@@ -94,8 +134,66 @@ func TestDefaultRunnerEnvAllowlist(t *testing.T) {
 	if !contains(copilot, "GITHUB_TOKEN") {
 		t.Errorf("copilot allowlist missing GITHUB_TOKEN: %v", copilot)
 	}
-	if got := DefaultRunnerEnvAllowlist("nope", "nope"); len(got) != 0 {
-		t.Errorf("unknown runner should return empty slice, got %v", got)
+	unknown := DefaultRunnerEnvAllowlist("nope", "nope")
+	if !contains(unknown, "GITHUB_TOKEN") || !contains(unknown, "GH_TOKEN") {
+		t.Errorf("unknown runner should still get base allowlist (GITHUB_TOKEN/GH_TOKEN), got %v", unknown)
+	}
+}
+
+// TestDefaultRunnerEnvAllowlist_ClaudeAgyAltProviders 驗證 claude/agy allowlist 補齊
+// Bedrock/Vertex/Azure 替代 provider 認證（F163 post-merge 缺陷3）。
+func TestDefaultRunnerEnvAllowlist_ClaudeAgyAltProviders(t *testing.T) {
+	want := []string{
+		"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_REGION", "AWS_PROFILE",
+		"GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_CLOUD_PROJECT", "CLOUD_ML_REGION",
+		"AZURE_*", "ANTHROPIC_VERTEX_*",
+	}
+	for _, name := range []string{"claude", "agy"} {
+		got := DefaultRunnerEnvAllowlist(name, name)
+		for _, w := range want {
+			if !contains(got, w) {
+				t.Errorf("%s allowlist missing %q: %v", name, w, got)
+			}
+		}
+	}
+}
+
+// TestDefaultRunnerEnvAllowlist_Opencode 驗證 opencode allowlist 補齊多 provider keys
+// （F163 post-merge 缺陷4）。
+func TestDefaultRunnerEnvAllowlist_Opencode(t *testing.T) {
+	got := DefaultRunnerEnvAllowlist("opencode", "opencode")
+	for _, want := range []string{
+		"GROQ_API_KEY", "DEEPSEEK_API_KEY", "MISTRAL_API_KEY", "XAI_API_KEY",
+		"GEMINI_API_KEY", "GOOGLE_*", "TOGETHER_API_KEY",
+	} {
+		if !contains(got, want) {
+			t.Errorf("opencode allowlist missing %q: %v", want, got)
+		}
+	}
+}
+
+// TestCanonicalRunnerKey_Cursor 驗證 name="cursor" 直接命中 cursor allowlist，不依賴 basename
+// fallback（F163 post-merge 缺陷5）。
+func TestCanonicalRunnerKey_Cursor(t *testing.T) {
+	if got := canonicalRunnerKey("cursor", "/opt/bin/cursor-agent"); got != "cursor" {
+		t.Errorf("canonicalRunnerKey(cursor, .../cursor-agent) = %q, want \"cursor\"", got)
+	}
+	got := DefaultRunnerEnvAllowlist("cursor", "/opt/bin/cursor-agent")
+	for _, want := range []string{"CURSOR_*", "ANTHROPIC_*", "OPENAI_*"} {
+		if !contains(got, want) {
+			t.Errorf("cursor allowlist missing %q: %v", want, got)
+		}
+	}
+}
+
+// TestDefaultRunnerEnvAllowlist_BaseGithubToken 驗證任一 runner（含未知 runner）的 effective
+// allowlist 都含 GITHUB_TOKEN/GH_TOKEN——任何 role 都可能 shell 出 git/gh（F163 post-merge 缺陷6）。
+func TestDefaultRunnerEnvAllowlist_BaseGithubToken(t *testing.T) {
+	for _, name := range []string{"claude", "codex", "gemini", "agy", "copilot", "opencode", "cursor", "totally-unknown"} {
+		got := DefaultRunnerEnvAllowlist(name, name)
+		if !contains(got, "GITHUB_TOKEN") || !contains(got, "GH_TOKEN") {
+			t.Errorf("%s allowlist missing base GITHUB_TOKEN/GH_TOKEN: %v", name, got)
+		}
 	}
 }
 
@@ -152,6 +250,44 @@ func TestFilterEnv_EssentialKept(t *testing.T) {
 	}
 	if contains(kept, "FOO_TOKEN=secret") {
 		t.Errorf("FOO_TOKEN should be filtered, kept=%v", kept)
+	}
+}
+
+// TestFilterEnv_BadDenylistGlobFailsSafe 驗證使用者 denylist 打錯 glob（ErrBadPattern）時
+// 不會靜默 fail-open。因為 path.Match 對格式錯誤的 pattern 一律回 ErrBadPattern（與被比對的
+// key 無關，無法判定該 pattern「原本想擋哪個變數」），fail-safe 設計是把該壞 pattern 視為
+// 「對所有 key 都命中」（deny-all for this pattern）——寧可過度過濾，也不要讓打錯字的規則
+// 悄悄失效造成憑證洩漏；仍可用 allowlist 個別救回真正需要的變數。同時必須觸發 slog.Warn
+// 讓使用者能觀察到設定錯誤（F163 post-merge 缺陷2）。
+func TestFilterEnv_BadDenylistGlobFailsSafe(t *testing.T) {
+	var buf bytes.Buffer
+	orig := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn})))
+	defer slog.SetDefault(orig)
+
+	env := []string{"INTERNAL_SECRET_VALUE=leak", "EDITOR=vim"}
+	// "INTERNAL[SECRET" 缺右括號，對 path.Match 是 ErrBadPattern。
+	badDenylist := []string{"INTERNAL[SECRET"}
+	kept, filtered := FilterEnv(env, badDenylist, nil)
+
+	if contains(kept, "INTERNAL_SECRET_VALUE=leak") {
+		t.Errorf("bad glob pattern should fail safe (deny), but var leaked: kept=%v", kept)
+	}
+	if !contains(filtered, "INTERNAL_SECRET_VALUE") {
+		t.Errorf("INTERNAL_SECRET_VALUE should be in filteredKeys=%v", filtered)
+	}
+	// deny-all for this pattern：連無關的 EDITOR 也一併被擋下，這是刻意的 fail-safe 代價。
+	if contains(kept, "EDITOR=vim") {
+		t.Errorf("deny-all fail-safe should also filter unrelated vars while pattern is broken, kept=%v", kept)
+	}
+	if !strings.Contains(buf.String(), "INTERNAL[SECRET") {
+		t.Errorf("expected slog.Warn to mention the invalid pattern, got:\n%s", buf.String())
+	}
+
+	// allowlist 仍能個別救回被壞 pattern 波及的變數。
+	keptRescued, _ := FilterEnv(env, badDenylist, []string{"EDITOR"})
+	if !contains(keptRescued, "EDITOR=vim") {
+		t.Errorf("allowlist should rescue EDITOR despite deny-all fail-safe, kept=%v", keptRescued)
 	}
 }
 

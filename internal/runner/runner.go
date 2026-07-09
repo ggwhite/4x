@@ -127,6 +127,17 @@ func (r *SubprocessRunner) Run(ctx context.Context, prompt string) (*Result, err
 	}
 }
 
+// chmodLogFile600 對既有 log/stream 檔明確收斂權限為 0600。O_APPEND 開啟一個既有檔案不會
+// 改變其權限位元——pre-F163（本 hardening feature 之前）建立的舊 log/stream 檔可能仍是
+// 0644（world-readable），單靠 OpenFile 的 perm 參數只在「建立新檔」時生效，無法收斂既有檔。
+// 因此每次開啟後都明確 os.Chmod 一次，讓舊檔也收斂到 0600。Windows 上 chmod 語意有限（僅
+// 影響唯讀位元），視為 best-effort：失敗只 slog.Warn，不影響本次 spawn。
+func chmodLogFile600(path string) {
+	if err := os.Chmod(path, 0o600); err != nil {
+		slog.Warn("failed to chmod log file to 0600", "path", path, "error", err)
+	}
+}
+
 // runOnce 執行單次嘗試：建 args → 建 cmd → 依輸出模式執行 → buildResult。
 // 第二個回傳值是本次捕捉到的 stderr 尾段（pty / quiet 模式為合併輸出），供重試判定使用。
 func (r *SubprocessRunner) runOnce(ctx context.Context, prompt string) (*Result, string, error) {
@@ -146,6 +157,7 @@ func (r *SubprocessRunner) runOnce(ctx context.Context, prompt string) (*Result,
 			if f, err := os.OpenFile(r.LogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600); err == nil {
 				logFile = f
 				defer logFile.Close()
+				chmodLogFile600(r.LogPath)
 				if info, _ := f.Stat(); info != nil && info.Size() > 0 {
 					fmt.Fprintf(f, "\n\n--- retry %s ---\n\n", time.Now().Format("2006-01-02 15:04:05"))
 				}
@@ -255,6 +267,7 @@ func (r *SubprocessRunner) runStreamJSON(ctx context.Context, cmd *exec.Cmd, log
 		return nil, fmt.Errorf("runner %s failed to create stream log: %w", r.Name, err)
 	}
 	defer rawFile.Close()
+	chmodLogFile600(rawPath)
 
 	processor := newStreamJSONProcessor(logFile, rawFile)
 
