@@ -229,6 +229,87 @@ func TestVerifyCmd_Allowlist_EndToEnd(t *testing.T) {
 	}
 }
 
+// TestVerifyFallback_NilAllowlist 驗證 fallback groups 來自 settings.json（人工可信）時
+// 不過 allowlist：即使設了窄 allowlist ["make"]，fallback 的 echo 命令仍照常執行（Finding 3）。
+func TestVerifyFallback_NilAllowlist(t *testing.T) {
+	cfg := protocol.Config{
+		Project: protocol.ProjectConfig{
+			Name:                   "test",
+			Build:                  []string{"echo build-ok"},
+			Test:                   []string{"echo test-ok"},
+			VerifyCommandAllowlist: []string{"make"},
+		},
+		Default: "claude",
+	}
+	featureID := "F162-fallback-nil-allowlist"
+	dir := setupVerifyWorkspace(t, cfg, featureID)
+
+	out, err := run4x(dir, "verify", featureID, "--json")
+	if err != nil {
+		t.Fatalf("fallback verify should not be blocked by allowlist: %v\n%s", err, out)
+	}
+
+	ws := &protocol.Workspace{Root: dir}
+	verifyPath := filepath.Join(ws.RoundDir(featureID, 1), protocol.VerifyFile)
+	data, rerr := os.ReadFile(verifyPath)
+	if rerr != nil {
+		t.Fatalf("verify.json not created: %v", rerr)
+	}
+	var ev protocol.VerifyEvidence
+	if err := json.Unmarshal(data, &ev); err != nil {
+		t.Fatalf("parse verify.json: %v", err)
+	}
+	if !ev.Passed {
+		t.Error("expected fallback verify to pass (commands must not be blocked)")
+	}
+	for _, c := range ev.Commands {
+		if c.ExitCode == 126 || c.Error == "blocked" {
+			t.Errorf("fallback command %q was blocked by allowlist, want executed", c.Command)
+		}
+	}
+}
+
+// TestVerifyExplicitGroups_ConfigDegraded 驗證 explicit verify_commands 路徑在 settings.json
+// 壞掉時降級為空 allowlist 仍能產出 verify.json，不因 config 問題 hard-fail（Finding 4）。
+func TestVerifyExplicitGroups_ConfigDegraded(t *testing.T) {
+	cfg := protocol.Config{
+		Project: protocol.ProjectConfig{Name: "test"},
+		Default: "claude",
+	}
+	featureID := "F162-config-degraded"
+	dir := setupVerifyWorkspace(t, cfg, featureID)
+	ws := &protocol.Workspace{Root: dir}
+
+	// explicit verify_commands（非 fallback 路徑）
+	tsPath := filepath.Join(ws.FeatureDir(featureID), protocol.TestStratFile)
+	if err := os.WriteFile(tsPath, []byte("verify_commands:\n  - echo strategy-ok\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// 破壞 settings.json → ReadConfig 失敗
+	cfgPath := filepath.Join(ws.DotDir(), protocol.ConfigFile)
+	if err := os.WriteFile(cfgPath, []byte("{{ not json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := run4x(dir, "verify", featureID, "--json")
+	if err != nil {
+		t.Fatalf("explicit groups should degrade gracefully when config broken: %v\n%s", err, out)
+	}
+
+	verifyPath := filepath.Join(ws.RoundDir(featureID, 1), protocol.VerifyFile)
+	data, rerr := os.ReadFile(verifyPath)
+	if rerr != nil {
+		t.Fatalf("verify.json not created despite broken config: %v", rerr)
+	}
+	var ev protocol.VerifyEvidence
+	if err := json.Unmarshal(data, &ev); err != nil {
+		t.Fatalf("parse verify.json: %v", err)
+	}
+	if !ev.Passed || len(ev.Commands) != 1 {
+		t.Fatalf("expected 1 passing command, got passed=%v commands=%d", ev.Passed, len(ev.Commands))
+	}
+}
+
 func TestVerifyFallback_ParseError(t *testing.T) {
 	cfg := protocol.Config{
 		Project: protocol.ProjectConfig{

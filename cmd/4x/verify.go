@@ -58,15 +58,21 @@ func newVerifyCmd() *cobra.Command {
 				return err
 			}
 
-			cfg, err := ws.ReadConfig()
-			if err != nil {
-				return err
+			// config 讀取失敗不立即 fatal：只有 fallback 路徑真正需要 settings 命令。
+			// explicit verify_groups/verify_commands 路徑在 config 讀不到（settings.json
+			// 壞掉/缺失）時降級為空 allowlist（=不強制），仍能產出 verify.json（Finding 4）。
+			cfg, cfgErr := ws.ReadConfig()
+			var allowlist []string
+			if cfgErr == nil {
+				allowlist = cfg.Project.VerifyCommandAllowlist
 			}
-			allowlist := cfg.Project.VerifyCommandAllowlist
 
 			isFallback := len(ts.Verify) == 0 && len(ts.VerifyGroups) == 0
 			var groups []verify.Group
 			if isFallback {
+				if cfgErr != nil {
+					return cfgErr
+				}
 				groups, err = verify.FallbackGroups(cfg.Project)
 				if err != nil {
 					return err
@@ -76,6 +82,14 @@ func newVerifyCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
+			}
+
+			// fallback groups 來自 settings.json 的 build/test/lint（人工可信），與 guard
+			// build-gate 一致傳 nil allowlist、不強制 verify allowlist（DR-5）；只有 AI 產出的
+			// explicit verify commands / ac_checks 才過 allowlist（Finding 3）。
+			groupAllowlist := allowlist
+			if isFallback {
+				groupAllowlist = nil
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -88,7 +102,7 @@ func newVerifyCmd() *cobra.Command {
 					fmt.Fprintf(os.Stderr, "Running %d verify group(s)...\n", len(groups))
 				}
 			}
-			evidence := verify.RunGroups(ctx, groups, ws.Root, allowlist)
+			evidence := verify.RunGroups(ctx, groups, ws.Root, groupAllowlist)
 			evidence.Round = round
 			evidence.Role = protocol.RoleTester
 
