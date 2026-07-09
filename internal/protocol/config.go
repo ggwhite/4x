@@ -77,6 +77,21 @@ type Config struct {
 	IssueTracker IssueTrackerConfig `json:"issue_tracker,omitempty"`
 	// Worktree 是 scaffold worktree 相關的設定（如 post-scaffold hook）。
 	Worktree WorktreeConfig `json:"worktree,omitempty"`
+	// RunnerEnv 是 spawn LLM runner 子程序時的環境變數過濾設定（全域）；
+	// 追加到內建 denylist 的額外 pattern 與覆蓋 denylist 的 allowlist。純 project-level 欄位。
+	RunnerEnv RunnerEnvConfig `json:"runner_env,omitempty"`
+}
+
+// RunnerEnvConfig 是 .4x/settings.json 內 runner_env 區段的環境變數過濾設定。
+// 4x 在 spawn LLM runner 子程序前，會依內建 denylist + 此處 Denylist 過濾繼承的環境變數，
+// 避免把敏感認證暴露給自主執行的 AI 子程序。
+type RunnerEnvConfig struct {
+	// Denylist 是追加到內建預設 denylist（DefaultEnvDenylist）之後的額外 glob pattern
+	// （如 "CUSTOM_*"）。命中者在過濾時被移除，除非同時命中 allowlist。
+	Denylist []string `json:"denylist,omitempty"`
+	// Allowlist 覆蓋 denylist：命中 allowlist 的變數一律保留。可用來移除內建預設 pattern
+	// （例如把 "AWS_*" 加進 allowlist 即等同解除該預設 denylist）。glob 大小寫不敏感。
+	Allowlist []string `json:"allowlist,omitempty"`
 }
 
 // WorktreeConfig 是 settings.json 內 worktree 區段的設定。
@@ -210,6 +225,9 @@ type RunnerConfig struct {
 	// TransientRetries 設定暫態錯誤（socket closed、connection reset、rate limit、5xx 等）的
 	// 自動重試上限：nil 表示用預設 3 次、0 表示停用重試、>0 為自訂上限。
 	TransientRetries *int `json:"transient_retries,omitempty"`
+	// EnvAllowlist 是此 runner 額外放行的環境變數 glob pattern（使用者可加），會與內建
+	// per-runner 認證 allowlist（DefaultRunnerEnvAllowlist）union 後覆蓋 denylist。
+	EnvAllowlist []string `json:"env_allowlist,omitempty"`
 }
 
 // RoleConfig 是各角色的模型與行為設定

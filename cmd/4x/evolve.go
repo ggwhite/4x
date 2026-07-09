@@ -122,7 +122,7 @@ func buildEvolveDeps(ws *protocol.Workspace, cfg protocol.Config, opts evolveOpt
 		}
 	}
 	gateRunner := runner.NewRunner(ws, runnerName, cfg.Runners[runnerName], timeout,
-		filepath.Join(dot, "evolve-gate.log"), gateModel)
+		filepath.Join(dot, "evolve-gate.log"), gateModel, runner.ResolveEnvFilter(cfg))
 
 	// enrich 用較便宜的 reviewer-tier model（與 auto-discover enrichment 同策略）。
 	enrichModel := ""
@@ -130,7 +130,7 @@ func buildEvolveDeps(ws *protocol.Workspace, cfg protocol.Config, opts evolveOpt
 		enrichModel = m
 	}
 	enrichRunner := runner.NewRunner(ws, runnerName, cfg.Runners[runnerName], timeout,
-		filepath.Join(dot, "evolve-enrich.log"), enrichModel)
+		filepath.Join(dot, "evolve-enrich.log"), enrichModel, runner.ResolveEnvFilter(cfg))
 
 	return evolveDeps{
 		gateRunner:   gateRunner,

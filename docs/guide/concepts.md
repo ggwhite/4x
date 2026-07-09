@@ -152,7 +152,7 @@ The whole command is best-effort — a single corrupt feature is logged and skip
 
 ### Evolve Driver
 
-`4x evolve` stitches mine, the F097 value gate, and enrichment into one repeatable closed loop: **mine → gate (pre → gate LLM role → post) → enrich → enqueue → (optional) auto-run → learnings feed the next round**. The CLI layer stays LLM-free — the gate role and enrichment both run as `runner.Runner` subprocesses, never an inline API call.
+`4x evolve` stitches mine, the F097 value gate, and enrichment into one repeatable closed loop: **mine → gate (pre → gate LLM role → post) → enrich → enqueue → (optional) auto-run → learnings feed the next round**. The CLI layer stays LLM-free — the gate role and enrichment both run as `runner.Runner` subprocesses, never an inline API call. Every runner subprocess is spawned with a filtered environment so sensitive credentials are not exposed to the autonomous AI process; the `runner_env` (project) and `env_allowlist` (per-runner) settings tune the denylist/allowlist (see [Configuration](configuration.md)).
 
 The pipeline order is **mine → gate → enrich → enqueue** (not mine → enrich → gate): the gate consumes bare `Candidate`s, so enrichment — which materializes a full `feature.Feature` — only runs on gate survivors, never wasting LLM cost on candidates that get vetoed. Accepted candidates are enqueued as `not-started` feature YAMLs (passing the value gate **is** the approval; there is no second draft→not-started step). If enrichment fails or is discarded, the candidate is still enqueued as a bare feature built from its description, marked `enriched=false` — the gate already vouched for its value.
 

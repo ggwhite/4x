@@ -66,6 +66,7 @@ You can also edit this file visually from the **4x Live dashboard** — click th
 | `docs` | Documentation file paths for Designer reference |
 | `rules` | Project-specific rules injected into role prompts |
 | `includes` | Files to include in role prompts |
+| `runner_env` | Environment-variable filtering for spawned runner subprocesses. `denylist` (list of glob patterns appended to the built-in defaults) and `allowlist` (patterns that override the denylist — use it to un-filter a built-in default pattern). See the environment filtering notes below. |
 
 ### Runner Config
 
@@ -80,8 +81,17 @@ You can also edit this file visually from the **4x Live dashboard** — click th
 | `stdin` | Send prompt via stdin instead of argument (used by Codex) |
 | `quiet` | Suppress runner stdout in terminal; output is still captured in log files |
 | `transient_retries` | Max automatic retries when the runner exits non-zero with a transient error in stderr (socket closed, connection reset, rate limit, 5xx, etc.). Omit for the default (3); set `0` to disable; set a positive number for a custom limit. |
+| `env_allowlist` | Additional environment-variable glob patterns to allow through the filter for this runner only (unioned with the built-in per-runner credential allowlist). Project value fully replaces the user value. |
 
 If `{model}` is not present in `args`, the runner auto-appends `--model <model>`.
+
+Before spawning a runner subprocess, 4x filters the inherited environment so sensitive credentials are not exposed to the autonomous AI subprocess. Filtering rules:
+
+- **Built-in denylist** (always applied): `*_TOKEN`, `*_KEY`, `*_SECRET`, `*_PASSWORD`, `*_CREDENTIALS`, `*_SECRETS`, `AWS_*`, `SECRET_*`, `GITHUB_TOKEN`, `GH_TOKEN`. Add more via `runner_env.denylist`.
+- **Per-runner built-in allowlist** (keyed by runner **name**, e.g. `claude` → `ANTHROPIC_API_KEY`/`ANTHROPIC_*`/`CLAUDE_*`, `codex` → `OPENAI_API_KEY`/`OPENAI_*`/`CODEX_*`, `copilot` → `GITHUB_TOKEN`/`GH_TOKEN`/`COPILOT_*`). The name is the key in `runners`; if it doesn't match a known runner, the command basename (minus `.exe`/`.cmd`/`.bat`) is tried as a fallback, so an absolute-path or wrapper `command` still resolves. Extend per runner via `env_allowlist`.
+- **Allowlist overrides denylist**: a variable matching both is kept. This is how `ANTHROPIC_API_KEY` (which matches `*_KEY`) survives for `claude`, and how you remove a built-in denylist pattern — add it to `runner_env.allowlist`.
+- **Always kept**: `PATH`, `HOME` (plus `USERPROFILE`/`SYSTEMROOT` on Windows), 4x's own injected variables (`FOURX_BIN`, `FOURX_ROLE`, …), and F154 worktree variables are never filtered.
+- Patterns are `*` globs matched **case-insensitively**. Variables that are filtered out are surfaced via `slog.Debug` (key names only, never values).
 
 #### Transient retry
 

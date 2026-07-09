@@ -183,7 +183,7 @@ func TestNewRunner(t *testing.T) {
 	ws := &protocol.Workspace{Root: root}
 
 	cfg := protocol.RunnerConfig{Command: "claude", Args: []string{"-p", "{prompt}"}}
-	r := NewRunner(ws, "claude", cfg, 30*time.Second, "", "")
+	r := NewRunner(ws, "claude", cfg, 30*time.Second, "", "", EnvFilter{})
 	if r == nil {
 		t.Fatal("NewRunner returned nil")
 	}
@@ -538,7 +538,7 @@ exit 1
 			Args:             []string{"-p", "{prompt}"},
 			TransientRetries: &disabled,
 		}
-		rn := NewRunner(ws, "test", cfg, 0, "", "")
+		rn := NewRunner(ws, "test", cfg, 0, "", "", EnvFilter{})
 		sr := rn.(*SubprocessRunner)
 		sr.backoffBase = 1 * time.Millisecond
 

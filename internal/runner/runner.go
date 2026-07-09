@@ -50,6 +50,9 @@ type SubprocessRunner struct {
 	// hook settings（guard-tool），攔截 reviewer 自跑 git diff/log/show 與越界 / 非法寫入 source。
 	// 不改任何函式簽章。
 	ExtraEnv []string
+	// envFilter 是由 settings（runner_env 區段）帶入的**額外** denylist/allowlist pattern。
+	// spawn 子程序前與內建 denylist / per-runner allowlist / alwaysKeepEnv union 後套用過濾。
+	envFilter EnvFilter
 }
 
 // resolveMaxRetries 解析有效的暫態重試上限：
@@ -140,7 +143,7 @@ func (r *SubprocessRunner) runOnce(ctx context.Context, prompt string) (*Result,
 	var logFile *os.File
 	if r.LogPath != "" {
 		if err := os.MkdirAll(filepath.Dir(r.LogPath), 0o755); err == nil {
-			if f, err := os.OpenFile(r.LogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644); err == nil {
+			if f, err := os.OpenFile(r.LogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600); err == nil {
 				logFile = f
 				defer logFile.Close()
 				if info, _ := f.Stat(); info != nil && info.Size() > 0 {
@@ -153,7 +156,20 @@ func (r *SubprocessRunner) runOnce(ctx context.Context, prompt string) (*Result,
 	start := time.Now()
 	usePty := protocol.BoolVal(r.Config.Tty) && logFile != nil
 
-	env := enrichedEnv()
+	// 過濾繼承的環境變數（R5）：先過濾 os.Environ()，再 enrich（PATH 補強 + FOURX_BIN）、
+	// append ExtraEnv（4x 自注入如 FOURX_ROLE）、最後套 F154 的 worktree env。4x 自注入與
+	// F154 注入的變數永遠不被過濾。allowlist 覆蓋 denylist（同時命中則保留）。
+	allow := append(append(append(append([]string{},
+		alwaysKeepEnv()...),
+		DefaultRunnerEnvAllowlist(r.Name, r.Config.Command)...),
+		r.Config.EnvAllowlist...),
+		r.envFilter.Allowlist...)
+	deny := append(append([]string{}, DefaultEnvDenylist()...), r.envFilter.Denylist...)
+	kept, filtered := FilterEnv(os.Environ(), deny, allow)
+	if len(filtered) > 0 {
+		slog.Debug("runner subprocess env filtered", "runner", r.Name, "command", r.Config.Command, "filtered", filtered)
+	}
+	env := enrichEnv(kept)
 	env = append(env, r.ExtraEnv...)
 	env = gitops.ApplyWorktreeEnv(env, r.Workspace.Root)
 	command := resolveCommand(r.Config.Command, env)
@@ -234,7 +250,7 @@ func (r *SubprocessRunner) runOnce(ctx context.Context, prompt string) (*Result,
 // 讓 os/exec 共用單一 fd，避免對非執行緒安全的 processor 並行寫入。
 func (r *SubprocessRunner) runStreamJSON(ctx context.Context, cmd *exec.Cmd, logFile *os.File, start time.Time, prompt string, tail io.Writer) (*Result, error) {
 	rawPath := strings.TrimSuffix(r.LogPath, ".log") + ".stream.jsonl"
-	rawFile, err := os.OpenFile(rawPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	rawFile, err := os.OpenFile(rawPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("runner %s failed to create stream log: %w", r.Name, err)
 	}
@@ -395,7 +411,7 @@ func IsHardError(r *Result) bool {
 // 暫態重試上限由 cfg.TransientRetries 決定：nil → 預設（DefaultTransientRetries）、
 // 0 → 停用重試、>0 → 自訂。config 的 0（停用）會映射成 SubprocessRunner.MaxTransientRetries 的
 // 負值，以區別於零值（零值代表「用預設」）。
-func NewRunner(ws *protocol.Workspace, name string, cfg protocol.RunnerConfig, timeout time.Duration, logPath string, model string) Runner {
+func NewRunner(ws *protocol.Workspace, name string, cfg protocol.RunnerConfig, timeout time.Duration, logPath string, model string, envFilter EnvFilter) Runner {
 	r := &SubprocessRunner{
 		Workspace:     ws,
 		Config:        cfg,
@@ -403,6 +419,7 @@ func NewRunner(ws *protocol.Workspace, name string, cfg protocol.RunnerConfig, t
 		Timeout:       timeout,
 		LogPath:       logPath,
 		ModelOverride: model,
+		envFilter:     envFilter,
 	}
 	if cfg.TransientRetries != nil {
 		if v := *cfg.TransientRetries; v == 0 {
@@ -422,8 +439,9 @@ type Factory func(name, logPath, model string) Runner
 // 搭配固定的 ws 與 timeoutSec 建構 Runner。取代原本在 run.go/evolve.go/batch.go
 // 各自重複撰寫的 runnerFactory 閉包。
 func NewFactory(ws *protocol.Workspace, cfg protocol.Config, timeoutSec int) Factory {
+	ef := ResolveEnvFilter(cfg)
 	return func(name, logPath, model string) Runner {
-		return NewRunner(ws, name, cfg.Runners[name], time.Duration(timeoutSec)*time.Second, logPath, model)
+		return NewRunner(ws, name, cfg.Runners[name], time.Duration(timeoutSec)*time.Second, logPath, model, ef)
 	}
 }
 

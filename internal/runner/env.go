@@ -38,10 +38,11 @@ func resolveCommand(command string, env []string) string {
 	return command
 }
 
-// enrichedEnv 回傳加強版的環境變數，補上 GUI app 啟動時缺少的 PATH 路徑，
+// enrichEnv 對傳入的 base env（已過濾的 kept）補上 GUI app 啟動時缺少的 PATH 路徑，
 // 並將 4x 自身的 exe 目錄 prepend 到 PATH 最前面、設定 FOURX_BIN。
-func enrichedEnv() []string {
-	env := envutil.EnrichedEnv()
+// FOURX_BIN 由 4x 自注入，永遠不受 denylist 過濾影響。
+func enrichEnv(base []string) []string {
+	env := envutil.EnrichEnv(base)
 
 	if exe, err := os.Executable(); err == nil {
 		env = envutil.PrependPath(env, filepath.Dir(exe))
@@ -49,4 +50,9 @@ func enrichedEnv() []string {
 	}
 
 	return env
+}
+
+// enrichedEnv 對 os.Environ() 做 enrich（未經過濾），供既有非 spawn 路徑與回歸測試使用。
+func enrichedEnv() []string {
+	return enrichEnv(os.Environ())
 }

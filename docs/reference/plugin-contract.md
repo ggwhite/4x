@@ -14,7 +14,7 @@ A conforming plugin must:
    ```
    The `--workspace` flag points to the root containing `.4x/`.
 
-2. **Read context from the filesystem only.** The plugin reads `.4x/settings.json`, `.4x/features/{feature-id}.yaml`, and any existing files in `.4x/run/{feature-id}/`. It must not rely on environment variables beyond standard ones (`HOME`, `PATH`, `4X_*` prefixed vars).
+2. **Read context from the filesystem only.** The plugin reads `.4x/settings.json`, `.4x/features/{feature-id}.yaml`, and any existing files in `.4x/run/{feature-id}/`. It must not rely on environment variables beyond standard ones (`HOME`, `PATH`, `4X_*` prefixed vars). When spawning a runner subprocess, 4x filters the inherited environment against a built-in denylist (sensitive `*_TOKEN`/`*_KEY`/`*_SECRET`, `AWS_*`, `GITHUB_TOKEN`, etc.) but always preserves `HOME`/`PATH`, each runner's built-in credential allowlist (e.g. `ANTHROPIC_API_KEY` for `claude`, `GITHUB_TOKEN` for `copilot`), and anything the user adds via `runner_env`/`env_allowlist` in settings. Plugins still must not depend on environment variables beyond those.
 
 3. **Write outputs to `.4x/run/{feature-id}/`.** All output files must be written atomically (write to temp, rename). Partial writes that crash mid-run must not leave corrupt state.
 

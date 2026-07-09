@@ -258,7 +258,7 @@ Run one round of the continuous self-improvement pipeline, stitching the existin
 
 **mine → gate (pre → gate LLM role → post) → enrich → enqueue → (optional) auto-run meta-loop → learnings feed the next round.**
 
-The CLI layer never calls an LLM directly — the gate role and enrichment both run as `runner` subprocesses. Each call runs exactly **one** round; drive repeated rounds externally (cron or repeated `4x evolve`). Every round writes a summary to `.4x/evolve-report.md`.
+The CLI layer never calls an LLM directly — the gate role and enrichment both run as `runner` subprocesses. Like every runner spawned by 4x, these subprocesses inherit a filtered environment — sensitive credentials are stripped per the built-in denylist and per-runner allowlist (see [Configuration → `runner_env` / `env_allowlist`](configuration.md)). Each call runs exactly **one** round; drive repeated rounds externally (cron or repeated `4x evolve`). Every round writes a summary to `.4x/evolve-report.md`.
 
 Pipeline steps:
 

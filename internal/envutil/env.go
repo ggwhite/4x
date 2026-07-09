@@ -10,7 +10,14 @@ import (
 // GUI-launched processes (e.g. macOS dashboard) don't inherit the user's
 // shell profile, so tools like go, node, cargo may be missing from PATH.
 func EnrichedEnv() []string {
-	env := os.Environ()
+	return EnrichEnv(os.Environ())
+}
+
+// EnrichEnv 把常見工具路徑補進傳入 base env 的 PATH 項目（就地修改）後回傳。
+// PATH 補強邏輯與 EnrichedEnv 相同，差別只在改吃呼叫端提供的 base，而非
+// os.Environ()——用來對「已過濾過的環境變數」補強 PATH，再 spawn runner 子程序。
+func EnrichEnv(base []string) []string {
+	env := base
 
 	var extraPaths []string
 	pathSep := ":"

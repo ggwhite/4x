@@ -956,7 +956,7 @@ func (r *Runner) runConsolidate(ctx context.Context, s protocol.State) {
 	if m, merr := protocol.ResolveModel(r.Cfg, runnerName, protocol.RoleReviewer); merr == nil {
 		model = m
 	}
-	cr := runner.NewRunner(r.Ws, runnerName, rcfg, 120*time.Second, logPath, model)
+	cr := runner.NewRunner(r.Ws, runnerName, rcfg, 120*time.Second, logPath, model, runner.ResolveEnvFilter(r.Cfg))
 
 	os.Remove(filepath.Join(r.Ws.DotDir(), protocol.ConsolidateResultFile))
 
@@ -1021,7 +1021,7 @@ func (r *Runner) runRoundSummarizer(ctx context.Context, s protocol.State) {
 	if m, merr := protocol.ResolveModel(r.Cfg, runnerName, protocol.RoleReviewer); merr == nil {
 		model = m
 	}
-	cr := runner.NewRunner(r.RunnerWs, runnerName, rcfg, 120*time.Second, logPath, model)
+	cr := runner.NewRunner(r.RunnerWs, runnerName, rcfg, 120*time.Second, logPath, model, runner.ResolveEnvFilter(r.Cfg))
 
 	slog.Info("running round summarizer", "feature", featureID, "round", s.Round)
 	if _, rerr := cr.Run(ctx, b.String()); rerr != nil {
@@ -1223,7 +1223,7 @@ func DeferRunCleanup(ws *protocol.Workspace, featureID string) {
 // StartBackgroundRun 以 background 方式啟動 run 子程序，將其 stdout/stderr 導向 logPath，
 // 讓早期錯誤（config 載入、worktree setup、runner not found 等）可事後檢視。
 func StartBackgroundRun(binPath string, args []string, dir, logPath string) (*os.Process, error) {
-	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open run log: %w", err)
 	}

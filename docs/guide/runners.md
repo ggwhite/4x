@@ -60,6 +60,8 @@ Use `4x sync` to re-deploy plugin files after updating the binary.
     └── Transition state, repeat
 ```
 
+Before the runner subprocess is spawned, 4x filters the inherited environment variables so sensitive credentials (`*_TOKEN`/`*_KEY`/`*_SECRET`, `AWS_*`, `GITHUB_TOKEN`, …) are not exposed to the autonomous AI subprocess. `PATH`/`HOME`, 4x's own injected variables, and each runner's built-in credential allowlist (e.g. `ANTHROPIC_API_KEY` for `claude`, `OPENAI_API_KEY` for `codex`, `GITHUB_TOKEN` for `copilot`) are always preserved so the runner starts normally. Tune the filter with the `runner_env` and per-runner `env_allowlist` settings — see [Configuration → Runner environment filtering](configuration.md#runner-config). Runner log files are created with `0600` permissions so other users on the same machine cannot read them.
+
 ### Exit Codes
 
 | Code | Meaning | Action |

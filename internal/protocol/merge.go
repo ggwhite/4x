@@ -93,6 +93,9 @@ func mergeRunner(user, project RunnerConfig) RunnerConfig {
 	if project.Quiet != nil {
 		result.Quiet = project.Quiet
 	}
+	if project.EnvAllowlist != nil {
+		result.EnvAllowlist = project.EnvAllowlist
+	}
 
 	return result
 }
