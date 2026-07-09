@@ -246,15 +246,16 @@ func newLearnPruneCmd() *cobra.Command {
 				}
 			}
 
-			removed := 0
-			if !dryRun && (len(staleIDs) > 0 || len(demotedIDs) > 0) {
-				removed = store.Prune()
-				if err := store.Save(storePath); err != nil {
-					return err
-				}
-			}
+			shouldPrune := !dryRun && (len(staleIDs) > 0 || len(demotedIDs) > 0)
 
 			if jsonOutput {
+				removed := 0
+				if shouldPrune {
+					removed = store.Prune()
+					if err := store.Save(storePath); err != nil {
+						return err
+					}
+				}
 				return printJSON(struct {
 					Removed    int      `json:"removed"`
 					Demoted    int      `json:"demoted"`
@@ -281,8 +282,22 @@ func newLearnPruneCmd() *cobra.Command {
 				return nil
 			}
 
+			// 非 dry-run 也要印出明細：必須在 store.Prune() 之前呼叫，
+			// 否則 stale entries 已被移出 store.Entries，印不出內容。
 			if len(demotedIDs) > 0 {
+				printLearningEntries(store, demotedSet)
 				fmt.Printf("Demoted %d inactive active entries to candidate.\n", len(demotedIDs))
+			}
+			if len(staleIDs) > 0 {
+				printLearningsByStatus(store, learning.StatusStale)
+			}
+
+			removed := 0
+			if shouldPrune {
+				removed = store.Prune()
+				if err := store.Save(storePath); err != nil {
+					return err
+				}
 			}
 			fmt.Printf("Removed %d stale entries.\n", removed)
 			return nil

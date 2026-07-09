@@ -47,12 +47,13 @@ func rankLearnings(entries []learning.Entry) {
 	})
 }
 
-// selectWithinBudget 依序累計 token 估算，回傳嚴格不超過 budget 的前綴，
-// entries 須已依優先序排好——被截斷者即為排序在後的低分/較舊條目。
-// budget 為硬上限：若首筆估算已超過 budget，回傳空 slice 而非破例保留該單筆，
+// budgetPrefixIDs 依序累計 entries 的 token 估算，一旦累加超過 budget 即停止，回傳存活條目的
+// ID 集合。呼叫端須自行決定傳入順序（全域排序或維持原輸入序），此函式只負責「累加直到超過 budget
+// 就停」這一份核心邏輯，供 selectWithinBudget 與 budgetSurvivors 共用。
+// budget 為硬上限：若首筆估算已超過 budget，回傳空集合而非破例保留該單筆，
 // 確保注入內容不突破 LearningsTokenBudget（前一輪 review 反例）。
-func selectWithinBudget(entries []learning.Entry, budget int) []learning.Entry {
-	var kept []learning.Entry
+func budgetPrefixIDs(entries []learning.Entry, budget int) map[string]bool {
+	survivors := make(map[string]bool, len(entries))
 	total := 0
 	for _, e := range entries {
 		t := EstimateLearningTokens(e)
@@ -60,7 +61,24 @@ func selectWithinBudget(entries []learning.Entry, budget int) []learning.Entry {
 			break
 		}
 		total += t
-		kept = append(kept, e)
+		survivors[e.ID] = true
+	}
+	return survivors
+}
+
+// selectWithinBudget 依序累計 token 估算，回傳嚴格不超過 budget 的前綴，
+// entries 須已依優先序排好——被截斷者即為排序在後的低分/較舊條目。
+// 核心累加邏輯見 budgetPrefixIDs；此處再依原輸入順序過濾回 slice，保留呼叫端需要的順序。
+func selectWithinBudget(entries []learning.Entry, budget int) []learning.Entry {
+	survivors := budgetPrefixIDs(entries, budget)
+	if len(survivors) == 0 {
+		return nil
+	}
+	kept := make([]learning.Entry, 0, len(survivors))
+	for _, e := range entries {
+		if survivors[e.ID] {
+			kept = append(kept, e)
+		}
 	}
 	return kept
 }
@@ -73,22 +91,12 @@ func selectWithinBudget(entries []learning.Entry, budget int) []learning.Entry {
 // 供呼叫端在保留原顯示順序的前提下據此過濾。
 // budget 為硬上限：若最高分那筆估算已超過 budget，回傳空集合而非破例保留該單筆，
 // 確保注入內容不突破 LearningsTokenBudget（前一輪 review 反例）。
+// 核心累加邏輯見 budgetPrefixIDs。
 func budgetSurvivors(merged []learning.Entry, budget int) map[string]bool {
 	ranked := make([]learning.Entry, len(merged))
 	copy(ranked, merged)
 	rankLearnings(ranked)
-
-	survivors := make(map[string]bool, len(ranked))
-	total := 0
-	for _, e := range ranked {
-		t := EstimateLearningTokens(e)
-		if total+t > budget {
-			break
-		}
-		total += t
-		survivors[e.ID] = true
-	}
-	return survivors
+	return budgetPrefixIDs(ranked, budget)
 }
 
 // LoadLearningsForRole 依 role 對應的 category，從 learnings.json 篩選出該角色相關的 learnings，
