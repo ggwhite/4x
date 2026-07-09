@@ -68,7 +68,10 @@ With paths, opens each as a project tab.`,
 			// （Round 2 review blocker）。先寫 token 再 bind port，可保證「port 被占用」
 			// happens-after「token 已落地」，使 port-readiness 成為 token-readiness 的有效代理。
 			// token 產生/寫檔皆不依賴 port，故此順序安全。
-			userCfg, _ := protocol.ReadUserConfig()
+			userCfg, err := protocol.ReadUserConfig()
+			if err != nil {
+				slog.Warn("user config read failed, dashboard auth falls back to default (enabled)", "error", err)
+			}
 			authOn := server.AuthEnabled(userCfg)
 			token, err := prepareLiveAuth(authOn)
 			if err != nil {
@@ -121,11 +124,19 @@ With paths, opens each as a project tab.`,
 }
 
 // prepareLiveAuth 依 authOn 決定是否為本次 live session 產生並落地 token。
-// authOn=false 回 ("", nil)，不產 token、不寫檔；authOn=true 產隨機 token 並寫入
-// ~/.4x/live-token，任一步失敗即回 err（fail-hard，見 Design Ruling 9）—— token 檔是桌面殼
-// 唯一的跨程序 token 通道，寫入失敗必須中止啟動，不可略過。
+// authOn=false 回 ("", nil)，不產 token，並清掉前一個 auth-enabled session 殘留的
+// ~/.4x/live-token——桌面殼依賴「auth 停用時檔案不存在」的不變式判斷是否帶 token；
+// authOn=true 產隨機 token 並寫入 ~/.4x/live-token，任一步失敗即回 err（fail-hard，
+// 見 Design Ruling 9）—— token 檔是桌面殼唯一的跨程序 token 通道，寫入失敗必須中止啟動，不可略過。
 func prepareLiveAuth(authOn bool) (string, error) {
 	if !authOn {
+		path, err := server.LiveTokenPath()
+		if err != nil {
+			return "", err
+		}
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return "", err
+		}
 		return "", nil
 	}
 	token, err := server.GenerateToken()

@@ -416,7 +416,7 @@ function notifyBody(ev) {
   }
 }
 
-function connectSSE(fid) { disconnectSSE(); _lastNotifyKey = null; requestNotificationPermission(); sseSource = new EventSource(sseUrl(sseBase()+'/events/'+fid)); sseSource.onmessage = () => { loadMessages(fid); maybeNotifyFromEvents(fid); refreshCurrentDetail(); }; }
+function connectSSE(fid) { disconnectSSE(); _lastNotifyKey = null; requestNotificationPermission(); sseSource = new EventSource(authUrl(sseBase()+'/events/'+fid)); sseSource.onmessage = () => { loadMessages(fid); maybeNotifyFromEvents(fid); refreshCurrentDetail(); }; }
 function disconnectSSE() { if (sseSource) { sseSource.close(); sseSource = null; } }
 
 function classify(tasks) {
@@ -1178,7 +1178,7 @@ function renderScreenshots(groups, el) {
     html += '<div class="grid gap-3" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr))">';
     g.screenshots.forEach(s => {
       const desc = s.description || s.filename;
-      const imgUrl = apiBase() + s.url;
+      const imgUrl = authUrl(apiBase() + s.url);
       const idx = _lbItems.length;
       _lbItems.push({url: imgUrl, title: desc});
       html += `<div class="rounded-lg overflow-hidden cursor-pointer transition-transform hover:scale-[1.02]" style="background:var(--bg-2);border:1px solid var(--border)" onclick="openLightbox(${idx})">`;
@@ -1335,7 +1335,7 @@ function connectLogSSE(fid, file) {
   multiLogActive = multi;
   if (multi) multiLogBuffers = {};
   const url = file ? sseBase()+'/logs/'+fid+'?file='+encodeURIComponent(file) : sseBase()+'/logs/'+fid;
-  logSSE = new EventSource(sseUrl(url));
+  logSSE = new EventSource(authUrl(url));
   const knownFiles = new Set();
   logSSE.onmessage = (e) => {
     const viewer = document.getElementById('log-viewer');

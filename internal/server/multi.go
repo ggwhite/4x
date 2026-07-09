@@ -152,8 +152,10 @@ func (r *ProjectRegistry) List() []ProjectListItem {
 	return items
 }
 
-// NewMultiMux 建立支援多專案的 HTTP handler
-func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
+// NewMultiMux 建立支援多專案的 HTTP handler。
+// opts 為可選 functional option（如 WithAuth）；auth middleware 包在 logging 與
+// recover 之內，使 401 請求也留下 request log。
+func NewMultiMux(reg *ProjectRegistry, recentPath string, opts ...ServeOption) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/projects", func(w http.ResponseWriter, r *http.Request) {
@@ -344,7 +346,7 @@ func NewMultiMux(reg *ProjectRegistry, recentPath string) http.Handler {
 	// catch-all：locales、static 資產與所有 compat（無 prefix）leaf 路由皆由內層統一處理。
 	mux.Handle("/", inner)
 
-	return logging.Middleware(recoverMiddleware(mux))
+	return logging.Middleware(recoverMiddleware(wrapAuth(mux, opts...)))
 }
 
 // recoverMiddleware 攔截 handler panic，回傳 500 而非 crash 整個 server

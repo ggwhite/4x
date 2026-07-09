@@ -104,6 +104,19 @@ func WithAuth(token string) ServeOption {
 	}
 }
 
+// wrapAuth 解析 opts，authToken 非空時將 next 包上 authMiddleware，否則原樣回傳。
+// 各 server 建構層（NewMultiMux、Start）共用此 helper，確保 opts 語意一致。
+func wrapAuth(next http.Handler, opts ...ServeOption) http.Handler {
+	var o serveOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+	if o.authToken == "" {
+		return next
+	}
+	return authMiddleware(o.authToken, next)
+}
+
 // isPublicPath 判斷路徑是否為免 token 的公開豁免路徑。
 // static 靜態資產（path 不以 /api/ 或 /sse/ 開頭）、/api/version（更新檢查）、
 // /api/locales 與 /api/locales/…（i18n bootstrap）為公開；其餘一律需 token。

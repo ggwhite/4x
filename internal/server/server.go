@@ -301,14 +301,15 @@ func NewMux(resolver WorkspaceResolver) http.Handler {
 	return mux
 }
 
-// Start 啟動 dashboard web server。
-func Start(ws *protocol.CachedWorkspace, pm *ProcessManager, port int) error {
-	return http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", port), logging.Middleware(NewMux(singleResolver(ws, pm))))
+// Start 啟動 dashboard web server。opts 為可選 functional option（如 WithAuth）。
+func Start(ws *protocol.CachedWorkspace, pm *ProcessManager, port int, opts ...ServeOption) error {
+	return http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", port), logging.Middleware(wrapAuth(NewMux(singleResolver(ws, pm)), opts...)))
 }
 
 // StartMulti 啟動多專案 dashboard server，ctx 取消時 graceful shutdown。
-func StartMulti(ctx context.Context, reg *ProjectRegistry, port int, recentPath string) error {
-	_, err := StartMultiOnListener(ctx, reg, port, recentPath)
+// opts 為可選 functional option（如 WithAuth）。
+func StartMulti(ctx context.Context, reg *ProjectRegistry, port int, recentPath string, opts ...ServeOption) error {
+	_, err := StartMultiOnListener(ctx, reg, port, recentPath, opts...)
 	return err
 }
 
@@ -326,28 +327,21 @@ func ListenForMulti(port int) (net.Listener, error) {
 
 // StartMultiOnListener 在已建立的 listener 上啟動 server（由 ListenForMulti 取得）。
 // 回傳實際使用的 port。若傳入 port 而非 listener，使用 StartMulti。
-func StartMultiOnListener(ctx context.Context, reg *ProjectRegistry, port int, recentPath string) (int, error) {
+// opts 為可選 functional option（如 WithAuth）。
+func StartMultiOnListener(ctx context.Context, reg *ProjectRegistry, port int, recentPath string, opts ...ServeOption) (int, error) {
 	ln, err := ListenForMulti(port)
 	if err != nil {
 		return 0, err
 	}
-	return ServeMulti(ctx, reg, ln, recentPath)
+	return ServeMulti(ctx, reg, ln, recentPath, opts...)
 }
 
 // ServeMulti 在已建立的 listener 上啟動 dashboard server。
 // opts 為可選 functional option（如 WithAuth）；不傳時行為與加 auth 前完全一致。
 func ServeMulti(ctx context.Context, reg *ProjectRegistry, ln net.Listener, recentPath string, opts ...ServeOption) (int, error) {
-	var o serveOptions
-	for _, opt := range opts {
-		opt(&o)
-	}
 	actualPort := ln.Addr().(*net.TCPAddr).Port
-	handler := NewMultiMux(reg, recentPath)
-	if o.authToken != "" {
-		handler = authMiddleware(o.authToken, handler)
-	}
 	srv := &http.Server{
-		Handler: handler,
+		Handler: NewMultiMux(reg, recentPath, opts...),
 	}
 	go func() {
 		<-ctx.Done()

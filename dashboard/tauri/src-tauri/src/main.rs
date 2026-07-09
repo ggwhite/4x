@@ -222,14 +222,22 @@ fn main() {
             // Navigate after server is ready
             if let Some(window) = app.get_webview_window("main") {
                 std::thread::spawn(move || {
-                    wait_for_server(port, Duration::from_secs(15));
-                    // 4x live 在 bind port 之前寫入 token 檔（~/.4x/live-token），故 wait_for_server
-                    // 偵測到 port 被占用時，token 檔（若 auth 啟用）必已落地——「port 被占用」
-                    // happens-after「token 已落地」，port-readiness 即 token-readiness 的有效代理。
+                    // 等到 server ready 才讀 token 檔＋navigate：4x live 在 bind port 之前寫入
+                    // token 檔（~/.4x/live-token），故 wait_for_server 偵測到 port 被占用時，
+                    // token 檔（若 auth 啟用）必已落地——「port 被占用」happens-after「token 已落地」，
+                    // port-readiness 即 token-readiness 的有效代理。若在 ready 前就讀檔，會把
+                    // 上一個 session 的 stale token 永久烤進 webview URL，server 起來後也是 401 死頁。
                     // 讀得到就帶 ?token=；讀不到代表 auth 停用（未產 token），維持無 token URL。
-                    let url_str = match read_live_token() {
-                        Some(token) => format!("http://localhost:{port}/?token={token}"),
-                        None => format!("http://localhost:{port}"),
+                    let ready = wait_for_server(port, Duration::from_secs(120));
+                    let url_str = if ready {
+                        match read_live_token() {
+                            Some(token) => format!("http://localhost:{port}/?token={token}"),
+                            None => format!("http://localhost:{port}"),
+                        }
+                    } else {
+                        // timeout：server 未起，仍 navigate 但不帶 token，
+                        // 讓使用者看到明確的連線錯誤，而非 stale token 的 401 死頁。
+                        format!("http://localhost:{port}")
                     };
                     let url = url_str.parse().expect("valid localhost url");
                     let _ = window.navigate(url);

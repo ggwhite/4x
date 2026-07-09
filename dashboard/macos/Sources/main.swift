@@ -15,7 +15,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
     var embeddedServer: Process?
     // liveToken 為本次 4x live session 的 bearer token，讀自 ~/.4x/live-token（0600）。
     // dashboard server 由本 app spawn，token 檔於 server 啟動後才出現，故於 pollServerAndLoad
-    // 每輪重讀（poll 到 200 前 token 檔已落地）。auth 停用時檔案不存在，維持 nil。
+    // 每輪重讀；此後由 status 輪詢（updateStatusIcon）在偵測到 401 且檔案 token 有變時
+    // 重讀並重載頁面（server 重啟換 token 的情境）。auth 停用時檔案不存在，維持 nil。
     var liveToken: String?
     var statusTimer: Timer?
     var titleTimer: Timer?
@@ -754,13 +755,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
     func updateStatusIcon() {
         guard let button = statusItem?.button else { return }
 
+        // 每輪重讀 token 檔：server 重啟會產生新 token，已載入的頁面仍持舊 token 會全數 401。
+        // 偵測到檔案 token 與當前值不同時，更新 liveToken 並重載頁面，讓 app 自動恢復。
+        let freshToken = readLiveToken()
         let url = URL(string: "http://localhost:\(serverPort)/api/projects")!
         var req = URLRequest(url: url, timeoutInterval: 3)
-        if let token = liveToken {
+        if let token = freshToken {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         URLSession.shared.dataTask(with: req) { [weak self] data, response, error in
             guard let self = self else { return }
+            if freshToken != self.liveToken {
+                DispatchQueue.main.async {
+                    self.liveToken = freshToken
+                    self.webView.load(URLRequest(url: self.dashboardPageURL()))
+                }
+            }
             let state: String
             if let httpResp = response as? HTTPURLResponse, httpResp.statusCode == 200 {
                 var hasRunning = false
@@ -848,9 +858,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
 
     // MARK: - Server Polling
 
+    // dashboardPageURL 依當前 liveToken 組出 dashboard 頁面 URL（auth 停用時不帶 token query）。
+    func dashboardPageURL() -> URL {
+        let base = "http://localhost:\(serverPort)"
+        if let token = liveToken {
+            return URL(string: "\(base)/?token=\(token)")!
+        }
+        return URL(string: base)!
+    }
+
     func pollServerAndLoad() {
         // 每輪重讀 token：server 由本 app spawn，token 檔於 server 開始 serve 前落地，
-        // 故 poll 到 200 時 token 檔（若 auth 啟用）必已存在。
+        // 故 poll 到回應時 token 檔（若 auth 啟用）必已存在。
         liveToken = readLiveToken()
         let url = URL(string: "http://localhost:\(serverPort)/api/projects")!
         var req = URLRequest(url: url)
@@ -859,16 +878,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
         }
         let task = URLSession.shared.dataTask(with: req) { [weak self] data, response, error in
             guard let self = self else { return }
-            if let httpResp = response as? HTTPURLResponse, httpResp.statusCode == 200 {
+            if response is HTTPURLResponse {
+                // server 有 HTTP 回應即視為 ready（401 也算：外部 server fallback 情境下
+                // token 檔可能被別的 session 蓋掉，若堅持 200 會永遠載不了頁）。
+                // 照常以當前檔案 token 載頁；token 後續有變由 status 輪詢偵測 401 重載。
                 DispatchQueue.main.async {
-                    let base = "http://localhost:\(self.serverPort)"
-                    let pageURL: URL
-                    if let token = self.liveToken {
-                        pageURL = URL(string: "\(base)/?token=\(token)")!
-                    } else {
-                        pageURL = URL(string: base)!
-                    }
-                    self.webView.load(URLRequest(url: pageURL))
+                    self.webView.load(URLRequest(url: self.dashboardPageURL()))
                 }
             } else {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {

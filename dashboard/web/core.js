@@ -1,33 +1,36 @@
-// Live session bearer token: 於載入時從 URL 的 ?token= 讀出、存記憶體變數（非 localStorage，
-// 避免跨分頁殘留），並立即用 history.replaceState 從網址列移除（避免經 Referer / 書籤外洩）。
+// Live session bearer token: 於載入時從 URL 的 ?token= 讀出、存 sessionStorage（per-tab，
+// 不跨分頁殘留，F5 / 重載可恢復），並立即用 history.replaceState 從網址列移除
+// （避免經 Referer / 書籤外洩）；URL 無 token 時改從 sessionStorage 恢復。
 let liveToken = '';
 (function bootstrapLiveToken() {
   try {
     const params = new URLSearchParams(location.search);
-    const tok = params.get('token');
-    if (tok) {
-      liveToken = tok;
+    const urlToken = params.get('token');
+    if (urlToken) {
+      liveToken = urlToken;
+      sessionStorage.setItem('liveToken', urlToken);
       history.replaceState({}, '', location.pathname);
+    } else {
+      liveToken = sessionStorage.getItem('liveToken') || '';
     }
   } catch (e) { /* no-op */ }
 })();
 
-// sseUrl 為 EventSource（無法帶 header）附加 ?token=：liveToken 非空時 append，
-// 既有 URL 已含 '?' 則用 '&token='，否則 '?token='；空則原樣回傳。
-function sseUrl(url) {
+// authUrl 為無法帶 Authorization header 的請求（EventSource、<img>）附加 ?token=：
+// liveToken 非空時 append，既有 URL 已含 '?' 則用 '&token='，否則 '?token='；空則原樣回傳。
+function authUrl(url) {
   if (!liveToken) return url;
   return url + (url.indexOf('?') >= 0 ? '&token=' : '?token=') + encodeURIComponent(liveToken);
 }
 
-// 覆寫 window.fetch：liveToken 非空且目標為 dashboard 端點（相對路徑或以 /api/、/sse/ 開頭，
-// 且非公開豁免路徑 /api/version、/api/locales*）時，注入 Authorization: Bearer header。
+// 覆寫 window.fetch：liveToken 非空且目標為 dashboard 端點（相對路徑或以 /api/、/sse/ 開頭）
+// 時，注入 Authorization: Bearer header。公開豁免路徑（/api/version、/api/locales*）由
+// server 端 isPublicPath 單一事實來源判定，對其多帶 header 無害，前端不重複維護豁免清單。
 (function wrapFetch() {
   const nativeFetch = window.fetch.bind(window);
   function isDashboardTarget(url) {
     if (typeof url !== 'string') return false;
     if (/^https?:\/\//i.test(url)) return false; // 絕對外部 URL 不注入
-    if (url.startsWith('/api/version')) return false;
-    if (url === '/api/locales' || url.startsWith('/api/locales/')) return false;
     return url.startsWith('/api/') || url.startsWith('/sse/') || !url.startsWith('/');
   }
   window.fetch = function (input, init) {
