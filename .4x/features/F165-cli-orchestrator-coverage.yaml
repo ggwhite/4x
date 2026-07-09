@@ -12,7 +12,7 @@ description: |-
     - 禁止套套邏輯測試湊 coverage（測試必須斷言行為，不能只求執行到）
     - 不改 production 行為；測試過程發現的 bug 記錄到 discovered-feature-gaps，不在本 feature 修
     - 測試檔與被測程式同目錄，用標準 testing package
-status: in-progress
+status: done
 priority: 2
 profile: normal
 subtasks:
