@@ -13,7 +13,7 @@ description: |-
     - 未設定任何覆寫時，行為與現狀完全一致
     - 不做自動 model 選擇或 advisor（未來另議），本 feature 只做顯式設定的路由
     - 覆寫解析失敗（runner 不存在）時 fail fast 並給明確錯誤，不靜默 fallback
-status: not-started
+status: in-progress
 priority: 2
 profile: normal
 subtasks:
