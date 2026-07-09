@@ -11,7 +11,7 @@ description: |-
     約束：
     - 真實的 docs 缺漏仍必須被抓到，不能把檢查弱化成永遠 OK
     - CI 對 make check-docs 的既有驗證不變
-status: not-started
+status: done
 priority: 2
 profile: normal
 subtasks:
@@ -26,3 +26,18 @@ subtasks:
       status: ""
 rules:
     - '來源: audit 2026-07-08 systemic issue（15 條 learnings：L068/L096/L115/L126/L133/L144/L167/L206 等）'
+phase_overrides:
+    accepting:
+        runner: claude
+    amending:
+        runner: codex
+    coding:
+        runner: codex
+    design-reviewing:
+        runner: codex
+    designing:
+        runner: codex
+    reviewing:
+        runner: codex
+    testing:
+        runner: codex
