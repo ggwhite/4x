@@ -13,7 +13,7 @@ description: |-
     - 只綁 localhost 的行為不變，認證是加在其上的第二層
     - token 只存本機檔案，不得寫入任何會被 commit 的路徑
     - 既有 API 回應格式不變，只加認證層
-status: in-progress
+status: done
 priority: 1
 profile: normal
 subtasks:
