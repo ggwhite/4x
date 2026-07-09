@@ -12,7 +12,7 @@ description: |-
     - 只鎖寫入，讀取不加鎖（維持 dashboard 高頻輪詢效能；配合原子寫入 rename 保證讀到完整檔）
     - 不引入外部依賴（syscall flock 或 O_EXCL lock file）
     - 單程序內既有行為與效能不可退化
-status: not-started
+status: done
 priority: 2
 profile: normal
 subtasks:
