@@ -89,3 +89,29 @@ func TestResolveEvolution_CandidateMaxIdleDays_NilConfig(t *testing.T) {
 		t.Errorf("CandidateMaxIdleDays = %d, want 30", got)
 	}
 }
+
+// TestResolveEvolutionActiveDemoteDays 驗證 active_demote_days 的 pointer sentinel：
+// nil→90、明確 0→停用、正數照值；Evolution==nil 也 resolve 出預設 90（AC-4）。
+func TestResolveEvolutionActiveDemoteDays(t *testing.T) {
+	cases := []struct {
+		name string
+		in   *int
+		want int
+	}{
+		{"nil 套預設 90", nil, 90},
+		{"明確 0 停用", intPtr(0), 0},
+		{"正數照值", intPtr(120), 120},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := protocol.Config{Evolution: &protocol.EvolutionConfig{ActiveDemoteDays: tc.in}}
+			if got := ResolveEvolution(cfg).ActiveDemoteDays; got != tc.want {
+				t.Errorf("ActiveDemoteDays = %d, want %d", got, tc.want)
+			}
+		})
+	}
+
+	if got := ResolveEvolution(protocol.Config{}).ActiveDemoteDays; got != 90 {
+		t.Errorf("nil Evolution ActiveDemoteDays = %d, want 90", got)
+	}
+}

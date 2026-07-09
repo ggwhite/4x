@@ -77,9 +77,8 @@ func TestLearnPrune(t *testing.T) {
 	}
 	storePath := filepath.Join(root, protocol.DirName, protocol.LearningsFile)
 
-	old := time.Now().Add(-91 * 24 * time.Hour)
 	store := learning.Store{Version: 1, Entries: []learning.Entry{
-		{ID: "L001", Category: learning.CategoryDesign, Content: "old", Status: learning.StatusActive, CreatedAt: old},
+		{ID: "L001", Category: learning.CategoryDesign, Content: "old", Status: learning.StatusStale, CreatedAt: time.Now()},
 		{ID: "L002", Category: learning.CategoryDesign, Content: "new", Status: learning.StatusActive, CreatedAt: time.Now()},
 	}}
 	if err := store.Save(storePath); err != nil {
@@ -87,7 +86,6 @@ func TestLearnPrune(t *testing.T) {
 	}
 
 	loaded, _ := learning.LoadStore(storePath)
-	loaded.MarkStale(learning.DefaultStaleDays)
 	removed := loaded.Prune()
 	if err := loaded.Save(storePath); err != nil {
 		t.Fatal(err)
@@ -401,5 +399,218 @@ func TestFindLearningsPath(t *testing.T) {
 	want := filepath.Join(root, protocol.DirName, protocol.LearningsFile)
 	if path != want {
 		t.Errorf("expected %s, got %s", want, path)
+	}
+}
+
+// demotePrunePayload 是 F159 後 `4x learn prune --json` 的完整輸出結構。
+type demotePrunePayload struct {
+	Removed    int      `json:"removed"`
+	Demoted    int      `json:"demoted"`
+	DryRun     bool     `json:"dryRun"`
+	StaleIDs   []string `json:"staleIds"`
+	DemotedIDs []string `json:"demotedIds"`
+}
+
+func runPruneJSON(t *testing.T, root string, args ...string) demotePrunePayload {
+	t.Helper()
+	t.Chdir(root)
+	out := captureStdout(t, func() {
+		cmd := newLearnPruneCmd()
+		cmd.SetArgs(args)
+		if err := cmd.Execute(); err != nil {
+			t.Fatal(err)
+		}
+	})
+	var result demotePrunePayload
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
+		t.Fatalf("failed to parse JSON output %q: %v", out, err)
+	}
+	return result
+}
+
+// TestLearnPruneActiveDemoteUsesSettings 驗證 evolution.active_demote_days 被實際 command path 消費：
+// 設為 5 天時，連 10 天未命中的 active 也被 demote（預設 90 不會），證明 resolved 值被讀取（AC-4）。
+func TestLearnPruneActiveDemoteUsesSettings(t *testing.T) {
+	root := t.TempDir()
+	if err := protocol.Init(root, protocol.Config{
+		Project:   protocol.ProjectConfig{Name: "test"},
+		Evolution: &protocol.EvolutionConfig{ActiveDemoteDays: ptrInt(5)},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	storePath := filepath.Join(root, protocol.DirName, protocol.LearningsFile)
+	store := learning.Store{Version: 1, Entries: []learning.Entry{
+		{ID: "A_old", Category: learning.CategoryDesign, Content: "old", Status: learning.StatusActive, LastUsed: time.Now().Add(-100 * 24 * time.Hour)},
+		{ID: "A_mid", Category: learning.CategoryDesign, Content: "mid", Status: learning.StatusActive, LastUsed: time.Now().Add(-10 * 24 * time.Hour)},
+	}}
+	if err := store.Save(storePath); err != nil {
+		t.Fatal(err)
+	}
+
+	result := runPruneJSON(t, root, "--dry-run", "--json")
+	if !contains(result.DemotedIDs, "A_old") || !contains(result.DemotedIDs, "A_mid") {
+		t.Errorf("active_demote_days=5 should demote both old and 10d-idle active, got %v", result.DemotedIDs)
+	}
+}
+
+// TestLearnPruneDryRunActiveDemote 驗證 dry-run 預覽 demote 與 stale 但不寫回檔案（AC-5）。
+func TestLearnPruneDryRunActiveDemote(t *testing.T) {
+	root := t.TempDir()
+	if err := protocol.Init(root, protocol.Config{
+		Project:   protocol.ProjectConfig{Name: "test"},
+		Evolution: &protocol.EvolutionConfig{ActiveDemoteDays: ptrInt(1)},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	storePath := filepath.Join(root, protocol.DirName, protocol.LearningsFile)
+	store := learning.Store{Version: 1, Entries: []learning.Entry{
+		{ID: "A001", Category: learning.CategoryDesign, Content: "old active", Status: learning.StatusActive, LastUsed: time.Now().Add(-100 * 24 * time.Hour)},
+		{ID: "S001", Category: learning.CategoryDesign, Content: "stale", Status: learning.StatusStale, CreatedAt: time.Now()},
+	}}
+	if err := store.Save(storePath); err != nil {
+		t.Fatal(err)
+	}
+
+	result := runPruneJSON(t, root, "--dry-run", "--json")
+	if !contains(result.DemotedIDs, "A001") {
+		t.Errorf("expected demotedIds to contain A001, got %v", result.DemotedIDs)
+	}
+	if !contains(result.StaleIDs, "S001") {
+		t.Errorf("expected staleIds to contain S001, got %v", result.StaleIDs)
+	}
+
+	// dry-run 不寫回：A001 仍 active、S001 仍存在。
+	reloaded, _ := learning.LoadStore(storePath)
+	byID := map[string]learning.Entry{}
+	for _, e := range reloaded.Entries {
+		byID[e.ID] = e
+	}
+	if byID["A001"].Status != learning.StatusActive {
+		t.Errorf("dry-run mutated A001 to %s", byID["A001"].Status)
+	}
+	if _, ok := byID["S001"]; !ok {
+		t.Error("dry-run removed S001")
+	}
+}
+
+// TestLearnPruneDemoteAndPrune 驗證非 dry-run 先 demote 再 prune：新 demote 的 active 存活為 candidate、
+// 既有 stale 被移除，即使 demote 後條件符合 candidate 老化也不被直接刪除（AC-6）。
+func TestLearnPruneDemoteAndPrune(t *testing.T) {
+	root := t.TempDir()
+	if err := protocol.Init(root, protocol.Config{
+		Project:   protocol.ProjectConfig{Name: "test"},
+		Evolution: &protocol.EvolutionConfig{ActiveDemoteDays: ptrInt(1), CandidateMaxIdleDays: ptrInt(1)},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	storePath := filepath.Join(root, protocol.DirName, protocol.LearningsFile)
+	old := time.Now().Add(-100 * 24 * time.Hour)
+	store := learning.Store{Version: 1, Entries: []learning.Entry{
+		// 久未命中且從未使用、CreatedAt 也很舊：demote 後若不保護會被 candidate 老化立刻 stale。
+		{ID: "A001", Category: learning.CategoryDesign, Content: "old active", Status: learning.StatusActive, ActivatedAt: old, CreatedAt: old, UsedCount: 0},
+		{ID: "S001", Category: learning.CategoryDesign, Content: "stale", Status: learning.StatusStale, CreatedAt: old},
+	}}
+	if err := store.Save(storePath); err != nil {
+		t.Fatal(err)
+	}
+
+	result := runPruneJSON(t, root, "--json")
+	if result.DryRun {
+		t.Error("expected non-dry-run")
+	}
+	if !contains(result.DemotedIDs, "A001") {
+		t.Errorf("expected A001 demoted, got %v", result.DemotedIDs)
+	}
+
+	reloaded, _ := learning.LoadStore(storePath)
+	byID := map[string]learning.Entry{}
+	for _, e := range reloaded.Entries {
+		byID[e.ID] = e
+	}
+	if e, ok := byID["A001"]; !ok || e.Status != learning.StatusCandidate {
+		t.Errorf("demoted A001 should survive as candidate, got %+v (ok=%v)", e, ok)
+	}
+	if _, ok := byID["S001"]; ok {
+		t.Error("pre-existing stale S001 should be removed")
+	}
+}
+
+// TestLearnPrunePromotedNotDemoted 驗證 promoted learning 不會被 active demote 也不出現在預覽（AC-7）。
+func TestLearnPrunePromotedNotDemoted(t *testing.T) {
+	root := t.TempDir()
+	if err := protocol.Init(root, protocol.Config{
+		Project:   protocol.ProjectConfig{Name: "test"},
+		Evolution: &protocol.EvolutionConfig{ActiveDemoteDays: ptrInt(1)},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	storePath := filepath.Join(root, protocol.DirName, protocol.LearningsFile)
+	old := time.Now().Add(-100 * 24 * time.Hour)
+	store := learning.Store{Version: 1, Entries: []learning.Entry{
+		{ID: "P001", Category: learning.CategoryDesign, Content: "promoted", Status: learning.StatusPromoted, CreatedAt: old, LastUsed: old},
+		{ID: "A001", Category: learning.CategoryDesign, Content: "old active", Status: learning.StatusActive, LastUsed: old},
+	}}
+	if err := store.Save(storePath); err != nil {
+		t.Fatal(err)
+	}
+
+	result := runPruneJSON(t, root, "--dry-run", "--json")
+	if contains(result.DemotedIDs, "P001") {
+		t.Errorf("promoted P001 must not be demoted, got %v", result.DemotedIDs)
+	}
+	if contains(result.StaleIDs, "P001") {
+		t.Errorf("promoted P001 must not be in stale preview, got %v", result.StaleIDs)
+	}
+	if !contains(result.DemotedIDs, "A001") {
+		t.Errorf("control active A001 should be demoted, got %v", result.DemotedIDs)
+	}
+}
+
+// TestLearnPruneDryRunTextSeparatesDemoteAndRemove 驗證非 JSON dry-run stdout 分開預覽
+// demote 與 stale remove，且 demote 文字能與 delete 區分（AC-14）。
+func TestLearnPruneDryRunTextSeparatesDemoteAndRemove(t *testing.T) {
+	root := t.TempDir()
+	if err := protocol.Init(root, protocol.Config{
+		Project:   protocol.ProjectConfig{Name: "test"},
+		Evolution: &protocol.EvolutionConfig{ActiveDemoteDays: ptrInt(1), CandidateMaxIdleDays: ptrInt(1)},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	storePath := filepath.Join(root, protocol.DirName, protocol.LearningsFile)
+	old := time.Now().Add(-100 * 24 * time.Hour)
+	store := learning.Store{Version: 1, Entries: []learning.Entry{
+		{ID: "A001", Category: learning.CategoryDesign, Content: "old active", Status: learning.StatusActive, LastUsed: old, CreatedAt: time.Now()},
+		{ID: "C001", Category: learning.CategoryDesign, Content: "idle candidate", Status: learning.StatusCandidate, UsedCount: 0, CreatedAt: old},
+	}}
+	if err := store.Save(storePath); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Chdir(root)
+	out := captureStdout(t, func() {
+		cmd := newLearnPruneCmd()
+		cmd.SetArgs([]string{"--dry-run"})
+		if err := cmd.Execute(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	if !strings.Contains(out, "would be demoted") {
+		t.Errorf("stdout missing demote section: %q", out)
+	}
+	if !strings.Contains(out, "not deleted") {
+		t.Errorf("demote text should clarify it is not a delete: %q", out)
+	}
+	if !strings.Contains(out, "stale entries would be removed") {
+		t.Errorf("stdout missing stale removal section: %q", out)
+	}
+	if !strings.Contains(out, "A001") || !strings.Contains(out, "C001") {
+		t.Errorf("stdout should mention both A001 (demote) and C001 (stale): %q", out)
+	}
+	// demote 段落須在 stale 段落之前，且各自標示不同 ID。
+	demoteIdx := strings.Index(out, "would be demoted")
+	staleIdx := strings.Index(out, "stale entries would be removed")
+	if demoteIdx > staleIdx {
+		t.Errorf("demote preview should precede stale preview: demote=%d stale=%d", demoteIdx, staleIdx)
 	}
 }

@@ -464,3 +464,235 @@ func TestGenerateLearningsContext_EmptyStore(t *testing.T) {
 		t.Error("missing empty message")
 	}
 }
+
+func intPtrTest(n int) *int { return &n }
+
+// TestLoadLearningsForRoleConfidenceRankingAndTokenBudget 驗證注入排序以 confidence 優先，
+// 且超過 token budget 時截斷低分條目；純讀取無副作用（AC-8）。
+func TestLoadLearningsForRoleConfidenceRankingAndTokenBudget(t *testing.T) {
+	ws := newTestWorkspace(t)
+	pad := strings.Repeat("a", 2000) // 每筆約 508 token，budget 1800 → 只容納 3 筆
+	confs := []float64{0.9, 0.7, 0.5, 0.3, 0.1}
+	var entries []learning.Entry
+	for i, c := range confs {
+		entries = append(entries, learning.Entry{
+			ID: fmt.Sprintf("L%03d", i), Category: learning.CategoryCodeQuality,
+			Content: fmt.Sprintf("E%d %s", i, pad), Status: learning.StatusActive,
+			Confidence: c, CreatedAt: time.Now(),
+		})
+	}
+	storePath := saveLearningsStore(t, ws, entries)
+
+	result := LoadLearningsForRole(ws.DotDir(), protocol.RoleReviewer)
+	if len(result) != 3 {
+		t.Fatalf("token budget should keep 3 entries, got %d", len(result))
+	}
+	if result[0].Confidence != 0.9 || result[1].Confidence != 0.7 || result[2].Confidence != 0.5 {
+		t.Errorf("not ranked by confidence desc: %v %v %v", result[0].Confidence, result[1].Confidence, result[2].Confidence)
+	}
+	got := entryIDSet(result)
+	if got["L003"] || got["L004"] {
+		t.Errorf("low-confidence entries should be truncated by budget, got %v", got)
+	}
+
+	// 無副作用：confidence 未被寫回。
+	reloaded, err := learning.LoadStore(storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range reloaded.Entries {
+		if e.LastUsed.IsZero() == false || e.UsedCount != 0 {
+			t.Errorf("%s mutated by read-only load: %+v", e.ID, e)
+		}
+	}
+}
+
+// TestLoadLearningsForRole_MixedBudgetDropsGlobalLowScore 驗證 active/candidate 交錯後，
+// budget 截斷仍以全域 confidence 高分優先存活：高分 active 不會被排在交錯序前段的低分 candidate 擠出
+// 預算（前一輪 review 反例——交錯序 A(0.9),C(0.1),A(0.8) 在 budget 只容 2 筆時應保留兩筆 active、
+// 淘汰低分 candidate，而非保留交錯前綴 A,C）。
+func TestLoadLearningsForRole_MixedBudgetDropsGlobalLowScore(t *testing.T) {
+	ws := newTestWorkspace(t)
+	pad := strings.Repeat("a", 3000) // 每筆約 758 token，budget 1800 → 只容納 2 筆
+	base := time.Now()
+	// 兩筆高分 active + 一筆低分 candidate。交錯序會把低分 candidate 排到 index 1，
+	// 若 budget 只保留交錯前綴會誤留 candidate、截掉高分 active。
+	entries := []learning.Entry{
+		{ID: "A001", Category: learning.CategoryCodeQuality, Content: "HIGH1 " + pad, Status: learning.StatusActive, Confidence: 0.9, CreatedAt: base},
+		{ID: "A002", Category: learning.CategoryCodeQuality, Content: "HIGH2 " + pad, Status: learning.StatusActive, Confidence: 0.8, CreatedAt: base},
+		{ID: "C001", Category: learning.CategoryCodeQuality, Content: "LOW " + pad, Status: learning.StatusCandidate, Confidence: 0.1, CreatedAt: base},
+	}
+	saveLearningsStore(t, ws, entries)
+
+	result := LoadLearningsForRole(ws.DotDir(), protocol.RoleReviewer)
+	got := entryIDSet(result)
+	if !got["A001"] || !got["A002"] {
+		t.Errorf("high-confidence active entries must survive budget, got %v", got)
+	}
+	if got["C001"] {
+		t.Errorf("low-confidence candidate must be truncated first by global budget, got %v", got)
+	}
+}
+
+// TestLoadLearningsForRole_SingleOversizedEntryNotReturned 驗證單筆估算已超過 LearningsTokenBudget 時，
+// budget 為硬上限——不破例保留該單筆（前一輪 review 反例）。
+func TestLoadLearningsForRole_SingleOversizedEntryNotReturned(t *testing.T) {
+	ws := newTestWorkspace(t)
+	// 單筆 pad 讓 EstimateLearningTokens 遠超 budget（budget 1800，此筆約 2508 token）。
+	pad := strings.Repeat("a", (LearningsTokenBudget+700)*4)
+	entries := []learning.Entry{
+		{ID: "BIG1", Category: learning.CategoryCodeQuality, Content: "OVERSIZE " + pad, Status: learning.StatusActive, Confidence: 0.9, CreatedAt: time.Now()},
+	}
+	saveLearningsStore(t, ws, entries)
+
+	if got := LoadLearningsForRole(ws.DotDir(), protocol.RoleReviewer); len(got) != 0 {
+		t.Errorf("oversized single entry must not break budget, got %d entries", len(got))
+	}
+}
+
+// TestGenerateLearningsContext_SingleOversizedEntryNotOutput 驗證 context 輸出同樣不破例保留單筆超限條目。
+func TestGenerateLearningsContext_SingleOversizedEntryNotOutput(t *testing.T) {
+	root := t.TempDir()
+	if err := protocol.Init(root, protocol.Config{}); err != nil {
+		t.Fatal(err)
+	}
+	ws := &protocol.Workspace{Root: root}
+
+	pad := strings.Repeat("b", (LearningsTokenBudget+700)*4)
+	store := learning.Store{Version: 1, Entries: []learning.Entry{
+		{ID: "BIG1", Category: learning.CategoryDesign, Content: "OVERSIZE " + pad, Status: learning.StatusActive, Confidence: 0.9, CreatedAt: time.Now()},
+	}}
+	if err := store.Save(filepath.Join(ws.DotDir(), protocol.LearningsFile)); err != nil {
+		t.Fatal(err)
+	}
+	if err := GenerateLearningsContext(ws); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(ws.DotDir(), protocol.LearningsContextFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "OVERSIZE") {
+		t.Error("oversized single entry must not be output beyond budget")
+	}
+}
+
+// TestGenerateLearningsContextRanksAndTruncatesActive 驗證 learnings-context.md 依 ranking
+// 高分優先輸出，並在超出 budget 時不輸出低分條目（AC-9）。
+func TestGenerateLearningsContextRanksAndTruncatesActive(t *testing.T) {
+	root := t.TempDir()
+	if err := protocol.Init(root, protocol.Config{}); err != nil {
+		t.Fatal(err)
+	}
+	ws := &protocol.Workspace{Root: root}
+
+	pad := strings.Repeat("b", 2000)
+	confs := []float64{0.9, 0.7, 0.5, 0.3, 0.1}
+	var entries []learning.Entry
+	for i, c := range confs {
+		entries = append(entries, learning.Entry{
+			ID: fmt.Sprintf("L%03d", i), Category: learning.CategoryDesign,
+			Content: fmt.Sprintf("MARK%d %s", i, pad), Status: learning.StatusActive,
+			Confidence: c, CreatedAt: time.Now(),
+		})
+	}
+	store := learning.Store{Version: 1, Entries: entries}
+	if err := store.Save(filepath.Join(ws.DotDir(), protocol.LearningsFile)); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := GenerateLearningsContext(ws); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(ws.DotDir(), protocol.LearningsContextFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+
+	i0 := strings.Index(content, "MARK0")
+	i1 := strings.Index(content, "MARK1")
+	i2 := strings.Index(content, "MARK2")
+	if i0 < 0 || i1 < 0 || i2 < 0 {
+		t.Fatalf("top-3 confidence entries should be present: MARK0=%d MARK1=%d MARK2=%d", i0, i1, i2)
+	}
+	if !(i0 < i1 && i1 < i2) {
+		t.Errorf("entries not ordered by confidence desc: MARK0=%d MARK1=%d MARK2=%d", i0, i1, i2)
+	}
+	if strings.Contains(content, "MARK3") || strings.Contains(content, "MARK4") {
+		t.Error("low-confidence entries should be truncated by budget")
+	}
+}
+
+// TestHarvestLearningsDemotesActiveNotStale 驗證 harvest 對久未命中 active 執行 demote 回 candidate，
+// 而非標成 stale（AC-10）。
+func TestHarvestLearningsDemotesActiveNotStale(t *testing.T) {
+	root := t.TempDir()
+	if err := protocol.Init(root, protocol.Config{
+		Project:   protocol.ProjectConfig{Name: "test"},
+		Evolution: &protocol.EvolutionConfig{ActiveDemoteDays: intPtrTest(1)},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	ws := &protocol.Workspace{Root: root}
+	storePath := saveLearningsStore(t, ws, []learning.Entry{
+		{ID: "L001", Category: learning.CategoryCodeQuality, Content: "stale old active", Status: learning.StatusActive, LastUsed: time.Now().Add(-100 * 24 * time.Hour)},
+	})
+
+	HarvestLearnings(ws, "F999-test")
+
+	reloaded, err := learning.LoadStore(storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Entries[0].Status != learning.StatusCandidate {
+		t.Errorf("old active should be demoted to candidate, got %s", reloaded.Entries[0].Status)
+	}
+}
+
+// TestHarvestLearningsDemoteConfigFailureSkips 驗證 merged config 載入失敗時只 skip demote，
+// 不阻塞 harvest，且 active 不被改動（AC-10）。
+func TestHarvestLearningsDemoteConfigFailureSkips(t *testing.T) {
+	root := t.TempDir()
+	if err := protocol.Init(root, protocol.Config{Project: protocol.ProjectConfig{Name: "test"}}); err != nil {
+		t.Fatal(err)
+	}
+	ws := &protocol.Workspace{Root: root}
+	storePath := saveLearningsStore(t, ws, []learning.Entry{
+		{ID: "L001", Category: learning.CategoryCodeQuality, Content: "old active", Status: learning.StatusActive, LastUsed: time.Now().Add(-100 * 24 * time.Hour)},
+	})
+
+	// 破壞 settings.json 讓 LoadMergedConfig 失敗。
+	if err := os.WriteFile(filepath.Join(ws.DotDir(), protocol.ConfigFile), []byte("{ broken"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	HarvestLearnings(ws, "F999-test") // 不應 panic
+
+	reloaded, err := learning.LoadStore(storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Entries[0].Status != learning.StatusActive {
+		t.Errorf("config failure should skip demote; active must stay active, got %s", reloaded.Entries[0].Status)
+	}
+}
+
+// TestLoadLearningsForRoleLegacyConfidenceReadOnly 驗證舊 JSON 中 confidence==0 的 entry
+// 只透過 fallback score 排序，不因 read-only prompt 載入被隱式寫回（AC-13）。
+func TestLoadLearningsForRoleLegacyConfidenceReadOnly(t *testing.T) {
+	ws := newTestWorkspace(t)
+	storePath := saveLearningsStore(t, ws, []learning.Entry{
+		{ID: "L001", Category: learning.CategoryCodeQuality, Content: "legacy zero-confidence", Status: learning.StatusActive, UsedCount: 2, CreatedAt: time.Now()},
+	})
+
+	_ = LoadLearningsForRole(ws.DotDir(), protocol.RoleReviewer)
+
+	reloaded, err := learning.LoadStore(storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Entries[0].Confidence != 0 {
+		t.Errorf("legacy confidence should remain 0 after read-only load, got %v", reloaded.Entries[0].Confidence)
+	}
+}

@@ -3,6 +3,7 @@ package learning
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -95,25 +96,6 @@ func TestHarvest_SkipsInvalidCategory(t *testing.T) {
 	}
 }
 
-func TestMarkStale_MarksOldEntries(t *testing.T) {
-	old := time.Now().Add(-91 * 24 * time.Hour)
-	s := Store{Version: 1, Entries: []Entry{
-		{ID: "L001", Status: StatusActive, CreatedAt: old, LastUsed: old},
-		{ID: "L002", Status: StatusActive, CreatedAt: time.Now()},
-		{ID: "L003", Status: StatusPromoted, CreatedAt: old, LastUsed: old},
-	}}
-	s.MarkStale(DefaultStaleDays)
-	if s.Entries[0].Status != StatusStale {
-		t.Errorf("L001 should be stale, got %s", s.Entries[0].Status)
-	}
-	if s.Entries[1].Status != StatusActive {
-		t.Errorf("L002 should still be active, got %s", s.Entries[1].Status)
-	}
-	if s.Entries[2].Status != StatusPromoted {
-		t.Errorf("L003 (promoted) should not be changed, got %s", s.Entries[2].Status)
-	}
-}
-
 func TestMarkCandidatesStale(t *testing.T) {
 	old := time.Now().Add(-40 * 24 * time.Hour)
 	newStore := func() Store {
@@ -176,7 +158,7 @@ func TestActiveEntries(t *testing.T) {
 
 func TestPromoteRemovePrune(t *testing.T) {
 	s := Store{Version: 1, Entries: []Entry{
-		{ID: "L001", Status: StatusActive, CreatedAt: time.Now().Add(-91 * 24 * time.Hour)},
+		{ID: "L001", Status: StatusStale, CreatedAt: time.Now().Add(-91 * 24 * time.Hour)},
 		{ID: "L002", Status: StatusActive, CreatedAt: time.Now()},
 	}}
 	if err := s.Promote("L002"); err != nil {
@@ -189,7 +171,6 @@ func TestPromoteRemovePrune(t *testing.T) {
 		t.Error("expected error for unknown id")
 	}
 
-	s.MarkStale(DefaultStaleDays)
 	removed := s.Prune()
 	if removed != 1 {
 		t.Errorf("expected 1 pruned, got %d", removed)
@@ -758,5 +739,191 @@ func TestMarkIneffective_AlreadyMarked(t *testing.T) {
 	marked := s.MarkIneffective()
 	if marked != 0 {
 		t.Errorf("already-marked entry should not be counted again, got %d", marked)
+	}
+}
+
+// TestEntryConfidenceRoundTripAndLegacyFallback 驗證 confidence 欄位 round-trip，
+// 且舊 JSON（無 confidence）載入不失敗、version 不變、以 fallback score 參與排序（AC-1）。
+func TestEntryConfidenceRoundTripAndLegacyFallback(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "learnings.json")
+
+	s := Store{Version: 1, Entries: []Entry{
+		{ID: "L001", Category: CategoryDesign, Content: "with confidence", Status: StatusActive, Confidence: 0.7, CreatedAt: time.Now()},
+	}}
+	if err := s.Save(path); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"confidence": 0.7`) {
+		t.Errorf("confidence field not serialized: %s", data)
+	}
+	loaded, err := LoadStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Entries[0].Confidence != 0.7 {
+		t.Errorf("confidence round-trip lost: got %v", loaded.Entries[0].Confidence)
+	}
+
+	// 舊 JSON fixture（無 confidence 欄位）。
+	legacy := `{"version":1,"entries":[{"id":"L009","category":"design","content":"legacy","created_at":"2024-01-01T00:00:00Z","used_count":2,"status":"active"}]}`
+	legacyPath := filepath.Join(dir, "legacy.json")
+	if err := os.WriteFile(legacyPath, []byte(legacy), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ls, err := LoadStore(legacyPath)
+	if err != nil {
+		t.Fatalf("legacy load failed: %v", err)
+	}
+	if ls.Version != 1 {
+		t.Errorf("version bumped by legacy load: %d", ls.Version)
+	}
+	e := ls.Entries[0]
+	if e.Confidence != 0 {
+		t.Errorf("legacy confidence should stay 0, got %v", e.Confidence)
+	}
+	want := InitialConfidence + 2*ConfidenceReinforceStep // 0.3 + 2*0.1 = 0.5
+	if e.SortScore() != want {
+		t.Errorf("legacy SortScore = %v, want %v", e.SortScore(), want)
+	}
+}
+
+// TestUpdateUsageReinforcesConfidence 驗證 UpdateUsage 對命中 entry 同時更新 LastUsed、
+// UsedCount++、提升 Confidence，未命中 entry 完全不變（AC-2）。
+func TestUpdateUsageReinforcesConfidence(t *testing.T) {
+	s := Store{Version: 1, Entries: []Entry{
+		{ID: "L001", Status: StatusActive, UsedCount: 1, Confidence: 0.4},
+		{ID: "L002", Status: StatusActive, UsedCount: 5, Confidence: 0.6},
+	}}
+	s.UpdateUsage([]string{"L001"})
+
+	if s.Entries[0].UsedCount != 2 {
+		t.Errorf("L001 used_count = %d, want 2", s.Entries[0].UsedCount)
+	}
+	if s.Entries[0].LastUsed.IsZero() {
+		t.Error("L001 last_used should be set")
+	}
+	if s.Entries[0].Confidence <= 0.4 {
+		t.Errorf("L001 confidence should increase from 0.4, got %v", s.Entries[0].Confidence)
+	}
+	// 未命中 entry 不變。
+	if s.Entries[1].UsedCount != 5 || s.Entries[1].Confidence != 0.6 || !s.Entries[1].LastUsed.IsZero() {
+		t.Errorf("L002 should be untouched, got %+v", s.Entries[1])
+	}
+}
+
+// TestDemoteInactiveActive 驗證 active demote：超過門檻的 active 依 LastUsed/ActivatedAt/CreatedAt
+// 三種時間基準改回 candidate；promoted/stale/既有 candidate 不動；maxIdleDays<=0 停用（AC-3）。
+func TestDemoteInactiveActive(t *testing.T) {
+	old := time.Now().Add(-100 * 24 * time.Hour)
+	recent := time.Now().Add(-1 * 24 * time.Hour)
+
+	newStore := func() Store {
+		return Store{Version: 1, Entries: []Entry{
+			{ID: "A1", Status: StatusActive, LastUsed: old},                    // 依 LastUsed → demote
+			{ID: "A2", Status: StatusActive, ActivatedAt: old},                 // LastUsed 零 → ActivatedAt → demote
+			{ID: "A3", Status: StatusActive, CreatedAt: old},                   // LastUsed/ActivatedAt 零 → CreatedAt → demote
+			{ID: "A4", Status: StatusActive, LastUsed: recent, CreatedAt: old}, // 近期命中 → 不動
+			{ID: "P1", Status: StatusPromoted, CreatedAt: old},                 // promoted → 不動
+			{ID: "S1", Status: StatusStale, CreatedAt: old},                    // stale → 不動
+			{ID: "C1", Status: StatusCandidate, CreatedAt: old},                // candidate → 不動
+		}}
+	}
+
+	t.Run("超過門檻 demote，其餘不動", func(t *testing.T) {
+		s := newStore()
+		n := s.DemoteInactiveActive(90)
+		if n != 3 {
+			t.Errorf("demoted = %d, want 3", n)
+		}
+		want := map[string]Status{
+			"A1": StatusCandidate, "A2": StatusCandidate, "A3": StatusCandidate,
+			"A4": StatusActive, "P1": StatusPromoted, "S1": StatusStale, "C1": StatusCandidate,
+		}
+		for _, e := range s.Entries {
+			if e.Status != want[e.ID] {
+				t.Errorf("%s status = %s, want %s", e.ID, e.Status, want[e.ID])
+			}
+		}
+	})
+
+	t.Run("maxIdleDays<=0 停用", func(t *testing.T) {
+		s := newStore()
+		if n := s.DemoteInactiveActive(0); n != 0 {
+			t.Errorf("disabled demote should return 0, got %d", n)
+		}
+		if s.Entries[0].Status != StatusActive {
+			t.Errorf("A1 should stay active when disabled, got %s", s.Entries[0].Status)
+		}
+	})
+}
+
+// TestLoadStoreLegacyConfidenceVersion 驗證舊 store（無 confidence）經 load/save 版本仍為 1，不因遷移失敗（AC-11）。
+func TestLoadStoreLegacyConfidenceVersion(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "learnings.json")
+	legacy := `{"version":1,"entries":[{"id":"L001","category":"testing","content":"x","created_at":"2024-01-01T00:00:00Z","used_count":0,"status":"candidate"}]}`
+	if err := os.WriteFile(path, []byte(legacy), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s, err := LoadStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Version != 1 {
+		t.Errorf("version = %d, want 1", s.Version)
+	}
+	if err := s.Save(path); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := LoadStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Version != 1 {
+		t.Errorf("reloaded version = %d, want 1", reloaded.Version)
+	}
+}
+
+// TestHarvestInitialAndFuzzyPromotionConfidence 驗證 Harvest 來源端 confidence：新 candidate 有初始
+// confidence；fuzzy match 到不同 feature candidate 升 active 時設 ActivatedAt 並提升 confidence（AC-13）。
+func TestHarvestInitialAndFuzzyPromotionConfidence(t *testing.T) {
+	// 新 candidate 初始 confidence。
+	s := Store{Version: 1}
+	added := s.Harvest("F001", "coder", []RetroLearning{
+		{Category: CategoryCodeQuality, Content: "wrap errors with context always"},
+	})
+	if added != 1 {
+		t.Fatalf("added = %d, want 1", added)
+	}
+	if s.Entries[0].Confidence != InitialConfidence {
+		t.Errorf("new candidate confidence = %v, want %v", s.Entries[0].Confidence, InitialConfidence)
+	}
+
+	// fuzzy match 到不同 feature candidate（confidence 為零值的舊資料）→ 升 active、設 ActivatedAt、提升 confidence。
+	// 內容須為 Jaccard 相似但非 exact/normalized 相同，否則會走前置的完全去重而不觸發升級。
+	s2 := Store{Version: 1, Entries: []Entry{
+		{ID: "L001", SourceFeature: "F001", Category: CategoryCodeQuality, Content: "always wrap errors with returned context", Status: StatusCandidate, Confidence: 0},
+	}}
+	before := len(s2.Entries)
+	s2.Harvest("F002", "reviewer", []RetroLearning{
+		{Category: CategoryCodeQuality, Content: "always wrap errors with context"},
+	})
+	if len(s2.Entries) != before {
+		t.Errorf("fuzzy match should not add new entry, got %d entries", len(s2.Entries))
+	}
+	e := s2.Entries[0]
+	if e.Status != StatusActive {
+		t.Errorf("fuzzy-matched candidate should be promoted to active, got %s", e.Status)
+	}
+	if e.ActivatedAt.IsZero() {
+		t.Error("promoted candidate should have ActivatedAt set")
+	}
+	if e.Confidence == 0 {
+		t.Error("promoted candidate must not keep zero-value confidence")
 	}
 }

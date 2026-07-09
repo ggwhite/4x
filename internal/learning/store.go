@@ -69,6 +69,39 @@ const (
 	FuzzyDupThreshold = 0.7
 )
 
+const (
+	// InitialConfidence 是新 candidate（及 fuzzy 升 active 的 candidate）落地時的初始 confidence，
+	// 確保 confidence 生命週期來源端不留下零值。
+	InitialConfidence = 0.3
+	// ConfidenceReinforceStep 是 learning 每次被注入 role prompt 時 confidence 的增量。
+	ConfidenceReinforceStep = 0.1
+	// MaxConfidence 是 confidence 的上限。
+	MaxConfidence = 1.0
+)
+
+// reinforceConfidence 回傳 learning 被注入 prompt（或 fuzzy 升 active）後提升的 confidence，
+// deterministic 且帶地板與上限：current<=0（含舊資料）先以 InitialConfidence 為地板，再加一個 step。
+func reinforceConfidence(current float64) float64 {
+	if current <= 0 {
+		current = InitialConfidence
+	}
+	next := current + ConfidenceReinforceStep
+	if next > MaxConfidence {
+		return MaxConfidence
+	}
+	return next
+}
+
+// legacyConfidence 依 UsedCount 推導舊資料（confidence==0）的排序 fallback 分數，deterministic 不依時間。
+// 以 InitialConfidence 為地板、每次使用加一個 step、MaxConfidence 為上限。
+func legacyConfidence(usedCount int) float64 {
+	score := InitialConfidence + float64(usedCount)*ConfidenceReinforceStep
+	if score > MaxConfidence {
+		return MaxConfidence
+	}
+	return score
+}
+
 // ConsolidateAction 是 AI 對單一 learning 的處理決策。
 type ConsolidateAction struct {
 	ID      string `json:"id"`
@@ -96,6 +129,18 @@ type Entry struct {
 	UsedCount     int       `json:"used_count"`
 	Status        Status    `json:"status"`
 	Ineffective   bool      `json:"ineffective,omitempty"`
+	// Confidence 是 learning 的可強化信心分數（0~1）；命中注入時提升，供排序/輸出/截斷優先保留高價值條目。
+	// 舊 store 無此欄位時載入為 0，代表「未設定」，只在排序時以 SortScore 的 fallback 分數處理，不隱式寫回。
+	Confidence float64 `json:"confidence,omitempty"`
+}
+
+// SortScore 回傳 entry 的排序分數：Confidence>0 直接採用；==0（舊資料）以 UsedCount 推導 fallback。
+// 僅供排序/輸出/截斷判斷使用，不會寫回 store（避免對舊資料做隱式 migration）。
+func (e Entry) SortScore() float64 {
+	if e.Confidence > 0 {
+		return e.Confidence
+	}
+	return legacyConfidence(e.UsedCount)
 }
 
 // Store 是 .4x/learnings.json 的完整結構。
@@ -220,6 +265,7 @@ func (s *Store) Harvest(featureID, sourceRole string, learnings []RetroLearning)
 			if matched.Status == StatusCandidate && matched.SourceFeature != featureID {
 				matched.Status = StatusActive
 				matched.ActivatedAt = now
+				matched.Confidence = reinforceConfidence(matched.Confidence)
 			}
 			continue
 		}
@@ -235,6 +281,7 @@ func (s *Store) Harvest(featureID, sourceRole string, learnings []RetroLearning)
 			Content:       l.Content,
 			CreatedAt:     now,
 			Status:        StatusCandidate,
+			Confidence:    InitialConfidence,
 		})
 		tokenSets = append(tokenSets, indexedTokens{idx: newIdx, tokens: tokens})
 		added++
@@ -254,22 +301,34 @@ func (s *Store) nextID() string {
 	return fmt.Sprintf("L%03d", maxNum+1)
 }
 
-// MarkStale 掃描所有 active 條目，超過 staleDays 天未使用的標記為 stale。
-// 判斷依據：LastUsed 非零時用 LastUsed，否則用 CreatedAt。promoted/stale 不動。
-func (s *Store) MarkStale(staleDays int) {
-	cutoff := time.Now().Add(-time.Duration(staleDays) * 24 * time.Hour)
+// DemoteInactiveActive 把久未命中的 active 條目 demote 回 candidate（交由 F147 candidate 老化後續處理），
+// 回傳 demote 數量。時間基準依序：LastUsed 非零 → LastUsed；否則 ActivatedAt 非零 → ActivatedAt；再否則 CreatedAt。
+// maxIdleDays<=0 視為停用（回 0，不動任何條目）。promoted/stale/既有 candidate 一律不碰——
+// active 老化不再直接進 stale（見 F159）。
+func (s *Store) DemoteInactiveActive(maxIdleDays int) int {
+	if maxIdleDays <= 0 {
+		return 0
+	}
+	cutoff := time.Now().Add(-time.Duration(maxIdleDays) * 24 * time.Hour)
+	demoted := 0
 	for i := range s.Entries {
-		if s.Entries[i].Status != StatusActive {
+		e := &s.Entries[i]
+		if e.Status != StatusActive {
 			continue
 		}
-		ref := s.Entries[i].LastUsed
+		ref := e.LastUsed
 		if ref.IsZero() {
-			ref = s.Entries[i].CreatedAt
+			ref = e.ActivatedAt
+		}
+		if ref.IsZero() {
+			ref = e.CreatedAt
 		}
 		if ref.Before(cutoff) {
-			s.Entries[i].Status = StatusStale
+			e.Status = StatusCandidate
+			demoted++
 		}
 	}
+	return demoted
 }
 
 // MarkCandidatesStale 把「從未被使用（UsedCount==0）且 CreatedAt 超過 maxIdleDays 天」的
@@ -365,7 +424,8 @@ func (s *Store) Prune() int {
 	return removed
 }
 
-// UpdateUsage 更新指定 ID 的 LastUsed 為現在、UsedCount 遞增，標示這些 learnings 被選用過。
+// UpdateUsage 更新指定 ID 的 LastUsed 為現在、UsedCount 遞增，並提升 Confidence，
+// 標示這些 learnings 被選用（注入 role prompt）過。未傳入的 ID 不變。
 func (s *Store) UpdateUsage(ids []string) {
 	idSet := make(map[string]bool, len(ids))
 	for _, id := range ids {
@@ -376,6 +436,7 @@ func (s *Store) UpdateUsage(ids []string) {
 		if idSet[s.Entries[i].ID] {
 			s.Entries[i].LastUsed = now
 			s.Entries[i].UsedCount++
+			s.Entries[i].Confidence = reinforceConfidence(s.Entries[i].Confidence)
 		}
 	}
 }

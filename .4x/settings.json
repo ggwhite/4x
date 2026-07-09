@@ -64,7 +64,8 @@
     "max_accept_per_run": 3,
     "max_backlog_undone": 15,
     "dedup_threshold": 0.6,
-    "max_idle_rounds": 3
+    "max_idle_rounds": 3,
+    "active_demote_days": 90
   },
   "default_profile": "standard",
   "profiles": {

@@ -13,6 +13,7 @@ const (
 	defaultMaxIdleRounds    = 3
 
 	defaultCandidateMaxIdleDays = 30
+	defaultActiveDemoteDays     = 90
 )
 
 // ResolvedEvolution 為填妥預設值後的 evolution 設定，供 veto 邏輯直接取用。
@@ -29,6 +30,9 @@ type ResolvedEvolution struct {
 	// CandidateMaxIdleDays 為 candidate 老化門檻：來源 EvolutionConfig.CandidateMaxIdleDays 為 nil 時
 	// 套預設 30，非 nil 照值（含明確的 0=停用老化）。
 	CandidateMaxIdleDays int
+	// ActiveDemoteDays 為 active demote 門檻：來源 EvolutionConfig.ActiveDemoteDays 為 nil 時
+	// 套預設 90，非 nil 照值（含明確的 0=停用 active demote）。
+	ActiveDemoteDays int
 }
 
 // ResolveEvolution 把 cfg.Evolution 的零值數值欄位補上預設值後回傳。
@@ -70,6 +74,12 @@ func ResolveEvolution(cfg protocol.Config) ResolvedEvolution {
 		r.CandidateMaxIdleDays = defaultCandidateMaxIdleDays
 	} else {
 		r.CandidateMaxIdleDays = *e.CandidateMaxIdleDays
+	}
+	// ActiveDemoteDays 同樣用 sentinel pointer：nil → 預設 90；非 nil → 照值（含明確的 0=停用 active demote）。
+	if e.ActiveDemoteDays == nil {
+		r.ActiveDemoteDays = defaultActiveDemoteDays
+	} else {
+		r.ActiveDemoteDays = *e.ActiveDemoteDays
 	}
 	return r
 }

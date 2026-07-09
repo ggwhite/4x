@@ -162,6 +162,8 @@ Each call runs exactly **one** round; repeated rounds are driven externally (cro
 
 **Anti-spin halt** prevents the loop spinning forever with nothing to show. `.4x/evolve-state.json` persists `consecutiveNoAccept` across calls; a round that accepts nothing increments it, a round that accepts anything resets it to zero. Once it reaches `evolution.max_idle_rounds` the next call halts before mining, marks the report `Halted`, and exits 0. The setting distinguishes **unset** (`nil` → default `3`) from an explicit `<= 0` (disables the halt — always run); `--force` overrides a halt for one call.
 
+The same `evolution` block also tunes the learnings lifecycle consumed by `4x learn prune`: `active_demote_days` (unset `nil` → default `90`; explicit `0` disables) demotes an `active` learning that has gone that many days without a hit back to `candidate`, and `candidate_max_idle_days` (unset `nil` → default `30`; explicit `0` disables) ages a never-used `candidate` to `stale`. Both use the same pointer-sentinel semantics as `max_idle_rounds` so an explicit `0` means "disabled" rather than "unset".
+
 With `--auto-run`, each enqueued feature's meta-loop runs immediately, always under the F098 self-mod scope guard: a feature that touches `self_mod_guard.protected_paths` without approval is not auto-completed and is flagged `SelfModBlocked` in the report (resolve with `4x done --approve-self-mod`). `--dry-run` is read-only — it prints the mine/dedupe summary and writes nothing, spawns no runner, and creates no feature (and ignores `--auto-run` with a warning).
 
 ### Escalation

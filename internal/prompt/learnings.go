@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ggwhite/4x/internal/evolution"
 	"github.com/ggwhite/4x/internal/learning"
 	"github.com/ggwhite/4x/internal/protocol"
 )
@@ -19,13 +20,85 @@ const (
 	ActiveLearningsQuota = 28
 	// CandidateLearningsQuota 是每角色 prompt 注入的 candidate learnings 保底名額，不受 active 桶大小擠壓。
 	CandidateLearningsQuota = 12
+	// LearningsTokenBudget 是 learnings 注入 prompt 與寫入 learnings-context.md 的近似 token 預算上限，
+	// 超出時先截斷低分/較舊條目；deterministic 估算，不引入 tokenizer 依賴。
+	LearningsTokenBudget = 1800
 )
+
+// EstimateLearningTokens 以近似法估算一條 learning 注入時佔用的 token 數（約每 4 個 rune 一個 token，
+// 另加固定 overhead 涵蓋前綴與換行），deterministic 且不依賴外部 tokenizer。
+func EstimateLearningTokens(e learning.Entry) int {
+	return len([]rune(e.Content))/4 + 8
+}
+
+// rankLearnings 就地依 confidence score（高→低）、recency（新→舊）、ID（asc）排序，deterministic
+// 不依賴 map iteration order。供 LoadLearningsForRole 與 GenerateLearningsContext 共用同一 ranking 語意。
+func rankLearnings(entries []learning.Entry) {
+	sort.SliceStable(entries, func(i, j int) bool {
+		si, sj := entries[i].SortScore(), entries[j].SortScore()
+		if si != sj {
+			return si > sj
+		}
+		ri, rj := learningRecency(entries[i]), learningRecency(entries[j])
+		if !ri.Equal(rj) {
+			return ri.After(rj)
+		}
+		return entries[i].ID < entries[j].ID
+	})
+}
+
+// selectWithinBudget 依序累計 token 估算，回傳嚴格不超過 budget 的前綴，
+// entries 須已依優先序排好——被截斷者即為排序在後的低分/較舊條目。
+// budget 為硬上限：若首筆估算已超過 budget，回傳空 slice 而非破例保留該單筆，
+// 確保注入內容不突破 LearningsTokenBudget（前一輪 review 反例）。
+func selectWithinBudget(entries []learning.Entry, budget int) []learning.Entry {
+	var kept []learning.Entry
+	total := 0
+	for _, e := range entries {
+		t := EstimateLearningTokens(e)
+		if total+t > budget {
+			break
+		}
+		total += t
+		kept = append(kept, e)
+	}
+	return kept
+}
+
+// budgetSurvivors 依全域 ranking（confidence score 優先、recency 次之、ID tie-breaker）貪婪選取
+// entries，回傳嚴格不超過 budget 的存活 entry ID 集合。
+// 與 selectWithinBudget 的差異：後者只保留輸入序列前綴，若輸入是 active/candidate 交錯序，
+// budget 滿時會保留交錯前綴而非全域最高分——可能截掉排在交錯序後段的高分 active。
+// budgetSurvivors 先對整個合併集合重新全域排序再貪婪選取，確保 budget 超出時「先淘汰全域最低分/最舊」，
+// 供呼叫端在保留原顯示順序的前提下據此過濾。
+// budget 為硬上限：若最高分那筆估算已超過 budget，回傳空集合而非破例保留該單筆，
+// 確保注入內容不突破 LearningsTokenBudget（前一輪 review 反例）。
+func budgetSurvivors(merged []learning.Entry, budget int) map[string]bool {
+	ranked := make([]learning.Entry, len(merged))
+	copy(ranked, merged)
+	rankLearnings(ranked)
+
+	survivors := make(map[string]bool, len(ranked))
+	total := 0
+	for _, e := range ranked {
+		t := EstimateLearningTokens(e)
+		if total+t > budget {
+			break
+		}
+		total += t
+		survivors[e.ID] = true
+	}
+	return survivors
+}
 
 // LoadLearningsForRole 依 role 對應的 category，從 learnings.json 篩選出該角色相關的 learnings，
 // 分 active/candidate 兩桶取配額後交錯合併回傳（純讀取，不寫入 store）。
-// active 桶依「LastUsed 非零則用 LastUsed，否則用 CreatedAt」新到舊排序，取前 ActiveLearningsQuota 筆；
-// candidate 桶依 CreatedAt 新到舊排序，取前 CandidateLearningsQuota 筆，為保底名額不受 active 桶大小影響。
-// 兩桶交錯合併（round-robin），避免整段 active 排在整段 candidate 之前。
+// 兩桶各依 confidence score 優先、recency 次之、ID tie-breaker 排序（見 rankLearnings），
+// active 取前 ActiveLearningsQuota 筆，candidate 取前 CandidateLearningsQuota 筆為保底名額不受 active 桶大小影響；
+// 兩桶交錯合併（round-robin）避免整段 active 排在整段 candidate 之前；交錯序僅決定「顯示順序」，
+// budget 截斷則另以全域 ranking 判定存活（見 budgetSurvivors），確保超出 LearningsTokenBudget 時
+// 先淘汰全域最低分/最舊條目、而非只保留交錯前綴——避免高分 active 被排在後段的低分 candidate 擠出預算。
+// 最終回傳「交錯顯示順序中通過 budget 的存活條目」（只影響回傳 slice，不改 learnings.json）。
 // 讀取失敗或角色無對應 category 時只 warn 並回傳 nil。
 func LoadLearningsForRole(dotDir string, role protocol.Role) []learning.Entry {
 	storePath := filepath.Join(dotDir, protocol.LearningsFile)
@@ -59,12 +132,8 @@ func LoadLearningsForRole(dotDir string, role protocol.Role) []learning.Entry {
 		}
 	}
 
-	sort.SliceStable(active, func(i, j int) bool {
-		return learningRecency(active[i]).After(learningRecency(active[j]))
-	})
-	sort.SliceStable(candidates, func(i, j int) bool {
-		return candidates[i].CreatedAt.After(candidates[j].CreatedAt)
-	})
+	rankLearnings(active)
+	rankLearnings(candidates)
 
 	if len(active) > ActiveLearningsQuota {
 		active = active[:ActiveLearningsQuota]
@@ -73,7 +142,15 @@ func LoadLearningsForRole(dotDir string, role protocol.Role) []learning.Entry {
 		candidates = candidates[:CandidateLearningsQuota]
 	}
 
-	return interleaveLearnings(active, candidates)
+	merged := interleaveLearnings(active, candidates)
+	survivors := budgetSurvivors(merged, LearningsTokenBudget)
+	result := make([]learning.Entry, 0, len(merged))
+	for _, e := range merged {
+		if survivors[e.ID] {
+			result = append(result, e)
+		}
+	}
+	return result
 }
 
 // learningRecency 回傳排序用的參考時間：LastUsed 非零則用 LastUsed，否則用 CreatedAt。
@@ -136,7 +213,15 @@ func HarvestLearnings(ws *protocol.Workspace, featureID string) {
 		return
 	}
 
-	store.MarkStale(learning.DefaultStaleDays)
+	// active 老化改為 demote 回 candidate（F159），不再直接標 stale；
+	// 設定載入失敗只 warn/skip demote，不阻塞 harvest（learnings 屬 nice-to-have）。
+	demoted := 0
+	if cfg, cerr := ws.LoadMergedConfig(); cerr != nil {
+		slog.Warn("load config for active demote failed, skip demote", "error", cerr)
+	} else if demoted = store.DemoteInactiveActive(evolution.ResolveEvolution(cfg).ActiveDemoteDays); demoted > 0 {
+		slog.Info("demoted inactive active learnings", "feature", featureID, "demoted", demoted)
+	}
+
 	totalAdded := 0
 
 	totalAdded += harvestRoleLearnings(&store, ws, featureID)
@@ -144,7 +229,7 @@ func HarvestLearnings(ws *protocol.Workspace, featureID string) {
 
 	ineffective := store.MarkIneffective()
 
-	if totalAdded == 0 && ineffective == 0 {
+	if totalAdded == 0 && ineffective == 0 && demoted == 0 {
 		return
 	}
 
@@ -298,7 +383,10 @@ func ApplyConsolidateResult(ws *protocol.Workspace) (int, int, error) {
 	return merged, removed, nil
 }
 
-// GenerateLearningsContext 產生 .4x/learnings-context.md，按 category 分組列出所有 active learnings。
+// GenerateLearningsContext 產生 .4x/learnings-context.md，按 category 分組列出 active learnings。
+// 只輸出 active 且非 ineffective（ActiveEntries 已過濾），排除 candidate/stale/promoted。
+// 先以與 LoadLearningsForRole 一致的 ranking（confidence 優先、recency 次之、ID tie-breaker）全域排序，
+// 依 LearningsTokenBudget 保留高分/新鮮條目後再依 category 分組輸出，超出預算的低分條目不輸出。
 // 無 active entries 時產生只含 header 的空檔。
 func GenerateLearningsContext(ws *protocol.Workspace) error {
 	storePath := filepath.Join(ws.DotDir(), protocol.LearningsFile)
@@ -308,6 +396,8 @@ func GenerateLearningsContext(ws *protocol.Workspace) error {
 	}
 
 	active := store.ActiveEntries()
+	rankLearnings(active)
+	active = selectWithinBudget(active, LearningsTokenBudget)
 
 	var sb strings.Builder
 	sb.WriteString("<!-- Auto-generated by 4x learn context. Do not edit manually. -->\n")

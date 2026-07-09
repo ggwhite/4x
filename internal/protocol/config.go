@@ -129,6 +129,10 @@ type EvolutionConfig struct {
 	// CandidateMaxIdleDays 為「從未使用的 candidate」老化為 stale 的天數門檻，僅 `4x learn prune` 消費。
 	// 用 pointer 區分「未設定」（nil → 套預設 30）與「明確設值」；明確設為 0 表示停用老化，正數為閾值。
 	CandidateMaxIdleDays *int `json:"candidate_max_idle_days,omitempty"`
+	// ActiveDemoteDays 為「久未命中的 active learning」demote 回 candidate 的天數門檻，由 `4x learn prune`
+	// 與 learnings harvest 消費。用 pointer 區分「未設定」（nil → 套預設 90）與「明確設值」；
+	// 明確設為 0 表示停用 active demote，正數為閾值。
+	ActiveDemoteDays *int `json:"active_demote_days,omitempty"`
 }
 
 // SelfModSettings 是 .4x/settings.json 內 self_mod_guard 區段的設定，

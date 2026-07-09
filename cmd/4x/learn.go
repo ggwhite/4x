@@ -213,21 +213,41 @@ func newLearnPruneCmd() *cobra.Command {
 			}
 			resolved := evolution.ResolveEvolution(cfg)
 
-			store.MarkStale(learning.DefaultStaleDays)
+			// 先 demote 久未命中的 active 回 candidate（交由 F147 candidate 老化後續處理）。
+			preActive := make(map[string]bool)
+			for _, e := range store.Entries {
+				if e.Status == learning.StatusActive {
+					preActive[e.ID] = true
+				}
+			}
+			store.DemoteInactiveActive(resolved.ActiveDemoteDays)
+			demotedIDs := []string{}
+			demotedSet := make(map[string]bool)
+			for _, e := range store.Entries {
+				if preActive[e.ID] && e.Status == learning.StatusCandidate {
+					demotedIDs = append(demotedIDs, e.ID)
+					demotedSet[e.ID] = true
+				}
+			}
+
+			// 再老化既有從未使用的 candidate 為 stale；還原本輪剛 demote 的 entry，
+			// 避免「新 demote 的 active」被 candidate 老化直接標 stale 而遭刪除（AC-6/AC-7）。
 			store.MarkCandidatesStale(resolved.CandidateMaxIdleDays)
+			for i := range store.Entries {
+				if demotedSet[store.Entries[i].ID] && store.Entries[i].Status == learning.StatusStale {
+					store.Entries[i].Status = learning.StatusCandidate
+				}
+			}
 
 			staleIDs := []string{}
 			for _, e := range store.Entries {
 				if e.Status == learning.StatusStale {
 					staleIDs = append(staleIDs, e.ID)
-					if !jsonOutput {
-						fmt.Printf("  %s (%s) %s\n", e.ID, e.Category, e.Content)
-					}
 				}
 			}
 
 			removed := 0
-			if !dryRun && len(staleIDs) > 0 {
+			if !dryRun && (len(staleIDs) > 0 || len(demotedIDs) > 0) {
 				removed = store.Prune()
 				if err := store.Save(storePath); err != nil {
 					return err
@@ -236,27 +256,59 @@ func newLearnPruneCmd() *cobra.Command {
 
 			if jsonOutput {
 				return printJSON(struct {
-					Removed  int      `json:"removed"`
-					DryRun   bool     `json:"dryRun"`
-					StaleIDs []string `json:"staleIds"`
-				}{removed, dryRun, staleIDs})
+					Removed    int      `json:"removed"`
+					Demoted    int      `json:"demoted"`
+					DryRun     bool     `json:"dryRun"`
+					StaleIDs   []string `json:"staleIds"`
+					DemotedIDs []string `json:"demotedIds"`
+				}{removed, len(demotedIDs), dryRun, staleIDs, demotedIDs})
 			}
 
-			if len(staleIDs) == 0 {
-				fmt.Println("No stale learnings found.")
+			if len(demotedIDs) == 0 && len(staleIDs) == 0 {
+				fmt.Println("No inactive active or stale learnings found.")
 				return nil
 			}
+
 			if dryRun {
-				fmt.Printf("\n%d stale entries would be removed (dry-run)\n", len(staleIDs))
+				if len(demotedIDs) > 0 {
+					fmt.Printf("%d active entries would be demoted to candidate (not deleted):\n", len(demotedIDs))
+					printLearningEntries(store, demotedSet)
+				}
+				if len(staleIDs) > 0 {
+					fmt.Printf("%d stale entries would be removed:\n", len(staleIDs))
+					printLearningsByStatus(store, learning.StatusStale)
+				}
 				return nil
 			}
-			fmt.Printf("\nRemoved %d stale entries.\n", removed)
+
+			if len(demotedIDs) > 0 {
+				fmt.Printf("Demoted %d inactive active entries to candidate.\n", len(demotedIDs))
+			}
+			fmt.Printf("Removed %d stale entries.\n", removed)
 			return nil
 		}),
 	}
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "preview without removing")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 	return cmd
+}
+
+// printLearningEntries 列印 store 中 ID 落在 idSet 的條目（縮排格式，供 dry-run 預覽）。
+func printLearningEntries(store learning.Store, idSet map[string]bool) {
+	for _, e := range store.Entries {
+		if idSet[e.ID] {
+			fmt.Printf("  %s (%s) %s\n", e.ID, e.Category, e.Content)
+		}
+	}
+}
+
+// printLearningsByStatus 列印 store 中指定 status 的條目（縮排格式，供 dry-run 預覽）。
+func printLearningsByStatus(store learning.Store, status learning.Status) {
+	for _, e := range store.Entries {
+		if e.Status == status {
+			fmt.Printf("  %s (%s) %s\n", e.ID, e.Category, e.Content)
+		}
+	}
 }
 
 func newLearnPromoteCmd() *cobra.Command {
