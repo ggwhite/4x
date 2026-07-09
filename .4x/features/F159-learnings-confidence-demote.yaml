@@ -13,7 +13,7 @@ description: |-
     - promoted 狀態不自動 demote（人工升的由人工降）
     - 不改 learnings.json schema 版本，新欄位加 omitempty 向下相容
     - 排序與截斷只影響注入內容，不刪除 store 內的資料
-status: not-started
+status: in-progress
 priority: 3
 profile: normal
 subtasks:
