@@ -12,7 +12,7 @@ description: |-
     - 不做 OS 層 sandbox（不在本 feature 範圍）
     - 攔截必須顯式失敗，不能讓 pipeline 靜默跳過驗證繼續走
     - 比對邏輯為 deterministic 前綴/pattern 比對，不呼叫 LLM
-status: not-started
+status: in-progress
 priority: 1
 profile: normal
 subtasks:
@@ -27,3 +27,18 @@ subtasks:
       status: ""
 rules:
     - '來源: docs/reference/independent-analysis.md Security Assessment #2；與 F156 predicate linter 互補（本 feature 抓危險命令，F156 抓假驗證）'
+phase_overrides:
+    accepting:
+        runner: codex
+    amending:
+        runner: codex
+    coding:
+        runner: codex
+    design-reviewing:
+        runner: codex
+    designing:
+        runner: codex
+    reviewing:
+        runner: codex
+    testing:
+        runner: codex
