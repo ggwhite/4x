@@ -1,0 +1,30 @@
+id: F168-codex-usage-observability
+name: 'F168: codex 額度百分比與 log 結構化'
+description: |-
+    現狀：codex runner 目前呼叫純文字模式（`codex exec`，無 --json），4x 的 round log 存的是原始終端機輸出（含 ANSI 顏色碼），可讀性差；且 4x 完全抓不到 codex 的用量/額度資訊——`4x cost` 的 cost_usd 對 codex round 永遠是 0/unobserved，因為 codex 走 ChatGPT 訂閱制（非 API 計量計費），4x 的 log 解析器（ParseRunStatsFromLog）也只認 claude 專屬格式（`[result]...$X.XXXX` 或 `tokens used\nN`）。
+
+    實測發現 codex CLI 其實把即時額度百分比記錄在 `~/.codex/sessions/<date>/rollout-*-<session-id>.jsonl` 的 `event_msg` / `token_count` 事件的 `rate_limits` 欄位裡：`primary.used_percent`（5 小時窗，window_minutes=300）與 `secondary.used_percent`（週窗，window_minutes=10080），皆含 `resets_at` unix timestamp，與 ChatGPT App 顯示的「5 小時 X%／1 週 Y%」完全對應。這份資料目前完全沒被 4x 使用；4x 現有 log 開頭本來就印有 `session id: xxx`，可用來對應到正確的 rollout 檔名。
+
+    需求：
+    - codex runner 呼叫參數加上 `--json`（internal/runner 對應 codex 設定），改用 `codex exec --json` 的結構化 JSONL 事件流取代目前的純文字終端輸出，讓 round log 改為逐行 JSON、不再有 ANSI 顏色碼與雜訊
+    - 每個 codex round 執行完後，讀取該 session 對應的 rollout jsonl 檔（依 log 已印出的 session id 定位檔案路徑，預設 `~/.codex/sessions/YYYY/MM/DD/rollout-*-<session-id>.jsonl`，可設定 CODEX_HOME 或等效環境變數覆寫根目錄），取出最後一筆 `token_count` 事件的 `rate_limits.primary.used_percent`（5 小時）與 `rate_limits.secondary.used_percent`（週），連同既有 token 數一併記錄
+    - 顯示位置：至少涵蓋 round 結束時寫入 events.jsonl 的欄位，以及 `4x cost`/`4x status` 對 codex round 的呈現——因 codex 沒有 USD 概念，呈現方式是「額度百分比 + token 數」而非金額
+    - rollout 檔案根目錄需可設定或有合理預設偵測（環境變數優先，找不到則 fallback 預設路徑）
+
+    約束：
+    - 不改變 claude runner 既有的 cost_usd/token 顯示邏輯與格式
+    - codex 沒有 USD 概念，不嘗試偽造、估算或換算成金額，只呈現額度百分比與 token 數
+    - rollout 檔案讀取失敗（找不到、格式改變、session id 對不上等）只 warn 並 skip，不阻塞 round 執行或 4x 主流程
+    - 不改變 codex runner 現有的 sandbox/approval/model 等既有呼叫參數，只新增 `--json`
+status: not-started
+priority: 3
+subtasks:
+    - id: codex-json-flag
+      name: codex runner 呼叫加 --json，log 寫入方式配合改為解析 JSONL 事件而非純文字
+      status: ""
+    - id: rate-limit-extract
+      name: 依 session id 定位並解析對應 rollout jsonl，取出 rate_limits 百分比與 resets_at
+      status: ""
+    - id: display-integration
+      name: 4x cost/status/events.jsonl 顯示 codex 額度百分比與 token 數（不含金額）
+      status: ""
