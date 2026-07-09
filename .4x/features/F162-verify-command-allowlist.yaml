@@ -29,7 +29,7 @@ rules:
     - '來源: docs/reference/independent-analysis.md Security Assessment #2；與 F156 predicate linter 互補（本 feature 抓危險命令，F156 抓假驗證）'
 phase_overrides:
     accepting:
-        runner: codex
+        runner: claude
     amending:
         runner: codex
     coding:
