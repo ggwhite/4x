@@ -12,6 +12,7 @@ import (
 //   - manual：4x run 手動帶入（--runner flag），空字串代表未手動指定。
 //   - f.PhaseOverrides[phase].Runner：feature YAML 對此 phase 的覆寫。
 //   - profile 對應 PhaseSpec.Runner：profile 對此 phase 的覆寫。
+//   - cfg.Roles[PhaseRole(phase)].Runner：settings.json 對此 role 的全程覆寫（跨 model 對抗審查）。
 //   - cfg.Default：default_runner。
 //
 // 解析結果必須存在於 cfg.Runners，否則回 error。
@@ -25,6 +26,12 @@ func ResolvePhaseRunner(cfg Config, f feature.Feature, pc ProfileConfig, phase P
 	if name == "" {
 		if spec, ok := pc.phaseSpec(phase); ok && spec.Runner != "" {
 			name = spec.Runner
+		}
+	}
+	if name == "" {
+		role := PhaseRole(phase)
+		if rc, ok := cfg.Roles[string(role)]; ok && rc.Runner != "" {
+			name = rc.Runner
 		}
 	}
 	if name == "" {

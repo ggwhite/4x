@@ -166,7 +166,7 @@ func TestCheckRunners(t *testing.T) {
 // --- S4: roles ---
 
 func TestCheckRoles_Resolved(t *testing.T) {
-	checks := checkRoles(baseConfig())
+	checks := checkRoles(baseConfig(), nil)
 	coder := findCheck(checks, sectionRoles, "coder")
 	if coder == nil || coder.Severity != SeverityPass || !strings.Contains(coder.Detail, "claude-opus") {
 		t.Fatalf("coder 應 PASS 且 detail 含實際 model，得 %+v", coder)
@@ -181,7 +181,7 @@ func TestCheckRoles_ResolveFail(t *testing.T) {
 	cfg := baseConfig()
 	// 移除 tiers 使 model 無法解析。
 	cfg.Runners["claude"] = protocol.RunnerConfig{Command: "claude"}
-	checks := checkRoles(cfg)
+	checks := checkRoles(cfg, nil)
 	if c := findCheck(checks, sectionRoles, "coder"); c == nil || c.Severity != SeverityWarn {
 		t.Fatalf("無法解析 model 應 WARN，得 %+v", c)
 	}
@@ -190,7 +190,7 @@ func TestCheckRoles_ResolveFail(t *testing.T) {
 func TestCheckRoles_DeepModelUnset_FallbackResolves(t *testing.T) {
 	cfg := baseConfig()
 	cfg.Roles["reviewer"] = protocol.RoleConfig{Model: "sonnet"} // 無 deep_model，但 runner 有 opus tier
-	checks := checkRoles(cfg)
+	checks := checkRoles(cfg, nil)
 	if c := findCheck(checks, sectionRoles, "deep-reviewer"); c == nil || c.Severity != SeverityPass {
 		t.Fatalf("runner 可解析預設 tier 應 PASS，得 %+v", c)
 	}
@@ -200,7 +200,7 @@ func TestCheckRoles_DeepModelUnset_FallbackFails(t *testing.T) {
 	cfg := baseConfig()
 	cfg.Roles["reviewer"] = protocol.RoleConfig{Model: "sonnet"}
 	cfg.Runners["claude"] = protocol.RunnerConfig{Command: "claude"} // 無 tiers，fallback 無法解析
-	checks := checkRoles(cfg)
+	checks := checkRoles(cfg, nil)
 	if c := findCheck(checks, sectionRoles, "deep-reviewer"); c == nil || c.Severity != SeverityWarn {
 		t.Fatalf("runner 無法解析預設 tier 應 WARN，得 %+v", c)
 	}
@@ -209,7 +209,7 @@ func TestCheckRoles_DeepModelUnset_FallbackFails(t *testing.T) {
 func TestCheckRoles_NoDefaultRunner(t *testing.T) {
 	cfg := baseConfig()
 	cfg.Default = ""
-	checks := checkRoles(cfg)
+	checks := checkRoles(cfg, nil)
 	if len(checks) != 1 || checks[0].Severity != SeverityWarn {
 		t.Fatalf("無 default runner 應降級為單一 WARN，得 %+v", checks)
 	}
@@ -316,7 +316,7 @@ func TestCheckWorkspace_MalformedYAML(t *testing.T) {
 		t.Fatal(err)
 	}
 	ws := &protocol.Workspace{Root: root}
-	checks := checkFeatureYAML(ws)
+	checks := checkFeatureYAML(ws, protocol.Config{}, nil)
 	c := findCheck(checks, sectionWorkspace, "F005.yaml")
 	if c == nil || c.Severity != SeverityFail || !strings.Contains(c.Detail, "F005.yaml") {
 		t.Fatalf("壞 YAML 應 FAIL 且 detail 含檔名，得 %+v", c)
@@ -337,7 +337,7 @@ func TestCheckFeatureYAML_MissingIDFails(t *testing.T) {
 	root := setupWorkspace(t)
 	writeRawFeature(t, root, "F020.yaml", "name: 沒有 id\nstatus: in-progress\n")
 	ws := &protocol.Workspace{Root: root}
-	checks := checkFeatureYAML(ws)
+	checks := checkFeatureYAML(ws, protocol.Config{}, nil)
 	c := findCheck(checks, sectionWorkspace, "F020.yaml")
 	if c == nil || c.Severity != SeverityFail || !strings.Contains(c.Detail, "F020.yaml") {
 		t.Fatalf("缺 id 的 feature 應 FAIL 且 detail 含檔名，得 %+v", c)
@@ -350,7 +350,7 @@ func TestCheckFeatureYAML_SemanticWarn(t *testing.T) {
 	body := "id: F021\nname: 語意問題\nstatus: bogus-status\nsubtasks:\n  - id: s1\n"
 	writeRawFeature(t, root, "F021.yaml", body)
 	ws := &protocol.Workspace{Root: root}
-	checks := checkFeatureYAML(ws)
+	checks := checkFeatureYAML(ws, protocol.Config{}, nil)
 	c := findCheck(checks, sectionWorkspace, "F021.yaml")
 	if c == nil || c.Severity != SeverityWarn {
 		t.Fatalf("語意問題應 WARN，得 %+v", c)
@@ -364,7 +364,7 @@ func TestCheckFeatureYAML_AllCleanSummaryPass(t *testing.T) {
 	root := setupWorkspace(t)
 	writeFeature(t, root, "F022", feature.StatusInProgress)
 	ws := &protocol.Workspace{Root: root}
-	checks := checkFeatureYAML(ws)
+	checks := checkFeatureYAML(ws, protocol.Config{}, nil)
 	if findCheck(checks, sectionWorkspace, "F022.yaml") != nil {
 		t.Fatalf("乾淨的 feature 不應有單檔 check")
 	}

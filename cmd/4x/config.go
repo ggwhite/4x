@@ -133,6 +133,8 @@ func configValue(cfg protocol.UserConfig, key string) (string, error) {
 			return valOrDefault(rc.Model, ""), nil
 		case "deep_model":
 			return valOrDefault(rc.DeepModel, ""), nil
+		case "runner":
+			return valOrDefault(rc.Runner, ""), nil
 		case "parallel_reviewers":
 			return intValOrDefault(rc.ParallelReviewers, 1), nil
 		case "angles_per_reviewer":
@@ -212,6 +214,8 @@ func newConfigSetCmd() *cobra.Command {
 					rc.Model = value
 				case "deep_model":
 					rc.DeepModel = value
+				case "runner":
+					rc.Runner = value
 				case "parallel_reviewers":
 					n, err := strconv.Atoi(value)
 					if err != nil {

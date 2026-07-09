@@ -107,9 +107,9 @@ func Diagnose(opts Options) (Report, error) {
 	var report Report
 	report.Checks = append(report.Checks, checkSettings(cfg, loadErr)...)
 	report.Checks = append(report.Checks, checkRunners(cfg, lookPath)...)
-	report.Checks = append(report.Checks, checkRoles(cfg)...)
+	report.Checks = append(report.Checks, checkRoles(cfg, lookPath)...)
 	report.Checks = append(report.Checks, checkProfiles(cfg, lookPath)...)
-	report.Checks = append(report.Checks, checkWorkspace(ws, opts.Root, processAlive)...)
+	report.Checks = append(report.Checks, checkWorkspace(ws, opts.Root, cfg, lookPath, processAlive)...)
 	report.Checks = append(report.Checks, checkEvolution(cfg)...)
 	return report, nil
 }
@@ -240,6 +240,26 @@ func checkDefaultRunner(cfg protocol.Config) Check {
 	}
 }
 
+// runnerAvailability 統一 runner 覆寫（roles.{role}.runner / feature phase_overrides.{phase}.runner）
+// 的三態可用性判斷，避免門檻語意在多處各自複製後悄悄分歧：
+//   - 名稱不在 cfg.Runners → SeverityFail；
+//   - runner 存在但 command 經注入的 lookPath 找不到 → SeverityWarn；
+//   - 合法且在 PATH（或未設 command）→ SeverityPass。
+//
+// 回傳的 detail 只描述 runner 本身，呼叫端自行前綴 role/phase 等上下文。
+func runnerAvailability(cfg protocol.Config, lookPath func(string) (string, error), runnerName string) (Severity, string) {
+	rc, ok := cfg.Runners[runnerName]
+	if !ok {
+		return SeverityFail, fmt.Sprintf("runner %q 不在 runners 清單中", runnerName)
+	}
+	if rc.Command != "" {
+		if _, err := lookPath(rc.Command); err != nil {
+			return SeverityWarn, fmt.Sprintf("runner %q 的 command %q 不在 PATH（若跑在遠端可忽略）", runnerName, rc.Command)
+		}
+	}
+	return SeverityPass, fmt.Sprintf("runner %q 可用", runnerName)
+}
+
 // checkRunners 對每個 runner 的 command 用注入的 lookPath 檢查是否可在 PATH 找到。
 // 找不到只報 WARN（runner 可能跑在遠端機器），不報 FAIL。
 func checkRunners(cfg protocol.Config, lookPath func(string) (string, error)) []Check {
@@ -279,17 +299,42 @@ func checkRunners(cfg protocol.Config, lookPath func(string) (string, error)) []
 	return checks
 }
 
-// checkRoles 用 default runner 解析每個 canonical role 實際使用的 model，並檢查 deep_model。
-// 無 default runner 時整段降級為單一 WARN，不 panic。
-func checkRoles(cfg protocol.Config) []Check {
-	if cfg.Default == "" {
-		return []Check{{
-			Section: sectionRoles, Name: "role models", Severity: SeverityWarn,
-			Detail: "無 default_runner，無法解析各 role 的 model",
-		}}
+// checkRoles 先驗證每個 role 的 runner 覆寫（roles.{role}.runner）可用性，再用 default runner
+// 解析每個 canonical role 實際使用的 model，並檢查 deep_model。runner 覆寫的三態驗證與
+// cfg.Default 是否存在完全解耦（DR-9）：即使無 default_runner，未知 runner 仍報 FAIL；
+// model 解析部分則在無 default runner 時降級為單一 WARN，不 panic。
+func checkRoles(cfg protocol.Config, lookPath func(string) (string, error)) []Check {
+	if lookPath == nil {
+		lookPath = exec.LookPath
 	}
 
 	var checks []Check
+
+	// roles.{role}.runner 覆寫可用性驗證：與下方 model 解析、與 cfg.Default 皆解耦。
+	roleNames := make([]string, 0, len(cfg.Roles))
+	for name, rc := range cfg.Roles {
+		if rc.Runner != "" {
+			roleNames = append(roleNames, name)
+		}
+	}
+	sort.Strings(roleNames)
+	for _, name := range roleNames {
+		sev, detail := runnerAvailability(cfg, lookPath, cfg.Roles[name].Runner)
+		checks = append(checks, Check{
+			Section: sectionRoles, Name: name + " runner", Severity: sev,
+			Detail: fmt.Sprintf("role %q：%s", name, detail),
+		})
+	}
+
+	// 以下 model 解析需要 default runner；無 default 時降級為單一 WARN（既有行為不變）。
+	if cfg.Default == "" {
+		checks = append(checks, Check{
+			Section: sectionRoles, Name: "role models", Severity: SeverityWarn,
+			Detail: "無 default_runner，無法解析各 role 的 model",
+		})
+		return checks
+	}
+
 	for _, role := range canonicalRoles {
 		model, err := protocol.ResolveModel(cfg, cfg.Default, role)
 		if err != nil {
@@ -419,11 +464,11 @@ func checkProfiles(cfg protocol.Config, lookPath func(string) (string, error)) [
 
 // checkWorkspace 檢查 workspace 完整性：孤兒/懸空 worktree、stale state、壞掉的 feature YAML。
 // 全程 read-only，stale state 以注入的 processAlive 判斷，絕不呼叫 ReconcileActive。
-func checkWorkspace(ws *protocol.Workspace, root string, processAlive func(int) bool) []Check {
+func checkWorkspace(ws *protocol.Workspace, root string, cfg protocol.Config, lookPath func(string) (string, error), processAlive func(int) bool) []Check {
 	var checks []Check
 	checks = append(checks, checkWorktrees(ws, root)...)
 	checks = append(checks, checkStaleState(ws, processAlive)...)
-	checks = append(checks, checkFeatureYAML(ws)...)
+	checks = append(checks, checkFeatureYAML(ws, cfg, lookPath)...)
 	return checks
 }
 
@@ -510,7 +555,12 @@ func checkStaleState(ws *protocol.Workspace, processAlive func(int) bool) []Chec
 }
 
 // checkFeatureYAML 逐檔解析 .4x/features/*.yaml，定位個別壞檔（不用 ListFeatures，避免第一個壞檔中斷）。
-func checkFeatureYAML(ws *protocol.Workspace) []Check {
+// 另對每個 feature 的 phase_overrides.{phase}.runner 覆寫做三態可用性驗證（DR-8，涵蓋最高優先序
+// 的 feature 層 runner 覆寫），語意與 checkProfiles / checkRoles 對齊。
+func checkFeatureYAML(ws *protocol.Workspace, cfg protocol.Config, lookPath func(string) (string, error)) []Check {
+	if lookPath == nil {
+		lookPath = exec.LookPath
+	}
 	dir := filepath.Join(ws.DotDir(), protocol.FeaturesDir)
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -555,6 +605,28 @@ func checkFeatureYAML(ws *protocol.Workspace) []Check {
 			checks = append(checks, Check{
 				Section: sectionWorkspace, Name: e.Name(), Severity: SeverityWarn,
 				Detail: fmt.Sprintf("feature YAML 語意警告 %s：%s", e.Name(), strings.Join(warnings, "; ")),
+			})
+		}
+
+		// phase_overrides.{phase}.runner 覆寫的可用性驗證（DR-8）：三態語意同 checkProfiles，
+		// 合法且在 PATH 時不 append（沿用下方「所有 feature YAML 可正常解析」PASS 彙總）。
+		phaseKeys := make([]string, 0, len(f.PhaseOverrides))
+		for phase := range f.PhaseOverrides {
+			phaseKeys = append(phaseKeys, phase)
+		}
+		sort.Strings(phaseKeys)
+		for _, phase := range phaseKeys {
+			po := f.PhaseOverrides[phase]
+			if po.Runner == "" {
+				continue
+			}
+			sev, detail := runnerAvailability(cfg, lookPath, po.Runner)
+			if sev == SeverityPass {
+				continue
+			}
+			checks = append(checks, Check{
+				Section: sectionWorkspace, Name: e.Name(), Severity: sev,
+				Detail: fmt.Sprintf("%s phase %q 的 %s", e.Name(), phase, detail),
 			})
 		}
 	}

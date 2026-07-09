@@ -214,8 +214,12 @@ type RunnerConfig struct {
 
 // RoleConfig 是各角色的模型與行為設定
 type RoleConfig struct {
-	Model         string   `json:"model,omitempty"`
-	DeepModel     string   `json:"deep_model,omitempty"`
+	Model     string `json:"model,omitempty"`
+	DeepModel string `json:"deep_model,omitempty"`
+	// Runner 指定此 role 全程改用的 runner 名稱（須存在於 runners）；空字串代表沿用
+	// 下層解析（default_runner）。優先序位於 profile PhaseSpec 之下、default_runner 之上，
+	// 供 Reviewer / Deep Reviewer 與 Coder 跨 model family 做對抗審查（見 ResolvePhaseRunner）。
+	Runner        string   `json:"runner,omitempty"`
 	ScreenshotDir string   `json:"screenshot_dir,omitempty"`
 	Instructions  []string `json:"instructions,omitempty"`
 	Includes      []string `json:"includes,omitempty"`

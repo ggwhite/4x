@@ -140,6 +140,20 @@ The Deep Reviewer uses `roles.reviewer.deep_model`. When `parallel_reviewers > 1
 
 You can also mix runners — use Claude for Design, Gemini for Code, etc. — by running each phase manually with different `--runner` flags and `4x transition` between phases.
 
+**Cross-model adversarial review.** A reviewer that shares the coder's model family tends to share its blind spots — it rubber-stamps the same class of mistakes it would have made itself. To break that symmetry, pin the review roles to a **different** runner (hence a different model family) than the coder. Set `roles.{role}.runner` to route a role's entire pipeline through another runner:
+
+```json
+{
+  "roles": {
+    "coder": { "runner": "claude" },
+    "reviewer": { "runner": "codex" },
+    "deep-reviewer": { "runner": "codex" }
+  }
+}
+```
+
+With `roles.deep-reviewer.runner: codex`, the Deep Reviewer runs on `codex` while the Coder stays on `claude`, so the adversarial pass reasons from a genuinely independent model. The runner name must exist in `runners`, otherwise the run fails fast (and `4x doctor` flags it up front). Precedence for the effective runner is (high→low): a feature's `phase_overrides.{phase}.runner` > the profile's per-phase runner > `roles.{role}.runner` > `default_runner`. Leaving `roles.{role}.runner` unset keeps the existing behavior unchanged.
+
 ## Writing a Plugin
 
 Plugins follow a simple contract — read `.4x/` files, do AI work, write results back:

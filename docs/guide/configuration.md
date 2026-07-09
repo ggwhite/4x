@@ -95,6 +95,7 @@ Non-transient failures (compilation errors, assertion failures, panics), exit 0,
 |---|---|
 | `model` | Model name for this role |
 | `deep_model` | Model for adversarial review pass (reviewer only). **Required for the `deep-reviewing` phase to execute** — if unset, the phase is skipped and the run transitions directly from `testing` to `accepting`. |
+| `runner` | Runner this role runs on for its entire pipeline (must exist in `runners`; empty = inherit `default_runner`). Use it for cross-model adversarial review — e.g. `roles.deep-reviewer.runner: codex` puts the Deep Reviewer on a different model family than the Coder. Precedence: `phase_overrides.{phase}.runner` > profile per-phase runner > `roles.{role}.runner` > `default_runner`. |
 | `max_fix_rounds` | Max self-heal iterations in the `deep-reviewing` phase (`deep-reviewer` only; default 2). Each iteration runs a scoped mini-coder + re-verifier; exceeding the cap escalates to `needs-attention`. |
 | `instructions` | Additional instructions injected into the role prompt |
 | `includes` | Files to include in the role prompt |
