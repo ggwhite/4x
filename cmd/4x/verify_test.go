@@ -175,6 +175,60 @@ func TestVerifyFallback_WithTestStrategy(t *testing.T) {
 	}
 }
 
+func TestVerifyCmd_Allowlist_EndToEnd(t *testing.T) {
+	cfg := protocol.Config{
+		Project: protocol.ProjectConfig{
+			Name:                   "test",
+			VerifyCommandAllowlist: []string{"make"},
+		},
+		Default: "claude",
+	}
+	featureID := "F162-allowlist-e2e"
+	dir := setupVerifyWorkspace(t, cfg, featureID)
+	ws := &protocol.Workspace{Root: dir}
+
+	sentinel := filepath.Join(dir, "sentinel")
+	tsPath := filepath.Join(ws.FeatureDir(featureID), protocol.TestStratFile)
+	tsContent := "verify_commands:\n  - touch " + sentinel + "\n"
+	if err := os.WriteFile(tsPath, []byte(tsContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := run4x(dir, "verify", featureID, "--json")
+	if err == nil {
+		t.Fatalf("verify should fail when command is blocked, got success\n%s", out)
+	}
+	if _, err := os.Stat(sentinel); !os.IsNotExist(err) {
+		t.Fatalf("sentinel should not exist after blocked command, stat err=%v", err)
+	}
+
+	verifyPath := filepath.Join(ws.RoundDir(featureID, 1), protocol.VerifyFile)
+	data, rerr := os.ReadFile(verifyPath)
+	if rerr != nil {
+		t.Fatalf("verify.json not created: %v", rerr)
+	}
+	var ev protocol.VerifyEvidence
+	if err := json.Unmarshal(data, &ev); err != nil {
+		t.Fatalf("parse verify.json: %v", err)
+	}
+	if ev.Passed {
+		t.Fatal("verify.json passed should be false for blocked command")
+	}
+	if len(ev.Commands) != 1 {
+		t.Fatalf("expected 1 command, got %d", len(ev.Commands))
+	}
+	got := ev.Commands[0]
+	if got.ExitCode != 126 {
+		t.Errorf("blocked ExitCode = %d, want 126", got.ExitCode)
+	}
+	if got.Error != "blocked" {
+		t.Errorf("blocked Error = %q, want blocked", got.Error)
+	}
+	if got.Skipped {
+		t.Error("blocked command should be a failure, not skipped")
+	}
+}
+
 func TestVerifyFallback_ParseError(t *testing.T) {
 	cfg := protocol.Config{
 		Project: protocol.ProjectConfig{

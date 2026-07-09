@@ -1192,7 +1192,7 @@ func TestSSE_TruncationResetsOffset(t *testing.T) {
 	ws := setupServerWorkspace(t)
 	path := filepath.Join(ws.FeatureDir("test-feat"), protocol.EventsFile)
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newTestHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handleSSE(protocol.NewCachedWorkspace(ws), "test-feat", w, r)
 	}))
 	defer srv.Close()
@@ -1353,7 +1353,7 @@ func setupLogSSEWorkspace(t *testing.T) (*protocol.Workspace, string) {
 // 回傳解析出的 content 清單（每個 SSE message 的 content 欄位）。
 func collectLogSSEMessages(t *testing.T, ws *protocol.Workspace, ctx context.Context) []string {
 	t.Helper()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newTestHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handleLogSSE(protocol.NewCachedWorkspace(ws), "test-feat", w, r)
 	}))
 	t.Cleanup(srv.Close)
@@ -1399,7 +1399,7 @@ func TestHandleLogSSE_SmallDelta(t *testing.T) {
 	defer cancel()
 
 	// 等待至少一個 message，再取消連線
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newTestHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handleLogSSE(protocol.NewCachedWorkspace(ws), "test-feat", w, r)
 	}))
 	defer srv.Close()
@@ -1463,7 +1463,7 @@ func TestHandleLogSSE_MultiFile(t *testing.T) {
 	defer cancel()
 
 	cws := protocol.NewCachedWorkspace(ws)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newTestHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handleLogSSE(cws, "test-feat", w, r)
 	}))
 	defer srv.Close()
@@ -1521,7 +1521,7 @@ func TestHandleLogSSE_LargeDelta(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newTestHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handleLogSSE(protocol.NewCachedWorkspace(ws), "test-feat", w, r)
 	}))
 	defer srv.Close()
@@ -1590,7 +1590,7 @@ func TestHandleLogSSE_Boundary(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 			defer cancel()
 
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			srv := newTestHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				handleLogSSE(protocol.NewCachedWorkspace(ws), "test-feat", w, r)
 			}))
 			defer srv.Close()
@@ -1656,7 +1656,7 @@ func TestHandleLogSSE_MultibyteBoundary(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newTestHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handleLogSSE(protocol.NewCachedWorkspace(ws), "test-feat", w, r)
 	}))
 	defer srv.Close()
@@ -1715,7 +1715,7 @@ func TestHandleLogSSE_TwoTicks(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newTestHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handleLogSSE(protocol.NewCachedWorkspace(ws), "test-feat", w, r)
 	}))
 	defer srv.Close()

@@ -12,7 +12,7 @@ Initialize a `.4x/` workspace in the current directory.
 4x init
 ```
 
-- Auto-detects project language and build/test/lint commands
+- Auto-detects project language and build/test/lint commands, plus an initial `project.verify_command_allowlist` derived from those commands
 - Creates `~/.4x/settings.json` with 6 default runners (claude, codex, gemini, agy, copilot, cursor)
 - Deploys embedded plugin files to `.4x/plugins/`
 - Adds `@import` lines to root-level files (CLAUDE.md, AGENTS.md, GEMINI.md, AGY.md, .cursorrules)
@@ -322,7 +322,7 @@ Run a one-shot, read-only health check on the merged settings (`.4x/settings.jso
 
 Checks are grouped into sections:
 
-- **settings** — `settings.json` loadable, `project.name` non-empty, at least one runner defined, `default_runner` exists in the runners map.
+- **settings** — `settings.json` loadable, `project.name` non-empty, at least one runner defined, `default_runner` exists in the runners map, and `project.verify_command_allowlist` reports whether verify command prefix enforcement is configured.
 - **runners** — each runner's `command` is resolvable on `PATH` (missing → WARN, not FAIL, since a runner may live on a remote machine).
 - **roles** — resolves the actual model each role (designer/coder/reviewer/tester/acceptor) will use via the default runner, plus the reviewer's `deep_model`.
 - **workspace** — orphaned worktrees (feature done/abandoned but `.worktrees/4x/<id>` remains), dangling worktrees (directory with no matching feature), stale state (`active=true` but the process is gone), and malformed feature YAML.
@@ -347,6 +347,8 @@ Commands can be organised into groups via `verify_groups`: groups run in paralle
 **Fallback**: when `test-strategy.yaml` does not exist (e.g. Designer was skipped by the profile), verify automatically falls back to the project's `build`/`test`/`lint` commands from `settings.json`, grouped under a single `"fallback"` group. The fallback path also auto-generates `ac_results` entries (one per non-skipped command), so the `testing → accepting` guard passes without manual intervention.
 
 **Executable AC checks**: when `test-strategy.yaml` declares `ac_checks` (binding an AC ID to one or more commands), verify runs each command, records the real exit codes into that AC's `ac_results[].checks`, and sets the AC's `passed` from those exit codes (all exit 0 = passed). Any failing `ac_check` AC makes the whole verify fail (non-zero exit). This exit-code result is authoritative — the guard recomputes `passed` from `checks` and overrides any hand-written value. When `ac_checks` is absent, behavior is unchanged.
+
+**Command allowlist**: when `project.verify_command_allowlist` is non-empty, every AI-produced verify command (`verify_commands`, `verify_groups`, and `ac_checks`) is checked before `sh -c` execution. The command is split on shell control operators (`;`, `&`, `|`, and newline), every non-empty segment must start with an allowed prefix using a word boundary, and command/process substitution (`$(`, backtick, `<(`, `>(`) is rejected. Blocked commands are not executed and are recorded in `verify.json` with exit code `126` and error `"blocked"`. An empty allowlist preserves the older behavior. Build-gate/docs-gate commands from `settings.json` are intentionally exempt.
 
 Parallel execution is handled entirely by the CLI — no LLM involved. The Tester role calls this command instead of running verify commands itself; humans can also run it standalone for debugging.
 

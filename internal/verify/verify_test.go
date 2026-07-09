@@ -255,7 +255,7 @@ func TestRunGroups_AllPass(t *testing.T) {
 		{Name: "b", Commands: []string{"echo world"}},
 	}
 	ctx := context.Background()
-	result := RunGroups(ctx, groups, ".")
+	result := RunGroups(ctx, groups, ".", nil)
 	if !result.Passed {
 		t.Errorf("expected pass, got fail: %+v", result.Commands)
 	}
@@ -278,7 +278,7 @@ func TestRunGroups_GroupFail_SkipsRemainingInGroup(t *testing.T) {
 		{Name: "ok-group", Commands: []string{"echo still-runs"}},
 	}
 	ctx := context.Background()
-	result := RunGroups(ctx, groups, ".")
+	result := RunGroups(ctx, groups, ".", nil)
 	if result.Passed {
 		t.Error("expected overall fail")
 	}
@@ -308,7 +308,7 @@ func TestRunGroups_Parallel(t *testing.T) {
 	}
 	ctx := context.Background()
 	start := time.Now()
-	result := RunGroups(ctx, groups, ".")
+	result := RunGroups(ctx, groups, ".", nil)
 	elapsed := time.Since(start)
 	if !result.Passed {
 		t.Error("expected pass")
@@ -324,7 +324,7 @@ func TestRunGroups_ContextTimeout(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
-	result := RunGroups(ctx, groups, ".")
+	result := RunGroups(ctx, groups, ".", nil)
 	if result.Passed {
 		t.Error("expected fail due to timeout")
 	}

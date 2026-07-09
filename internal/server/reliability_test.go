@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -80,7 +79,7 @@ func TestMessagesOverview_NonGetRejected(t *testing.T) {
 // 每一筆只被推送一次（lastOffset 反映實際消費位移，不會 stale clamp 造成重送）。
 func TestEventsSSE_ExactlyOnceDelivery(t *testing.T) {
 	ws := setupServerWorkspace(t)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newTestHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handleSSE(protocol.NewCachedWorkspace(ws), "test-feat", w, r)
 	}))
 	defer srv.Close()
@@ -149,7 +148,7 @@ func TestEventsSSE_ScannerErrorRetries(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newTestHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handleSSE(protocol.NewCachedWorkspace(ws), "test-feat", w, r)
 	}))
 	defer srv.Close()
@@ -366,7 +365,7 @@ func TestLogSSE_UTF8CarryAcrossTicks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newTestHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handleLogSSE(protocol.NewCachedWorkspace(ws), "test-feat", w, r)
 	}))
 	defer srv.Close()

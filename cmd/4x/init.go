@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 
 	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
@@ -197,7 +199,51 @@ func detectProjectProfile(root string) protocol.ProjectConfig {
 		}
 	}
 
+	p.VerifyCommandAllowlist = deriveAllowlist(p)
+
 	return p
+}
+
+// subcommandTools 是「通用多工具」集合：其子命令可執行任意程式（go run、npm exec、
+// cargo run 等），故推導 allowlist 前綴時須把「工具+子命令」兩個 token 一起釘進前綴，
+// 避免僅放行工具名等於放行該工具的任意子命令。
+var subcommandTools = map[string]bool{
+	"go": true, "cargo": true, "npm": true, "npx": true, "pnpm": true,
+	"yarn": true, "bun": true, "dotnet": true, "node": true, "deno": true,
+	"python": true, "python3": true,
+}
+
+// deriveAllowlist 依 p 的 Build/Test/Lint/DocsCheck 命令推導 verify 命令允許前綴清單（DR-8）。
+// 對每條命令：tokens[0] ∈ subcommandTools 且有第二 token → 前綴取前兩 token（如 "go test"）；
+// 否則取第一 token（如 "make"）。make、./gradlew、mvn、pytest、ruff 等不在集合內的工具執行
+// in-repo 且人工可信的 target，granularity 到工具名即足夠。結果排序去重。
+func deriveAllowlist(p protocol.ProjectConfig) []string {
+	var cmds []string
+	cmds = append(cmds, p.Build...)
+	cmds = append(cmds, p.Test...)
+	cmds = append(cmds, p.Lint...)
+	cmds = append(cmds, p.DocsCheck...)
+
+	seen := make(map[string]bool)
+	var prefixes []string
+	for _, cmd := range cmds {
+		tokens := strings.Fields(cmd)
+		if len(tokens) == 0 {
+			continue
+		}
+		var prefix string
+		if subcommandTools[tokens[0]] && len(tokens) >= 2 {
+			prefix = tokens[0] + " " + tokens[1]
+		} else {
+			prefix = tokens[0]
+		}
+		if !seen[prefix] {
+			seen[prefix] = true
+			prefixes = append(prefixes, prefix)
+		}
+	}
+	sort.Strings(prefixes)
+	return prefixes
 }
 
 // ensureUserConfig 若 ~/.4x/settings.json 不存在，建立包含預設 runner 設定的初始檔。

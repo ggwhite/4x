@@ -195,6 +195,20 @@ func checkSettings(cfg protocol.Config, loadErr error) []Check {
 	}
 
 	checks = append(checks, checkDefaultRunner(cfg))
+
+	if len(cfg.Project.VerifyCommandAllowlist) == 0 {
+		checks = append(checks, Check{
+			Section: sectionSettings, Name: "verify_command_allowlist", Severity: SeverityWarn,
+			Detail: "verify_command_allowlist 未設定：AI 產出的 verify 命令將無前綴攔截直接執行（建議設定，見 F162）",
+		})
+	} else {
+		checks = append(checks, Check{
+			Section: sectionSettings, Name: "verify_command_allowlist", Severity: SeverityPass,
+			Detail: fmt.Sprintf("已設定 %d 個允許前綴：%s",
+				len(cfg.Project.VerifyCommandAllowlist),
+				strings.Join(cfg.Project.VerifyCommandAllowlist, ", ")),
+		})
+	}
 	return checks
 }
 

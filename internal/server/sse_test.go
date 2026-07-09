@@ -77,7 +77,7 @@ func TestHandleSSE_SendsExistingEvents(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 	defer cancel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newTestHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handleSSE(cws, "test-feat", w, r)
 	}))
 	defer srv.Close()

@@ -839,7 +839,9 @@ func runGroupsAcrossRoots(ctx context.Context, groups []verify.Group, roots []st
 	merged := protocol.VerifyEvidence{Passed: true}
 	var warns []string
 	for _, root := range roots {
-		evidence := verify.RunGroups(ctx, groups, root)
+		// DR-5：build-gate/docs-gate 命令來自 settings.json（人工可信），刻意傳 nil allowlist
+		// 不強制 verify allowlist，避免使用者設窄清單時意外擋掉自己的 build/docs gate。
+		evidence := verify.RunGroups(ctx, groups, root, nil)
 		for i := range evidence.Commands {
 			cmd := &evidence.Commands[i]
 			if isCommandMissing(*cmd) {

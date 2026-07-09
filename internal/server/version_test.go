@@ -38,7 +38,7 @@ func TestHandleVersion_Basic(t *testing.T) {
 
 func TestHandleVersion_CheckWithMockGitHub(t *testing.T) {
 	// 建立 mock GitHub API server
-	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mock := newTestHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
 			"tag_name": "v2.0.0",

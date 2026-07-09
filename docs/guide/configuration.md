@@ -60,6 +60,7 @@ You can also edit this file visually from the **4x Live dashboard** — click th
 | `test` | Test commands |
 | `lint` | Lint commands |
 | `docs_check` | Docs/i18n sync verification commands (e.g., `make check-docs-sync`). Run by the framework's docs-gate during `coding`/`amending`; results written to `docs-gate.json` (non-blocking). Empty → docs-gate skipped |
+| `verify_command_allowlist` | Allowed command-prefix list for AI-produced verify commands (empty = enforcement off). Each `verify_commands`/`verify_groups`/`ac_checks` command is split on shell operators (`; & |` and newline); every segment must start with a listed prefix (word-boundary), and command/process substitution (`$(`, backtick, `<(`, `>(`) is rejected outright. Not quote-aware (metacharacters inside quotes are conservatively treated as delimiters). Blocked commands are recorded as `ExitCode 126` / `Error "blocked"` and not executed. build-gate/docs-gate commands from settings.json are exempt |
 | `setup` | Setup commands (e.g., `docker-compose up -d`) |
 | `description` | Project description (optional) |
 | `docs` | Documentation file paths for Designer reference |

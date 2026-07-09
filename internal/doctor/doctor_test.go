@@ -100,6 +100,29 @@ func TestCheckSettings_DefaultRunner(t *testing.T) {
 	}
 }
 
+func TestCheckSettings_VerifyAllowlist(t *testing.T) {
+	cfg := baseConfig()
+	c := findCheck(checkSettings(cfg, nil), sectionSettings, "verify_command_allowlist")
+	if c == nil {
+		t.Fatal("missing verify_command_allowlist check")
+	}
+	if c.Severity != SeverityWarn {
+		t.Fatalf("empty allowlist should WARN, got %+v", c)
+	}
+
+	cfg.Project.VerifyCommandAllowlist = []string{"make", "go test"}
+	c = findCheck(checkSettings(cfg, nil), sectionSettings, "verify_command_allowlist")
+	if c == nil {
+		t.Fatal("missing verify_command_allowlist check")
+	}
+	if c.Severity != SeverityPass {
+		t.Fatalf("non-empty allowlist should PASS, got %+v", c)
+	}
+	if !strings.Contains(c.Detail, "make") || !strings.Contains(c.Detail, "go test") {
+		t.Fatalf("PASS detail should include allowlist entries, got %q", c.Detail)
+	}
+}
+
 func TestCheckSettings_LoadError(t *testing.T) {
 	checks := checkSettings(protocol.Config{}, errors.New("invalid character"))
 	c := findCheck(checks, sectionSettings, "settings.json loadable")

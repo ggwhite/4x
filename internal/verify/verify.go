@@ -118,7 +118,9 @@ func CommandsPassed(cmds []protocol.VerifyCommand) bool {
 // RunGroups 平行執行所有 group（組內依序），回傳組裝好的 VerifyEvidence（不含 Round 和 Role，由呼叫端補上）。
 // 任一 group 失敗不會中斷其他 group——全部跑完才彙總。
 // Passed 為 true 的條件：所有非 skipped command 的 exit code 皆為 0（見 CommandsPassed）。
-func RunGroups(ctx context.Context, groups []Group, workDir string) protocol.VerifyEvidence {
+// allowlist 為 verify 命令的允許前綴清單：非空時每條命令執行前先經 CommandAllowed 比對，
+// 不符者不執行、記為 ExitCode 126 / Error "blocked"；為空時完全不強制（見 CommandAllowed）。
+func RunGroups(ctx context.Context, groups []Group, workDir string, allowlist []string) protocol.VerifyEvidence {
 	results := make([]groupResult, len(groups))
 	var wg sync.WaitGroup
 
@@ -126,7 +128,7 @@ func RunGroups(ctx context.Context, groups []Group, workDir string) protocol.Ver
 		wg.Add(1)
 		go func(idx int, grp Group) {
 			defer wg.Done()
-			results[idx] = runGroup(ctx, grp, workDir)
+			results[idx] = runGroup(ctx, grp, workDir, allowlist)
 		}(i, g)
 	}
 	wg.Wait()
@@ -143,7 +145,7 @@ func RunGroups(ctx context.Context, groups []Group, workDir string) protocol.Ver
 }
 
 // runGroup 依序執行單一 group 的 commands；任一 command 失敗後，剩餘 commands 標記 Skipped 不執行。
-func runGroup(ctx context.Context, g Group, workDir string) groupResult {
+func runGroup(ctx context.Context, g Group, workDir string, allowlist []string) groupResult {
 	var commands []protocol.VerifyCommand
 	failed := false
 
@@ -157,7 +159,7 @@ func runGroup(ctx context.Context, g Group, workDir string) groupResult {
 			continue
 		}
 
-		vc := executeCommand(ctx, cmdStr, g.Name, workDir)
+		vc := executeCommand(ctx, cmdStr, g.Name, workDir, allowlist)
 		commands = append(commands, vc)
 		if vc.ExitCode != 0 {
 			failed = true
@@ -169,8 +171,23 @@ func runGroup(ctx context.Context, g Group, workDir string) groupResult {
 
 // executeCommand 用 sh -c 執行單一 command，cwd 設為 workDir，並透過 ctx 套用整體 timeout。
 // Summary 過長（>500 字元）時截頭尾保留前後各 250 字元。
-func executeCommand(ctx context.Context, cmdStr, group, workDir string) protocol.VerifyCommand {
+// allowlist 非空且 cmdStr 不被 CommandAllowed 放行時，命令不執行，直接回傳
+// ExitCode 126 / Error "blocked" 的顯式失敗紀錄（見 CommandAllowed）。
+func executeCommand(ctx context.Context, cmdStr, group, workDir string, allowlist []string) protocol.VerifyCommand {
 	start := time.Now()
+
+	if !CommandAllowed(cmdStr, allowlist) {
+		return protocol.VerifyCommand{
+			Command:    cmdStr,
+			ExitCode:   126,
+			Summary:    "blocked by verify_command_allowlist: no allowed prefix / disallowed shell substitution",
+			StartedAt:  start,
+			FinishedAt: start,
+			Group:      group,
+			Error:      "blocked",
+		}
+	}
+
 	cmd := exec.CommandContext(ctx, "sh", "-c", cmdStr)
 	cmd.Dir = workDir
 	cmd.Env = gitops.ApplyWorktreeEnv(envutil.EnrichedEnv(), workDir)

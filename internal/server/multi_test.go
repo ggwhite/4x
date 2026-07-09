@@ -112,12 +112,7 @@ func TestMultiMux_PostProject(t *testing.T) {
 	reg := NewProjectRegistry()
 	reg.Add(ws)
 
-	home, _ := os.UserHomeDir()
-	newRoot, err := os.MkdirTemp(home, ".4x-test-post-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.RemoveAll(newRoot) })
+	newRoot := t.TempDir()
 
 	newCfg := protocol.Config{Project: protocol.ProjectConfig{Name: "new-proj"}}
 	if err := protocol.Init(newRoot, newCfg); err != nil {

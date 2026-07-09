@@ -58,13 +58,15 @@ func newVerifyCmd() *cobra.Command {
 				return err
 			}
 
+			cfg, err := ws.ReadConfig()
+			if err != nil {
+				return err
+			}
+			allowlist := cfg.Project.VerifyCommandAllowlist
+
 			isFallback := len(ts.Verify) == 0 && len(ts.VerifyGroups) == 0
 			var groups []verify.Group
 			if isFallback {
-				cfg, err := ws.ReadConfig()
-				if err != nil {
-					return err
-				}
 				groups, err = verify.FallbackGroups(cfg.Project)
 				if err != nil {
 					return err
@@ -86,7 +88,7 @@ func newVerifyCmd() *cobra.Command {
 					fmt.Fprintf(os.Stderr, "Running %d verify group(s)...\n", len(groups))
 				}
 			}
-			evidence := verify.RunGroups(ctx, groups, ws.Root)
+			evidence := verify.RunGroups(ctx, groups, ws.Root, allowlist)
 			evidence.Round = round
 			evidence.Role = protocol.RoleTester
 
@@ -112,7 +114,7 @@ func newVerifyCmd() *cobra.Command {
 				// timeout 預算獨立於 verify groups（另起 context），避免 groups 耗盡預算後
 				// ac_checks 全被 ctx cancel 記成假失敗。
 				acCtx, acCancel := context.WithTimeout(context.Background(), timeout)
-				acResults := verify.RunACChecks(acCtx, ts.ACChecks, ws.Root)
+				acResults := verify.RunACChecks(acCtx, ts.ACChecks, ws.Root, allowlist)
 				acCancel()
 				evidence.ACResults = append(evidence.ACResults, acResults...)
 				for _, ac := range acResults {

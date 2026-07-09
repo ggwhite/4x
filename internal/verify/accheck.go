@@ -17,7 +17,9 @@ import (
 // Checks = 每條 check 的 VerifyCommand（含實際 exit code / summary）；
 // Evidence = 機器自動生成的說明行（如 "$ <cmd> → exit 0 (12ms)"）。
 // 為輸出穩定可測，AC ID 需先排序後執行。
-func RunACChecks(ctx context.Context, acChecks map[string][]string, workDir string) []protocol.ACEvidence {
+// allowlist 透傳給底層 runGroup/executeCommand：非空時每條 check 命令執行前先經
+// CommandAllowed 比對，不符者記為 ExitCode 126 / Error "blocked"（見 CommandAllowed）。
+func RunACChecks(ctx context.Context, acChecks map[string][]string, workDir string, allowlist []string) []protocol.ACEvidence {
 	acIDs := make([]string, 0, len(acChecks))
 	for id := range acChecks {
 		acIDs = append(acIDs, id)
@@ -27,7 +29,7 @@ func RunACChecks(ctx context.Context, acChecks map[string][]string, workDir stri
 	results := make([]protocol.ACEvidence, 0, len(acIDs))
 	for _, id := range acIDs {
 		// 復用 runGroup 的依序執行 + 首失敗後標 Skipped 語意，group 名以 AC ID 標記。
-		gr := runGroup(ctx, Group{Name: id, Commands: acChecks[id]}, workDir)
+		gr := runGroup(ctx, Group{Name: id, Commands: acChecks[id]}, workDir, allowlist)
 		checks := gr.commands
 
 		evidence := make([]string, 0, len(checks))

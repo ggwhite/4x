@@ -16,7 +16,7 @@ func TestRunACChecks(t *testing.T) {
 		"AC-1": {"true", "sh -c 'exit 0'"},
 		"AC-3": {"true"},
 	}
-	results := RunACChecks(context.Background(), acChecks, t.TempDir())
+	results := RunACChecks(context.Background(), acChecks, t.TempDir(), nil)
 
 	if len(results) != 3 {
 		t.Fatalf("expected 3 AC results, got %d", len(results))
@@ -143,7 +143,7 @@ func TestACChecksPassed(t *testing.T) {
 func TestRunACChecksTimeoutMarked(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
 	defer cancel()
-	results := RunACChecks(ctx, map[string][]string{"AC-1": {"sleep 5"}}, t.TempDir())
+	results := RunACChecks(ctx, map[string][]string{"AC-1": {"sleep 5"}}, t.TempDir(), nil)
 	if len(results) != 1 {
 		t.Fatalf("expected 1 AC result, got %d", len(results))
 	}
@@ -163,13 +163,13 @@ func TestRunACChecksTimeoutMarked(t *testing.T) {
 // 既有 RunGroups 路徑不變（AC-8 的 internal/verify 部分）。
 func TestBackwardCompatNoACChecks(t *testing.T) {
 	// 空 ac_checks map → 回空 slice，不執行任何子程序。
-	results := RunACChecks(context.Background(), nil, t.TempDir())
+	results := RunACChecks(context.Background(), nil, t.TempDir(), nil)
 	if len(results) != 0 {
 		t.Fatalf("RunACChecks(nil) should return empty, got %d", len(results))
 	}
 
 	// 既有 RunGroups 路徑不受 ac_checks 影響：一組簡單命令仍照舊執行、Passed 由 exit code 決定。
-	ev := RunGroups(context.Background(), []Group{{Name: "default", Commands: []string{"true"}}}, t.TempDir())
+	ev := RunGroups(context.Background(), []Group{{Name: "default", Commands: []string{"true"}}}, t.TempDir(), nil)
 	if !ev.Passed {
 		t.Errorf("RunGroups with exit-0 command should pass, got Passed=%v", ev.Passed)
 	}

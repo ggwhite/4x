@@ -188,6 +188,13 @@ type ProjectConfig struct {
 	Docs      []string `json:"docs,omitempty"`
 	Rules     []string `json:"rules,omitempty"`
 	Includes  []string `json:"includes,omitempty"`
+	// VerifyCommandAllowlist 是 verify 命令的允許前綴清單（如 "make"、"go test"、"npm run"）。
+	// 4x verify 執行每條 verify_commands/verify_groups/ac_checks 命令前，先把命令依 shell 控制
+	// 運算子（; & | 換行）切段，每段須以清單中某前綴開頭（word-boundary）才放行；且整條命令不得含
+	// command/process substitution（$( 、反引號、<( 、>( ），否則拒絕執行並在 verify.json 記為
+	// ExitCode 126、Error "blocked"。不做 quote-aware 解析（引號內 metacharacter 也保守視為分段/替換）。
+	// 為空時完全不強制（向下相容，維持現狀）。
+	VerifyCommandAllowlist []string `json:"verify_command_allowlist,omitempty"`
 }
 
 // RunnerConfig 是 LLM runner 的設定
