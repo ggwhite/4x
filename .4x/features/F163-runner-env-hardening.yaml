@@ -13,7 +13,7 @@ description: |-
     - 不得濾掉 runner 正常運作必需的變數（PATH、HOME、per-runner 認證），過濾造成 runner 起不來屬 bug
     - F154 的 worktree env 注入（GOLANGCI_LINT_CACHE、FOURX_BIN）行為不變，在過濾之後套用
     - 不引入外部依賴
-status: not-started
+status: in-progress
 priority: 2
 profile: normal
 subtasks:
