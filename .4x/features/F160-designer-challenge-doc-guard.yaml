@@ -12,7 +12,7 @@ description: |-
     - 前提挑戰是 forcing function，guard 只驗段落存在，不用 LLM 判定內容
     - doc-deletion guard 允許歸檔搬移（rename 偵測），只擋淨刪除
     - 保護路徑清單可由 settings 覆寫，預設 docs/
-status: not-started
+status: done
 priority: 3
 profile: normal
 subtasks:
