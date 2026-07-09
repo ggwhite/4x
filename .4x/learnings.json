@@ -8,10 +8,10 @@
       "content": "task-brief 限制某檔案「只加某常量」時，會逼 Coder 在該檔旁另造局部 helper 而非抽共用 method，造成邏輯重複；設計階段若已知有可重用原語，應在 scope 內明確允許重構或預先抽出 exported helper。",
       "created_at": "2026-06-22T15:08:29.037309+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:01:12.69116+08:00",
-      "used_count": 143,
+      "last_used": "2026-07-09T21:37:01.327613+08:00",
+      "used_count": 146,
       "status": "active",
-      "confidence": 0.6
+      "confidence": 0.8999999999999999
     },
     {
       "id": "L002",
@@ -20,10 +20,10 @@
       "content": "避免用字串前綴嗅探另一函式的 fallback 文案來還原其控制流（如 stuckTitleText 判斷 stuckReason 是否走 fallback）；應讓來源函式回傳 (value, found bool) 顯式布林訊號，防止文案改字後靜默失效。",
       "created_at": "2026-06-22T15:08:29.037309+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.615926+08:00",
-      "used_count": 103,
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 105,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L003",
@@ -32,10 +32,10 @@
       "content": "命令層產出多個關聯集合（如 candidates 與其衍生 learnings）時，去重/同步邏輯應同時涵蓋所有關聯集合，避免一方被濾除後另一方變孤兒；設計 AC 時要明確界定關聯資料是否需一對一存活。",
       "created_at": "2026-06-22T15:08:29.037309+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.615926+08:00",
-      "used_count": 96,
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 98,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L004",
@@ -44,10 +44,10 @@
       "content": "對「重跑/idempotency」類命令，AC 與測試必須明確涵蓋「對未變動輸入重跑結果穩定」案例，且避免用固定 slice 的 fake 掩蓋真實非決定性來源（如 map iteration order）",
       "created_at": "2026-06-22T15:08:29.037309+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.61882+08:00",
-      "used_count": 55,
+      "last_used": "2026-07-09T21:46:59.413288+08:00",
+      "used_count": 56,
       "status": "active",
-      "confidence": 0.4
+      "confidence": 0.5
     },
     {
       "id": "L005",
@@ -56,10 +56,10 @@
       "content": "AC 若在 Verification Method 明寫某 package 的整合測試（如 internal/gitops 建 worktree 測 DetectChangedFiles），Coder 必須在該 package 同目錄補測；用其他層的 fake 單元測試代替不算達標。",
       "created_at": "2026-06-22T17:02:55.599908+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.61882+08:00",
-      "used_count": 51,
+      "last_used": "2026-07-09T21:46:59.413288+08:00",
+      "used_count": 52,
       "status": "active",
-      "confidence": 0.4
+      "confidence": 0.5
     },
     {
       "id": "L006",
@@ -68,10 +68,10 @@
       "content": "孤立單元測試綠燈不等於端到端生效：AC-3 對 MergeConfig 單測通過，但 merged config 從未流到消費點（guard 用 ReadConfig 而非 LoadMergedConfig），驗收應追到資料真正被消費的呼叫鏈。",
       "created_at": "2026-06-22T17:02:55.599908+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.615926+08:00",
-      "used_count": 102,
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 104,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L007",
@@ -80,10 +80,10 @@
       "content": "新增跨 project/user 兩層的 config 欄位時，先確認消費端讀的是 merged config；否則 user 層欄位與 merge fallback 會變成死碼。",
       "created_at": "2026-06-22T17:02:55.599908+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.615926+08:00",
-      "used_count": 104,
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 106,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L009",
@@ -92,10 +92,10 @@
       "content": "task-brief 應主動標出並裁決矛盾——無論是 spec/plan 與現況程式碼不一致（型別名不一致、過時假設、out-of-scope 項目），或 feature 內部兩個需求互相牴觸（如「語意一致」vs「對外行為不變」）——在開頭明列「設計裁決」，列出唯一刻意的行為變更並覆寫 plan，供 Coder/Reviewer/Acceptor 對焦，避免各自猜測、照抄錯誤骨架或重造輪子。",
       "created_at": "2026-06-22T17:56:03.049721+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:01:12.69116+08:00",
-      "used_count": 146,
+      "last_used": "2026-07-09T21:37:01.327613+08:00",
+      "used_count": 149,
       "status": "active",
-      "confidence": 0.6
+      "confidence": 0.8999999999999999
     },
     {
       "id": "L011",
@@ -104,10 +104,10 @@
       "content": "對 LLM 委託流程做對抗審查時，重點查端到端陷阱：prompt 範例被回顯誤解析（取 marker 用 LastIndex）、grep -m 是 per-file 而非總量上限、byte 截斷切壞 CJK rune。",
       "created_at": "2026-06-22T17:56:03.049721+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.615926+08:00",
-      "used_count": 93,
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 95,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L012",
@@ -116,10 +116,10 @@
       "content": "CLI 委託子程序的長迴圈應把呼叫鏈的 ctx 一路傳到 runner，並讓每個項目用獨立 log 路徑，否則 Ctrl-C 無法中止且 log 互相覆寫——設計階段就把 ctx 與 log 命名納入簽名。",
       "created_at": "2026-06-22T17:56:03.049721+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.615926+08:00",
-      "used_count": 102,
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 104,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L013",
@@ -128,10 +128,10 @@
       "content": "對有語意的 cap 欄位（如 max_accept_per_run），用零值補預設會吃掉「0=不收」的使用者意圖；若 0 是合法輸入應改用 *int 或在 doctor 加 WARN，並在 GoDoc 明示 0 的行為。",
       "created_at": "2026-06-22T18:59:50.866254+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:01:12.69116+08:00",
-      "used_count": 121,
+      "last_used": "2026-07-09T21:37:01.327613+08:00",
+      "used_count": 124,
       "status": "active",
-      "confidence": 0.6
+      "confidence": 0.8999999999999999
     },
     {
       "id": "L014",
@@ -140,10 +140,10 @@
       "content": "同一套 Jaccard 去重邏輯在 PreVeto/PostVeto/DedupeDiscovered 各特化一份時，互為二次確認的兩處（PreVeto 與 PostVeto 規則4）應共用同一 helper，避免門檻語意未來悄悄分歧。",
       "created_at": "2026-06-22T18:59:50.866254+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.615926+08:00",
-      "used_count": 102,
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 104,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L015",
@@ -152,10 +152,10 @@
       "content": "讀檔回空 pool 不報錯的 API（LoadCandidates）在編排命令中會把「前置步驟沒跑」遮蔽成「靜默成功 exit 0」；對手動操作的子命令應對缺前置輸入給明確 error。",
       "created_at": "2026-06-22T18:59:50.866254+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:01:12.69116+08:00",
-      "used_count": 133,
+      "last_used": "2026-07-09T21:37:01.327613+08:00",
+      "used_count": 136,
       "status": "active",
-      "confidence": 0.6
+      "confidence": 0.8999999999999999
     },
     {
       "id": "L016",
@@ -164,10 +164,10 @@
       "content": "git diff main..HEAD 顯示的「刪除」可能是 branch 落後 main 的比較假象；判定 scope 違規前先用 merge-base（git diff $(git merge-base main HEAD)..HEAD）查證，避免誤報。",
       "created_at": "2026-06-22T18:59:50.866254+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.615926+08:00",
-      "used_count": 94,
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 96,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L018",
@@ -176,10 +176,10 @@
       "content": "當新命令重用既有命令的編排流程（如 mine 的掃描+去重+冪等 merge），把 orchestration glue 抽成共用純函式再讓多個 entry 共用，不要整段複製到 runEvolve/runEvolveDryRun，避免冪等不變式散落多處日後漂移。",
       "created_at": "2026-06-22T20:26:15.186565+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.615926+08:00",
-      "used_count": 102,
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 104,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L019",
@@ -188,10 +188,10 @@
       "content": "讀取由 LLM 子程序產出的檔案（如 gate-verdicts.json）前，先刪除上一輪殘留檔，讓『runner 回 nil 卻沒寫新檔』退化為明確的 parse error，而非靜默吃舊資料。",
       "created_at": "2026-06-22T20:26:15.186565+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.615926+08:00",
-      "used_count": 101,
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 103,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L020",
@@ -200,10 +200,10 @@
       "content": "report 的統計欄位（如 deduped）要明確定義來源語意，不要把不同階段的丟棄數（本輪 mine 去重 vs pool-wide PreVeto）相加塞進同一數字，避免多輪累積後誤導使用者。",
       "created_at": "2026-06-22T20:26:15.186565+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:01:12.69116+08:00",
-      "used_count": 130,
+      "last_used": "2026-07-09T21:37:01.327613+08:00",
+      "used_count": 133,
       "status": "active",
-      "confidence": 0.6
+      "confidence": 0.8999999999999999
     },
     {
       "id": "L021",
@@ -212,10 +212,10 @@
       "content": "新增指令的 --json 非互動路徑時，若已有對應的互動/文字路徑（如 clean 的 cleanAll），必須對齊其 partial-failure 不變式（skip-and-continue、回報已完成項），不要直接 return error 丟棄已累積結果。",
       "created_at": "2026-06-24T20:37:27.5517+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.615926+08:00",
-      "used_count": 102,
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 104,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L025",
@@ -224,10 +224,10 @@
       "content": "重構下沉移除某函式的 production 呼叫者後，應確認剩餘呼叫端是否存在；若該函式只為某測試或特殊場景存活，應一併刪除，不留 dead-code wrapper",
       "created_at": "2026-06-24T21:32:14.561822+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.615926+08:00",
-      "used_count": 107,
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 109,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L026",
@@ -236,10 +236,10 @@
       "content": "重構改變呼叫路徑時，要同步搜尋並更新描述舊路徑的註解（含括號內實作提示），否則正是此 feature 想消除的『邏輯漂移』縮影。",
       "created_at": "2026-06-24T21:32:14.561822+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.615926+08:00",
-      "used_count": 105,
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 107,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L029",
@@ -248,10 +248,10 @@
       "content": "Feature spec 的「已知位置」清單若不完整，Coder 會照規格範圍作業，殘留問題需後續 feature 補；Designer 應於 spec 加入 grep 掃全庫的步驟，確保已知清單完整",
       "created_at": "2026-06-27T10:23:04.125803+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:01:12.69116+08:00",
-      "used_count": 134,
+      "last_used": "2026-07-09T21:37:01.327613+08:00",
+      "used_count": 137,
       "status": "active",
-      "confidence": 0.6
+      "confidence": 0.8999999999999999
     },
     {
       "id": "L030",
@@ -260,10 +260,10 @@
       "content": "INFO 等級的 pre-existing 問題應在 review-report 明確標示為「範圍外、不阻擋」，避免 Acceptor 誤判為 OPEN blocking issue",
       "created_at": "2026-06-27T10:23:04.125803+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.615926+08:00",
-      "used_count": 93,
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 95,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L031",
@@ -272,10 +272,10 @@
       "content": "純拆檔重構的 feature spec 應明確限制 scope（只改指定檔案），避免 Coder 順手改到 README 等不相關檔案",
       "created_at": "2026-06-27T10:40:05.18341+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.615926+08:00",
-      "used_count": 105,
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 107,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L032",
@@ -284,10 +284,10 @@
       "content": "God Object 拆分（大型 cmd 層下沉至 internal/）是低風險重構，一輪即通過；此類 feature 適合用 lite profile 減少不必要的 review 輪次",
       "created_at": "2026-06-27T10:40:05.18341+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:19:06.552068+08:00",
-      "used_count": 85,
+      "last_used": "2026-07-09T21:50:09.720569+08:00",
+      "used_count": 87,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L034",
@@ -296,10 +296,10 @@
       "content": "CONDITIONAL PASS 的修正項目應在同輪 Coder 階段處理完畢後再交 Reviewer，避免 open warning 進入 Acceptor；若 Acceptor 收到時仍有未處理的 CONDITIONAL PASS 項目，應標記 needs-attention 並列出 open issue，不可因 AC 全數通過而直接 ready-for-review。",
       "created_at": "2026-06-27T11:21:09.088922+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.615926+08:00",
-      "used_count": 93,
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 95,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L035",
@@ -308,10 +308,10 @@
       "content": "大型搬遷（900+ 行）搬完後需執行 go test -race 驗證 prompt 輸出未改變，不能只靠 build 成功判斷正確性",
       "created_at": "2026-06-27T11:21:09.088922+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.61882+08:00",
-      "used_count": 52,
+      "last_used": "2026-07-09T21:46:59.413288+08:00",
+      "used_count": 53,
       "status": "active",
-      "confidence": 0.4
+      "confidence": 0.5
     },
     {
       "id": "L038",
@@ -320,10 +320,10 @@
       "content": "搬遷函式時必須同步搬遷對應測試至新 package 目錄，task-brief 若有明確 Step 描述測試搬遷清單，Coder 必須在同一 round 完成，而非留至下一輪",
       "created_at": "2026-06-27T17:07:38.975643+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.61882+08:00",
-      "used_count": 48,
+      "last_used": "2026-07-09T21:46:59.413288+08:00",
+      "used_count": 49,
       "status": "active",
-      "confidence": 0.4
+      "confidence": 0.5
     },
     {
       "id": "L040",
@@ -332,10 +332,10 @@
       "content": "MCP SDK 對 jsonschema struct tag 格式敏感（panic），遇到此類 SDK 限制應以 t.Skip 標記並在 coder-report 說明，不可為了通過測試而修改 production code。",
       "created_at": "2026-06-27T17:43:56.973238+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.61882+08:00",
-      "used_count": 48,
+      "last_used": "2026-07-09T21:46:59.413288+08:00",
+      "used_count": 49,
       "status": "active",
-      "confidence": 0.4
+      "confidence": 0.5
     },
     {
       "id": "L041",
@@ -344,10 +344,10 @@
       "content": "interface-only 或僅含編譯期斷言的檔案無需強制補測試；coder-report 應明確說明跳過的理由，避免 reviewer 誤判為遺漏。",
       "created_at": "2026-06-27T17:43:56.973238+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:19:06.552068+08:00",
-      "used_count": 81,
+      "last_used": "2026-07-09T21:50:09.720569+08:00",
+      "used_count": 83,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L042",
@@ -356,10 +356,10 @@
       "content": "新增 guard 邏輯時，既有測試的 VerifyEvidence fixture 應同步補上新增欄位（如 ACResults），以避免測試場景意外觸發額外錯誤路徑，降低後續維護疑慮。",
       "created_at": "2026-06-27T20:28:17.951101+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.61882+08:00",
-      "used_count": 51,
+      "last_used": "2026-07-09T21:46:59.413288+08:00",
+      "used_count": 52,
       "status": "active",
-      "confidence": 0.4
+      "confidence": 0.5
     },
     {
       "id": "L043",
@@ -368,10 +368,10 @@
       "content": "錯誤訊息設計應避免前綴與 ID 重疊（如 'AC AC-2 has no evidence'），直接用 ID 本身加描述詞（如 'AC-2: no evidence'）更清晰。",
       "created_at": "2026-06-27T20:28:17.951101+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.615926+08:00",
-      "used_count": 103,
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 105,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L045",
@@ -380,10 +380,10 @@
       "content": "設計 fallback 邏輯時（如無匹配 mapping 則跑全部角度），若 template 用同一個 bool flag（如 $parallel）同時控制「平行模式」與「有角度限縮」，需加入第三個 else if 分支處理「非平行但有篩選」情境，並確認標頭文字能正確反映三種情境：平行限縮、非平行限縮、全部角度，避免標頭文字與 body 內容不一致。",
       "created_at": "2026-06-27T20:59:43.062868+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.615926+08:00",
-      "used_count": 101,
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 103,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L048",
@@ -392,10 +392,10 @@
       "content": "純 rename refactor 類 feature 可跳過 Designer 直接進 Coder，但 feature YAML 的 description 需明列「哪些 caller 要一併改名」，避免 Coder 遺漏內部呼叫點。",
       "created_at": "2026-06-28T14:09:08.293635+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:01:12.69116+08:00",
-      "used_count": 130,
+      "last_used": "2026-07-09T21:37:01.327613+08:00",
+      "used_count": 133,
       "status": "active",
-      "confidence": 0.6
+      "confidence": 0.8999999999999999
     },
     {
       "id": "L049",
@@ -404,10 +404,10 @@
       "content": "export 舊 private function 時，同步移除不再需要的 import（如 \"os\"），應在 Coder 階段一次完成，不留給 Reviewer 指出。",
       "created_at": "2026-06-28T14:09:08.293635+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.615926+08:00",
-      "used_count": 103,
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 105,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L050",
@@ -416,10 +416,10 @@
       "content": "refactor 類任務的 Tester 可省略獨立 test-report，改在 review-report 內直接記錄 go test -race 通過結果，減少不必要的輪次開銷。",
       "created_at": "2026-06-28T14:09:08.293635+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.61882+08:00",
-      "used_count": 48,
+      "last_used": "2026-07-09T21:46:59.413288+08:00",
+      "used_count": 49,
       "status": "active",
-      "confidence": 0.4
+      "confidence": 0.5
     },
     {
       "id": "L051",
@@ -428,10 +428,10 @@
       "content": "修改 template 檔（如 acceptor.md.tmpl）時，必須對照 main branch 的最新版本確認既有的「(if present)」守衛與 fallback 引導文字未被誤刪",
       "created_at": "2026-06-29T01:04:22.697082+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.615926+08:00",
-      "used_count": 103,
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 105,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L052",
@@ -440,10 +440,10 @@
       "content": "Coder 開始前應先執行 `make check-docs`，確認 pre-existing 文件缺漏（如 `4x retry`）不會在本 feature 的 CI 驗證中攔截，避免留給後續 round 修復。",
       "created_at": "2026-06-29T01:04:22.697082+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:19:06.552068+08:00",
-      "used_count": 85,
+      "last_used": "2026-07-09T21:50:09.720569+08:00",
+      "used_count": 87,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L053",
@@ -452,10 +452,10 @@
       "content": "fallback 路徑的 ac_results 自動合成與正常路徑的手動填入必須在設計階段明確區分——避免在 task-brief 中混淆兩條路徑的責任邊界",
       "created_at": "2026-06-29T01:04:22.697082+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:01:12.69116+08:00",
-      "used_count": 130,
+      "last_used": "2026-07-09T21:37:01.327613+08:00",
+      "used_count": 133,
       "status": "active",
-      "confidence": 0.6
+      "confidence": 0.8999999999999999
     },
     {
       "id": "L054",
@@ -464,10 +464,10 @@
       "content": "整合測試應涵蓋「壞 YAML / 非 IsNotExist 錯誤」場景（AC-7），確認 fallback 只在 IsNotExist 觸發，而非吞掉所有解析錯誤",
       "created_at": "2026-06-29T01:04:22.697082+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.61882+08:00",
-      "used_count": 49,
+      "last_used": "2026-07-09T21:46:59.413288+08:00",
+      "used_count": 50,
       "status": "active",
-      "confidence": 0.4
+      "confidence": 0.5
     },
     {
       "id": "L055",
@@ -476,10 +476,10 @@
       "content": "新增 guard 函式時，對 coding/amending 共用同一 case 區塊的情境，應同時補上兩個 phase 的獨立測試（即使邏輯相同），以保持測試覆蓋對稱性。",
       "created_at": "2026-06-30T10:03:31.184683+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.615926+08:00",
-      "used_count": 101,
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 103,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L056",
@@ -488,10 +488,10 @@
       "content": "Mock runner 在新增會寫出檔案的 guard 後必須同步補上對應的假輸出（如 build-gate.json），否則既有 integration test 會靜默失敗，難以定位。",
       "created_at": "2026-06-30T10:03:31.184683+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.61882+08:00",
-      "used_count": 48,
+      "last_used": "2026-07-09T21:46:59.413288+08:00",
+      "used_count": 49,
       "status": "active",
-      "confidence": 0.4
+      "confidence": 0.5
     },
     {
       "id": "L058",
@@ -500,10 +500,10 @@
       "content": "復用既有結構（VerifyEvidence / runGroup 語意）作為 build-gate 輸出格式，可大幅降低 Orchestrator 和測試的理解成本；設計新 guard 時應優先考慮能否複用現有資料結構。",
       "created_at": "2026-06-30T10:03:31.184683+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T20:52:00.501999+08:00",
-      "used_count": 111,
+      "last_used": "2026-07-09T21:37:01.327613+08:00",
+      "used_count": 114,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7999999999999999
     },
     {
       "id": "L059",
@@ -512,10 +512,10 @@
       "content": "新增 category 常量時，集合大小應改用 len(ValidCategories()) 而非硬編碼數字，避免未來新增 category 時遺漏更新",
       "created_at": "2026-06-30T12:01:09.853085+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.615926+08:00",
-      "used_count": 103,
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 105,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L060",
@@ -524,10 +524,10 @@
       "content": "role-to-category mapping 的測試應同時驗證正反兩面：目標 role 含有 ops，以及不該含的 role（designer/reviewer）也明確不含，才能防止誤加",
       "created_at": "2026-06-30T12:01:09.853085+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.61882+08:00",
-      "used_count": 48,
+      "last_used": "2026-07-09T21:46:59.413288+08:00",
+      "used_count": 49,
       "status": "active",
-      "confidence": 0.4
+      "confidence": 0.5
     },
     {
       "id": "L061",
@@ -536,10 +536,10 @@
       "content": "若發現既有 roleCategoryMap 缺少某個 role（如 fixer），應在同一 feature 順手補齊，而非另開 feature，減少技術債累積",
       "created_at": "2026-06-30T12:01:09.853085+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:19:06.552068+08:00",
-      "used_count": 81,
+      "last_used": "2026-07-09T21:50:09.720569+08:00",
+      "used_count": 83,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L062",
@@ -548,10 +548,10 @@
       "content": "best-effort plugin 安裝函數（ensureXxx）中的 os.WriteFile 錯誤應改為 slog.Warn，而非靜默忽略，以確保失敗可被觀察與診斷。",
       "created_at": "2026-06-30T12:52:40.447294+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.615926+08:00",
-      "used_count": 101,
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 103,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L063",
@@ -560,10 +560,10 @@
       "content": "自動刷新附帶操作（如 GenerateLearningsContext）應在主流程成功路徑上呼叫，失敗只 warn 不 fatal，這樣才不會因次要功能阻塞核心操作。",
       "created_at": "2026-06-30T12:52:40.447294+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:19:06.552068+08:00",
-      "used_count": 81,
+      "last_used": "2026-07-09T21:50:09.720569+08:00",
+      "used_count": 83,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L064",
@@ -572,10 +572,10 @@
       "content": "CLI 整合測試應同時覆蓋 --json 旗標輸出格式，避免 JSON schema 改動後無測試保護。",
       "created_at": "2026-06-30T12:52:40.447294+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T21:15:59.61882+08:00",
-      "used_count": 49,
+      "last_used": "2026-07-09T21:46:59.413288+08:00",
+      "used_count": 50,
       "status": "active",
-      "confidence": 0.4
+      "confidence": 0.5
     },
     {
       "id": "L066",
@@ -597,10 +597,10 @@
       "content": "make check-docs-sync 只比對 symbol→doc 的結構化映射，不涵蓋 docs prose 內以純文字寫死的檔案路徑字串（例如「XxxType (internal/pkg/foo.go)」），也不涵蓋非英文翻譯版；刪除或搬遷檔案的 feature 應額外對 docs/guide/**/*.md（含所有語系）跑 grep -rn '\u003c被刪檔案路徑\u003e' 做覆核，不能只信任 check-docs-sync 回報 OK。",
       "created_at": "2026-07-01T12:03:58.957162+08:00",
       "activated_at": "2026-07-01T13:00:04.604112+08:00",
-      "last_used": "2026-07-09T21:15:59.61882+08:00",
-      "used_count": 100,
+      "last_used": "2026-07-09T21:46:59.413288+08:00",
+      "used_count": 102,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L070",
@@ -610,9 +610,10 @@
       "content": "大型 god file 依關注點拆分至同 package 內多檔案時，用『每批 numstat ≤ N 才 commit』的量測腳本（而非估算行數）能穩定把每批壓在 self_mod_guard 上限內，且不需回退重切；此模式可複用於未來同類拆分 feature 的 task-brief。",
       "created_at": "2026-07-01T12:03:58.957162+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-07T19:22:45.670935+08:00",
-      "used_count": 11,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:50:09.720569+08:00",
+      "used_count": 12,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L071",
@@ -706,10 +707,10 @@
       "content": "把某個硬編碼列舉改為消費 SoT accessor 時，順手 grep 同一檔案/同一函式內是否還有其他地方（如 CLI flag usage 說明字串）引用了相同列舉但仍硬編碼，一併同步，避免在自己修改的檔案裡留下新的平行清單。",
       "created_at": "2026-07-01T14:14:58.691952+08:00",
       "activated_at": "2026-07-03T10:03:44.64307+08:00",
-      "last_used": "2026-07-09T21:15:59.615926+08:00",
-      "used_count": 87,
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 88,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.6
     },
     {
       "id": "L079",
@@ -731,10 +732,10 @@
       "content": "新增的 exported accessor／SoT 函式，除了在消費端（白名單、schema 一致性測試）被間接覆蓋外，應在其自身 package 內補一份專屬單元測試（非空、去重、數量與權威清單一致），否則會被 tester 判定 AC 未完整覆蓋。",
       "created_at": "2026-07-01T14:14:58.691952+08:00",
       "activated_at": "2026-07-03T11:36:46.292607+08:00",
-      "last_used": "2026-07-09T21:15:59.61882+08:00",
-      "used_count": 49,
+      "last_used": "2026-07-09T21:46:59.413288+08:00",
+      "used_count": 50,
       "status": "active",
-      "confidence": 0.4
+      "confidence": 0.5
     },
     {
       "id": "L081",
@@ -780,9 +781,10 @@
       "content": "下沉 DAG/排程邏輯到 internal package 時，其專屬測試（用 runBatchSchedule/finishBatchReport 等私有符號的測試）通常分散在多個 _test.go 檔（本例橫跨 batch_test.go、batch_auto_merge_test.go、run_f060_test.go）；搬遷前先用 grep 列出所有引用私有符號的測試檔，一次搬完並在新 package 補一個對應 test helper（如 newScheduleTestWorkspace），避免遺漏造成 vet 報 undefined。",
       "created_at": "2026-07-01T14:34:05.790557+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-07T19:37:57.516469+08:00",
-      "used_count": 12,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:50:09.720569+08:00",
+      "used_count": 13,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L086",
@@ -792,9 +794,10 @@
       "content": "跨三個檔案（run.go/evolve.go/batch.go）重複邏輯去重時，先用逐行比對舊檔與新抽出檔案（git show \u003ccommit\u003e^:\u003cpath\u003e 對照新檔）驗證純結構性搬遷，可作為 reviewer 標準檢查步驟，快速排除隱藏行為變更的風險。",
       "created_at": "2026-07-01T14:34:05.791671+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-08T14:44:58.150558+08:00",
-      "used_count": 14,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:50:09.720569+08:00",
+      "used_count": 15,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L087",
@@ -852,9 +855,10 @@
       "content": "當 feature description 明確寫「評估並抽出必要的」薄介面時，範疇裁決（例如聚焦子程序啟動、暫緩 handler 層）應在 coder-report 中寫明理由並留待未來擴大範圍，讓 Reviewer 能明確核可裁決合理性而非誤判為未完成。",
       "created_at": "2026-07-01T14:51:10.847458+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-08T14:44:58.150558+08:00",
-      "used_count": 14,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:50:09.720569+08:00",
+      "used_count": 15,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L094",
@@ -864,10 +868,10 @@
       "content": "coder-report 宣稱的 make check-docs-sync/check-i18n 等驗證結果不可照單全收，Reviewer 應以當前分支真正的比對基準（預設 BASE=main，省略 BASE 參數讓腳本自己判斷）親自重跑一次比對，不可只信任先前快取或片面判斷——已多次抓到 coder-report 誤報 check-docs-sync 為 OK，但實際輸出 NEEDS_UPDATE，且點名的 doc 內容確有真實缺口（例如 API 回應形狀破壞性變更未寫進 docs/guide/dashboard.md）。",
       "created_at": "2026-07-01T15:14:54.874969+08:00",
       "activated_at": "2026-07-03T11:36:46.292607+08:00",
-      "last_used": "2026-07-09T21:15:59.615926+08:00",
-      "used_count": 94,
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 96,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L095",
@@ -889,10 +893,10 @@
       "content": "make check-docs-sync 用 git diff --name-only main...HEAD 比對已提交歷史，未 commit 的 docs 修改不會被判定為「已更新」——改完 docs 後必須先 commit 再重跑該指令確認轉為 OK，否則 coder-report 的驗證聲明會失真。",
       "created_at": "2026-07-01T15:14:54.875855+08:00",
       "activated_at": "2026-07-03T11:36:46.292607+08:00",
-      "last_used": "2026-07-09T21:15:59.61882+08:00",
-      "used_count": 95,
+      "last_used": "2026-07-09T21:46:59.413288+08:00",
+      "used_count": 97,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L097",
@@ -902,10 +906,10 @@
       "content": "在 docs/guide/*.md 新增任何層級的標題（## 或 ###）都會觸發 make check-guide-i18n 的 heading 數量比對失敗（例如對 concepts.md 新增 '### ' 標題會破壞與 es/ja/ko/zh-CN/zh-TW 五語系 concepts.md 的 heading 數量對應），須同步在五個語系檔案補上對應翻譯段落，不能只改英文版；但該檢查只比對 heading（##/###）數量、不比對 prose 內容，若只是新增說明文字或列表項目而未新增標題，則不需要同步語系檔案。",
       "created_at": "2026-07-01T15:14:54.875855+08:00",
       "activated_at": "2026-07-03T11:36:46.292607+08:00",
-      "last_used": "2026-07-09T21:19:06.552068+08:00",
-      "used_count": 82,
+      "last_used": "2026-07-09T21:50:09.720569+08:00",
+      "used_count": 84,
       "status": "active",
-      "confidence": 0.5
+      "confidence": 0.7
     },
     {
       "id": "L098",
@@ -915,9 +919,10 @@
       "content": "Coder 在 coder-report.md 宣稱驗證指令（如 make check-docs-sync）結果前，必須實際重跑該指令並貼上真實輸出，不可憑記憶或假設寫「OK」，否則會導致 Reviewer FAIL 並多耗一輪。",
       "created_at": "2026-07-01T15:14:54.877093+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-08T15:09:24.307434+08:00",
-      "used_count": 15,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:50:09.720569+08:00",
+      "used_count": 16,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L099",
@@ -999,9 +1004,10 @@
       "content": "self-mod guard 對受保護路徑有 diff-budget 限制時，測試檔案應優先採用 table-driven 寫法而非逐案例展開，可大幅壓低受保護總 diff 行數，避免觸發 self-mod 阻擋而需要二次修改。",
       "created_at": "2026-07-03T10:14:58.493249+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-08T15:09:24.307434+08:00",
-      "used_count": 15,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:50:09.720569+08:00",
+      "used_count": 16,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L106",
@@ -1155,9 +1161,10 @@
       "content": "comparePlugins() 這類回報缺口的函式，新增檢查項目時應重用同一次 os.ReadFile 的結果（同一個 target 只讀一次），而非為新檢查再開一次 I/O；同時給新檢查項目一個與既有 path 不衝突、有語意的 report path（如加尾碼），避免同一檔案兩種狀態的報告互相覆蓋或難以區分。",
       "created_at": "2026-07-06T00:40:55.825689+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-08T17:17:41.557819+08:00",
-      "used_count": 21,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 22,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L122",
@@ -1167,9 +1174,10 @@
       "content": "當 feature description 字面要求泛化到多個對象（如所有 runner 的 RootFile），但既有實作只硬編碼支援其中一個對象時，優先以既有實作範圍為準，並在 coder-report 中明確寫出裁決理由與被排除方案的具體風險（例如「泛化會製造永遠回報缺失但永遠修不好的不收斂 bug」），讓 reviewer/tester 能針對裁決本身驗證合理性，而不是預設信任。",
       "created_at": "2026-07-06T00:40:55.826318+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-08T16:30:07.243505+08:00",
-      "used_count": 17,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:50:09.720569+08:00",
+      "used_count": 18,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L123",
@@ -1203,9 +1211,10 @@
       "content": "在既有比對/報告結構（如 `comparePlugins()` 的 report slice）中新增一個邏輯獨立的檢查項目時，若該項目與既有項目共用同一個底層資源鍵（如同一個 RootFile 路徑），應為新項目賦予獨立的顯示 path（例如 `\"CLAUDE.md (learnings-context)\"`），避免與既有項目的狀態互相覆蓋或使報告難以區分是哪個檢查產生的狀態。",
       "created_at": "2026-07-06T00:40:55.826318+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-08T17:17:41.557819+08:00",
-      "used_count": 21,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 22,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L126",
@@ -1251,9 +1260,10 @@
       "content": "當 feature 使用的 profile 不含 fixing/deep-reviewing（如本例 standard: coding→reviewing→testing→accepting）時，Reviewer 的 CONDITIONAL PASS WARNING 不會有任何後續角色處理就直接進 accepting；Acceptor 遇到這種情況必須顯式標記 needs-attention 並列出未解決的 WARNING，不可因所有 AC 都 PASS 就視為 ready-for-review。",
       "created_at": "2026-07-07T13:57:45.581749+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-08T18:33:37.262777+08:00",
-      "used_count": 20,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:50:09.720569+08:00",
+      "used_count": 21,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L131",
@@ -1263,9 +1273,10 @@
       "content": "引入 acceptance-summary.md／review-package.md 這類『預彙整檔案取代讀原始報告』的機制時，彙整檔案本身可能只反映 AC pass/fail 而遺漏 reviewer 的 verdict（如 CONDITIONAL PASS 與其 WARNING 清單）；Acceptor 仍須核對彙整檔案是否忠實呈現原始報告的 verdict，避免彙整機制淪為隱藏未解決問題的管道。",
       "created_at": "2026-07-07T13:57:45.581749+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-08T17:24:25.006526+08:00",
-      "used_count": 16,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:50:09.720569+08:00",
+      "used_count": 17,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L133",
@@ -1359,9 +1370,10 @@
       "content": "當 feature description 已用「現狀/需求/約束」清楚列點、且改動範圍侷限於少數已知檔案時，可跳過 Designer 直接進 coding；Tester 仍能直接從 description 反推出可驗證的 AC 清單，不需額外的 task-brief/acceptance-criteria 文件。",
       "created_at": "2026-07-07T17:48:50.222976+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T06:31:29.686171+08:00",
-      "used_count": 22,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:50:09.720569+08:00",
+      "used_count": 23,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L141",
@@ -1455,9 +1467,10 @@
       "content": "驗證腳本（如 check-docs-sync.sh）新增子邏輯時，優先以獨立 function（如 map_check()）包裝，避免在 $(...) subshell 內混用 case/迴圈導致 bash 3.2 誤解析，同時讓 verdict 彙總邏輯集中一處。",
       "created_at": "2026-07-07T18:41:11.004321+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-08T17:48:56.773597+08:00",
-      "used_count": 17,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:46:59.413288+08:00",
+      "used_count": 18,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L149",
@@ -1492,9 +1505,10 @@
       "content": "驗證腳本若把失敗只寫 stderr 卻 exit 0（如舊版 check-docs-sync.sh 的 NEEDS_UPDATE），任何自動 gate 都會誤判通過；新增依賴其結果的 gate 前，先確認來源腳本以 exit code 表達成敗，否則先修腳本。",
       "created_at": "2026-07-07T19:07:45.241409+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-08T17:48:56.773597+08:00",
-      "used_count": 18,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:46:59.413288+08:00",
+      "used_count": 19,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L152",
@@ -1504,9 +1518,10 @@
       "content": "在 worktree 內測 4x 自身新增的 guard/check 行為時，$FOURX_BIN 常指向主 worktree 的舊 binary；務必用 worktree 內 make build 後的 ./bin/4x 明確執行，否則會測到不含本輪改動的舊版而誤判功能沒生效。",
       "created_at": "2026-07-07T19:07:45.241409+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-08T17:48:56.773597+08:00",
-      "used_count": 18,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:46:59.413288+08:00",
+      "used_count": 19,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L153",
@@ -1541,9 +1556,10 @@
       "content": "新增 ProjectConfig 欄位（如 docs_check）時，若專案有前端 dashboard 用硬編碼欄位清單渲染/收集設定表單（如 dashboard/web/settings.js 的 renderProjectSettingsForm/collectFormData tagFields），必須在同一輪 Coder 階段搜尋並同步更新該清單；若前端以整包覆蓋（非增量合併）方式送出 PUT，遺漏會導致欄位被靜默清空，屬於資料遺失而非顯示層小事。",
       "created_at": "2026-07-07T19:07:45.243376+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-08T17:48:56.771913+08:00",
-      "used_count": 20,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 21,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L156",
@@ -1553,9 +1569,10 @@
       "content": "驗證『新增設定欄位是否影響前端表單』時，不能只查 grep 是否有引用該欄位名——要進一步確認前端 PUT 邏輯是增量合併還是整包覆蓋，以及後端 handler 是否直接信任前端送來的整包 body，才能判斷遺漏是否會造成靜默資料遺失。",
       "created_at": "2026-07-07T19:07:45.243376+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-08T17:48:56.771913+08:00",
-      "used_count": 17,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 18,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L157",
@@ -1627,9 +1644,10 @@
       "content": "純 CI workflow 變更無法端到端跑 CI 本身時，應用假值實際執行下游被呼叫的 script（如 notarize-macos.sh），觀察其對缺漏/存在環境變數的錯誤訊息，藉此證明 workflow 匯出的變數名稱與腳本消費的名稱真正一致，比單純比對字串更可靠。",
       "created_at": "2026-07-07T19:39:11.532134+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-08T18:31:13.542178+08:00",
-      "used_count": 8,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:46:59.413288+08:00",
+      "used_count": 9,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L163",
@@ -1639,9 +1657,10 @@
       "content": "CI workflow 變更移除某 job 的 needs 相依或改變其產物來源時，必須同步確認：(1) 該 job 原本消費的產物是否被其他仍需要它的 job 使用（本例 build-binaries 仍供 windows/linux job 使用，未動），(2) 下游依賴此 job 完成的 job（如 attach-desktop）引用的 artifact 名稱是否維持不變。",
       "created_at": "2026-07-07T19:39:11.532134+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-08T17:48:56.771913+08:00",
-      "used_count": 16,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 17,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L164",
@@ -1663,9 +1682,10 @@
       "content": "測試會操作真實檔案系統路徑（symlink install/remove 等）的 CLI 命令時，應用隔離的假 $HOME 實際執行並以 ls -la／readlink 觀察真實結果，而非只讀程式碼推斷；測試結束後清理暫存目錄，避免污染或依賴使用者真實環境。",
       "created_at": "2026-07-07T19:53:38.015716+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-08T18:31:13.542178+08:00",
-      "used_count": 7,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:46:59.413288+08:00",
+      "used_count": 8,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L166",
@@ -1688,9 +1708,10 @@
       "content": "check-docs-sync 是「檔案 prefix → doc」的粗粒度映射（internal/protocol/→concepts.md、internal/server/→dashboard.md），連純 dead-code 刪除也會點名對應 doc；被點名時要嘛補真正準確的內容、要嘛讓該 doc 也進同一 diff，不能只靠 symbol 未變就假設不用動。",
       "created_at": "2026-07-08T14:45:33.485346+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T02:09:28.666758+08:00",
-      "used_count": 17,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:46:59.413288+08:00",
+      "used_count": 18,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L168",
@@ -1700,9 +1721,10 @@
       "content": "docs/guide/ 有 en 基準加 zh-TW/zh-CN/ko/es/ja 五個翻譯，check-guide-i18n 會逐一比對 command section 結構；新增 CLI 指令小節必須同步補齊全部 6 個語系的同名 `## ` 標題，缺一即 FAIL。",
       "created_at": "2026-07-08T14:45:33.485346+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-08T21:05:02.19383+08:00",
-      "used_count": 15,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:46:59.413288+08:00",
+      "used_count": 16,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L169",
@@ -1712,9 +1734,10 @@
       "content": "審查『解析既有 log/檔名慣例』的新程式碼時，不能只看命名 helper 函式（如 StreamLogFileName）的簽名與註解，要用 codegraph_explore 追到實際組出檔名字串的呼叫點（本例是 runner.go 用 strings.TrimSuffix(LogPath, \".log\")+\".stream.jsonl\"，而非直接呼叫該 helper），才能確認解析端的正規表達式假設與產生端真的一致。",
       "created_at": "2026-07-08T14:45:33.487366+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-08T17:48:56.771913+08:00",
-      "used_count": 14,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 15,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L170",
@@ -1737,9 +1760,10 @@
       "content": "CLI 新增的成本/觀測類指令若依賴檔名慣例（如 stream log 的 round-N-role[-iteration].jsonl）解析欄位，應用 codegraph_explore 追查實際產生該檔名的程式碼（如 runner.go 的 LogFileName 系列函式），並在測試中覆蓋真實的 iteration/index 後綴案例，避免解析假設與實際命名慣例脫節。",
       "created_at": "2026-07-08T14:45:33.489024+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T02:09:28.666758+08:00",
-      "used_count": 17,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:46:59.413288+08:00",
+      "used_count": 18,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L172",
@@ -1761,9 +1785,10 @@
       "content": "amending 輪若 coder-report 宣稱『無阻擋 feedback、不改 code』，reviewer 應主動讀該 round 的 test-report/deep-review-report 確認退回原因；若那些 artifact 是 `(in progress)`/`(pending)` 的未完成 stale 檔（非含 FAIL 的真 feedback），代表流程異常退回而非漏處理，PASS 前應在報告點明，避免 Acceptor 誤讀為漏做。",
       "created_at": "2026-07-08T15:10:36.832925+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-08T18:31:13.540522+08:00",
-      "used_count": 14,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 15,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L174",
@@ -1799,9 +1824,10 @@
       "content": "同一個非阻擋 INFO 邊界案例（如本例的 table-pipe-edge 索引解析假設）若在 design-review、round-1 review、round-2 review 三處重複出現，後續 Reviewer 應直接引用前一輪已記錄的裁決文字與檔案位置，而非重新論證一次，可縮短 review-report 篇幅並保持裁決一致性。",
       "created_at": "2026-07-08T15:10:36.834505+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-08T20:18:54.906089+08:00",
-      "used_count": 15,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 16,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L177",
@@ -1823,9 +1849,10 @@
       "content": "驗證『某 role 是否真的被新機制涵蓋』時，不能只信任 task-brief 標出的單一程式碼行號，要主動 grep 同 package 內是否有其他呼叫同一 factory/建構函式且傳入相同 role 常數的位置（本例 deep_review.go 與 parallel.go 各有獨立呼叫 r.NewRunner 的 goroutine/closure），逐一確認該行是否也在 Scope 內被同步修改，AC 才不會出現「主 loop 型別斷言測試全綠，但目標角色實際從未被涵蓋」的驗證盲區。",
       "created_at": "2026-07-08T16:31:05.262581+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-08T20:18:54.906089+08:00",
-      "used_count": 7,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 8,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L179",
@@ -1835,9 +1862,10 @@
       "content": "check-guide-i18n 對非 cli.md 的 guide 檔（如 runners.md）是逐 locale 比對 `## `/`### ` heading「數量」；en 版新增任何一個 `### ` 小節，必須同步在全部 5 個 locale 版加同層 heading，否則 count mismatch FAIL。",
       "created_at": "2026-07-08T16:31:05.263943+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T06:02:28.57821+08:00",
-      "used_count": 14,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:37:01.327613+08:00",
+      "used_count": 15,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L180",
@@ -1884,9 +1912,10 @@
       "content": "驗證「review 資訊不因新機制而遺失」這類跨機制對照型 AC，可寫一個引用 internal 套件的最小 Go harness（放在模組內任意暫存目錄，跑完即刪）直接對真實 feature commit 的 base..HEAD 呼叫核心函式，比造合成小 repo 更有說服力，因為能反映真實檔案大小分布觸發的截斷行為。",
       "created_at": "2026-07-08T16:31:05.265853+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T06:02:28.57821+08:00",
-      "used_count": 9,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:46:59.413288+08:00",
+      "used_count": 10,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L184",
@@ -1896,9 +1925,10 @@
       "content": "審計「所有 X 角色 runner 建構點都呼叫 helper」類 AC 時，需注意同檔案內可能有『借用該角色 model 定價但實際角色不同』的呼叫點（如本例 newEnrichRunner 借 reviewer model、runSynthesizer 角色是 synthesizer），grep 到 r.NewRunner( 呼叫點後要逐一確認其 role 賦值，不能只看函式名稱像不像。",
       "created_at": "2026-07-08T16:31:05.265853+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-08T21:05:02.191561+08:00",
-      "used_count": 11,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 12,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L185",
@@ -1920,9 +1950,10 @@
       "content": "fail-open 型攔截 hook（如攔截特定探索指令）遇到 compound command 或 flag-before-verb 變形（如 `cd x \u0026\u0026 git diff`、`git -C x diff`）時，若擴大匹配規則的誤傷風險高於漏放的風險，應在 task-brief 明訂只比對固定動詞集合並將未攔截形式記錄為 INFO 級已知邊界，不視為缺陷要求修復。",
       "created_at": "2026-07-08T16:31:05.266795+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T06:02:28.57821+08:00",
-      "used_count": 15,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:37:01.327613+08:00",
+      "used_count": 16,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L187",
@@ -1932,9 +1963,10 @@
       "content": "對多個 runner 建構點做同類注入（如統一在 reviewer/deep-reviewer 的每個 NewRunner 呼叫點後注入 ExtraEnv）時，acceptance-criteria 應逐一列舉所有建構點的檔案與行號（含 parallel review、deep review 各分支），Reviewer 才能核對『無遺漏路徑』而非只驗證主流程一處。",
       "created_at": "2026-07-08T16:31:05.266795+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-08T21:05:02.191561+08:00",
-      "used_count": 12,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 13,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L188",
@@ -1944,9 +1976,10 @@
       "content": "審查『在某個 state 欄位（如 SubPhase/Role）early-return 時順手清空或重設它』的設計時，不要只看該欄位的文件註解，要用 researcher 追到下游實際消費點是否『每輪重新推導』還是『信任殘留值』——本例 RunLoop 每輪都用 PhaseToRole(phase) 重新推導 role、deepReviewRun 一律重置 SubPhase，代表清空/殘留兩種寫法其實都安全，這類覆核能避免對無害操作誤判為風險或漏判真正的隱性依賴。",
       "created_at": "2026-07-08T17:25:42.065634+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T02:09:28.656562+08:00",
-      "used_count": 10,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:46:59.409946+08:00",
+      "used_count": 11,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L189",
@@ -1956,9 +1989,10 @@
       "content": "task-brief 若因 i18n 等理由用 DR 明令『不得改動某 doc』，而該 feature 又新增 internal/protocol/ 等會被 check-docs-sync 粗粒度 prefix→doc 映射點名的檔案，designer 應在 DR 內預先聲明『check-docs-sync 對該 doc 的 NEEDS_UPDATE 為接受的 false-positive』，避免 coder/reviewer 在『修 check-docs-sync』與『遵守 DR』之間反覆churn。",
       "created_at": "2026-07-08T17:25:42.068011+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T04:15:54.784692+08:00",
-      "used_count": 19,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:37:01.327613+08:00",
+      "used_count": 20,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L190",
@@ -1968,9 +2002,10 @@
       "content": "審查『依旗標 early-return 派 role』的 recovery 路徑時，要檢查該旗標是否對所有 phase 無條件設置；若 early-return 用 PhaseToRole 派 role 但對 holding phase（needs-attention/blocked）回空字串，會保留舊 role 並跳過 fallback recovery（SmartResumePhase），需確認此組合是否可經由手動 transition 觸發。",
       "created_at": "2026-07-08T17:25:42.070581+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T06:02:28.567739+08:00",
-      "used_count": 14,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:34:35.52191+08:00",
+      "used_count": 15,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L191",
@@ -1980,9 +2015,10 @@
       "content": "task-brief 若因 i18n 或其他理由用 Design Ruling 明令『不得改動某文件』，而該 feature 又新增 internal/protocol/ 等會被 check-docs-sync 粗粒度 prefix→doc 映射點名的檔案，designer 應在該 DR 內預先聲明『check-docs-sync 對此 doc 的 NEEDS_UPDATE 為可接受的 false-positive』，避免 coder/reviewer 在『修 check-docs-sync』與『遵守 DR』之間反覆 churn。",
       "created_at": "2026-07-08T17:25:42.072594+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T04:15:54.784692+08:00",
-      "used_count": 20,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:37:01.327613+08:00",
+      "used_count": 21,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L192",
@@ -1992,9 +2028,10 @@
       "content": "審查『依旗標 early-return 派 role』的 recovery/resume 邏輯時，要主動檢查該旗標是否對所有 phase 無條件設置；若 early-return 用 PhaseToRole 之類的映射派 role，且對 holding phase（如 needs-attention/blocked）回傳空值，會保留舊 role 並跳過 fallback recovery 路徑，需確認此組合是否可經由既有 CLI 指令（如手動 transition）觸發，並在 review-report 明確標註風險等級與是否阻擋。",
       "created_at": "2026-07-08T17:25:42.072594+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T06:02:28.567739+08:00",
-      "used_count": 14,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:34:35.52191+08:00",
+      "used_count": 15,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L193",
@@ -2017,9 +2054,10 @@
       "content": "task-brief 若在 protocol.Config 新增欄位，審查時應先確認該 struct 是否落在 internal/schemasync 的比對範圍（目前只比對 State/Event/Feature 對應 schemas/*.json）；不在範圍內就不需要額外要求補 schema 檔或在 verify_commands 加 check-schema-sync，避免誤判為遺漏。",
       "created_at": "2026-07-08T17:53:50.905383+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T06:02:28.567739+08:00",
-      "used_count": 12,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:34:35.52191+08:00",
+      "used_count": 13,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L195",
@@ -2029,9 +2067,10 @@
       "content": "本 repo golangci 的 errcheck exclude-functions 已涵蓋 os.WriteFile/os.MkdirAll/fmt.Fprint*/AppendEvent 等；對這些函式再加 //nolint:errcheck 會被 nolintlint 判為 unused directive 而 FAIL，寫前先查 .golangci.yml 的 exclude-functions 清單再決定要不要加 nolint。",
       "created_at": "2026-07-08T17:53:50.907116+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T08:35:00.363884+08:00",
-      "used_count": 15,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:37:01.327613+08:00",
+      "used_count": 16,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L196",
@@ -2041,9 +2080,10 @@
       "content": "測試 go.work 裁切（依 wtDir/\u003crepo\u003e/go.mod 是否存在判定保留）時，共用的 initGitRepo helper 只 commit main.go 不含 go.mod，worktree checkout 後判定為不存在會全裁切；驗這類邏輯的 setup helper 必須讓每個 repo 各自 commit 一份 go.mod，否則既有『go.work 應被複製』的斷言會被新邏輯反噬。",
       "created_at": "2026-07-08T17:53:50.907116+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T08:35:00.363884+08:00",
-      "used_count": 11,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:46:59.413288+08:00",
+      "used_count": 12,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L197",
@@ -2066,9 +2106,10 @@
       "content": "此環境的 rtk PreToolUse hook 會把 go test -v 的完整輸出攔截壓縮成「N passed in M packages」摘要，即使加 -v 也看不到逐一 test case 名稱；用 -run '\u003cTestA\u003e|\u003cTestB\u003e' 精準鎖定單一或少數 test 再讀該摘要行數，即可作為該 AC 的合法 unit-test evidence，不需嘗試繞過或還原完整輸出。",
       "created_at": "2026-07-08T17:53:50.910828+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T08:35:00.363884+08:00",
-      "used_count": 15,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:37:01.327613+08:00",
+      "used_count": 16,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L199",
@@ -2078,9 +2119,10 @@
       "content": "當設計裁決涉及『重構既有共用函式 vs 新增專用小函式』（如是否復用 hook.Execute），應在 task-brief 的 Design Rulings 明確列出改動幅度（呼叫端數量）作為裁決依據，讓後續 review 能快速核可最小改動選擇。",
       "created_at": "2026-07-08T17:53:50.912358+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T07:42:54.352453+08:00",
-      "used_count": 26,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:34:35.52191+08:00",
+      "used_count": 27,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L200",
@@ -2129,9 +2171,10 @@
       "content": "新增 *int sentinel 設定欄位並在不同 package（cmd/4x 的測試）建構值時，若範例程式碼直接寫 ptrInt(...)，應先確認該 helper 在目標測試檔的 package 內是否已存在——同名 helper 常分散定義在不同 package（如 internal/evolution 與 internal/protocol 各自有一份），無法跨 package 複用，需在 task-brief 提醒 Coder 自行補一行 helper。",
       "created_at": "2026-07-08T18:34:28.625458+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T07:42:54.352453+08:00",
-      "used_count": 25,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:34:35.52191+08:00",
+      "used_count": 26,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L204",
@@ -2141,9 +2184,10 @@
       "content": "測試走 cobra --json 路徑時，withJsonError 的錯誤分支呼叫 os.Exit(1)，會讓整個 test 進程無 `--- FAIL` 行就被殺死、難以定位；寫這類 end-to-end 測試前先確認 command 的前置（如 LoadMergedConfig 要求 project.name 非空）都以合法 config 建好，避免非預期 error 觸發 os.Exit。",
       "created_at": "2026-07-08T18:34:28.627228+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T08:35:00.363884+08:00",
-      "used_count": 16,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:37:01.327613+08:00",
+      "used_count": 17,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L205",
@@ -2166,9 +2210,10 @@
       "content": "make check-docs-sync 的 prefix→doc 映射是粗粒度啟發式，遇到映射到語意不符的章節（如把純 learnings-lifecycle 設定點名進 evolve/gate pipeline 的 concepts.md）時，應在 task-brief 明訂『此為可接受 false-positive、只更新語意相符的 cli.md』，讓 Coder/Reviewer 有依據跳過，不必為了消音而 churn 不相關章節。",
       "created_at": "2026-07-08T18:34:28.628274+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T10:22:00.334603+08:00",
-      "used_count": 19,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:37:01.327613+08:00",
+      "used_count": 20,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L207",
@@ -2178,9 +2223,10 @@
       "content": "設計『phase 白名單』式放行機制時，若目標 phase（如 amending）在 state machine 中同時是『testing 之前』與『testing 之後回圈』兩種語意的合法轉換目標，單純的 phase 名稱判準無法區分，需檢查 internal/state/machine.go 的完整 transitions 表以及該 phase 是否會被 guard.Check 實際呼叫（如 orchestrator.go 的 handlePostCoder 呼叫條件），而非只看『這個 phase 名稱聽起來像是 testing 前後的哪一類』。",
       "created_at": "2026-07-08T20:22:35.84798+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T07:42:54.352453+08:00",
-      "used_count": 20,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:34:35.52191+08:00",
+      "used_count": 21,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L208",
@@ -2190,9 +2236,10 @@
       "content": "當 feature description 規劃的多個 subtask 有部分前提已不成立（如某 subtask 已被更早的 feature 完整實作，或依賴的機制根本不存在），不要為了「湊滿」規劃而硬寫 production code；改在 task-brief 的 Design Rulings 明列前提不成立的理由，並新增一個反向回歸測試釘住現況（pin regression），讓 Coder 只對唯一前提成立的 subtask 動手，可大幅縮小 diff 與審查範圍。",
       "created_at": "2026-07-08T20:22:35.849355+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T10:46:58.577794+08:00",
-      "used_count": 30,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:34:35.52191+08:00",
+      "used_count": 31,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L209",
@@ -2202,9 +2249,10 @@
       "content": "需要判斷「某個 phase 是否已經歷過」時（例如 amending 要區分 testing 之前/之後），優先掃描既有 run 目錄下的痕跡檔案（如 `rounds/round-*/verify.json` 是否存在）作為判準，而非新增 state schema 欄位；前者是唯讀 side-channel、零 migration 風險，後者會牽動 internal/state 與 schemas/ 的同步成本。",
       "created_at": "2026-07-08T20:22:35.849355+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T08:35:00.361725+08:00",
-      "used_count": 17,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:37:01.327613+08:00",
+      "used_count": 18,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L210",
@@ -2214,9 +2262,10 @@
       "content": "設計裁決造成的已知限制（如粒度取捨導致的邊界情況）應由 Designer/Coder/Reviewer 三方在各自報告中用一致措辭重複記錄（同一個 DR 編號、同一句話），而不是各自換句話說；這讓 Acceptor 能直接比對三份報告確認「同一件事」而非誤判為三個不同的殘留問題。",
       "created_at": "2026-07-08T20:22:35.849355+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T08:35:00.361725+08:00",
-      "used_count": 15,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:34:35.52191+08:00",
+      "used_count": 16,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L211",
@@ -2226,9 +2275,10 @@
       "content": "task-brief 引用 gate/guard 邏輯的 file:line 時，若該行號範圍剛好落在單一 case block（如 phase.go 的 switch-case），要核對它是否真的對應宣稱的那個 phase——常見錯誤是把兩個不同 phase 的 gate 誤植為同一段行號，實際上其中一個 gate 位於別的檔案（如 guard/check.go 的子函式）而非該行號所在檔案。",
       "created_at": "2026-07-08T21:09:44.92779+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T10:46:58.577794+08:00",
-      "used_count": 27,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:34:35.52191+08:00",
+      "used_count": 28,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L212",
@@ -2238,9 +2288,10 @@
       "content": "審查『profile-aware 契約表』設計時，用具體 profile 組合手動展開 Forbidden/AbsentUpstream 集合運算（列出每個角色的 Produces 集合、取聯集減自身）比只看公式描述更容易抓到邊界案例（如兩角色共產同一檔案時該檔案不該進任一方的 Forbidden）。",
       "created_at": "2026-07-08T21:09:44.92779+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T08:35:00.361725+08:00",
-      "used_count": 16,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:34:35.52191+08:00",
+      "used_count": 17,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L213",
@@ -2250,9 +2301,10 @@
       "content": "當 design ruling 引用具體 file:line 佐證裁決時，design-reviewer 若發現引用有誤即使結論仍成立，應要求 Designer 在同輪修正 task-brief 的引用，避免文件引用瑕疵拖到 accepting 才被動記錄成 open issue。",
       "created_at": "2026-07-08T21:09:44.929088+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T10:46:58.577794+08:00",
-      "used_count": 27,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:34:35.52191+08:00",
+      "used_count": 28,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L214",
@@ -2262,9 +2314,10 @@
       "content": "解決『多個角色都需要產出同一份 artifact』的歸屬爭議時，優先在契約層將該 artifact 標記為多角色共同 producer 並排除出各自 Forbidden 清單，而不是變更既有 state machine / guard 的 gate 邏輯；這是後續遇到類似角色產出物歸屬衝突的預設解法。",
       "created_at": "2026-07-08T21:09:44.929088+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T10:46:58.577794+08:00",
-      "used_count": 27,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:34:35.52191+08:00",
+      "used_count": 28,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L215",
@@ -2287,9 +2340,10 @@
       "content": "每條 AC 對應一個可用 `go test -run \u003cTestName\u003e` 精準鎖定的測試函式名稱，讓 test-report 與 acceptance-summary 的 evidence 可獨立重放驗證；此『AC ID → test function 一對一』模式值得作為其他契約/profile 類 feature 的預設 test-strategy 寫法。",
       "created_at": "2026-07-08T21:09:44.929088+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T10:22:00.334603+08:00",
-      "used_count": 11,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:46:59.413288+08:00",
+      "used_count": 12,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L217",
@@ -2299,9 +2353,10 @@
       "content": "AC 標成 inspection 時，test-strategy.yaml 仍需提供明確 manual_checks 或等價命令；broad make check-docs / make test 不能替代具體 grep、git diff 等證據步驟。",
       "created_at": "2026-07-09T02:44:06.904871+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T11:07:09.658407+08:00",
-      "used_count": 11,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:46:59.413288+08:00",
+      "used_count": 12,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L218",
@@ -2311,9 +2366,10 @@
       "content": "4x verify 首次執行若 go build cache / go test -race / golangci-lint 皆為冷啟動，可能超過 10 分鐘逾時被 harness 強制中止；不代表指令本身有問題，逐項手動跑各 verify_commands 確認皆快速通過後，重跑一次 4x verify（暖快取）通常數秒內完成，不需為此逾時懷疑程式碼有 bug。",
       "created_at": "2026-07-09T02:44:06.906211+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T11:07:09.658407+08:00",
-      "used_count": 21,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:37:01.327613+08:00",
+      "used_count": 22,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L219",
@@ -2323,9 +2379,10 @@
       "content": "新增 per-run、僅供 worktree runner 讀取的 state.json 訊號欄位時，設計階段應明訂寫入時機為『在 SyncFeatureToWorktree 之前寫入 main』、清除時機為『runner 完成後、outcome 判定前重置為 false』，避免訊號只寫 main 未同步 worktree、或殘留外漏到後續 phase。",
       "created_at": "2026-07-09T02:44:06.907706+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T10:50:47.361529+08:00",
-      "used_count": 28,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:26:20.932922+08:00",
+      "used_count": 29,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L220",
@@ -2361,9 +2418,10 @@
       "content": "當 feature 的核心需求是把驗證從 prose 升級為可執行 predicate 時，Designer 不應用向下相容理由把新 test-strategy 的 executable checks 降級成 optional；應明確分開舊格式 fallback 與新格式必填契約。",
       "created_at": "2026-07-09T06:32:57.776055+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T10:53:50.703983+08:00",
-      "used_count": 22,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:26:20.932922+08:00",
+      "used_count": 23,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L223",
@@ -2412,9 +2470,10 @@
       "content": "test-strategy.yaml 若宣告 ac_checks，4x verify 會自動對每條 AC 執行對應命令並依真實 exit code 寫入 verify.json 的 ac_results（含 checks 陣列）；Tester 應先跑一次 4x verify 讀結果，只在缺漏（如未綁 ac_checks 的 inspection/skip 類 AC）時才手動補 ac_results，不必也不應該覆寫已由 CLI 依 exit code 產生的 passed/checks。",
       "created_at": "2026-07-09T06:32:57.782249+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T12:39:05.257691+08:00",
-      "used_count": 18,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:37:01.327613+08:00",
+      "used_count": 19,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L227",
@@ -2424,9 +2483,10 @@
       "content": "worktree 內跑 make lint（golangci-lint）會寫 .cache/golangci-lint/，若 .gitignore 未涵蓋 .cache/ 會被誤 commit 污染 diff；Coder 完成後應 git diff $(git merge-base main HEAD)..HEAD --name-only 檢查有無 .cache/ 等工具產物，發現即 git rm --cached 本輪新增部分並補 gitignore，不要整批刪掉 main 既有追蹤的檔。",
       "created_at": "2026-07-09T06:32:57.783571+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T12:39:05.257691+08:00",
-      "used_count": 18,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:37:01.327613+08:00",
+      "used_count": 19,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L228",
@@ -2462,9 +2522,10 @@
       "content": "presence-based 契約（宣告即完整強制、未宣告則完全向後相容）是解決『新增強制規則』與『既有格式向後相容』表面矛盾的可重用模式：以某個可選欄位是否非空作為新舊路徑的分岔點，比額外加 version/flag 欄位更省心智負擔。",
       "created_at": "2026-07-09T06:32:57.785154+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T12:16:06.997685+08:00",
-      "used_count": 28,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:26:20.932922+08:00",
+      "used_count": 29,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L231",
@@ -2486,9 +2547,10 @@
       "content": "設計要求本機秘密檔案權限為 0600 時，不能只指定 os.WriteFile 的 perm；需明確處理既有寬權限檔案（chmod 或 temp file + rename）並測 pre-existing mode。",
       "created_at": "2026-07-09T08:44:26.850351+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T14:11:19.74639+08:00",
-      "used_count": 27,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:26:20.932922+08:00",
+      "used_count": 28,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L233",
@@ -2627,9 +2689,10 @@
       "content": "涉及多平台前端 shell（web/macOS/Tauri）各自讀寫同一個跨程序檔案（如 token 檔）時，設計階段應列出各平台 home directory resolution 的完整優先序對照表（含 Windows USERPROFILE/HOME/HOMEDRIVE+HOMEPATH），並與後端寫入端的語意逐一核對打勾，不要等 review 階段才發現落點不一致，避免多耗一輪。",
       "created_at": "2026-07-09T08:44:26.873626+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T15:44:18.463308+08:00",
-      "used_count": 42,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:26:20.932922+08:00",
+      "used_count": 43,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L244",
@@ -2665,9 +2728,10 @@
       "content": "設計 shell command allowlist 時，不能只依 ;/\u0026\u0026/||/| 切段做前綴比對；只要仍透過 sh -c 執行，就必須明確處理或禁止 command substitution、backticks、subshell 等會在允許前綴內執行任意命令的 shell expansion。",
       "created_at": "2026-07-09T10:51:54.911312+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T15:44:18.463308+08:00",
-      "used_count": 30,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:26:20.932922+08:00",
+      "used_count": 31,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L247",
@@ -2729,9 +2793,10 @@
       "content": "設計 allowlist/ignore 檔的逐行解析規則時，若同時要求「整行 # 開頭視為註解」與「資料行行尾也要帶 # 理由」兩種語意，必須在 task-brief 明確定義單一解析順序（如：先從第一個 # 截斷整行取得 comment、剩餘部分才做欄位切分），否則兩條規則字面上互斥，Coder 可能只實作前者導致 seed 檔本身在正式腳本內失效且無測試能抓到（AC 若只做字串外觀檢查、不驗證真實 glob 比對行為）。",
       "created_at": "2026-07-09T11:11:41.151585+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T16:34:18.460154+08:00",
-      "used_count": 35,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:26:20.932922+08:00",
+      "used_count": 36,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L252",
@@ -2793,9 +2858,10 @@
       "content": "若 AC 要求『必須用真實檔案/真實設定端到端驗證，不得另建乾淨 fixture 繞過』，應把此限制寫進 AC 的 Verification Method 文字本身（而非只在 task-brief 描述），可有效逼 Coder/Tester 用 os/exec 跑真實腳本並複製 repo 根真實設定檔做整合測試，避免簡化 fixture 掩蓋解析規則邊界情況（如 inline 註解截斷）未被覆蓋。",
       "created_at": "2026-07-09T11:11:41.158125+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T16:38:09.40904+08:00",
-      "used_count": 36,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:26:20.932922+08:00",
+      "used_count": 37,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L257",
@@ -2893,9 +2959,10 @@
       "content": "設計「即時 gate」（如 PreToolUse hook 判定）時，明確要求裁決規則覆寫『任一資料來源讀取失敗 → fail-open』並列成獨立 AC（而非只在 review 階段補），可避免 Coder 在有多個資料來源（state/feature/config）時只顧到前兩個而漏掉最後一個的 fail-open 分支。",
       "created_at": "2026-07-09T12:43:27.067826+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T16:38:09.40904+08:00",
-      "used_count": 28,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:26:20.932922+08:00",
+      "used_count": 29,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L265",
@@ -2931,9 +2998,10 @@
       "content": "在既有 health check 函式加入新驗證時，AC 必須覆蓋該函式現有 early-return 分支，避免新檢查被放在不可達位置而只在 happy path 生效。",
       "created_at": "2026-07-09T14:36:03.365036+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T16:38:09.40904+08:00",
-      "used_count": 14,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:26:20.932922+08:00",
+      "used_count": 15,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L268",
@@ -2969,9 +3037,10 @@
       "content": "設計新增 CLI config field（如 role.\u003cname\u003e.runner）時，task-brief 應在同一份清單中窮舉『get + set』兩個子命令的 switch case 位置，而非只交代資料層（struct/merge/resolve）；本次 round 1 漏了 cmd/4x/config.go 的 role field switch，多花一輪才修復。",
       "created_at": "2026-07-09T14:36:03.370174+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T16:38:09.40904+08:00",
-      "used_count": 14,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:26:20.932922+08:00",
+      "used_count": 15,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L271",
@@ -3007,9 +3076,10 @@
       "content": "設計 per-runner allowlist 時不要只以 raw command 字串判斷 runner 類型，必須涵蓋絕對路徑與 wrapper command，否則安全過濾會移除 runner 啟動必需認證。",
       "created_at": "2026-07-09T15:59:31.477953+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T16:38:09.40904+08:00",
-      "used_count": 7,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:26:20.932922+08:00",
+      "used_count": 8,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L274",
@@ -3288,9 +3358,10 @@
       "content": "跨程序鎖類 feature（需要真實 OS 子程序互斥驗證）用 Go 標準的 re-exec 測試 binary 手法（`exec.Command(os.Args[0], \"-test.run=TestHelperProcess\")` + env 旗標）即可在單一 go test 內完成端到端驗證，不需額外整合測試框架，可作為此類 AC 的標準驗證範式沿用。",
       "created_at": "2026-07-09T17:03:45.652632+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T20:12:03.890105+08:00",
-      "used_count": 4,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:50:09.720569+08:00",
+      "used_count": 5,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L296",
@@ -3385,9 +3456,10 @@
       "content": "處理 escalation.json 的修正方（Designer/amending）套用修法後，下一輪 Tester 應重跑同一驗證指令並核對修正內容是否真的針對 escalation.detail 描述的根因，而非只看『有沒有動過該行』；本輪即發生 round-1 escalation 已明確指出 regex 尾碼比對缺陷與建議修法，但實際套用的修正只加了 `# 4x-lint:allow` 註解（解決另一個 lint-escape 問題），根因缺陷未動，導致下一輪同一失敗原樣重現。",
       "created_at": "2026-07-09T18:47:23.793946+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
-      "last_used": "2026-07-09T20:12:03.890105+08:00",
-      "used_count": 3,
-      "status": "candidate"
+      "last_used": "2026-07-09T21:50:09.720569+08:00",
+      "used_count": 4,
+      "status": "candidate",
+      "confidence": 0.4
     },
     {
       "id": "L304",
@@ -3705,6 +3777,58 @@
       "category": "process",
       "content": "範圍嚴格限定在少數檔案、且屬純結構檢查（非語意判斷）的獨立 guard 型 feature，normal profile 可一輪收斂；design review 逐條核對 Design Rulings 對應的實際程式碼行號、並把非阻擋的架構風險明確標註裁決依據，是避免後續輪次因裁決依據不實而返工的關鍵作法。",
       "created_at": "2026-07-09T21:20:38.740548+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate",
+      "confidence": 0.3
+    },
+    {
+      "id": "L330",
+      "source_feature": "F166-profile-advisor",
+      "source_role": "design-reviewer",
+      "category": "design",
+      "content": "Design ruling 若涉及互動 TTY 行為（如選單預設游標項），但該行為天生難以自動化驗證時，task-brief 應明確標註『僅能人工檢查、不列入任何 AC』，避免 Reviewer/Acceptor 誤以為某條既有 AC 間接涵蓋了該互動行為。",
+      "created_at": "2026-07-09T21:51:15.366361+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate",
+      "confidence": 0.3
+    },
+    {
+      "id": "L331",
+      "source_feature": "F166-profile-advisor",
+      "source_role": "coder",
+      "category": "tooling",
+      "content": "新增 settings 欄位時，check-docs-sync 的粗粒度 prefix→doc 映射會把 internal/protocol/ 點名到 concepts.md、cmd/4x/ 點名到 cli.md（而非 configuration.md）；若 AC 要求 configuration.md 有欄位說明，需同時 touch 這三個 doc——configuration.md 放正式欄位表、cli.md/concepts.md 只加 prose（不加新 ##/### 標題以免 check-guide-i18n 連鎖）。",
+      "created_at": "2026-07-09T21:51:15.369712+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate",
+      "confidence": 0.3
+    },
+    {
+      "id": "L332",
+      "source_feature": "F166-profile-advisor",
+      "source_role": "acceptor",
+      "category": "tooling",
+      "content": "make check-docs-sync 的 symbol→doc 映射是粗粒度 prefix 規則（如 internal/protocol/ 一律點名 concepts.md、cmd/4x/ 一律點名 cli.md），不代表該 prefix 底下新增的欄位語意上正確的說明位置就是被點名的那份 doc；新增 settings 欄位時應主動把正式欄位表寫進語意正確的 doc（如 configuration.md），只在被點名的 doc（concepts.md/cli.md）補 prose 呼應，不能只看 check-docs-sync 通過就假設涵蓋到位。",
+      "created_at": "2026-07-09T21:51:15.372746+08:00",
+      "activated_at": "0001-01-01T00:00:00Z",
+      "last_used": "0001-01-01T00:00:00Z",
+      "used_count": 0,
+      "status": "candidate",
+      "confidence": 0.3
+    },
+    {
+      "id": "L333",
+      "source_feature": "F166-profile-advisor",
+      "source_role": "acceptor",
+      "category": "design",
+      "content": "新增多個 *int sentinel 欄位（nil→預設、明確設 0→保留使用者意圖）時，task-brief 應明確引用專案內既有成熟先例（如 EvolutionConfig 的 ResolveEvolution 模式）並註明對應行號，讓 Design Reviewer 能直接核對慣例一致性，可有效讓大量相似欄位的設計裁決一輪過。",
+      "created_at": "2026-07-09T21:51:15.372746+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
       "last_used": "0001-01-01T00:00:00Z",
       "used_count": 0,
