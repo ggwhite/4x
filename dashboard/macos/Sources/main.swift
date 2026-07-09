@@ -13,8 +13,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
     // 由 internal/server/port_sync_test.go 自動驗證。
     var serverPort: Int = 4567
     var embeddedServer: Process?
+    // liveToken 為本次 4x live session 的 bearer token，讀自 ~/.4x/live-token（0600）。
+    // dashboard server 由本 app spawn，token 檔於 server 啟動後才出現，故於 pollServerAndLoad
+    // 每輪重讀（poll 到 200 前 token 檔已落地）。auth 停用時檔案不存在，維持 nil。
+    var liveToken: String?
     var statusTimer: Timer?
     var titleTimer: Timer?
+
+    // readLiveToken 讀取 ~/.4x/live-token 並 trim 換行；讀不到（auth 停用或尚未落地）回 nil。
+    func readLiveToken() -> String? {
+        let path = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".4x").appendingPathComponent("live-token")
+        guard let raw = try? String(contentsOf: path, encoding: .utf8) else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         parseArgs()
@@ -494,7 +507,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
     func fetchSummaryAndShowPopover() {
         DispatchQueue.main.async { [self] in
             let base = "http://localhost:\(serverPort)"
-            popoverWebView.loadHTMLString(popoverHTML(base), baseURL: URL(string: base))
+            popoverWebView.loadHTMLString(popoverHTML(base, token: liveToken), baseURL: URL(string: base))
             guard let button = statusItem.button else { return }
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         }
@@ -519,7 +532,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
         popover.appearance = NSAppearance(named: .darkAqua)
     }
 
-    func popoverHTML(_ baseURL: String) -> String {
+    func popoverHTML(_ baseURL: String, token: String?) -> String {
+        let tokenJS = token ?? ""
         return """
         <!DOCTYPE html>
         <html><head><meta charset="utf-8">
@@ -598,6 +612,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
         <div id="content"><div class="loading" id="loading-text">Loading…</div></div>
         <script>
         const BASE = '\(baseURL)';
+        const LIVE_TOKEN = '\(tokenJS)';
+        // 覆寫 fetch，對受保護的 dashboard 端點注入 Authorization: Bearer；公開路徑（/api/locales*、
+        // /api/version）不注入亦可（server 端放行）。
+        (function() {
+          const nativeFetch = window.fetch.bind(window);
+          window.fetch = function(input, init) {
+            if (LIVE_TOKEN) {
+              init = init || {};
+              const headers = new Headers(init.headers || {});
+              if (!headers.has('Authorization')) headers.set('Authorization', 'Bearer ' + LIVE_TOKEN);
+              init.headers = headers;
+            }
+            return nativeFetch(input, init);
+          };
+        })();
         const STATUS_ORDER = { 'in-progress':0, 'needs-attention':1, 'ready-for-review':2, 'not-started':3 };
         let T = {};
         const STATUS_LABEL_FALLBACK = { 'in-progress':'In Progress', 'needs-attention':'Attention', 'ready-for-review':'Review', 'not-started':'Not Started' };
@@ -726,7 +755,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
         guard let button = statusItem?.button else { return }
 
         let url = URL(string: "http://localhost:\(serverPort)/api/projects")!
-        let req = URLRequest(url: url, timeoutInterval: 3)
+        var req = URLRequest(url: url, timeoutInterval: 3)
+        if let token = liveToken {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
         URLSession.shared.dataTask(with: req) { [weak self] data, response, error in
             guard let self = self else { return }
             let state: String
@@ -817,12 +849,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigati
     // MARK: - Server Polling
 
     func pollServerAndLoad() {
+        // 每輪重讀 token：server 由本 app spawn，token 檔於 server 開始 serve 前落地，
+        // 故 poll 到 200 時 token 檔（若 auth 啟用）必已存在。
+        liveToken = readLiveToken()
         let url = URL(string: "http://localhost:\(serverPort)/api/projects")!
-        let task = URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
+        var req = URLRequest(url: url)
+        if let token = liveToken {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        let task = URLSession.shared.dataTask(with: req) { [weak self] data, response, error in
             guard let self = self else { return }
             if let httpResp = response as? HTTPURLResponse, httpResp.statusCode == 200 {
                 DispatchQueue.main.async {
-                    let pageURL = URL(string: "http://localhost:\(self.serverPort)")!
+                    let base = "http://localhost:\(self.serverPort)"
+                    let pageURL: URL
+                    if let token = self.liveToken {
+                        pageURL = URL(string: "\(base)/?token=\(token)")!
+                    } else {
+                        pageURL = URL(string: base)!
+                    }
                     self.webView.load(URLRequest(url: pageURL))
                 }
             } else {

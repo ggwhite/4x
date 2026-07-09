@@ -91,6 +91,20 @@ The workflow imports the certificate into a temporary keychain and writes the AP
 4x live -a
 ```
 
+**Authentication (bearer token).** On top of binding to `127.0.0.1`, `4x live` adds a
+per-session bearer-token layer, enabled by default (secure by default). At startup a random
+64-hex-char token is written to `~/.4x/live-token` (permissions `0600`, atomically replaced so an
+existing wider-permission file is narrowed). Requests to `/api/*` and `/sse/*` (both reads and
+writes) must present the token, either as an `Authorization: Bearer <token>` header or, for
+`EventSource`/SSE which cannot set headers, as a `?token=<token>` query parameter; missing or wrong
+tokens get `401`. Public exemptions (reachable without a token) are static assets, `/api/version`,
+and `/api/locales` / `/api/locales/…`. The browser receives the token via the launch URL
+(`http://localhost:PORT/?token=…`, Jupyter-style); the web frontend reads it from `window.location`,
+keeps it in memory, and immediately strips it from the address bar with `history.replaceState`. The
+macOS and Tauri shells read the token from `~/.4x/live-token`. To opt out, set `"dashboard_auth": false`
+in `~/.4x/settings.json` (a `*bool`: unset/`null` = enabled, `false` = disabled, `true` = enabled);
+when disabled no token is generated and no token file is written.
+
 ### Port source of truth
 
 The default port (`4567`) has a single source of truth: `internal/server.DefaultPort`. `cmd/4x/live.go`'s `--port` flag default reads this constant; the macOS shell (`main.swift`'s `serverPort`) and the Tauri shell (`main.rs`'s `DEFAULT_PORT`) each hold their own local copy (cross-language builds can't reference the Go constant directly), kept in sync by `internal/server/port_sync_test.go`, which fails `make test` if any of the three literals drift.

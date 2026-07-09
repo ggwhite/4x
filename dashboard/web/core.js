@@ -1,3 +1,47 @@
+// Live session bearer token: 於載入時從 URL 的 ?token= 讀出、存記憶體變數（非 localStorage，
+// 避免跨分頁殘留），並立即用 history.replaceState 從網址列移除（避免經 Referer / 書籤外洩）。
+let liveToken = '';
+(function bootstrapLiveToken() {
+  try {
+    const params = new URLSearchParams(location.search);
+    const tok = params.get('token');
+    if (tok) {
+      liveToken = tok;
+      history.replaceState({}, '', location.pathname);
+    }
+  } catch (e) { /* no-op */ }
+})();
+
+// sseUrl 為 EventSource（無法帶 header）附加 ?token=：liveToken 非空時 append，
+// 既有 URL 已含 '?' 則用 '&token='，否則 '?token='；空則原樣回傳。
+function sseUrl(url) {
+  if (!liveToken) return url;
+  return url + (url.indexOf('?') >= 0 ? '&token=' : '?token=') + encodeURIComponent(liveToken);
+}
+
+// 覆寫 window.fetch：liveToken 非空且目標為 dashboard 端點（相對路徑或以 /api/、/sse/ 開頭，
+// 且非公開豁免路徑 /api/version、/api/locales*）時，注入 Authorization: Bearer header。
+(function wrapFetch() {
+  const nativeFetch = window.fetch.bind(window);
+  function isDashboardTarget(url) {
+    if (typeof url !== 'string') return false;
+    if (/^https?:\/\//i.test(url)) return false; // 絕對外部 URL 不注入
+    if (url.startsWith('/api/version')) return false;
+    if (url === '/api/locales' || url.startsWith('/api/locales/')) return false;
+    return url.startsWith('/api/') || url.startsWith('/sse/') || !url.startsWith('/');
+  }
+  window.fetch = function (input, init) {
+    const target = typeof input === 'string' ? input : (input && input.url);
+    if (liveToken && isDashboardTarget(target)) {
+      init = init || {};
+      const headers = new Headers(init.headers || (typeof input === 'object' && input && input.headers) || {});
+      if (!headers.has('Authorization')) headers.set('Authorization', 'Bearer ' + liveToken);
+      init.headers = headers;
+    }
+    return nativeFetch(input, init);
+  };
+})();
+
 // i18n
 let _i18nDict = {};
 let _currentLocale = 'en';

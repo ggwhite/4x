@@ -416,7 +416,7 @@ function notifyBody(ev) {
   }
 }
 
-function connectSSE(fid) { disconnectSSE(); _lastNotifyKey = null; requestNotificationPermission(); sseSource = new EventSource(sseBase()+'/events/'+fid); sseSource.onmessage = () => { loadMessages(fid); maybeNotifyFromEvents(fid); refreshCurrentDetail(); }; }
+function connectSSE(fid) { disconnectSSE(); _lastNotifyKey = null; requestNotificationPermission(); sseSource = new EventSource(sseUrl(sseBase()+'/events/'+fid)); sseSource.onmessage = () => { loadMessages(fid); maybeNotifyFromEvents(fid); refreshCurrentDetail(); }; }
 function disconnectSSE() { if (sseSource) { sseSource.close(); sseSource = null; } }
 
 function classify(tasks) {
@@ -1335,7 +1335,7 @@ function connectLogSSE(fid, file) {
   multiLogActive = multi;
   if (multi) multiLogBuffers = {};
   const url = file ? sseBase()+'/logs/'+fid+'?file='+encodeURIComponent(file) : sseBase()+'/logs/'+fid;
-  logSSE = new EventSource(url);
+  logSSE = new EventSource(sseUrl(url));
   const knownFiles = new Set();
   logSSE.onmessage = (e) => {
     const viewer = document.getElementById('log-viewer');

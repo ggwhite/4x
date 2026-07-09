@@ -335,10 +335,19 @@ func StartMultiOnListener(ctx context.Context, reg *ProjectRegistry, port int, r
 }
 
 // ServeMulti 在已建立的 listener 上啟動 dashboard server。
-func ServeMulti(ctx context.Context, reg *ProjectRegistry, ln net.Listener, recentPath string) (int, error) {
+// opts 為可選 functional option（如 WithAuth）；不傳時行為與加 auth 前完全一致。
+func ServeMulti(ctx context.Context, reg *ProjectRegistry, ln net.Listener, recentPath string, opts ...ServeOption) (int, error) {
+	var o serveOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
 	actualPort := ln.Addr().(*net.TCPAddr).Port
+	handler := NewMultiMux(reg, recentPath)
+	if o.authToken != "" {
+		handler = authMiddleware(o.authToken, handler)
+	}
 	srv := &http.Server{
-		Handler: NewMultiMux(reg, recentPath),
+		Handler: handler,
 	}
 	go func() {
 		<-ctx.Done()

@@ -306,6 +306,8 @@ To avoid that, the server wraps each workspace in a `*protocol.CachedWorkspace` 
 
 Invalidation is implicit: write methods (`SaveFeature`, `WriteState`, …) need not notify the cache because the next read detects the new mtime. The cache is opt-in — only the server constructs a `CachedWorkspace`; the CLI keeps using `*Workspace` with identical behaviour. Because Go embedding has no virtual dispatch, internal `*Workspace` method calls (e.g. `CompareBacklogMirror` calling `w.ListFeatures()`) still run the uncached original; this is acceptable since those paths are not server hot-paths.
 
+The dashboard server also guards its `/api/*` and `/sse/*` endpoints with a per-session bearer token, controlled by the user-level `dashboard_auth` field in `~/.4x/settings.json` (a `*bool`: unset/`null` = enabled by default, `false` = disabled). See [Starting the Dashboard](dashboard.md#starting-the-dashboard) for the token issuance and delivery mechanism.
+
 ### Feature YAML
 
 ```yaml

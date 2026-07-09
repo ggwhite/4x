@@ -622,6 +622,8 @@ The `4567` default is read from `internal/server.DefaultPort`, the single source
 
 Without paths, loads recent projects from `~/.4x/recent-projects.json` (LRU, max 20). With paths, opens each as a project tab.
 
+On startup `4x live` issues a per-session bearer token (written to `~/.4x/live-token`, `0600`) and guards `/api/*` and `/sse/*` endpoints with it; the launch URL carries `?token=…` so the browser can pick it up. Disable via `"dashboard_auth": false` in `~/.4x/settings.json`. See [Authentication](dashboard.md#starting-the-dashboard) for details.
+
 ---
 
 ## `4x guard-tool`

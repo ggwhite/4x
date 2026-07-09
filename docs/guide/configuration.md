@@ -237,6 +237,7 @@ Global user preferences and runner defaults. Cross-project settings managed via 
 | `roles` | Role model defaults |
 | `logLevel` | Minimum log level (debug/info/warn/error; default "info"; overridden by FOURX_LOG_LEVEL env var) |
 | `logRetainDays` | Days to retain log files in ~/.4x/logs/ (default 7) |
+| `dashboard_auth` | Enable bearer-token auth for the `4x live` dashboard. Default `true` (enabled when unset); set `false` to disable. |
 
 ### CLI
 

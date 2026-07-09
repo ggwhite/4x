@@ -61,6 +61,20 @@ With paths, opens each as a project tab.`,
 				}
 			}
 
+			// Auth 準備必須在 bind port 之前完成。token 檔（~/.4x/live-token）是桌面殼
+			// （macOS / Tauri）唯一的跨程序 token 通道，而它們以「port 已被占用」為 server
+			// readiness 訊號。若先 bind port 再寫 token，桌面殼可能在 token 檔尚未落地的空窗
+			// 通過 readiness、讀不到 token、以無 token URL 連線而被 middleware 401 擋死
+			// （Round 2 review blocker）。先寫 token 再 bind port，可保證「port 被占用」
+			// happens-after「token 已落地」，使 port-readiness 成為 token-readiness 的有效代理。
+			// token 產生/寫檔皆不依賴 port，故此順序安全。
+			userCfg, _ := protocol.ReadUserConfig()
+			authOn := server.AuthEnabled(userCfg)
+			token, err := prepareLiveAuth(authOn)
+			if err != nil {
+				return err
+			}
+
 			ln, err := server.ListenForMulti(port)
 			if err != nil && port != 0 {
 				slog.Warn("port unavailable, picking a free port", "port", port, "error", err)
@@ -71,7 +85,7 @@ With paths, opens each as a project tab.`,
 			}
 			actualPort := ln.Addr().(*net.TCPAddr).Port
 
-			url := fmt.Sprintf("http://localhost:%d", actualPort)
+			url := server.LiveURL(actualPort, token)
 			projects := reg.List()
 			fmt.Printf("4x Live — %s\n", url)
 			if len(projects) > 0 {
@@ -95,7 +109,7 @@ With paths, opens each as a project tab.`,
 			defer stop()
 			slog.Info("server started", "port", actualPort, "pid", os.Getpid())
 			fmt.Printf("  pid: %d\n", os.Getpid())
-			_, srvErr := server.ServeMulti(ctx, reg, ln, recentPath)
+			_, srvErr := server.ServeMulti(ctx, reg, ln, recentPath, server.WithAuth(token))
 			return srvErr
 		},
 	}
@@ -104,6 +118,24 @@ With paths, opens each as a project tab.`,
 	cmd.Flags().BoolVarP(&webFlag, "web", "w", false, "open browser after start")
 	cmd.Flags().BoolVarP(&appFlag, "app", "a", false, "launch native app after start")
 	return cmd
+}
+
+// prepareLiveAuth 依 authOn 決定是否為本次 live session 產生並落地 token。
+// authOn=false 回 ("", nil)，不產 token、不寫檔；authOn=true 產隨機 token 並寫入
+// ~/.4x/live-token，任一步失敗即回 err（fail-hard，見 Design Ruling 9）—— token 檔是桌面殼
+// 唯一的跨程序 token 通道，寫入失敗必須中止啟動，不可略過。
+func prepareLiveAuth(authOn bool) (string, error) {
+	if !authOn {
+		return "", nil
+	}
+	token, err := server.GenerateToken()
+	if err != nil {
+		return "", err
+	}
+	if err := server.WriteLiveToken(token); err != nil {
+		return "", err
+	}
+	return token, nil
 }
 
 func openBrowser(url string) {

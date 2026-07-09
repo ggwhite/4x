@@ -246,6 +246,10 @@ type UserConfig struct {
 	Notifications *bool `json:"notifications,omitempty"`
 	// SelfMod 為使用者層級的 self-mod guard 設定，project 端非 nil 時被覆蓋（見 MergeConfig）。
 	SelfMod *SelfModSettings `json:"self_mod_guard,omitempty"`
+	// DashboardAuth 控制 4x live dashboard 是否啟用 bearer-token 認證。
+	// 用 pointer 區分「未設定」與「明確 false」：nil = 預設啟用（secure by default），
+	// false = 停用認證，true = 啟用。
+	DashboardAuth *bool `json:"dashboard_auth,omitempty"`
 }
 
 // RunnerPreset 描述一個受支援 runner 的預設設定

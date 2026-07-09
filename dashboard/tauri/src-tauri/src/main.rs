@@ -42,6 +42,46 @@ fn notify(app: tauri::AppHandle, title: String, body: String) -> Result<(), Stri
         .map_err(|e| e.to_string())
 }
 
+/// home_dir 跨平台解析使用者 home 目錄，與 Go server 端 `os.UserHomeDir()` 的落點對齊：
+/// Windows 上與 Go 相同優先 `USERPROFILE`（缺時退回 `HOMEDRIVE` + `HOMEPATH` 組合）、
+/// 不採用 `HOME`；非 Windows 只認 `HOME`。皆缺時回 None。
+fn home_dir() -> Option<std::path::PathBuf> {
+    if cfg!(windows) {
+        if let Some(profile) = std::env::var_os("USERPROFILE") {
+            if !profile.is_empty() {
+                return Some(std::path::PathBuf::from(profile));
+            }
+        }
+        let drive = std::env::var_os("HOMEDRIVE")?;
+        let path = std::env::var_os("HOMEPATH")?;
+        if drive.is_empty() || path.is_empty() {
+            return None;
+        }
+        let mut combined = std::ffi::OsString::from(drive);
+        combined.push(path);
+        return Some(std::path::PathBuf::from(combined));
+    }
+    let home = std::env::var_os("HOME")?;
+    if home.is_empty() {
+        return None;
+    }
+    Some(std::path::PathBuf::from(home))
+}
+
+/// read_live_token 讀取 ~/.4x/live-token（4x live session 的 bearer token，權限 0600），
+/// trim 換行後回傳。讀不到（auth 停用或尚未落地）或內容為空時回 None。
+fn read_live_token() -> Option<String> {
+    let home = home_dir()?;
+    let path = home.join(".4x").join("live-token");
+    let raw = std::fs::read_to_string(path).ok()?;
+    let trimmed = raw.trim().to_string();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed)
+    }
+}
+
 fn find_available_port() -> u16 {
     if TcpListener::bind(("127.0.0.1", DEFAULT_PORT)).is_ok() {
         return DEFAULT_PORT;
@@ -181,9 +221,16 @@ fn main() {
 
             // Navigate after server is ready
             if let Some(window) = app.get_webview_window("main") {
-                let url_str = format!("http://localhost:{port}");
                 std::thread::spawn(move || {
                     wait_for_server(port, Duration::from_secs(15));
+                    // 4x live 在 bind port 之前寫入 token 檔（~/.4x/live-token），故 wait_for_server
+                    // 偵測到 port 被占用時，token 檔（若 auth 啟用）必已落地——「port 被占用」
+                    // happens-after「token 已落地」，port-readiness 即 token-readiness 的有效代理。
+                    // 讀得到就帶 ?token=；讀不到代表 auth 停用（未產 token），維持無 token URL。
+                    let url_str = match read_live_token() {
+                        Some(token) => format!("http://localhost:{port}/?token={token}"),
+                        None => format!("http://localhost:{port}"),
+                    };
                     let url = url_str.parse().expect("valid localhost url");
                     let _ = window.navigate(url);
                 });
