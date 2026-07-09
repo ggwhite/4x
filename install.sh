@@ -61,9 +61,10 @@ main() {
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum --check --ignore-missing checksums.txt
   elif command -v shasum >/dev/null 2>&1; then
-    shasum -a 256 --check checksums.txt 2>/dev/null | grep "${FILENAME}" | grep -q "OK"
+    shasum -a 256 --ignore-missing --check checksums.txt 2>/dev/null | grep "${FILENAME}" | grep -q "OK"
   else
-    echo "Warning: no sha256sum or shasum found, skipping checksum verification" >&2
+    echo "Error: no sha256sum or shasum available; cannot verify download integrity" >&2
+    exit 1
   fi
   cd - >/dev/null
 

@@ -129,6 +129,20 @@ go install github.com/ggwhite/4x/cmd/4x@latest
 curl -sSfL https://raw.githubusercontent.com/ggwhite/4x/main/install.sh | sh
 ```
 
+### Verify Checksums
+
+The shell script verifies the download's checksum automatically and aborts if it fails. When downloading a release archive or binary manually from the [Releases](https://github.com/ggwhite/4x/releases) page, verify it yourself before extracting: download that release's `checksums.txt` into the same directory, then run one of:
+
+```bash
+# Linux (and macOS with coreutils)
+sha256sum --check --ignore-missing checksums.txt
+
+# macOS (default)
+shasum -a 256 --ignore-missing --check checksums.txt
+```
+
+Only extract and run the binary once the checksum reports `OK`.
+
 ### Download Binary
 
 Pre-built binaries for macOS, Linux, and Windows (amd64 / arm64) are available on the [Releases](https://github.com/ggwhite/4x/releases) page.

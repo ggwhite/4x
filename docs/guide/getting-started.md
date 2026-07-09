@@ -78,6 +78,18 @@ Verify with:
 4x --help
 ```
 
+When you download a release archive or binary manually (instead of using the shell script, which verifies checksums automatically), verify its integrity before extracting. Download the matching release's `checksums.txt` from the [Releases](https://github.com/ggwhite/4x/releases) page into the same directory as the downloaded file, then run:
+
+```bash
+# Linux (and macOS with coreutils)
+sha256sum --check --ignore-missing checksums.txt
+
+# macOS (default)
+shasum -a 256 --ignore-missing --check checksums.txt
+```
+
+Only extract and run the binary after the checksum reports `OK`. If verification fails, delete the download and fetch it again — a mismatch means the file is corrupted or has been tampered with.
+
 ## Initialize a Project
 
 ```bash
