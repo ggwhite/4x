@@ -34,10 +34,14 @@ var roleToPhaseMap = map[Role]Phase{
 }
 
 // phaseToRoleMap 是 phase → role 的對應，供 doctor 等需要從 phase 反推 role 解析 model 時使用。
+// 含 PhaseAmending → RoleCoder：amend 輪的 role 與 coding 相同（見 state.PhaseToRole），
+// 若漏列會讓 ResolvePhaseRunner(PhaseAmending) 找不到 roles.coder.runner 覆寫而靜默 fallback
+// 到 cfg.Default（F158 post-merge fix，見 override_test.go）。
 var phaseToRoleMap = map[Phase]Role{
 	PhaseDesigning:       RoleDesigner,
 	PhaseDesignReviewing: RoleDesignReviewer,
 	PhaseCoding:          RoleCoder,
+	PhaseAmending:        RoleCoder,
 	PhaseReviewing:       RoleReviewer,
 	PhaseDeepReviewing:   RoleDeepReviewer,
 	PhaseTesting:         RoleTester,

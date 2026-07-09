@@ -113,6 +113,31 @@ func TestResolvePhaseModel_FallsBackToRolesModel(t *testing.T) {
 	}
 }
 
+// TestResolvePhaseRunner_AmendingUsesCoderOverride 驗證 amend 輪的 role 覆寫解析（post-merge
+// 缺陷 #1）：PhaseAmending 的 role 是 coder（同 state.PhaseToRole），roles.coder.runner 覆寫
+// 必須對 amending phase 生效，不能因 protocol 自己的 phaseToRoleMap 漏列 amending 而 fallback
+// 到 cfg.Default。
+func TestResolvePhaseRunner_AmendingUsesCoderOverride(t *testing.T) {
+	cfg := baseOverrideConfig()
+	cfg.Roles["coder"] = RoleConfig{Runner: "codex"}
+
+	got, err := ResolvePhaseRunner(cfg, feature.Feature{}, ProfileConfig{}, PhaseAmending, "")
+	if err != nil {
+		t.Fatalf("ResolvePhaseRunner(PhaseAmending): %v", err)
+	}
+	if got != "codex" {
+		t.Errorf("amending phase runner: got %q, want %q (roles.coder.runner override)", got, "codex")
+	}
+}
+
+// TestPhaseRole_Amending 直接驗證 PhaseRole(PhaseAmending) 回傳 RoleCoder，
+// 而不是空字串（空字串會讓 ResolvePhaseRunner 的 roles 層解析整組失效）。
+func TestPhaseRole_Amending(t *testing.T) {
+	if got := PhaseRole(PhaseAmending); got != RoleCoder {
+		t.Errorf("PhaseRole(PhaseAmending): got %q, want %q", got, RoleCoder)
+	}
+}
+
 func TestResolvePhaseModel_ResolvesTierPerRunner(t *testing.T) {
 	cfg := baseOverrideConfig()
 	pc := ProfileConfig{Phases: []PhaseSpec{{Phase: string(PhaseCoding), Model: "opus"}}}

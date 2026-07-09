@@ -299,10 +299,51 @@ func checkRunners(cfg protocol.Config, lookPath func(string) (string, error)) []
 	return checks
 }
 
-// checkRoles 先驗證每個 role 的 runner 覆寫（roles.{role}.runner）可用性，再用 default runner
-// 解析每個 canonical role 實際使用的 model，並檢查 deep_model。runner 覆寫的三態驗證與
+// configurableRoleNames 是 cfg.Roles 合法 key 的集合（ConfigurableRoles() SoT），供 checkRoles
+// 判斷某個 role 名稱是否為 canonical——非 canonical 的 key（如 typo "reviewr"）即使值合法，
+// ResolvePhaseRunner／ResolveModel 也不會讀到它（PhaseRole／ResolveModel 只認 canonical role），
+// 形同 dead config，須報 FAIL 而非放行成 PASS（post-merge 缺陷 #4）。
+var configurableRoleNames = buildConfigurableRoleNameSet()
+
+func buildConfigurableRoleNameSet() map[string]bool {
+	m := make(map[string]bool)
+	for _, r := range protocol.ConfigurableRoles() {
+		m[string(r)] = true
+	}
+	return m
+}
+
+// roleEffectiveRunner 回傳某 role 實際會使用的 runner 名稱：優先 cfg.Roles[role].Runner，
+// 否則退回 cfg.Default。語意對齊 ResolvePhaseRunner 的 roles 層（無 profile/feature 覆寫時）；
+// 供 checkRoles 對「覆寫後的 runner」而非永遠對 cfg.Default 驗證 model tier 可解析性
+// （post-merge 缺陷 #2／#3）。
+func roleEffectiveRunner(cfg protocol.Config, role protocol.Role) string {
+	if rc, ok := cfg.Roles[string(role)]; ok && rc.Runner != "" {
+		return rc.Runner
+	}
+	return cfg.Default
+}
+
+// anyRoleHasRunnerOverride 回報 canonicalRoles 或 deep-reviewer 中是否有任一 role 設了自己的
+// runner 覆寫；供 checkRoles 決定「無 default_runner」時是否仍能對個別 role 解析 model，
+// 而不是無腦全部降級為單一 WARN。
+func anyRoleHasRunnerOverride(cfg protocol.Config) bool {
+	for _, role := range canonicalRoles {
+		if rc, ok := cfg.Roles[string(role)]; ok && rc.Runner != "" {
+			return true
+		}
+	}
+	if rc, ok := cfg.Roles[string(protocol.RoleDeepReviewer)]; ok && rc.Runner != "" {
+		return true
+	}
+	return false
+}
+
+// checkRoles 先驗證每個 role 的 runner 覆寫（roles.{role}.runner）可用性，再對每個 canonical
+// role「覆寫後實際會用的 runner」解析 model，並檢查 deep_model。runner 覆寫的三態驗證與
 // cfg.Default 是否存在完全解耦（DR-9）：即使無 default_runner，未知 runner 仍報 FAIL；
-// model 解析部分則在無 default runner 時降級為單一 WARN，不 panic。
+// model 解析部分則在「無 default runner 且無任何 role 覆寫」時降級為單一 WARN，不 panic；
+// 只要任一 role 有自己的 runner 覆寫，仍會針對該 role 個別解析。
 func checkRoles(cfg protocol.Config, lookPath func(string) (string, error)) []Check {
 	if lookPath == nil {
 		lookPath = exec.LookPath
@@ -319,6 +360,13 @@ func checkRoles(cfg protocol.Config, lookPath func(string) (string, error)) []Ch
 	}
 	sort.Strings(roleNames)
 	for _, name := range roleNames {
+		if !configurableRoleNames[name] {
+			checks = append(checks, Check{
+				Section: sectionRoles, Name: name + " runner", Severity: SeverityFail,
+				Detail: fmt.Sprintf("role 名稱 %q 不是合法 role，此 runner 覆寫不會生效（silent fallback）", name),
+			})
+			continue
+		}
 		sev, detail := runnerAvailability(cfg, lookPath, cfg.Roles[name].Runner)
 		checks = append(checks, Check{
 			Section: sectionRoles, Name: name + " runner", Severity: sev,
@@ -326,8 +374,9 @@ func checkRoles(cfg protocol.Config, lookPath func(string) (string, error)) []Ch
 		})
 	}
 
-	// 以下 model 解析需要 default runner；無 default 時降級為單一 WARN（既有行為不變）。
-	if cfg.Default == "" {
+	// 以下 model 解析：若無 default_runner 且没有任何 role 有自己的 runner 覆寫，
+	// 全部無從解析，降級為單一 WARN（既有行為不變）；否則逐一用各 role 的實際 runner 解析。
+	if cfg.Default == "" && !anyRoleHasRunnerOverride(cfg) {
 		checks = append(checks, Check{
 			Section: sectionRoles, Name: "role models", Severity: SeverityWarn,
 			Detail: "無 default_runner，無法解析各 role 的 model",
@@ -336,7 +385,15 @@ func checkRoles(cfg protocol.Config, lookPath func(string) (string, error)) []Ch
 	}
 
 	for _, role := range canonicalRoles {
-		model, err := protocol.ResolveModel(cfg, cfg.Default, role)
+		runnerName := roleEffectiveRunner(cfg, role)
+		if runnerName == "" {
+			checks = append(checks, Check{
+				Section: sectionRoles, Name: string(role), Severity: SeverityWarn,
+				Detail: "無 default_runner 且未設定 role runner 覆寫，無法解析 model",
+			})
+			continue
+		}
+		model, err := protocol.ResolveModel(cfg, runnerName, role)
 		if err != nil {
 			checks = append(checks, Check{
 				Section: sectionRoles, Name: string(role), Severity: SeverityWarn,
@@ -350,8 +407,21 @@ func checkRoles(cfg protocol.Config, lookPath func(string) (string, error)) []Ch
 		})
 	}
 
-	// deep-reviewer：deep_model 設在 reviewer role 上（見 run.go 的用法）。
-	deepModel, err := protocol.ResolveDeepModel(cfg, cfg.Default, protocol.RoleReviewer)
+	// deep-reviewer：runner 覆寫在 roles.deep-reviewer.runner（見 ResolvePhaseRunner 的
+	// phaseToRoleMap[deep-reviewing]=deep-reviewer），但 deep_model 值設在 reviewer role 上
+	// （見 docs/guide/runners.md「deep_model 配置在 reviewer role」——這是刻意設計，非缺陷）。
+	// 兩者是正交的兩個軸：驗證 tier 是否可解析時，必須用「deep-reviewing phase 實際會用的 runner」，
+	// 而不是永遠用 cfg.Default，否則 roles.deep-reviewer.runner 覆寫到缺少該 tier 的 runner 時，
+	// doctor 會誤報 PASS，但 runtime 會静默跳過 deep-reviewing（post-merge 缺陷 #3）。
+	deepRunner := roleEffectiveRunner(cfg, protocol.RoleDeepReviewer)
+	if deepRunner == "" {
+		checks = append(checks, Check{
+			Section: sectionRoles, Name: string(protocol.RoleDeepReviewer), Severity: SeverityWarn,
+			Detail: "無 default_runner 且未設定 roles.deep-reviewer.runner，無法解析 deep model",
+		})
+		return checks
+	}
+	deepModel, err := protocol.ResolveDeepModel(cfg, deepRunner, protocol.RoleReviewer)
 	switch {
 	case err != nil:
 		checks = append(checks, Check{
@@ -360,7 +430,7 @@ func checkRoles(cfg protocol.Config, lookPath func(string) (string, error)) []Ch
 		})
 	case deepModel == "":
 		// 未明確設定 deep_model，嘗試 fallback 到 DefaultDeepTier
-		if fallback, fbErr := protocol.ResolveTierModel(cfg, cfg.Default, protocol.DefaultDeepTier); fbErr == nil && fallback != "" {
+		if fallback, fbErr := protocol.ResolveTierModel(cfg, deepRunner, protocol.DefaultDeepTier); fbErr == nil && fallback != "" {
 			checks = append(checks, Check{
 				Section: sectionRoles, Name: string(protocol.RoleDeepReviewer), Severity: SeverityPass,
 				Detail: fmt.Sprintf("deep_model 未設定，fallback 到預設 tier %q → %s", protocol.DefaultDeepTier, fallback),
@@ -417,21 +487,16 @@ func checkProfiles(cfg protocol.Config, lookPath func(string) (string, error)) [
 				hasCoding = true
 			}
 			if ps.Runner != "" {
-				rc, ok := cfg.Runners[ps.Runner]
-				if !ok {
+				// runner 可用性驗證與 checkRoles／checkFeatureYAML 共用同一份三態邏輯
+				// （runnerAvailability），避免各處門檻語意各自維護、日後漂移（post-merge 缺陷 #7）。
+				sev, detail := runnerAvailability(cfg, lookPath, ps.Runner)
+				if sev != SeverityPass {
 					issues = append(issues, Check{
-						Section: sectionProfiles, Name: name, Severity: SeverityFail,
-						Detail: fmt.Sprintf("phase %q 的 runner %q 不在 runners 清單中", ps.Phase, ps.Runner),
+						Section: sectionProfiles, Name: name, Severity: sev,
+						Detail: fmt.Sprintf("phase %q 的 %s", ps.Phase, detail),
 					})
-				} else {
-					if rc.Command != "" {
-						if _, err := lookPath(rc.Command); err != nil {
-							issues = append(issues, Check{
-								Section: sectionProfiles, Name: name, Severity: SeverityWarn,
-								Detail: fmt.Sprintf("phase %q 的 runner %q command %q 不在 PATH（若跑在遠端可忽略）", ps.Phase, ps.Runner, rc.Command),
-							})
-						}
-					}
+				}
+				if _, ok := cfg.Runners[ps.Runner]; ok {
 					if ps.Model != "" {
 						role := protocol.PhaseRole(phase)
 						if _, err := protocol.ResolvePhaseModel(cfg, feature.Feature{}, pc, phase, role, ps.Runner, ""); err != nil {
@@ -610,12 +675,22 @@ func checkFeatureYAML(ws *protocol.Workspace, cfg protocol.Config, lookPath func
 
 		// phase_overrides.{phase}.runner 覆寫的可用性驗證（DR-8）：三態語意同 checkProfiles，
 		// 合法且在 PATH 時不 append（沿用下方「所有 feature YAML 可正常解析」PASS 彙總）。
+		// 另先驗證 phase key 本身是否為 canonical phase（post-merge 缺陷 #5）：ResolvePhaseRunner／
+		// ResolvePhaseModel 執行時只會用真正的 Phase 常量去查 f.PhaseOverrides，typo key（如
+		// "reviewng"）永遠查不到、形同 dead config，須報 FAIL 而非放行成 PASS。
 		phaseKeys := make([]string, 0, len(f.PhaseOverrides))
 		for phase := range f.PhaseOverrides {
 			phaseKeys = append(phaseKeys, phase)
 		}
 		sort.Strings(phaseKeys)
 		for _, phase := range phaseKeys {
+			if protocol.PhaseRole(protocol.Phase(phase)) == "" {
+				checks = append(checks, Check{
+					Section: sectionWorkspace, Name: e.Name(), Severity: SeverityFail,
+					Detail: fmt.Sprintf("%s phase_overrides 使用非 canonical phase %q，此覆寫不會生效", e.Name(), phase),
+				})
+				continue
+			}
 			po := f.PhaseOverrides[phase]
 			if po.Runner == "" {
 				continue
