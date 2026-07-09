@@ -12,7 +12,7 @@ description: |-
     - feature YAML 已明示 profile 時完全不介入（尊重 feature.profile 優先於 default_profile 的既有優先序）
     - 純 deterministic heuristic，CLI 層不呼叫 LLM
     - 不改變任何未觸發建議情境的既有輸出
-status: not-started
+status: done
 priority: 3
 profile: normal
 subtasks:
