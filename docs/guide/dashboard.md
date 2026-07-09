@@ -145,7 +145,7 @@ Read-heavy endpoints (`/api/tasks`, `/api/overview`, `/api/projects`, `/api/sett
 | `/api/new` | POST | Create a new feature (accepts `name`, `description`, plus optional `customId`, `priority`, `depends`, `rules`, `subtasks`) |
 | `/api/run` | POST | Start a feature run (spawns `4x run` subprocess) |
 | `/api/stop` | POST | Stop a running feature |
-| `/api/done` | POST | Mark feature as done; auto-merges worktree if present (multi-repo: all-or-nothing) |
+| `/api/done` | POST | Mark feature as done; auto-merges worktree if present (multi-repo: all-or-nothing). The state write goes through the per-feature `state.json` lock, so it is serialized with an in-progress `4x run` and neither clobbers the other |
 | `/api/clean` | POST | Remove workspace artifacts for all cleanable (done/abandoned) features in the project |
 | `/api/runs` | GET | List active runs |
 | `/api/events/{id}` | GET | Get events for a feature |

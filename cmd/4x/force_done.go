@@ -64,15 +64,19 @@ func forceDone(ws *protocol.Workspace, featureID, reason string, jsonOut bool) e
 		return fmt.Errorf("feature %s touches protected paths — use 'force-done --approve-self-mod' or resolve via normal pipeline", featureID)
 	}
 
-	newState, err := state.Transition(s, protocol.PhaseDone, "force-done")
+	// Transition→設終態欄位→寫回收斂到單一加鎖臨界區（讀最新磁碟值為權威）。
+	newState, err := ws.UpdateState(featureID, func(cur *protocol.State) error {
+		transitioned, terr := state.Transition(*cur, protocol.PhaseDone, "force-done")
+		if terr != nil {
+			return fmt.Errorf("cannot transition %s from %s to done: %w", featureID, cur.Phase, terr)
+		}
+		transitioned.Active = false
+		transitioned.StopReason = "force-done"
+		transitioned.StopMessage = reason
+		*cur = transitioned
+		return nil
+	})
 	if err != nil {
-		return fmt.Errorf("cannot transition %s from %s to done: %w", featureID, s.Phase, err)
-	}
-	newState.Active = false
-	newState.StopReason = "force-done"
-	newState.StopMessage = reason
-
-	if err := ws.WriteState(featureID, newState); err != nil {
 		return err
 	}
 	if err := ws.SyncFeatureStatus(featureID, protocol.PhaseDone); err != nil {

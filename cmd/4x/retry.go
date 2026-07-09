@@ -69,28 +69,30 @@ Use --to to target a different phase, e.g. --to amending to go back to coding.`,
 // retryTransition 從 needs-attention / blocked 轉回目標 phase，回傳新 state 與原始 phase。
 // 供測試直接呼叫，不含 exec 邏輯。
 func retryTransition(ws *protocol.Workspace, featureID string, target protocol.Phase) (protocol.State, protocol.Phase, error) {
-	s, err := ws.ReadState(featureID)
-	if err != nil {
-		return protocol.State{}, "", fmt.Errorf("cannot read state for %s: %w", featureID, err)
-	}
-
-	if s.Phase != protocol.PhaseNeedsAttention && s.Phase != protocol.PhaseBlocked {
-		return protocol.State{}, "", fmt.Errorf("retry only works from needs-attention or blocked (current phase: %s)", s.Phase)
-	}
-
 	toRole := state.PhaseToRole(target)
-	newState, err := state.Transition(s, target, toRole)
+	// fromPhase 在 mutate 內以最新磁碟值填入，供回傳與訊息使用。
+	var fromPhase protocol.Phase
+	newState, err := ws.UpdateState(featureID, func(cur *protocol.State) error {
+		// 守衛以臨界區內讀到的最新磁碟值重判，避免依舊快照放行。
+		if cur.Phase != protocol.PhaseNeedsAttention && cur.Phase != protocol.PhaseBlocked {
+			return fmt.Errorf("retry only works from needs-attention or blocked (current phase: %s)", cur.Phase)
+		}
+		fromPhase = cur.Phase
+		transitioned, terr := state.Transition(*cur, target, toRole)
+		if terr != nil {
+			return fmt.Errorf("cannot transition %s → %s: %w", cur.Phase, target, terr)
+		}
+		transitioned.Active = true
+		// 人為介入旗標：child 的 4x run recovery 要尊重此手動 phase，
+		// 不被 SmartResumePhase 依磁碟 artifacts 重推導覆蓋（RecoverState 消費後清除）。
+		transitioned.ManualPhase = true
+		*cur = transitioned
+		return nil
+	})
 	if err != nil {
-		return protocol.State{}, "", fmt.Errorf("cannot transition %s → %s: %w", s.Phase, target, err)
-	}
-	newState.Active = true
-	// 人為介入旗標：child 的 4x run recovery 要尊重此手動 phase，
-	// 不被 SmartResumePhase 依磁碟 artifacts 重推導覆蓋（RecoverState 消費後清除）。
-	newState.ManualPhase = true
-
-	if err := ws.WriteState(featureID, newState); err != nil {
 		return protocol.State{}, "", err
 	}
+
 	if err := ws.SyncFeatureStatus(featureID, target); err != nil {
 		_ = err
 	}
@@ -101,5 +103,5 @@ func retryTransition(ws *protocol.Workspace, featureID string, target protocol.P
 		Round: newState.Round,
 	})
 
-	return newState, s.Phase, nil
+	return newState, fromPhase, nil
 }

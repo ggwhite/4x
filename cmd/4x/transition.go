@@ -87,20 +87,23 @@ func newTransitionCmd() *cobra.Command {
 				return err
 			}
 
-			newState, err := state.Transition(s, toPhase, toRole)
+			// Transition→設欄位→寫回收斂到單一加鎖臨界區，讀最新磁碟值為權威，
+			// 避免與進行中的 run loop／dashboard done 競寫時用過時快照覆蓋。
+			newState, err := ws.UpdateState(featureID, func(cur *protocol.State) error {
+				transitioned, terr := state.Transition(*cur, toPhase, toRole)
+				if terr != nil {
+					return terr
+				}
+				if toPhase == protocol.PhaseDone || toPhase == protocol.PhasePendingReview || toPhase == protocol.PhaseBlocked || toPhase == protocol.PhaseAbandoned {
+					transitioned.Active = false
+				}
+				// 人為介入旗標：後續 4x run 的 resume recovery 要尊重此手動 phase，
+				// 不被 SmartResumePhase 依磁碟 artifacts 重推導覆蓋（RecoverState 消費後清除）。
+				transitioned.ManualPhase = true
+				*cur = transitioned
+				return nil
+			})
 			if err != nil {
-				return err
-			}
-
-			if toPhase == protocol.PhaseDone || toPhase == protocol.PhasePendingReview || toPhase == protocol.PhaseBlocked || toPhase == protocol.PhaseAbandoned {
-				newState.Active = false
-			}
-
-			// 人為介入旗標：後續 4x run 的 resume recovery 要尊重此手動 phase，
-			// 不被 SmartResumePhase 依磁碟 artifacts 重推導覆蓋（RecoverState 消費後清除）。
-			newState.ManualPhase = true
-
-			if err := ws.WriteState(featureID, newState); err != nil {
 				return err
 			}
 

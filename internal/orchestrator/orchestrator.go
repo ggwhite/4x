@@ -337,6 +337,14 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 			TokensUsed: tokens, CostUSD: stats.CostUSD, DurationMs: invokeDur.Milliseconds(),
 		})
 
+		// run 返回後護欄（Blocking 1 方案 b）：rn.Run 可能數分鐘，期間若外部把 feature
+		// 設為終態，採用磁碟終態並 break——handleExitResult / handlePostCoder（含
+		// SelfModTouched 盲寫）與 line 425 commit 等本輪中間態寫入皆不執行，消除復活窗。
+		if disk, yielded := r.externallyTerminated(); yielded {
+			s = disk
+			break
+		}
+
 		if err := r.handleExitResult(result, &s, phase, role, phaseRunner); err != nil {
 			return nil, err
 		}
@@ -422,8 +430,17 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 				s.StopReason = "escalation"
 			}
 		}
-		if err := r.Ws.WriteState(featureID, s); err != nil {
+		// post-phase transition commit 走 CAS 護欄：若磁碟 Active 已被外部清為 false
+		// （run 進行中被 done/abandon/force-done 終結），放棄本次覆寫、採用磁碟終態並
+		// 跳過該輪剩餘 transition 副作用（sync/event/post-hook）後 break——這筆 transition
+		// 已被丟棄，不應記錄事件或跑 post-hook。
+		persisted, yielded, err := r.commitLoopState(featureID, s)
+		if err != nil {
 			return nil, fmt.Errorf("write state (%s): %w", s.Phase, err)
+		}
+		if yielded {
+			s = persisted
+			break
 		}
 		LogSyncErr(r.Ws.SyncFeatureStatus(featureID, s.Phase), featureID, s.Phase)
 
@@ -505,7 +522,49 @@ func (r *Runner) checkStopSignals(ctx context.Context, s *protocol.State) bool {
 		}
 		return true
 	}
+
+	// 迴圈頂偵測「外部已終結」：run 進行期間若使用者透過 dashboard/CLI 把同一 feature
+	// 設為終態（Active=false），採用該磁碟終態並 break，避免下一輪用記憶體舊快照復活。
+	// ReadState 不加鎖、成本可忽略；讀失敗不誤判為終結（走原路徑）。
+	if disk, yielded := r.externallyTerminated(); yielded {
+		*s = disk
+		return true
+	}
 	return false
+}
+
+// externallyTerminated 不加鎖重讀磁碟 state，偵測 feature 是否已被外部終結。
+//
+// 回傳 (disk, true) 表示磁碟 Active==false（已被 done/abandon/force-done 等外部路徑終結），
+// 呼叫端應採用該磁碟終態；(disk, false) 表示仍 active、走原路徑；ReadState 失敗回
+// (State{}, false)（不把讀失敗誤判為終結）。供迴圈頂與 rn.Run 返回後的護欄共用。
+func (r *Runner) externallyTerminated() (protocol.State, bool) {
+	disk, err := r.Ws.ReadState(r.featureID())
+	if err != nil {
+		return protocol.State{}, false
+	}
+	if !disk.Active {
+		return disk, true
+	}
+	return disk, false
+}
+
+// commitLoopState 是 run loop 的 run-continuing 寫入 CAS 護欄：在加鎖臨界區重讀磁碟，
+// 若磁碟 Active 已被外部清為 false（run 已被外部終結），放棄自己的覆寫、回 yielded==true
+// 並帶回磁碟終態；否則才寫入自己算出的 next。
+//
+// 這消除 feature description 點名的核心情境：run 進行中被外部 done/abandon/force-done
+// 終結後，orchestrator 用舊快照（Active=true）把終態復活成 running。
+func (r *Runner) commitLoopState(featureID string, next protocol.State) (persisted protocol.State, yielded bool, err error) {
+	persisted, err = r.Ws.UpdateState(featureID, func(disk *protocol.State) error {
+		if !disk.Active {
+			yielded = true
+			return protocol.ErrSkipStateWrite
+		}
+		*disk = next
+		return nil
+	})
+	return persisted, yielded, err
 }
 
 // tryPassThrough 在 role 不在 active profile 時跳過該 phase。
@@ -1187,11 +1246,15 @@ func WorktreeExitHints(wtPath, featureID string, finalPhase protocol.Phase, comm
 // DeferRunCleanup 在 run 結束時將 state 標為 inactive 並寫入 run-end event。
 // 用於 defer 區塊，確保中斷時 state.json 與 event log 一致。
 func DeferRunCleanup(ws *protocol.Workspace, featureID string) {
-	cur, err := ws.ReadState(featureID)
-	if err != nil {
-		return
-	}
-	if cur.Active {
+	// 檢查+修改+寫回收斂到單一加鎖臨界區（讀最新磁碟值為權威）：只在磁碟仍為 active
+	// 時降級，否則回 ErrSkipStateWrite 不寫。wrote 明確標記「本次確實由 active 降為
+	// inactive」，供其後只在真正降級時才發 sync/run-end（磁碟本就非 active 代表已有
+	// 其他路徑寫過終態，不重複記錄）。
+	wrote := false
+	cur, err := ws.UpdateState(featureID, func(cur *protocol.State) error {
+		if !cur.Active {
+			return protocol.ErrSkipStateWrite
+		}
 		cur.Active = false
 		cur.Pid = 0
 		if cur.StopReason == "" {
@@ -1205,19 +1268,27 @@ func DeferRunCleanup(ws *protocol.Workspace, featureID string) {
 			// toRole，不讀舊 Role；state.Transition 的合法性判斷也只看 Phase，
 			// 清空 Role 沒有好處反而丟失資訊。
 		}
-		LogStateWriteErr(ws.WriteState(featureID, cur), featureID, cur.Phase)
-		LogSyncErr(ws.SyncFeatureStatus(featureID, cur.Phase), featureID, cur.Phase)
-		ws.AppendEvent(featureID, protocol.Event{
-			Type:   "run-end",
-			Phase:  cur.Phase,
-			Role:   cur.Role,
-			Round:  cur.Round,
-			Status: "interrupted",
-			Detail: cur.StopReason,
-			Runner: cur.Runner,
-			Notify: protocol.NotifyWarning,
-		})
+		wrote = true
+		return nil
+	})
+	if err != nil {
+		LogStateWriteErr(err, featureID, cur.Phase)
+		return
 	}
+	if !wrote {
+		return
+	}
+	LogSyncErr(ws.SyncFeatureStatus(featureID, cur.Phase), featureID, cur.Phase)
+	ws.AppendEvent(featureID, protocol.Event{
+		Type:   "run-end",
+		Phase:  cur.Phase,
+		Role:   cur.Role,
+		Round:  cur.Round,
+		Status: "interrupted",
+		Detail: cur.StopReason,
+		Runner: cur.Runner,
+		Notify: protocol.NotifyWarning,
+	})
 }
 
 // StartBackgroundRun 以 background 方式啟動 run 子程序，將其 stdout/stderr 導向 logPath，

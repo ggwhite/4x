@@ -230,6 +230,8 @@ Default target phase is `accepting` (re-run the Acceptor after the human fixes i
 
 The phase set by a manual `transition` / `retry --to <phase>` is respected by the subsequent `4x run` recovery: it is marked with a `manualPhase` flag so `SmartResumePhase` does not override it back to an earlier phase derived from on-disk artifacts. This means `retry --to deep-reviewing` actually resumes at `deep-reviewing` instead of being pulled back to `coding`.
 
+The state-mutating commands (`transition`, `retry`, `force-done`, `done`) perform their phase change as a single locked read-modify-write on `state.json`, so running one against a feature that a live `4x run` is also writing cannot clobber the other's update. If the per-feature lock cannot be acquired within its timeout the command fails with a clear error instead of hanging.
+
 Errors if the feature is not currently in `needs-attention` or `blocked`.
 
 ---

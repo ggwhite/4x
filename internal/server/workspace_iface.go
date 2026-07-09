@@ -8,6 +8,7 @@ type ProcessWorkspace interface {
 	AppendEvent(featureID string, evt protocol.Event) error
 	ReadState(featureID string) (protocol.State, error)
 	WriteState(featureID string, s protocol.State) error
+	UpdateState(featureID string, mutate func(s *protocol.State) error) (protocol.State, error)
 }
 
 // BatchWorkspace 是 BatchManager 依賴的最小 workspace 介面。

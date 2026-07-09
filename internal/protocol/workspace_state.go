@@ -2,6 +2,8 @@ package protocol
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,12 +32,19 @@ func (w *Workspace) ReconcileActive(featureID string, s *State) error {
 	return w.WriteState(featureID, *s)
 }
 
-// WriteState 寫入 feature 的 state.json。
+// stateLockPath 回傳 feature 專屬的 advisory lock 檔路徑（與 state.json 同目錄）。
+// 對同一 feature 的所有加鎖寫入都取這支鎖，序列化跨程序的 read-modify-write。
+func (w *Workspace) stateLockPath(featureID string) string {
+	return filepath.Join(w.FeatureDir(featureID), ".state.lock")
+}
+
+// writeStateLocked 是 WriteState 的實際寫入 body，但「不取鎖」：設 UpdatedAt、清 SubPhase、
+// marshal、atomic rename。供已持鎖的 UpdateState 內部呼叫，避免同程序二次取鎖自我死鎖。
 //
 // 採用 write-to-temp + rename 而非直接 os.WriteFile：後者會先 truncate 再寫，
 // 在這段時間內 concurrent 的 ReadState 可能讀到截斷或半寫的 JSON 而 Unmarshal 失敗。
 // 改用同目錄 temp file 寫完再 atomic rename 覆蓋，讓讀者永遠看到完整的舊檔或完整的新檔。
-func (w *Workspace) WriteState(featureID string, s State) error {
+func (w *Workspace) writeStateLocked(featureID string, s State) error {
 	s.UpdatedAt = time.Now()
 	// SubPhase 僅在 deep-reviewing phase 內有意義；離開該 phase 時一律清空，
 	// 作為各退出路徑的單一收斂點，避免殘留的 subPhase 誤導 dashboard 或 resume 推斷。
@@ -47,6 +56,61 @@ func (w *Workspace) WriteState(featureID string, s State) error {
 		return err
 	}
 	return AtomicWriteFile(w.FeatureDir(featureID), StateFile, ".state-*.json", data, 0o644)
+}
+
+// WriteState 寫入 feature 的 state.json，全程持有 feature 專屬 advisory 排他鎖。
+//
+// 鎖只序列化 writer 之間（batch/parallel、dashboard done、進行中的 4x run），
+// ReadState 不取鎖、不受影響（靠 atomic rename 讀到完整檔）。取鎖逾時回
+// ErrStateLockTimeout 包裝的錯誤而非無限阻塞。
+func (w *Workspace) WriteState(featureID string, s State) error {
+	lock, err := acquireFileLock(w.stateLockPath(featureID), stateLockTimeout)
+	if err != nil {
+		return fmt.Errorf("write state %s: %w", featureID, err)
+	}
+	defer func() { _ = lock.release() }()
+	return w.writeStateLocked(featureID, s)
+}
+
+// UpdateState 是唯一的「加鎖 read-modify-write」入口：取鎖 → 讀最新磁碟 state →
+// 呼叫 mutate 修改 → 原子寫回 → 釋放鎖，回傳寫入後（或未寫時的現況）的 State。
+//
+// 這讓「讀舊值 → 改 → 寫回」整段落在同一臨界區，消除兩個 writer 各自用過時快照
+// 覆蓋彼此的 lost-update。回傳的 State 供呼叫端做後續 AppendEvent/SyncFeatureStatus，
+// 不必自己再讀一次。
+//
+// mutate 回傳值決定寫入行為：
+//   - nil：寫回並回傳 (寫入後 State, nil)。
+//   - ErrSkipStateWrite：不寫、回傳 (未修改的磁碟現況 State, nil)——供「在臨界區內拿到
+//     最新磁碟值後才決定不寫」的條件式跳過與 CAS 護欄使用。
+//   - 其他 error：不寫、回傳 (零值 State, 包裝過的 error)。
+//
+// 重要限制：mutate 回呼內「不得」再呼叫 WriteState/UpdateState（同程序二次取鎖會 self-deadlock）；
+// 只能修改傳入的 *State 或回傳哨兵/error，由 UpdateState 負責寫回。
+func (w *Workspace) UpdateState(featureID string, mutate func(s *State) error) (State, error) {
+	lock, err := acquireFileLock(w.stateLockPath(featureID), stateLockTimeout)
+	if err != nil {
+		return State{}, fmt.Errorf("update state %s: %w", featureID, err)
+	}
+	defer func() { _ = lock.release() }()
+
+	s, err := w.ReadState(featureID)
+	if err != nil {
+		return State{}, fmt.Errorf("update state %s: %w", featureID, err)
+	}
+	// 保留一份未修改的磁碟現況：ErrSkipStateWrite 時回傳它（而非 mutate 途中改了一半
+	// 的 in-memory 值），符合「跳過寫入 → 回傳磁碟現況」語意。
+	disk := s
+	if err := mutate(&s); err != nil {
+		if errors.Is(err, ErrSkipStateWrite) {
+			return disk, nil
+		}
+		return State{}, fmt.Errorf("update state %s: %w", featureID, err)
+	}
+	if err := w.writeStateLocked(featureID, s); err != nil {
+		return State{}, fmt.Errorf("update state %s: %w", featureID, err)
+	}
+	return s, nil
 }
 
 // AppendEvent 追加一行到 events.jsonl

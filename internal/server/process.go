@@ -197,22 +197,24 @@ func (pm *ProcessManager) wait(id string, info *RunInfo) {
 // endTime 之後（含同時），代表 runner 已在 process 結束時或之後自行寫過 final state
 // （如 pending-review），此時直接跳過，避免用較舊的狀態把 phase 倒退或蓋掉 StopReason。
 func (pm *ProcessManager) ensureInactive(featureID string, endTime time.Time) {
-	s, err := pm.ws.ReadState(featureID)
+	// 檢查+修改+寫回收斂到單一加鎖臨界區：讀到最新磁碟值後才決定是否降 Active，
+	// 讓 dashboard done 與 runner child 寫 final-state 的時序競寫被序列化。
+	// 兩個原本的 early-return（已非 active、磁碟較新）改由 mutate 回 ErrSkipStateWrite 表達。
+	_, err := pm.ws.UpdateState(featureID, func(s *protocol.State) error {
+		if !s.Active {
+			return protocol.ErrSkipStateWrite
+		}
+		if !s.UpdatedAt.Before(endTime) {
+			return protocol.ErrSkipStateWrite
+		}
+		s.Active = false
+		s.Pid = 0
+		if s.StopReason == "" {
+			s.StopReason = "process-exit"
+		}
+		return nil
+	})
 	if err != nil {
-		return
-	}
-	if !s.Active {
-		return
-	}
-	if !s.UpdatedAt.Before(endTime) {
-		return
-	}
-	s.Active = false
-	s.Pid = 0
-	if s.StopReason == "" {
-		s.StopReason = "process-exit"
-	}
-	if err := pm.ws.WriteState(featureID, s); err != nil {
 		slog.Error("ensureInactive: failed to write state", "feature", featureID, "error", err)
 	}
 }

@@ -101,6 +101,8 @@ The `deep-reviewing` phase runs several internal steps (sub-reviewer → synthes
 
 `WriteState` enforces a single invariant: any write whose `phase` is not `deep-reviewing` clears `subPhase` to the empty string (`omitempty` keeps it out of `state.json` entirely). So leaving deep review — to `accepting`, `amending`, or `needs-attention` — never leaves a stale sub-phase behind, regardless of which exit path is taken.
 
+Every write to `state.json` takes a per-feature cross-process advisory lock (`.state.lock`, flock-style) so that concurrent writers — batch/parallel runs, the dashboard's `POST /api/done`, and an in-progress `4x run` — are serialized and never lose each other's updates. Read-modify-write callers route through `Workspace.UpdateState`, which reads the latest on-disk value inside the locked critical section before mutating, so a snapshot is never used to overwrite a newer terminal state; a mutate callback may return `ErrSkipStateWrite` to release the lock without writing. Acquisition has a timeout (`ErrStateLockTimeout`) rather than blocking forever. Reads (`ReadState`) never take the lock — the atomic temp-file rename already guarantees a reader sees a complete old or new file, so the dashboard's high-frequency polling is unaffected.
+
 On crash recovery, `smartResumePhase` no longer restarts deep review from scratch when `deep-review-report.md` is incomplete. It inspects the on-disk artifacts and resumes from the right step:
 
 - **Any `deep-review-partial-{i}.md` missing or incomplete** → resume at `reviewing`; the parallel loop only re-spawns the sub-reviewers whose partials are missing (`missingDeepPartials`), reusing each index's original angle group so nothing is re-assigned.
