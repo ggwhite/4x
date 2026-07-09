@@ -17,7 +17,11 @@ func run4xIO(t *testing.T, dir string, extraEnv []string, stdin string, args ...
 	t.Helper()
 	cmd := exec.Command(binaryPath, args...)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), extraEnv...)
+	// 剝除所有 FOURX_ 前綴的繼承環境變數，讓 spawn 出的 4x 只依 cmd.Dir 的 fixture
+	// workspace 解析 feature/state；否則在 4x runner 子程序內跑測試時，process 帶有的
+	// FOURX_FEATURE_ID / FOURX_BIN 會讓子程序誤讀現行 dogfooding feature 的 state.json，
+	// 使 scope-deny 斷言假性 fail-open。extraEnv 在剝除後再 append，允許測試顯式覆寫。
+	cmd.Env = append(stripFourxEnv(os.Environ()), extraEnv...)
 	if stdin != "" {
 		cmd.Stdin = strings.NewReader(stdin)
 	}
@@ -34,6 +38,18 @@ func run4xIO(t *testing.T, dir string, extraEnv []string, stdin string, args ...
 		}
 	}
 	return stdout.String(), stderr.String(), exitCode
+}
+
+// stripFourxEnv 從 env（KEY=VALUE 列表）中濾除所有 FOURX_ 前綴的變數。
+func stripFourxEnv(env []string) []string {
+	out := make([]string, 0, len(env))
+	for _, kv := range env {
+		if strings.HasPrefix(kv, "FOURX_") {
+			continue
+		}
+		out = append(out, kv)
+	}
+	return out
 }
 
 // pathFixture 建立含 .4x/features/{id}.yaml + .4x/run/{id}/state.json 的真實 workspace，回傳 root。
@@ -88,6 +104,28 @@ func TestCheckPath_RoleScopeDeny(t *testing.T) {
 			t.Errorf("writing artifact should exit 0, got %d", code)
 		}
 	})
+}
+
+// AC-3：run4xIO 剝除繼承環境的 FOURX_*——即使父 process 顯式帶 FOURX_FEATURE_ID=F999-bogus，
+// reviewer-writes-source 情境仍應命中 fixture 的 reviewing/reviewer 狀態並 exit 1 deny。
+// 若未剝除，子程序會誤讀父環境指定的（不存在的）feature 而 fail-open 放行 → exit 0。
+func TestRun4xIO_StripsFourxEnv(t *testing.T) {
+	// 父 process 顯式污染：模擬在 4x runner 子程序內執行測試的實況。
+	t.Setenv("FOURX_FEATURE_ID", "F999-bogus")
+	t.Setenv("FOURX_BIN", "/nonexistent/4x")
+
+	id := "F900-strip"
+	root := pathFixture(t, id,
+		"id: "+id+"\nname: t\n",
+		`{"featureId":"`+id+`","phase":"reviewing","role":"reviewer","active":true}`)
+
+	_, stderr, code := run4xIO(t, root, nil, "", "check", "--path", "cmd/4x/foo.go")
+	if code != 1 {
+		t.Fatalf("want exit 1 deny (FOURX_* must be stripped), got %d (stderr=%s)", code, stderr)
+	}
+	if !strings.Contains(stderr, "reviewer") || !strings.Contains(stderr, "cannot modify source") {
+		t.Errorf("stderr should contain role deny reason, got: %s", stderr)
+	}
 }
 
 // AC-4：repo 越界攔截——multi-repo feature，role=coder，寫 repo 外 → exit 1（scope violation）；repo 內 → exit 0。
