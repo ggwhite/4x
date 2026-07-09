@@ -12,7 +12,7 @@ description: |-
     - 不做 OS 層 sandbox（不在本 feature 範圍）
     - 攔截必須顯式失敗，不能讓 pipeline 靜默跳過驗證繼續走
     - 比對邏輯為 deterministic 前綴/pattern 比對，不呼叫 LLM
-status: in-progress
+status: done
 priority: 1
 profile: normal
 subtasks:
