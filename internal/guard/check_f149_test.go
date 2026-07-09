@@ -175,7 +175,7 @@ func TestF149_CheckConsumesStrategyAndState(t *testing.T) {
 	ws := setupE2EWorkspace(t, "F149-e2e", []string{"app"}, []string{"kairos-e2e"}, protocol.PhaseTesting)
 	// testing phase 需 designer 產出物，補齊以免 required-files 檢查干擾。
 	dir := ws.FeatureDir("F149-e2e")
-	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief\n")
+	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief\n## Premise Challenge\n- verified\n")
 	writeFile(t, filepath.Join(dir, protocol.Criteria), "# Criteria\n")
 
 	detector := fakeScopeDetector{repos: []string{"kairos-e2e"}}

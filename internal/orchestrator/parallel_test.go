@@ -135,7 +135,7 @@ func setupParallelWS(t *testing.T, root, featureID string) (*protocol.Workspace,
 	if err := ws.WriteState(featureID, st); err != nil {
 		t.Fatalf("WriteState: %v", err)
 	}
-	writeFile(t, filepath.Join(fd, protocol.TaskBrief), "# Task Brief\n")
+	writeFile(t, filepath.Join(fd, protocol.TaskBrief), "# Task Brief\n## Premise Challenge\n- verified\n")
 	writeFile(t, filepath.Join(fd, protocol.Criteria), "# Acceptance Criteria\n")
 	return ws, cfg, feature
 }

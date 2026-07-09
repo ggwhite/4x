@@ -24,7 +24,7 @@ func prepCodingWorkspace(t *testing.T, featureID string) *protocol.Workspace {
 	ws := setupGuardWorkspace(t, featureID)
 	writeState(t, ws, featureID, protocol.State{FeatureID: featureID, Phase: protocol.PhaseCoding, Round: 1})
 	featureDir := ws.FeatureDir(featureID)
-	writeFile(t, filepath.Join(featureDir, protocol.TaskBrief), "# Task Brief\n")
+	writeFile(t, filepath.Join(featureDir, protocol.TaskBrief), "# Task Brief\n## Premise Challenge\n- verified\n")
 	writeFile(t, filepath.Join(featureDir, protocol.Criteria), "# Acceptance Criteria\n")
 	return ws
 }

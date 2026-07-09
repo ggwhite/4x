@@ -49,7 +49,7 @@ func setupScopeWorkspace(t *testing.T, featureID string, repos []string) (*proto
 
 	// coding phase 需要 designer 產出物，補齊以免 required-files 檢查干擾 scope 斷言。
 	featureDir := ws.FeatureDir(featureID)
-	writeFile(t, filepath.Join(featureDir, protocol.TaskBrief), "# Task Brief\n")
+	writeFile(t, filepath.Join(featureDir, protocol.TaskBrief), "# Task Brief\n## Premise Challenge\n- verified\n")
 	writeFile(t, filepath.Join(featureDir, protocol.Criteria), "# Acceptance Criteria\n")
 
 	// 建立並提交 scope 內外的子目錄供製造變更。

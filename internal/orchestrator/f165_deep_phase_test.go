@@ -61,7 +61,7 @@ func setupDeepWS(t *testing.T, featureID string) (*protocol.Workspace, protocol.
 	if err := ws.WriteState(featureID, st); err != nil {
 		t.Fatalf("WriteState: %v", err)
 	}
-	writeFile(t, filepath.Join(fd, protocol.TaskBrief), "# Task Brief\n")
+	writeFile(t, filepath.Join(fd, protocol.TaskBrief), "# Task Brief\n## Premise Challenge\n- verified\n")
 	writeFile(t, filepath.Join(fd, protocol.Criteria), "# Acceptance Criteria\n- AC-1\n")
 	rd := ws.RoundDir(featureID, 1)
 	writeFile(t, filepath.Join(rd, protocol.ReviewReport), cleanPassReport)

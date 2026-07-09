@@ -36,7 +36,7 @@ func TestCheckBuildGate_CommandMissingDegradesGracefully(t *testing.T) {
 
 	writeState(t, ws, "F126-missing", protocol.State{Phase: protocol.PhaseCoding, Round: 1})
 	dir := ws.FeatureDir("F126-missing")
-	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief")
+	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief\n## Premise Challenge\n- verified\n")
 	writeFile(t, filepath.Join(dir, protocol.Criteria), "# Criteria")
 	os.MkdirAll(ws.RoundDir("F126-missing", 1), 0o755)
 
@@ -97,7 +97,7 @@ func TestCheckBuildGate_RealFailureNotDegraded(t *testing.T) {
 
 	writeState(t, ws, "F126-realfail", protocol.State{Phase: protocol.PhaseCoding, Round: 1})
 	dir := ws.FeatureDir("F126-realfail")
-	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief")
+	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief\n## Premise Challenge\n- verified\n")
 	writeFile(t, filepath.Join(dir, protocol.Criteria), "# Criteria")
 	os.MkdirAll(ws.RoundDir("F126-realfail", 1), 0o755)
 
@@ -123,7 +123,7 @@ func TestCheckBuildGate_Exit127WithoutNotFoundStillFails(t *testing.T) {
 
 	writeState(t, ws, "F126-exit127", protocol.State{Phase: protocol.PhaseCoding, Round: 1})
 	dir := ws.FeatureDir("F126-exit127")
-	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief")
+	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief\n## Premise Challenge\n- verified\n")
 	writeFile(t, filepath.Join(dir, protocol.Criteria), "# Criteria")
 	os.MkdirAll(ws.RoundDir("F126-exit127", 1), 0o755)
 
@@ -279,7 +279,7 @@ func TestCheckScope_HubDocsSurvivesWorktreeRootMisresolution(t *testing.T) {
 	}
 	writeState(t, misrouted, featureID, protocol.State{FeatureID: featureID, Phase: protocol.PhaseCoding, Round: 1})
 	misroutedFeatureDir := misrouted.FeatureDir(featureID)
-	writeFile(t, filepath.Join(misroutedFeatureDir, protocol.TaskBrief), "# Task Brief\n")
+	writeFile(t, filepath.Join(misroutedFeatureDir, protocol.TaskBrief), "# Task Brief\n## Premise Challenge\n- verified\n")
 	writeFile(t, filepath.Join(misroutedFeatureDir, protocol.Criteria), "# Acceptance Criteria\n")
 
 	misroutedOps := gitops.New(wtPath, misrouted, cfg)

@@ -64,7 +64,7 @@ func (r *softFailRunner) Run(_ context.Context, _ string) (*runner.Result, error
 	featureDir := r.ws.FeatureDir(r.featureID)
 	switch st.Phase {
 	case protocol.PhaseDesigning:
-		os.WriteFile(filepath.Join(featureDir, protocol.TaskBrief), []byte("# Brief"), 0o644)
+		os.WriteFile(filepath.Join(featureDir, protocol.TaskBrief), []byte("# Brief\n## Premise Challenge\n- verified\n"), 0o644)
 		os.WriteFile(filepath.Join(featureDir, protocol.Criteria), []byte("# Criteria"), 0o644)
 	case protocol.PhaseDesignReviewing:
 		os.WriteFile(filepath.Join(featureDir, protocol.DesignReviewReport), []byte("## Verdict\nPASS\n"), 0o644)
@@ -133,7 +133,7 @@ func (r *failingParallelRunner) Run(_ context.Context, _ string) (*runner.Result
 	featureDir := r.ws.FeatureDir(r.featureID)
 	switch r.role {
 	case "designer":
-		os.WriteFile(filepath.Join(featureDir, protocol.TaskBrief), []byte("# Brief"), 0o644)
+		os.WriteFile(filepath.Join(featureDir, protocol.TaskBrief), []byte("# Brief\n## Premise Challenge\n- verified\n"), 0o644)
 		os.WriteFile(filepath.Join(featureDir, protocol.Criteria), []byte("# Criteria"), 0o644)
 	case "design-reviewer":
 		os.WriteFile(filepath.Join(featureDir, protocol.DesignReviewReport), []byte("## Verdict\nPASS\n"), 0o644)

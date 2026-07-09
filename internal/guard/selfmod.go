@@ -54,6 +54,19 @@ func ResolveSelfMod(cfg protocol.Config) SelfModPolicy {
 	return policy
 }
 
+// DefaultDocProtectedPaths 是 doc-deletion guard 的內建受保護路徑前綴，settings 未設定時套用。
+var DefaultDocProtectedPaths = []string{"docs/"}
+
+// ResolveDocProtectedPaths 回傳套用內建預設後的 doc-deletion 受保護路徑前綴。
+// cfg.DocGuard 為 nil 或 ProtectedPaths 為空時退回 DefaultDocProtectedPaths；
+// ProtectedPaths 非空時整組回傳其值（比照 ResolveSelfMod 對 ProtectedPaths 的覆寫語意，DR-6）。
+func ResolveDocProtectedPaths(cfg protocol.Config) []string {
+	if cfg.DocGuard != nil && len(cfg.DocGuard.ProtectedPaths) > 0 {
+		return cfg.DocGuard.ProtectedPaths
+	}
+	return DefaultDocProtectedPaths
+}
+
 // MatchProtected 回報 path 是否落在任一受保護前綴下。
 func MatchProtected(path string, protected []string) bool {
 	for _, prefix := range protected {

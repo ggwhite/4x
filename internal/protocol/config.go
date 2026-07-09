@@ -70,6 +70,10 @@ type Config struct {
 	// SelfMod 設定 meta-loop 跑自己時對「改自己核心地基」變更的額外保護（受保護路徑、單輪 diff 上限、
 	// 是否要求對應測試）；nil 時 guard 套用內建預設（見 guard.ResolveSelfMod）。project 端非 nil 會覆蓋 user 端。
 	SelfMod *SelfModSettings `json:"self_mod_guard,omitempty"`
+	// DocGuard 設定 doc-deletion guard 的受保護路徑；nil 或 ProtectedPaths 為空時 guard 套用內建預設
+	// （見 guard.ResolveDocProtectedPaths，預設 ["docs/"]）。刻意只加 project 層（不進 UserConfig、
+	// 不進 MergeConfig）：消費端 guard 讀 project settings.json，避免加了 user 層卻無合併/消費的死碼。
+	DocGuard *DocGuardSettings `json:"doc_guard,omitempty"`
 	// Evolution 設定 F097 evolve pipeline 的價值閘門與收斂上限；nil 時由 evolution.ResolveEvolution 套全部預設值。
 	Evolution *EvolutionConfig `json:"evolution,omitempty"`
 	// IssueTracker 控制 `4x new`/`4x done` 是否串接 GitHub/GitLab issue 與 MR/PR。
@@ -147,6 +151,14 @@ type SelfModSettings struct {
 	// RequireTests 控制改受保護路徑是否必須附帶對應測試才能進 accepting；
 	// 用 pointer 區分「未設定」（預設 true）與「明確 false」。
 	RequireTests *bool `json:"require_tests,omitempty"`
+}
+
+// DocGuardSettings 是 .4x/settings.json 內 doc_guard 區段的設定，
+// 描述 doc-deletion guard 的受保護路徑前綴。純 project-level 欄位（DR-3）。
+type DocGuardSettings struct {
+	// ProtectedPaths 是受保護路徑前綴清單（相對 scope root，如 "docs/"）；對這些前綴下的檔案做
+	// uncommitted 純刪除即視為違規。為空（含 nil）時由 guard.ResolveDocProtectedPaths 退回預設 ["docs/"]。
+	ProtectedPaths []string `json:"protected_paths,omitempty"`
 }
 
 // PhaseSpec 描述一個 profile 內某個 phase 的設定：是否啟用該 phase，以及覆寫該 phase 的

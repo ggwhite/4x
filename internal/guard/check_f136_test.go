@@ -27,7 +27,7 @@ func setupDocsGateFeature(t *testing.T, ws *protocol.Workspace, featureID string
 	t.Helper()
 	writeState(t, ws, featureID, protocol.State{Phase: phase, Round: 1})
 	dir := ws.FeatureDir(featureID)
-	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief")
+	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief\n## Premise Challenge\n- verified\n")
 	writeFile(t, filepath.Join(dir, protocol.Criteria), "# Criteria")
 	if err := os.MkdirAll(ws.RoundDir(featureID, 1), 0o755); err != nil {
 		t.Fatal(err)

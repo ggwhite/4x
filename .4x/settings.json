@@ -59,6 +59,11 @@
     "max_diff_lines": 200,
     "require_tests": true
   },
+  "doc_guard": {
+    "protected_paths": [
+      "docs/"
+    ]
+  },
   "evolution": {
     "value_floor": 0.6,
     "max_accept_per_run": 3,

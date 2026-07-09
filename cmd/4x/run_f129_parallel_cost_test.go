@@ -37,7 +37,7 @@ func (m *costRoleMockRunner) Run(_ context.Context, _ string) (*runner.Result, e
 
 	switch m.role {
 	case "designer":
-		os.WriteFile(filepath.Join(featureDir, protocol.TaskBrief), []byte("# Brief"), 0o644)
+		os.WriteFile(filepath.Join(featureDir, protocol.TaskBrief), []byte("# Brief\n## Premise Challenge\n- verified\n"), 0o644)
 		os.WriteFile(filepath.Join(featureDir, protocol.Criteria), []byte("# Criteria"), 0o644)
 	case "design-reviewer":
 		os.WriteFile(filepath.Join(featureDir, protocol.DesignReviewReport), []byte("## Verdict\nPASS\n"), 0o644)

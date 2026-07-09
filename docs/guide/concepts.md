@@ -405,6 +405,8 @@ When 4x runs on itself (meta-loop), changes to its own core foundation (state ma
 
 A touch is detected once during the post-coding guard check and persisted to `state.json` (`selfModTouched` / `selfModPaths`). Touching protected paths never auto-merges: `4x done` / `4x merge` block until you re-run with `--approve-self-mod`, which records `selfModApproved` in state.
 
+A separate doc-deletion guard protects documentation paths from outright deletion. Configured under `doc_guard` in `settings.json` (project-level only), its `protected_paths` is a path-prefix allowlist relative to scope root that defaults to `["docs/"]` when unset. During `4x check`, any uncommitted pure deletion (`git diff --diff-filter=D --find-renames HEAD`) of a file under a protected prefix fails the guard as a hard boundary violation (not retryable). Renames and archive moves are reclassified by `--find-renames` and pass — archive a doc instead of deleting it.
+
 ---
 
 ## Phase Hooks

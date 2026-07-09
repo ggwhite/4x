@@ -166,7 +166,7 @@ func TestRunLoop_AbandonedBreaksWithoutRunner(t *testing.T) {
 func TestNextPhaseAfter_DesigningRequiresCriteria(t *testing.T) {
 	ws := setupLoopWorkspace(t, "feat-d")
 	featureDir := ws.FeatureDir("feat-d")
-	os.WriteFile(filepath.Join(featureDir, protocol.TaskBrief), []byte("# brief"), 0o644)
+	os.WriteFile(filepath.Join(featureDir, protocol.TaskBrief), []byte("# brief\n## Premise Challenge\n- verified\n"), 0o644)
 
 	s := protocol.State{FeatureID: "feat-d", Phase: protocol.PhaseDesigning}
 
@@ -216,7 +216,7 @@ func TestStartLiveSync_StopDrainsThenFinalSync(t *testing.T) {
 	os.WriteFile(filepath.Join(roundDir, protocol.CoderReport), []byte("# coder"), 0o644)
 
 	stop := orchestrator.StartLiveSync(wtWs, mainWs, "feat-sync", round)
-	os.WriteFile(filepath.Join(wtWs.FeatureDir("feat-sync"), protocol.TaskBrief), []byte("# brief"), 0o644)
+	os.WriteFile(filepath.Join(wtWs.FeatureDir("feat-sync"), protocol.TaskBrief), []byte("# brief\n## Premise Challenge\n- verified\n"), 0o644)
 	stop() // 必須阻塞到背景 goroutine 完全結束
 
 	if err := orchestrator.SyncFeatureFromWorktree(wtWs, mainWs, "feat-sync", round); err != nil {

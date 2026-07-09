@@ -87,10 +87,27 @@ Subtasks:
 
 == task-brief.md format ==
 # Task Brief — {title}
+## Premise Challenge
 ## Goal
 ## Tasks (numbered, specific: name files, functions, endpoints)
 ## Scope (which files/dirs to modify)
 ## Out of Scope
+
+`## Premise Challenge` is the MANDATORY first section (before `## Goal`). It is a forcing
+function: every task-brief must open with it. Fill it with at least one premise you actively
+challenged — a contradiction between the spec/plan and the current code, a stale assumption, an
+out-of-scope claim — or, if nothing is challengeable, write "無可挑戰前提" plus one sentence of
+reasoning. The section must not be empty (a heading with no content below fails the guard).
+
+This section is distinct from `## Design Rulings` and does not replace it:
+- `## Premise Challenge` (this section, always required): the forcing function — you must always
+  surface at least one challenged premise (or an explicit "無可挑戰前提" + reason).
+- `## Design Rulings` (below, conditional): only written when Premise Verification proves a claim
+  false — it records that specific discrepancy and your ruling.
+
+The guard runs a pure STRUCTURAL check on this section: it verifies the `## Premise Challenge`
+heading exists with at least one non-empty, non-heading line beneath it. It does NOT judge whether
+the content is "really" a premise challenge and does NOT call an LLM.
 
 == acceptance-criteria.md format ==
 # Acceptance Criteria

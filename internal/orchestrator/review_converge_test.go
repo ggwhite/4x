@@ -122,7 +122,7 @@ func setupConvergeWS(t *testing.T, featureID string, repos []string, initialRepo
 	if err := ws.WriteState(featureID, st); err != nil {
 		t.Fatalf("WriteState: %v", err)
 	}
-	writeFile(t, filepath.Join(fd, protocol.TaskBrief), "# Task Brief\n")
+	writeFile(t, filepath.Join(fd, protocol.TaskBrief), "# Task Brief\n## Premise Challenge\n- verified\n")
 	writeFile(t, filepath.Join(fd, protocol.Criteria), "# Acceptance Criteria\n")
 	writeFile(t, filepath.Join(ws.RoundDir(featureID, 1), protocol.ReviewReport), initialReport)
 	return ws, cfg, feature

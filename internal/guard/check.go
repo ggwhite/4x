@@ -49,8 +49,10 @@ func Check(ws *protocol.Workspace, featureID string, detector ScopeDetector) Che
 	r := CheckResult{Pass: true}
 
 	checkRequiredFiles(ws, featureID, &r)
+	checkTaskBriefChallenge(ws, featureID, &r)
 	checkBaseline(ws, featureID, &r)
 	checkScope(ws, featureID, detector, &r)
+	checkDocDeletion(ws, featureID, detector, &r)
 	checkSelfMod(ws, featureID, detector, &r)
 	checkDependencies(ws, featureID, &r)
 	checkBacklogDrift(ws, featureID, &r)
@@ -167,6 +169,63 @@ func checkRequiredFiles(ws *protocol.Workspace, featureID string, r *CheckResult
 			r.Pass = false
 			r.Errors = append(r.Errors, fmt.Sprintf("required file missing: %s", f))
 		}
+	}
+}
+
+// challengeHeading 是 task-brief 強制的前提挑戰段落標題（forcing function，見 F160 DR-1/DR-2）。
+const challengeHeading = "## Premise Challenge"
+
+// checkTaskBriefChallenge 對 task-brief.md 做「前提挑戰段落」的純結構檢查（DR-2）：
+// 存在一行 trim 後完全等於 "## Premise Challenge" 的標題，且該標題之後、到下一個 "## " 標題
+// （或檔尾）之間至少有一行非空白且非標題的內容。空段落（標題下直接接另一個 "## " 或檔尾）視為不通過。
+//
+// 此檢查刻意只驗結構、不判斷內容是否「真的是前提挑戰」、不呼叫 LLM。task-brief.md 不存在或為空時
+// 直接 return（缺檔由 checkRequiredFiles 負責，避免重複報錯，DR-8）。違規累加 RetryableErrors
+// （同輪 Designer 重跑即可補段落，比照 checkACChecksSchema 慣例）。
+func checkTaskBriefChallenge(ws *protocol.Workspace, featureID string, r *CheckResult) {
+	path := filepath.Join(ws.FeatureDir(featureID), protocol.TaskBrief)
+	if missingOrEmpty(path) {
+		return
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+
+	lines := strings.Split(string(data), "\n")
+	headingIdx := -1
+	for i, line := range lines {
+		if strings.TrimSpace(line) == challengeHeading {
+			headingIdx = i
+			break
+		}
+	}
+	if headingIdx == -1 {
+		r.Pass = false
+		r.Errors = append(r.Errors, fmt.Sprintf(
+			"%s: missing %q section (required forcing function — list at least one challenged premise, or state 無可挑戰前提 with a reason)",
+			protocol.TaskBrief, challengeHeading))
+		r.RetryableErrors++
+		return
+	}
+
+	hasContent := false
+	for _, line := range lines[headingIdx+1:] {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "## ") {
+			break
+		}
+		if trimmed != "" {
+			hasContent = true
+			break
+		}
+	}
+	if !hasContent {
+		r.Pass = false
+		r.Errors = append(r.Errors, fmt.Sprintf(
+			"%s: empty %q section — the heading must be followed by at least one non-empty line of content",
+			protocol.TaskBrief, challengeHeading))
+		r.RetryableErrors++
 	}
 }
 
@@ -713,6 +772,45 @@ func checkScope(ws *protocol.Workspace, featureID string, detector ScopeDetector
 		if !allowedRepos[repo] {
 			r.Pass = false
 			r.Errors = append(r.Errors, fmt.Sprintf("scope violation: repo %q not in feature repos", repo))
+		}
+	}
+}
+
+// checkDocDeletion 偵測 uncommitted diff 中對受保護路徑（預設 docs/，可由 settings.json 的
+// doc_guard.protected_paths 覆寫）的純刪除，並標為 hard failure（DR-7：不累加 RetryableErrors，
+// 比照 checkScope 的邊界違規語意）。
+//
+// diff 窗口沿用既有 checkScope/self-mod 的 uncommitted `git diff HEAD`（DR-4），不用 merge-base；
+// 「已 commit 的刪除」不在涵蓋範圍。用 `git diff --diff-filter=D --find-renames --name-only HEAD` 取
+// 純刪除清單：--find-renames 把搬移重分類為 R、--diff-filter=D 只留 D，故 rename/move（含 docs 內
+// 歸檔搬移）自然被排除（DR-5）。ReadConfig 失敗時用零值 Config → 套預設保護路徑（fail-safe 仍保護 docs/）。
+// detector 參數為與 sibling guard 簽名對齊而保留；本檢查直接對 scope root 跑 git，不經 detector。
+//
+// 無條件執行（不綁 phase，DR-7）：無 uncommitted 刪除時為 no-op，故在任何 phase 呼叫皆安全。
+func checkDocDeletion(ws *protocol.Workspace, featureID string, detector ScopeDetector, r *CheckResult) {
+	cfg, err := ws.ReadConfig()
+	if err != nil {
+		cfg = protocol.Config{}
+	}
+	protectedPaths := ResolveDocProtectedPaths(cfg)
+
+	for _, root := range gitops.ScopeRoots(ws.Root, featureID) {
+		cmd := exec.Command("git", "diff", "--diff-filter=D", "--find-renames", "--name-only", "HEAD")
+		cmd.Dir = root
+		out, err := cmd.Output()
+		if err != nil {
+			continue
+		}
+		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			path := strings.TrimSpace(line)
+			if path == "" {
+				continue
+			}
+			if MatchProtected(path, protectedPaths) {
+				r.Pass = false
+				r.Errors = append(r.Errors, fmt.Sprintf(
+					"doc-deletion violation: protected doc %q was deleted (archive/rename instead of deleting)", path))
+			}
 		}
 	}
 }

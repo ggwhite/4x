@@ -90,7 +90,7 @@ func TestCheckRequiredFiles_CodingPhaseWithFiles(t *testing.T) {
 	writeState(t, ws, "feat-1", protocol.State{Phase: protocol.PhaseCoding})
 
 	dir := ws.FeatureDir("feat-1")
-	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief")
+	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief\n## Premise Challenge\n- verified\n")
 	writeFile(t, filepath.Join(dir, protocol.Criteria), "# Criteria")
 
 	result := Check(ws, "feat-1", nil)
@@ -104,7 +104,7 @@ func TestCheckRequiredFiles_CodingPhaseRequiresDesignReviewWhenProfileEnabled(t 
 	writeState(t, ws, "feat-1", protocol.State{Phase: protocol.PhaseCoding, Profile: "full"})
 
 	dir := ws.FeatureDir("feat-1")
-	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief")
+	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief\n## Premise Challenge\n- verified\n")
 	writeFile(t, filepath.Join(dir, protocol.Criteria), "# Criteria")
 
 	result := Check(ws, "feat-1", nil)
@@ -549,7 +549,7 @@ func TestCheckRequiredFiles_DonePhaseWithoutRoundDir(t *testing.T) {
 	writeState(t, ws, "feat-1", protocol.State{Phase: protocol.PhaseDone, Round: 1})
 
 	dir := ws.FeatureDir("feat-1")
-	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief")
+	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief\n## Premise Challenge\n- verified\n")
 	writeFile(t, filepath.Join(dir, protocol.Criteria), "# Criteria")
 
 	result := Check(ws, "feat-1", nil)
@@ -674,7 +674,7 @@ func TestCheckBuildGate_NoBuildLintCommands(t *testing.T) {
 	ws := setupGuardWorkspace(t, "F999-nobuild")
 	writeState(t, ws, "F999-nobuild", protocol.State{Phase: protocol.PhaseCoding, Round: 1})
 	dir := ws.FeatureDir("F999-nobuild")
-	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief")
+	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief\n## Premise Challenge\n- verified\n")
 	writeFile(t, filepath.Join(dir, protocol.Criteria), "# Criteria")
 	r := Check(ws, "F999-nobuild", nil)
 	if !r.Pass {
@@ -705,7 +705,7 @@ func TestCheckBuildGate_CodingPhaseSuccess(t *testing.T) {
 
 	writeState(t, ws, "F999-bgpass", protocol.State{Phase: protocol.PhaseCoding, Round: 1})
 	dir := ws.FeatureDir("F999-bgpass")
-	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief")
+	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief\n## Premise Challenge\n- verified\n")
 	writeFile(t, filepath.Join(dir, protocol.Criteria), "# Criteria")
 	os.MkdirAll(ws.RoundDir("F999-bgpass", 1), 0o755)
 
@@ -741,7 +741,7 @@ func TestCheckBuildGate_CodingPhaseFail(t *testing.T) {
 
 	writeState(t, ws, "F999-bgfail", protocol.State{Phase: protocol.PhaseCoding, Round: 1})
 	dir := ws.FeatureDir("F999-bgfail")
-	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief")
+	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief\n## Premise Challenge\n- verified\n")
 	writeFile(t, filepath.Join(dir, protocol.Criteria), "# Criteria")
 	os.MkdirAll(ws.RoundDir("F999-bgfail", 1), 0o755)
 
@@ -785,7 +785,7 @@ func TestCheckBuildGate_AmendingPhase(t *testing.T) {
 
 	writeState(t, ws, "F999-amend", protocol.State{Phase: protocol.PhaseAmending, Round: 1})
 	dir := ws.FeatureDir("F999-amend")
-	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief")
+	writeFile(t, filepath.Join(dir, protocol.TaskBrief), "# Brief\n## Premise Challenge\n- verified\n")
 	writeFile(t, filepath.Join(dir, protocol.Criteria), "# Criteria")
 	os.MkdirAll(ws.RoundDir("F999-amend", 1), 0o755)
 

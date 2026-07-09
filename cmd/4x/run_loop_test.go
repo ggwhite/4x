@@ -65,7 +65,7 @@ func (m *mockRunner) Run(_ context.Context, prompt string) (*runner.Result, erro
 
 	switch s.Phase {
 	case protocol.PhaseDesigning:
-		os.WriteFile(filepath.Join(featureDir, protocol.TaskBrief), []byte("# Brief"), 0o644)
+		os.WriteFile(filepath.Join(featureDir, protocol.TaskBrief), []byte("# Brief\n## Premise Challenge\n- verified\n"), 0o644)
 		os.WriteFile(filepath.Join(featureDir, protocol.Criteria), []byte("# Criteria"), 0o644)
 
 	case protocol.PhaseDesignReviewing:
@@ -930,7 +930,7 @@ func TestRunLoop_StaleArtifactsCleanedOnTestingEntry(t *testing.T) {
 	// 從 reviewing phase 開始，review 已 pass，下一步是 testing。
 	// 預先放入 stale feature-level artifact，模擬上一輪 tester 遺留。
 	os.WriteFile(filepath.Join(featureDir, protocol.FinalReport), []byte("# Stale"), 0o644)
-	os.WriteFile(filepath.Join(featureDir, protocol.TaskBrief), []byte("# Brief"), 0o644)
+	os.WriteFile(filepath.Join(featureDir, protocol.TaskBrief), []byte("# Brief\n## Premise Challenge\n- verified\n"), 0o644)
 	os.WriteFile(filepath.Join(featureDir, protocol.Criteria), []byte("# Criteria"), 0o644)
 
 	// 預先放 round-1 review report（pass）讓 nextPhaseAfter 進入 testing
@@ -1908,7 +1908,7 @@ func (m *roleMockRunner) Run(_ context.Context, _ string) (*runner.Result, error
 
 	switch m.role {
 	case "designer":
-		os.WriteFile(filepath.Join(featureDir, protocol.TaskBrief), []byte("# Brief"), 0o644)
+		os.WriteFile(filepath.Join(featureDir, protocol.TaskBrief), []byte("# Brief\n## Premise Challenge\n- verified\n"), 0o644)
 		os.WriteFile(filepath.Join(featureDir, protocol.Criteria), []byte("# Criteria"), 0o644)
 	case "design-reviewer":
 		os.WriteFile(filepath.Join(featureDir, protocol.DesignReviewReport), []byte("## Verdict\nPASS\n"), 0o644)
@@ -2053,7 +2053,7 @@ func (m *noVerifyMockRunner) Run(_ context.Context, _ string) (*runner.Result, e
 
 	switch m.role {
 	case "designer":
-		os.WriteFile(filepath.Join(featureDir, protocol.TaskBrief), []byte("# Brief"), 0o644)
+		os.WriteFile(filepath.Join(featureDir, protocol.TaskBrief), []byte("# Brief\n## Premise Challenge\n- verified\n"), 0o644)
 		os.WriteFile(filepath.Join(featureDir, protocol.Criteria), []byte("# Criteria"), 0o644)
 	case "design-reviewer":
 		os.WriteFile(filepath.Join(featureDir, protocol.DesignReviewReport), []byte("## Verdict\nPASS\n"), 0o644)
