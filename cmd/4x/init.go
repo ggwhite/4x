@@ -211,6 +211,8 @@ var subcommandTools = map[string]bool{
 	"go": true, "cargo": true, "npm": true, "npx": true, "pnpm": true,
 	"yarn": true, "bun": true, "dotnet": true, "node": true, "deno": true,
 	"python": true, "python3": true,
+	"bundle": true, "poetry": true, "pip": true, "pip3": true,
+	"composer": true, "gradle": true, "pdm": true, "uv": true,
 }
 
 // deriveAllowlist 依 p 的 Build/Test/Lint/DocsCheck 命令推導 verify 命令允許前綴清單（DR-8）。
