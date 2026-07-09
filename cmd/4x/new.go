@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ggwhite/4x/internal/advisor"
 	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/vcshub"
@@ -190,6 +191,12 @@ Examples:
 				fmt.Println(line)
 			}
 			fmt.Println()
+			// 未指定 --profile 時印出 deterministic profile 建議（純建議、不強制；DR-2）。
+			if profileName == "" {
+				if rec, ok := advisor.Recommend(cfg, f); ok {
+					fmt.Print(advisor.Render(f.ID, rec))
+				}
+			}
 			fmt.Printf("Run: 4x run %s\n", f.ID)
 			return nil
 		},

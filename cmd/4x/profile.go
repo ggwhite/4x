@@ -48,8 +48,9 @@ func profileOptions(cfg protocol.Config) []string {
 }
 
 // selectProfileInteractive 用互動式選單讓使用者選取 pipeline profile，支援上下鍵導航。
-// 預設項為 cfg.DefaultProfile（未設定時為 full）。回傳選定的 profile 名稱。
-func selectProfileInteractive(_ io.Reader, _ io.Writer, cfg protocol.Config, feature feat.Feature) (string, error) {
+// defaultProfile 非空且存在於選項時作為預設游標項（如 advisor 建議的 profile）；否則由 huh 取第一項。
+// 回傳選定的 profile 名稱。
+func selectProfileInteractive(_ io.Reader, _ io.Writer, cfg protocol.Config, feature feat.Feature, defaultProfile string) (string, error) {
 	options := profileOptions(cfg)
 	if len(options) == 0 {
 		return "", nil
@@ -77,7 +78,15 @@ func selectProfileInteractive(_ io.Reader, _ io.Writer, cfg protocol.Config, fea
 		huhOptions = append(huhOptions, huh.NewOption(label, name))
 	}
 
+	// 預填建議 profile 作為預設游標項（huh Select 以 Value 初值決定預選項）；
+	// defaultProfile 須存在於可選清單，否則忽略、由 huh 取第一項。
 	var selected string
+	for _, name := range options {
+		if name == defaultProfile {
+			selected = defaultProfile
+			break
+		}
+	}
 	km := huh.NewDefaultKeyMap()
 	km.Quit.SetKeys("ctrl+c", "esc")
 	err := huh.NewForm(

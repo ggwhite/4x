@@ -76,6 +76,9 @@ type Config struct {
 	DocGuard *DocGuardSettings `json:"doc_guard,omitempty"`
 	// Evolution 設定 F097 evolve pipeline 的價值閘門與收斂上限；nil 時由 evolution.ResolveEvolution 套全部預設值。
 	Evolution *EvolutionConfig `json:"evolution,omitempty"`
+	// ProfileAdvisor 設定 F166 profile 建議 heuristic 的權重與門檻；nil 時由 advisor.ResolveConfig 套全部預設值。
+	// 純 project-level 欄位（DR-3），不進 UserConfig/MergeConfig。
+	ProfileAdvisor *ProfileAdvisorConfig `json:"profile_advisor,omitempty"`
 	// IssueTracker 控制 `4x new`/`4x done` 是否串接 GitHub/GitLab issue 與 MR/PR。
 	// 純 project-level 欄位，預設 false，關閉時所有既有行為零改動。
 	IssueTracker IssueTrackerConfig `json:"issue_tracker,omitempty"`
@@ -159,6 +162,36 @@ type DocGuardSettings struct {
 	// ProtectedPaths 是受保護路徑前綴清單（相對 scope root，如 "docs/"）；對這些前綴下的檔案做
 	// uncommitted 純刪除即視為違規。為空（含 nil）時由 guard.ResolveDocProtectedPaths 退回預設 ["docs/"]。
 	ProtectedPaths []string `json:"protected_paths,omitempty"`
+}
+
+// ProfileAdvisorConfig 是 .4x/settings.json 內 profile_advisor 區段的設定，描述 F166 profile
+// 建議 heuristic 的權重與門檻。純 project-level 欄位（DR-3），不進 UserConfig/MergeConfig。
+// 各欄位皆 optional；nil/空值由 advisor.ResolveConfig 補上內建預設。
+type ProfileAdvisorConfig struct {
+	// Enabled 控制是否產生 profile 建議；nil→啟用，明確 false→停用建議。
+	Enabled *bool `json:"enabled,omitempty"`
+	// SubtaskPoints 為每個 subtask 加的分數；nil→2，明確 0=忽略 subtask 訊號。
+	SubtaskPoints *int `json:"subtask_points,omitempty"`
+	// RepoPoints 為每多一個 repo（超過第一個）加的分數；nil→3，明確 0=忽略 repo 訊號。
+	RepoPoints *int `json:"repo_points,omitempty"`
+	// DescBucketRunes 為 description 每滿 N 個 rune 加 1 分的桶大小；nil→300，<=0=忽略 description 訊號（避免除以 0）。
+	DescBucketRunes *int `json:"desc_bucket_runes,omitempty"`
+	// PriorityWeight 為 priority 分數的權重（分數 = weight*(2-clamp(priority,0,3))）；nil→2，明確 0=忽略 priority 訊號。
+	PriorityWeight *int `json:"priority_weight,omitempty"`
+	// RefactorPoints 為命中 refactor 關鍵字時加的分數；nil→-4（負值代表往精簡 profile 靠），明確 0=不影響。
+	RefactorPoints *int `json:"refactor_points,omitempty"`
+	// RefactorKeywords 為判定 refactor 類 feature 的關鍵字清單；空→內建預設清單（advisor.DefaultRefactorKeywords）。
+	RefactorKeywords []string `json:"refactor_keywords,omitempty"`
+	// HeavyMinScore 為建議 HeavyProfile 的最低分數門檻；nil→8。
+	HeavyMinScore *int `json:"heavy_min_score,omitempty"`
+	// MediumMinScore 為建議 MediumProfile 的最低分數門檻（否則 LightProfile）；nil→3。
+	MediumMinScore *int `json:"medium_min_score,omitempty"`
+	// HeavyProfile 為 heavy tier 建議的 profile 名稱；空→"full"。
+	HeavyProfile string `json:"heavy_profile,omitempty"`
+	// MediumProfile 為 medium tier 建議的 profile 名稱；空→"normal"。
+	MediumProfile string `json:"medium_profile,omitempty"`
+	// LightProfile 為 light tier 建議的 profile 名稱；空→"quick"。
+	LightProfile string `json:"light_profile,omitempty"`
 }
 
 // PhaseSpec 描述一個 profile 內某個 phase 的設定：是否啟用該 phase，以及覆寫該 phase 的

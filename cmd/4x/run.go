@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -11,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ggwhite/4x/internal/advisor"
 	feat "github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/orchestrator"
@@ -288,17 +290,36 @@ func initOrResumeState(ws *protocol.Workspace, featureID, runnerName string, max
 
 // resolveProfileFlag 解析 profile flag，必要時彈出互動選單；空值時 fallback 到既有 state
 func resolveProfileFlag(profileFlag string, s protocol.State, cfg protocol.Config, feature feat.Feature, dryRun bool) (string, error) {
-	if profileFlag == "" && s.Profile == "" && feature.Profile == "" && !dryRun && isInteractiveTerminal() {
-		sel, err := selectProfileInteractive(os.Stdin, os.Stdout, cfg, feature)
-		if err != nil {
-			return "", err
+	// 觸發條件：未指定 profile（flag/state/feature 皆空）、非 dry-run。
+	if profileFlag == "" && s.Profile == "" && feature.Profile == "" && !dryRun {
+		if isInteractiveTerminal() {
+			// 互動終端：印出建議並把建議 profile 設為選單預設游標項（仍需使用者確認）。
+			defaultProfile := ""
+			if rec, ok := advisor.Recommend(cfg, feature); ok {
+				fmt.Print(advisor.Render(feature.ID, rec))
+				defaultProfile = rec.Profile
+			}
+			sel, err := selectProfileInteractive(os.Stdin, os.Stdout, cfg, feature, defaultProfile)
+			if err != nil {
+				return "", err
+			}
+			return sel, nil
 		}
-		return sel, nil
+		// 非互動終端：印出建議但不改變解析結果（DR-2）。
+		maybePrintProfileSuggestion(os.Stdout, cfg, feature)
 	}
 	if profileFlag == "" {
 		return s.Profile, nil
 	}
 	return profileFlag, nil
+}
+
+// maybePrintProfileSuggestion 在 advisor 有建議（ok=true）時把建議寫入 w，否則不寫任何內容。
+// 抽出供 unit test 以注入的 io.Writer 捕捉輸出；此函式純輸出、不改變任何解析結果（DR-2）。
+func maybePrintProfileSuggestion(w io.Writer, cfg protocol.Config, f feat.Feature) {
+	if rec, ok := advisor.Recommend(cfg, f); ok {
+		fmt.Fprint(w, advisor.Render(f.ID, rec))
+	}
 }
 
 // handlePostLoop 處理 run loop 結束後的通知、worktree commit、摘要輸出

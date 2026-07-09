@@ -126,6 +126,7 @@ Non-transient failures (compilation errors, assertion failures, panics), exit 0,
 | `max_concurrent_runs` | Max concurrent runs via the dashboard server |
 | `commit` | Commit strategy: `"per-round"` (default), `"on-done"`, or `"never"` |
 | `profiles` | Named pipeline profiles (role subsets); see [Profiles](#profiles) |
+| `profile_advisor` | Heuristic weights/thresholds for the profile suggestion printed by `4x new` / `4x run` when no `--profile` is given; see [Profiles](#profiles). Project-level only (not merged from user config). Suggestion-only — never auto-adopted |
 | `parallel_review_test` | Run reviewer and tester concurrently during the reviewing phase (default `false`) |
 | `auto_discover_features` | Auto-create features from `[NEW-FEATURE]` markers in the deep review report (default `false`); see [Auto-Discover Features](#auto-discover-features) |
 | `workspace` | Multi-repo workspace configuration (repo name → path mapping) |
@@ -217,6 +218,21 @@ Each phase entry supports optional `runner` and `model` overrides:
 The three built-in profiles (`full`/`normal`/`quick`) are always available as fallbacks even without a `profiles` section. The active profile name is recorded in the feature state and shown on the dashboard card.
 
 When `parallel_review_test` is `true` and the active profile enables both `reviewer` and `tester`, the two read-only roles run concurrently in the same worktree during the reviewing phase; both passing advances to deep review, otherwise the loop re-enters coding.
+
+**Profile advisor (`profile_advisor`).** When `4x new` or a non-`--profile` `4x run` has no profile specified, 4x prints a deterministic profile *suggestion* (no LLM call) computed from the feature's structural signals — subtask count, repo breadth (`len(repos)`), description length (rune count, CJK-safe), `priority`, and whether the name/description matches a refactor keyword. The suggestion is advisory only: it never changes profile resolution in non-interactive runs (the existing `default_profile` → priority auto-select fallback is untouched), and in an interactive `4x run` it merely preselects the cursor in the profile menu. It stays silent when a profile is already set, on `--json` output, when disabled, or when the computed profile name does not exist. All weights and thresholds are configurable (each `*` numeric field distinguishes "unset → default" from an explicit `0`):
+
+| Field | Default | Description |
+|---|---|---|
+| `enabled` | `true` | Set `false` to disable suggestions entirely |
+| `subtask_points` | `2` | Points added per subtask (`0` = ignore) |
+| `repo_points` | `3` | Points added per repo beyond the first (`0` = ignore) |
+| `desc_bucket_runes` | `300` | +1 point per N description runes (`<= 0` = ignore, avoids divide-by-zero) |
+| `priority_weight` | `2` | Priority score = `weight * (2 - clamp(priority,0,3))` (`0` = ignore; unset priority treated as `0`) |
+| `refactor_points` | `-4` | Points added on a refactor-keyword hit (negative leans toward a lighter profile; `0` = no effect) |
+| `refactor_keywords` | built-in list | Lowercase keywords marking refactor-type features; empty → built-in defaults |
+| `heavy_min_score` | `8` | Score `>=` this suggests `heavy_profile` |
+| `medium_min_score` | `3` | Score `>=` this suggests `medium_profile`, else `light_profile` |
+| `heavy_profile` / `medium_profile` / `light_profile` | `full` / `normal` / `quick` | Profile names each score tier maps to (must exist in `profiles` ∪ built-in defaults) |
 
 ## User Config (`~/.4x/settings.json`)
 
