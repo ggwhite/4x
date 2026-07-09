@@ -51,6 +51,32 @@ func TestCommandAllowed(t *testing.T) {
 
 		// (h) quote 保守誤擋（DR-2c 刻意行為）
 		{"quoted semicolon conservatively blocked", "echo 'a; b'", []string{"echo"}, false},
+
+		// (i) 重導向一律擋（Finding 1：即使前綴吻合，避免寫入 allowlist 外檔案）
+		{"redirect overwrite blocked", "make test > /home/u/.zshrc", []string{"make"}, false},
+		{"redirect append blocked", "make test >> out.log", []string{"make"}, false},
+		{"redirect stdin blocked", "make test < in.txt", []string{"make"}, false},
+		{"redirect stderr blocked", "make test 2> err.log", []string{"make"}, false},
+		{"redirect all blocked", "make test &> all.log", []string{"make"}, false},
+		{"redirect clobber blocked", "make test >| out.log", []string{"make"}, false},
+
+		// (j) pipe 下游 safe-filter 放行（Finding 2：不需在使用者 allowlist）
+		{"pipe grep safe-filter allowed", "go test ./... | grep -v '^ok'", []string{"go test"}, true},
+		{"pipe awk safe-filter allowed", "go test ./... | awk '{print}'", []string{"go test"}, true},
+		{"pipe chain safe-filters allowed", "go test ./... | grep FAIL | wc -l", []string{"go test"}, true},
+		// pipe 下游非 safe-filter 仍被擋
+		{"pipe rm still blocked", "go test ./... | rm -rf /", []string{"go test"}, false},
+		// pipe 上游（producer）不因 safe-filter 放寬，仍須匹配 allowlist
+		{"pipe producer must match allowlist", "grep foo file | grep bar", []string{"make"}, false},
+
+		// (k) compound 不放寬：&& / || / ; 分段的 safe-filter 段仍須匹配 allowlist
+		{"compound && grep not relaxed", "make build && grep foo", []string{"make"}, false},
+		{"compound || grep not relaxed", "make build || grep foo", []string{"make"}, false},
+		{"compound ; grep not relaxed", "make build; grep foo", []string{"make"}, false},
+		// compound 段各自匹配 allowlist 則放行
+		{"compound && both allowed", "make build && make test", []string{"make"}, true},
+		// 混合 pipe 與 compound：|| 後的 grep 段須匹配 allowlist（非 pipe 下游）
+		{"mixed pipe then compound grep blocked", "go test | grep ok || grep fail", []string{"go test"}, false},
 	}
 
 	for _, tc := range cases {
