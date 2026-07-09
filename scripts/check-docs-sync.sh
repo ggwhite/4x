@@ -66,16 +66,30 @@ if [ -f "$DOCSYNCIGNORE" ]; then
       *"$ds_tab"*) ds_glob="${line%%"$ds_tab"*}" ;;
       *)           ds_glob="$line" ;;
     esac
-    # guard (F153 Ruling 4): reject a glob that exactly equals a RULES source
-    # prefix — it would silently disable an entire mapping rule.
+    # guard (F153 Ruling 4, hardened by F157): reject any glob that would
+    # subsume an entire RULES source prefix — not only one that equals it.
+    # Trailing-star forms like `internal/protocol/*`, `internal/protocol/*.go`,
+    # `*`, or `**` match every file the rule tracks (bash `case` `*` spans `/`),
+    # silently disabling the whole mapping. Probe each prefix with two
+    # representative paths — the prefix itself (catches exact equality, `/*`,
+    # `*`, `**`) and, for directory prefixes, a synthetic file under it (catches
+    # `/*.go` and similar) — and reject the glob if it matches either.
     ds_skip=0
     while IFS= read -r ds_p; do
-      [ "$ds_glob" = "$ds_p" ] && ds_skip=1 && break
+      [ -z "$ds_p" ] && continue
+      case "$ds_p" in $ds_glob) ds_skip=1; break ;; esac
+      case "$ds_p" in
+        */)
+          case "${ds_p}__docsyncignore_probe__.go" in
+            $ds_glob) ds_skip=1; break ;;
+          esac
+          ;;
+      esac
     done <<EOF
 $RULES_PREFIXES
 EOF
     if [ "$ds_skip" -eq 1 ]; then
-      echo "WARNING: .docsyncignore glob '$ds_glob' equals a RULES source prefix; ignoring to avoid disabling the whole rule." >&2
+      echo "WARNING: .docsyncignore glob '$ds_glob' would suppress an entire RULES source prefix; ignoring to avoid disabling the whole rule." >&2
       continue
     fi
     case "$line" in

@@ -92,6 +92,95 @@ func TestDocsyncignoreSeedValid(t *testing.T) {
 	}
 }
 
+// AC-6 (F157): 會涵蓋整條 RULES source prefix 的 subsuming glob（如
+// internal/protocol/*、*.go、*、**）必須被 guard 拒絕並警告，且不得生效抑制——
+// 於是 prefix 底下 production 檔（enums.go）的真實 doc 缺漏仍被抓到、exit 1。
+func TestDocsSyncRejectsSubsumingGlob(t *testing.T) {
+	forms := []string{
+		"internal/protocol/*",
+		"internal/protocol/*.go",
+		"internal/protocol/",
+		"*",
+		"**",
+		"internal/*",
+	}
+	for _, glob := range forms {
+		glob := glob
+		t.Run(glob, func(t *testing.T) {
+			dir := t.TempDir()
+			base := docsSyncBaseline()
+			base["internal/protocol/enums.go"] = "package protocol\n"
+			base[".docsyncignore"] = glob + "   # blanket, should be rejected\n"
+			initRepoWithBaseline(t, dir, base)
+
+			writeFile(t, dir, "internal/protocol/enums.go", "package protocol // changed\n")
+			commitAll(t, dir, "edit enums")
+
+			stdout, stderr, code := runScript(t, dir, scriptPath(t, "check-docs-sync.sh"), "main")
+			if code != 1 {
+				t.Fatalf("glob %q: expected exit 1, got %d\nstdout:\n%s\nstderr:\n%s", glob, code, stdout, stderr)
+			}
+			if !strings.Contains(stderr, "WARNING") {
+				t.Errorf("glob %q: stderr should warn about subsuming glob:\n%s", glob, stderr)
+			}
+			if !strings.Contains(stdout, "docs/guide/concepts.md") {
+				t.Errorf("glob %q: real gap must still be flagged (concepts.md):\n%s", glob, stdout)
+			}
+			if !strings.Contains(stdout+stderr, "NEEDS_UPDATE") {
+				t.Errorf("glob %q: output missing NEEDS_UPDATE:\nstdout:\n%s\nstderr:\n%s", glob, stdout, stderr)
+			}
+		})
+	}
+}
+
+// AC-6b (F157): pair-level 的 subsuming glob（glob<TAB>doc）在 TAB 拆分前即被 guard
+// 攔下——整條 rule 不會因 pair 條目被靜默停用。
+func TestDocsSyncRejectsSubsumingPairGlob(t *testing.T) {
+	dir := t.TempDir()
+	base := docsSyncBaseline()
+	base["internal/protocol/enums.go"] = "package protocol\n"
+	base[".docsyncignore"] = "internal/protocol/*\tdocs/guide/concepts.md   # pair blanket\n"
+	initRepoWithBaseline(t, dir, base)
+
+	writeFile(t, dir, "internal/protocol/enums.go", "package protocol // changed\n")
+	commitAll(t, dir, "edit enums")
+
+	stdout, stderr, code := runScript(t, dir, scriptPath(t, "check-docs-sync.sh"), "main")
+	if code != 1 {
+		t.Fatalf("expected exit 1, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	if !strings.Contains(stderr, "WARNING") {
+		t.Errorf("stderr should warn about subsuming pair glob:\n%s", stderr)
+	}
+	if !strings.Contains(stdout, "docs/guide/concepts.md") {
+		t.Errorf("real gap must still be flagged (concepts.md):\n%s", stdout)
+	}
+}
+
+// AC-7 (F157): 合法的精確抑制（具體 production 檔名）不得被 subsuming guard 誤擋，
+// 仍能正常抑制該檔 → doc 的映射。
+func TestDocsSyncPreciseSuppressionStillWorks(t *testing.T) {
+	dir := t.TempDir()
+	base := docsSyncBaseline()
+	base["internal/protocol/enums.go"] = "package protocol\n"
+	base[".docsyncignore"] = "internal/protocol/enums.go   # 已確認安全\n"
+	initRepoWithBaseline(t, dir, base)
+
+	writeFile(t, dir, "internal/protocol/enums.go", "package protocol // changed\n")
+	commitAll(t, dir, "edit enums")
+
+	stdout, stderr, code := runScript(t, dir, scriptPath(t, "check-docs-sync.sh"), "main")
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	if !strings.Contains(stdout, "OK: no doc updates needed") {
+		t.Errorf("expected OK marker:\n%s", stdout)
+	}
+	if strings.Contains(stderr, "WARNING") {
+		t.Errorf("precise glob should not trigger subsuming warning:\n%s", stderr)
+	}
+}
+
 // docsSyncBaseline 提供 docs-sync 測試共用的最小 docs/source fixture。
 func docsSyncBaseline() map[string]string {
 	return map[string]string{

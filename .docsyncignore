@@ -15,7 +15,9 @@
 #   - 每行一筆；從第一個 '#' 起截斷為註解（含行尾 inline `# 理由`），再 trim 前後空白。
 #   - <glob>            → path-level：該原始碼路徑從所有 doc 映射中排除。
 #   - <glob><TAB><doc>  → pair-level：僅在對應到 <doc> 這份文件時排除該路徑。
-#   - glob 的 `*` 匹配任意字元（含 `/`）；禁止 glob 恰好等於某條 RULES source prefix。
+#   - glob 的 `*` 匹配任意字元（含 `/`）；禁止任何會涵蓋（subsume）整條 RULES source
+#     prefix 的 glob（不只恰好相等，尾綴 `*`、`*.go`、`*`、`**` 等會 blanket 整條規則者
+#     一律拒絕並警告），避免真實 doc 缺漏被靜默吞掉。
 
 # 測試/mock/fixture 檔案不對應任何使用者文件，改動不需更新 docs。
 *_test.go       # 測試檔
