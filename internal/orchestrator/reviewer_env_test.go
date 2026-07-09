@@ -7,14 +7,16 @@ import (
 	"github.com/ggwhite/4x/internal/runner"
 )
 
-// AC-15：setReviewerExtraEnv 的 role gating——只有 reviewer/deep-reviewer 被注入 ExtraEnv，
-// 其他角色維持 nil；注入值為 FOURX_ROLE/FOURX_REVIEW_PACKAGE 兩元素。
+// AC-15（F157 post-merge 缺陷 5 修訂）：setReviewerExtraEnv 對所有角色無條件注入
+// FOURX_FEATURE_ID；只有 reviewer/deep-reviewer 額外注入 FOURX_ROLE/FOURX_REVIEW_PACKAGE，
+// 其他角色的 ExtraEnv 只含 FOURX_FEATURE_ID 一個元素。
 func TestSetReviewerExtraEnv(t *testing.T) {
 	const pkg = "/abs/round-1/review-package.md"
+	const featureID = "F157-x"
 
 	tests := []struct {
-		role       protocol.Role
-		wantInject bool
+		role          protocol.Role
+		wantReviewEnv bool
 	}{
 		{protocol.RoleReviewer, true},
 		{protocol.RoleDeepReviewer, true},
@@ -22,21 +24,19 @@ func TestSetReviewerExtraEnv(t *testing.T) {
 		{protocol.RoleTester, false},
 		{protocol.RoleDesigner, false},
 		{protocol.RoleFixer, false},
+		{protocol.RoleMiniCoder, false},
 		{protocol.Role(""), false},
 	}
 
 	for _, tt := range tests {
 		t.Run(string(tt.role), func(t *testing.T) {
 			sr := &runner.SubprocessRunner{}
-			setReviewerExtraEnv(sr, tt.role, pkg)
+			setReviewerExtraEnv(sr, tt.role, featureID, pkg)
 
-			if !tt.wantInject {
-				if sr.ExtraEnv != nil {
-					t.Errorf("role %q should not inject ExtraEnv, got %v", tt.role, sr.ExtraEnv)
-				}
-				return
+			want := []string{"FOURX_FEATURE_ID=" + featureID}
+			if tt.wantReviewEnv {
+				want = append(want, "FOURX_ROLE="+string(tt.role), "FOURX_REVIEW_PACKAGE="+pkg)
 			}
-			want := []string{"FOURX_ROLE=" + string(tt.role), "FOURX_REVIEW_PACKAGE=" + pkg}
 			if len(sr.ExtraEnv) != len(want) {
 				t.Fatalf("role %q ExtraEnv = %v, want %v", tt.role, sr.ExtraEnv, want)
 			}
@@ -52,5 +52,5 @@ func TestSetReviewerExtraEnv(t *testing.T) {
 func TestSetReviewerExtraEnv_NilRunner(t *testing.T) {
 	// 傳入 nil Runner 介面值（type-assert 失敗）不應 panic。
 	var rn runner.Runner
-	setReviewerExtraEnv(rn, protocol.RoleReviewer, "/x/review-package.md")
+	setReviewerExtraEnv(rn, protocol.RoleReviewer, "F157-x", "/x/review-package.md")
 }

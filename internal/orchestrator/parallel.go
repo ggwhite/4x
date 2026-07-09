@@ -90,7 +90,7 @@ func RunReviewTestParallel(ctx context.Context, r *Runner, s *protocol.State, pc
 		}
 		logPath := filepath.Join(runner.LogDir(ws, featureID), runner.LogFileName(round, string(role)))
 		rn := newRunner(runnerName, logPath, model)
-		setReviewerExtraEnv(rn, role, filepath.Join(ws.RoundDir(featureID, round), protocol.ReviewPackage))
+		setReviewerExtraEnv(rn, role, featureID, filepath.Join(ws.RoundDir(featureID, round), protocol.ReviewPackage))
 		invokeStart := time.Now()
 		res, runErr := rn.Run(ctx, promptText)
 		durationMs := time.Since(invokeStart).Milliseconds()

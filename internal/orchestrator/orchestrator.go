@@ -285,7 +285,7 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 		iteration := nextRoleIteration(roleRoundIter, s.Round, role)
 		logPath := filepath.Join(runner.LogDir(r.Ws, featureID), runner.IterationLogFileName(s.Round, string(role), iteration))
 		rn := r.NewRunner(phaseRunner, logPath, model)
-		setReviewerExtraEnv(rn, role, filepath.Join(r.Ws.RoundDir(featureID, s.Round), protocol.ReviewPackage))
+		setReviewerExtraEnv(rn, role, featureID, filepath.Join(r.Ws.RoundDir(featureID, s.Round), protocol.ReviewPackage))
 
 		commitWG.Wait()
 

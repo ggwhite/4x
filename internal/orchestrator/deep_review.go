@@ -391,7 +391,7 @@ func (r *Runner) runDeepReviewParallel(ctx context.Context, s *protocol.State, r
 				}
 				logPath := filepath.Join(runner.LogDir(ws, featureID), runner.DeepReviewerLogFileName(round, idx))
 				rn := r.NewRunner(runnerName, logPath, deepModel)
-				setReviewerExtraEnv(rn, protocol.RoleDeepReviewer, filepath.Join(ws.RoundDir(featureID, round), protocol.ReviewPackage))
+				setReviewerExtraEnv(rn, protocol.RoleDeepReviewer, featureID, filepath.Join(ws.RoundDir(featureID, round), protocol.ReviewPackage))
 				res, runErr := rn.Run(ctx, promptText)
 				outcomes[slot] = parallelOutcome{index: idx, result: res, err: runErr}
 			}(slot, idx)
@@ -562,7 +562,7 @@ func (r *Runner) runSubRole(ctx context.Context, s *protocol.State, phase protoc
 	}
 	logPath := filepath.Join(runner.LogDir(ws, featureID), logName)
 	rn := r.NewRunner(runnerName, logPath, model)
-	setReviewerExtraEnv(rn, role, filepath.Join(ws.RoundDir(featureID, round), protocol.ReviewPackage))
+	setReviewerExtraEnv(rn, role, featureID, filepath.Join(ws.RoundDir(featureID, round), protocol.ReviewPackage))
 
 	if r.RunnerWs.Root != ws.Root {
 		SyncFeatureToWorktree(ws, r.RunnerWs, featureID, round)

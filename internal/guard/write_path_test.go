@@ -165,6 +165,92 @@ func TestEvaluateWritePathForRun_EmptyRoleDerivesFromPhase(t *testing.T) {
 	})
 }
 
+// F157 post-merge：mini-coder 在 deep-reviewing/reviewing 自癒收斂迴圈中寫 source，
+// 對齊「checkScope 不限角色」的權威行為，應 allow（見 sourceWritingRoles 註解）。
+func TestEvaluateWritePath_MiniCoderWritesSource(t *testing.T) {
+	f := feature.Feature{ID: "F157-x", Name: "t"}
+	if deny, reason := EvaluateWritePath(f, protocol.RoleMiniCoder, "cmd/4x/foo.go", nil); deny {
+		t.Errorf("mini-coder writing source should allow, got deny: %s", reason)
+	}
+}
+
+// F157 post-merge：任一非 coder/fixer/mini-coder role append discovered-feature-gaps.md
+// 是 plugin 契約明訂的跨 feature 通道（見 .4x/plugins/CLAUDE.md「Scope Gaps」），
+// 不應被 role-source 規則 deny。同時驗證 repo-scope 規則也對此路徑放行
+// （即使 "docs" 不在 feature.Repos 內）。
+func TestEvaluateWritePath_ScopeGapsPathAllowedForAnyRole(t *testing.T) {
+	path := "docs/reference/discovered-feature-gaps.md"
+	nonSourceRoles := []protocol.Role{
+		protocol.RoleDesigner,
+		protocol.RoleDesignReviewer,
+		protocol.RoleReviewer,
+		protocol.RoleDeepReviewer,
+		protocol.RoleTester,
+		protocol.RoleAcceptor,
+	}
+	// multi-repo feature 且 "docs" 不在 Repos 內，確認即使 repo-scope 規則本來會 deny，
+	// scope-gaps 通道仍整體放行。
+	f := feature.Feature{ID: "F157-x", Name: "t", Repos: []string{"a", "b"}}
+	for _, role := range nonSourceRoles {
+		if deny, reason := EvaluateWritePath(f, role, path, nil); deny {
+			t.Errorf("role %q appending %q should allow, got deny: %s", role, path, reason)
+		}
+	}
+}
+
+// F157 post-merge：對齊 detectChangedRepos（internal/guard/check.go）——沒有 "/" 的
+// root-level 檔案（如 Makefile）不是任何 repo 底下的檔案，repo-scope 規則不應把整個
+// 檔名誤判為 repo 名稱而誤報 scope violation。
+func TestEvaluateWritePath_RootLevelFileSkipsRepoScope(t *testing.T) {
+	f := feature.Feature{ID: "F157-x", Name: "t", Repos: []string{"a"}}
+	if deny, reason := EvaluateWritePath(f, protocol.RoleCoder, "Makefile", nil); deny {
+		t.Errorf("root-level file Makefile should skip repo-scope check, got deny: %s", reason)
+	}
+	if deny, reason := EvaluateWritePath(f, protocol.RoleCoder, "go.mod", nil); deny {
+		t.Errorf("root-level file go.mod should skip repo-scope check, got deny: %s", reason)
+	}
+}
+
+// F157 post-merge：role 為空字串不 panic，且明確落入 deny（保守防禦，符合「非
+// source-writing 角色不可寫 source」的預設立場），reason 標示 "(empty)" 避免與真實
+// role 名稱混淆。
+func TestEvaluateWritePath_EmptyRoleDeniesWithoutPanic(t *testing.T) {
+	f := feature.Feature{ID: "F157-x", Name: "t"}
+	deny, reason := EvaluateWritePath(f, protocol.Role(""), "cmd/4x/foo.go", nil)
+	if !deny {
+		t.Errorf("empty role writing source should deny, got allow")
+	}
+	if !strings.Contains(reason, "(empty)") {
+		t.Errorf("empty role deny reason should mention '(empty)', got %q", reason)
+	}
+}
+
+// F157 post-merge：對齊 checkScope 的 e2eRepoSet——testing phase（含）之後，
+// test-strategy.yaml 宣告的 e2e_repos 應放行寫入，即使該 repo 不在 feature.Repos 內。
+func TestEvaluateWritePathForRun_E2ERepoAllowedAfterTesting(t *testing.T) {
+	ws := newFixtureWorkspace(t)
+	writeFeatureYAML(t, ws, "F1-x", "id: F1-x\nname: t\nrepos:\n  - a\n")
+	writeStateJSON(t, ws, "F1-x", `{"featureId":"F1-x","phase":"deep-reviewing","role":"deep-reviewer"}`)
+	tsPath := filepath.Join(ws.FeatureDir("F1-x"), "test-strategy.yaml")
+	if err := os.WriteFile(tsPath, []byte("e2e_repos:\n  - kairos-e2e\n"), 0o644); err != nil {
+		t.Fatalf("write test-strategy.yaml: %v", err)
+	}
+
+	// e2e repo 不在 feature.Repos，但 deep-reviewing phase 已在 testing 之後，e2e_repos 應放行。
+	// role=deep-reviewer 非 source-writing role，故用 coder（mini-coder 收斂迴圈常見情境）驗證
+	// repo-scope 規則本身，另寫一份 state 供 rule-1 不干擾判定。
+	writeStateJSON(t, ws, "F1-x", `{"featureId":"F1-x","phase":"deep-reviewing","role":"coder"}`)
+	if deny, reason := EvaluateWritePathForRun(ws, "F1-x", "kairos-e2e/test/foo_test.go"); deny {
+		t.Errorf("e2e repo write after testing phase should allow, got deny: %s", reason)
+	}
+
+	// coding phase（testing 之前）：e2e_repos 尚不放行，越界 repo 仍應 deny。
+	writeStateJSON(t, ws, "F1-x", `{"featureId":"F1-x","phase":"coding","role":"coder"}`)
+	if deny, _ := EvaluateWritePathForRun(ws, "F1-x", "kairos-e2e/test/foo_test.go"); !deny {
+		t.Errorf("e2e repo write before testing phase should still deny (not yet e2e-allowed)")
+	}
+}
+
 // --- fixture helpers ---
 
 func newFixtureWorkspace(t *testing.T) *protocol.Workspace {
