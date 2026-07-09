@@ -1,11 +1,37 @@
 package guard
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+// AC-7：ToolHookInput 能正確 unmarshal Edit/Write/MultiEdit 帶的 file_path。
+func TestToolHookInput_UnmarshalFilePath(t *testing.T) {
+	raw := `{"tool_name":"Edit","tool_input":{"file_path":"cmd/4x/foo.go"}}`
+	var in ToolHookInput
+	if err := json.Unmarshal([]byte(raw), &in); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if in.ToolName != "Edit" {
+		t.Errorf("tool_name = %q, want Edit", in.ToolName)
+	}
+	if in.ToolInput.FilePath != "cmd/4x/foo.go" {
+		t.Errorf("file_path = %q, want cmd/4x/foo.go", in.ToolInput.FilePath)
+	}
+
+	// command 與 file_path 可並存互不干擾。
+	raw2 := `{"tool_name":"Bash","tool_input":{"command":"git diff"}}`
+	var in2 ToolHookInput
+	if err := json.Unmarshal([]byte(raw2), &in2); err != nil {
+		t.Fatalf("unmarshal bash: %v", err)
+	}
+	if in2.ToolInput.Command != "git diff" || in2.ToolInput.FilePath != "" {
+		t.Errorf("bash input parsed wrong: cmd=%q file_path=%q", in2.ToolInput.Command, in2.ToolInput.FilePath)
+	}
+}
 
 // mkInput 建構 Bash 工具的 ToolHookInput。
 func mkInput(command string) ToolHookInput {

@@ -18,12 +18,32 @@ func argsSettingsPath(args []string) string {
 	return ""
 }
 
-// AC-10：claude runner 且 ExtraEnv 有值時注入 --settings（含 guard-tool/PreToolUse）；
-// ExtraEnv 為 nil 或非 claude runner 時不注入。
+// assertGuardToolSettings 讀出 --settings temp 檔並斷言內容含 guard-tool 與 Bash /
+// Edit|Write|MultiEdit 兩個 PreToolUse matcher（AC-8）。
+func assertGuardToolSettings(t *testing.T, args []string) {
+	t.Helper()
+	path := argsSettingsPath(args)
+	if path == "" {
+		t.Fatalf("expected --settings in args, got %v", args)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read settings temp file: %v", err)
+	}
+	content := string(data)
+	for _, want := range []string{"guard-tool", "PreToolUse", `"matcher":"Bash"`, `"matcher":"Edit|Write|MultiEdit"`, `\"$FOURX_BIN\" guard-tool`} {
+		if !strings.Contains(content, want) {
+			t.Errorf("settings should contain %q, got: %s", want, content)
+		}
+	}
+}
+
+// AC-8：所有 claude role（不論 ExtraEnv 是否為空）都注入 --settings，內容含 Bash 與
+// Edit|Write|MultiEdit 兩個 matcher，command 皆指向 "$FOURX_BIN" guard-tool；非 claude runner 不注入。
 func TestBuildArgs_GuardToolSettings(t *testing.T) {
 	baseArgs := []string{"-p", "{prompt}"}
 
-	t.Run("claude with ExtraEnv injects settings", func(t *testing.T) {
+	t.Run("claude with ExtraEnv (reviewer) injects settings", func(t *testing.T) {
 		r := &SubprocessRunner{
 			Name:     "claude",
 			Config:   protocol.RunnerConfig{Command: "claude", Args: baseArgs},
@@ -36,18 +56,8 @@ func TestBuildArgs_GuardToolSettings(t *testing.T) {
 		if err != nil {
 			t.Fatalf("buildArgs: %v", err)
 		}
+		assertGuardToolSettings(t, args)
 		path := argsSettingsPath(args)
-		if path == "" {
-			t.Fatalf("expected --settings in args, got %v", args)
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read settings temp file: %v", err)
-		}
-		content := string(data)
-		if !strings.Contains(content, "guard-tool") || !strings.Contains(content, "PreToolUse") {
-			t.Errorf("settings should contain guard-tool + PreToolUse, got: %s", content)
-		}
 		// cleanup 後 temp 檔應被移除。
 		cleanup()
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
@@ -55,7 +65,7 @@ func TestBuildArgs_GuardToolSettings(t *testing.T) {
 		}
 	})
 
-	t.Run("claude without ExtraEnv does not inject settings", func(t *testing.T) {
+	t.Run("claude without ExtraEnv (coder) also injects settings", func(t *testing.T) {
 		r := &SubprocessRunner{
 			Name:   "claude",
 			Config: protocol.RunnerConfig{Command: "claude", Args: baseArgs},
@@ -67,9 +77,7 @@ func TestBuildArgs_GuardToolSettings(t *testing.T) {
 		if err != nil {
 			t.Fatalf("buildArgs: %v", err)
 		}
-		if p := argsSettingsPath(args); p != "" {
-			t.Errorf("nil ExtraEnv should not inject --settings, got %v", args)
-		}
+		assertGuardToolSettings(t, args)
 	})
 
 	t.Run("non-claude runner with ExtraEnv does not inject settings", func(t *testing.T) {

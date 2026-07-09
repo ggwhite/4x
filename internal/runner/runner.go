@@ -46,8 +46,9 @@ type SubprocessRunner struct {
 	backoffBase time.Duration
 	// ExtraEnv 是額外注入子程序環境變數（如 FOURX_ROLE / FOURX_REVIEW_PACKAGE）。
 	// 由 orchestrator 只對 reviewer/deep-reviewer 角色的 SubprocessRunner 設定；其他角色為 nil。
-	// 當 Config.Command == "claude" 且 len(ExtraEnv) > 0 時，buildArgs 額外注入 PreToolUse
-	// hook settings（guard-tool），攔截 reviewer 自跑 git diff/log/show。不改任何函式簽章。
+	// 當 Config.Command == "claude" 時（不論 ExtraEnv 是否為空），buildArgs 額外注入 PreToolUse
+	// hook settings（guard-tool），攔截 reviewer 自跑 git diff/log/show 與越界 / 非法寫入 source。
+	// 不改任何函式簽章。
 	ExtraEnv []string
 }
 
@@ -329,10 +330,11 @@ func (r *SubprocessRunner) buildArgs(prompt string) ([]string, func(), error) {
 		args = append(args, "--model", r.ModelOverride)
 	}
 
-	// 只對 claude runner 且有注入 ExtraEnv（即 reviewer/deep-reviewer）時，寫一個 PreToolUse
-	// hook settings temp file 並 append --settings，讓 Claude Code 呼叫 `4x guard-tool` 攔截
-	// reviewer 自跑 git diff/log/show。其他 role（ExtraEnv 為 nil）或非 claude runner 不注入。
-	if r.Config.Command == "claude" && len(r.ExtraEnv) > 0 {
+	// 對所有 claude role 寫一個 PreToolUse hook settings temp file 並 append --settings，
+	// 讓 Claude Code 呼叫 `4x guard-tool` 攔截：Bash 分支攔 reviewer 自跑 git diff/log/show，
+	// Edit/Write/MultiEdit 分支攔越界 / 非法寫入 source。非 reviewer 的 Bash 攔截因 FOURX_ROLE
+	// 空而自然放行，故一律注入無副作用。非 claude runner 不注入。
+	if r.Config.Command == "claude" {
 		settingsPath, settingsCleanup, err := writeGuardToolSettings()
 		if err != nil {
 			return nil, cleanup, fmt.Errorf("runner %s: write guard-tool settings: %w", r.Name, err)
@@ -345,8 +347,10 @@ func (r *SubprocessRunner) buildArgs(prompt string) ([]string, func(), error) {
 }
 
 // guardToolSettingsJSON 是注入 claude runner 的 PreToolUse hook settings 內容：對每個 Bash
-// 工具呼叫先跑 `$FOURX_BIN guard-tool`（由 enrichedEnv 提供 FOURX_BIN，經 shell 展開）。
-const guardToolSettingsJSON = `{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"\"$FOURX_BIN\" guard-tool"}]}]}}`
+// 以及 Edit/Write/MultiEdit 工具呼叫先跑 `$FOURX_BIN guard-tool`（由 enrichedEnv 提供
+// FOURX_BIN，經 shell 展開）。Bash matcher 攔 reviewer git 探索，Edit|Write|MultiEdit matcher
+// 攔越界 / 非法寫入 source。
+const guardToolSettingsJSON = `{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"\"$FOURX_BIN\" guard-tool"}]},{"matcher":"Edit|Write|MultiEdit","hooks":[{"type":"command","command":"\"$FOURX_BIN\" guard-tool"}]}]}}`
 
 // writeGuardToolSettings 寫出 PreToolUse hook settings temp file，回傳路徑與 cleanup。
 func writeGuardToolSettings() (string, func(), error) {

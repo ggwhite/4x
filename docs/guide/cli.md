@@ -298,13 +298,17 @@ Run guardrail checks without transitioning state.
 
 ```
 4x check <feature-id> [--json]
+4x check --path <file> [feature-id]
 ```
 
 | Flag | Description |
 |---|---|
 | `--json` | Output results as JSON |
+| `--path <file>` | Fast, read-only single-file write-permission check for the current role (see below) |
 
 Checks: required files, baseline, scope, dependencies, backlog drift. Exit 0 on pass, 1 on fail.
+
+With `--path <file>`, `check` runs only a fast, read-only single-file write-permission check for the current role — it completely bypasses the full `guard.Check` (no required-files / baseline / docs gate) and never writes `state.json` or `events.jsonl`. It resolves the target feature from the positional argument, then `FOURX_FEATURE_ID`, then the sole active feature. The current role is read from `state.json` (falling back to the role derived from the phase when the role field is empty): only `coder` and `fixer` may write source files (anything outside `.4x/`), and for a multi-repo feature the file's top-level repo must be in the feature's `repos` (or a hub repo); writes under `.4x/` are always allowed. Exit `0` allows the write, a non-zero exit rejects it (the reason is printed to stderr). It always fails open — any error (not a 4x project, no resolvable feature, missing `state.json`, path outside the workspace) exits `0` so the authoritative fail-closed enforcement stays with the post-hoc `4x check <feature-id>`.
 
 ---
 
@@ -631,10 +635,17 @@ On startup `4x live` issues a per-session bearer token (written to `~/.4x/live-t
 ## `4x guard-tool`
 
 <!-- alias: 4x guardtool -->
-Internal PreToolUse hook (hidden, machine use only). The `claude` runner injects this hook for the `reviewer`/`deep-reviewer` roles so that, when the review-package.md for the round exists, the reviewer's own `git diff`/`git log`/`git show` calls are softly denied with a message pointing to review-package.md. It reads the Claude Code hook JSON from stdin and the `FOURX_ROLE` / `FOURX_REVIEW_PACKAGE` environment variables; any parse failure or non-matching command is allowed (exit 0). It never blocks build/test/lint or other roles, and never fails the run.
+Internal PreToolUse hook (hidden, machine use only). The `claude` runner injects this hook for **every** Claude role (matchers `Bash` and `Edit|Write|MultiEdit`); each branch self-selects by role, so injecting for all roles has no side effect. It reads the Claude Code hook JSON from stdin and always exits 0 — any parse failure, missing state, or non-matching tool is allowed, and it never fails the run.
+
+- **`Bash` branch (reviewer git exploration):** for the `reviewer`/`deep-reviewer` roles, when the review-package.md for the round exists, the reviewer's own `git diff`/`git log`/`git show` calls are softly denied with a message pointing to review-package.md. Reads `FOURX_ROLE` / `FOURX_REVIEW_PACKAGE`; non-reviewer roles (empty `FOURX_ROLE`) pass through. Never blocks build/test/lint.
+- **`Edit`/`Write`/`MultiEdit` branch (write-gate):** applies the same role×path check as [`4x check --path`](#4x-check-feature-id) to the tool's `file_path`. The current role comes from `state.json` (feature id from `FOURX_FEATURE_ID` or the unique active feature), so this branch applies to **all** roles — e.g. a `reviewer`/`designer`/`tester` editing a source file outside `.4x/`, or a `coder` writing outside the feature's repos, is denied at edit time. Fail-open: any read error allows the edit (the authoritative fail-closed check remains post-hoc `4x check`).
 
 ```
+# Bash branch (reviewer git exploration)
 echo '{"tool_name":"Bash","tool_input":{"command":"git diff HEAD"}}' | FOURX_ROLE=reviewer FOURX_REVIEW_PACKAGE=/path/to/review-package.md 4x guard-tool
+
+# Write-gate branch (role×path check on file_path)
+echo '{"tool_name":"Edit","tool_input":{"file_path":"cmd/4x/foo.go"}}' | 4x guard-tool
 ```
 
 ---

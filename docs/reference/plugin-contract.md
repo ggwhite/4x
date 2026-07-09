@@ -30,3 +30,35 @@ A conforming plugin must:
    - `2` — hard error (unexpected crash, missing required tool, etc.). The CLI will halt the batch and alert.
 
 6. **Support `--dry-run`:** When invoked with `--dry-run`, the plugin prints the prompt it would send and exits 0 without calling any LLM or writing any files.
+
+---
+
+## PreToolUse write-gate (Claude Code)
+
+The judgement logic lives entirely in the `4x` CLI (LLM-agnostic); the Claude Code plugin only wires its `PreToolUse` hook to the hidden `4x guard-tool` command. Runners without a hook mechanism (gemini/codex/copilot…) are unaffected and continue to rely on the post-hoc `4x check`.
+
+Two enforcement surfaces share the same core role×path judgement:
+
+- **`4x check --path <file>`** — a fast, read-only single-file write-permission check for the current role. It completely bypasses the full `guard.Check` (no required-files / baseline / docs gate) and never writes `state.json` or `events.jsonl`. Exit `0` allows, non-zero rejects (reason on stderr). It always **fails open**: any error (not a 4x project, no resolvable feature, missing `state.json`, path outside the workspace) exits `0`. The authoritative fail-closed enforcement remains the post-hoc `4x check <feature-id>`.
+- **`4x guard-tool`** — the `PreToolUse` hook target. It reads the Claude Code hook JSON from stdin and dispatches on `tool_name`: `Bash` keeps the existing reviewer git-exploration intercept, while `Edit` / `Write` / `MultiEdit` run the same role×path write-gate on `tool_input.file_path` and emit a `permissionDecision: "deny"` decision when the write is out of scope or not permitted for the role. All error paths allow (exit 0).
+
+The role×path matrix: only `coder` and `fixer` may write **source** (anything outside `.4x/`); every other role writing source is denied. For a multi-repo feature, a source file's top-level directory must be in the feature's `repos` (or a hub repo), else it is a scope violation. Writes under `.4x/` are always allowed — fine-grained artifact ownership is left to the post-hoc `4x check`.
+
+During `4x run`, the claude runner injects this hook automatically for every claude role, so no manual configuration is needed. To enable the same gate when running `claude` manually (outside `4x run`), add a static `.claude/settings.json` pointing at the `4x` binary (exposed to the hook as `$FOURX_BIN`):
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [{ "type": "command", "command": "\"$FOURX_BIN\" guard-tool" }]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [{ "type": "command", "command": "\"$FOURX_BIN\" guard-tool" }]
+      }
+    ]
+  }
+}
+```

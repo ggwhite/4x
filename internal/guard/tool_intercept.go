@@ -6,11 +6,13 @@ import (
 )
 
 // ToolHookInput 對應 Claude Code PreToolUse hook 從 stdin 餵入的 JSON：
-// tool_name 為工具名稱（如 "Bash"），tool_input.command 為 Bash 指令字串。
+// tool_name 為工具名稱（如 "Bash" / "Edit" / "Write" / "MultiEdit"），
+// tool_input.command 為 Bash 指令字串，tool_input.file_path 為 Edit/Write/MultiEdit 的目標檔案。
 type ToolHookInput struct {
 	ToolName  string `json:"tool_name"`
 	ToolInput struct {
-		Command string `json:"command"`
+		Command  string `json:"command"`
+		FilePath string `json:"file_path"`
 	} `json:"tool_input"`
 }
 
