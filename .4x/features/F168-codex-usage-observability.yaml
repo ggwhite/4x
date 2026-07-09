@@ -18,6 +18,7 @@ description: |-
     - 不改變 codex runner 現有的 sandbox/approval/model 等既有呼叫參數，只新增 `--json`
 status: not-started
 priority: 3
+profile: normal
 subtasks:
     - id: codex-json-flag
       name: codex runner 呼叫加 --json，log 寫入方式配合改為解析 JSONL 事件而非純文字
