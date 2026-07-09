@@ -139,6 +139,9 @@ func TestDeepTransitionAccepting(t *testing.T) {
 		id := "F999-dta"
 		ws := setupPhaseWorkspace(t, id)
 		s := base
+		if err := ws.WriteState(id, s); err != nil {
+			t.Fatal(err)
+		}
 		pc := protocol.ProfileConfig{Phases: []protocol.PhaseSpec{{Phase: string(protocol.PhaseAccepting)}}}
 		cont, err := deepTransitionAccepting(ws, id, &s, pc)
 		if err != nil || !cont {
@@ -155,6 +158,9 @@ func TestDeepTransitionAccepting(t *testing.T) {
 		ws := setupPhaseWorkspace(t, id)
 		s := base
 		s.FeatureID = id
+		if err := ws.WriteState(id, s); err != nil {
+			t.Fatal(err)
+		}
 		pc := protocol.ProfileConfig{Phases: []protocol.PhaseSpec{{Phase: string(protocol.PhaseFixing)}}}
 		cont, err := deepTransitionAccepting(ws, id, &s, pc)
 		if err != nil || !cont {
