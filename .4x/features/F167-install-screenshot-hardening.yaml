@@ -11,7 +11,7 @@ description: |-
     約束：
     - codesign/notarize 已有 CI 流程（F138/F139），本 feature 只補 checksum 與文件，不動簽章流程
     - screenshot 既有合法使用情境（專案內截圖）行為不變
-status: not-started
+status: done
 priority: 3
 profile: normal
 subtasks:
