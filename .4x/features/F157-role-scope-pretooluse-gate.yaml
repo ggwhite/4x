@@ -12,7 +12,7 @@ description: |-
     - 判定邏輯全部留在 4x CLI，hook 只是 plugin 層接線——維持 LLM-agnostic 架構，CLI 層不呼叫 LLM
     - 單檔模式為唯讀判定：不改 state、不寫 event log（避免高頻呼叫產生 log spam）
     - 非 4x run 情境（無 state.json）時單檔模式直接 exit 0 放行
-status: not-started
+status: done
 priority: 2
 profile: normal
 subtasks:
