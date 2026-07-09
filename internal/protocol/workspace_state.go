@@ -17,6 +17,12 @@ func (w *Workspace) ReadState(featureID string) (State, error) {
 
 // ReconcileActive 以 process 存在為權威來源校正 Active 欄位。
 // 若 state 記錄 Active=true 但 PID 已不存在，自動將 Active 設為 false 並回寫。
+//
+// 校正走 UpdateState 的加鎖 CAS，而非「鎖外讀快照 → 記憶體改 → 盲寫」：存活與否的判斷
+// 以臨界區內重讀的磁碟值為準。否則 crash 後殘留 Active=true+dead pid，使用者重啟新 run
+// （寫入 live pid）與 status/clean 觸發的 ReconcileActive 併發時，ReconcileActive 會用鎖外
+// 舊快照（dead pid）算出 Active=false 再盲寫，覆蓋掉健康 live run 的 Active，害新 run 被誤判中止。
+// 傳入的 *s 僅作為「是否值得取鎖」的廉價前置判斷，最終以磁碟現況回寫給呼叫端。
 func (w *Workspace) ReconcileActive(featureID string, s *State) error {
 	if !s.Active {
 		return nil
@@ -24,12 +30,22 @@ func (w *Workspace) ReconcileActive(featureID string, s *State) error {
 	if ProcessAlive(s.Pid) {
 		return nil
 	}
-	s.Active = false
-	if s.StopReason == "" {
-		s.StopReason = "process-gone"
+	updated, err := w.UpdateState(featureID, func(disk *State) error {
+		if !disk.Active || ProcessAlive(disk.Pid) {
+			return ErrSkipStateWrite
+		}
+		disk.Active = false
+		if disk.StopReason == "" {
+			disk.StopReason = "process-gone"
+		}
+		disk.Pid = 0
+		return nil
+	})
+	if err != nil {
+		return err
 	}
-	s.Pid = 0
-	return w.WriteState(featureID, *s)
+	*s = updated
+	return nil
 }
 
 // stateLockPath 回傳 feature 專屬的 advisory lock 檔路徑（與 state.json 同目錄）。

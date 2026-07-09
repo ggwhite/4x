@@ -94,8 +94,10 @@ func (r *Runner) deepReviewSetup(s *protocol.State) (deepReviewParams, bool, err
 			return deepReviewParams{}, false, fmt.Errorf("skip deep-review transition: %w", err)
 		}
 		*s = newState
-		if err := r.Ws.WriteState(featureID, *s); err != nil {
-			return deepReviewParams{}, false, fmt.Errorf("write state (skip deep-review): %w", err)
+		if yielded, werr := r.writeActiveState(featureID, s); werr != nil {
+			return deepReviewParams{}, false, fmt.Errorf("write state (skip deep-review): %w", werr)
+		} else if yielded {
+			return deepReviewParams{}, false, nil
 		}
 		LogSyncErr(r.Ws.SyncFeatureStatus(featureID, s.Phase), featureID, s.Phase)
 		r.Ws.AppendEvent(featureID, protocol.Event{
@@ -121,8 +123,10 @@ func (r *Runner) deepReviewRun(ctx context.Context, s *protocol.State, dp deepRe
 
 	s.Role = protocol.RoleDeepReviewer
 	s.SubPhase = protocol.SubPhaseReviewing
-	if err := r.Ws.WriteState(featureID, *s); err != nil {
-		return false, fmt.Errorf("write state (deep-reviewer): %w", err)
+	if yielded, werr := r.writeActiveState(featureID, s); werr != nil {
+		return false, fmt.Errorf("write state (deep-reviewer): %w", werr)
+	} else if yielded {
+		return false, nil
 	}
 
 	selectedAngles, selection := r.selectDeepReviewAngles()
@@ -244,8 +248,10 @@ func (r *Runner) deepReviewSelfHeal(ctx context.Context, s *protocol.State, dp d
 
 		s.Role = protocol.RoleMiniCoder
 		s.SubPhase = protocol.SubPhaseFixing
-		if err := r.Ws.WriteState(featureID, *s); err != nil {
-			return false, fmt.Errorf("write state (mini-coder): %w", err)
+		if yielded, werr := r.writeActiveState(featureID, s); werr != nil {
+			return false, fmt.Errorf("write state (mini-coder): %w", werr)
+		} else if yielded {
+			return false, nil
 		}
 		if ok, err := r.runDeepSubRole(ctx, s,
 			protocol.RoleMiniCoder, dp.deepRunner, miniCoderModel, runner.DeepFixLogFileName(round, iter), round, iter); !ok || err != nil {
@@ -276,8 +282,10 @@ func (r *Runner) deepReviewSelfHeal(ctx context.Context, s *protocol.State, dp d
 
 		s.Role = protocol.RoleReVerifier
 		s.SubPhase = protocol.SubPhaseReverifying
-		if err := r.Ws.WriteState(featureID, *s); err != nil {
-			return false, fmt.Errorf("write state (re-verifier): %w", err)
+		if yielded, werr := r.writeActiveState(featureID, s); werr != nil {
+			return false, fmt.Errorf("write state (re-verifier): %w", werr)
+		} else if yielded {
+			return false, nil
 		}
 		if ok, err := r.runDeepSubRole(ctx, s,
 			protocol.RoleReVerifier, dp.deepRunner, reviewModel, runner.DeepReverifyLogFileName(round, iter), round, iter); !ok || err != nil {
@@ -473,8 +481,10 @@ func (r *Runner) runSynthesizer(ctx context.Context, s *protocol.State, runnerNa
 
 	s.Role = protocol.RoleSynthesizer
 	s.SubPhase = protocol.SubPhaseSynthesizing
-	if err := ws.WriteState(featureID, *s); err != nil {
-		return false, fmt.Errorf("write state (synthesizer): %w", err)
+	if yielded, werr := r.writeActiveState(featureID, s); werr != nil {
+		return false, fmt.Errorf("write state (synthesizer): %w", werr)
+	} else if yielded {
+		return false, nil
 	}
 
 	synthModel := deepModel
@@ -663,8 +673,22 @@ func deepTransitionAccepting(ws *protocol.Workspace, featureID string, s *protoc
 	}
 	*s = newState
 	s.SubPhase = ""
-	if err := ws.WriteState(featureID, *s); err != nil {
+	// CAS 寫入：deep review 全程數分鐘，期間若外部把 feature 終結（磁碟 Active=false），
+	// 放棄推進 accepting/fixing、採用磁碟終態並回 (false, nil) 交主迴圈收尾，避免用 Active=true
+	// 的舊快照把已終結的 feature 復活成 running。此函式收 ws 非 *Runner，故就地展開 CAS。
+	persisted, err := ws.UpdateState(featureID, func(disk *protocol.State) error {
+		if !disk.Active {
+			return protocol.ErrSkipStateWrite
+		}
+		*disk = *s
+		return nil
+	})
+	if err != nil {
 		return false, fmt.Errorf("write state (%s): %w", targetPhase, err)
+	}
+	if !persisted.Active {
+		*s = persisted
+		return false, nil
 	}
 	LogSyncErr(ws.SyncFeatureStatus(featureID, s.Phase), featureID, s.Phase)
 	ws.AppendEvent(featureID, protocol.Event{

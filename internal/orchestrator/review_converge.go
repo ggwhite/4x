@@ -72,8 +72,10 @@ func (r *Runner) runReviewConvergence(ctx context.Context, s *protocol.State, pc
 		// mini-coder：只修 review-report.md 的 warning 項（WithConditionalSource 指向 review-report）。
 		s.Role = protocol.RoleMiniCoder
 		s.SubPhase = protocol.SubPhaseFixing
-		if werr := r.Ws.WriteState(featureID, *s); werr != nil {
+		if yielded, werr := r.writeActiveState(featureID, s); werr != nil {
 			return false, changed, fmt.Errorf("write state (review mini-coder): %w", werr)
+		} else if yielded {
+			return false, changed, nil
 		}
 		changed = true
 		if ok, rerr := r.runReviewSubRole(ctx, s, protocol.RoleMiniCoder, reviewRunner, miniCoderModel,
@@ -112,8 +114,10 @@ func (r *Runner) runReviewConvergence(ctx context.Context, s *protocol.State, pc
 		// 重跑 reviewer：覆寫 review-report.md 產生新 verdict（實現「處理後重跑一次 reviewer 確認」）。
 		s.Role = protocol.RoleReviewer
 		s.SubPhase = protocol.SubPhaseReviewing
-		if werr := r.Ws.WriteState(featureID, *s); werr != nil {
+		if yielded, werr := r.writeActiveState(featureID, s); werr != nil {
 			return false, changed, fmt.Errorf("write state (review re-run): %w", werr)
+		} else if yielded {
+			return false, changed, nil
 		}
 		if ok, rerr := r.runReviewSubRole(ctx, s, protocol.RoleReviewer, reviewRunner, reviewModel,
 			runner.IterationLogFileName(round, string(protocol.RoleReviewer), iter+1), round, 0); !ok || rerr != nil {
@@ -134,8 +138,10 @@ func (r *Runner) runReviewConvergence(ctx context.Context, s *protocol.State, pc
 
 	s.Role = protocol.RoleReviewer
 	s.SubPhase = ""
-	if werr := r.Ws.WriteState(featureID, *s); werr != nil {
+	if yielded, werr := r.writeActiveState(featureID, s); werr != nil {
 		return false, changed, fmt.Errorf("write state (review convergence end): %w", werr)
+	} else if yielded {
+		return false, changed, nil
 	}
 	return true, changed, nil
 }

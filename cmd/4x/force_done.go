@@ -66,6 +66,12 @@ func forceDone(ws *protocol.Workspace, featureID, reason string, jsonOut bool) e
 
 	// Transition→設終態欄位→寫回收斂到單一加鎖臨界區（讀最新磁碟值為權威）。
 	newState, err := ws.UpdateState(featureID, func(cur *protocol.State) error {
+		// 鎖內磁碟已是 done（例如兩個併發 force-done，或 line 55 快照後、取鎖前被別的路徑 done）：
+		// 視為冪等 no-op 成功，跳過寫入，符合 force-done「保證最終 done」的語意，而非拋出
+		// "cannot transition ... from done to done"。abandoned 等不相容終態仍由 Transition 回真正的 error。
+		if cur.Phase == protocol.PhaseDone {
+			return protocol.ErrSkipStateWrite
+		}
 		transitioned, terr := state.Transition(*cur, protocol.PhaseDone, "force-done")
 		if terr != nil {
 			return fmt.Errorf("cannot transition %s from %s to done: %w", featureID, cur.Phase, terr)

@@ -886,6 +886,37 @@ func TestReconcileActive_LivePid(t *testing.T) {
 	}
 }
 
+// TestReconcileActive_StaleSnapshotDoesNotClobberLiveRun 驗證 CAS 校正：呼叫端持有 crash 前殘留的
+// 舊快照（Active + dead pid），但磁碟上已是健康 live run（live pid）時，ReconcileActive 以鎖內磁碟值
+// 為權威判斷存活，不可用舊快照把 live run 的 Active 清掉。盲寫版本會誤判中止健康的 live run。
+func TestReconcileActive_StaleSnapshotDoesNotClobberLiveRun(t *testing.T) {
+	ws := setupWorkspace(t)
+	const id = "feat-live-race"
+	if err := ws.InitFeatureDir(id); err != nil {
+		t.Fatal(err)
+	}
+	live := State{FeatureID: id, Phase: PhaseCoding, Active: true, Pid: os.Getpid()}
+	if err := ws.WriteState(id, live); err != nil {
+		t.Fatal(err)
+	}
+
+	stale := State{FeatureID: id, Phase: PhaseCoding, Active: true, Pid: 999999999}
+	if err := ws.ReconcileActive(id, &stale); err != nil {
+		t.Fatal(err)
+	}
+
+	if !stale.Active {
+		t.Error("stale snapshot Active=false after reconcile: would falsely terminate the live run")
+	}
+	persisted, err := ws.ReadState(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !persisted.Active || persisted.Pid != os.Getpid() {
+		t.Errorf("persisted = {active:%v pid:%d}, want live run preserved (active pid %d)", persisted.Active, persisted.Pid, os.Getpid())
+	}
+}
+
 func TestReconcileActive_ZeroPid(t *testing.T) {
 	ws := setupWorkspace(t)
 	if err := ws.InitFeatureDir("feat-zero"); err != nil {

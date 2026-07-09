@@ -22,6 +22,13 @@ import (
 func FinalizeDone(ws *protocol.Workspace, featureID string, s protocol.State) (protocol.State, error) {
 	_ = s // 向後相容保留；權威值改由 UpdateState 在臨界區重讀磁碟取得。
 	newState, err := ws.UpdateState(featureID, func(cur *protocol.State) error {
+		// 磁碟已是 done：併發 done 競賽的輸家在鎖內讀到 disk.Phase=done，此為冪等成功情況，
+		// 跳過寫入（回 ErrSkipStateWrite），而非讓 Transition(done→done) 因 CanTransition 回 false
+		// 而拋出 "invalid transition: done → done" 被誤當一般失敗——符合 docstring「state 其實已 done
+		// 時不謊報整體失敗」。abandoned 等不相容終態才會落入 Transition 回真正的 error。
+		if cur.Phase == protocol.PhaseDone {
+			return protocol.ErrSkipStateWrite
+		}
 		transitioned, terr := Transition(*cur, protocol.PhaseDone, "")
 		if terr != nil {
 			return terr

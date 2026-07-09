@@ -88,6 +88,42 @@ func TestFinalizeDone_SyncFailureNonFatal(t *testing.T) {
 	}
 }
 
+// TestFinalizeDone_AlreadyDoneIsIdempotent 驗證併發 done 競賽的輸家：磁碟已是 done 時，
+// 以舊快照再次呼叫 FinalizeDone 應冪等成功（回 nil、phase 仍 done），而非讓 Transition(done→done)
+// 拋出 "invalid transition: done → done" 被誤當整體失敗。
+func TestFinalizeDone_AlreadyDoneIsIdempotent(t *testing.T) {
+	const id = "feat-already-done"
+	ws := newFinalizeWorkspace(t, id, true)
+
+	s, err := ws.ReadState(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := FinalizeDone(ws, id, s); err != nil {
+		t.Fatalf("first FinalizeDone: %v", err)
+	}
+
+	// 用仍是 pending-review 的舊快照再次呼叫（模擬競賽輸家），磁碟此時已 done。
+	newState, err := FinalizeDone(ws, id, s)
+	if err != nil {
+		t.Fatalf("idempotent FinalizeDone returned error %v, want nil", err)
+	}
+	if newState.Phase != protocol.PhaseDone {
+		t.Errorf("returned phase = %q, want done", newState.Phase)
+	}
+	if newState.Active {
+		t.Errorf("returned Active = true, want false")
+	}
+
+	persisted, err := ws.ReadState(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if persisted.Phase != protocol.PhaseDone || persisted.Active {
+		t.Errorf("persisted = {phase:%q active:%v}, want {done false}", persisted.Phase, persisted.Active)
+	}
+}
+
 // TestFinalizeDone_StateFields 驗證 AC-8：FinalizeDone 寫出的 state 欄位（Phase/Active/StopReason/Role）
 // 為 done 終態的標準值。CLI（finalizeDone）與 server（transitionDone）皆委派此函式，故兩端輸出必然一致。
 func TestFinalizeDone_StateFields(t *testing.T) {

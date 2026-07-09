@@ -337,9 +337,11 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 			TokensUsed: tokens, CostUSD: stats.CostUSD, DurationMs: invokeDur.Milliseconds(),
 		})
 
-		// run 返回後護欄（Blocking 1 方案 b）：rn.Run 可能數分鐘，期間若外部把 feature
-		// 設為終態，採用磁碟終態並 break——handleExitResult / handlePostCoder（含
-		// SelfModTouched 盲寫）與 line 425 commit 等本輪中間態寫入皆不執行，消除復活窗。
+		// run 返回後護欄（Blocking 1 方案 b）：rn.Run 可能數分鐘，期間若外部把 feature 設為終態，
+		// 此處採用磁碟終態並 break，讓 handleExitResult / handlePostCoder / 後續 transition commit
+		// 都不執行——縮小（非消除）復活窗。真正關閉窗口的是各 mid-round 寫入本身改用 CAS：
+		// handlePostCoder 的 SelfModTouched 寫入（guard.Check 期間被終結）、commitLoopState 的
+		// transition 寫入、finalize 的終態寫入都在鎖內尊重磁碟 Active，外部終結後絕不用舊快照復活。
 		if disk, yielded := r.externallyTerminated(); yielded {
 			s = disk
 			break
@@ -565,6 +567,32 @@ func (r *Runner) commitLoopState(featureID string, next protocol.State) (persist
 		return nil
 	})
 	return persisted, yielded, err
+}
+
+// writeActiveState 是 run-continuing 的「phase 內進度／子階段」寫入 CAS 護欄：加鎖重讀磁碟，
+// 若磁碟 Active 已被外部清為 false（run 進行中被 done/abandon/force-done 終結），放棄自己的
+// 覆寫、回 yielded==true 並把 *s 更新為磁碟終態；否則寫入記憶體快照 *s。
+//
+// deep-review 自癒循環與 review CONDITIONAL PASS 收斂會在數分鐘的子 run 之間反覆寫 role/sub-phase
+// 進度；這些寫入原本是盲寫（WriteState），會用 Active=true 的舊快照把已被外部終結的 feature 復活，
+// 且其後迴圈讀到自己寫回的 Active=true 便永不 yield。共用此 helper（語意同 commitLoopState）確保
+// 各子階段寫入尊重臨界區內的磁碟終態，關閉復活窗；呼叫端在 yielded 時應中止本 phase、交主迴圈收尾。
+func (r *Runner) writeActiveState(featureID string, s *protocol.State) (yielded bool, err error) {
+	persisted, err := r.Ws.UpdateState(featureID, func(disk *protocol.State) error {
+		if !disk.Active {
+			yielded = true
+			return protocol.ErrSkipStateWrite
+		}
+		*disk = *s
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+	if yielded {
+		*s = persisted
+	}
+	return yielded, nil
 }
 
 // tryPassThrough 在 role 不在 active profile 時跳過該 phase。
@@ -889,7 +917,14 @@ func (r *Runner) handlePostCoder(ctx context.Context, s *protocol.State, phase p
 	if guardResult.SelfModTouched {
 		s.SelfModTouched = true
 		s.SelfModPaths = guardResult.SelfModPaths
-		LogStateWriteErr(r.Ws.WriteState(featureID, *s), featureID, s.Phase)
+		// CAS 寫入：guard.Check 可能耗時，期間若外部把 feature force-done（磁碟 Active=false），
+		// 此處若盲寫 *s（Active=true）會復活已終結的 feature。yielded 時 *s 已被更新為磁碟終態，
+		// 直接回 nil 交主迴圈的 `if !s.Active { break }` 收尾，不再記錄 self-mod event。
+		yielded, werr := r.writeActiveState(featureID, s)
+		LogStateWriteErr(werr, featureID, s.Phase)
+		if yielded {
+			return nil
+		}
 		r.Ws.AppendEvent(featureID, protocol.Event{
 			Type: "self-mod-detected", Phase: phase, Role: role, Round: s.Round,
 			Detail: strings.Join(guardResult.SelfModPaths, ", "), Runner: phaseRunner, Notify: protocol.NotifyWarning,
@@ -953,13 +988,11 @@ func (r *Runner) finalize(s protocol.State) error {
 		prompt.HarvestLearnings(r.Ws, featureID)
 		s.Active = false
 		s.StopReason = "pending-review"
-		LogStateWriteErr(r.Ws.WriteState(featureID, s), featureID, s.Phase)
-		LogSyncErr(r.Ws.SyncFeatureStatus(featureID, protocol.PhasePendingReview), featureID, protocol.PhasePendingReview)
+		r.finalizeWrite(featureID, s)
 	case protocol.PhaseDone:
 		s.Active = false
 		s.StopReason = "done"
-		LogStateWriteErr(r.Ws.WriteState(featureID, s), featureID, s.Phase)
-		LogSyncErr(r.Ws.SyncFeatureStatus(featureID, protocol.PhaseDone), featureID, protocol.PhaseDone)
+		r.finalizeWrite(featureID, s)
 	case protocol.PhaseNeedsAttention, protocol.PhaseBlocked:
 		if s.Active {
 			s.Active = false
@@ -969,12 +1002,35 @@ func (r *Runner) finalize(s protocol.State) error {
 			if s.StopMessage == "" {
 				s.StopMessage = fmt.Sprintf("%s stopped with %s (round %d)", featureID, s.Phase, s.Round)
 			}
-			LogStateWriteErr(r.Ws.WriteState(featureID, s), featureID, s.Phase)
+			r.finalizeWrite(featureID, s)
 		}
 	default:
 		// 其他 phase 非終態，finalize 不處理
 	}
 	return nil
+}
+
+// finalizeWrite 是 post-loop finalize 的終態寫入 CAS 護欄：加鎖重讀磁碟，若磁碟 Active 已為 false，
+// 代表迴圈算完自己的終態後、跑耗時 transition hook 期間，外部 done/abandon/force-done 已搶先寫入
+// 終態；此時放棄本迴圈自算的終態、整包尊重磁碟（含其 Phase / StopReason / StopMessage），避免：
+//   - 用 pending-review / blocked 覆蓋磁碟上不可逆的 done（缺陷 4）；
+//   - 用 StopReason="done" 覆蓋 force-done 設的 StopReason／StopMessage（缺陷 6）。
+//
+// 迴圈自己走到 done 時，commitLoopState 寫入的磁碟仍為 Active=true，故不會被跳過、正常收尾為 done。
+// 只在真正寫入時才 SyncFeatureStatus，且以磁碟現況的 phase 為準（跳過時外部終結者已自行 sync 過）。
+func (r *Runner) finalizeWrite(featureID string, s protocol.State) {
+	persisted, err := r.Ws.UpdateState(featureID, func(disk *protocol.State) error {
+		if !disk.Active {
+			return protocol.ErrSkipStateWrite
+		}
+		*disk = s
+		return nil
+	})
+	if err != nil {
+		LogStateWriteErr(err, featureID, s.Phase)
+		return
+	}
+	LogSyncErr(r.Ws.SyncFeatureStatus(featureID, persisted.Phase), featureID, persisted.Phase)
 }
 
 // runConsolidate 在 harvest 後呼叫 AI 整理語意重複的 learnings。
