@@ -1,0 +1,54 @@
+id: F177-dashboard-log-message-search
+name: 'F177: Dashboard log/message 搜尋功能'
+description: |-
+    現狀：
+    4x dashboard（dashboard/web/ui.js + index.html，WKWebView 內載入的純 JS 前端，非 SwiftUI）的
+    log 檢視區（#log-viewer，SSE 持續累加的大段純文字）與 message 時間軸（#messages，renderMsgCard
+    產出的可展開卡片）都沒有搜尋功能。使用者在長 log 或大量訊息中找特定內容只能手動捲動，瀏覽器內建
+    Ctrl+F 對 SSE 持續更新的內容效果也不佳（找不到位置就位移）。
+
+    詳細設計文件：docs/design/F177-dashboard-log-message-search-spec.md（brainstorming 產出，
+    含完整架構、資料流、debounce/清空邊界情況、Playwright AC 清單）。此 feature 使用 dashboard
+    profile 跳過 Designer phase，Coder 必須先完整讀取這份 spec 再動工，spec 內容即等同 task brief。
+
+    需求：
+    1. Log 區加常駐搜尋輸入框（不分大小寫 substring 比對），命中處用 <mark> 高亮，目前選中筆額外
+       標記（如 mark.current），提供上一個/下一個切換並 scrollIntoView 置中，顯示「第 N/總數」計數，
+       支援 Enter/Shift+Enter 快捷鍵切換。
+    2. Log 搜尋在 SSE 持續 append 新內容時（viewLog/connectLogSSE 收尾呼叫 reapply）、以及 multi-log
+       並列模式（multiLogBuffers，跨檔案連續編號跳轉）下都要正常運作；清空搜尋框需把 innerHTML 完整
+       還原成純 textContent，避免殘留 <mark> 標籤破壞後續 SSE 的 textContent += 累加邏輯。
+    3. Message 區加常駐搜尋輸入框，比對來源是記憶體中的 data.messages 陣列（content 正文 +
+       role/label），不依賴卡片是否已展開渲染 markdown；不符合的卡片直接 display:none 隱藏，保留
+       其他卡片的展開/收合狀態不重新渲染整個列表；全部被過濾掉時顯示「沒有符合」提示。
+    4. loadMessages() 增量渲染收尾、切換 feature/round 時都要呼叫對應的 reapply()/clear()，確保
+       新進資料套用目前搜尋條件、切換時不殘留上一個 feature 的過濾狀態。
+    5. 兩區搜尋都是純前端 client-side，只搜尋「目前已載入」的內容，不新增後端 API，不做跨檔案/跨
+       round 的伺服器端搜尋。
+    6. debounce 約 150ms 再重新計算，避免長內容每個按鍵都重繪卡頓。
+    7. Playwright 測試（依 templates/profiles/web.md 既有 web profile 規範）涵蓋：log 高亮/計數/
+       上下筆跳轉、SSE 更新後高亮不跑位、multi-log 跨檔跳轉、message 過濾隱藏與 role 篩選、清空/
+       切換 feature 後正確重置且無 console error。
+
+    約束：
+    - 不引入 regex 支援（YAGNI），純不分大小寫 substring 比對。
+    - 不新增 package.json、不在 repo 主體引入 Node 依賴；Playwright 依既有 web profile 規範透過
+      npx 臨時安裝執行，測試腳本與截圖存到 .4x/run/{feature-id}/e2e/。
+    - 不修改 Go 後端 API、不修改 SSE 協定、不修改 macOS AppKit 外殼（Sources/main.swift）。
+    - 修改範圍限定在 dashboard/web/（新增 search.js，修改 ui.js、index.html）。
+status: not-started
+priority: 2
+profile: dashboard
+subtasks:
+    - id: log-search
+      name: Log 區 Ctrl+F 風格搜尋（高亮+上下筆跳轉+multi-log 支援）
+      status: ""
+    - id: msg-search
+      name: Message 區搜尋過濾（依 content/role/label 隱藏不匹配卡片）
+      status: ""
+    - id: playwright-tests
+      name: Playwright 腳本涵蓋兩區搜尋情境並截圖驗證
+      status: ""
+rules:
+    - 詳細設計文件：docs/design/F177-dashboard-log-message-search-spec.md，實作前務必完整讀取，spec 內容即等同 task brief
+    - Log 高亮用 <mark> 重建 DOM（非 window.find()），Message 用過濾隱藏（非 highlight）
