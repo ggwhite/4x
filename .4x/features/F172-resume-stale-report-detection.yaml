@@ -20,7 +20,7 @@ description: |-
     - 只影響 resume 情境（磁碟上已有本輪報告檔時），不影響正常首次執行的 prompt 內容。
     - 「最新程式碼變更」的判斷基準需明確定義（建議用本輪 round 目錄下 diff/coder-report 的
       mtime，或 git 最新 commit time，二擇一並在實作中寫清楚，不可含糊帶過）。
-status: not-started
+status: done
 priority: 2
 profile: normal
 subtasks:
