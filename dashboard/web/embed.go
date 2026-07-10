@@ -13,5 +13,5 @@ import "embed"
 // Assets 是 dashboard 前端的唯一資產來源，root 即前端根目錄
 // （index.html 等檔位於 FS 根層，locale JSON 位於 locales/ 之下）。
 //
-//go:embed index.html core.js init.js ui.js settings.js style.css locales favicon.ico apple-touch-icon.png icon-192.png icon-512.png
+//go:embed index.html core.js init.js ui.js search.js settings.js style.css locales favicon.ico apple-touch-icon.png icon-192.png icon-512.png
 var Assets embed.FS

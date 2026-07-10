@@ -73,9 +73,22 @@
     <div class="flex-1 overflow-y-auto p-6 min-h-0" id="main">
       <div id="dashboard"></div>
       <div id="overview-panel" class="hidden"></div>
+      <div id="msg-search-bar" style="display:none;align-items:center;gap:8px;margin-bottom:12px;padding:6px 12px;border-radius:8px;background:var(--bg-2);border:1px solid var(--border)">
+        <input id="msg-search-input" type="text" placeholder="Search messages..." data-i18n-placeholder="search.msgPlaceholder" autocomplete="off"
+          style="flex:1;background:none;border:none;outline:none;color:var(--text-1);font-size:13px;font-family:inherit">
+        <span id="msg-search-count" class="text-[11px] tabular-nums" style="color:var(--text-4)"></span>
+      </div>
+      <div id="msg-search-empty" class="hidden text-zinc-600 text-sm mt-4 text-center"></div>
       <div id="messages" class="space-y-4 hidden"></div>
       <div id="screenshots-panel" class="hidden"></div>
       <div id="logs-panel" class="hidden" style="display:none;flex-direction:column;flex:1;min-height:0">
+        <div id="log-search-bar" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:6px 12px;border-radius:8px;background:var(--bg-2);border:1px solid var(--border);flex-shrink:0">
+          <input id="log-search-input" type="text" placeholder="Search logs..." data-i18n-placeholder="search.logPlaceholder" autocomplete="off"
+            style="flex:1;background:none;border:none;outline:none;color:var(--text-1);font-size:13px;font-family:inherit">
+          <span id="log-search-count" class="text-[11px] tabular-nums" style="color:var(--text-4);min-width:42px;text-align:right"></span>
+          <button id="log-search-prev" type="button" title="Previous match" data-i18n-title="search.prev" style="background:none;border:none;cursor:pointer;color:var(--text-3);font-size:14px;padding:0 4px">↑</button>
+          <button id="log-search-next" type="button" title="Next match" data-i18n-title="search.next" style="background:none;border:none;cursor:pointer;color:var(--text-3);font-size:14px;padding:0 4px">↓</button>
+        </div>
         <div id="logs-list" class="space-y-1" style="max-height:200px;overflow-y:auto;flex-shrink:0"></div>
         <pre id="log-viewer" class="hidden mt-4 p-4 rounded-lg text-xs leading-relaxed overflow-x-auto" style="background:var(--bg-2);color:var(--text-3);flex:1;overflow-y:auto;min-height:0"></pre>
       </div>
@@ -356,6 +369,7 @@
 <script src="/core.js"></script>
 <script src="/settings.js"></script>
 <script src="/ui.js"></script>
+<script src="/search.js"></script>
 <script src="/init.js"></script>
 </body>
 </html>

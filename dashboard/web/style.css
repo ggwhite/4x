@@ -141,3 +141,7 @@
 .dag-node-id { font-size: 11px; font-weight: 700; font-family: ui-monospace, monospace; }
 .dag-node-name { font-size: 10px; fill: var(--text-3); }
 
+
+/* F177 log 搜尋高亮：一般命中黃底，目前選中筆橘底加深邊框 */
+#log-viewer mark { background: #fde047; color: #1c1917; border-radius: 2px; }
+#log-viewer mark.current { background: #fb923c; color: #1c1917; box-shadow: 0 0 0 1px #ea580c; }

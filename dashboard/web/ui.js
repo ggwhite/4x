@@ -845,7 +845,11 @@ function updateDetailHeader(task) {
 async function loadDetail(task) {
   document.getElementById('dashboard').classList.add('hidden');
   document.getElementById('header').classList.remove('hidden');
-  document.getElementById('messages').innerHTML = ''; renderedMsgKeys.clear(); currentLogFile = null; multiLogActive = false; multiLogBuffers = {};
+  document.getElementById('messages').innerHTML = ''; renderedMsgKeys.clear(); msgSearchText.clear(); currentLogFile = null; multiLogActive = false; multiLogBuffers = {};
+  // 切換 feature：log 搜尋完整重置（含清空輸入框），message 搜尋保留輸入文字、只清過濾狀態，
+  // 由後續 loadMessages → reapply 重新套用同關鍵字到新資料。
+  if (typeof LogSearch !== 'undefined') { const _li = document.getElementById('log-search-input'); if (_li) _li.value = ''; LogSearch.clear(); }
+  if (typeof MessageSearch !== 'undefined') MessageSearch.clear();
   document.getElementById('screenshots-panel').innerHTML = ''; _lastScreenshotHash = '';
   document.getElementById('h-id').textContent = task.id;
   document.getElementById('h-name').textContent = task.name;
@@ -984,6 +988,8 @@ async function loadMessages(id) {
   if (list.length === 0) {
     el.querySelectorAll('[data-msg-key]').forEach(node => node.remove());
     renderedMsgKeys.clear();
+    msgSearchText.clear();
+    if (typeof MessageSearch !== 'undefined') MessageSearch.reapply();
     if (!el.querySelector('.msg-empty')) {
       const emptyEl = document.createElement('div');
       emptyEl.className = 'msg-empty text-zinc-600 text-sm mt-8 text-center';
@@ -1009,8 +1015,11 @@ async function loadMessages(id) {
       added = true;
     }
     renderedMsgKeys.set(key, hash);
+    msgSearchText.set(key, (m.content + ' ' + (m.role || '') + ' ' + (m.label || '')).toLowerCase());
   });
   if (added) el.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  // 增量渲染收尾：把目前搜尋條件套用到（可能）新進的卡片上。
+  if (typeof MessageSearch !== 'undefined') MessageSearch.reapply();
 }
 
 const overviewCache = {};
@@ -1032,6 +1041,8 @@ function setDetailTabUI(tab) {
   });
   document.getElementById('overview-panel').classList.toggle('hidden', tab !== 'overview');
   document.getElementById('messages').classList.toggle('hidden', tab !== 'messages');
+  const msgSearchBar = document.getElementById('msg-search-bar');
+  if (msgSearchBar) msgSearchBar.style.display = (tab === 'messages') ? 'flex' : 'none';
   document.getElementById('screenshots-panel').classList.toggle('hidden', tab !== 'screenshots');
   const logsPanel = document.getElementById('logs-panel');
   const main = document.getElementById('main');
@@ -1317,16 +1328,23 @@ function scheduleRenderMultiLog() {
   _renderMultiLogRAF = requestAnimationFrame(() => { _renderMultiLogRAF = null; renderMultiLog(); });
 }
 
+// logMultiSectionHTML 產出多檔並列模式中單一 log 的「role 標題列 + 內容區塊」HTML。
+// contentHTML 由呼叫端決定（renderMultiLog 用 esc() 純文字，LogSearch 用含 <mark> 高亮），
+// 抽成共用避免標頭 markup 在兩處各寫一份日後漂移。
+function logMultiSectionHTML(f, contentHTML) {
+  const r = ROLES[logBaseRole(f)] || {name:f,color:'#888',emoji:''};
+  return `<div class="text-[11px] font-semibold mt-3 mb-1 first:mt-0" style="color:${r.color}">▸ ${r.emoji||''} ${esc(r.name)} · ${esc(f)}</div><div>${contentHTML}</div>`;
+}
+
 // renderMultiLog 把 multiLogBuffers 內所有活躍 log 分區並列渲染到 viewer，
 // 每區一個帶 role 顏色的標題列，內容跟著該 log 即時累積。
 function renderMultiLog() {
   const viewer = document.getElementById('log-viewer');
   const files = Object.keys(multiLogBuffers).sort();
-  viewer.innerHTML = files.map(f => {
-    const r = ROLES[logBaseRole(f)] || {name:f,color:'#888',emoji:''};
-    return `<div class="text-[11px] font-semibold mt-3 mb-1 first:mt-0" style="color:${r.color}">▸ ${r.emoji||''} ${esc(r.name)} · ${esc(f)}</div><div>${esc(multiLogBuffers[f])}</div>`;
-  }).join('');
+  viewer.innerHTML = files.map(f => logMultiSectionHTML(f, esc(multiLogBuffers[f]))).join('');
   viewer.scrollTop = viewer.scrollHeight;
+  // 內容更新後若正在搜尋，重新套用高亮（多檔跨檔連續編號）。query 為空時 reapply 內部 no-op。
+  if (typeof LogSearch !== 'undefined' && LogSearch.query) LogSearch.reapply(false);
 }
 
 async function viewLog(fid, name) {
@@ -1338,6 +1356,8 @@ async function viewLog(fid, name) {
   const text = await res.text();
   viewer.textContent = text;
   viewer.scrollTop = viewer.scrollHeight;
+  // 切換 log 檔案：重置搜尋選中位置，對新內容重新套用目前關鍵字（保留輸入框文字）。
+  if (typeof LogSearch !== 'undefined') { LogSearch.resetPosition(); LogSearch.reapply(true); }
   // SSE 從 REST 已讀到的 byte 長度續接，避免後端首個 tick 把 REST 剛顯示過的內容
   // 當「新增內容」重送一次，造成 viewer 裡同一段文字出現兩次。
   connectLogSSE(fid, name, new TextEncoder().encode(text).length);
@@ -1368,6 +1388,8 @@ function connectLogSSE(fid, file, offset) {
         if (currentLogFile && d.file !== currentLogFile) return;
         viewer.textContent += d.content;
         viewer.scrollTop = viewer.scrollHeight;
+        // SSE 續接新內容後，若正在搜尋則重建高亮（不捲動，維持既有高亮不跑位）。
+        if (typeof LogSearch !== 'undefined' && LogSearch.query) LogSearch.reapply(false);
       }
     } catch(err) {}
   };

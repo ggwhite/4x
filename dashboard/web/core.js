@@ -119,6 +119,9 @@ let allTabTasks = {};
 let current = sessionStorage.getItem('4x-current') || null;
 let lastTasks = [];
 const renderedMsgKeys = new Map();
+// msgSearchText 以 msg-key 為鍵，存每則訊息 (content + role + label) 的小寫比對文字，
+// 供 MessageSearch 過濾用——即使卡片收合、markdown 尚未渲染也能比對到完整內容。
+const msgSearchText = new Map();
 let sseSource = null;
 let _lastNotifyKey = null;
 let searchIdx = 0;
