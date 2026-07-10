@@ -149,6 +149,8 @@ For single feature detail (`4x status <feature-id>`), if screenshots exist, it a
 
 `Screenshots: <total> (round 1: <n>, round 2: <n>, ...)`
 
+If the feature has codex-runner rounds, it also prints a `Codex usage` block listing each round's live subscription quota (`round N: 5h X% / 1wk Y% (N tokens)`); features with no codex rounds omit the block entirely.
+
 ---
 
 ## `4x cost`
@@ -172,6 +174,8 @@ Aggregate run cost across features from the stream logs each runner writes. Read
 Data source is `logs/*.stream.jsonl` (one file per role invocation, carrying `total_cost_usd`); the filename encodes round and role. `events.jsonl` `run-end` events are used as a fallback for any feature that has no stream logs (older runs). Stream logs that lack a `total_cost_usd` field are skipped and reported as a `Skipped N stream log(s)` count rather than causing a failure.
 
 The default table shows `ROLE / CALLS / TOTAL($) / AVG($) / PCT(%)` sorted by total cost, plus a `TOTAL` row. `--by-round` adds a `TYPE` column (`initial` for rounds 0–1, `retry` for round≥2) and reports the retry share in USD and percent.
+
+The codex runner uses a ChatGPT subscription with no USD metering, so it never appears in the USD table (its `cost_usd` is 0). Instead, `4x cost --feature <id>` appends a `Codex usage` block after the USD table listing each codex round's live subscription quota (`5h X% / 1wk Y% (N tokens)`), read independently from `events.jsonl` `run-end` events so it is not masked by the stream-first USD path in mixed claude+codex features. `--json` carries the same data in a `codex_rounds` array.
 
 ---
 

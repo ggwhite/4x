@@ -308,6 +308,8 @@ func showFeatureDetail(ws *protocol.Workspace, id string) error {
 		}
 	}
 
+	printCodexUsage(latestCodexUsageByRound(ws, id))
+
 	printBacklogWarnings(ws, id)
 	return nil
 }

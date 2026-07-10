@@ -37,6 +37,9 @@ type parallelScript struct {
 	testerErr error
 	// miniAction 非 nil 時在 mini-coder 被呼叫時執行（模擬收斂期間寫 escalation 等副作用）。
 	miniAction func()
+	// codexSessionID 非空時，runner log 前置一行 thread.started 事件（模擬 codex --json 輸出），
+	// 讓 runEndMetrics 能解析出 session id 並定位 rollout fixture（F168 codex 接線測試用）。
+	codexSessionID string
 
 	reviewerSawParallel bool
 	testerSawParallel   bool
@@ -61,7 +64,12 @@ func passingVerify(round int) []byte {
 
 func (ps *parallelScript) newRunner(_, logPath, _ string) runner.Runner {
 	return funcRunner(func(_ context.Context) (*runner.Result, error) {
-		_ = os.WriteFile(logPath, []byte("exit-0\n"), 0o644)
+		logContent := "exit-0\n"
+		if ps.codexSessionID != "" {
+			logContent = `{"type":"thread.started","thread_id":"` + ps.codexSessionID + `"}` + "\n" + logContent
+			_ = os.MkdirAll(filepath.Dir(logPath), 0o755)
+		}
+		_ = os.WriteFile(logPath, []byte(logContent), 0o644)
 		base := filepath.Base(logPath)
 
 		ps.mu.Lock()

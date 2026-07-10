@@ -76,7 +76,7 @@ func RunReviewTestParallel(ctx context.Context, r *Runner, s *protocol.State, pc
 		result     *runner.Result
 		err        error
 		durationMs int64
-		stats      RunStats
+		logPath    string
 	}
 
 	runRole := func(role protocol.Role, runnerName, model string) runOutcome {
@@ -94,8 +94,9 @@ func RunReviewTestParallel(ctx context.Context, r *Runner, s *protocol.State, pc
 		invokeStart := time.Now()
 		res, runErr := rn.Run(ctx, promptText)
 		durationMs := time.Since(invokeStart).Milliseconds()
-		stats := ParseRunStatsFromLog(logPath)
-		return runOutcome{role: role, runnerName: runnerName, model: model, result: res, err: runErr, durationMs: durationMs, stats: stats}
+		// 解析與累加延後到 wg.Wait 後的循序 run-end 迴圈：runRole 在 goroutine 內平行執行，
+		// 此處呼叫 runEndMetrics（會寫 r.totalTokens）將造成 data race，故僅回傳 logPath。
+		return runOutcome{role: role, runnerName: runnerName, model: model, result: res, err: runErr, durationMs: durationMs, logPath: logPath}
 	}
 
 	prompt.MarkLearningsUsed(ws.DotDir(), prompt.LoadLearningsForRole(ws.DotDir(), protocol.RoleReviewer))
@@ -147,13 +148,12 @@ func RunReviewTestParallel(ctx context.Context, r *Runner, s *protocol.State, pc
 	}
 
 	for _, o := range outcomes {
+		tokens, costUSD, codexUsage := r.runEndMetrics(o.runnerName, o.logPath)
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "run-end", Phase: protocol.PhaseReviewing, Role: o.role, Round: round,
 			Status: fmt.Sprintf("exit-%d", o.result.ExitCode), Runner: o.runnerName, Model: o.model,
-			TokensUsed: o.stats.Tokens, CostUSD: o.stats.CostUSD, DurationMs: o.durationMs,
+			TokensUsed: tokens, CostUSD: costUSD, DurationMs: o.durationMs, Codex: codexUsage,
 		})
-		r.totalTokens += o.stats.Tokens
-		r.totalCostUSD += o.stats.CostUSD
 	}
 
 	for _, o := range outcomes {

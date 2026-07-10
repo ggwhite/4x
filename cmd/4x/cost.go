@@ -56,6 +56,10 @@ func newCostCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// 單一 feature 視圖才附帶 codex 額度用量；獨立讀 events.jsonl，不受 stream-first 遮蔽。
+			if featureFilter != "" {
+				data.CodexRounds = latestCodexUsageByRound(ws, featureFilter)
+			}
 
 			switch {
 			case byRound:
@@ -83,9 +87,12 @@ type costEntry struct {
 }
 
 // costData 是掃描結果：成本明細加上被跳過的 stream 檔數（缺 total_cost_usd 的舊 run）。
+// CodexRounds 為單一 feature 視圖（--feature）額外附帶的 codex 額度用量，獨立讀 events.jsonl
+// 取得（見 F168 Design Ruling 11），與 USD 統計解耦。
 type costData struct {
-	Entries []costEntry
-	Skipped int
+	Entries     []costEntry
+	Skipped     int
+	CodexRounds []codexUsageRow
 }
 
 var (
@@ -276,6 +283,8 @@ type costJSON struct {
 	Skipped  int           `json:"skipped"`
 	RetryUSD float64       `json:"retryUsd,omitempty"`
 	RetryPct float64       `json:"retryPct,omitempty"`
+	// CodexRounds 為 codex round 的即時額度用量（--feature 視圖），與 USD 統計解耦。
+	CodexRounds []codexUsageRow `json:"codex_rounds,omitempty"`
 }
 
 // renderByRole 輸出跨所有 feature 的 per-role 成本表（預設視圖）。
@@ -380,7 +389,7 @@ func renderByFeature(data costData, featureID string, jsonOutput bool) error {
 	total, calls := grandTotal(data.Entries)
 
 	if jsonOutput {
-		out := costJSON{View: "by-feature", Feature: featureID, TotalUSD: total, Calls: calls, Skipped: data.Skipped}
+		out := costJSON{View: "by-feature", Feature: featureID, TotalUSD: total, Calls: calls, Skipped: data.Skipped, CodexRounds: data.CodexRounds}
 		for _, a := range rows {
 			round := a.key.round
 			out.Rows = append(out.Rows, costRowJSON{
@@ -395,21 +404,24 @@ func renderByFeature(data costData, featureID string, jsonOutput bool) error {
 		return printJSON(out)
 	}
 
-	if len(rows) == 0 {
+	if len(rows) == 0 && len(data.CodexRounds) == 0 {
 		fmt.Printf("No cost data found for %s.\n", featureID)
 		printSkipped(data.Skipped)
 		return nil
 	}
 
-	fmt.Printf("Cost for %s — total $%.4f across %d calls\n\n", featureID, total, calls)
-	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-	fmt.Fprintf(w, "ROUND\tROLE\tCALLS\tTOTAL($)\tPCT(%%)\n")
-	fmt.Fprintf(w, "─────\t────\t─────\t────────\t──────\n")
-	for _, a := range rows {
-		fmt.Fprintf(w, "%d\t%s\t%d\t%.4f\t%.1f\n", a.key.round, a.key.role, a.calls, a.total, pct(a.total, total))
+	if len(rows) > 0 {
+		fmt.Printf("Cost for %s — total $%.4f across %d calls\n\n", featureID, total, calls)
+		w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+		fmt.Fprintf(w, "ROUND\tROLE\tCALLS\tTOTAL($)\tPCT(%%)\n")
+		fmt.Fprintf(w, "─────\t────\t─────\t────────\t──────\n")
+		for _, a := range rows {
+			fmt.Fprintf(w, "%d\t%s\t%d\t%.4f\t%.1f\n", a.key.round, a.key.role, a.calls, a.total, pct(a.total, total))
+		}
+		fmt.Fprintf(w, "%s\t%s\t%d\t%.4f\t%.1f\n", "TOTAL", "", calls, total, 100.0)
+		w.Flush()
 	}
-	fmt.Fprintf(w, "%s\t%s\t%d\t%.4f\t%.1f\n", "TOTAL", "", calls, total, 100.0)
-	w.Flush()
+	printCodexUsage(data.CodexRounds)
 	printSkipped(data.Skipped)
 	return nil
 }

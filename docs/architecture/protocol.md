@@ -203,12 +203,14 @@ Append-only. One JSON object per line. Readers must handle unknown event types g
 
 The optional `notify` field is a hint for clients (web/desktop dashboards) to surface an OS notification. It is set on terminal `run-end` (success), `guard-fail` (error), and `escalation` (warning) events; absent on all other events. Adding it is backward-compatible (`omitempty`).
 
+On `run-end`, the optional `codex` object records the codex runner's live subscription-quota usage for that invocation (parsed from the matching rollout jsonl): `primary_pct` (5-hour window `used_percent`), `secondary_pct` (weekly window), and optional `primary_resets_at` / `secondary_resets_at` (unix seconds). It is only present on codex `run-end` events; claude and other runners omit it (`omitempty`). codex uses a ChatGPT subscription with no USD metering, so its `cost_usd` stays 0 and it contributes only percentage + token counts — never USD.
+
 **Event types:**
 
 | Type | When emitted | Extra fields |
 |---|---|---|
 | `run-start` | Plugin subprocess starts | `role`, `phase` |
-| `run-end` | Plugin subprocess exits | `role`, `phase`, `exitCode`, `durationSec` |
+| `run-end` | Plugin subprocess exits | `role`, `phase`, `exitCode`, `durationSec`, `tokens_used`, `cost_usd`, `codex` |
 | `phase-start` | State machine enters a new phase | `phase`, `prevPhase` |
 | `phase-end` | State machine exits a phase | `phase`, `outcome` (`ok` \| `fail` \| `escalate`) |
 | `transition` | State changes | `from`, `to`, `trigger` |

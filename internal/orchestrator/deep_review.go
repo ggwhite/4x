@@ -427,13 +427,11 @@ func (r *Runner) runDeepReviewParallel(ctx context.Context, s *protocol.State, r
 
 	for _, o := range outcomes {
 		subLog := filepath.Join(runner.LogDir(ws, featureID), runner.DeepReviewerLogFileName(round, o.index))
-		subStats := ParseRunStatsFromLog(subLog)
-		r.totalTokens += subStats.Tokens
-		r.totalCostUSD += subStats.CostUSD
+		subTokens, subCost, subCodex := r.runEndMetrics(runnerName, subLog)
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleDeepReviewer, Round: round,
 			Status: fmt.Sprintf("exit-%d", o.result.ExitCode), Runner: runnerName, Model: deepModel,
-			TokensUsed: subStats.Tokens, CostUSD: subStats.CostUSD, Index: o.index,
+			TokensUsed: subTokens, CostUSD: subCost, Index: o.index, Codex: subCodex,
 		})
 	}
 
@@ -506,9 +504,7 @@ func (r *Runner) runSynthesizer(ctx context.Context, s *protocol.State, runnerNa
 	synthStart := time.Now()
 	synthRes, synthErr := synthRunner.Run(ctx, synthPrompt)
 	synthDur := time.Since(synthStart)
-	synthStats := ParseRunStatsFromLog(synthLog)
-	r.totalTokens += synthStats.Tokens
-	r.totalCostUSD += synthStats.CostUSD
+	synthTokens, synthCost, synthCodex := r.runEndMetrics(runnerName, synthLog)
 	if synthErr != nil {
 		if ctx.Err() == context.Canceled {
 			StopState(ws, featureID, s, "interrupted", fmt.Sprintf("deep-review synthesizer interrupted by signal (round %d)", round))
@@ -519,14 +515,14 @@ func (r *Runner) runSynthesizer(ctx context.Context, s *protocol.State, runnerNa
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleSynthesizer, Round: round,
 			Status: "error", Detail: synthErr.Error(), Runner: runnerName, Model: synthModel,
-			TokensUsed: synthStats.Tokens, CostUSD: synthStats.CostUSD, DurationMs: synthDur.Milliseconds(),
+			TokensUsed: synthTokens, CostUSD: synthCost, DurationMs: synthDur.Milliseconds(), Codex: synthCodex,
 		})
 		return false, synthErr
 	}
 	ws.AppendEvent(featureID, protocol.Event{
 		Type: "run-end", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleSynthesizer, Round: round,
 		Status: fmt.Sprintf("exit-%d", synthRes.ExitCode), Runner: runnerName, Model: synthModel,
-		TokensUsed: synthStats.Tokens, CostUSD: synthStats.CostUSD, DurationMs: synthDur.Milliseconds(),
+		TokensUsed: synthTokens, CostUSD: synthCost, DurationMs: synthDur.Milliseconds(), Codex: synthCodex,
 	})
 	if runner.IsHardError(synthRes) {
 		StopState(ws, featureID, s, "hard-error", fmt.Sprintf("deep-review synthesizer returned hard error (exit 2) (round %d)", round))
@@ -601,9 +597,7 @@ func (r *Runner) runSubRole(ctx context.Context, s *protocol.State, phase protoc
 		}
 	}
 
-	stats := ParseRunStatsFromLog(logPath)
-	r.totalTokens += stats.Tokens
-	r.totalCostUSD += stats.CostUSD
+	tokens, costUSD, codexUsage := r.runEndMetrics(runnerName, logPath)
 
 	if runErr != nil {
 		if ctx.Err() == context.Canceled {
@@ -615,7 +609,7 @@ func (r *Runner) runSubRole(ctx context.Context, s *protocol.State, phase protoc
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "run-end", Phase: phase, Role: role, Round: round,
 			Status: "error", Detail: runErr.Error(), Runner: runnerName, Model: model,
-			TokensUsed: stats.Tokens, CostUSD: stats.CostUSD, DurationMs: invokeDur.Milliseconds(),
+			TokensUsed: tokens, CostUSD: costUSD, DurationMs: invokeDur.Milliseconds(), Codex: codexUsage,
 		})
 		return false, runErr
 	}
@@ -623,7 +617,7 @@ func (r *Runner) runSubRole(ctx context.Context, s *protocol.State, phase protoc
 	ws.AppendEvent(featureID, protocol.Event{
 		Type: "run-end", Phase: phase, Role: role, Round: round,
 		Status: fmt.Sprintf("exit-%d", result.ExitCode), Runner: runnerName, Model: model,
-		TokensUsed: stats.Tokens, CostUSD: stats.CostUSD, DurationMs: invokeDur.Milliseconds(),
+		TokensUsed: tokens, CostUSD: costUSD, DurationMs: invokeDur.Milliseconds(), Codex: codexUsage,
 	})
 
 	if runner.IsHardError(result) {

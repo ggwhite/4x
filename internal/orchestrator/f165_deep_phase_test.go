@@ -19,11 +19,18 @@ type deepScript struct {
 	round     int
 	report    string
 	calls     int
+	// codexSessionID 非空時 log 前置 thread.started 事件（F168 codex 接線測試用）。
+	codexSessionID string
 }
 
 func (ds *deepScript) newRunner(_, logPath, _ string) runner.Runner {
 	return funcRunner(func(_ context.Context) (*runner.Result, error) {
-		_ = os.WriteFile(logPath, []byte("exit-0\n"), 0o644)
+		content := "exit-0\n"
+		if ds.codexSessionID != "" {
+			content = `{"type":"thread.started","thread_id":"` + ds.codexSessionID + `"}` + "\n" + content
+			_ = os.MkdirAll(filepath.Dir(logPath), 0o755)
+		}
+		_ = os.WriteFile(logPath, []byte(content), 0o644)
 		ds.calls++
 		_ = os.MkdirAll(ds.ws.RoundDir(ds.featureID, ds.round), 0o755)
 		_ = os.WriteFile(

@@ -313,18 +313,19 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 		}
 		r.syncFromWorktree(featureID, s.Round)
 
-		stats := ParseRunStatsFromLog(logPath)
-		r.totalTokens += stats.Tokens
-		r.totalCostUSD += stats.CostUSD
+		tokens, costUSD, codexUsage := r.runEndMetrics(phaseRunner, logPath)
 		switch {
-		case stats.CostUSD > 0:
-			fmt.Printf("  → $%.4f, %s\n", stats.CostUSD, invokeDur.Truncate(time.Second))
-		case stats.Tokens > 0:
-			fmt.Printf("  → %s tokens, %s\n", FormatTokens(stats.Tokens), invokeDur.Truncate(time.Second))
+		case codexUsage != nil:
+			fmt.Printf("  → codex 5h %s / 1wk %s, %s tokens, %s\n",
+				formatPct(codexUsage.PrimaryPercent), formatPct(codexUsage.SecondaryPercent),
+				FormatTokens(tokens), invokeDur.Truncate(time.Second))
+		case costUSD > 0:
+			fmt.Printf("  → $%.4f, %s\n", costUSD, invokeDur.Truncate(time.Second))
+		case tokens > 0:
+			fmt.Printf("  → %s tokens, %s\n", FormatTokens(tokens), invokeDur.Truncate(time.Second))
 		default:
 			fmt.Printf("  → %s\n", invokeDur.Truncate(time.Second))
 		}
-		tokens := stats.Tokens
 
 		if runErr != nil {
 			return nil, r.handleRunnerError(ctx, &s, phase, role, phaseRunner, model, runErr)
@@ -334,7 +335,8 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 			Type: "run-end", Phase: phase, Role: role, Round: s.Round,
 			Status: fmt.Sprintf("exit-%d", result.ExitCode),
 			Runner: phaseRunner, Model: model,
-			TokensUsed: tokens, CostUSD: stats.CostUSD, DurationMs: invokeDur.Milliseconds(),
+			TokensUsed: tokens, CostUSD: costUSD, DurationMs: invokeDur.Milliseconds(),
+			Codex: codexUsage,
 		})
 
 		// run 返回後護欄（Blocking 1 方案 b）：rn.Run 可能數分鐘，期間若外部把 feature 設為終態，
@@ -1226,6 +1228,31 @@ func ParseRunStatsFromLog(logPath string) RunStats {
 	return stats
 }
 
+// runEndMetrics 解析 runner log 的 token/cost 統計並累加至 r.totalTokens/totalCostUSD，
+// 回傳供 run-end event 填欄的 (tokens, costUSD, codex)。runnerName=="codex" 時額外從對應
+// rollout jsonl 擷取即時額度用量：成功則回傳非 nil 的 codex（且 log 未回報 token 時以
+// rollout 的累計 total_tokens 補位）；解析失敗只 slog.Warn、回傳 codex==nil，run-end 照常寫。
+// runnerName 非 codex 時 codex 恆為 nil，行為等同純 ParseRunStatsFromLog（claude 路徑不受影響）。
+//
+// 所有 run-end 寫入點皆透過本 helper 收斂 ParseRunStatsFromLog 呼叫與累加，避免 codex 分支散落。
+func (r *Runner) runEndMetrics(runnerName, logPath string) (tokens int, costUSD float64, codex *protocol.CodexUsage) {
+	stats := ParseRunStatsFromLog(logPath)
+	tokens, costUSD = stats.Tokens, stats.CostUSD
+	if runnerName == "codex" {
+		if cu, cuTokens := ParseCodexUsage(logPath, ResolveCodexHome(os.Getenv("CODEX_HOME"))); cu != nil {
+			codex = cu
+			if tokens == 0 {
+				tokens = cuTokens
+			}
+		} else {
+			slog.Warn("codex usage unavailable, skipping", "feature", r.featureID(), "log", logPath)
+		}
+	}
+	r.totalTokens += tokens
+	r.totalCostUSD += costUSD
+	return tokens, costUSD, codex
+}
+
 // FormatTokens 把 token 數量格式化為帶千分位逗號的字串（如 73204 → "73,204"）
 func FormatTokens(n int) string {
 	s := strconv.Itoa(n)
@@ -1244,6 +1271,12 @@ func FormatTokens(n int) string {
 		b.WriteString(s[i : i+3])
 	}
 	return b.String()
+}
+
+// formatPct 把額度百分比格式化為簡潔字串（如 1.0 → "1%"、60.0 → "60%"、0 → "0%"），
+// 供 codex 用量進度列與 status/cost 顯示共用。
+func formatPct(v float64) string {
+	return strconv.FormatFloat(v, 'g', -1, 64) + "%"
 }
 
 // ParsePhaseOverrides 解析 --phase-override 旗標的原始字串為 per-phase 臨時覆寫 map。

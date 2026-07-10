@@ -69,7 +69,7 @@ func SupportedRunners() []RunnerPreset {
 		}},
 		{Name: "codex", Config: RunnerConfig{
 			Command: "codex",
-			Args:    []string{"exec"},
+			Args:    []string{"exec", "--json"},
 			Stdin:   BoolPtr(true),
 			Quiet:   BoolPtr(true),
 			Tiers:   map[string]string{"opus": "gpt-5.5", "sonnet": "gpt-5.5"},

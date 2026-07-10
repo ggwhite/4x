@@ -78,6 +78,19 @@ type Event struct {
 	// 必須靠這個明確的索引還原正確配對。0（zero value）表示不適用，沿用既有的
 	// 循序重試（如 designer 被打回重做）計數器邏輯。
 	Index int `json:"index,omitempty"`
+	// Codex 記錄 codex runner 本次 invocation 的即時額度用量（取自 rollout jsonl），
+	// 僅 codex 的 run-end event 填寫。整個指標為 nil 代表未觀測（claude run-end 或解析
+	// 失敗）；非 nil 時 PrimaryPercent 為 0.0 是真值（窗剛重置），故用指標而非零值語意。
+	Codex *CodexUsage `json:"codex,omitempty"`
+}
+
+// CodexUsage 記錄 codex runner 一次 invocation 的即時額度用量，取自 rollout jsonl
+// 的 rate_limits。codex 走 ChatGPT 訂閱制、無 USD 計量，故只記百分比與重置時間。
+type CodexUsage struct {
+	PrimaryPercent    float64 `json:"primary_pct"`                 // 5 小時窗 used_percent（window_minutes=300）
+	SecondaryPercent  float64 `json:"secondary_pct"`               // 週窗 used_percent（window_minutes=10080）
+	PrimaryResetsAt   int64   `json:"primary_resets_at,omitempty"` // 5 小時窗 resets_at（unix 秒）
+	SecondaryResetsAt int64   `json:"secondary_resets_at,omitempty"`
 }
 
 // 通知等級常量，供 server 端標注 Event.Notify 及前端判斷顯示樣式，避免散落字串。

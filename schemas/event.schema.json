@@ -27,6 +27,16 @@
     "tokens_used": { "type": "integer", "description": "本次 runner invocation 使用的 token 數量，僅 run-end event 填寫" },
     "cost_usd": { "type": "number", "description": "本次 runner invocation 花費（美元），僅 run-end event 填寫" },
     "duration_ms": { "type": "integer", "description": "本次 runner invocation 耗時（毫秒），僅 run-end event 填寫" },
-    "index": { "type": "integer", "description": "同一 round 內平行執行的同 role 子任務序號（1-based），目前僅 deep-reviewer 平行 sub-reviewer 使用，用來讓 phase-start/run-end 正確配對" }
+    "index": { "type": "integer", "description": "同一 round 內平行執行的同 role 子任務序號（1-based），目前僅 deep-reviewer 平行 sub-reviewer 使用，用來讓 phase-start/run-end 正確配對" },
+    "codex": {
+      "type": ["object", "null"],
+      "description": "codex runner 本次 invocation 的即時額度用量（primary_pct 5 小時窗、secondary_pct 週窗），僅 codex run-end event 填寫；claude 不填",
+      "properties": {
+        "primary_pct": { "type": "number" },
+        "secondary_pct": { "type": "number" },
+        "primary_resets_at": { "type": "integer" },
+        "secondary_resets_at": { "type": "integer" }
+      }
+    }
   }
 }
