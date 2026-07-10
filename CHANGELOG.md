@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-07-10
+
+### Features
+
+- **Dashboard bearer-token 認證** — server 預設啟用 bearer-token 認證保護 dashboard API/SSE，可透過設定關閉；修復認證流程中 10 個 post-merge review 發現的缺陷
+- **Verify 命令 allowlist 硬化** — `4x verify`/ac_checks 執行命令前可設定 `verify_command_allowlist` 限制可執行前綴，擋下重導向與 command substitution，pipe 下游唯讀過濾工具（grep/awk 等）放行但排除 tee/xargs 避免繞過
+- **Role-scope PreToolUse gate** — 即時攔截 spawned role agent 對越權路徑/工具的存取（如 Designer 寫 state.json），比 round 後 `4x check` 更早擋下違規
+- **Per-role runner 路由** — 支援不同 role 走不同 LLM runner（如 designer/reviewer 用 codex、coder/accepting 固定 claude），達成跨 model 對抗審查
+- **Runner 子程序環境硬化** — spawn LLM runner 子程序時套用環境變數 allowlist/denylist 過濾，降低敏感變數外洩風險
+- **State 檔案並發鎖** — `state.json` 讀寫改用 CAS（compare-and-swap）保護，關閉平行/多進程寫入下的復活與 lost-update 窗口
+- **check-docs-sync 誤報抑制機制** — 針對已知誤報模式（含 anti-blanket guard 防範過度寬鬆 glob）抑制 `make check-docs-sync` 的雜訊
+- **EGPS 執行式 AC 判定** — acceptance criteria 支援綁定實際可執行命令（ac_checks）判定通過與否，並提供假驗證 linter 防堵字串前綴糊弄
+- **Worktree 工具環境隔離** — scaffold worktree 時隔離工具環境，避免跨 feature worktree 互相汙染
+- **Learnings confidence 與 active 老化** — learning 條目引入 confidence 分數與閒置天數自動降級機制，`4x learn prune` 可清理過時項目
+- **Designer 前提挑戰與 docs 刪除 guard** — Designer 角色新增前提假設挑戰步驟，並對刪除 `docs/` 下檔案加 guard 防誤刪
+- **Profile advisor** — 依 feature 規模自動建議合適的 profile（lite/quick/normal/full），`4x new` 建立時可參考
+- **安裝驗證與 screenshot 路徑硬化** — 安裝腳本加 checksum 驗證，dashboard screenshot 端點加路徑穿越防護
+- **codex 額度百分比觀測** — 解析 codex CLI 的 `rate_limits` 用量（5 小時窗/週窗百分比），整合進 `4x cost`/`4x status`/events.jsonl
+- **`4x retry` 自動偵測復原 phase** — 未帶 `--to` 時，改由 state.json 記錄的卡住前 role 自動推導正確復原 phase（不再一律跳 accepting）
+- **Feature 規模紅線與 `--subtask` 格式同步** — `4x new`/CREATOR 流程加入規模超標警示，`--subtask`/`--rule` 改用 `StringArrayVar` 避免逗號誤切值
+
+### Fixes
+
+- **Designer guard 豁免收斂** — orchestrator 於 run-start 寫入的 status 轉換（not-started→in-progress）改記錄進 state.json 供 guard 比對來源，取代單純比對數值，防止 Designer 偽造同值變更逃過檢查
+- **平行 review/test 路徑 CAS 補洞** — `RunReviewTestParallel` 的狀態寫入改走 CAS 護欄，關閉外部 done/abandon 期間舊快照復活 feature 的競態
+- **允許清單阻擋訊息誤導修正** — allowlist 擋下的 ac_checks 命令不再誤導成「加大 --timeout 重跑」，改給出正確的設定引導
+- **受保護路徑測試檔 diff-budget** — `*_test.go` 變更改套用獨立（5 倍）上限，避免完全免計而被用來夾帶未受審變更
+- **多處 post-merge review 缺陷修復** — F157/F158/F159/F162/F163/F164/F165 各自的 post-merge 審查發現逐輪修復完畢（含 false-deny、denylist 涵蓋、canonical key 驗證、CAS lost-update 補洞等）
+- **重複邏輯合併** — `formatPct`、`checkBuildGate`/`checkDocsGate`、tracked/untracked git 偵測等多處重複實作合併為共用 helper
+
 ## [0.4.0] - 2026-07-08
 
 ### Features
