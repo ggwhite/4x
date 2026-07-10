@@ -16,7 +16,7 @@ description: |-
     - codex 沒有 USD 概念，不嘗試偽造、估算或換算成金額，只呈現額度百分比與 token 數
     - rollout 檔案讀取失敗（找不到、格式改變、session id 對不上等）只 warn 並 skip，不阻塞 round 執行或 4x 主流程
     - 不改變 codex runner 現有的 sandbox/approval/model 等既有呼叫參數，只新增 `--json`
-status: not-started
+status: in-progress
 priority: 3
 profile: normal
 subtasks:
