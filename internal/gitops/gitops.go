@@ -363,7 +363,16 @@ func ensureGitignore(root, entry string) {
 
 // copyFileIfExists 複製檔案；來源不存在視為靜默成功（回 nil），
 // 僅讀寫失敗（如 disk full、目標不可寫）才回傳 error，讓上游能記錄真因。
+// 保留來源檔案的權限（含執行位元），避免 init.sh/lint.sh 等腳本複製到 worktree 後
+// 因固定寫死 0o644 而遺失可執行權限。
 func copyFileIfExists(src, dst string) error {
+	srcInfo, err := os.Stat(src)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
 	data, err := os.ReadFile(src)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -374,7 +383,7 @@ func copyFileIfExists(src, dst string) error {
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(dst, data, 0o644)
+	return os.WriteFile(dst, data, srcInfo.Mode().Perm())
 }
 
 // CopyFileIfExists 複製檔案，來源不存在時靜默忽略（回 nil）；讀寫失敗回傳 error。供外部 package 使用。
