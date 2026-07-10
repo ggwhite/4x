@@ -1,0 +1,44 @@
+id: F174-proto-fanout-worktree-visibility
+name: 'F174: proto-fanout gate 在 worktree 內看不到未 provision 的 sibling repo'
+description: |-
+    現狀：
+    F171 新增的 internal/guard/proto_fanout.go checkProtoFanoutScope 在 orchestrator 實際執行路徑下失效。
+    guard.Check 傳入的 ws 是 worktree workspace（ws.Root 為 worktree 根目錄），未列在 feature.Repos 的
+    sibling repo 完全沒被 multiRepo.SetupWorktree（僅 checkout targetRepos(featureRepos)）provision 進
+    worktree。protocol.ResolveRepoPaths(cfg, ws.Root) 對這些 repo 算出的路徑在 worktree 內不存在，
+    scanRepoForTerms 的 filepath.WalkDir 對不存在路徑靜默吞掉 error、回傳零命中——導致這個 gate 在它
+    原本要抓的「未 provision 的下游 repo import 了變更的 proto/interface」情境下永遠不會真的發出警告。
+    check_f171_test.go 全部用完整存在的目錄樹驗證，未模擬 worktree 部分 checkout，未抓到此落差。
+
+    需求：
+    1. 讓 checkProtoFanoutScope 能定位「原始 workspace root」（main repo 所在路徑，非 worktree 路徑）。
+       protocol.Workspace 目前沒有這個 accessor，需要新增機制（例如 worktree 建立時把 origin root
+       寫入 worktree 內某個中介檔案，或由呼叫端顯式傳入）。
+    2. 對於已設定在 cfg.Workspace.Repos 但實際不存在於 worktree 內（也無法定位 origin root）的 repo，
+       改為明確標註「無法驗證，需人工覆核」的 Warn，而不是像現在一樣靜默略過、回傳零命中。
+    3. 補測試模擬 worktree 部分 checkout 的情境（只建立 scoped repos 目錄，sibling repo 目錄不存在），
+       驗證 gate 改為輸出「無法驗證」提示，而非靜默無 warning。
+
+    約束：
+    - 不修改 F171 既有的 grep-based 偵測邏輯本身（isProtoInterfaceDefinition/importSearchTerms/
+      scanRepoForTerms），只修 repo path 解析與「找不到 repo 時的行為」。
+    - 沿用 F171 的設計：此 gate 永遠是 Warn，不設 r.Pass=false、不 append Errors。
+    - 不做完整依賴分析/import graph 建置。
+status: not-started
+priority: 2
+profile: normal
+subtasks:
+    - id: resolve-origin-root
+      name: 讓 checkProtoFanoutScope 能定位原始 workspace root（非 worktree 路徑）
+      status: ""
+    - id: warn-on-unverifiable
+      name: repo 不存在於 worktree 且無法定位 origin root 時，輸出「無法驗證」warning 而非靜默略過
+      status: ""
+    - id: worktree-partial-checkout-test
+      name: 補測試模擬 worktree 只 checkout scoped repos 的情境
+      status: ""
+rules:
+    - 沿用 F171 grep-based 偵測邏輯本身不動，只修 repo path 解析與找不到 repo 時的行為
+    - 此 gate 永遠是 Warn，不設 r.Pass=false、不 append Errors
+depends:
+    - F171-proto-fanout-repo-detection
