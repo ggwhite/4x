@@ -52,6 +52,7 @@ func Check(ws *protocol.Workspace, featureID string, detector ScopeDetector) Che
 	checkTaskBriefChallenge(ws, featureID, &r)
 	checkBaseline(ws, featureID, &r)
 	checkScope(ws, featureID, detector, &r)
+	checkProtoFanoutScope(ws, featureID, &r)
 	checkDocDeletion(ws, featureID, detector, &r)
 	checkSelfMod(ws, featureID, detector, &r)
 	checkDependencies(ws, featureID, &r)
