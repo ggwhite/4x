@@ -1,0 +1,34 @@
+id: F169-retry-phase-autodetect
+name: 'F169: retry 自動偵測復原 phase'
+description: |-
+    現狀：`cmd/4x/retry.go` 的 `newRetryCmd()` 在使用者未帶 `--to` 時，target phase 寫死為 `protocol.PhaseAccepting`（見 retry.go:41-43），完全不理會 state.json 進入 `blocked`/`needs-attention` 前實際卡在哪個 phase/role。`internal/state/machine.go` 已有 `PhaseToRole(phase) Role` 正向映射表，但沒有反向的 `RoleToPhase`。
+
+    實測後果（F168-codex-usage-observability autopilot 復原時發生）：designer round0 因 claude session 額度撞牆 soft-fail 進入 `blocked`（state.json 當下 `role: designer`），操作者裸執行 `4x retry <id>`（未帶 --to），命令依預設值直接把 phase 轉去 accepting 並啟動 acceptor；此時 Coder 從未執行過、程式碼零異動，acceptor 只能判定 needs-attention，白白浪費一次呼叫（約 $0.83）與時間。唯一正確作法是先手動讀 state.json 的 role 欄位换算回正確 phase，再帶 `--to designing` 重試——這個換算步驟目前完全依賴人工，容易忘記。
+
+    需求：
+    - 在 `internal/state/machine.go` 新增 `RoleToPhase(role protocol.Role) protocol.Phase`（或等價反向查表），把 `PhaseToRole` 已定義的映射反過來；`coder` 同時對應 `coding`/`amending` 兩個 phase，需結合 `state.Round`（round <= 1 判斷為尚未進入 coding 首輪 → 回 coding；否則回 amending，或其他你認為更準確的判斷依據，設計時需明確裁決此二義性，不可留給預設值猜測）
+    - 修改 `cmd/4x/retry.go` 的 `retryTransition`/`newRetryCmd`：當呼叫端未帶 `--to` 時，不要直接寫死 `protocol.PhaseAccepting`；改成讀 `cur.Role`（UpdateState 臨界區內取得的最新磁碟值）透過新的反向映射函式算出建議 target phase，算不出來（role 為空或無對應 phase）才 fallback 現有的 `protocol.PhaseAccepting` 預設值
+    - `--to` 明確帶入時的行為完全不變（沿用既有 target 覆寫邏輯，優先權最高）
+    - 自動選中 target phase 時，CLI 需印出訊息讓使用者知道採用了哪個自動偵測到的 phase（例如 `auto-detected target phase from role "designer": designing`），避免使用者誤以為又是預設 accepting
+    - 補充/更新 `cmd/4x/retry_test.go` 與 `internal/state` 對應測試，涵蓋：role 為 designer/design-reviewer/reviewer/deep-reviewer/tester/acceptor 時的正確反推、role 為 coder 時依 round 反推 coding 或 amending 兩種情境、role 為空或未知時 fallback accepting 且不印自動偵測訊息
+
+    約束：
+    - 不改變 `--to` 明確指定時的既有行為與優先權
+    - 不改變 retry 以外的任何命令（`transition`、`run --phase-override` 等）
+    - 不新增外部依賴
+    - 保留 retry.go 現有的 `retryTransition` 可被測試直接呼叫（不含 exec 邏輯）的介面設計
+status: not-started
+priority: 3
+subtasks:
+    - id: role-to-phase
+      name: internal/state 新增 RoleToPhase 反向映射，coder 依 round 判斷 coding/amending
+      status: ""
+    - id: retry-autodetect
+      name: retry.go 未帶 --to 時改用 RoleToPhase(cur.Role) 推導 target，算不出才 fallback accepting
+      status: ""
+    - id: retry-message
+      name: 自動偵測到 target phase 時印出訊息告知使用者
+      status: ""
+    - id: tests
+      name: 補齊 retry_test.go 與 state 測試涵蓋各 role 反推情境
+      status: ""
