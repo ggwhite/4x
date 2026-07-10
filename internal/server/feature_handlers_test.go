@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ggwhite/4x/internal/feature"
@@ -561,5 +562,195 @@ func TestHandleEvents_EmptyJSONLFile(t *testing.T) {
 	body := rec.Body.String()
 	if body != "[]" {
 		t.Errorf("body = %q, want []", body)
+	}
+}
+
+// TestHandleMessages_CodexUsagePassthrough 驗證 codex run-end 帶 rate_limits 的 round
+// 會把 codex 用量端到端透傳到 /messages REST 回應（events.jsonl → messageInfo.Codex），
+// 而非只停在內部 struct 被靜默丟棄。
+func TestHandleMessages_CodexUsagePassthrough(t *testing.T) {
+	root := t.TempDir()
+	cfg := protocol.Config{Project: protocol.ProjectConfig{Name: "test"}, Default: "codex"}
+	if err := protocol.Init(root, cfg); err != nil {
+		t.Fatal(err)
+	}
+	rawWs := &protocol.Workspace{Root: root}
+	if err := rawWs.InitFeatureDir("feat-codex"); err != nil {
+		t.Fatal(err)
+	}
+
+	events := []protocol.Event{
+		{Timestamp: "2026-01-01T00:00:00Z", Type: "phase-start", Role: protocol.RoleCoder, Round: 1, Model: "codex"},
+		{Timestamp: "2026-01-01T00:00:30Z", Type: "run-end", Role: protocol.RoleCoder, Round: 1, Model: "codex",
+			Codex: &protocol.CodexUsage{PrimaryPercent: 62.5, SecondaryPercent: 18}},
+	}
+	for _, e := range events {
+		if err := rawWs.AppendEvent("feat-codex", e); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	dir := rawWs.FeatureDir("feat-codex")
+	round1 := filepath.Join(dir, protocol.RoundsDir, "round-1")
+	if err := os.MkdirAll(round1, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(round1, "coder-report.md"), []byte("done"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ws := protocol.NewCachedWorkspace(rawWs)
+	rec := httptest.NewRecorder()
+	handleMessages(ws, "feat-codex", rec)
+
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var resp messagesResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	var coder *messageInfo
+	for i := range resp.Messages {
+		if resp.Messages[i].Role == "coder" {
+			coder = &resp.Messages[i]
+		}
+	}
+	if coder == nil {
+		t.Fatal("no coder message found")
+	}
+	if coder.Codex == nil {
+		t.Fatal("coder message Codex is nil, want passthrough of codex usage")
+	}
+	if coder.Codex.PrimaryPercent != 62.5 || coder.Codex.SecondaryPercent != 18 {
+		t.Errorf("coder Codex = %+v, want primary=62.5 secondary=18", *coder.Codex)
+	}
+}
+
+// TestHandleMessages_NoCodexUsageOmitted 驗證無 codex 資料的 round（claude round，
+// run-end 不帶 codex）其 messageInfo.Codex 為 nil，且序列化 JSON 完全不含 "codex" key
+// （驗 omitempty 生效，不強塞假值）。
+func TestHandleMessages_NoCodexUsageOmitted(t *testing.T) {
+	root := t.TempDir()
+	cfg := protocol.Config{Project: protocol.ProjectConfig{Name: "test"}, Default: "claude"}
+	if err := protocol.Init(root, cfg); err != nil {
+		t.Fatal(err)
+	}
+	rawWs := &protocol.Workspace{Root: root}
+	if err := rawWs.InitFeatureDir("feat-noco"); err != nil {
+		t.Fatal(err)
+	}
+
+	events := []protocol.Event{
+		{Timestamp: "2026-01-01T00:00:00Z", Type: "phase-start", Role: protocol.RoleCoder, Round: 1, Model: "sonnet"},
+		{Timestamp: "2026-01-01T00:00:30Z", Type: "run-end", Role: protocol.RoleCoder, Round: 1, Model: "sonnet", TokensUsed: 100, CostUSD: 0.10},
+	}
+	for _, e := range events {
+		if err := rawWs.AppendEvent("feat-noco", e); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	dir := rawWs.FeatureDir("feat-noco")
+	round1 := filepath.Join(dir, protocol.RoundsDir, "round-1")
+	if err := os.MkdirAll(round1, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(round1, "coder-report.md"), []byte("done"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ws := protocol.NewCachedWorkspace(rawWs)
+	rec := httptest.NewRecorder()
+	handleMessages(ws, "feat-noco", rec)
+
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+
+	var resp messagesResponse
+	if err := json.NewDecoder(strings.NewReader(body)).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	var coder *messageInfo
+	for i := range resp.Messages {
+		if resp.Messages[i].Role == "coder" {
+			coder = &resp.Messages[i]
+		}
+	}
+	if coder == nil {
+		t.Fatal("no coder message found")
+	}
+	if coder.Codex != nil {
+		t.Errorf("coder Codex = %+v, want nil for claude round", *coder.Codex)
+	}
+	if strings.Contains(body, "\"codex\"") {
+		t.Errorf("JSON body contains \"codex\" key, want omitempty to drop it: %s", body)
+	}
+}
+
+// TestBuildPhaseInfo_CodexDeepReviewerDeterministic 驗證 deep-reviewer 平行聚合分支對
+// codex 的選取具決定性：同一 round 兩筆不同 Index 的 run-end，codex 分別 primary 30 與 80，
+// 多次執行皆穩定選到 primary 80 那筆（不受 map 迭代順序影響）。
+func TestBuildPhaseInfo_CodexDeepReviewerDeterministic(t *testing.T) {
+	root := t.TempDir()
+	cfg := protocol.Config{Project: protocol.ProjectConfig{Name: "test"}, Default: "codex"}
+	if err := protocol.Init(root, cfg); err != nil {
+		t.Fatal(err)
+	}
+	rawWs := &protocol.Workspace{Root: root}
+	if err := rawWs.InitFeatureDir("feat-codex-dr"); err != nil {
+		t.Fatal(err)
+	}
+
+	events := []protocol.Event{
+		{Timestamp: "2026-01-01T00:00:00Z", Type: "phase-start", Role: protocol.RoleDeepReviewer, Round: 1, Model: "codex", Index: 1},
+		{Timestamp: "2026-01-01T00:00:00Z", Type: "phase-start", Role: protocol.RoleDeepReviewer, Round: 1, Model: "codex", Index: 2},
+		{Timestamp: "2026-01-01T00:05:00Z", Type: "run-end", Role: protocol.RoleDeepReviewer, Round: 1, Model: "codex", Index: 1,
+			Codex: &protocol.CodexUsage{PrimaryPercent: 30, SecondaryPercent: 90}},
+		{Timestamp: "2026-01-01T00:06:00Z", Type: "run-end", Role: protocol.RoleDeepReviewer, Round: 1, Model: "codex", Index: 2,
+			Codex: &protocol.CodexUsage{PrimaryPercent: 80, SecondaryPercent: 10}},
+	}
+	for _, e := range events {
+		if err := rawWs.AppendEvent("feat-codex-dr", e); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	dir := rawWs.FeatureDir("feat-codex-dr")
+	round1 := filepath.Join(dir, protocol.RoundsDir, "round-1")
+	if err := os.MkdirAll(round1, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(round1, protocol.DeepReviewReport), []byte("PASS"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ws := protocol.NewCachedWorkspace(rawWs)
+	// 多次執行以提高非決定性暴露機率（map 迭代順序每次可能不同）。
+	for i := 0; i < 20; i++ {
+		rec := httptest.NewRecorder()
+		handleMessages(ws, "feat-codex-dr", rec)
+		var resp messagesResponse
+		if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+			t.Fatalf("iter %d decode: %v", i, err)
+		}
+		var deepReview *messageInfo
+		for j := range resp.Messages {
+			if resp.Messages[j].Role == "deep-reviewer" {
+				deepReview = &resp.Messages[j]
+			}
+		}
+		if deepReview == nil {
+			t.Fatalf("iter %d: no deep-reviewer message found", i)
+		}
+		if deepReview.Codex == nil {
+			t.Fatalf("iter %d: deep-reviewer Codex is nil, want primary=80", i)
+		}
+		if deepReview.Codex.PrimaryPercent != 80 {
+			t.Errorf("iter %d: deep-reviewer Codex.PrimaryPercent = %v, want 80 (most-constrained, deterministic)", i, deepReview.Codex.PrimaryPercent)
+		}
 	}
 }

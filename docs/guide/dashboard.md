@@ -184,6 +184,8 @@ Returns a JSON object (not a bare array):
 | `messages` | array \| null | Same message entries as before; `null` when the feature has no artifacts yet |
 | `totalCostUSD` | float | Sum of `cost_usd` across every `run-end` event in the feature's `events.jsonl` (via `protocol.Workspace.TotalCost`), covering all past runs including interrupted/resumed ones |
 
+Each message entry additionally carries an optional `codex` object (`{"primary_pct":…,"secondary_pct":…}`) mirroring the codex runner's live rate-limit usage for that round, sourced from the round's `run-end` event. The field is omitted entirely (via `omitempty`) for rounds with no codex observation (claude runners, or codex rounds where rate limits could not be parsed), so the dashboard renders a `NN%` tag (the higher of the two windows, rounded) only when the field is present — never a misleading `0%`. For the deep-reviewer's parallel sub-reviewers, the aggregated entry deterministically reports the most-constrained sample (highest `primary_pct`, ties broken by `secondary_pct`).
+
 The dashboard surfaces this per-feature total; for a per-role / per-round breakdown on the command line (across all features or one feature), use `4x cost` (see `docs/guide/cli.md`), which reads the same run logs (`logs/*.stream.jsonl`, with `events.jsonl` as fallback).
 
 #### `POST /api/done` Response

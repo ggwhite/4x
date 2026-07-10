@@ -920,12 +920,23 @@ function renderMsgCard(m) {
   const modelLabel = (m.model || 'Auto').replace(/^./, c => c.toUpperCase());
   const dur = m.duration > 0 ? `<span class="text-[10px] text-zinc-600 flex-shrink-0">${fmtSec(m.duration)}</span>` : '';
   const modelTag = `<span class="text-[10px] text-zinc-600 flex-shrink-0">${esc(modelLabel)}</span>`;
+  // usageTag 只在 m.codex 存在時渲染（Go 端 omitempty：無 codex 觀測時完全省略 key），
+  // 數字取兩窗較高者四捨五入——最接近被限流的約束窗最具行動意義；兩窗皆 0 時仍顯示 0%
+  // （窗剛重置的真值），故條件用 m.codex 而非值判斷。title 列兩窗明細作為 hover tooltip。
+  const usageTag = m.codex
+    ? (() => {
+        const primary = m.codex.primary_pct ?? 0;
+        const secondary = m.codex.secondary_pct ?? 0;
+        const p = Math.round(Math.max(primary, secondary));
+        return `<span class="text-[10px] text-zinc-600 flex-shrink-0" title="5h ${Math.round(primary)}% · week ${Math.round(secondary)}%">${p}%</span>`;
+      })()
+    : '';
   const costTag = m.costUsd > 0
     ? `<span class="text-[10px] text-zinc-600 flex-shrink-0">${formatCost(m.costUsd)}</span>`
     : m.tokensUsed > 0
       ? `<span class="text-[10px] text-zinc-600 flex-shrink-0">${fmtTokens(m.tokensUsed)}</span>`
       : '';
-  header.innerHTML = `<span class="text-xs font-semibold flex-shrink-0" style="color:${r.color}">${emoji} ${r.name}</span><span class="text-xs text-zinc-600 flex-shrink-0">${m.label}${m.round?' · Round '+m.round:''}</span>${previewText}${modelTag}${dur}${costTag}<span class="msg-chevron text-zinc-600 text-xs ml-auto flex-shrink-0">▶</span>`;
+  header.innerHTML = `<span class="text-xs font-semibold flex-shrink-0" style="color:${r.color}">${emoji} ${r.name}</span><span class="text-xs text-zinc-600 flex-shrink-0">${m.label}${m.round?' · Round '+m.round:''}</span>${previewText}${modelTag}${usageTag}${dur}${costTag}<span class="msg-chevron text-zinc-600 text-xs ml-auto flex-shrink-0">▶</span>`;
   const body = document.createElement('div');
   body.className = 'msg-body collapsed md-body px-4 py-3 overflow-y-auto';
   body.style.color = 'var(--text-2)';

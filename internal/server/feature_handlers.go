@@ -168,6 +168,10 @@ type messageInfo struct {
 	Model      string  `json:"model,omitempty"`
 	TokensUsed int     `json:"tokensUsed,omitempty"`
 	CostUSD    float64 `json:"costUsd,omitempty"`
+	// Codex 透傳 codex runner 該 invocation 的即時額度用量（primary_pct/secondary_pct）。
+	// nil 代表該 round 無 codex 觀測（claude round 或未解出 rate_limits），omitempty 使
+	// JSON 完全省略此 key，讓前端據此決定是否渲染百分比 tag，而非塞誤導性的 0%。
+	Codex *protocol.CodexUsage `json:"codex,omitempty"`
 }
 
 // buildDesignRoundMessages 讀取 design-rounds/round-<round>-<iteration>/ 底下歸檔的
@@ -215,6 +219,7 @@ func buildDesignRoundMessages(dir string, phases map[durationKey]phaseInfo) []me
 				Model:      p.model,
 				TokensUsed: p.tokensUsed,
 				CostUSD:    p.costUSD,
+				Codex:      p.codex,
 			})
 		}
 		if content := readIfExists(filepath.Join(c.path, protocol.Criteria)); content != "" {
@@ -236,6 +241,7 @@ func buildDesignRoundMessages(dir string, phases map[durationKey]phaseInfo) []me
 				Model:      p.model,
 				TokensUsed: p.tokensUsed,
 				CostUSD:    p.costUSD,
+				Codex:      p.codex,
 			})
 		}
 	}
@@ -268,6 +274,7 @@ func handleMessages(ws *protocol.CachedWorkspace, featureID string, w http.Respo
 					mi.Model = p.model
 					mi.TokensUsed = p.tokensUsed
 					mi.CostUSD = p.costUSD
+					mi.Codex = p.codex
 				}
 				messages = append(messages, mi)
 			}
@@ -285,6 +292,7 @@ func handleMessages(ws *protocol.CachedWorkspace, featureID string, w http.Respo
 				Model:      dp.model,
 				TokensUsed: dp.tokensUsed,
 				CostUSD:    dp.costUSD,
+				Codex:      dp.codex,
 			})
 		}
 	}
@@ -334,6 +342,12 @@ func handleMessages(ws *protocol.CachedWorkspace, featureID string, w http.Respo
 						if rp.model == "" {
 							rp.model = info.model
 						}
+						// codex 是每次 invocation 的即時值、不可相加，故在所有 sub-reviewer 中
+						// 決定性選取 PrimaryPercent 最高者（tie 再比 SecondaryPercent），避免 map
+						// 迭代順序造成 flaky；全部 nil 則維持 nil。
+						if info.codex != nil && codexMoreConstrained(info.codex, rp.codex) {
+							rp.codex = info.codex
+						}
 					}
 					sp := phases[durationKey{"synthesizer", roundNum, 1}]
 					rp.costUSD += sp.costUSD
@@ -351,6 +365,7 @@ func handleMessages(ws *protocol.CachedWorkspace, featureID string, w http.Respo
 					Model:      rp.model,
 					TokensUsed: rp.tokensUsed,
 					CostUSD:    rp.costUSD,
+					Codex:      rp.codex,
 				})
 			}
 		}
@@ -373,6 +388,7 @@ func handleMessages(ws *protocol.CachedWorkspace, featureID string, w http.Respo
 				Model:      ap.model,
 				TokensUsed: ap.tokensUsed,
 				CostUSD:    ap.costUSD,
+				Codex:      ap.codex,
 			})
 		}
 	}
@@ -400,6 +416,9 @@ type phaseInfo struct {
 	model      string
 	tokensUsed int
 	costUSD    float64
+	// codex 為 codex runner 該 invocation 的即時額度用量，僅 run-end 帶 codex 欄位時填入；
+	// nil 代表該 phase 無 codex 觀測。與 model 相同「run-end 才填」語意。
+	codex *protocol.CodexUsage
 }
 
 func buildPhaseInfo(ws *protocol.CachedWorkspace, featureID string) map[durationKey]phaseInfo {
@@ -411,14 +430,15 @@ func buildPhaseInfo(ws *protocol.CachedWorkspace, featureID string) map[duration
 	}
 
 	type eventEntry struct {
-		Ts         string  `json:"ts"`
-		Type       string  `json:"type"`
-		Role       string  `json:"role"`
-		Round      int     `json:"round"`
-		Model      string  `json:"model"`
-		TokensUsed int     `json:"tokens_used"`
-		CostUSD    float64 `json:"cost_usd"`
-		Index      int     `json:"index"`
+		Ts         string               `json:"ts"`
+		Type       string               `json:"type"`
+		Role       string               `json:"role"`
+		Round      int                  `json:"round"`
+		Model      string               `json:"model"`
+		TokensUsed int                  `json:"tokens_used"`
+		CostUSD    float64              `json:"cost_usd"`
+		Index      int                  `json:"index"`
+		Codex      *protocol.CodexUsage `json:"codex"`
 	}
 
 	starts := make(map[durationKey]time.Time)
@@ -471,12 +491,28 @@ func buildPhaseInfo(ws *protocol.CachedWorkspace, featureID string) map[duration
 					if e.CostUSD > 0 {
 						info.costUSD += e.CostUSD
 					}
+					if e.Codex != nil {
+						info.codex = e.Codex
+					}
 					result[key] = info
 				}
 			}
 		}
 	}
 	return result
+}
+
+// codexMoreConstrained 回報 cand 是否比 cur 更接近被限流（更「約束」），供 deep-reviewer
+// 平行聚合分支決定性選取代表值：先比 PrimaryPercent，相同再比 SecondaryPercent。cur 為 nil
+// 時 cand 一律勝出（第一個非 nil 觀測）。此規則不依賴 map 迭代順序，故聚合結果穩定。
+func codexMoreConstrained(cand, cur *protocol.CodexUsage) bool {
+	if cur == nil {
+		return true
+	}
+	if cand.PrimaryPercent != cur.PrimaryPercent {
+		return cand.PrimaryPercent > cur.PrimaryPercent
+	}
+	return cand.SecondaryPercent > cur.SecondaryPercent
 }
 
 // handleEvolveReport 回傳 .4x/evolve-report.md 內容（markdown 字串），供 dashboard surface
