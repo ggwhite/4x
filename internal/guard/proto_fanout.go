@@ -58,9 +58,11 @@ func checkProtoFanoutScope(ws *protocol.Workspace, featureID string, r *CheckRes
 		return
 	}
 
-	// 掃描全部 workspace repos（monorepo 無 workspace.repos 時為 {".": ws.Root}），
-	// 而非只掃 feature.Repos——找「未 provision 但可能受變更影響的下游 repo」是本 gate 的核心。
-	repoPaths := protocol.ResolveRepoPaths(cfg, ws.Root)
+	// 掃描全部 workspace repos，而非只掃 feature.Repos——找「未 provision 但可能受變更影響的
+	// 下游 repo」是本 gate 的核心。ws.Root 為 worktree 時，未 provision 進 worktree 的 sibling repo
+	// 其 ResolveRepoPaths 路徑並不存在，故改用 resolveFanoutRepoPaths 以 origin(main) root 定位真實
+	// 路徑；無法定位者不納入掃描而改 append「無法驗證」Warn（見 helper GoDoc）。
+	repoPaths := resolveFanoutRepoPaths(cfg, ws.Root, r)
 
 	allowed := make(map[string]bool, len(feature.Repos))
 	for _, name := range feature.Repos {
@@ -108,6 +110,102 @@ func checkProtoFanoutScope(ws *protocol.Workspace, featureID string, r *CheckRes
 			}
 		}
 	}
+}
+
+// originWorkspaceRoot 定位 wsRoot 對應的 origin(main) workspace root，供 worktree 情境下解析
+// 「未 provision 進 worktree 的 sibling repo」在 main working tree 內的真實路徑。回傳的 root 語意為
+// 「workspace 容器根」，使呼叫端能以 filepath.Join(root, rc.Path) 還原任一 sibling repo 的 main 路徑。
+//
+// 定位順序：
+//   - 先試 gitops.MainWorkspaceRoot(wsRoot)：涵蓋 mono-repo worktree（ws.Root 自身即 linked worktree，
+//     MainWorkspaceRoot 直接回其 main working tree root，即容器根）。
+//   - 失敗則對 basePaths 中「目錄實際存在」的 repo 路徑逐一試 MainWorkspaceRoot，取第一個成功者：涵蓋
+//     multi-repo container（container 本身非 linked worktree，但其 scoped sub-repo 子目錄是），與
+//     gitops.ScopeRoots 掃子目錄推導的策略一致。為讓迭代順序穩定、便於測試，先排序 keys 再迭代。
+//     注意 MainWorkspaceRoot(<container>/<name>) 回的是該 sub-repo 在 main 內的 root（<main>/<rc.Path>），
+//     非容器根；故需依該 sub-repo 相對 wsRoot 的層數往上剝除，還原容器根 <main>。
+//
+// 皆失敗回 ("", false)（非 git worktree / git 失敗 / 無可推導的存在路徑）；呼叫端據此走「無法驗證」分支。
+func originWorkspaceRoot(wsRoot string, basePaths map[string]string) (string, bool) {
+	if root, ok := gitops.MainWorkspaceRoot(wsRoot); ok {
+		return root, true
+	}
+	names := make([]string, 0, len(basePaths))
+	for name := range basePaths {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		p := basePaths[name]
+		if info, err := os.Stat(p); err != nil || !info.IsDir() {
+			continue
+		}
+		subRoot, ok := gitops.MainWorkspaceRoot(p)
+		if !ok {
+			continue
+		}
+		rel, err := filepath.Rel(wsRoot, p)
+		if err != nil {
+			continue
+		}
+		return trimPathSuffix(subRoot, rel), true
+	}
+	return "", false
+}
+
+// trimPathSuffix 從 path 尾端剝除 rel 所含的路徑層數，還原 sub-repo main root 對應的 workspace 容器根。
+// rel 為空或 "." 時原樣回傳（無層可剝）。
+func trimPathSuffix(path, rel string) string {
+	rel = filepath.ToSlash(rel)
+	if rel == "" || rel == "." {
+		return path
+	}
+	for range strings.Split(rel, "/") {
+		path = filepath.Dir(path)
+	}
+	return path
+}
+
+// resolveFanoutRepoPaths 解析可供 fan-out 掃描的 repo name → 真實路徑 map，處理「ws.Root 為
+// worktree、部分 repo 未 provision 進 worktree」的可見度落差（見 F174）。
+//
+// 對 protocol.ResolveRepoPaths(cfg, wsRoot) 的每個 repo（依名稱排序穩定迭代）：
+//   - 路徑在 wsRoot 下實際存在 → 直接納入（scoped repo 在 worktree，或 main-root / mono-repo 路徑）。
+//   - 不存在但可經 origin(main) root 定位到存在目錄 → 以 origin 內路徑納入。
+//   - 兩者皆不成立（未 provision 進 worktree 且無法定位 origin，或 origin 內也無此目錄）→ 不納入，
+//     改 append 一條「無法驗證」Warn，提醒此 repo 需人工覆核，取代原本靜默略過、回零命中的行為。
+//
+// 回傳僅含可掃描的 repo。mono-repo（cfg.Workspace.Repos 為空）時 base 為 {".": wsRoot}，wsRoot 恆存在，
+// 永遠走第一分支、不會觸發 origin 定位或 Warn。
+func resolveFanoutRepoPaths(cfg protocol.Config, wsRoot string, r *CheckResult) map[string]string {
+	base := protocol.ResolveRepoPaths(cfg, wsRoot)
+	originRoot, originOK := originWorkspaceRoot(wsRoot, base)
+
+	names := make([]string, 0, len(base))
+	for name := range base {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	resolved := make(map[string]string, len(base))
+	for _, name := range names {
+		p := base[name]
+		if info, err := os.Stat(p); err == nil && info.IsDir() {
+			resolved[name] = p
+			continue
+		}
+		if originOK {
+			op := filepath.Join(originRoot, cfg.Workspace.Repos[name].Path)
+			if info, err := os.Stat(op); err == nil && info.IsDir() {
+				resolved[name] = op
+				continue
+			}
+		}
+		r.Warns = append(r.Warns, fmt.Sprintf(
+			"proto-fanout 無法驗證：repo %q 未 provision 進 worktree 且無法定位 origin(main) workspace root，grep-based 掃描已略過此 repo——建議人工覆核是否有下游 import 本輪變更的 proto/interface 定義",
+			name))
+	}
+	return resolved
 }
 
 // changedProtoInterfaceFiles 從 gitops.ChangedPaths(root)（uncommitted diff + untracked）
