@@ -83,8 +83,9 @@ func newCheckCmd() *cobra.Command {
 // runCheckPath 執行 `4x check --path` 的快速單檔寫入判定，完全獨立於 guard.Check：
 // 毫秒級、唯讀、不寫任何檔（不 WriteState / 不寫 events / 不 heartbeat）。
 //
-// 一律 fail-open：任何錯誤（非 4x 專案、無法解析 feature、無 state.json、路徑在 workspace 外）
-// 皆 os.Exit(0) 放行；只有明確判定 deny 時 os.Exit(1) 並印 reason 至 stderr。
+// fail-open 邊界：讀取 4x 專案 / state / config / feature 或 git 偵測失敗一律 os.Exit(0) 放行；
+// 唯有明確判定 deny 時（role-scope 越界，或目標在目前 worktree root 外但可證明落在主工作區
+// root 內）才 os.Exit(1) 並印 reason 至 stderr。
 func runCheckPath(pathVal string, args []string) error {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -106,7 +107,14 @@ func runCheckPath(pathVal string, args []string) error {
 
 	relPath, ok := relWithinWorkspace(ws.Root, cwd, pathVal)
 	if !ok {
-		os.Exit(0) // 路徑落在 workspace 外 → 放行
+		// 路徑落在目前 worktree root 外：不再無條件放行。若可由 git 證明目標落在
+		// linked worktree 對應的主工作區 root 內，即時 deny，避免 role agent 誤寫主
+		// 工作區同名 repo；git 偵測失敗或目標不在主工作區 root 內時仍 fail-open 放行。
+		if deny, reason := mainWorkspaceDeny(cwd, pathVal); deny {
+			fmt.Fprintln(os.Stderr, reason)
+			os.Exit(1)
+		}
+		os.Exit(0)
 	}
 
 	deny, reason := guard.EvaluateWritePathForRun(ws, featureID, relPath)
@@ -116,6 +124,73 @@ func runCheckPath(pathVal string, args []string) error {
 	}
 	os.Exit(0)
 	return nil
+}
+
+// mainWorkspaceDeny 判定「已由 relWithinWorkspace 確認落在目前 worktree root 外」的目標路徑，
+// 是否可證明落在 linked worktree 對應的主工作區 root 內。runCheckPath 與 evaluateWriteHook 共用
+// 此 helper，避免兩處對 workspace 外路徑的 fail-open/fail-closed 判定漂移。
+//
+// AC-6 效能約束：本 helper 只在 relWithinWorkspace 判定目標不在目前 workspace root 內後才被呼叫，
+// 故一般 worktree 內寫入完全不觸發 git subprocess。
+//
+// fail-open 邊界：gitops.MainWorkspaceRoot 回 ok=false（非 git repo、git 不在 PATH、
+// git rev-parse --git-common-dir 子程序失敗、或非 linked worktree），或目標不在主工作區 root 內時，
+// 回傳 (false, "") 維持放行；唯有目標可證明落在主工作區 root 內時回傳 (true, reason)，reason 穩定
+// 包含 "main workspace" 與 "outside current worktree" 供上層匹配。
+func mainWorkspaceDeny(cwd, rawPath string) (bool, string) {
+	mainRoot, ok := gitops.MainWorkspaceRoot(cwd)
+	if !ok {
+		return false, ""
+	}
+	abs := rawPath
+	if !filepath.IsAbs(abs) {
+		abs = filepath.Join(cwd, rawPath)
+	}
+	if !pathWithinRoot(mainRoot, abs) {
+		return false, ""
+	}
+	reason := fmt.Sprintf("refusing write to %q: inside main workspace root %q but outside current worktree — a 4x role agent may only write within its own worktree, not the main workspace's same-named repo",
+		filepath.Clean(abs), mainRoot)
+	return true, reason
+}
+
+// pathWithinRoot 判定 target 是否落在 root 內部（不含 root 自身）。
+// 兩邊先以 realpathBestEffort 解析 symlink，消除 macOS /var → /private/var 等字面差異，
+// 避免因 root（已 EvalSymlinks）與 target（可能是 raw 絕對路徑）表面不同而漏判。
+func pathWithinRoot(root, target string) bool {
+	root = realpathBestEffort(root)
+	target = realpathBestEffort(target)
+	rel, err := filepath.Rel(root, target)
+	if err != nil {
+		return false
+	}
+	rel = filepath.ToSlash(rel)
+	if rel == "." {
+		return false // target == root 本身，不是內部檔案
+	}
+	return rel != ".." && !strings.HasPrefix(rel, "../")
+}
+
+// realpathBestEffort 解析 path 的 symlink；path 本身不存在時（如尚未建立的寫入目標檔），
+// 解析其存在的最長祖先目錄再接回剩餘相對段，仍能消除路徑前段的 symlink 差異。
+func realpathBestEffort(path string) string {
+	path = filepath.Clean(path)
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		return resolved
+	}
+	dir := path
+	var tail []string
+	for {
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return path // 走到根仍無法解析
+		}
+		tail = append([]string{filepath.Base(dir)}, tail...)
+		dir = parent
+		if resolved, err := filepath.EvalSymlinks(dir); err == nil {
+			return filepath.Join(append([]string{resolved}, tail...)...)
+		}
+	}
 }
 
 // resolvePathFeatureID 依序解析目標 feature-id：位置參數 → FOURX_FEATURE_ID env →

@@ -12,6 +12,10 @@ type WorktreeInfo struct {
 	// IsLinked 為 true 表示這是 git worktree add 產生的 linked worktree；
 	// false 表示主工作區（main working tree）。
 	IsLinked bool
+	// CommonDir 是已正規化（絕對 + EvalSymlinks）的 git common dir（linked worktree 指向
+	// 主工作區的 .git）。dir 非 git repo 時為空字串。MainWorkspaceRoot 以此推導主工作區 root，
+	// 避免重複一份 linkage 判定。
+	CommonDir string
 }
 
 // DetectWorktree 偵測 dir 所屬的 git worktree，回傳其 top-level 根目錄與是否為 linked worktree。
@@ -30,9 +34,30 @@ func DetectWorktree(dir string) (WorktreeInfo, bool) {
 	}
 	gitDir := gitOutput(dir, "rev-parse", "--git-dir")
 	commonDir := gitOutput(dir, "rev-parse", "--git-common-dir")
+	var resolvedCommon string
+	if commonDir != "" {
+		resolvedCommon = resolveGitPath(dir, commonDir)
+	}
 	isLinked := gitDir != "" && commonDir != "" &&
-		resolveGitPath(dir, gitDir) != resolveGitPath(dir, commonDir)
-	return WorktreeInfo{Root: top, IsLinked: isLinked}, true
+		resolveGitPath(dir, gitDir) != resolvedCommon
+	return WorktreeInfo{Root: top, IsLinked: isLinked, CommonDir: resolvedCommon}, true
+}
+
+// MainWorkspaceRoot 回傳 dir 所屬 linked worktree 對應的「主工作區 root」（main working tree 根目錄）。
+//
+// 判定方式：委派 DetectWorktree 取得已正規化的 common dir 與 linkage 判定（避免第二份重複判定），
+// 對 linked worktree 取其 CommonDir 的上一層即主工作區 root。dir 本身就是主工作區（git-dir ==
+// common-dir、非 linked worktree）時回傳 ok=false。
+//
+// fail-open 邊界：本 API 只提供「可證明的主工作區 root」。dir 非 git repo、git 不在 PATH、或
+// git rev-parse 子程序失敗時，DetectWorktree 回 ok=false 或 IsLinked=false，本函式回 ok=false；
+// 呼叫端在 ok=false 時必須維持原本放行（不得阻斷工具），僅在 ok=true 時才據以做 fail-closed deny。
+func MainWorkspaceRoot(dir string) (string, bool) {
+	info, ok := DetectWorktree(dir)
+	if !ok || !info.IsLinked {
+		return "", false // 非 git repo / git 失敗 / 主工作區本身（非 linked worktree）
+	}
+	return filepath.Dir(info.CommonDir), true
 }
 
 // ScopeRoot 回傳掃描 feature scope 變更時應使用的根目錄。

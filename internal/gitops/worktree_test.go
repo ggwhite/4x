@@ -71,6 +71,37 @@ func TestDetectWorktree_NotGitRepo(t *testing.T) {
 	}
 }
 
+// TestMainWorkspaceRoot 驗證 MainWorkspaceRoot 在 linked worktree 回傳主工作區 root，
+// 在主工作區本身回 ok=false（F170 fail-open 硬化的核心 API）。
+func TestMainWorkspaceRoot(t *testing.T) {
+	root, _, ops := setupMonoWorkspace(t)
+
+	// 主工作區本身：git-dir == common-dir → ok=false。
+	if got, ok := MainWorkspaceRoot(root); ok {
+		t.Errorf("main working tree should return ok=false, got %q", got)
+	}
+
+	wtPath, err := ops.SetupWorktree("feat-mwr", nil)
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+	got, ok := MainWorkspaceRoot(wtPath)
+	if !ok {
+		t.Fatal("linked worktree should resolve a main workspace root")
+	}
+	if !sameRealPath(t, got, root) {
+		t.Errorf("MainWorkspaceRoot = %q, want %q", got, root)
+	}
+}
+
+// TestMainWorkspaceRoot_NotGitRepo 驗證非 git repo 目錄回 ok=false（維持 fail-open）。
+func TestMainWorkspaceRoot_NotGitRepo(t *testing.T) {
+	dir := t.TempDir()
+	if got, ok := MainWorkspaceRoot(dir); ok {
+		t.Errorf("non-git dir should return ok=false, got %q", got)
+	}
+}
+
 // TestMonoRepo_DetectChangedRepos_WorktreeScoped 是 F077 的核心回歸測試：
 // main workspace 有 out-of-scope 的未提交變更，feature 的變更在 worktree 內；
 // DetectChangedRepos 必須只回報 worktree 內的變更，不誤報 main 的變更。

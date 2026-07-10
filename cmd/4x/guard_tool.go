@@ -29,7 +29,8 @@ var writeToolNames = map[string]bool{
 // newGuardToolCmd 建立隱藏指令 `4x guard-tool`，供 claude runner 注入的 PreToolUse hook 呼叫。
 // 從 stdin 讀 Claude Code hook JSON、從 env 讀 FOURX_ROLE / FOURX_REVIEW_PACKAGE，分派：
 //   - Bash → 對 reviewer/deep-reviewer 自跑的 git diff/log/show 回傳 deny 引導改讀 review-package.md。
-//   - Edit/Write/MultiEdit → 依當前 role 對越界 / 非法寫入 source 回傳 deny（role-scope 即時 gate）。
+//   - Edit/Write/MultiEdit → 依當前 role 對越界 / 非法寫入 source 回傳 deny（role-scope 即時 gate）；
+//     另對目標落在目前 worktree root 外、但可證明落在主工作區 root 內的寫入亦回傳 deny（見 evaluateWriteHook → mainWorkspaceDeny）。
 //
 // 任何 parse / 讀取失敗一律放行（exit 0，不阻斷），維持既有 fail-open 慣例。
 func newGuardToolCmd() *cobra.Command {
@@ -65,7 +66,9 @@ func newGuardToolCmd() *cobra.Command {
 }
 
 // evaluateWriteHook 對 Edit/Write/MultiEdit 的目標檔案跑 role-scope 寫入判定。
-// 一律 fail-open：任何錯誤（非 4x 專案、無法解析 feature、無 state.json、路徑在 workspace 外）→ 放行。
+// fail-open 邊界：讀取失敗（非 4x 專案、無法解析 feature、無 state.json）一律放行；目標落在
+// 目前 worktree root 外時，改與 runCheckPath 共用 mainWorkspaceDeny：可證明落在主工作區 root 內
+// 才回 (true, reason) 讓 emitDeny 產生 deny，否則（含 git 偵測失敗）仍回 (false, "") 放行。
 func evaluateWriteHook(filePath string) (bool, string) {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -84,7 +87,7 @@ func evaluateWriteHook(filePath string) (bool, string) {
 	}
 	relPath, ok := relWithinWorkspace(ws.Root, cwd, filePath)
 	if !ok {
-		return false, ""
+		return mainWorkspaceDeny(cwd, filePath)
 	}
 	return guard.EvaluateWritePathForRun(ws, featureID, relPath)
 }
