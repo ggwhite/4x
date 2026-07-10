@@ -101,6 +101,17 @@ Use the Write tool. Do NOT just print the content — write to disk.
 
 {{.ProfileArtifactSection}}
 {{- end}}
+{{- if .StaleReport}}
+
+== ⚠ MANDATORY — STALE REPORT DETECTED (resume) ==
+偵測到磁碟上已存在本階段報告 {{.StaleReport.ReportName}}（mtime {{.StaleReport.ReportModTime}}），
+但它早於本輪最新一次程式碼變更 {{.StaleReport.CodeChangeName}}（mtime {{.StaleReport.CodeChangeModTime}}）。
+這代表既有報告是在最新程式碼變更「之前」產出的，其結論可能已過期。你必須：
+1. 重新檢視當前程式碼/diff 的實際狀態，不可僅因報告檔已存在就沿用舊結論。
+2. 明確判斷既有結論是否仍成立。
+3. 若已不成立，重新產出本階段報告（覆寫該檔），使其反映最新程式碼。
+這是強制要求，不是建議。
+{{- end}}
 
 == Inputs (you MUST read ALL of these) ==
 {{- if .SkippedDesigner}}

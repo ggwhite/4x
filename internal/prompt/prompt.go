@@ -83,6 +83,9 @@ type Data struct {
 	// ProfileArtifactSection 是 profile-aware 產出物契約段落（僅 6 個執行角色注入），
 	// 由 FormatProfileArtifactSection 產生；不注入時為空，template 據此省略整段。
 	ProfileArtifactSection string
+	// StaleReport 非 nil 時代表 resume 情境偵測到本階段報告 mtime 落後本輪最新程式碼變更，
+	// 供 template 注入強制警示；首次執行（報告不存在）或報告較新時為 nil，渲染與現況一致。
+	StaleReport *StaleReportInfo
 }
 
 // IncludeContent 是一個被載入的檔案內容，含路徑與內文。
@@ -210,6 +213,9 @@ func Generate(ctx *Context, role protocol.Role, round, iteration int, runnerName
 			data.ProfileArtifactSection = FormatProfileArtifactSection(profileName, pc, role)
 		}
 	}
+	// F172：resume 情境下偵測本階段報告 mtime 是否落後本輪最新程式碼變更（coder/fixer-report），
+	// 若落後則注入 StaleReport 供 template 渲染強制警示；非目標角色或無基準時為 nil，渲染與現況一致。
+	data.StaleReport = detectStaleReport(ws, feature.ID, role, round)
 	for _, opt := range opts {
 		opt(&data)
 	}
