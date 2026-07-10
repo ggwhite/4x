@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.1] - 2026-07-10
+
+### Features
+
+- **Proto/interface fan-out repo 偵測 gate** — F171：新增 gate 自動偵測變更的 proto/interface 定義檔，掃描下游 repo 是否有未同步更新的呼叫端
+- **Resume 過期報告偵測** — F172：resume 時比對 report mtime 與最新程式碼變更時間，偵測「報告落後於程式碼」的過期狀態並提示重新產出
+- **Dashboard codex 額度百分比** — F173：dashboard 顯示 codex CLI 的額度使用百分比
+
+### Fixes
+
+- **Proto-fanout gate worktree 可見度落差** — F174：修正 gate 在 worktree 內看不到未 provision 的 sibling repo，改用 origin(main) workspace root 定位真實路徑，無法定位者改標「無法驗證」警告而非靜默略過
+- **Worktree 路徑安全 fail-open 硬化** — F170：收斂 worktree 路徑解析在異常情境下的 fail-open 行為
+- **stuckTitleText 字串前綴嗅探反模式** — F175：`stuckReason` 改用顯式 `(reason, generic bool)` 訊號取代字串前綴比對，避免 fallback 文案改字後控制流靜默失效
+- **Dashboard 顯示 bug 三則** — 修正 log 檢視重複顯示、post-scaffold 排序錯誤與缺圖示問題
+- **Monorepo scope gate 誤擋** — 移除 F170/F171/F172/F173 誤填的 `repos: ["."]`，解除因此觸發的誤擋
+- **codex quiet 模式 log 亂碼** — codex 非-PTY 輸出路徑補套用 `ansiStripper`，避免 dashboard/SSE 顯示殘留 ANSI 方框亂碼
+- **Reviewer/Tester 假驗證防範 checklist** — 補三項驗證品質 checklist：escalation self-close 需重跑驗證指令、偵測測試斷言鏡射實作/手動歸零狀態等假驗證反模式、Design Reviewer 引用需 grep/codegraph 核實
+- **Worktree 腳本執行位元遺失** — `copyFileIfExists` 保留來源檔案權限，避免腳本複製後遺失執行位元
+
 ## [0.5.0] - 2026-07-10
 
 ### Features
