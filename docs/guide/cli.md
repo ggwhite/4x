@@ -222,16 +222,16 @@ Reject a `draft` feature produced by enriched auto-discover, transitioning it `d
 
 Recover a feature stuck in `needs-attention` or `blocked` by transitioning it back to a working phase, then immediately launching `4x run`. Equivalent to `4x transition --to <phase> <id> && 4x run <id>`.
 
-Default target phase is `accepting` (re-run the Acceptor after the human fixes issues). Use `--to` to target a different phase.
+When `--to` is omitted, the target phase is **auto-detected** from the `role` recorded in `state.json` — the role that was stuck before the feature entered `needs-attention`/`blocked` is mapped back to its working phase (e.g. `role: designer` → `designing`; `role: coder` → `coding` or `amending` depending on round). When auto-detection succeeds, it prints `auto-detected target phase from role "<role>": <phase>` before launching. If the role cannot be mapped (empty or unknown), it falls back to `accepting`. Passing `--to <phase>` explicitly overrides auto-detection.
 
 ```
-4x retry F042-some-feature
+4x retry F042-some-feature              # auto-detect target phase from state.json role
 4x retry F042-some-feature --to amending
 ```
 
 | Flag | Description |
 |------|-------------|
-| `--to <phase>` | Target phase to recover to (default: `accepting`) |
+| `--to <phase>` | Target phase to recover to (default: auto-detect from `state.json` role, falling back to `accepting`) |
 
 The phase set by a manual `transition` / `retry --to <phase>` is respected by the subsequent `4x run` recovery: it is marked with a `manualPhase` flag so `SmartResumePhase` does not override it back to an earlier phase derived from on-disk artifacts. This means `retry --to deep-reviewing` actually resumes at `deep-reviewing` instead of being pulled back to `coding`.
 

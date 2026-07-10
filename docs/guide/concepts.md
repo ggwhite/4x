@@ -212,6 +212,8 @@ init → designing → design-reviewing → coding → reviewing → testing →
 | `needs-attention` | `designing`, `design-reviewing`, `coding`, `fixing`, `testing` |
 | any | `blocked`, `needs-attention`, `done`, `abandoned` |
 
+`4x retry` without `--to` reverses the role→phase mapping (`RoleToPhase` in `internal/state/machine.go`) to recover the exact phase that was stuck before the feature entered `needs-attention`/`blocked`: it reads the `role` recorded in `state.json` and maps it back to that role's working phase (the coder role disambiguates `coding` vs `amending` by round — `round <= 1` → `coding`, otherwise `amending`). If the role cannot be mapped (empty or unknown), it falls back to `accepting`.
+
 ### Round Counter
 
 - Entering `coding` when round is 0 sets round to 1

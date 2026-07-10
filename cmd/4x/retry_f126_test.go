@@ -29,7 +29,7 @@ func TestRetry_AfterDeferRunCleanupFallback(t *testing.T) {
 	// 模擬 process 中斷：DeferRunCleanup 的兜底邏輯將 state 標為 needs-attention。
 	orchestrator.DeferRunCleanup(ws, "feat-retry-defer")
 
-	newState, from, err := retryTransition(ws, "feat-retry-defer", protocol.PhaseAccepting)
+	newState, from, _, err := retryTransition(ws, "feat-retry-defer", protocol.PhaseAccepting)
 	if err != nil {
 		t.Fatalf("retryTransition should succeed after DeferRunCleanup fallback, got error: %v", err)
 	}

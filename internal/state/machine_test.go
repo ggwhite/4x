@@ -247,6 +247,42 @@ func TestPhaseToRole(t *testing.T) {
 	}
 }
 
+// TestRoleToPhase 驗證 RoleToPhase 反向查表：非 coder role 與 round 無關（AC-1）、
+// coder 依 round 消歧 coding/amending（AC-2）、空/未知 role 回空 Phase（AC-3）。
+func TestRoleToPhase(t *testing.T) {
+	tests := []struct {
+		name  string
+		role  protocol.Role
+		round int
+		want  protocol.Phase
+	}{
+		// 非 coder role：與 round 無關（各測一個任意 round）。
+		{"designer", protocol.RoleDesigner, 0, protocol.PhaseDesigning},
+		{"design-reviewer", protocol.RoleDesignReviewer, 5, protocol.PhaseDesignReviewing},
+		{"reviewer", protocol.RoleReviewer, 2, protocol.PhaseReviewing},
+		{"deep-reviewer", protocol.RoleDeepReviewer, 3, protocol.PhaseDeepReviewing},
+		{"tester", protocol.RoleTester, 1, protocol.PhaseTesting},
+		{"fixer", protocol.RoleFixer, 4, protocol.PhaseFixing},
+		{"acceptor", protocol.RoleAcceptor, 0, protocol.PhaseAccepting},
+		// coder：round<=1 → coding；round>=2 → amending。
+		{"coder-round0", protocol.RoleCoder, 0, protocol.PhaseCoding},
+		{"coder-round1", protocol.RoleCoder, 1, protocol.PhaseCoding},
+		{"coder-round2", protocol.RoleCoder, 2, protocol.PhaseAmending},
+		{"coder-round3", protocol.RoleCoder, 3, protocol.PhaseAmending},
+		// 空／未知 role → 空 Phase。
+		{"empty", "", 1, ""},
+		{"unknown", "nonsense", 1, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := RoleToPhase(tt.role, tt.round)
+			if got != tt.want {
+				t.Errorf("RoleToPhase(%q, %d) = %q, want %q", tt.role, tt.round, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestCanTransition_TerminalCannotTransitionOut 驗證 done／abandoned 為不可逆終態，
 // 任何轉出（含 universal target）都不合法。
 func TestCanTransition_TerminalCannotTransitionOut(t *testing.T) {

@@ -130,6 +130,43 @@ func PhaseToRole(p protocol.Phase) protocol.Role {
 	}
 }
 
+// RoleToPhase 是 PhaseToRole 的反向查表：由卡住前的 role 反推其對應的工作 phase，
+// 供 `4x retry` 未帶 --to 時自動偵測復原目標使用。
+//
+// coder 對應 coding 與 amending 兩個 phase，需以 round 消歧（依 Transition 的 round
+// 副作用反推）：
+//   - round <= 1：首個 coding round（Transition 首次進 coding 會把 Round 0 設為 1），
+//     或 round 尚未被遞增的 0 值，皆回 PhaseCoding。
+//   - round >= 2：已 amend 過（每次進 amending 會 Round++），回 PhaseAmending。
+//
+// 其餘 role 與 round 無關，一對一反推。空字串或未知 role 回空 Phase("")，
+// 代表算不出對應 phase，呼叫端應自行 fallback（例如 retry 退回 accepting）。
+func RoleToPhase(role protocol.Role, round int) protocol.Phase {
+	switch role {
+	case protocol.RoleDesigner:
+		return protocol.PhaseDesigning
+	case protocol.RoleDesignReviewer:
+		return protocol.PhaseDesignReviewing
+	case protocol.RoleReviewer:
+		return protocol.PhaseReviewing
+	case protocol.RoleDeepReviewer:
+		return protocol.PhaseDeepReviewing
+	case protocol.RoleTester:
+		return protocol.PhaseTesting
+	case protocol.RoleFixer:
+		return protocol.PhaseFixing
+	case protocol.RoleAcceptor:
+		return protocol.PhaseAccepting
+	case protocol.RoleCoder:
+		if round <= 1 {
+			return protocol.PhaseCoding
+		}
+		return protocol.PhaseAmending
+	default:
+		return ""
+	}
+}
+
 // MaxGuardRetries 是跨 round 的 guard retry 上限。
 // 超過時不再自動重試，直接進 needs-attention。
 const MaxGuardRetries = 2

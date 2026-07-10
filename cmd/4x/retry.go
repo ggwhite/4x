@@ -19,8 +19,10 @@ func newRetryCmd() *cobra.Command {
 		Long: `Transition the feature from needs-attention or blocked back to a working phase,
 then immediately run the loop. Equivalent to 'transition --to <phase> && run'.
 
-Default target phase is 'accepting' (re-run the Acceptor after fixing issues).
-Use --to to target a different phase, e.g. --to amending to go back to coding.`,
+When --to is omitted, the target phase is auto-detected from the role recorded in
+state.json (the role that was stuck before entering needs-attention/blocked); if it
+cannot be derived, it falls back to 'accepting'. Use --to to force a specific phase,
+e.g. --to amending to go back to coding.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
@@ -37,17 +39,16 @@ Use --to to target a different phase, e.g. --to amending to go back to coding.`,
 				return err
 			}
 
-			target := protocol.Phase(toPhase)
-			if target == "" {
-				target = protocol.PhaseAccepting
-			}
-
-			newState, from, err := retryTransition(ws, featureID, target)
+			// 未帶 --to 時傳空 Phase，交由 retryTransition 在臨界區內依 cur.Role 自動偵測。
+			newState, from, autodetected, err := retryTransition(ws, featureID, protocol.Phase(toPhase))
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("%s → %s, launching run...\n", from, target)
+			if autodetected {
+				fmt.Printf("auto-detected target phase from role %q: %s\n", newState.Role, newState.Phase)
+			}
+			fmt.Printf("%s → %s, launching run...\n", from, newState.Phase)
 
 			exe, err := os.Executable()
 			if err != nil {
@@ -62,25 +63,48 @@ Use --to to target a different phase, e.g. --to amending to go back to coding.`,
 		},
 	}
 
-	cmd.Flags().StringVar(&toPhase, "to", "", "target phase to recover to (default: accepting)")
+	cmd.Flags().StringVar(&toPhase, "to", "", "target phase to recover to (default: auto-detect from state.json role, fallback accepting)")
 	return cmd
 }
 
-// retryTransition 從 needs-attention / blocked 轉回目標 phase，回傳新 state 與原始 phase。
+// retryTransition 從 needs-attention / blocked 轉回目標 phase，回傳新 state、原始 phase 與是否自動偵測。
+//
+// explicitTarget 為空字串代表呼叫端未帶 --to，需在 UpdateState 臨界區內用最新磁碟值
+// （cur.Role / cur.Round）自動偵測 target；反推不出（RoleToPhase 回 ""）才 fallback accepting。
+// 第三個回傳值 autodetected 僅在「未帶 explicitTarget 且成功由 role 推導」時為 true；
+// 帶 explicitTarget 或走 fallback accepting 時皆為 false。
+//
 // 供測試直接呼叫，不含 exec 邏輯。
-func retryTransition(ws *protocol.Workspace, featureID string, target protocol.Phase) (protocol.State, protocol.Phase, error) {
-	toRole := state.PhaseToRole(target)
-	// fromPhase 在 mutate 內以最新磁碟值填入，供回傳與訊息使用。
-	var fromPhase protocol.Phase
+func retryTransition(ws *protocol.Workspace, featureID string, explicitTarget protocol.Phase) (protocol.State, protocol.Phase, bool, error) {
+	// fromPhase / resolvedTarget / toRole / autodetected 在 mutate 內以最新磁碟值填入，
+	// 供 closure 外的 SyncFeatureStatus / AppendEvent 與回傳使用。
+	var (
+		fromPhase      protocol.Phase
+		resolvedTarget protocol.Phase
+		toRole         protocol.Role
+		autodetected   bool
+	)
 	newState, err := ws.UpdateState(featureID, func(cur *protocol.State) error {
 		// 守衛以臨界區內讀到的最新磁碟值重判，避免依舊快照放行。
 		if cur.Phase != protocol.PhaseNeedsAttention && cur.Phase != protocol.PhaseBlocked {
 			return fmt.Errorf("retry only works from needs-attention or blocked (current phase: %s)", cur.Phase)
 		}
 		fromPhase = cur.Phase
-		transitioned, terr := state.Transition(*cur, target, toRole)
+		// target 解析下沉進臨界區：未帶 --to 時用 cur.Role / cur.Round 的最新磁碟值
+		// 自動偵測，反推不出才 fallback accepting。
+		resolvedTarget = explicitTarget
+		if resolvedTarget == "" {
+			if p := state.RoleToPhase(cur.Role, cur.Round); p != "" {
+				resolvedTarget = p
+				autodetected = true
+			} else {
+				resolvedTarget = protocol.PhaseAccepting
+			}
+		}
+		toRole = state.PhaseToRole(resolvedTarget)
+		transitioned, terr := state.Transition(*cur, resolvedTarget, toRole)
 		if terr != nil {
-			return fmt.Errorf("cannot transition %s → %s: %w", cur.Phase, target, terr)
+			return fmt.Errorf("cannot transition %s → %s: %w", cur.Phase, resolvedTarget, terr)
 		}
 		transitioned.Active = true
 		// 人為介入旗標：child 的 4x run recovery 要尊重此手動 phase，
@@ -90,18 +114,18 @@ func retryTransition(ws *protocol.Workspace, featureID string, target protocol.P
 		return nil
 	})
 	if err != nil {
-		return protocol.State{}, "", err
+		return protocol.State{}, "", false, err
 	}
 
-	if err := ws.SyncFeatureStatus(featureID, target); err != nil {
+	if err := ws.SyncFeatureStatus(featureID, resolvedTarget); err != nil {
 		_ = err
 	}
 	ws.AppendEvent(featureID, protocol.Event{
-		Phase: target,
+		Phase: resolvedTarget,
 		Type:  "transition",
 		Role:  toRole,
 		Round: newState.Round,
 	})
 
-	return newState, fromPhase, nil
+	return newState, fromPhase, autodetected, nil
 }
