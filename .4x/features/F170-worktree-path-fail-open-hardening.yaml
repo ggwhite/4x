@@ -25,7 +25,7 @@ description: |-
       效能影響，不可讓每次工具呼叫都變慢到無法接受。
     - 需新增涵蓋「目標路徑落在 workspace 外」分支的測試（真實 git worktree fixture，而非純檔案
       fixture）——這個分支目前測試涵蓋是 0，是本次修復必須補上的既有測試死角。
-status: in-progress
+status: done
 priority: 0
 profile: full
 subtasks:
