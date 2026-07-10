@@ -98,34 +98,52 @@ func gitOutput(dir string, args ...string) string {
 	return strings.TrimSpace(string(out))
 }
 
+// untrackedFiles 回傳 dir 內尚未加入 git 版控的檔案相對路徑清單
+// （git ls-files --others --exclude-standard），供 ChangedPaths 與 changedFilesIn 共用，
+// 避免兩處各自重跑同一條指令（見 code review 對 Finding [8] 修復的複查發現）。
+// 指令失敗時回傳 nil，呼叫端視同無 untracked 變更，容錯語意與呼叫端原本一致。
+func untrackedFiles(dir string) []string {
+	cmd := exec.Command("git", "ls-files", "--others", "--exclude-standard")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+	var lines []string
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if line != "" {
+			lines = append(lines, line)
+		}
+	}
+	return lines
+}
+
 // ChangedPaths 回傳 dir（一個 git 工作目錄）內 tracked+untracked 變更檔案的相對路徑清單
-// （git diff --name-only HEAD ∪ git ls-files --others --exclude-standard）。只回路徑、不含
-// 行數，供只需要「哪些檔案變了」的呼叫端（scope-violation 偵測、symlink 偵測等）共用同一份
-// git 偵測邏輯，取代各自重新實作同一組指令、日後各自漂移（見 code review Finding [8]）。
+// （git diff --name-only HEAD ∪ untrackedFiles）。只回路徑、不含行數，供只需要「哪些檔案變了」
+// 的呼叫端（scope-violation 偵測、symlink 偵測等）共用同一份 git 偵測邏輯，取代各自重新實作
+// 同一組指令、日後各自漂移（見 code review Finding [8]）。
 // 兩條指令各自獨立容錯，單一失敗不影響另一條已找到的變更，與 changedFilesIn 語意一致。
 func ChangedPaths(dir string) []string {
 	var paths []string
 	seen := make(map[string]bool)
-	collect := func(out []byte) {
-		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-			if line == "" || seen[line] {
-				continue
-			}
-			seen[line] = true
-			paths = append(paths, line)
+	add := func(line string) {
+		if line == "" || seen[line] {
+			return
 		}
+		seen[line] = true
+		paths = append(paths, line)
 	}
 
 	diffCmd := exec.Command("git", "diff", "--name-only", "HEAD")
 	diffCmd.Dir = dir
 	if out, err := diffCmd.Output(); err == nil {
-		collect(out)
+		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			add(line)
+		}
 	}
 
-	untrackedCmd := exec.Command("git", "ls-files", "--others", "--exclude-standard")
-	untrackedCmd.Dir = dir
-	if out, err := untrackedCmd.Output(); err == nil {
-		collect(out)
+	for _, line := range untrackedFiles(dir) {
+		add(line)
 	}
 
 	return paths
@@ -133,9 +151,9 @@ func ChangedPaths(dir string) []string {
 
 // changedFilesIn 回傳 dir（一個 git 工作目錄）內的檔案層變更清單。
 // tracked 變更取自 git diff --numstat HEAD（added+deleted 行數，binary 顯示為 "-" 時計 0）；
-// untracked 新檔取自 git ls-files --others --exclude-standard，行數為檔案總行數。
+// untracked 新檔取自 untrackedFiles，行數為檔案總行數。
 // pathPrefix 會被加在每個回傳 Path 之前（multi-repo 用 repo 名稱前綴；mono 傳空字串）。
-// 兩條指令各自獨立容錯，單一失敗不影響另一條已找到的變更（與 DetectChangedRepos 一致）。
+// 兩段各自獨立容錯，單一失敗不影響另一段已找到的變更（與 DetectChangedRepos 一致）。
 func changedFilesIn(dir, pathPrefix string) []protocol.ChangedFile {
 	var files []protocol.ChangedFile
 
@@ -157,16 +175,9 @@ func changedFilesIn(dir, pathPrefix string) []protocol.ChangedFile {
 		}
 	}
 
-	untrackedCmd := exec.Command("git", "ls-files", "--others", "--exclude-standard")
-	untrackedCmd.Dir = dir
-	if out, err := untrackedCmd.Output(); err == nil {
-		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-			if line == "" {
-				continue
-			}
-			lines := CountFileLines(filepath.Join(dir, line))
-			files = append(files, protocol.ChangedFile{Path: pathPrefix + line, Lines: lines})
-		}
+	for _, line := range untrackedFiles(dir) {
+		lines := CountFileLines(filepath.Join(dir, line))
+		files = append(files, protocol.ChangedFile{Path: pathPrefix + line, Lines: lines})
 	}
 
 	return files
