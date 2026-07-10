@@ -17,7 +17,7 @@ description: |-
     - 不改變 retry 以外的任何命令（`transition`、`run --phase-override` 等）
     - 不新增外部依賴
     - 保留 retry.go 現有的 `retryTransition` 可被測試直接呼叫（不含 exec 邏輯）的介面設計
-status: not-started
+status: done
 priority: 3
 profile: normal
 subtasks:
