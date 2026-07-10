@@ -205,3 +205,22 @@ func TestCheck_SelfModProdOverBudgetWithTests(t *testing.T) {
 		t.Errorf("prod lines over budget must still fail, errors: %v", r.Errors)
 	}
 }
+
+// TestCheck_SelfModTestFilesHaveOwnBudget 是 Finding [4] 的回歸測試：*_test.go 不計入
+// production diff budget，但仍有獨立上限（testDiffLinesMultiplier 倍），避免受保護路徑下
+// 的大量未受嚴審變更完全以測試檔名夾帶、繞過 diff-budget 硬擋。
+func TestCheck_SelfModTestFilesHaveOwnBudget(t *testing.T) {
+	ws := prepCodingWorkspace(t, "feat-testoverbudget")
+	ops := &fakeSelfModOps{files: []protocol.ChangedFile{
+		{Path: "internal/state/machine_test.go", Lines: DefaultSelfModMaxDiffLines*testDiffLinesMultiplier + 1},
+	}}
+
+	r := Check(ws, "feat-testoverbudget", ops)
+
+	if r.Pass {
+		t.Error("test-file diff exceeding its own (multiplier x production) budget must still fail")
+	}
+	if !hasError(r.Errors, "test budget") {
+		t.Errorf("expected explicit test-budget error, got: %v", r.Errors)
+	}
+}

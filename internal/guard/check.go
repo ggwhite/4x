@@ -551,7 +551,11 @@ func checkACChecksConsistency(expectedCmds []string, ac protocol.ACEvidence, r *
 		r.RetryableErrors++
 		interrupted := false
 		for _, c := range ac.Checks {
-			if c.Error != "" && !c.Skipped && c.ExitCode != 0 {
+			if c.Error == "blocked" && !c.Skipped && c.ExitCode != 0 {
+				interrupted = true
+				r.Errors = append(r.Errors, fmt.Sprintf(
+					"%s: check %q was blocked by verify_command_allowlist — not a code failure, retrying will never succeed; add an allowed prefix for this command in test-strategy.yaml or rewrite it without shell substitution/redirection", ac.ID, c.Command))
+			} else if c.Error != "" && !c.Skipped && c.ExitCode != 0 {
 				interrupted = true
 				r.Errors = append(r.Errors, fmt.Sprintf(
 					"%s: check %q did not finish (%s) — not a code failure; re-run 4x verify with a larger --timeout", ac.ID, c.Command, c.Error))
@@ -861,31 +865,14 @@ func testingHasRun(ws *protocol.Workspace, featureID string) bool {
 func detectChangedRepos(root string) []string {
 	repoSet := make(map[string]bool)
 
-	collect := func(out []byte) {
-		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-			if line == "" {
-				continue
-			}
-			parts := strings.SplitN(line, "/", 2)
-			// 根目錄檔案（go.mod、Makefile 等，路徑無 "/"）不是 repo，
-			// 不可當成 repo 名稱比對，否則會誤判 scope violation。
-			if len(parts) < 2 {
-				continue
-			}
-			repoSet[parts[0]] = true
+	for _, line := range gitops.ChangedPaths(root) {
+		parts := strings.SplitN(line, "/", 2)
+		// 根目錄檔案（go.mod、Makefile 等，路徑無 "/"）不是 repo，
+		// 不可當成 repo 名稱比對，否則會誤判 scope violation。
+		if len(parts) < 2 {
+			continue
 		}
-	}
-
-	diffCmd := exec.Command("git", "diff", "--name-only", "HEAD")
-	diffCmd.Dir = root
-	if out, err := diffCmd.Output(); err == nil {
-		collect(out)
-	}
-
-	untrackedCmd := exec.Command("git", "ls-files", "--others", "--exclude-standard")
-	untrackedCmd.Dir = root
-	if out, err := untrackedCmd.Output(); err == nil {
-		collect(out)
+		repoSet[parts[0]] = true
 	}
 
 	var repos []string
@@ -955,32 +942,42 @@ func runGroupsAcrossRoots(ctx context.Context, groups []verify.Group, roots []st
 	return merged, warns
 }
 
-// checkBuildGate 在 coding/amending phase 時執行 settings.json 的 build + lint 指令，
-// 結果寫入 build-gate.json。非 coding/amending phase 時不執行。
-func checkBuildGate(ws *protocol.Workspace, featureID string, r *CheckResult) {
+// runGateCheck 是 checkBuildGate/checkDocsGate 共用的骨架：讀 state、確認 coding/amending
+// phase、讀 config、用 resolveGroups 算出要跑的驗證分組、建 round dir、以 3 分鐘 timeout
+// 跑完寫出 outFile。resolveGroups 失敗時是否記 warn 由 warnOnGroupsErr 決定——build-gate
+// 視為設定錯誤要 warn，docs-gate 的 docs_check 未設定屬正常 opt-in，靜默略過。
+// 回傳 (evidence, ok)：ok=false 時呼叫端應直接 return（訊息已寫入 r.Warns 或已靜默處理，
+// 失敗判定與回報方式由呼叫端自行決定，因為 build-gate 是阻塞的 Pass=false、docs-gate 只 Warn）。
+func runGateCheck(
+	ws *protocol.Workspace, featureID, gateName, outFile string, r *CheckResult,
+	resolveGroups func(protocol.ProjectConfig) ([]verify.Group, error),
+	warnOnGroupsErr bool,
+) (protocol.VerifyEvidence, bool) {
 	state, err := ws.ReadState(featureID)
 	if err != nil {
-		return
+		return protocol.VerifyEvidence{}, false
 	}
 	if state.Phase != protocol.PhaseCoding && state.Phase != protocol.PhaseAmending {
-		return
+		return protocol.VerifyEvidence{}, false
 	}
 
 	cfg, err := ws.ReadConfig()
 	if err != nil {
-		r.Warns = append(r.Warns, fmt.Sprintf("build-gate: cannot read settings.json: %v", err))
-		return
+		r.Warns = append(r.Warns, fmt.Sprintf("%s: cannot read settings.json: %v", gateName, err))
+		return protocol.VerifyEvidence{}, false
 	}
-	groups, err := verify.BuildGateGroups(cfg.Project)
+	groups, err := resolveGroups(cfg.Project)
 	if err != nil {
-		r.Warns = append(r.Warns, fmt.Sprintf("build-gate: %v", err))
-		return
+		if warnOnGroupsErr {
+			r.Warns = append(r.Warns, fmt.Sprintf("%s: %v", gateName, err))
+		}
+		return protocol.VerifyEvidence{}, false
 	}
 
 	roundDir := ws.RoundDir(featureID, state.Round)
 	if err := os.MkdirAll(roundDir, 0o755); err != nil {
-		r.Warns = append(r.Warns, fmt.Sprintf("build-gate: cannot create round dir: %v", err))
-		return
+		r.Warns = append(r.Warns, fmt.Sprintf("%s: cannot create round dir: %v", gateName, err))
+		return protocol.VerifyEvidence{}, false
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
@@ -993,15 +990,25 @@ func checkBuildGate(ws *protocol.Workspace, featureID string, r *CheckResult) {
 
 	data, err := json.MarshalIndent(evidence, "", "  ")
 	if err != nil {
-		r.Warns = append(r.Warns, fmt.Sprintf("build-gate: marshal error: %v", err))
-		return
+		r.Warns = append(r.Warns, fmt.Sprintf("%s: marshal error: %v", gateName, err))
+		return protocol.VerifyEvidence{}, false
 	}
-	outPath := filepath.Join(roundDir, protocol.BuildGateFile)
+	outPath := filepath.Join(roundDir, outFile)
 	if err := os.WriteFile(outPath, data, 0o644); err != nil {
-		r.Warns = append(r.Warns, fmt.Sprintf("build-gate: write error: %v", err))
-		return
+		r.Warns = append(r.Warns, fmt.Sprintf("%s: write error: %v", gateName, err))
+		return protocol.VerifyEvidence{}, false
 	}
 
+	return evidence, true
+}
+
+// checkBuildGate 在 coding/amending phase 時執行 settings.json 的 build + lint 指令，
+// 結果寫入 build-gate.json。非 coding/amending phase 時不執行。失敗即阻塞（Pass=false）。
+func checkBuildGate(ws *protocol.Workspace, featureID string, r *CheckResult) {
+	evidence, ok := runGateCheck(ws, featureID, "build-gate", protocol.BuildGateFile, r, verify.BuildGateGroups, true)
+	if !ok {
+		return
+	}
 	if !evidence.Passed {
 		r.Pass = false
 		var failedCmds []string
@@ -1025,50 +1032,10 @@ func checkBuildGate(ws *protocol.Workspace, featureID string, r *CheckResult) {
 //
 // docs_check 未設定時完全跳過（不記 warn），確保非 4x 專案（無此類指令）不受影響。
 func checkDocsGate(ws *protocol.Workspace, featureID string, r *CheckResult) {
-	state, err := ws.ReadState(featureID)
-	if err != nil {
+	evidence, ok := runGateCheck(ws, featureID, "docs-gate", protocol.DocsGateFile, r, verify.DocsGateGroups, false)
+	if !ok {
 		return
 	}
-	if state.Phase != protocol.PhaseCoding && state.Phase != protocol.PhaseAmending {
-		return
-	}
-
-	cfg, err := ws.ReadConfig()
-	if err != nil {
-		r.Warns = append(r.Warns, fmt.Sprintf("docs-gate: cannot read settings.json: %v", err))
-		return
-	}
-	groups, err := verify.DocsGateGroups(cfg.Project)
-	if err != nil {
-		// docs_check 未設定屬正常（opt-in），靜默跳過不記 warn。
-		return
-	}
-
-	roundDir := ws.RoundDir(featureID, state.Round)
-	if err := os.MkdirAll(roundDir, 0o755); err != nil {
-		r.Warns = append(r.Warns, fmt.Sprintf("docs-gate: cannot create round dir: %v", err))
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
-	defer cancel()
-
-	evidence, warns := runGroupsAcrossRoots(ctx, groups, gitops.ScopeRoots(ws.Root, featureID))
-	r.Warns = append(r.Warns, warns...)
-	evidence.Round = state.Round
-	evidence.Role = protocol.RoleCoder
-
-	data, err := json.MarshalIndent(evidence, "", "  ")
-	if err != nil {
-		r.Warns = append(r.Warns, fmt.Sprintf("docs-gate: marshal error: %v", err))
-		return
-	}
-	outPath := filepath.Join(roundDir, protocol.DocsGateFile)
-	if err := os.WriteFile(outPath, data, 0o644); err != nil {
-		r.Warns = append(r.Warns, fmt.Sprintf("docs-gate: write error: %v", err))
-		return
-	}
-
 	if !evidence.Passed {
 		var failedCmds []string
 		for _, cmd := range evidence.Commands {
@@ -1103,31 +1070,14 @@ func checkSymlinks(ws *protocol.Workspace, featureID string, r *CheckResult) {
 			prefix = filepath.Base(root) + "/"
 		}
 
-		scanLstat := func(out []byte) {
-			for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-				if line == "" {
-					continue
-				}
-				info, err := os.Lstat(filepath.Join(root, line))
-				if err != nil {
-					continue
-				}
-				if info.Mode()&os.ModeSymlink != 0 {
-					add(prefix + line)
-				}
+		for _, line := range gitops.ChangedPaths(root) {
+			info, err := os.Lstat(filepath.Join(root, line))
+			if err != nil {
+				continue
 			}
-		}
-
-		diffCmd := exec.Command("git", "diff", "--name-only", "HEAD")
-		diffCmd.Dir = root
-		if out, err := diffCmd.Output(); err == nil {
-			scanLstat(out)
-		}
-
-		untrackedCmd := exec.Command("git", "ls-files", "--others", "--exclude-standard")
-		untrackedCmd.Dir = root
-		if out, err := untrackedCmd.Output(); err == nil {
-			scanLstat(out)
+			if info.Mode()&os.ModeSymlink != 0 {
+				add(prefix + line)
+			}
 		}
 
 		lsCmd := exec.Command("git", "ls-files", "-s")

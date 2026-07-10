@@ -5,7 +5,6 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 	"gopkg.in/yaml.v3"
 )
@@ -46,7 +45,7 @@ func checkDesignerYAMLMod(ws *protocol.Workspace, featureID string, r *CheckResu
 	if fmtPriority(currentFeature.Priority) != fmtPriority(orig.Priority) {
 		diffs = append(diffs, fmt.Sprintf("priority: %s → %s", fmtPriority(orig.Priority), fmtPriority(currentFeature.Priority)))
 	}
-	if string(currentFeature.Status) != orig.Status && !isOrchestratorStatusFlip(orig.Status, currentFeature.Status) {
+	if string(currentFeature.Status) != orig.Status && !isOrchestratorStatusFlip(s, orig.Status, string(currentFeature.Status)) {
 		diffs = append(diffs, fmt.Sprintf("status: %s → %s", orig.Status, currentFeature.Status))
 	}
 	if currentFeature.Profile != orig.Profile {
@@ -84,12 +83,19 @@ type featureSnapshot struct {
 	} `yaml:"subtasks"`
 }
 
-// isOrchestratorStatusFlip 判斷 status 變更是否為 orchestrator 於 run-start
-// 自行寫入的 not-started（或未設定）→ in-progress 轉換；此轉換非 Designer 所為，
-// 不計入 designer YAML 違規。
-func isOrchestratorStatusFlip(orig string, current feature.Status) bool {
-	return (orig == string(feature.StatusNotStarted) || orig == "") &&
-		current == feature.StatusInProgress
+// isOrchestratorStatusFlip 判斷 status 變更是否確實為 orchestrator 於 run-start（initPhase）
+// 自行寫入的轉換，而非 Designer 偽造出同值變更逃過檢查。
+//
+// 只比對數值 pair（如 not-started→in-progress）無法分辨是誰寫的——state.json 才是可信來源：
+// initPhase 在呼叫 SyncFeatureStatus 前就把即將寫入的 (from, to) 記錄進 state.json 的
+// OrchestratorStatusFlipFrom/To，而 state.json 只由 orchestrator 本身寫入，spawned role agent
+// （含 Designer）無法偽造（見 F157 role-scope PreToolUse gate）。故這裡要求觀察到的 (orig, current)
+// 與 state.json 記錄的期望值完全一致才放行；未記錄（欄位空字串）或數值對不上一律視為違規。
+func isOrchestratorStatusFlip(s protocol.State, orig, current string) bool {
+	if s.OrchestratorStatusFlipFrom == "" && s.OrchestratorStatusFlipTo == "" {
+		return false
+	}
+	return orig == s.OrchestratorStatusFlipFrom && current == s.OrchestratorStatusFlipTo
 }
 
 func gitShowFile(root, path string) (string, error) {

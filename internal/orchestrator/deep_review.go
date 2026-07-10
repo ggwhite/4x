@@ -161,7 +161,7 @@ func (r *Runner) deepReviewRun(ctx context.Context, s *protocol.State, dp deepRe
 	}
 	reportPath := filepath.Join(r.Ws.RoundDir(featureID, round), protocol.DeepReviewReport)
 	if _, statErr := os.Stat(reportPath); statErr != nil {
-		return parallelNeedsAttention(r.Ws, featureID, s, "missing-artifact: "+protocol.DeepReviewReport)
+		return parallelNeedsAttention(r, featureID, s, "missing-artifact: "+protocol.DeepReviewReport)
 	}
 	return true, nil
 }
@@ -454,7 +454,7 @@ func (r *Runner) runDeepReviewParallel(ctx context.Context, s *protocol.State, r
 		data, rerr := os.ReadFile(filepath.Join(r.RunnerWs.RoundDir(featureID, round), name))
 		if rerr != nil {
 			cleanup()
-			return parallelNeedsAttention(ws, featureID, s, "missing-artifact: "+name)
+			return parallelNeedsAttention(r, featureID, s, "missing-artifact: "+name)
 		}
 		partials = append(partials, prompt.IncludeContent{Path: name, Content: string(data)})
 	}

@@ -63,7 +63,12 @@ func RunReviewTestParallel(ctx context.Context, r *Runner, s *protocol.State, pc
 	// （複製清單含 StateFile）把 parallelReview:true 傳播到 worktree；非 worktree 模式下 runner
 	// 直接讀 main 也已是 true。tester/reviewer 的自保啟發式據此識別並行執行合法（DR-1/DR-2）。
 	s.ParallelReview = true
-	LogStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+	if yielded, werr := r.writeActiveState(featureID, s); yielded || werr != nil {
+		LogStateWriteErr(werr, featureID, s.Phase)
+		if yielded {
+			return false, nil
+		}
+	}
 
 	if runnerWs.Root != ws.Root {
 		SyncFeatureToWorktree(ws, runnerWs, featureID, round)
@@ -129,7 +134,12 @@ func RunReviewTestParallel(ctx context.Context, r *Runner, s *protocol.State, pc
 	// SyncFeatureFromWorktree / StartLiveSync 不回抄 state.json，故 worktree 殘留的 true 不會覆蓋
 	// 此處寫回的 false；後續若走 worktree 的 phase 會各自以 main 的 false 重新覆蓋 worktree（DR-2）。
 	s.ParallelReview = false
-	LogStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+	if yielded, werr := r.writeActiveState(featureID, s); yielded || werr != nil {
+		LogStateWriteErr(werr, featureID, s.Phase)
+		if yielded {
+			return false, nil
+		}
+	}
 
 	for _, o := range outcomes {
 		if o.err != nil {
@@ -173,12 +183,21 @@ func RunReviewTestParallel(ctx context.Context, r *Runner, s *protocol.State, pc
 
 	guardResult := guard.Check(ws, featureID, ops)
 	if !guardResult.Pass {
-		s.Phase = protocol.PhaseNeedsAttention
-		s.Active = false
+		next := *s
+		next.Phase = protocol.PhaseNeedsAttention
+		next.Active = false
 		guardMsg := strings.Join(guardResult.Errors, "; ")
-		s.StopReason = "guard-fail"
-		s.StopMessage = guardMsg
-		LogStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+		next.StopReason = "guard-fail"
+		next.StopMessage = guardMsg
+		persisted, yielded, werr := r.commitLoopState(featureID, next)
+		if werr != nil {
+			LogStateWriteErr(werr, featureID, next.Phase)
+			return false, nil
+		}
+		*s = persisted
+		if yielded {
+			return false, nil
+		}
 		LogSyncErr(ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention), featureID, protocol.PhaseNeedsAttention)
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "guard-fail", Phase: protocol.PhaseReviewing, Round: round,
@@ -189,14 +208,14 @@ func RunReviewTestParallel(ctx context.Context, r *Runner, s *protocol.State, pc
 
 	reviewReport := filepath.Join(ws.RoundDir(featureID, round), protocol.ReviewReport)
 	if _, err := os.Stat(reviewReport); err != nil {
-		return parallelNeedsAttention(ws, featureID, s, "missing-artifact: "+protocol.ReviewReport)
+		return parallelNeedsAttention(r, featureID, s, "missing-artifact: "+protocol.ReviewReport)
 	}
 
 	if esc := ReadEscalation(ws, featureID, round); esc.Needed {
 		if IsDesignerEscalation(esc.Reason) {
-			return parallelTransition(ws, featureID, s, protocol.PhaseAmending, protocol.RoleCoder)
+			return parallelTransition(r, featureID, s, protocol.PhaseAmending, protocol.RoleCoder)
 		}
-		return parallelNeedsAttention(ws, featureID, s, esc.Reason)
+		return parallelNeedsAttention(r, featureID, s, esc.Reason)
 	}
 
 	// F144 同輪 CONDITIONAL PASS 收斂：序列路徑在 reviewing 後呼叫同一個 runReviewConvergence，
@@ -215,15 +234,15 @@ func RunReviewTestParallel(ctx context.Context, r *Runner, s *protocol.State, pc
 	// 收斂後重讀一次再路由，對齊序列路徑在 testing 轉換時重讀 escalation 的語意。
 	if esc := ReadEscalation(ws, featureID, round); esc.Needed {
 		if IsDesignerEscalation(esc.Reason) {
-			return parallelTransition(ws, featureID, s, protocol.PhaseAmending, protocol.RoleCoder)
+			return parallelTransition(r, featureID, s, protocol.PhaseAmending, protocol.RoleCoder)
 		}
-		return parallelNeedsAttention(ws, featureID, s, esc.Reason)
+		return parallelNeedsAttention(r, featureID, s, esc.Reason)
 	}
 
 	reviewOK := ReviewPassed(ws, featureID, round, protocol.ReviewReport)
 
 	if !reviewOK {
-		return parallelTransition(ws, featureID, s, protocol.PhaseAmending, protocol.RoleCoder)
+		return parallelTransition(r, featureID, s, protocol.PhaseAmending, protocol.RoleCoder)
 	}
 
 	// 收斂套用過程式碼變更時，本輪 tester 平行產出的 verify.json 對不上修改後的程式碼，不可
@@ -231,7 +250,7 @@ func RunReviewTestParallel(ctx context.Context, r *Runner, s *protocol.State, pc
 	// 讓 tester 重跑（對齊序列語意——序列路徑的 tester 本來就在收斂之後的 testing phase 才執行）。
 	if converged {
 		cleanupTesterRetry(ws, featureID, round)
-		return parallelTransition(ws, featureID, s, protocol.PhaseTesting, protocol.RoleTester)
+		return parallelTransition(r, featureID, s, protocol.PhaseTesting, protocol.RoleTester)
 	}
 
 	vs := CheckVerify(ws, featureID, round)
@@ -242,19 +261,19 @@ func RunReviewTestParallel(ctx context.Context, r *Runner, s *protocol.State, pc
 			if vs == VerifyFailed {
 				msg = "verify.json passed=false but test-report verdict is PASS — review the failing verify commands"
 			}
-			return parallelNeedsAttention(ws, featureID, s, msg)
+			return parallelNeedsAttention(r, featureID, s, msg)
 		}
-		return parallelTransition(ws, featureID, s, protocol.PhaseAmending, protocol.RoleCoder)
+		return parallelTransition(r, featureID, s, protocol.PhaseAmending, protocol.RoleCoder)
 	}
 
 	if testGuard := guard.CheckTestingToAccepting(ws, featureID, round); !testGuard.Pass {
-		return parallelNeedsAttention(ws, featureID, s, strings.Join(testGuard.Errors, "; "))
+		return parallelNeedsAttention(r, featureID, s, strings.Join(testGuard.Errors, "; "))
 	}
 
-	if cont, err := parallelTransition(ws, featureID, s, protocol.PhaseTesting, protocol.RoleTester); !cont || err != nil {
+	if cont, err := parallelTransition(r, featureID, s, protocol.PhaseTesting, protocol.RoleTester); !cont || err != nil {
 		return cont, err
 	}
-	return parallelTransition(ws, featureID, s, protocol.PhaseDeepReviewing, protocol.RoleDeepReviewer)
+	return parallelTransition(r, featureID, s, protocol.PhaseDeepReviewing, protocol.RoleDeepReviewer)
 }
 
 // ApplyAmendingProgress 在轉入 amending 時更新 W1 無進展追蹤欄位（就地修改 st）。
@@ -277,7 +296,12 @@ func ApplyAmendingProgress(ws *protocol.Workspace, featureID string, st *protoco
 // parallelTransition 執行一次合法 state 轉換並寫回，供平行 review/test 合併後推進 phase。
 // 轉入 amending 時套用與序列路徑相同的 W1 無進展追蹤（ApplyAmendingProgress），
 // 用轉換前的 round 讀 review 失敗計數，確保 ShouldStop 在平行模式下同樣生效。
-func parallelTransition(ws *protocol.Workspace, featureID string, s *protocol.State, to protocol.Phase, role protocol.Role) (bool, error) {
+//
+// 寫回透過 r.commitLoopState（與序列路徑 RunLoop 共用同一 CAS 護欄）：若磁碟已被外部
+// done/abandon/force-done 終結（Active=false），放棄覆寫、回 (false, nil) 讓主迴圈 break，
+// 避免平行路徑用舊快照把已終結的 feature 復活。
+func parallelTransition(r *Runner, featureID string, s *protocol.State, to protocol.Phase, role protocol.Role) (bool, error) {
+	ws := r.Ws
 	reviewRound := s.Round
 	newState, err := state.Transition(*s, to, role)
 	if err != nil {
@@ -286,9 +310,13 @@ func parallelTransition(ws *protocol.Workspace, featureID string, s *protocol.St
 	if to == protocol.PhaseAmending {
 		ApplyAmendingProgress(ws, featureID, &newState, reviewRound)
 	}
-	*s = newState
-	if err := ws.WriteState(featureID, *s); err != nil {
+	persisted, yielded, err := r.commitLoopState(featureID, newState)
+	if err != nil {
 		return false, fmt.Errorf("write state (%s): %w", s.Phase, err)
+	}
+	*s = persisted
+	if yielded {
+		return false, nil
 	}
 	LogSyncErr(ws.SyncFeatureStatus(featureID, s.Phase), featureID, s.Phase)
 	ws.AppendEvent(featureID, protocol.Event{
@@ -298,16 +326,28 @@ func parallelTransition(ws *protocol.Workspace, featureID string, s *protocol.St
 }
 
 // parallelNeedsAttention 把 state 落入 needs-attention 並寫回，回傳 (false, nil) 讓主迴圈 break。
-func parallelNeedsAttention(ws *protocol.Workspace, featureID string, s *protocol.State, reason string) (bool, error) {
-	s.Phase = protocol.PhaseNeedsAttention
-	s.Active = false
-	s.StopMessage = reason
+//
+// 寫回同樣透過 r.commitLoopState 走 CAS 護欄，理由同 parallelTransition。
+func parallelNeedsAttention(r *Runner, featureID string, s *protocol.State, reason string) (bool, error) {
+	ws := r.Ws
+	next := *s
+	next.Phase = protocol.PhaseNeedsAttention
+	next.Active = false
+	next.StopMessage = reason
 	if strings.HasPrefix(reason, "missing-artifact:") {
-		s.StopReason = "missing-artifact"
+		next.StopReason = "missing-artifact"
 	} else {
-		s.StopReason = "escalation"
+		next.StopReason = "escalation"
 	}
-	LogStateWriteErr(ws.WriteState(featureID, *s), featureID, s.Phase)
+	persisted, yielded, err := r.commitLoopState(featureID, next)
+	if err != nil {
+		LogStateWriteErr(err, featureID, next.Phase)
+		return false, nil
+	}
+	*s = persisted
+	if yielded {
+		return false, nil
+	}
 	LogSyncErr(ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention), featureID, protocol.PhaseNeedsAttention)
 	return false, nil
 }

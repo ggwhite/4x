@@ -77,6 +77,10 @@ func TestCommandAllowed(t *testing.T) {
 		{"compound && both allowed", "make build && make test", []string{"make"}, true},
 		// 混合 pipe 與 compound：|| 後的 grep 段須匹配 allowlist（非 pipe 下游）
 		{"mixed pipe then compound grep blocked", "go test | grep ok || grep fail", []string{"go test"}, false},
+
+		// (l) tee/xargs 不是唯讀過濾工具，不得被 safe-filter 放行（否則繞過 allowlist 寫任意檔/執行任意命令）
+		{"pipe tee write blocked", "go test ./... | tee ~/.ssh/authorized_keys", []string{"go test"}, false},
+		{"pipe xargs exec blocked", "find . -name '*.go' | xargs rm -rf", []string{"find"}, false},
 	}
 
 	for _, tc := range cases {

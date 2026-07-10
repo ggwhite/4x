@@ -48,6 +48,8 @@
     "guardRetries": { "type": "integer", "description": "全域 guard retry 次數（跨 round 累計）" },
     "baseCommit": { "type": "string", "description": "首次進入 coding phase 時的 HEAD commit sha，供 review-package.md 計算 diff" },
     "manualPhase": { "type": "boolean", "description": "phase 由 4x transition / 4x retry 手動設定，RecoverState 據此尊重人為 phase 並在消費後清除" },
-    "parallelReview": { "type": "boolean", "description": "per-run 訊號：true 表示本輪 reviewer/tester 正並行於同一 reviewing phase（parallel_review_test 模式），供 tester 自保啟發式識別合法執行；離開並行段落即設回 false" }
+    "parallelReview": { "type": "boolean", "description": "per-run 訊號：true 表示本輪 reviewer/tester 正並行於同一 reviewing phase（parallel_review_test 模式），供 tester 自保啟發式識別合法執行；離開並行段落即設回 false" },
+    "orchestratorStatusFlipFrom": { "type": "string", "description": "initPhase 於 init→designing 轉換時即將寫入 feature YAML 的 status 轉換來源值，供 guard 驗證 designing 階段觀察到的 status 差異確實出自 orchestrator 寫入" },
+    "orchestratorStatusFlipTo": { "type": "string", "description": "initPhase 於 init→designing 轉換時即將寫入 feature YAML 的 status 轉換目標值，語意同 orchestratorStatusFlipFrom" }
   }
 }

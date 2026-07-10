@@ -119,7 +119,11 @@ func TestDesignerYAMLMod_OrchestratorStatusFlip_Pass(t *testing.T) {
 
 	f.Status = feat.StatusInProgress
 	ws.SaveFeature(f)
-	writeState(t, ws, "F001-test", protocol.State{Phase: protocol.PhaseDesigning, Round: 1})
+	writeState(t, ws, "F001-test", protocol.State{
+		Phase: protocol.PhaseDesigning, Round: 1,
+		OrchestratorStatusFlipFrom: string(feat.StatusNotStarted),
+		OrchestratorStatusFlipTo:   string(feat.StatusInProgress),
+	})
 
 	r := CheckResult{Pass: true}
 	checkDesignerYAMLMod(ws, "F001-test", &r)
@@ -135,12 +139,59 @@ func TestDesignerYAMLMod_EmptyStatusFlip_Pass(t *testing.T) {
 
 	f.Status = feat.StatusInProgress
 	ws.SaveFeature(f)
-	writeState(t, ws, "F001-test", protocol.State{Phase: protocol.PhaseDesigning, Round: 1})
+	writeState(t, ws, "F001-test", protocol.State{
+		Phase: protocol.PhaseDesigning, Round: 1,
+		OrchestratorStatusFlipFrom: "",
+		OrchestratorStatusFlipTo:   string(feat.StatusInProgress),
+	})
 
 	r := CheckResult{Pass: true}
 	checkDesignerYAMLMod(ws, "F001-test", &r)
 	if !r.Pass {
 		t.Errorf("expected pass for orchestrator status flip \"\" → in-progress, got errors: %v", r.Errors)
+	}
+}
+
+// TestDesignerYAMLMod_StatusFlipWithoutStateRecord_Fail 是 Finding [2] 的安全回歸測試：
+// 即使觀察到的 (orig, current) 數值恰好與 orchestrator 慣用的 not-started→in-progress
+// pair 相同，若 state.json 沒有記錄對應的 OrchestratorStatusFlipFrom/To（代表這次 status
+// 變更不是本輪 initPhase 寫的——可能是 Designer 自己改的），仍必須被判定為違規。
+func TestDesignerYAMLMod_StatusFlipWithoutStateRecord_Fail(t *testing.T) {
+	ws := setupDesignerYAMLWorkspace(t)
+	f := feat.Feature{ID: "F001-test", Name: "Test", Description: "desc", Status: feat.StatusNotStarted}
+	commitFeatureYAML(t, ws, f)
+
+	f.Status = feat.StatusInProgress
+	ws.SaveFeature(f)
+	writeState(t, ws, "F001-test", protocol.State{Phase: protocol.PhaseDesigning, Round: 1})
+
+	r := CheckResult{Pass: true}
+	checkDesignerYAMLMod(ws, "F001-test", &r)
+	if r.Pass {
+		t.Error("expected fail when status flip matches orchestrator's usual value pair but state.json has no matching OrchestratorStatusFlipFrom/To record")
+	}
+}
+
+// TestDesignerYAMLMod_StatusFlipMismatchedRecord_Fail 涵蓋 state.json 記錄了某次 flip，
+// 但實際觀察到的 (orig, current) 與記錄值不符（例如記錄的是這次 run 的 flip，但磁碟上出現
+// 另一個不同的 status 變更）——仍須判定為違規，不可只因欄位非空就整體放行。
+func TestDesignerYAMLMod_StatusFlipMismatchedRecord_Fail(t *testing.T) {
+	ws := setupDesignerYAMLWorkspace(t)
+	f := feat.Feature{ID: "F001-test", Name: "Test", Description: "desc", Status: feat.StatusNotStarted}
+	commitFeatureYAML(t, ws, f)
+
+	f.Status = feat.StatusDone
+	ws.SaveFeature(f)
+	writeState(t, ws, "F001-test", protocol.State{
+		Phase: protocol.PhaseDesigning, Round: 1,
+		OrchestratorStatusFlipFrom: string(feat.StatusNotStarted),
+		OrchestratorStatusFlipTo:   string(feat.StatusInProgress),
+	})
+
+	r := CheckResult{Pass: true}
+	checkDesignerYAMLMod(ws, "F001-test", &r)
+	if r.Pass {
+		t.Error("expected fail when observed status change doesn't match the recorded OrchestratorStatusFlipFrom/To")
 	}
 }
 

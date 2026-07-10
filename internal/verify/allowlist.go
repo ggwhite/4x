@@ -18,10 +18,15 @@ const redirectionChars = "<>"
 // segment 若前綴屬此集合，即視為安全輔助放行，不要求出現在使用者 allowlist——
 // 讓 `go test ./... | grep -v '^ok'` 這類慣用寫法不被 pipe 分段檢查誤擋。
 // 僅放寬 pipe 的下游 filter 段；compound（; && || &）分段仍各自需匹配 allowlist。
+//
+// 刻意不含 tee（會寫入任意檔案，等同繞過上方的重導向字元封鎖）與 xargs（把下游
+// token 當任意命令執行，等同繞過整條 allowlist）——兩者都不是唯讀過濾工具，
+// 放在此白名單會讓 `... | tee ~/.ssh/authorized_keys` / `... | xargs rm -rf`
+// 這類命令的下游段被當成安全過濾跳過檢查。
 var safeFilterTools = map[string]bool{
-	"grep": true, "egrep": true, "fgrep": true, "tee": true, "awk": true,
+	"grep": true, "egrep": true, "fgrep": true, "awk": true,
 	"sed": true, "wc": true, "head": true, "tail": true, "sort": true,
-	"uniq": true, "cut": true, "tr": true, "cat": true, "xargs": true,
+	"uniq": true, "cut": true, "tr": true, "cat": true,
 	"column": true, "jq": true,
 }
 

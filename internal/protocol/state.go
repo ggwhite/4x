@@ -48,6 +48,13 @@ type State struct {
 	// 前（SyncFeatureToWorktree 之前）設為 true 並寫入 main state.json 以傳播到 worktree；兩者
 	// 完成後、任何 transition 之前設回 false，確保標記不外漏到後續 phase。序列路徑不設此欄位。
 	ParallelReview bool `json:"parallelReview,omitempty"`
+	// OrchestratorStatusFlipFrom/To 記錄 initPhase 在 init→designing 轉換時，即將對 feature YAML
+	// 執行的 status 轉換值（呼叫 SyncFeatureStatus 前寫入）。guard.checkDesignerYAMLMod 據此判斷
+	// designing 階段觀察到的 status 差異是否確實出自這次 orchestrator 寫入，而非只看數值恰巧相符
+	// 就放行——state.json 只由 orchestrator 本身寫入，spawned role agent 無法偽造（見 F157 role-scope
+	// PreToolUse gate），故比對此欄位比單純比對 (from,to) 數值更能防止 Designer 偽造同值變更逃過檢查。
+	OrchestratorStatusFlipFrom string `json:"orchestratorStatusFlipFrom,omitempty"`
+	OrchestratorStatusFlipTo   string `json:"orchestratorStatusFlipTo,omitempty"`
 }
 
 // Event 是 events.jsonl 的一行

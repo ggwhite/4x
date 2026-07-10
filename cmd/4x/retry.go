@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 
@@ -118,7 +119,7 @@ func retryTransition(ws *protocol.Workspace, featureID string, explicitTarget pr
 	}
 
 	if err := ws.SyncFeatureStatus(featureID, resolvedTarget); err != nil {
-		_ = err
+		slog.Warn("sync feature status failed", "feature", featureID, "phase", resolvedTarget, "error", err)
 	}
 	ws.AppendEvent(featureID, protocol.Event{
 		Phase: resolvedTarget,

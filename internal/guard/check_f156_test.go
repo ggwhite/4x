@@ -295,6 +295,38 @@ func TestACChecksTimeoutExplicitError(t *testing.T) {
 	}
 }
 
+// TestACChecksBlockedNotTimeoutMessage 是 Finding [3] 的回歸測試：allowlist 擋下的 check
+// （Error=="blocked"，見 internal/verify/allowlist.go CommandAllowed / verify.go executeCommand）
+// 不能沿用逾時/取消的「加大 --timeout 重跑」訊息——重跑永遠不會過，只會誤導 Coder/Tester。
+// 訊息應明確指出是 allowlist 擋下，且不含 --timeout 字樣。
+func TestACChecksBlockedNotTimeoutMessage(t *testing.T) {
+	ts := protocol.TestStrategy{
+		ACChecks: map[string][]string{"AC-1": {"go test ./... | tee out.log"}},
+	}
+	ev := protocol.VerifyEvidence{
+		Passed: false,
+		ACResults: []protocol.ACEvidence{{
+			ID:       "AC-1",
+			Passed:   false,
+			Evidence: []string{"$ go test → blocked"},
+			Checks: []protocol.VerifyCommand{{
+				Command: "go test ./... | tee out.log", ExitCode: 126, Error: "blocked",
+			}},
+		}},
+	}
+	r := CheckResult{Pass: true}
+	checkACEvidence(ts, ev, &r)
+	if r.Pass {
+		t.Fatal("expected block when a check was blocked by verify_command_allowlist")
+	}
+	if !hasErrContaining(r.Errors, "allowlist") {
+		t.Fatalf("expected explicit allowlist-blocked error, got %v", r.Errors)
+	}
+	if hasErrContaining(r.Errors, "--timeout") {
+		t.Fatalf("blocked check must not suggest retrying with a larger --timeout (it will never succeed), got %v", r.Errors)
+	}
+}
+
 // TestBackwardCompatNoACChecks 反向回歸 pin：test-strategy 無 ac_checks 時，checkACChecksSchema 立即
 // return（不擋），checkACEvidence 走既有 prose-evidence 路徑（execution 類需執行輸出）。（AC-8 guard 部分）
 func TestBackwardCompatNoACChecks(t *testing.T) {

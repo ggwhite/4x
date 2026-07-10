@@ -17,6 +17,13 @@ var DefaultProtectedPaths = []string{"internal/state/", "internal/guard/", "inte
 // DefaultSelfModMaxDiffLines 是受保護路徑單輪 diff 行數的內建上限。
 const DefaultSelfModMaxDiffLines = 200
 
+// testDiffLinesMultiplier 決定 *_test.go 變更的獨立 diff 上限（policy.MaxDiffLines 的倍數）。
+// 補測不應被 production 行數上限逼成分批 commit，但仍需要一個有限上限——*_test.go 仍是可編譯
+// 執行的一般 Go 原始碼（可含 init()、套件層級副作用、被其他測試呼叫的邏輯），若完全不計入
+// budget，受保護路徑（state/guard/protocol）下的大量未受嚴審變更就能以測試檔名夾帶、完全繞過
+// diff-budget 硬擋（見 code review Finding [4]）。5x 給足合理補測空間，同時仍是有限值。
+const testDiffLinesMultiplier = 5
+
 // SelfModPolicy 是套用預設後可直接使用的 self-mod guard 策略。
 type SelfModPolicy struct {
 	ProtectedPaths []string
@@ -139,12 +146,15 @@ func checkSelfMod(ws *protocol.Workspace, featureID string, detector ScopeDetect
 	}
 
 	totalLines := 0
+	testLines := 0
 	paths := make([]string, 0, len(hits))
 	for _, h := range hits {
 		paths = append(paths, h.Path)
-		// *_test.go 不計入 diff budget：補測不應被行數上限逼成分批 commit 或
-		// 犧牲可讀性；路徑仍列入 SelfModPaths 供 test-gate 判定「附帶測試」。
+		// *_test.go 不計入 production diff budget：補測不應被行數上限逼成分批 commit 或
+		// 犧牲可讀性；路徑仍列入 SelfModPaths 供 test-gate 判定「附帶測試」。但改記入獨立的
+		// testLines，套用 testDiffLinesMultiplier 倍數上限，避免完全不設限（見上方常量註解）。
 		if strings.HasSuffix(h.Path, "_test.go") {
+			testLines += h.Lines
 			continue
 		}
 		totalLines += h.Lines
@@ -156,10 +166,17 @@ func checkSelfMod(ws *protocol.Workspace, featureID string, detector ScopeDetect
 	r.Warns = append(r.Warns, fmt.Sprintf(
 		"self-modification detected: 受保護路徑變更需人工 approve（%s）", strings.Join(paths, ", ")))
 
+	testBudget := policy.MaxDiffLines * testDiffLinesMultiplier
 	if totalLines > policy.MaxDiffLines {
 		r.Pass = false
 		r.Errors = append(r.Errors, fmt.Sprintf(
 			"self-mod: protected diff %d lines exceeds budget %d", totalLines, policy.MaxDiffLines))
+	}
+	if testLines > testBudget {
+		r.Pass = false
+		r.Errors = append(r.Errors, fmt.Sprintf(
+			"self-mod: protected _test.go diff %d lines exceeds test budget %d (%dx production budget %d)",
+			testLines, testBudget, testDiffLinesMultiplier, policy.MaxDiffLines))
 	}
 }
 

@@ -98,6 +98,39 @@ func gitOutput(dir string, args ...string) string {
 	return strings.TrimSpace(string(out))
 }
 
+// ChangedPaths 回傳 dir（一個 git 工作目錄）內 tracked+untracked 變更檔案的相對路徑清單
+// （git diff --name-only HEAD ∪ git ls-files --others --exclude-standard）。只回路徑、不含
+// 行數，供只需要「哪些檔案變了」的呼叫端（scope-violation 偵測、symlink 偵測等）共用同一份
+// git 偵測邏輯，取代各自重新實作同一組指令、日後各自漂移（見 code review Finding [8]）。
+// 兩條指令各自獨立容錯，單一失敗不影響另一條已找到的變更，與 changedFilesIn 語意一致。
+func ChangedPaths(dir string) []string {
+	var paths []string
+	seen := make(map[string]bool)
+	collect := func(out []byte) {
+		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			if line == "" || seen[line] {
+				continue
+			}
+			seen[line] = true
+			paths = append(paths, line)
+		}
+	}
+
+	diffCmd := exec.Command("git", "diff", "--name-only", "HEAD")
+	diffCmd.Dir = dir
+	if out, err := diffCmd.Output(); err == nil {
+		collect(out)
+	}
+
+	untrackedCmd := exec.Command("git", "ls-files", "--others", "--exclude-standard")
+	untrackedCmd.Dir = dir
+	if out, err := untrackedCmd.Output(); err == nil {
+		collect(out)
+	}
+
+	return paths
+}
+
 // changedFilesIn 回傳 dir（一個 git 工作目錄）內的檔案層變更清單。
 // tracked 變更取自 git diff --numstat HEAD（added+deleted 行數，binary 顯示為 "-" 時計 0）；
 // untracked 新檔取自 git ls-files --others --exclude-standard，行數為檔案總行數。

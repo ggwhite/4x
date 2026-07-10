@@ -489,6 +489,12 @@ func (r *Runner) initPhase(ctx context.Context, s *protocol.State) error {
 		return err
 	}
 	*s = ns
+	// 記錄即將寫入 feature YAML 的 status 轉換值，供 guard.checkDesignerYAMLMod 驗證
+	// designing 階段觀察到的 status 差異確實出自這次 orchestrator 寫入（而非 Designer 偽造）。
+	if f, ferr := r.Ws.LoadFeature(featureID); ferr == nil {
+		s.OrchestratorStatusFlipFrom = string(f.Status)
+		s.OrchestratorStatusFlipTo = string(protocol.PhaseToStatus(s.Phase))
+	}
 	if err := r.Ws.WriteState(featureID, *s); err != nil {
 		return fmt.Errorf("write state (init→designing): %w", err)
 	}
@@ -509,9 +515,7 @@ func (r *Runner) checkStopSignals(ctx context.Context, s *protocol.State) bool {
 		s.Active = false
 		s.StopReason = "interrupted"
 		s.StopMessage = fmt.Sprintf("%s phase interrupted by signal (round %d)", s.Phase, s.Round)
-		if err := r.Ws.WriteState(featureID, *s); err != nil {
-			slog.Warn("write state failed", "feature", featureID, "error", err)
-		}
+		LogStateWriteErr(r.Ws.WriteState(featureID, *s), featureID, s.Phase)
 		return true
 	}
 
@@ -519,11 +523,9 @@ func (r *Runner) checkStopSignals(ctx context.Context, s *protocol.State) bool {
 		s.Active = false
 		s.StopReason = "mcp-stop"
 		if err := r.Ws.ClearStopSignal(featureID); err != nil {
-			slog.Warn("clear stop signal failed", "feature", featureID, "error", err)
+			slog.Warn("clear stop signal failed", "feature", featureID, "phase", s.Phase, "error", err)
 		}
-		if err := r.Ws.WriteState(featureID, *s); err != nil {
-			slog.Warn("write state failed", "feature", featureID, "error", err)
-		}
+		LogStateWriteErr(r.Ws.WriteState(featureID, *s), featureID, s.Phase)
 		return true
 	}
 
@@ -660,12 +662,8 @@ func (r *Runner) checkShouldStop(s *protocol.State) bool {
 		s.StopReason = "no-progress"
 		s.StopMessage = reason
 		s.Phase = protocol.PhaseNeedsAttention
-		if err := r.Ws.WriteState(featureID, *s); err != nil {
-			slog.Warn("write state failed", "feature", featureID, "error", err)
-		}
-		if err := r.Ws.SyncFeatureStatus(featureID, s.Phase); err != nil {
-			slog.Warn("sync feature status failed", "feature", featureID, "error", err)
-		}
+		LogStateWriteErr(r.Ws.WriteState(featureID, *s), featureID, s.Phase)
+		LogSyncErr(r.Ws.SyncFeatureStatus(featureID, s.Phase), featureID, s.Phase)
 		r.Ws.AppendEvent(featureID, protocol.Event{Type: "escalation", Phase: s.Phase, Detail: reason, Runner: s.Runner, Notify: protocol.NotifyWarning})
 		slog.Info("run stopped", "feature", featureID, "reason", reason, "round", s.Round)
 		fmt.Printf("  stopped: %s\n", reason)
