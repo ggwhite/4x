@@ -148,9 +148,9 @@ func ScanStuckFeatures(ws *Workspace, features []feature.Feature) []Candidate {
 		if !isStuckPhase(state.Phase) {
 			continue
 		}
-		reason := stuckReason(ws, f.ID, state)
+		reason, generic := stuckReason(ws, f.ID, state)
 		cands = append(cands, Candidate{
-			Title:       fmt.Sprintf("Stuck feature (%s): %s", state.Phase, truncate(stuckTitleText(f, reason), 80)),
+			Title:       fmt.Sprintf("Stuck feature (%s): %s", state.Phase, truncate(stuckTitleText(f, reason, generic), 80)),
 			Description: reason,
 			Source:      SourceStuck,
 			Origin:      fmt.Sprintf("%s %s", f.ID, state.Phase),
@@ -379,7 +379,8 @@ func isStuckPhase(phase Phase) bool {
 
 // stuckReason 抽出 stuck feature 的阻塞原因：優先 StopReason/StopMessage，
 // 皆空時回退讀最新 round 的 escalation.json Detail；仍無則回傳通用描述。
-func stuckReason(ws *Workspace, featureID string, state State) string {
+// generic 在三個來源都拿不到內容、回退到通用預設文案時為 true，否則為 false。
+func stuckReason(ws *Workspace, featureID string, state State) (reason string, generic bool) {
 	var parts []string
 	if r := strings.TrimSpace(state.StopReason); r != "" {
 		parts = append(parts, r)
@@ -388,12 +389,12 @@ func stuckReason(ws *Workspace, featureID string, state State) string {
 		parts = append(parts, m)
 	}
 	if len(parts) > 0 {
-		return strings.Join(parts, ": ")
+		return strings.Join(parts, ": "), false
 	}
 	if detail := latestEscalationDetail(ws, featureID); detail != "" {
-		return detail
+		return detail, false
 	}
-	return fmt.Sprintf("feature stuck in %s with no recorded reason", state.Phase)
+	return fmt.Sprintf("feature stuck in %s with no recorded reason", state.Phase), true
 }
 
 // latestEscalationDetail 讀取 feature 最新 round 的 escalation.json，回傳其 Detail。
@@ -418,8 +419,9 @@ func latestEscalationDetail(ws *Workspace, featureID string) string {
 }
 
 // stuckTitleText 取 stuck candidate 標題用的描述文字：reason 非通用時用 reason，否則退回 feature 名稱。
-func stuckTitleText(f feature.Feature, reason string) string {
-	if strings.HasPrefix(reason, "feature stuck in ") {
+// generic 由 stuckReason 顯式回傳，標示 reason 是否為通用 fallback 文案。
+func stuckTitleText(f feature.Feature, reason string, generic bool) string {
+	if generic {
 		if f.Name != "" {
 			return f.Name
 		}

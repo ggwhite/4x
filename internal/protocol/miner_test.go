@@ -105,8 +105,9 @@ func TestScanStuckFeatures(t *testing.T) {
 	saveTestFeature(t, ws, "F010-stuck", "Stuck One")
 	saveTestFeature(t, ws, "F011-ok", "Running OK")
 	saveTestFeature(t, ws, "F012-fallback", "Fallback Reason")
+	saveTestFeature(t, ws, "F013-generic", "Generic Reason")
 
-	for _, id := range []string{"F010-stuck", "F011-ok", "F012-fallback"} {
+	for _, id := range []string{"F010-stuck", "F011-ok", "F012-fallback", "F013-generic"} {
 		if err := ws.InitFeatureDir(id); err != nil {
 			t.Fatal(err)
 		}
@@ -129,13 +130,18 @@ func TestScanStuckFeatures(t *testing.T) {
 	}
 	writeEscalation(t, ws, "F012-fallback", 1, Escalation{Needed: true, Reason: "blocker", Detail: "waiting on upstream API"})
 
+	// StopReason/StopMessage 皆空且無 escalation → 走通用 fallback，Title 用 feature 名稱。
+	if err := ws.WriteState("F013-generic", State{FeatureID: "F013-generic", Phase: PhaseBlocked}); err != nil {
+		t.Fatal(err)
+	}
+
 	features, err := ws.ListFeatures()
 	if err != nil {
 		t.Fatalf("ListFeatures: %v", err)
 	}
 	cands := ScanStuckFeatures(ws, features)
-	if len(cands) != 2 {
-		t.Fatalf("got %d candidates, want 2: %+v", len(cands), cands)
+	if len(cands) != 3 {
+		t.Fatalf("got %d candidates, want 3: %+v", len(cands), cands)
 	}
 
 	byOrigin := map[string]Candidate{}
@@ -158,6 +164,18 @@ func TestScanStuckFeatures(t *testing.T) {
 	}
 	if b.Description != "waiting on upstream API" {
 		t.Errorf("fallback description = %q", b.Description)
+	}
+
+	// 通用 fallback：Description 為預設文案，Title 用 feature 名稱而非 reason。
+	c, ok := byOrigin["F013-generic blocked"]
+	if !ok {
+		t.Fatalf("missing F013-generic candidate")
+	}
+	if c.Description != "feature stuck in blocked with no recorded reason" {
+		t.Errorf("generic description = %q", c.Description)
+	}
+	if c.Title != "Stuck feature (blocked): Generic Reason" {
+		t.Errorf("generic title = %q", c.Title)
 	}
 }
 
