@@ -36,7 +36,7 @@ description: |-
       npx 臨時安裝執行，測試腳本與截圖存到 .4x/run/{feature-id}/e2e/。
     - 不修改 Go 後端 API、不修改 SSE 協定、不修改 macOS AppKit 外殼（Sources/main.swift）。
     - 修改範圍限定在 dashboard/web/（新增 search.js，修改 ui.js、index.html）。
-status: not-started
+status: in-progress
 priority: 2
 profile: dashboard
 subtasks:
