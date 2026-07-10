@@ -1,0 +1,47 @@
+id: F173-dashboard-codex-usage-percent
+name: 'F173: Dashboard 顯示 codex 額度使用百分比'
+description: |-
+    現狀：
+    F168（codex-usage-observability）把 codex CLI 的 rate_limits（primary/secondary window
+    used_percent）解析進了 events.jsonl（Event.Codex，json:"codex,omitempty"，欄位
+    primary_pct/secondary_pct，見 internal/protocol/state.go 的 CodexUsage struct）、
+    `4x cost`、`4x status --json`，但從未接進 dashboard web UI：
+    1. internal/server/feature_handlers.go 的 buildPhaseInfo 內部 eventEntry struct 只解析
+       ts/type/role/round/model/tokens_used/cost_usd/index，沒有 Codex 欄位，
+       json.Unmarshal 會靜默丟棄 events.jsonl 裡的 codex 欄位。
+    2. dashboard/web/ui.js 的 renderMsgCard()（約 908-928 行）右側資訊列只組裝
+       modelTag/dur/costTag 三段，完全沒有 usage percent 的渲染邏輯。
+    使用者在 dashboard 看 round 列表時，codex 額度使用百分比完全不會顯示（不是壞掉，是本來
+    就沒做）。
+
+    需求：
+    1. eventEntry struct 補上 Codex *protocol.CodexUsage 欄位，buildPhaseInfo 的回應 JSON
+       透傳這個欄位（沒有資料時維持 omitempty，不強塞假值）。
+    2. ui.js renderMsgCard() 在 modelTag 後面（或 costTag 旁）新增百分比 tag，格式仿照
+       formatCost/fmtTokens 的簡短樣式（如 "62%"），primary_pct/secondary_pct 都有時取
+       較高者或兩者並列（設計階段決定，需在 task-brief 說明取捨）。
+    3. 沒有 codex usage 資料的 round（claude runner、或 codex 該輪剛好沒解出 rate_limits）
+       維持現狀空白，不顯示任何百分比 tag，不可顯示 0% 或誤導性預設值。
+
+    約束：
+    - 不修改 F168 既有的 CLI/events.jsonl/4x cost/4x status 邏輯，只新增 REST 透傳與前端渲染。
+    - 不處理「codex 該輪剛好沒解出 rate_limits」這個資料可用性問題（屬於 F168 的 ParseCodexUsage
+      範圍，非本 feature scope）。
+status: not-started
+priority: 2
+profile: normal
+repos:
+    - .
+subtasks:
+    - id: rest-passthrough
+      name: eventEntry struct 補 Codex 欄位並在 buildPhaseInfo 回應透傳
+      status: ""
+    - id: frontend-percent-tag
+      name: ui.js renderMsgCard 新增 codex 額度百分比 tag 渲染
+      status: ""
+    - id: empty-state-tests
+      name: 補齊「無 codex usage 資料時維持空白」的測試
+      status: ""
+rules:
+    - 不修改 F168 既有的 CLI/events.jsonl 解析邏輯
+    - 無資料時維持空白，不可顯示 0% 或誤導性預設值
