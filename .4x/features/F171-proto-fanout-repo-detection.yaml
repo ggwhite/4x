@@ -25,8 +25,6 @@ description: |-
 status: not-started
 priority: 2
 profile: normal
-repos:
-    - .
 subtasks:
     - id: detect-proto-changes
       name: 偵測本輪變更檔案中屬於 proto/interface 定義的部分

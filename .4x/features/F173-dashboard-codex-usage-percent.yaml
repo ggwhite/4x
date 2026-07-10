@@ -30,8 +30,6 @@ description: |-
 status: not-started
 priority: 2
 profile: normal
-repos:
-    - .
 subtasks:
     - id: rest-passthrough
       name: eventEntry struct 補 Codex 欄位並在 buildPhaseInfo 回應透傳

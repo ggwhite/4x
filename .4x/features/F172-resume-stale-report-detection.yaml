@@ -23,8 +23,6 @@ description: |-
 status: not-started
 priority: 2
 profile: normal
-repos:
-    - .
 subtasks:
     - id: detect-stale-mtime
       name: 比對報告 mtime 與本輪最新程式碼變更時間
