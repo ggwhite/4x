@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -91,7 +92,8 @@ func handleSSE(ws *protocol.CachedWorkspace, featureID string, w http.ResponseWr
 	}
 }
 
-// handleLogSSE 即時 tail log 檔案。支援 ?file= 指定特定檔案，未指定則追蹤最新的。
+// handleLogSSE 即時 tail log 檔案。支援 ?file= 指定特定檔案，未指定則追蹤最新的；
+// 搭配 ?file= 時另支援 ?offset= 指定續傳起始位移（bytes），避免重送呼叫端已讀過的內容。
 func handleLogSSE(ws *protocol.CachedWorkspace, featureID string, w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -118,6 +120,17 @@ func handleLogSSE(ws *protocol.CachedWorkspace, featureID string, w http.Respons
 	offsets := make(map[string]int64)
 	// seen 記錄哪些 log 檔已完成首次 offset 初始化，避免重複跳到尾端。
 	seen := make(map[string]bool)
+	// 前端先用 REST /api/logs/ 一次性讀完整內容，緊接著才開這條 SSE 連線續 tail 新增內容。
+	// 若呼叫端帶 ?offset=<n>（REST 內容的 UTF-8 byte 長度），從該位移接續，跳過
+	// maxInitialTail 的「首次跳到尾端」邏輯，避免 REST 已顯示過的內容被當作新內容重送一次。
+	if pinnedFile != "" && pinnedFile != "." {
+		if offsetParam := r.URL.Query().Get("offset"); offsetParam != "" {
+			if off, err := strconv.ParseInt(offsetParam, 10, 64); err == nil && off >= 0 {
+				offsets[pinnedFile] = off
+				seen[pinnedFile] = true
+			}
+		}
+	}
 	// needAlign 標記因初始 offset 可能落在多位元組 UTF-8 字元中間，需在首次讀取時對齊。
 	needAlign := make(map[string]bool)
 

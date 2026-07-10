@@ -1324,17 +1324,21 @@ async function viewLog(fid, name) {
   const viewer = document.getElementById('log-viewer');
   viewer.classList.remove('hidden');
   const res = await fetch(apiBase()+'/api/logs/'+fid+'/'+name);
-  viewer.textContent = await res.text();
+  const text = await res.text();
+  viewer.textContent = text;
   viewer.scrollTop = viewer.scrollHeight;
-  connectLogSSE(fid, name);
+  // SSE 從 REST 已讀到的 byte 長度續接，避免後端首個 tick 把 REST 剛顯示過的內容
+  // 當「新增內容」重送一次，造成 viewer 裡同一段文字出現兩次。
+  connectLogSSE(fid, name, new TextEncoder().encode(text).length);
 }
 
-function connectLogSSE(fid, file) {
+function connectLogSSE(fid, file, offset) {
   if (logSSE) { logSSE.close(); logSSE = null; }
   const multi = !file;
   multiLogActive = multi;
   if (multi) multiLogBuffers = {};
-  const url = file ? sseBase()+'/logs/'+fid+'?file='+encodeURIComponent(file) : sseBase()+'/logs/'+fid;
+  let url = file ? sseBase()+'/logs/'+fid+'?file='+encodeURIComponent(file) : sseBase()+'/logs/'+fid;
+  if (file && Number.isFinite(offset)) url += '&offset='+offset;
   logSSE = new EventSource(authUrl(url));
   const knownFiles = new Set();
   logSSE.onmessage = (e) => {

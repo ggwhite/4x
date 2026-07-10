@@ -226,6 +226,7 @@ const ROLES = {
   gate:{name:'Gate',emoji:'🚦',color:'#fbbf24',bg:'rgba(251,191,36,.08)'},
   consolidator:{name:'Consolidator',emoji:'🗂️',color:'#60a5fa',bg:'rgba(96,165,250,.08)'},
   'round-summarizer':{name:'Round Summarizer',emoji:'📋',color:'#94a3b8',bg:'rgba(148,163,184,.08)'},
+  'post-scaffold':{name:'Post-Scaffold',emoji:'🧰',color:'#94a3b8',bg:'rgba(148,163,184,.08)'},
 };
 const PHASE_ICON = { designing:'◆','design-reviewing':'◆',coding:'◆',reviewing:'◆','deep-reviewing':'◆',fixing:'◆',testing:'◆',accepting:'◆',amending:'◆','pending-review':'⏳',done:'✓',abandoned:'✕',blocked:'✕','needs-attention':'!',init:'○','not-started':'○' };
 

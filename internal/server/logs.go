@@ -94,8 +94,16 @@ func handleLogs(ws *protocol.CachedWorkspace, rest string, w http.ResponseWriter
 // logSortKey 將 "round-N-role.log" 轉成數字 key，確保按執行順序排列。
 // deep-fix-1、deep-reverify-2 等帶迭代號的 role 會去掉尾部數字做 base role 比對，
 // 迭代號作為子排序依據。
+//
+// post-scaffold.log 是 worktree 建立當下（早於任何 round）寫入的 hook log，但其對應的
+// events.jsonl 事件不帶 Role 欄位，parseRoleTimings 會跳過它使 StartedAt 恆為 nil，
+// 導致排序 fallback 到這裡；給它一個小於任何 round key 的固定值，讓它穩定排在最前面，
+// 不落入下方「未知檔名一律排最後」的 999999 分支。
 func logSortKey(name string) int {
 	name = strings.TrimSuffix(name, ".log")
+	if name == "post-scaffold" {
+		return -1
+	}
 	parts := strings.SplitN(name, "-", 3)
 	if len(parts) < 3 || parts[0] != "round" {
 		return 999999
