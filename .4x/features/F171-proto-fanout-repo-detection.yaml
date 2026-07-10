@@ -22,7 +22,7 @@ description: |-
     - 新 gate 是獨立檢查，不修改既有的 DetectChangedRepos/repo scope check 邏輯。
     - 誤報風險需評估：grep-based 偵測可能有 false positive（字串巧合），gate 訊息需標明是
       「建議覆核」而非強制 block，避免擋住合法工作。
-status: not-started
+status: done
 priority: 2
 profile: normal
 subtasks:
