@@ -171,6 +171,8 @@ Use the Write tool. Do NOT just print the content — write to disk.
 - For each acceptance criterion, trace through the code path and verify it works
 - Think about what happens with: nil/empty inputs, concurrent calls, error paths, boundary values
 - If you find a potential issue, verify it by reading the actual code before reporting
+- If any round's escalation.json shows `needed` flipped from true to false with a note claiming the blocker was resolved, and no later round elaborates on it: re-run the verification the note describes yourself and report the fresh result — do not accept the note as evidence on its own.
+- If the diff adds or changes test assertions: check whether the expected value is copied from the same formula/constant as the implementation (tautological, cannot catch a regression), or whether an idempotency/retry test manually resets state to fake a fresh run instead of driving two consecutive real inputs.
 
 == Confidence Scoring ==
 For each finding, assign a confidence score 0–100:

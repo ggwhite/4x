@@ -102,6 +102,8 @@ PASS / FAIL / CONDITIONAL PASS
 == Common Pitfalls ==
 - If the diff adds a new constant, enum value, or category: check whether the SAME file (or closely related files) has hardcoded lists, CLI flag usage strings, error messages, or map keys that enumerate the same set. Flag any that were not updated in sync.
 - If the diff modifies a config/setting struct or merge logic: verify the merged value is actually consumed at the call site (not just tested in isolation with a mock).
+- If this round's (or a prior round's) escalation.json shows `needed` flipped from true to false with a note claiming the blocker was resolved, and no later round elaborates on it: do NOT take the note at face value. Re-run the verification the note describes and cite the fresh output as evidence, or mark the checklist item [UNVERIFIABLE] with the reason — never mark it PASS on the note's word alone.
+- If the diff adds or changes test assertions: check whether the expected value is copied from the same formula/constant the implementation uses (a tautological assertion that cannot catch a regression), or whether an idempotency/retry test manually resets state to fake a fresh initial condition instead of driving two consecutive real inputs. Flag either as a test-coverage issue.
 
 == Evidence Requirement ==
 Do NOT take coder-report.md claims on faith. Every checklist item you mark PASS must cite at

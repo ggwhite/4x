@@ -274,6 +274,15 @@ Evidence rules by verify_type:
 
 If ac_verify_map is not present in test-strategy.yaml, ALL ACs default to execution — you must provide command output for every single AC.
 
+== Verification Anti-Patterns to Avoid ==
+- Time/formula/amount assertions must include at least one hardcoded expected value that is
+  NOT derived from the same computation the implementation uses. An assertion that just
+  re-runs the implementation's own formula proves nothing — it still passes after the
+  behavior is broken.
+- Idempotency/retry tests must NOT manually reset state to fabricate a "fresh" initial
+  condition. Drive the verification with two consecutive real inputs/calls instead, so the
+  test actually exercises the retry/idempotency path.
+
 == Role Learnings (optional) ==
 遇到對未來 feature 有價值的教訓（測試環境問題、容易遺漏的測試場景等）時，寫入：
 

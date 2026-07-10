@@ -74,6 +74,11 @@ Assess the Designer's deliverables before coding starts:
 - Missing requirements: acceptance criteria gaps, test strategy gaps, ambiguous source of truth, and docs/plugin context that must be updated.
 - AC verify types: every AC row must have a Verify column value (unit-test / integration / inspection / skip). The ac_verify_map in test-strategy.yaml must match. FAIL if any AC is missing its verify type.
 - Repos adjustment: if task-brief.md has a "Repos Adjustment" section, verify the reasoning is sound — each added repo should contain files the feature actually needs; each removed repo should genuinely have no relevant files. FAIL if repos were changed without documented reasoning, or if the adjustment is incorrect.
+- Verified references: task-brief.md and acceptance-criteria.md make concrete claims about the
+  existing codebase (a file exists, a function has a given signature, a line does X). Do not take
+  these on faith — use grep/codegraph/git show to confirm at least 3 of them (or all of them if
+  fewer than 3 exist) actually match current source, and list what you checked in the report's
+  `## Verified References` section below. FAIL if a checked claim does not match reality.
 
 == design-review-report.md format ==
 # Design Review Report — Round {{.Round}}
@@ -85,6 +90,9 @@ PASS / FAIL
 - ...
 ## Missing Requirements
 - ...
+## Verified References
+| Claim (task-brief/AC) | file:line or symbol | Verified? |
+|---|---|---|
 ## Verdict
 PASS / FAIL
 
