@@ -24,7 +24,7 @@ description: |-
       scanRepoForTerms），只修 repo path 解析與「找不到 repo 時的行為」。
     - 沿用 F171 的設計：此 gate 永遠是 Warn，不設 r.Pass=false、不 append Errors。
     - 不做完整依賴分析/import graph 建置。
-status: not-started
+status: done
 priority: 2
 profile: normal
 subtasks:
