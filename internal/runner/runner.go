@@ -232,7 +232,10 @@ func (r *SubprocessRunner) runOnce(ctx context.Context, prompt string) (*Result,
 		if protocol.BoolVal(r.Config.Quiet) {
 			// quiet 模式下 stdout/stderr 合併進同一個 stripper；用同一個 MultiWriter 值同時
 			// 指派給兩者，os/exec 才會共用單一 fd，避免對 stripper 的並行寫入。tail 一併 tee。
-			merged := io.MultiWriter(newPromptStripper(logFile), tail)
+			// codex 等 quiet runner 的輸出常夾帶 ANSI color code，寫入 logFile 前先用
+			// ansiStripper 剝除（PTY 分支已用同一元件），避免 dashboard log viewer 顯示
+			// 出未渲染的 escape sequence 殘留方框字元。
+			merged := io.MultiWriter(newPromptStripper(newAnsiStripper(logFile)), tail)
 			cmd.Stdout = merged
 			cmd.Stderr = merged
 		} else {
