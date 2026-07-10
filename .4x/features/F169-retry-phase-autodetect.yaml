@@ -19,6 +19,7 @@ description: |-
     - 保留 retry.go 現有的 `retryTransition` 可被測試直接呼叫（不含 exec 邏輯）的介面設計
 status: not-started
 priority: 3
+profile: normal
 subtasks:
     - id: role-to-phase
       name: internal/state 新增 RoleToPhase 反向映射，coder 依 round 判斷 coding/amending
