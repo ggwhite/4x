@@ -1,0 +1,45 @@
+id: F170-worktree-path-fail-open-hardening
+name: 'F170: Worktree 路徑安全 fail-open 硬化'
+description: |-
+    現狀：
+    role-scope PreToolUse gate（cmd/4x/check.go relWithinWorkspace，供 cmd/4x/guard_tool.go
+    evaluateWriteHook 使用）對「目標路徑在目前 worktree root 之外」的情況明文寫死 fail-open
+    放行（見 check.go:107-110、guard_tool.go:85-88 的 "路徑落在 workspace 外 → 放行" 分支）。
+    role agent 若因主工作區與 worktree 有同名 repo、絕對路徑只差一段前綴而誤寫入主工作區檔案，
+    這個 gate 完全不會攔——已發生過需要 git reset --hard 補救的實際案例。
+
+    需求：
+    1. internal/gitops/worktree.go 新增一個 exported 函式，用 git rev-parse --git-common-dir
+       反推「主工作區 root」（linked worktree 情境下 --git-common-dir 解析到主工作區的 .git，
+       取其上一層即為主工作區 root）。
+    2. cmd/4x/check.go 的 relWithinWorkspace 呼叫端（runCheckPath）與
+       cmd/4x/guard_tool.go 的 evaluateWriteHook：目標路徑不在目前 worktree root 內時，
+       額外檢查是否落在主工作區 root 之內，是的話擋下（回傳 deny），而不是直接放行。
+    3. 明確定義 git 指令本身失敗時（例如非 git repo、git 不在 PATH）的 fail-open/fail-closed
+       邊界，並寫進程式碼註解與測試，不可含糊。
+
+    約束：
+    - 本次只涵蓋「主工作區 root」這一種已知風險路徑，不擴大到「其他 feature 的 worktree root」
+      （sibling worktree 偵測留給後續 feature）。
+    - guard-tool 是高頻呼叫路徑（每次 Edit/Write 都跑一次），新增的 git subprocess 呼叫需評估
+      效能影響，不可讓每次工具呼叫都變慢到無法接受。
+    - 需新增涵蓋「目標路徑落在 workspace 外」分支的測試（真實 git worktree fixture，而非純檔案
+      fixture）——這個分支目前測試涵蓋是 0，是本次修復必須補上的既有測試死角。
+status: not-started
+priority: 0
+profile: full
+repos:
+    - .
+subtasks:
+    - id: detect-main-root
+      name: gitops 新增偵測主工作區 root 的 exported API
+      status: ""
+    - id: gate-check-outside-root
+      name: relWithinWorkspace 呼叫端對落在主工作區 root 的路徑額外攔截
+      status: ""
+    - id: fail-open-boundary-tests
+      name: 補齊 workspace 外路徑分支的真實 git worktree fixture 測試
+      status: ""
+rules:
+    - 只涵蓋主工作區 root，不做 sibling worktree 偵測
+    - git 指令失敗時的 fail-open/fail-closed 行為必須明確定義並有測試覆蓋

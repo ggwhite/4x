@@ -1,0 +1,40 @@
+id: F172-resume-stale-report-detection
+name: 'F172: Resume 過期報告偵測（mtime 落後最新程式碼變更）'
+description: |-
+    現狀：
+    internal/artifact 的 CleanStaleArtifact 只清「結構不完整」的報告（用 ## Verification /
+    ## Verdict 等 section 是否存在判斷），orchestrator.go 的 clearStaleFinalReport /
+    clearStaleEscalation 只在進入特定 phase 時清 feature 層檔案。一份「結構完整（有合法
+    ## Verdict）但內容因程式碼已變動而語意過期」的報告不會被判為 stale。
+    templates/design-reviewer.md.tmpl 只有軟性提示「不要假設檔案存在就代表已審查完，要檢查
+    內容」，非強制機制。
+
+    需求：
+    round resume 時，若磁碟上已有本 phase 的報告檔，且該報告的 mtime 早於本輪最新一次程式碼
+    變更（commit time 或檔案 mtime，取本輪 round 目錄下實際變更為準）之後才產生，應該自動在
+    prompt 注入警示（而非只放在角色自律的軟提示裡），要求角色明確判斷是否需要重新產出，而不是
+    沿用舊報告。
+
+    約束：
+    - 不強制刪除或覆寫既有報告，只在 prompt 注入警示文字，交角色自行判斷是否重新產出。
+    - 只影響 resume 情境（磁碟上已有本輪報告檔時），不影響正常首次執行的 prompt 內容。
+    - 「最新程式碼變更」的判斷基準需明確定義（建議用本輪 round 目錄下 diff/coder-report 的
+      mtime，或 git 最新 commit time，二擇一並在實作中寫清楚，不可含糊帶過）。
+status: not-started
+priority: 2
+profile: normal
+repos:
+    - .
+subtasks:
+    - id: detect-stale-mtime
+      name: 比對報告 mtime 與本輪最新程式碼變更時間
+      status: ""
+    - id: inject-prompt-warning
+      name: internal/prompt Generate() 新增警示欄位並在 template 渲染
+      status: ""
+    - id: resume-staleness-tests
+      name: 覆蓋 resume 時報告過期/未過期兩種情境的測試
+      status: ""
+rules:
+    - 只注入警示，不強制刪除或覆寫既有報告
+    - 只影響 resume 情境，不改變首次執行的 prompt 內容

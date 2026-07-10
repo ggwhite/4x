@@ -1,0 +1,42 @@
+id: F171-proto-fanout-repo-detection
+name: 'F171: Proto/interface fan-out repo 自動偵測 gate'
+description: |-
+    現狀：
+    internal/gitops/gitops.go 的 DetectChangedRepos 只偵測「這次 git 有變動的 repo」，不解析
+    「哪些 repo import 了被改的 proto/interface」。templates/designer.md.tmpl 的 Repos Adjustment
+    只放寬 Designer 手動增刪 repos 的權限（v0.3.15），沒有機械檢查。多 repo monorepo 專案
+    （如 Kairos）一改共用 proto，Designer 常常漏列下游 import 該 proto 的 repo，worktree 沒
+    provision 該 repo，Coder 只能 escalate 或硬編繞過，產生更隱蔽的 bug。
+
+    需求：
+    1. 在 4x check 增加一個新 gate：解析本輪變更檔案中屬於 proto/interface 定義的部分
+       （簡單依副檔名/路徑慣例判斷即可，如 .proto、interface 定義檔）。
+    2. 反查 workspace 內哪些 repo 有 import 該定義的 path（用 grep import path 字串比對，
+       不需要真的做完整依賴分析/AST 解析）。
+    3. 跟 feature YAML 的 repos 欄位比對，若有 repo import 了變更的 proto/interface 但不在
+       repos 清單內，回報 scope violation（跟現有的 repo scope check 同一層級，走 guard 的
+       Warn 或 Error，由 Designer 決定嚴重度）。
+
+    約束：
+    - 不做完整依賴分析/import graph 建置，用簡單 grep 即可，避免過度工程。
+    - 新 gate 是獨立檢查，不修改既有的 DetectChangedRepos/repo scope check 邏輯。
+    - 誤報風險需評估：grep-based 偵測可能有 false positive（字串巧合），gate 訊息需標明是
+      「建議覆核」而非強制 block，避免擋住合法工作。
+status: not-started
+priority: 2
+profile: normal
+repos:
+    - .
+subtasks:
+    - id: detect-proto-changes
+      name: 偵測本輪變更檔案中屬於 proto/interface 定義的部分
+      status: ""
+    - id: reverse-import-scan
+      name: grep workspace 內 import 該定義的 repo 清單
+      status: ""
+    - id: compare-and-report
+      name: 跟 feature YAML repos 比對，不符時回報 scope violation 建議
+      status: ""
+rules:
+    - 用簡單 grep import path 比對，不做完整依賴分析
+    - 誤判時是建議覆核而非強制 block
