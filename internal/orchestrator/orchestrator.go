@@ -317,7 +317,7 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 		switch {
 		case codexUsage != nil:
 			fmt.Printf("  → codex 5h %s / 1wk %s, %s tokens, %s\n",
-				formatPct(codexUsage.PrimaryPercent), formatPct(codexUsage.SecondaryPercent),
+				FormatPct(codexUsage.PrimaryPercent), FormatPct(codexUsage.SecondaryPercent),
 				FormatTokens(tokens), invokeDur.Truncate(time.Second))
 		case costUSD > 0:
 			fmt.Printf("  → $%.4f, %s\n", costUSD, invokeDur.Truncate(time.Second))
@@ -1273,9 +1273,9 @@ func FormatTokens(n int) string {
 	return b.String()
 }
 
-// formatPct 把額度百分比格式化為簡潔字串（如 1.0 → "1%"、60.0 → "60%"、0 → "0%"），
+// FormatPct 把額度百分比格式化為簡潔字串（如 1.0 → "1%"、60.0 → "60%"、0 → "0%"），
 // 供 codex 用量進度列與 status/cost 顯示共用。
-func formatPct(v float64) string {
+func FormatPct(v float64) string {
 	return strconv.FormatFloat(v, 'g', -1, 64) + "%"
 }
 

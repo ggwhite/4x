@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 
 	"github.com/ggwhite/4x/internal/orchestrator"
 	"github.com/ggwhite/4x/internal/protocol"
@@ -69,16 +68,11 @@ func latestCodexUsageByRound(ws *protocol.Workspace, featureID string) []codexUs
 	return rows
 }
 
-// formatCodexPct 把額度百分比格式化為簡潔字串（如 1.0 → "1%"、0 → "0%"）。
-func formatCodexPct(v float64) string {
-	return strconv.FormatFloat(v, 'g', -1, 64) + "%"
-}
-
 // formatCodexRow 把單一 round 額度用量格式化為 `round N: 5h X% / 1wk Y% (N tokens)`，
 // 供 status 與 cost 的 codex 區塊共用。
 func formatCodexRow(row codexUsageRow) string {
 	return fmt.Sprintf("round %d: 5h %s / 1wk %s (%s tokens)",
-		row.Round, formatCodexPct(row.PrimaryPercent), formatCodexPct(row.SecondaryPercent),
+		row.Round, orchestrator.FormatPct(row.PrimaryPercent), orchestrator.FormatPct(row.SecondaryPercent),
 		orchestrator.FormatTokens(row.Tokens))
 }
 
