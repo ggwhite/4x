@@ -27,7 +27,7 @@ description: |-
     - 不修改 F168 既有的 CLI/events.jsonl/4x cost/4x status 邏輯，只新增 REST 透傳與前端渲染。
     - 不處理「codex 該輪剛好沒解出 rate_limits」這個資料可用性問題（屬於 F168 的 ParseCodexUsage
       範圍，非本 feature scope）。
-status: not-started
+status: in-progress
 priority: 2
 profile: normal
 subtasks:
