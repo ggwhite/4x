@@ -195,6 +195,51 @@ func TestRunReviewTestParallel_HappyPath(t *testing.T) {
 	}
 }
 
+// TestRunReviewTestParallel_TesterLogNoCollisionOnRerun 驗證：同一個 Runner 在同一 round 內
+// 第二次呼叫 RunReviewTestParallel（模擬 review convergence 修完後、sequential testing phase
+// 又重跑 tester 的情境）時，tester log 檔名要透過 r.roleRoundIter 取得 -2 後綴，不與第一次
+// 的 round-1-tester.log 同名互相覆寫（實際案例：ws-227 review-fix 收斂後重跑 tester，
+// dashboard 側邊清單看不出新一輪 testing 已經開始）。
+func TestRunReviewTestParallel_TesterLogNoCollisionOnRerun(t *testing.T) {
+	root := t.TempDir()
+	ws, cfg, feature := setupParallelWS(t, root, "F177-tester-rerun")
+	script := &parallelScript{ws: ws, featureID: feature.ID, round: 1, reviewerReports: []string{cleanPassReport, cleanPassReport}}
+	r := newParallelRunner(ws, ws, cfg, feature, fakeConvergeOps{}, script)
+	// parallelScript.newRunner 只在 codexSessionID 非空時才 MkdirAll logPath 的目錄
+	// （模擬 codex 產出時才需要）；此測試斷言 log 檔案本身是否存在，故需自行預先建立。
+	if err := os.MkdirAll(runner.LogDir(ws, feature.ID), 0o755); err != nil {
+		t.Fatalf("mkdir log dir: %v", err)
+	}
+
+	s, _ := ws.ReadState(feature.ID)
+	if _, err := RunReviewTestParallel(context.Background(), r, &s, resolvePC(t, cfg, feature)); err != nil {
+		t.Fatalf("RunReviewTestParallel (1st): %v", err)
+	}
+	firstLog := filepath.Join(runner.LogDir(ws, feature.ID), runner.LogFileName(1, string(protocol.RoleTester)))
+	if _, err := os.Stat(firstLog); err != nil {
+		t.Fatalf("first tester log missing: %v", err)
+	}
+
+	// 重置 phase 回 reviewing，模擬同一 round 內再跑一次平行 review+test。
+	s.Phase = protocol.PhaseReviewing
+	s.Role = protocol.RoleReviewer
+	if err := ws.WriteState(feature.ID, s); err != nil {
+		t.Fatalf("WriteState: %v", err)
+	}
+	if _, err := RunReviewTestParallel(context.Background(), r, &s, resolvePC(t, cfg, feature)); err != nil {
+		t.Fatalf("RunReviewTestParallel (2nd): %v", err)
+	}
+
+	secondLog := filepath.Join(runner.LogDir(ws, feature.ID), runner.IterationLogFileName(1, string(protocol.RoleTester), 2))
+	if _, err := os.Stat(secondLog); err != nil {
+		t.Fatalf("second tester log %s missing, want distinct -2 suffixed file: %v", secondLog, err)
+	}
+	firstContent, _ := os.ReadFile(firstLog)
+	if len(firstContent) == 0 {
+		t.Error("first tester log was overwritten/emptied by second run, want preserved")
+	}
+}
+
 // TestRunReviewTestParallel_WorktreeSignalPropagation 驗證 AC-2 + AC-3：worktree 模式
 // （RunnerWs != Ws）下，訊號在 SyncFeatureToWorktree 之前寫入 main 並同步到 worktree；reviewer
 // 與 tester 兩個 fake runner 從 worktree state.json 讀到的 parallelReview 皆為 true；完成後 main

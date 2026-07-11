@@ -225,6 +225,7 @@ const ROLES = {
   'deep-reverify':{name:'Deep Reverify',emoji:'🔬',color:'#a78bfa',bg:'rgba(167,139,250,.08)'},
   synthesizer:{name:'Synthesizer',emoji:'🧩',color:'#34d399',bg:'rgba(52,211,153,.08)'},
   'mini-coder':{name:'Mini Coder',emoji:'🔩',color:'#67e8f9',bg:'rgba(103,232,249,.08)'},
+  'review-fix':{name:'Review Fix',emoji:'🔩',color:'#67e8f9',bg:'rgba(103,232,249,.08)'},
   're-verifier':{name:'Re-Verifier',emoji:'🔁',color:'#86efac',bg:'rgba(134,239,172,.08)'},
   gate:{name:'Gate',emoji:'🚦',color:'#fbbf24',bg:'rgba(251,191,36,.08)'},
   consolidator:{name:'Consolidator',emoji:'🗂️',color:'#60a5fa',bg:'rgba(96,165,250,.08)'},

@@ -50,13 +50,17 @@ type Runner struct {
 	Config
 	totalTokens  int
 	totalCostUSD float64
+	// roleRoundIter 追蹤各 (round, role) 已執行次數，供 nextRoleIteration 產生不重複的 log
+	// 檔名。序列主迴圈與平行 review/test（RunReviewTestParallel）共用同一份，避免平行路徑
+	// 先跑過的 tester 與稍後序列 testing phase 重跑的 tester 用同一個檔名互相覆寫。
+	roleRoundIter map[string]int
 }
 
 // NewRunner 建立新的 Runner 實例，並以 events.jsonl 的權威加總 seed totalCostUSD，
 // 讓曾中斷重啟過的 feature 也能正確帶回歷史花費（新 feature 因無 events.jsonl 得到 0，無害）。
 func NewRunner(cfg Config) *Runner {
 	seedCost, _ := cfg.Ws.TotalCost(cfg.Feature.ID)
-	return &Runner{Config: cfg, totalCostUSD: seedCost}
+	return &Runner{Config: cfg, totalCostUSD: seedCost, roleRoundIter: map[string]int{}}
 }
 
 func (r *Runner) featureID() string {
@@ -183,6 +187,9 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 	if r.Ops == nil {
 		r.Ops = gitops.New(r.Ws.Root, r.Ws, r.Cfg)
 	}
+	if r.roleRoundIter == nil {
+		r.roleRoundIter = map[string]int{}
+	}
 	featureID := r.featureID()
 
 	profileName, pc, err := protocol.ResolveProfile(r.Cfg, r.Feature, s.Profile)
@@ -203,7 +210,6 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 
 	designerEscalations := 0
 	const maxDesignerEscalations = 2
-	roleRoundIter := map[string]int{}
 
 	var commitWG sync.WaitGroup
 	defer commitWG.Wait()
@@ -282,7 +288,7 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 
 		promptText := r.resolvePrompt(&pending, role, &s, phaseRunner)
 
-		iteration := nextRoleIteration(roleRoundIter, s.Round, role)
+		iteration := nextRoleIteration(r.roleRoundIter, s.Round, role)
 		logPath := filepath.Join(runner.LogDir(r.Ws, featureID), runner.IterationLogFileName(s.Round, string(role), iteration))
 		rn := r.NewRunner(phaseRunner, logPath, model)
 		setReviewerExtraEnv(rn, role, featureID, filepath.Join(r.Ws.RoundDir(featureID, s.Round), protocol.ReviewPackage))

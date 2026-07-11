@@ -34,6 +34,12 @@ func RunReviewTestParallel(ctx context.Context, r *Runner, s *protocol.State, pc
 	featureID := feature.ID
 	round := s.Round
 
+	// 測試或其他呼叫端可能繞過 NewRunner 直接建構 &Runner{}，此時 roleRoundIter 為 nil；
+	// 寫入 nil map 會 panic，故補上零值初始化守衛。
+	if r.roleRoundIter == nil {
+		r.roleRoundIter = map[string]int{}
+	}
+
 	resolveErr := func(what string, err error) (bool, error) {
 		StopState(ws, featureID, s, "model-error", fmt.Sprintf("%s resolution failed: %v", what, err))
 		return false, fmt.Errorf("%s resolution failed: %w", what, err)
@@ -84,7 +90,7 @@ func RunReviewTestParallel(ctx context.Context, r *Runner, s *protocol.State, pc
 		logPath    string
 	}
 
-	runRole := func(role protocol.Role, runnerName, model string) runOutcome {
+	runRole := func(role protocol.Role, runnerName, model, logPath string) runOutcome {
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "phase-start", Phase: protocol.PhaseReviewing, Role: role, Round: round,
 			Runner: runnerName, Model: model,
@@ -93,7 +99,6 @@ func RunReviewTestParallel(ctx context.Context, r *Runner, s *protocol.State, pc
 		if err != nil {
 			promptText = fmt.Sprintf("You are the %s for feature %s, round %d. Read .4x/%s/ for context.", role, featureID, round, featureID)
 		}
-		logPath := filepath.Join(runner.LogDir(ws, featureID), runner.LogFileName(round, string(role)))
 		rn := newRunner(runnerName, logPath, model)
 		setReviewerExtraEnv(rn, role, featureID, filepath.Join(ws.RoundDir(featureID, round), protocol.ReviewPackage))
 		invokeStart := time.Now()
@@ -114,11 +119,26 @@ func RunReviewTestParallel(ctx context.Context, r *Runner, s *protocol.State, pc
 
 	fmt.Printf("[round %d] reviewing — running reviewer (%s) + tester (%s) in parallel\n", round, reviewRunner, testRunner)
 
+	// 在 goroutine 外先算好 log 檔名並登記進 r.roleRoundIter：nextRoleIteration 對 map 的寫入
+	// 非併發安全，且此處註冊也讓稍後 sequential testing phase（orchestrator.go 主迴圈）重跑
+	// tester 時能透過同一份計數器算出 -2 後綴，不與這裡的檔名互相覆寫（見 F177 review 後同輪
+	// 續跑 tester 撞名的實際案例）。reviewer 端維持原本無後綴命名，不動既有 review-fix 收斂
+	// 迴圈（review_converge.go）自行管理的 iteration 語意。
+	reviewerLogPath := filepath.Join(runner.LogDir(ws, featureID), runner.LogFileName(round, string(protocol.RoleReviewer)))
+	testerIteration := nextRoleIteration(r.roleRoundIter, round, protocol.RoleTester)
+	testerLogPath := filepath.Join(runner.LogDir(ws, featureID), runner.IterationLogFileName(round, string(protocol.RoleTester), testerIteration))
+
 	var wg sync.WaitGroup
 	outcomes := make([]runOutcome, 2)
 	wg.Add(2)
-	go func() { defer wg.Done(); outcomes[0] = runRole(protocol.RoleReviewer, reviewRunner, reviewModel) }()
-	go func() { defer wg.Done(); outcomes[1] = runRole(protocol.RoleTester, testRunner, testModel) }()
+	go func() {
+		defer wg.Done()
+		outcomes[0] = runRole(protocol.RoleReviewer, reviewRunner, reviewModel, reviewerLogPath)
+	}()
+	go func() {
+		defer wg.Done()
+		outcomes[1] = runRole(protocol.RoleTester, testRunner, testModel, testerLogPath)
+	}()
 	wg.Wait()
 
 	if stopSync != nil {
