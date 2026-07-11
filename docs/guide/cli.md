@@ -232,6 +232,7 @@ When `--to` is omitted, the target phase is **auto-detected** from the `role` re
 | Flag | Description |
 |------|-------------|
 | `--to <phase>` | Target phase to recover to (default: auto-detect from `state.json` role, falling back to `accepting`) |
+| `--phase-override <phase>:<runner>:<model>` | Forwarded to the relaunched `4x run` (repeatable) — same format and semantics as `4x run`'s `--phase-override` |
 
 The phase set by a manual `transition` / `retry --to <phase>` is respected by the subsequent `4x run` recovery: it is marked with a `manualPhase` flag so `SmartResumePhase` does not override it back to an earlier phase derived from on-disk artifacts. This means `retry --to deep-reviewing` actually resumes at `deep-reviewing` instead of being pulled back to `coding`.
 

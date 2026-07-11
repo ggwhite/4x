@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -203,5 +204,52 @@ func TestRetry_ExplicitOverridesAutodetect(t *testing.T) {
 	}
 	if autodetected {
 		t.Error("autodetected = true, want false when --to is explicitly given")
+	}
+}
+
+// TestBuildRetryRunArgs 驗證 --phase-override 會逐筆轉發給子程序 `4x run`，順序與筆數不變，
+// 且無 override 時只有 "run <featureID>"（不多帶空旗標）。
+func TestBuildRetryRunArgs(t *testing.T) {
+	got := buildRetryRunArgs("F177-feature", []string{"reviewing:claude:opus", "testing:codex:"})
+	want := []string{"run", "F177-feature", "--phase-override", "reviewing:claude:opus", "--phase-override", "testing:codex:"}
+	if len(got) != len(want) {
+		t.Fatalf("buildRetryRunArgs len = %d, want %d (%v)", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("buildRetryRunArgs[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestBuildRetryRunArgs_NoOverrides(t *testing.T) {
+	got := buildRetryRunArgs("F177-feature", nil)
+	want := []string{"run", "F177-feature"}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Errorf("buildRetryRunArgs(no overrides) = %v, want %v", got, want)
+	}
+}
+
+// TestRetryCLI_InvalidPhaseOverride_RejectsBeforeTransition 驗證 CLI 層級：格式錯誤的
+// --phase-override 在轉發給子程序 `4x run` 之前就先擋下，且不會把 feature 轉出
+// needs-attention（避免驗證失敗卻已經副作用轉了 phase）。
+func TestRetryCLI_InvalidPhaseOverride_RejectsBeforeTransition(t *testing.T) {
+	ws := setupLoopWorkspace(t, "feat-retry-bad-override")
+	writeRetryState(t, ws, "feat-retry-bad-override", protocol.PhaseNeedsAttention)
+
+	out, err := run4x(ws.Root, "retry", "feat-retry-bad-override", "--phase-override", "not-a-valid-override")
+	if err == nil {
+		t.Fatalf("expected error for malformed --phase-override, got success:\n%s", out)
+	}
+	if !strings.Contains(out, "invalid --phase-override") {
+		t.Errorf("stderr/stdout = %q, want it to mention invalid --phase-override", out)
+	}
+
+	got, rerr := ws.ReadState("feat-retry-bad-override")
+	if rerr != nil {
+		t.Fatalf("ReadState: %v", rerr)
+	}
+	if got.Phase != protocol.PhaseNeedsAttention {
+		t.Errorf("phase = %s, want unchanged needs-attention (validation must fail before transition)", got.Phase)
 	}
 }

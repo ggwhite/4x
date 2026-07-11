@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/ggwhite/4x/internal/orchestrator"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/state"
 	"github.com/spf13/cobra"
@@ -13,6 +14,7 @@ import (
 
 func newRetryCmd() *cobra.Command {
 	var toPhase string
+	var phaseOverrides []string
 
 	cmd := &cobra.Command{
 		Use:   "retry <feature-id>",
@@ -40,6 +42,11 @@ e.g. --to amending to go back to coding.`,
 				return err
 			}
 
+			// 提早驗證，錯誤訊息在 retry 本身就報，不必等轉發給子程序 run 才炸。
+			if _, err := orchestrator.ParsePhaseOverrides(phaseOverrides); err != nil {
+				return err
+			}
+
 			// 未帶 --to 時傳空 Phase，交由 retryTransition 在臨界區內依 cur.Role 自動偵測。
 			newState, from, autodetected, err := retryTransition(ws, featureID, protocol.Phase(toPhase))
 			if err != nil {
@@ -55,7 +62,7 @@ e.g. --to amending to go back to coding.`,
 			if err != nil {
 				return fmt.Errorf("cannot determine executable path: %w", err)
 			}
-			c := exec.Command(exe, "run", featureID)
+			c := exec.Command(exe, buildRetryRunArgs(featureID, phaseOverrides)...)
 			c.Stdin = os.Stdin
 			c.Stdout = os.Stdout
 			c.Stderr = os.Stderr
@@ -65,7 +72,18 @@ e.g. --to amending to go back to coding.`,
 	}
 
 	cmd.Flags().StringVar(&toPhase, "to", "", "target phase to recover to (default: auto-detect from state.json role, fallback accepting)")
+	cmd.Flags().StringArrayVar(&phaseOverrides, "phase-override", nil, "temporary per-phase runner/model override for the relaunched run, format <phase>:<runner>:<model> (repeatable)")
 	return cmd
+}
+
+// buildRetryRunArgs 組出 retry 轉發給子程序 `4x run` 的參數清單，把 --phase-override
+// 逐筆轉發下去，讓 retry 恢復的執行也能沿用使用者指定的 per-phase runner/model override。
+func buildRetryRunArgs(featureID string, phaseOverrides []string) []string {
+	args := []string{"run", featureID}
+	for _, po := range phaseOverrides {
+		args = append(args, "--phase-override", po)
+	}
+	return args
 }
 
 // retryTransition 從 needs-attention / blocked 轉回目標 phase，回傳新 state、原始 phase 與是否自動偵測。
