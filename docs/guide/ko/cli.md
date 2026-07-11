@@ -206,6 +206,7 @@ enriched auto-discover가 생성한 `draft` 기능을 거부하여 `draft → ab
 | 플래그 | 설명 |
 |------|-------------|
 | `--to <phase>` | 복구할 대상 단계 (기본값: `accepting`) |
+| `--phase-override <phase>:<runner>:<model>` | 재실행되는 `4x run`으로 전달됩니다 (반복 가능) — `4x run`의 `--phase-override`와 동일한 형식과 의미 |
 
 기능이 현재 `needs-attention` 또는 `blocked` 상태가 아니면 오류가 발생합니다.
 

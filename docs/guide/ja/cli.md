@@ -206,6 +206,7 @@ enriched auto-discover が生成した `draft` Feature を却下し、`draft →
 | フラグ | 説明 |
 |------|-------------|
 | `--to <phase>` | 復帰先のターゲットフェーズ（デフォルト：`accepting`） |
+| `--phase-override <phase>:<runner>:<model>` | 再起動される `4x run` に転送されます（繰り返し指定可）—— `4x run` の `--phase-override` と同じ形式・意味 |
 
 Feature が `needs-attention` または `blocked` でない場合はエラーになります。
 

@@ -204,6 +204,7 @@
 | 标志 | 说明 |
 |------|-------------|
 | `--to <phase>` | 要恢复到的目标阶段（默认：`accepting`） |
+| `--phase-override <phase>:<runner>:<model>` | 转发给重新启动的 `4x run`（可重复）——格式与语义同 `4x run` 的 `--phase-override` |
 
 若 feature 当前不在 `needs-attention` 或 `blocked` 状态则报错。
 

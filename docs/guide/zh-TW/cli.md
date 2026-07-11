@@ -206,6 +206,7 @@ Review 判定必須以 `PASS` 開頭才算通過。`## Verdict` 標題與判定�
 | 旗標 | 說明 |
 |------|------|
 | `--to <phase>` | 要復原至的目標階段（預設：`accepting`） |
+| `--phase-override <phase>:<runner>:<model>` | 轉發給重新啟動的 `4x run`（可重複）——格式與語意同 `4x run` 的 `--phase-override` |
 
 若 feature 目前不在 `needs-attention` 或 `blocked` 則報錯。
 

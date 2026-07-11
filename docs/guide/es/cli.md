@@ -206,6 +206,7 @@ La fase destino por defecto es `accepting` (volver a ejecutar el Acceptor despu�
 | Bandera | Descripción |
 |------|-------------|
 | `--to <phase>` | Fase destino para la recuperación (por defecto: `accepting`) |
+| `--phase-override <phase>:<runner>:<model>` | Reenviado al `4x run` relanzado (repetible) — mismo formato y semántica que `--phase-override` de `4x run` |
 
 Produce error si el feature no está actualmente en `needs-attention` o `blocked`.
 
