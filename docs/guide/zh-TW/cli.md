@@ -196,17 +196,21 @@ Review 判定必須以 `PASS` 開頭才算通過。`## Verdict` 標題與判定�
 
 將卡在 `needs-attention` 或 `blocked` 的 feature 轉回工作階段，然後立即啟動 `4x run`。等同於 `4x transition --to <phase> <id> && 4x run <id>`。
 
-預設目標階段為 `accepting`（讓人工修復問題後重跑 Acceptor）。使用 `--to` 可指定不同階段。
+未帶 `--to` 時，目標階段會從 `state.json` 記錄的 `role` **自動偵測**——把 feature 進入 `needs-attention`/`blocked` 前卡住的那個角色，反推回它對應的工作階段（例如 `role: designer` → `designing`；`role: coder` → `coding` 或 `amending`，視 round 而定）。自動偵測成功時，啟動前會印出 `auto-detected target phase from role "<role>": <phase>`。若角色無法對應（空值或未知），則 fallback 為 `accepting`。明確帶 `--to <phase>` 會覆蓋自動偵測。
 
 ```
-4x retry F042-some-feature
+4x retry F042-some-feature              # 從 state.json 的 role 自動偵測目標階段
 4x retry F042-some-feature --to amending
 ```
 
 | 旗標 | 說明 |
 |------|------|
-| `--to <phase>` | 要復原至的目標階段（預設：`accepting`） |
+| `--to <phase>` | 要復原至的目標階段（預設：從 `state.json` 的 role 自動偵測，反推不出時 fallback `accepting`） |
 | `--phase-override <phase>:<runner>:<model>` | 轉發給重新啟動的 `4x run`（可重複）——格式與語意同 `4x run` 的 `--phase-override` |
+
+手動 `transition` / `retry --to <phase>` 設定的階段，會被後續的 `4x run` 復原流程尊重：它會標記 `manualPhase` 旗標，讓 `SmartResumePhase` 不會依磁碟上的 artifacts 把它推回較早的階段。這代表 `retry --to deep-reviewing` 真的會從 `deep-reviewing` 復原，而不會被拉回 `coding`。
+
+狀態變更類指令（`transition`、`retry`、`force-done`、`done`）都是對 `state.json` 做單一鎖定的 read-modify-write，所以對一個正在被存活的 `4x run` 寫入的 feature 執行這些指令，不會互相覆蓋對方的更新。若在逾時內無法取得該 feature 的鎖，指令會直接報錯，而不是卡住。
 
 若 feature 目前不在 `needs-attention` 或 `blocked` 則報錯。
 

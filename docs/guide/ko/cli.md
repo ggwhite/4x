@@ -196,17 +196,21 @@ enriched auto-discover가 생성한 `draft` 기능을 거부하여 `draft → ab
 
 `needs-attention` 또는 `blocked` 상태에서 멈춘 기능을 다시 작업 단계로 전환하고 즉시 `4x run`을 실행합니다. `4x transition --to <phase> <id> && 4x run <id>`와 동일합니다.
 
-기본 대상 단계는 `accepting`(사람이 이슈를 수정한 후 Acceptor를 재실행)입니다. `--to`로 다른 단계를 지정할 수 있습니다.
+`--to`를 생략하면 대상 단계는 `state.json`에 기록된 `role`로부터 **자동 감지**됩니다—feature가 `needs-attention`/`blocked`에 진입하기 전에 멈춰 있던 역할을 해당 작업 단계로 역매핑합니다 (예: `role: designer` → `designing`; `role: coder` → 라운드에 따라 `coding` 또는 `amending`). 자동 감지가 성공하면 실행 전에 `auto-detected target phase from role "<role>": <phase>`를 출력합니다. 역할을 매핑할 수 없으면(비어 있거나 알 수 없음) `accepting`으로 대체됩니다. `--to <phase>`를 명시적으로 지정하면 자동 감지보다 우선합니다.
 
 ```
-4x retry F042-some-feature
+4x retry F042-some-feature              # state.json의 role로부터 대상 단계 자동 감지
 4x retry F042-some-feature --to amending
 ```
 
 | 플래그 | 설명 |
 |------|-------------|
-| `--to <phase>` | 복구할 대상 단계 (기본값: `accepting`) |
+| `--to <phase>` | 복구할 대상 단계 (기본값: `state.json`의 role로부터 자동 감지, 매핑할 수 없으면 `accepting`) |
 | `--phase-override <phase>:<runner>:<model>` | 재실행되는 `4x run`으로 전달됩니다 (반복 가능) — `4x run`의 `--phase-override`와 동일한 형식과 의미 |
+
+수동 `transition` / `retry --to <phase>`로 설정된 단계는 이후 `4x run` 복구 과정에서도 존중됩니다: `manualPhase` 플래그가 표시되어 `SmartResumePhase`가 디스크의 산출물로부터 유추한 이전 단계로 되돌리지 않습니다. 즉 `retry --to deep-reviewing`은 실제로 `deep-reviewing`에서 재개되며 `coding`으로 되돌아가지 않습니다.
+
+상태를 변경하는 명령(`transition`, `retry`, `force-done`, `done`)은 `state.json`에 대해 단일 잠금 read-modify-write로 단계 변경을 수행하므로, 실행 중인 `4x run`이 쓰고 있는 feature에 대해 실행해도 서로의 업데이트를 덮어쓰지 않습니다. 기능별 잠금을 타임아웃 내에 획득하지 못하면 명령은 멈추지 않고 명확한 오류로 실패합니다.
 
 기능이 현재 `needs-attention` 또는 `blocked` 상태가 아니면 오류가 발생합니다.
 

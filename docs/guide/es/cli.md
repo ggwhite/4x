@@ -196,17 +196,21 @@ Rechazar un feature en estado `draft` producido por el auto-descubrimiento enriq
 
 Recuperar un feature atascado en `needs-attention` o `blocked` transicionándolo de vuelta a una fase activa, e inmediatamente lanzando `4x run`. Equivalente a `4x transition --to <phase> <id> && 4x run <id>`.
 
-La fase destino por defecto es `accepting` (volver a ejecutar el Acceptor después de que el humano resuelva los problemas). Usa `--to` para apuntar a una fase diferente.
+Cuando se omite `--to`, la fase destino se **detecta automáticamente** a partir del `role` registrado en `state.json` — el rol que estaba atascado antes de que el feature entrara en `needs-attention`/`blocked` se mapea de vuelta a su fase de trabajo (p. ej. `role: designer` → `designing`; `role: coder` → `coding` o `amending` según la ronda). Cuando la detección automática tiene éxito, imprime `auto-detected target phase from role "<role>": <phase>` antes de lanzar. Si el rol no se puede mapear (vacío o desconocido), recae en `accepting`. Pasar `--to <phase>` explícitamente anula la detección automática.
 
 ```
-4x retry F042-some-feature
+4x retry F042-some-feature              # detecta automáticamente la fase destino desde el role de state.json
 4x retry F042-some-feature --to amending
 ```
 
 | Bandera | Descripción |
 |------|-------------|
-| `--to <phase>` | Fase destino para la recuperación (por defecto: `accepting`) |
+| `--to <phase>` | Fase destino para la recuperación (por defecto: detectada automáticamente desde el role de `state.json`, recayendo en `accepting` si no se puede mapear) |
 | `--phase-override <phase>:<runner>:<model>` | Reenviado al `4x run` relanzado (repetible) — mismo formato y semántica que `--phase-override` de `4x run` |
+
+La fase establecida por una `transition` manual / `retry --to <phase>` es respetada por la recuperación posterior de `4x run`: se marca con un flag `manualPhase` para que `SmartResumePhase` no la sobrescriba con una fase anterior derivada de los artefactos en disco. Esto significa que `retry --to deep-reviewing` realmente reanuda en `deep-reviewing` en lugar de ser arrastrado de vuelta a `coding`.
+
+Los comandos que mutan estado (`transition`, `retry`, `force-done`, `done`) realizan su cambio de fase como una única operación bloqueada de lectura-modificación-escritura sobre `state.json`, así que ejecutar uno contra un feature que un `4x run` activo también está escribiendo no puede sobrescribir la actualización del otro. Si no se puede adquirir el lock por feature dentro de su timeout, el comando falla con un error claro en lugar de quedarse colgado.
 
 Produce error si el feature no está actualmente en `needs-attention` o `blocked`.
 

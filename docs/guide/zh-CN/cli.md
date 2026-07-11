@@ -194,17 +194,21 @@
 
 恢复卡在 `needs-attention` 或 `blocked` 的 feature，将其转换回工作阶段，然后立即启动 `4x run`。相当于 `4x transition --to <phase> <id> && 4x run <id>`。
 
-默认目标阶段为 `accepting`（人工修复问题后重跑 Acceptor）。使用 `--to` 指定其他目标阶段。
+未带 `--to` 时，目标阶段会从 `state.json` 记录的 `role` **自动侦测**——把 feature 进入 `needs-attention`/`blocked` 前卡住的那个角色，反推回它对应的工作阶段（例如 `role: designer` → `designing`；`role: coder` → `coding` 或 `amending`，视 round 而定）。自动侦测成功时，启动前会打印 `auto-detected target phase from role "<role>": <phase>`。若角色无法对应（空值或未知），则回退为 `accepting`。明确带 `--to <phase>` 会覆盖自动侦测。
 
 ```
-4x retry F042-some-feature
+4x retry F042-some-feature              # 从 state.json 的 role 自动侦测目标阶段
 4x retry F042-some-feature --to amending
 ```
 
 | 标志 | 说明 |
 |------|-------------|
-| `--to <phase>` | 要恢复到的目标阶段（默认：`accepting`） |
+| `--to <phase>` | 要恢复到的目标阶段（默认：从 `state.json` 的 role 自动侦测，反推不出时回退 `accepting`） |
 | `--phase-override <phase>:<runner>:<model>` | 转发给重新启动的 `4x run`（可重复）——格式与语义同 `4x run` 的 `--phase-override` |
+
+手动 `transition` / `retry --to <phase>` 设置的阶段，会被后续的 `4x run` 恢复流程尊重：它会标记 `manualPhase` 标志，让 `SmartResumePhase` 不会依据磁盘上的 artifacts 把它推回更早的阶段。这意味着 `retry --to deep-reviewing` 真的会从 `deep-reviewing` 恢复，而不会被拉回 `coding`。
+
+状态变更类命令（`transition`、`retry`、`force-done`、`done`）都是对 `state.json` 做单一锁定的 read-modify-write，所以对一个正在被存活的 `4x run` 写入的 feature 执行这些命令，不会互相覆盖对方的更新。若在超时内无法获取该 feature 的锁，命令会直接报错，而不是卡住。
 
 若 feature 当前不在 `needs-attention` 或 `blocked` 状态则报错。
 

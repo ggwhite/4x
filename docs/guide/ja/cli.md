@@ -196,17 +196,21 @@ enriched auto-discover が生成した `draft` Feature を却下し、`draft →
 
 `needs-attention` または `blocked` でスタックした Feature を適切な作業フェーズに戻し、直ちに `4x run` を起動します。`4x transition --to <phase> <id> && 4x run <id>` と同等です。
 
-デフォルトのターゲットフェーズは `accepting`（人間が問題を修正した後に Acceptor を再実行）です。`--to` で別フェーズを指定できます。
+`--to` を省略した場合、ターゲットフェーズは `state.json` に記録された `role` から**自動検出**されます——feature が `needs-attention`/`blocked` に入る前にスタックしていたロールを、対応する作業フェーズに逆算します（例：`role: designer` → `designing`；`role: coder` → ラウンドに応じて `coding` または `amending`）。自動検出に成功すると、起動前に `auto-detected target phase from role "<role>": <phase>` と出力されます。ロールをマッピングできない場合（空または不明）は `accepting` にフォールバックします。明示的に `--to <phase>` を渡すと自動検出より優先されます。
 
 ```
-4x retry F042-some-feature
+4x retry F042-some-feature              # state.json の role からターゲットフェーズを自動検出
 4x retry F042-some-feature --to amending
 ```
 
 | フラグ | 説明 |
 |------|-------------|
-| `--to <phase>` | 復帰先のターゲットフェーズ（デフォルト：`accepting`） |
+| `--to <phase>` | 復帰先のターゲットフェーズ（デフォルト：`state.json` の role から自動検出、マッピングできない場合は `accepting`） |
 | `--phase-override <phase>:<runner>:<model>` | 再起動される `4x run` に転送されます（繰り返し指定可）—— `4x run` の `--phase-override` と同じ形式・意味 |
+
+手動の `transition` / `retry --to <phase>` で設定されたフェーズは、その後の `4x run` の復旧処理でも尊重されます：`manualPhase` フラグが付与され、`SmartResumePhase` がディスク上の成果物から導出した以前のフェーズへ上書きすることを防ぎます。これにより `retry --to deep-reviewing` は実際に `deep-reviewing` から再開され、`coding` に引き戻されることはありません。
+
+状態を変更するコマンド（`transition`、`retry`、`force-done`、`done`）は `state.json` に対して単一のロック付き read-modify-write として phase 変更を行うため、実行中の `4x run` が書き込んでいる feature に対して実行しても、互いの更新を上書きすることはありません。フィーチャー単位のロックがタイムアウト内に取得できない場合、コマンドはハングせず明確なエラーで失敗します。
 
 Feature が `needs-attention` または `blocked` でない場合はエラーになります。
 
