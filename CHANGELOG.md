@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.2] - 2026-07-11
+
+### Features
+
+- **Dashboard log/message 搜尋功能** — F177：log 檢視區支援 Ctrl+F 風格搜尋（`<mark>` 高亮、上下筆跳轉、multi-log 跨檔連續編號），message 時間軸支援依內容/role/label 過濾隱藏
+- **`4x retry` 支援 `--phase-override`** — 恢復執行時可臨時指定 per-phase runner/model override，原樣轉發給重啟的 `4x run`，格式錯誤時在 `retry` 本身就擋下
+
+### Fixes
+
+- **Worktree Designer repos 欄位未同步回主工作區** — F176：修正 worktree 模式下 Designer 改的 `repos` 欄位無法回寫主工作區 YAML，導致 Designer/Design Reviewer 死循環
+- **Dashboard review-fix log 缺圖示 + 同輪 tester log 檔名碰撞** — 補 `review-fix` 角色圖示；平行 review+test 與後續 sequential testing phase 重跑 tester 時改用獨立計數器避免同名 log 互相覆寫
+
 ## [0.5.1] - 2026-07-10
 
 ### Features
