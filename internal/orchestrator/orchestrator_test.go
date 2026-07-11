@@ -29,6 +29,27 @@ func TestParseRunStatsFromLog(t *testing.T) {
 		{"stream-json cost only", "[result] success (10.2s, $0.1500)\n", 0, 0.15},
 		{"stream-json no cost", "[result] success (10.2s, $0.0000)\n", 0, 0},
 		{"both formats", "tokens used\n50000\n[result] success (100.0s, $1.5000)\n", 50000, 1.5},
+		// codex round log（無 claude token/[result] 行）：整檔掃描累加各 turn.completed 三欄 usage。
+		{
+			"codex single turn",
+			`{"type":"thread.started","thread_id":"x"}` + "\n" +
+				`{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":2,"reasoning_output_tokens":1}}` + "\n",
+			13, 0,
+		},
+		{
+			"codex multi turn",
+			`{"type":"turn.completed","usage":{"input_tokens":100,"output_tokens":20,"reasoning_output_tokens":5}}` + "\n" +
+				`{"type":"item.completed","item":{"type":"agent_message","text":"hi"}}` + "\n" +
+				`{"type":"turn.completed","usage":{"input_tokens":1000,"output_tokens":200,"reasoning_output_tokens":50}}` + "\n",
+			1375, 0,
+		},
+		// codex 壞行不失敗、只累加有效 turn（AC-11 壞輸入案例）。
+		{
+			"codex with bad line",
+			`{bad json` + "\n" +
+				`{"type":"turn.completed","usage":{"input_tokens":7,"output_tokens":3,"reasoning_output_tokens":0}}` + "\n",
+			10, 0,
+		},
 	}
 
 	for _, tt := range tests {

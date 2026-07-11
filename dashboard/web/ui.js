@@ -1358,9 +1358,12 @@ async function viewLog(fid, name) {
   viewer.scrollTop = viewer.scrollHeight;
   // 切換 log 檔案：重置搜尋選中位置，對新內容重新套用目前關鍵字（保留輸入框文字）。
   if (typeof LogSearch !== 'undefined') { LogSearch.resetPosition(); LogSearch.reapply(true); }
-  // SSE 從 REST 已讀到的 byte 長度續接，避免後端首個 tick 把 REST 剛顯示過的內容
-  // 當「新增內容」重送一次，造成 viewer 裡同一段文字出現兩次。
-  connectLogSSE(fid, name, new TextEncoder().encode(text).length);
+  // SSE 續傳的 offset 是原始檔的 raw-byte 位置。codex log 經 REST 轉換後內容變短，
+  // 不能再用顯示文字長度當 offset，否則 SSE 會從錯誤位置把已顯示的原始 JSONL 重送。
+  // 改用後端回的 X-Log-Raw-Size（原始檔 byte 長度）；缺失時 fallback 回舊行為（claude log 相等）。
+  const rawSize = parseInt(res.headers.get('X-Log-Raw-Size'), 10);
+  const offset = Number.isFinite(rawSize) ? rawSize : new TextEncoder().encode(text).length;
+  connectLogSSE(fid, name, offset);
 }
 
 function connectLogSSE(fid, file, offset) {

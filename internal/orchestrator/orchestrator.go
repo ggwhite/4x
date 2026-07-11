@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ggwhite/4x/internal/codexlog"
 	feat "github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/guard"
@@ -1177,9 +1178,11 @@ func LogSyncErr(err error, featureID string, phase protocol.Phase) {
 }
 
 // ParseRunStatsFromLog 從 runner log 尾端解析 token 使用量與成本。
-// 支援兩種格式：
+// 支援三種格式：
 //   - stream-json: [result] success (325.5s, $2.2826)
 //   - 傳統 Claude Code: tokens used\n73,204
+//   - codex JSONL: 尾端解析不出 token 時（claude log 無 turn.completed，掃描回 0/false，
+//     故行為不變），整檔掃描 turn.completed.usage 累加為該 round 的 token 數。
 func ParseRunStatsFromLog(logPath string) RunStats {
 	f, err := os.Open(logPath)
 	if err != nil {
@@ -1229,13 +1232,25 @@ func ParseRunStatsFromLog(logPath string) RunStats {
 			}
 		}
 	}
+
+	// codex round log 的 per-turn usage 需整檔掃描（跨多個 turn.completed 累加），
+	// 無法由尾端 4096 bytes 取得。僅在尾端未解析到 token（含 claude log）時才付出
+	// 整檔讀取成本；claude log 無 turn.completed 事件，SumTurnTokens 回 0/false，行為不變。
+	if stats.Tokens == 0 {
+		if data, err := os.ReadFile(logPath); err == nil {
+			if n, ok := codexlog.SumTurnTokens(data); ok {
+				stats.Tokens = n
+			}
+		}
+	}
 	return stats
 }
 
 // runEndMetrics 解析 runner log 的 token/cost 統計並累加至 r.totalTokens/totalCostUSD，
 // 回傳供 run-end event 填欄的 (tokens, costUSD, codex)。runnerName=="codex" 時額外從對應
-// rollout jsonl 擷取即時額度用量：成功則回傳非 nil 的 codex（且 log 未回報 token 時以
-// rollout 的累計 total_tokens 補位）；解析失敗只 slog.Warn、回傳 codex==nil，run-end 照常寫。
+// rollout jsonl 擷取即時額度用量：rollout 優先——ParseCodexUsage 回傳非 nil 的 codex 且其
+// 累計 total_tokens>0 時，即以 rollout 的 token 數覆蓋 ParseRunStatsFromLog 從 log 解析的值；
+// 只有 rollout 不可用（cu==nil）時才 slog.Warn 並保留 log 解析出的 codex fallback 值。
 // runnerName 非 codex 時 codex 恆為 nil，行為等同純 ParseRunStatsFromLog（claude 路徑不受影響）。
 //
 // 所有 run-end 寫入點皆透過本 helper 收斂 ParseRunStatsFromLog 呼叫與累加，避免 codex 分支散落。
@@ -1245,8 +1260,8 @@ func (r *Runner) runEndMetrics(runnerName, logPath string) (tokens int, costUSD 
 	if runnerName == "codex" {
 		if cu, cuTokens := ParseCodexUsage(logPath, ResolveCodexHome(os.Getenv("CODEX_HOME"))); cu != nil {
 			codex = cu
-			if tokens == 0 {
-				tokens = cuTokens
+			if cuTokens > 0 {
+				tokens = cuTokens // rollout 優先，覆蓋 log 解析值
 			}
 		} else {
 			slog.Warn("codex usage unavailable, skipping", "feature", r.featureID(), "log", logPath)

@@ -2,6 +2,7 @@ package server
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -14,6 +15,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/ggwhite/4x/internal/codexlog"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -155,6 +157,65 @@ func handleLogSSE(ws *protocol.CachedWorkspace, featureID string, w http.Respons
 	// 殘段 bytes 不計入 offsets（offsets 仍前進 n，但殘段保存在此），由下個 tick 拼回。
 	carryBufs := make(map[string][]byte)
 
+	// codex log 走「逐行」轉換（非 rune-based 穿透）：每個 log 首次處理時以內容式
+	// head-peek 辨識是否為 codex 格式並快取結果；codexCarry 保留尾端不完整的行，
+	// 等收到換行湊齊完整行才轉換，避免半截 JSON 被誤判為 passthrough 洩漏破碎原文。
+	codexChecked := make(map[string]bool)
+	codexLog := make(map[string]bool)
+	codexCarry := make(map[string][]byte)
+
+	// emitCodexLine 對單一完整 codex log 行轉換後以 SSE message 送出（帶 file 欄位）。
+	// handled && text=="" → 丟棄（codex 事件但無可顯示文字）；!handled → 原行穿透。
+	emitCodexLine := func(current string, line []byte) {
+		text, handled := codexlog.ConvertLine(line)
+		var content string
+		if handled {
+			if text == "" {
+				return
+			}
+			content = text + "\n"
+		} else {
+			content = string(line) + "\n"
+		}
+		chunk, _ := json.Marshal(map[string]string{"file": current, "content": content})
+		fmt.Fprintf(w, "data: %s\n\n", chunk)
+	}
+
+	// tailCodex 對 codex log 做 line buffering：以 \n 為界切完整行逐行轉換，尾端不
+	// 完整行留在 codexCarry 待下個 tick。offsets[current] 仍累進 raw byte（與 emit
+	// 內容長度解耦），維持與原始檔 byte 位置一致的續傳語意。
+	tailCodex := func(f *os.File, current string) {
+		carry := codexCarry[current]
+		// 初次跳入檔案中段（needAlign）時，第一個換行前必是殘缺行，須捨棄以免當 passthrough。
+		dropPartial := needAlign[current]
+		delete(needAlign, current)
+		for {
+			n, readErr := f.Read(buf)
+			if n > 0 {
+				carry = append(carry, buf[:n]...)
+				offsets[current] += int64(n)
+				for {
+					idx := bytes.IndexByte(carry, '\n')
+					if idx < 0 {
+						break
+					}
+					line := carry[:idx]
+					if dropPartial {
+						dropPartial = false
+					} else {
+						emitCodexLine(current, line)
+					}
+					carry = carry[idx+1:]
+				}
+			}
+			if readErr != nil {
+				break
+			}
+		}
+		// 複製殘段到自有 backing，避免與下個 tick 共用的 buf 別名。
+		codexCarry[current] = append([]byte(nil), carry...)
+	}
+
 	// tailFile 讀取 current 自上次 offset 起的新增內容並以 SSE message 送出（帶 file 欄位）。
 	tailFile := func(current string) {
 		path := filepath.Join(logsDir, current)
@@ -172,6 +233,18 @@ func handleLogSSE(ws *protocol.CachedWorkspace, featureID string, w http.Respons
 		if info.Size() <= offsets[current] {
 			return
 		}
+		// 首次處理該 log 時做一次性內容式辨識（head-peek 第一個「完整」非空行是否為 codex 事件）。
+		// 若目前尚無 \n-terminated 完整首行（runner 正寫入首行前半段），保持 undecided：
+		// 不快取、不讀取、不前進 offset，待下個 tick 收齊完整首行再判定；避免把半截 JSON
+		// 誤判為非 codex 而永久走 rune passthrough、洩漏破碎原文。
+		if !codexChecked[current] {
+			isCodex, decided := detectCodexLog(path)
+			if !decided {
+				return
+			}
+			codexChecked[current] = true
+			codexLog[current] = isCodex
+		}
 		f, err := os.Open(path)
 		if err != nil {
 			return
@@ -179,6 +252,11 @@ func handleLogSSE(ws *protocol.CachedWorkspace, featureID string, w http.Respons
 		defer f.Close()
 		if offsets[current] > 0 {
 			f.Seek(offsets[current], 0)
+		}
+		// codex log 走逐行轉換分支；非 codex 檔完全走以下既有 rune-based 穿透邏輯（一 byte 不改）。
+		if codexLog[current] {
+			tailCodex(f, current)
+			return
 		}
 		if needAlign[current] {
 			delete(needAlign, current)
@@ -235,6 +313,46 @@ func handleLogSSE(ws *protocol.CachedWorkspace, featureID string, w http.Respons
 			}
 			flusher.Flush()
 		}
+	}
+}
+
+// detectCodexLog 以內容式辨識判斷一個 log 檔是否為 codex JSONL 格式：
+// 讀檔頭第一個「以 \n 結尾的完整」非空行，能被 codexlog.ConvertLine 認定為 codex 事件
+// （handled==true）即為 codex log。顯示端不知道 runner 名稱（log 檔名不帶 runner、
+// 同 round 可能多 runner），故一律採內容辨識。
+//
+// 回傳 (isCodex, decided)：decided==false 代表「目前無法判定」，呼叫端應維持 undecided、
+// 不快取、不前進 offset，待後續 bytes 補齊再重試。只有在「首個非空 bytes 去空白後以 '{'
+// 開頭、但尚無 \n」時才 undecided——這可能是 codex JSON 事件行寫到一半，若此時誤判為非
+// codex 走 rune passthrough 會洩漏半截原始 JSON（HIGH 風險）。反之，若開頭不是 '{'，此行
+// 不可能成為 codex 事件（codex 每行皆為 JSON 物件），即刻判定為非 codex 走 passthrough，
+// 不空等 \n——否則無換行的合法非 codex 內容（claude 純文字、單一大 chunk）會被永久卡住不顯示。
+func detectCodexLog(path string) (isCodex, decided bool) {
+	f, err := os.Open(path)
+	if err != nil {
+		return false, false
+	}
+	defer f.Close()
+	head := make([]byte, 64*1024)
+	n, _ := f.Read(head)
+	data := head[:n]
+	for {
+		idx := bytes.IndexByte(data, '\n')
+		if idx < 0 {
+			// 尚無 \n-terminated 完整行：僅在「可能是 codex JSON 半行」時 undecided。
+			trimmed := bytes.TrimLeft(data, " \t\r\n")
+			if len(trimmed) == 0 || trimmed[0] == '{' {
+				return false, false
+			}
+			return false, true
+		}
+		line := data[:idx]
+		data = data[idx+1:]
+		if len(bytes.TrimSpace(line)) == 0 {
+			continue
+		}
+		_, handled := codexlog.ConvertLine(line)
+		return handled, true
 	}
 }
 

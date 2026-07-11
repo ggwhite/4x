@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ggwhite/4x/internal/codexlog"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/runner"
 )
@@ -87,8 +88,13 @@ func handleLogs(ws *protocol.CachedWorkspace, rest string, w http.ResponseWriter
 		http.Error(w, "not found", 404)
 		return
 	}
+	// codex log 於讀取當下轉為可讀文字（claude log 經 RenderContent 逐 byte 原樣穿透）。
+	// X-Log-Raw-Size 帶原始檔 byte 長度，供前端當作 SSE 續傳的 raw-byte offset——
+	// 轉換後內容變短，若沿用 rendered 長度會讓 SSE 從錯誤位置重送原始 JSONL。
+	rendered := codexlog.RenderContent(data)
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Write(data)
+	w.Header().Set("X-Log-Raw-Size", strconv.Itoa(len(data)))
+	w.Write(rendered)
 }
 
 // logSortKey 將 "round-N-role.log" 轉成數字 key，確保按執行順序排列。
