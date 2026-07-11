@@ -1,0 +1,54 @@
+id: F176-designer-repos-sync-worktree
+name: 'F176: F176: worktree Designer repos 欄位變更未同步回主工作區'
+description: |-
+    現狀：
+    isolation: worktree 模式下，Designer 角色允許修改 feature YAML 的 repos 欄位（CLAUDE.md 角色表），
+    但主工作區與 worktree 各持有一份獨立的 `.4x/features/{id}.yaml` 實體檔案（copy，非 symlink），
+    且同步邏輯不對稱：
+    - `internal/orchestrator/worktree.go` 的 `SyncFeatureToWorktree`（每個 role 開跑前）會無條件把主工作區
+      YAML 覆蓋進 worktree，主→worktree 方向正常。
+    - 但 `SyncFeatureFromWorktree`（role 跑完/live sync 收尾）的白名單只包含
+      TaskBrief/Criteria/TestStratFile/DesignReviewReport/FinalReport/RetroLearningsFile，
+      **沒有 feature YAML**，worktree→主方向缺這一項。
+
+    結果：Designer 在 worktree 內用 Edit 改 repos 欄位、`checkDesignerYAMLMod` guard 因為在 worktree 內
+    比對（讀 worktree 當前 YAML vs `git show HEAD:.4x/features/{id}.yaml`）判定「只改 repos」而 PASS，
+    但這個改動從未寫回主工作區權威副本。下一個 role（Design Reviewer）開跑前，
+    `SyncFeatureToWorktree` 又用主工作區的舊 YAML 覆蓋 worktree，Designer 的 repos 改動連 worktree
+    內都被抹掉。Design Reviewer 兩邊讀到的都是舊值，查不到 Designer 聲稱已完成的變更，
+    Designer 與 Design Reviewer 陷入「designer 說改了、reviewer 查不到」的死循環，浪費多輪 round
+    （已在其他使用 4x 的專案 ws-219 實際發生：3 輪 design/design-review 來回、$11.40 浪費，
+    最終靠人工介入同步主工作區 YAML 才解除）。
+
+    需求：
+    - `internal/orchestrator/worktree.go` 的 `SyncFeatureFromWorktree`（約 L56-72）新增邏輯：
+      讀取 worktree 內 feature YAML 的 `repos` 欄位，與主工作區 feature YAML 的 `repos` 欄位比對，
+      不同則把 worktree 的值合併寫回主工作區 YAML；其餘欄位（name/description/subtasks/priority/
+      profile/depends/status 等）維持主工作區既有值不動，避免整檔覆蓋繞過
+      `checkDesignerYAMLMod` guard「Designer 只能改 repos」的邊界意圖。
+    - 合併寫回後，緊接著下一個 role 開跑前的 `SyncFeatureToWorktree` 會把「已更新的主工作區 YAML」
+      再拉回 worktree，Design Reviewer 兩邊都能讀到新 repos，解除死循環。
+    - 補迴歸測試：模擬 Designer 在 worktree 內修改 repos 欄位 → 觸發 SyncFeatureFromWorktree →
+      斷言主工作區 YAML 的 repos 已更新、其餘欄位維持不變。
+
+    約束：
+    - 不改 `checkDesignerYAMLMod`（`internal/guard/designer_yaml.go`）對「只能改 repos」的驗證範圍，
+      本 feature 只補同步機制。
+    - 不整檔覆蓋主工作區 feature YAML，只合併 repos 欄位，避免其他角色寫入的欄位（如 Consolidator
+      寫的欄位、人工手動編輯的欄位）被 worktree 舊快照覆蓋掉。
+    - 不擴大到修復其他協定檔案的同步白名單，範圍限定在 feature YAML 的 repos 欄位這一個缺口。
+    - multi-repo 情境下若 `wt.DotDir()`/`main.DotDir()` 路徑推導有其他既有假設，維持現狀不動，
+      本 feature 只新增 repos 合併回寫這一段邏輯。
+status: done
+priority: 1
+profile: normal
+subtasks:
+    - id: sync-back
+      name: SyncFeatureFromWorktree 新增 repos 欄位合併回寫邏輯
+      status: ""
+    - id: regression-test
+      name: 補迴歸測試涵蓋 Designer 改 repos 後 Design Reviewer 讀到新值
+      status: ""
+rules:
+    - 只合併回寫 feature YAML 的 repos 欄位，主工作區 YAML 其餘欄位（name/description/subtasks/priority/profile 等）維持主工作區為權威來源，不得整檔覆蓋
+    - 不修改 checkDesignerYAMLMod guard 對『只能改 repos』的驗證邊界，本 feature 只補同步機制，不擴大 Designer 可寫欄位範圍

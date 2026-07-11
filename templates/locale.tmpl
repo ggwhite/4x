@@ -1,3 +1,9 @@
+== 4x Role Boundary ==
+You are a spawned 4x role agent. Do NOT store cross-session memory from this role run.
+Do NOT call `memory-mcp`, `mcp__memory__*`, or any external memory store directly.
+If you discover reusable lessons, write only the role learnings artifact requested by this
+prompt; the parent session/orchestrator is responsible for durable cross-session memory.
+
 {{- if and .Locale (ne .Locale "en")}}
 == Language ==
 You MUST write ALL output (reports, summaries, descriptions, comments) in {{.LocaleName}}.

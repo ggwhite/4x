@@ -87,3 +87,25 @@ func TestGenerate_AcceptorGuidance(t *testing.T) {
 		t.Errorf("acceptor output missing profile-absent guidance sentence\n---\n%s", got)
 	}
 }
+
+func TestGenerate_RoleBoundaryDisablesExternalMemory(t *testing.T) {
+	ws := newTestWorkspace(t)
+	featureID := "memory-boundary"
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatal(err)
+	}
+	ctx := &Context{Ws: ws, RunnerWs: ws, Feature: feat.Feature{ID: featureID, Name: "Test"}, Cfg: protocol.Config{}}
+
+	for _, role := range []protocol.Role{
+		protocol.RoleDesigner,
+		protocol.RoleTester,
+		protocol.RoleConsolidator,
+	} {
+		got := renderRole(t, ctx, role)
+		for _, want := range []string{"4x Role Boundary", "Do NOT call `memory-mcp`", "`mcp__memory__*`"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("role %s output missing %q\n---\n%s", role, want, got)
+			}
+		}
+	}
+}

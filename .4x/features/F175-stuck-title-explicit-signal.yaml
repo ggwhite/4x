@@ -1,0 +1,41 @@
+id: F175-stuck-title-explicit-signal
+name: 'F175: F175: 修 stuckTitleText 字串前綴嗅探反模式'
+description: |-
+    現狀：
+    `internal/protocol/miner.go` 的 `stuckTitleText`（L421）用 `strings.HasPrefix(reason, "feature stuck in ")`
+    嗅探 `stuckReason`（L382）的 fallback 文案字串，藉此判斷 `stuckReason` 是否真的抽到阻塞原因、還是
+    落到了通用預設文案。這正是 learnings L002 點名的反模式：靠字串前綴嗅探另一函式的 fallback 文案來還原
+    其控制流，一旦 fallback 文案字改了會靜默失效（`stuckTitleText` 判斷不到 fallback，錯把通用文案當成
+    真實 reason 塞進 Title）。同檔案較新的 `issueTitle`（L432）已改用 `(string, bool)` 顯式訊號模式，
+    本 feature 是把同一原則補套用到 `stuckReason`/`stuckTitleText` 這對舊函式上。
+
+    需求：
+    - `stuckReason(ws *Workspace, featureID string, state State) string` 改簽名為
+      `stuckReason(ws *Workspace, featureID string, state State) (reason string, generic bool)`，
+      第二個回傳值在「三個來源（StopReason/StopMessage、escalation detail）都拿不到內容、
+      回退到通用預設文案」時為 true，否則為 false。
+    - `stuckTitleText(f feature.Feature, reason string)` 改簽名為
+      `stuckTitleText(f feature.Feature, reason string, generic bool) string`，
+      用 `generic` 參數取代原本的 `strings.HasPrefix(reason, "feature stuck in ")` 字串比對。
+    - 唯一呼叫端 `ScanStuckFeatures`（L138）同步改用新簽名接收兩個回傳值並傳給 `stuckTitleText`。
+    - 通用預設文案本身的字串內容（`"feature stuck in %s with no recorded reason"`）維持不變，
+      只是不再用它來反推控制流。
+
+    約束：
+    - 不改變 `ScanStuckFeatures` 對外產出的 `Candidate.Title` / `Candidate.Description` 行為，
+      同樣輸入（含 fallback 情境）修改前後產出必須逐位元組相同，只是判斷機制從字串嗅探改成顯式布林。
+    - 不擴大範圍去改動 `issueTitle`、`firstLine`、`truncate` 等其他 helper。
+    - 不新增 exported API，`stuckReason`/`stuckTitleText` 維持 unexported。
+    - 不用 lite/full profile 的完整 designing 流程，此變更範圍與裁決已在本 description 講清楚。
+status: done
+priority: 3
+profile: quick
+subtasks:
+    - id: explicit-signal
+      name: stuckReason 改回傳 (string, bool) 顯式標示是否為通用 fallback
+      status: ""
+    - id: consume-bool
+      name: stuckTitleText 改吃 bool 訊號，移除字串前綴比對
+      status: ""
+rules:
+    - 不得改動 stuckReason/stuckTitleText 以外的行為；ScanStuckFeatures 產出的 Title/Description 內容需與修改前逐位元組相同
