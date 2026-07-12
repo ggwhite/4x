@@ -303,6 +303,7 @@ func checkTestingToAccepting(ws *protocol.Workspace, featureID string, round int
 		r.Errors = append(r.Errors, fmt.Sprintf("warning: failed to read test-strategy.yaml: %v (falling back to defaults)", tsErr))
 	}
 	checkACEvidence(ts, evidence, r)
+	checkEvidenceTracked(ws, featureID, evidence, r)
 	checkScreenshotRequirement(ws, ts, evidence, r)
 	checkManualChecks(ts, evidence, r)
 	checkSelfModTestGate(ws, featureID, r)
@@ -500,6 +501,106 @@ func checkACEvidence(ts protocol.TestStrategy, evidence protocol.VerifyEvidence,
 			"verify.json claims passed=true but ac_checks recomputation failed for %s — top-level passed is recomputed by 4x verify, do not hand-edit",
 			strings.Join(acChecksFailed, ", ")))
 		r.RetryableErrors++
+	}
+}
+
+// checkEvidenceTracked 對 verify.json 每條 AC 證據做一道 WARN-only 的 tracked 子檢查（F180）：
+// 從 evidence/command 啟發式抽出 scope 內原始碼路徑，比對是否為 git-tracked；疑似 untracked
+// 或 .gitignore 排除的路徑降級為 r.Warns 提示人工複查。
+// 硬性約束（DR-3）：全程只 append r.Warns，永不設 r.Pass=false、永不遞增 r.RetryableErrors，
+// 避免重演 F176 那種因誤判而無法收斂的死循環。
+// DR-5：以 gitops.ScopeRoots 定位 root，跨 root 建 tracked 聯集；聯集為空（git 不可用）時整段
+// 靜默跳過，不把每條證據誤判為 untracked。含 4x-lint:allow token 的證據整條略過（比照 LintACCheck），
+// IsAllowedArtifactPath 為 true 的合法產物路徑豁免。
+// 證據中若引用絕對路徑（如 /tmp/wt/internal/foo.go:42），先以 filepath.Rel 對各 root 正規化為
+// repo-relative 再比對，避免把已提交檔案的絕對路徑誤判為 untracked（越界 `..` 者跳過）。
+// rootTracked 保留單一 scope root 與其 tracked set（key 為 git ls-files 回傳的
+// repo-relative 路徑）的對應，供 checkEvidenceTracked 把證據中的絕對路徑以
+// filepath.Rel 正規化到對應 root 後再比對。
+type rootTracked struct {
+	root    string
+	tracked map[string]bool
+}
+
+// buildTrackedRoots 對每個 scope root 查詢其 tracked set，個別略過查詢失敗/為空
+// 的 root（該 root 的 git 不可用），只把成功取得 tracked set 的 root 帶入後續比對。
+// 與「全體 root 合計為 0 才整段跳過」不同：這裡是逐 root 判斷，避免 A root 正常、
+// B root git 失敗時，B root 下的絕對路徑被誤判為 untracked（round-3 review DR-5 finding）。
+func buildTrackedRoots(scopeRoots []string) []rootTracked {
+	var roots []rootTracked
+	for _, root := range scopeRoots {
+		tp := gitops.TrackedPaths(root)
+		if len(tp) == 0 {
+			continue
+		}
+		roots = append(roots, rootTracked{root: root, tracked: tp})
+	}
+	return roots
+}
+
+func checkEvidenceTracked(ws *protocol.Workspace, featureID string, evidence protocol.VerifyEvidence, r *CheckResult) {
+	roots := buildTrackedRoots(gitops.ScopeRoots(ws.Root, featureID))
+	if len(roots) == 0 {
+		return // 所有 root 皆無法取得 tracked set（git 不可用）→ 整段跳過（DR-5）
+	}
+	// trackedIn 判斷 rel（repo-relative 路徑）在該 tracked set 內：精確命中，或為某 tracked
+	// 檔案的目錄前綴（如 `internal/verify`）時視同 tracked，避免對套件目錄誤判。
+	trackedIn := func(tracked map[string]bool, rel string) bool {
+		if tracked[rel] {
+			return true
+		}
+		prefix := rel + "/"
+		for p := range tracked {
+			if strings.HasPrefix(p, prefix) {
+				return true
+			}
+		}
+		return false
+	}
+	isTracked := func(path string) bool {
+		if filepath.IsAbs(path) {
+			// 絕對路徑：對每個 root 用 filepath.Rel 正規化為 repo-relative 再比對；
+			// rel 為 `..`（或以 `../` 開頭）代表路徑不在該 root 底下，跳過（拒絕越界）。
+			for _, rt := range roots {
+				rel, err := filepath.Rel(rt.root, path)
+				if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+					continue
+				}
+				if trackedIn(rt.tracked, rel) {
+					return true
+				}
+			}
+			return false
+		}
+		// 相對路徑：視為 repo-relative，比對所有 root 的 tracked 聯集。
+		for _, rt := range roots {
+			if trackedIn(rt.tracked, path) {
+				return true
+			}
+		}
+		return false
+	}
+	warned := make(map[string]bool)
+	inspect := func(acID, s string) {
+		if strings.Contains(s, "4x-lint:allow") {
+			return
+		}
+		for _, path := range verify.ExtractScopePaths(s) {
+			if verify.IsAllowedArtifactPath(path) || isTracked(path) || warned[acID+"\x00"+path] {
+				continue
+			}
+			warned[acID+"\x00"+path] = true
+			r.Warns = append(r.Warns, fmt.Sprintf(
+				"%s: evidence path %q looks untracked/gitignored — verify the referenced content is committed (not a worktree-local or ignored file)", acID, path))
+		}
+	}
+	for _, ac := range evidence.ACResults {
+		for _, e := range ac.Evidence {
+			inspect(ac.ID, e)
+		}
+		for _, c := range ac.Checks {
+			inspect(ac.ID, c.Command)
+		}
 	}
 }
 

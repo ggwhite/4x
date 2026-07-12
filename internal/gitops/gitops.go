@@ -118,6 +118,27 @@ func untrackedFiles(dir string) []string {
 	return lines
 }
 
+// TrackedPaths 回傳 dir（一個 git 工作目錄）內所有 git-tracked 檔案的相對路徑集合
+// （git ls-files，cmd.Dir = dir）。回傳全 tracked 清單供 tracked/untracked 判定共用，
+// 讓呼叫端能以「路徑是否在此集合」判斷檔案是否已納入版控。
+// 指令失敗時回傳空集合（非 nil、可安全讀取），容錯語意比照同檔 untrackedFiles / ChangedPaths：
+// 呼叫端視同「無法可靠取得 tracked 清單」，不 panic。
+func TrackedPaths(dir string) map[string]bool {
+	set := make(map[string]bool)
+	cmd := exec.Command("git", "ls-files")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return set
+	}
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if line != "" {
+			set[line] = true
+		}
+	}
+	return set
+}
+
 // ChangedPaths 回傳 dir（一個 git 工作目錄）內 tracked+untracked 變更檔案的相對路徑清單
 // （git diff --name-only HEAD ∪ untrackedFiles）。只回路徑、不含行數，供只需要「哪些檔案變了」
 // 的呼叫端（scope-violation 偵測、symlink 偵測等）共用同一份 git 偵測邏輯，取代各自重新實作

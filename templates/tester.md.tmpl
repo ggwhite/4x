@@ -152,6 +152,10 @@ test that exercises the real call path — a real temp git repo, a real spawned 
 captured actual command arguments. A green unit test against a fake Ops / no-op execCommand
 alone is NOT sufficient evidence for such an AC: mark it failed and report the gap instead.
 
+Source-code paths you cite in evidence MUST refer to committed / git-tracked content: grepping or
+referencing a worktree-local uncommitted file or a .gitignore-excluded path will be flagged by guard
+as a WARN and require manual re-review, so prefer evidence that points at tracked, committed files.
+
 Example ac_results entry in verify.json:
 ```json
 {

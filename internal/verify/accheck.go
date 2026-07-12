@@ -136,3 +136,50 @@ func LintACCheck(cmd string) string {
 	}
 	return ""
 }
+
+var (
+	// scopePathToken 判斷單一 token 是否為 scope 內原始碼路徑：以 `.go` 結尾（或後接 `:` 行號），
+	// 或含 `internal/`、`cmd/`、`pkg/` 區段（segment 起於字串頭或 `/`）。沿用 lintGoSource 的
+	// 偵測樣式，改用於「抽取」而非「攔阻」。
+	scopePathToken = regexp.MustCompile(`\.go(:|$)|(^|/)(internal|cmd|pkg)/`)
+	// artifactAllowRe 匹配合法 build 產物 / generated 檔慣例，供 IsAllowedArtifactPath 豁免。
+	artifactAllowRe = regexp.MustCompile(`(^|/)bin/|(^|/)dist/|(^|/)build/|(^|/)coverage/|(^|/)\.build/|(^|/)e2e/screenshots/|(^|/)\.4x/run/|(^|/)zz_generated|_gen\.go$|(^|/)mock_[^/]*\.go$`)
+	// artifactAllowExact 匹配無目錄結構的合法產物檔名（coverage 輸出、截圖）。
+	artifactAllowExact = regexp.MustCompile(`(^|/)coverage\.out$|(^|/)\.coverprofile$|\.png$`)
+)
+
+// ExtractScopePaths 從任意字串（AC 證據行或命令）啟發式抽出其中的 scope 內原始碼路徑 token。
+// 判定範圍：以 `.go` 結尾的路徑，或含 `internal/`、`cmd/`、`pkg/` 區段的路徑。
+// 抽取前先剝除前導 shell 標點與引號、`./` 前綴，並去除尾端 `:行號` 與標點。
+// 對不含此類路徑的純散文字串回傳空 slice；回傳結果去重且保留出現順序。
+// 本質為 best-effort：抽不到明確 scope 路徑者一律略過，寧缺勿濫（見 F180 DR-4）。
+func ExtractScopePaths(s string) []string {
+	var out []string
+	seen := make(map[string]bool)
+	for _, raw := range strings.Fields(s) {
+		tok := strings.TrimLeft(raw, "$(){}[]!|;&<>'\"`")
+		tok = strings.TrimPrefix(tok, "./")
+		tok = strings.TrimRight(tok, ",;:)]}'\"`")
+		// 剝除尾端 `:行號[:列號]`（如 internal/x.go:42:3），只保留檔案路徑本體。
+		if i := strings.Index(tok, ".go:"); i >= 0 {
+			tok = tok[:i+len(".go")]
+		}
+		if tok == "" || !scopePathToken.MatchString(tok) {
+			continue
+		}
+		if !seen[tok] {
+			seen[tok] = true
+			out = append(out, tok)
+		}
+	}
+	return out
+}
+
+// IsAllowedArtifactPath 判斷 path 是否為合法 build 產物 / generated 檔，供 tracked 子檢查豁免。
+// 沿用 `4x-lint:allow` 的放行精神：這些路徑即使未 git-tracked 也屬預期（編譯輸出、覆蓋率、
+// e2e 截圖、`.4x/run/` runtime artifact、generated Go 檔慣例等），不應被標為疑似 untracked。
+// 涵蓋：`bin/`、`dist/`、`build/`、`.build/`、`coverage/`、`coverage.out`、`.coverprofile`、
+// `e2e/screenshots/`、`.png`、`.4x/run/`、`zz_generated`、`*_gen.go`、`mock_*.go`。
+func IsAllowedArtifactPath(path string) bool {
+	return artifactAllowRe.MatchString(path) || artifactAllowExact.MatchString(path)
+}
