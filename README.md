@@ -227,6 +227,19 @@ Start the Model Context Protocol (MCP) server:
 4x mcp
 ```
 
+## Claude Code Skills
+
+4x ships two optional [Claude Code Skills](https://docs.anthropic.com/en/docs/claude-code) for driving the pipeline from a Claude Code session. Install them with [`npx skills`](https://github.com/vercel-labs/skills) — no need to clone this repo:
+
+```bash
+npx skills add ggwhite/4x --skill 4x-audit       # scan past run artifacts, report + optionally file gap features
+npx skills add ggwhite/4x --skill 4x-autopilot   # drive the full pick → run → merge → next loop unattended
+npx skills add ggwhite/4x --all                  # install both
+```
+
+- **`4x-audit`** — scans discovered-feature-gaps, escalation/review reports, and recurring learnings patterns; produces a categorized HTML report and can optionally batch-create feature YAMLs.
+- **`4x-autopilot`** — polls 4x state and drives features through their full lifecycle (design → code → review → test → merge) without pausing for confirmation, including merging. **Owner-only** — read the skill's warning before using it on a shared repo.
+
 ## Permission Model
 
 **4x runs AI agents in non-interactive mode.** During `4x init`, runners are configured with flags that skip permission prompts (`--dangerously-skip-permissions`, `-y`, `approval: full-auto`) so the loop runs autonomously.
