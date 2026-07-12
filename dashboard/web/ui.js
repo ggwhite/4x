@@ -1296,7 +1296,8 @@ async function loadLogs(fid) {
     const durSpan = isLive
       ? `<span id="${durId}" class="text-[10px] text-emerald-400 ml-auto tabular-nums" data-started="${l.startedAt}"></span>`
       : dur ? `<span class="text-[10px] text-zinc-500 ml-auto">${dur}</span>` : '';
-    return `<div class="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-zinc-800/50 transition-colors ${active}" onclick="viewLog('${fid}','${escAttr(l.name)}')"><span class="text-xs font-semibold" style="color:${r.color}">${r.emoji||''} ${r.name}</span><span class="text-xs text-zinc-500">${esc(l.name)}</span>${durSpan}<span class="${!dur && !isLive ? 'ml-auto ' : ''}text-[10px] text-zinc-600">${kb}KB</span></div>`;
+    const modelTag = l.model ? `<span class="text-[10px] text-zinc-600 flex-shrink-0">${esc(l.model.replace(/^./, c => c.toUpperCase()))}</span>` : '';
+    return `<div class="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-zinc-800/50 transition-colors ${active}" onclick="viewLog('${fid}','${escAttr(l.name)}')"><span class="text-xs font-semibold" style="color:${r.color}">${r.emoji||''} ${r.name}</span><span class="text-xs text-zinc-500">${esc(l.name)}</span>${modelTag}${durSpan}<span class="${!dur && !isLive ? 'ml-auto ' : ''}text-[10px] text-zinc-600">${kb}KB</span></div>`;
   }).join('');
   startLogDurationTimers();
   if (!logSSE) connectLogSSE(fid);

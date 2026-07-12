@@ -21,11 +21,13 @@ type logInfo struct {
 	Size       int64   `json:"size"`
 	DurationMs *int64  `json:"durationMs,omitempty"`
 	StartedAt  *string `json:"startedAt,omitempty"`
+	Model      string  `json:"model,omitempty"`
 }
 
 type roleTiming struct {
 	DurationMs *int64
 	StartedAt  *string
+	Model      string
 }
 
 var roleOrder = map[string]int{
@@ -64,6 +66,7 @@ func handleLogs(ws *protocol.CachedWorkspace, rest string, w http.ResponseWriter
 			if t, ok := timings[e.Name()]; ok {
 				li.DurationMs = t.DurationMs
 				li.StartedAt = t.StartedAt
+				li.Model = t.Model
 			}
 			logs = append(logs, li)
 		}
@@ -186,9 +189,11 @@ func parseRoleTimings(featureDir string) map[string]roleTiming {
 		Role  string    `json:"role"`
 		Round int       `json:"round"`
 		Index int       `json:"index"`
+		Model string    `json:"model"`
 	}
 	starts := map[string]time.Time{}
 	ended := map[string]bool{}
+	models := map[string]string{}
 	timings := map[string]roleTiming{}
 	iterCount := map[string]int{}
 	var lastEventTs time.Time
@@ -208,6 +213,9 @@ func parseRoleTimings(featureDir string) map[string]roleTiming {
 			continue
 		}
 		key := logKeyFromEvent(ev.Round, string(ev.Role), ev.Type, ev.Index, iterCount)
+		if ev.Model != "" {
+			models[key] = ev.Model
+		}
 		switch ev.Type {
 		case "phase-start":
 			starts[key] = ev.Ts
@@ -215,7 +223,7 @@ func parseRoleTimings(featureDir string) map[string]roleTiming {
 			if start, ok := starts[key]; ok {
 				ms := ev.Ts.Sub(start).Milliseconds()
 				s := start.UTC().Format(time.RFC3339)
-				timings[key] = roleTiming{DurationMs: &ms, StartedAt: &s}
+				timings[key] = roleTiming{DurationMs: &ms, StartedAt: &s, Model: models[key]}
 				ended[key] = true
 			}
 		}
@@ -227,9 +235,9 @@ func parseRoleTimings(featureDir string) map[string]roleTiming {
 		s := ts.UTC().Format(time.RFC3339)
 		if !lastEventTs.IsZero() && lastEventTs.After(ts) {
 			ms := lastEventTs.Sub(ts).Milliseconds()
-			timings[key] = roleTiming{DurationMs: &ms, StartedAt: &s}
+			timings[key] = roleTiming{DurationMs: &ms, StartedAt: &s, Model: models[key]}
 		} else {
-			timings[key] = roleTiming{StartedAt: &s}
+			timings[key] = roleTiming{StartedAt: &s, Model: models[key]}
 		}
 	}
 	// 非平行 deep review 的 log 檔名為 round-N-deep-reviewer.log（無後綴），
