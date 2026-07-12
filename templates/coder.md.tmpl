@@ -120,6 +120,15 @@ Use this to navigate the codebase without exploring. Read specific files only wh
 - {{$name}} → {{$path}}/
 {{- end}}
 {{- end}}
+{{- if .Feature.SharedPaths}}
+
+== Shared Root-Level Paths (allowed to modify) ==
+This feature declares these root-level shared paths — you ARE allowed to modify them
+even though they are not inside any declared repo. Do NOT skip them:
+{{- range .Feature.SharedPaths}}
+- {{.}}
+{{- end}}
+{{- end}}
 
 == Commit Policy ==
 Commit after every meaningful unit of work — a function implemented, a bug fixed, a test added.
@@ -179,7 +188,7 @@ exactly what was already done, so nothing needs to be re-discovered or re-implem
 原則：沒有值得記錄的坑就不寫；只寫「未來能改善什麼」，不寫「這次做了什麼」；每條要具體到可直接當作 instruction 使用；環境、工具、帳號、workaround 等操作問題用 category "ops"；不超過 3 條，只留最有價值的。
 
 == Constraints ==
-- Only modify files in allowed repos
+- Only modify files in allowed repos, plus any paths listed under "Shared Root-Level Paths" above
 - Run verify commands after every change
 - Do NOT modify acceptance criteria or test scripts
 - Use Edit tool for modifying existing files — only use Write for creating new files

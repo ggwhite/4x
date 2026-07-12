@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode"
 )
 
 var featureIDRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9]$`)
@@ -97,6 +98,9 @@ func (f Feature) ValidateLoose() (warnings []string, fatalErr error) {
 	for i, st := range f.Subtasks {
 		warnings = append(warnings, st.validateLoose(i)...)
 	}
+	for _, issue := range sharedPathIssues(f.SharedPaths) {
+		warnings = append(warnings, "shared_paths "+issue)
+	}
 	return warnings, nil
 }
 
@@ -114,6 +118,62 @@ func (s Subtask) validateLoose(index int) []string {
 		warnings = append(warnings, fmt.Sprintf("%s.status %q is not recognized (valid: %s)", prefix, s.Status, subtaskStatusList()))
 	}
 	return warnings
+}
+
+// ValidateSharedPaths 驗證 feature YAML 宣告的 shared_paths 是否皆為合法的「根層共用路徑」。
+//
+// shared_paths 會被灌進 Coder prompt 並明示「允許改動」，因此必須嚴格限制為 monorepo hub
+// 根目錄的直接子項（如 Dockerfile、docker-compose.yml、dev.sh），不得逸出 workspace：
+//   - 空值（trim 後為空）→ 拒絕
+//   - 含路徑分隔符（"/" 或 "\"）→ 拒絕；此舉一併擋掉 "/abs/path" 絕對路徑、"sub/dir/file"
+//     nested path 與 "../x" traversal（根層檔案在 detectChangedRepos 的判定即是「不含 '/'」，
+//     故只允許直接子項）
+//   - "." 或 ".."（純目錄參照）→ 拒絕
+//   - 含控制字元（換行、CR、tab、NUL 等）→ 拒絕；shared_paths 未轉義即逐項插入
+//     templates/coder.md.tmpl 的 prompt bullet，換行等控制字元可讓內容突破單一 bullet
+//     結構、偽造後續指令，屬 prompt injection 風險（round-3 review finding）
+//
+// 回傳的 error 會列出所有非法項目與原因；全部合法（含空清單）時回傳 nil。
+func ValidateSharedPaths(paths []string) error {
+	issues := sharedPathIssues(paths)
+	if len(issues) == 0 {
+		return nil
+	}
+	return fmt.Errorf("invalid shared_paths: %s", strings.Join(issues, "; "))
+}
+
+// containsControlRune 回傳 s 是否含有任何 Unicode control rune（含 \r、\n、\t、NUL）。
+func containsControlRune(s string) bool {
+	for _, r := range s {
+		if unicode.IsControl(r) {
+			return true
+		}
+	}
+	return false
+}
+
+// sharedPathIssues 回傳 shared_paths 中每個非法項目的說明字串（合法則不列入），供
+// ValidateSharedPaths 與 ValidateLoose 共用同一套判定規則，避免門檻語意分歧。
+func sharedPathIssues(paths []string) []string {
+	var issues []string
+	for _, p := range paths {
+		tp := strings.TrimSpace(p)
+		var reason string
+		switch {
+		case tp == "":
+			reason = "empty"
+		case containsControlRune(p):
+			reason = "must not contain control characters (newline, tab, etc.)"
+		case strings.ContainsAny(tp, "/\\"):
+			reason = "must be a root-level file with no path separator (absolute paths, nested paths and '..' traversal are not allowed)"
+		case tp == "." || tp == "..":
+			reason = "must name a file, not a directory reference"
+		}
+		if reason != "" {
+			issues = append(issues, fmt.Sprintf("%q (%s)", p, reason))
+		}
+	}
+	return issues
 }
 
 func statusList() string {

@@ -37,6 +37,11 @@
     "hooks": { "type": "object", "description": "phase 對應的 hook 清單（run/on_fail）" },
     "phaseOverrides": { "type": "object", "description": "feature 層對單一 phase 的 runner/model 覆寫" },
     "deepReviewAllAngles": { "type": "boolean", "description": "為 true 時強制 deep review 跑全部 11 個角度" },
+    "sharedPaths": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[^/\\\\\\u0000-\\u001F\\u007F]+$" },
+      "description": "根層共用路徑清單（YAML 欄位 shared_paths），允許 Coder 改動不屬於任何 repo 的 hub 根目錄檔案；限根層直接子項（不含 '/' 或 '\\' 路徑分隔符、不含控制字元，禁絕對路徑與 '..' traversal）"
+    },
     "issues": {
       "type": "array",
       "items": {

@@ -334,9 +334,10 @@ spec: ""     # optional explicit path to the design spec (overrides docs/design/
 plan: ""     # optional explicit path to the implementation plan
 hooks: {}    # optional phase hooks (same format as settings.json)
 deep_review_all_angles: false  # force deep review to run all 11 angles (ignores angle_mapping)
+shared_paths: []  # root-level shared files this feature may modify (e.g. Dockerfile, docker-compose.yml)
 ```
 
-`status` mirrors `state.json` phase for quick listing. Valid values: `not-started`, `in-progress`, `ready-for-review`, `needs-attention`, `blocked`, `done`, `abandoned`. `abandoned` features are treated as completed (won't block dependencies) but display with strikethrough in the dashboard. `depends` lists feature IDs that must be done (or abandoned) before this feature can run. `repos` lists the repository names (from `workspace.repos`) that this feature touches; empty means all repos in scope.
+`status` mirrors `state.json` phase for quick listing. Valid values: `not-started`, `in-progress`, `ready-for-review`, `needs-attention`, `blocked`, `done`, `abandoned`. `abandoned` features are treated as completed (won't block dependencies) but display with strikethrough in the dashboard. `depends` lists feature IDs that must be done (or abandoned) before this feature can run. `repos` lists the repository names (from `workspace.repos`) that this feature touches; empty means all repos in scope. `shared_paths` declares monorepo hub root-level shared files (e.g. `Dockerfile`, `docker-compose.yml`, `dev.sh`) that live outside any repo; declaring them injects those paths into the Coder prompt as explicitly-allowed to modify, so the Coder does not skip them under the "stay within declared repos" role contract.
 
 An unrecognized `status` (or other format issue) does not fail loading — the CLI loads the feature in loose mode and logs a WARN naming the field, the offending value, and the list of valid values.
 

@@ -70,6 +70,10 @@ func checkDesignerYAMLMod(ws *protocol.Workspace, featureID string, r *CheckResu
 
 // featureSnapshot is a minimal struct for unmarshalling the original YAML to
 // compare non-repos fields. We intentionally omit repos since it's allowed.
+//
+// 注意：shared_paths（Feature.SharedPaths）刻意不列入此 snapshot——比照 repos，
+// 屬 Designer 於 designing phase 可自由修改的欄位。誤加進來會讓 Designer 宣告
+// shared_paths 被判為 violation。
 type featureSnapshot struct {
 	Name        string   `yaml:"name"`
 	Description string   `yaml:"description"`

@@ -279,16 +279,25 @@ You MAY modify the feature YAML's `repos` field if your analysis reveals that:
 - A repo is missing (the feature needs files in a repo not listed)
 - A repo is unnecessary (listed but no files in that repo need changes)
 
-To modify repos, use the Write tool to update the feature YAML at:
+You MAY also declare a `shared_paths` field when the feature needs to modify
+monorepo hub root-level shared files (e.g. Dockerfile, docker-compose.yml, dev.sh)
+that do NOT belong to any repo. Without this declaration, the Coder follows the role
+contract ("Stay within the feature's declared repos") and will skip those root-level
+files. Declaring them under `shared_paths` injects them into the Coder prompt as
+explicitly-allowed paths.
+
+To modify repos or shared_paths, use the Write tool to update the feature YAML at:
   {{.DotDir}}/features/{{.Feature.ID}}.yaml
 
 Rules:
-- You may ONLY change the `repos` field — do not touch any other field (name, description, priority, profile, subtasks, rules, depends, etc.)
-- The guard will reject changes to non-repos fields
+- You may ONLY change the `repos` and `shared_paths` fields — do not touch any other field (name, description, priority, profile, subtasks, rules, depends, etc.)
+- The guard will reject changes to other fields (repos and shared_paths are both allowed)
 - Document the change in task-brief.md under a "## Repos Adjustment" section:
   - Original repos: [list]
   - Updated repos: [list]
   - Reason: [why each repo was added or removed]
+- If you declare `shared_paths`, list each declared root-level path and the reason
+  (why the feature must touch that shared file) in the same section or a "## Shared Paths" section.
 
 == Constraints ==
 - You may NOT modify any source code

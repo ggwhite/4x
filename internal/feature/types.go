@@ -67,6 +67,10 @@ type Feature struct {
 	PhaseOverrides map[string]PhaseOverride `yaml:"phase_overrides,omitempty" json:"phaseOverrides,omitempty"`
 	// DeepReviewAllAngles 為 true 時強制 deep review 跑全部 11 個角度，忽略 angle mapping 的篩選。
 	DeepReviewAllAngles bool `yaml:"deep_review_all_angles,omitempty" json:"deepReviewAllAngles,omitempty"`
+	// SharedPaths 宣告本 feature 額外允許 Coder 改動的「根層共用路徑」（如 Dockerfile、
+	// docker-compose.yml、dev.sh）。這些檔案位於 monorepo hub 根目錄、不屬於任何 Repos，
+	// Coder 依角色契約預設會跳過；宣告於此並灌進 prompt 後即明示允許改動。
+	SharedPaths []string `yaml:"shared_paths,omitempty" json:"sharedPaths,omitempty"`
 	// Issues 記錄 `4x new` 在 issue_tracker.enabled 時為此 feature 各 repo 建立/連結的 issue。
 	Issues   []IssueRef `yaml:"issues,omitempty" json:"issues,omitempty"`
 	Warnings []string   `yaml:"warnings,omitempty" json:"warnings,omitempty"`

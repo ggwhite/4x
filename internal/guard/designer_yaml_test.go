@@ -59,6 +59,25 @@ func TestDesignerYAMLMod_ReposOnly_Pass(t *testing.T) {
 	}
 }
 
+// TestDesignerYAMLMod_SharedPaths_Pass 涵蓋 AC-7：Designer 在 designing phase 只新增
+// shared_paths 欄位時不應被判為 violation——比照 repos，shared_paths 屬 Designer 可修改欄位
+// （刻意不列入 featureSnapshot）。
+func TestDesignerYAMLMod_SharedPaths_Pass(t *testing.T) {
+	ws := setupDesignerYAMLWorkspace(t)
+	f := feat.Feature{ID: "F001-test", Name: "Test", Description: "desc", Status: feat.StatusNotStarted, Repos: []string{"repo-a"}}
+	commitFeatureYAML(t, ws, f)
+
+	f.SharedPaths = []string{"Dockerfile"}
+	ws.SaveFeature(f)
+	writeState(t, ws, "F001-test", protocol.State{Phase: protocol.PhaseDesigning, Round: 1})
+
+	r := CheckResult{Pass: true}
+	checkDesignerYAMLMod(ws, "F001-test", &r)
+	if !r.Pass {
+		t.Errorf("expected pass when only shared_paths added, got errors: %v", r.Errors)
+	}
+}
+
 func TestDesignerYAMLMod_NameChanged_Fail(t *testing.T) {
 	ws := setupDesignerYAMLWorkspace(t)
 	f := feat.Feature{ID: "F001-test", Name: "Test", Description: "desc", Status: feat.StatusNotStarted}

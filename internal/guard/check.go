@@ -63,8 +63,26 @@ func Check(ws *protocol.Workspace, featureID string, detector ScopeDetector) Che
 	checkTestStrategyVerifyTypes(ws, featureID, &r)
 	checkACChecksSchema(ws, featureID, &r)
 	checkDesignerYAMLMod(ws, featureID, &r)
+	checkSharedPaths(ws, featureID, &r)
 
 	return r
+}
+
+// checkSharedPaths 確認 feature YAML 宣告的 shared_paths 皆為合法的根層共用路徑。
+// shared_paths 會被灌進 Coder prompt 明示「允許改動」，若含絕對路徑、".." traversal、
+// nested path 或空值，會讓角色契約授權逸出 hub 根層甚至 workspace，故在此 gate 攔下。
+// 由 Designer 於 designing phase 宣告後，下一次 4x check（含 designing→coding 轉換）即攔截。
+func checkSharedPaths(ws *protocol.Workspace, featureID string, r *CheckResult) {
+	feature, err := ws.LoadFeature(featureID)
+	if err != nil {
+		// 載入失敗（缺檔/壞 YAML）由其他檢查處理，這裡 fail-open 保持與 sibling 一致。
+		return
+	}
+	if err := feat.ValidateSharedPaths(feature.SharedPaths); err != nil {
+		r.Pass = false
+		r.Errors = append(r.Errors, err.Error())
+		r.RetryableErrors++
+	}
 }
 
 // CheckDependencies 檢查 feature 的所有 dependency 是否已完成，用於 run 啟動前的 gate

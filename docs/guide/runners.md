@@ -34,6 +34,8 @@ Each runner has instruction files embedded in the `4x` binary. `4x init` deploys
 | copilot | `AGENTS.md` | AGENTS.md |
 | cursor | `.cursorrules` | .cursorrules |
 
+When a feature YAML declares `shared_paths`, the claude plugin context (`CLAUDE.md`) tells the Coder it may also modify those root-level shared files (e.g. `Dockerfile`, `docker-compose.yml`) even though they are not inside any declared repo.
+
 Additionally, shared instruction files are deployed to `.4x/plugins/shared/` for all runners:
 
 | File | Purpose |

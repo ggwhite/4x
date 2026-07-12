@@ -1,6 +1,7 @@
 package feature
 
 import (
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -51,6 +52,30 @@ func TestFeature_Issues_RoundTrip(t *testing.T) {
 	}
 	if len(loaded.Issues) != 1 || loaded.Issues[0] != f.Issues[0] {
 		t.Errorf("Issues round-trip = %+v, want %+v", loaded.Issues, f.Issues)
+	}
+}
+
+// TestFeature_SharedPaths_YAMLRoundTrip 涵蓋 AC-1：YAML 欄位 shared_paths 能
+// unmarshal 進 SharedPaths，marshal 回來仍以 shared_paths 為 key（非 sharedPaths）。
+func TestFeature_SharedPaths_YAMLRoundTrip(t *testing.T) {
+	src := "id: F181-shared\nname: 'F181: Shared'\nstatus: not-started\nshared_paths:\n  - Dockerfile\n  - docker-compose.yml\n"
+	var loaded Feature
+	if err := yaml.Unmarshal([]byte(src), &loaded); err != nil {
+		t.Fatalf("yaml.Unmarshal() = %v", err)
+	}
+	if len(loaded.SharedPaths) != 2 || loaded.SharedPaths[0] != "Dockerfile" || loaded.SharedPaths[1] != "docker-compose.yml" {
+		t.Fatalf("SharedPaths unmarshal = %+v, want [Dockerfile docker-compose.yml]", loaded.SharedPaths)
+	}
+
+	data, err := yaml.Marshal(loaded)
+	if err != nil {
+		t.Fatalf("yaml.Marshal() = %v", err)
+	}
+	if !strings.Contains(string(data), "shared_paths:") {
+		t.Errorf("marshalled YAML missing shared_paths key:\n%s", data)
+	}
+	if strings.Contains(string(data), "sharedPaths") {
+		t.Errorf("marshalled YAML should use shared_paths, not sharedPaths:\n%s", data)
 	}
 }
 

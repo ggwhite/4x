@@ -6,13 +6,14 @@ import "testing"
 func TestFeatureClone(t *testing.T) {
 	prio := 3
 	orig := Feature{
-		ID:       "F001-test",
-		Name:     "test",
-		Priority: &prio,
-		Repos:    []string{"a", "b"},
-		Rules:    []string{"r1"},
-		Depends:  []string{"F000"},
-		Warnings: []string{"w1"},
+		ID:          "F001-test",
+		Name:        "test",
+		Priority:    &prio,
+		Repos:       []string{"a", "b"},
+		Rules:       []string{"r1"},
+		Depends:     []string{"F000"},
+		Warnings:    []string{"w1"},
+		SharedPaths: []string{"Dockerfile", "docker-compose.yml"},
 		Subtasks: []Subtask{
 			{ID: "s1", Name: "sub", Depends: []string{"d1"}},
 		},
@@ -38,6 +39,8 @@ func TestFeatureClone(t *testing.T) {
 	c.Rules[0] = "X"
 	c.Depends[0] = "X"
 	c.Warnings[0] = "X"
+	c.SharedPaths[0] = "X"
+	c.SharedPaths = append(c.SharedPaths, "extra")
 	c.Subtasks[0].Name = "X"
 	c.Subtasks[0].Depends[0] = "X"
 	c.Hooks["coding"][0].Run = "X"
@@ -58,6 +61,9 @@ func TestFeatureClone(t *testing.T) {
 	if orig.Warnings[0] != "w1" {
 		t.Errorf("Warnings polluted: %v", orig.Warnings)
 	}
+	if orig.SharedPaths[0] != "Dockerfile" || len(orig.SharedPaths) != 2 {
+		t.Errorf("SharedPaths polluted: %v", orig.SharedPaths)
+	}
 	if orig.Subtasks[0].Name != "sub" || orig.Subtasks[0].Depends[0] != "d1" {
 		t.Errorf("Subtasks polluted: %+v", orig.Subtasks)
 	}
@@ -73,7 +79,8 @@ func TestFeatureClone(t *testing.T) {
 func TestFeatureCloneNilFields(t *testing.T) {
 	c := Feature{ID: "F002"}.Clone()
 	if c.Priority != nil || c.Repos != nil || c.Rules != nil ||
-		c.Depends != nil || c.Warnings != nil || c.Subtasks != nil || c.Hooks != nil {
+		c.Depends != nil || c.Warnings != nil || c.Subtasks != nil || c.Hooks != nil ||
+		c.SharedPaths != nil {
 		t.Errorf("nil fields should stay nil after Clone: %+v", c)
 	}
 }

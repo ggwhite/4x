@@ -1,7 +1,7 @@
 package feature
 
 // Clone 回傳 f 的深拷貝，所有 reference 欄位（Priority、Repos、Subtasks、Rules、
-// Depends、Hooks、Warnings、Issues）皆配置新的底層儲存，與原值完全不共用。
+// Depends、Hooks、Warnings、Issues、SharedPaths）皆配置新的底層儲存，與原值完全不共用。
 // 供 cache 層在回傳前隔離使用：呼叫端就地修改回傳值不會污染 cache 內存版本。
 func (f Feature) Clone() Feature {
 	c := f // 先複製純量欄位
@@ -15,6 +15,7 @@ func (f Feature) Clone() Feature {
 	c.Rules = cloneStrings(f.Rules)
 	c.Depends = cloneStrings(f.Depends)
 	c.Warnings = cloneStrings(f.Warnings)
+	c.SharedPaths = cloneStrings(f.SharedPaths)
 
 	if f.Issues != nil {
 		c.Issues = make([]IssueRef, len(f.Issues))
