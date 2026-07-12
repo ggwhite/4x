@@ -112,6 +112,62 @@ func DeepReviewCleanPass(ws *protocol.Workspace, featureID string, round int) bo
 	return result.Passed && result.CriticalCount == 0 && result.WarningCount == 0
 }
 
+// EscalationVerdict 表示 design-reviewer 對「本 feature 是否該拆分」的結構化表態，
+// 從 design-review-report.md 的 `## Escalation Verdict` 區段解析而來。
+type EscalationVerdict string
+
+const (
+	// EscalationAgreeSplit 代表 reviewer 主張本 feature 應拆成多個獨立 feature；
+	// 觸發 orchestrator 當輪停機轉 needs-attention，交由人工／上層拆分。
+	EscalationAgreeSplit EscalationVerdict = "agree-split"
+	// EscalationDisagree 代表本輪 FAIL 為一般設計問題，不涉及拆分，designer 應修正後重試。
+	EscalationDisagree EscalationVerdict = "disagree"
+	// EscalationNA 代表本輪沒有拆分議題，為安全預設值（marker 缺失或無法辨識時亦回此值）。
+	EscalationNA EscalationVerdict = "n/a"
+)
+
+// ParseEscalationVerdict 從 design-review-report.md 內容擷取 `## Escalation Verdict` 三態表態：
+// 找到該 heading 後取其後第一個非空行，去除 `*_` 裝飾並 lowercase 後比對——
+// `agree-split`→EscalationAgreeSplit、`disagree`→EscalationDisagree、
+// `n/a`（或 `n\a`、`na`）→EscalationNA。heading 不存在、其後無非空行、或值無法辨識時，
+// 一律回 EscalationNA（安全預設，確保未含此 marker 的既有報告維持現行行為）。
+func ParseEscalationVerdict(content string) EscalationVerdict {
+	lines := strings.Split(content, "\n")
+	inSection := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "## Escalation Verdict") {
+			inSection = true
+			continue
+		}
+		if inSection && trimmed != "" {
+			clean := strings.ToLower(strings.Trim(trimmed, "*_"))
+			switch clean {
+			case "agree-split":
+				return EscalationAgreeSplit
+			case "disagree":
+				return EscalationDisagree
+			case "n/a", "n\\a", "na":
+				return EscalationNA
+			default:
+				return EscalationNA
+			}
+		}
+	}
+	return EscalationNA
+}
+
+// DesignReviewerAgreedSplit 讀取 ws.FeatureDir(featureID)/design-review-report.md 並判斷
+// design-reviewer 是否主動表態同意拆分（`## Escalation Verdict` == agree-split）。
+// 讀檔失敗（含檔案不存在）回 false；成功則當且僅當解析結果為 EscalationAgreeSplit 才回 true。
+func DesignReviewerAgreedSplit(ws *protocol.Workspace, featureID string) bool {
+	data, err := os.ReadFile(filepath.Join(ws.FeatureDir(featureID), protocol.DesignReviewReport))
+	if err != nil {
+		return false
+	}
+	return ParseEscalationVerdict(string(data)) == EscalationAgreeSplit
+}
+
 // ReviewFailCount 回傳指定 round 的 review-report.md 失敗計數（critical + warning）。
 // 供 run loop 判斷連續輪次是否有進展（失敗數下降）使用；report 不存在時回 0。
 func ReviewFailCount(ws *protocol.Workspace, featureID string, round int) int {

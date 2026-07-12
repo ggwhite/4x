@@ -403,12 +403,22 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 		}
 
 		if next == protocol.PhaseDesigning && phase != protocol.PhaseInit {
-			designerEscalations++
-			if designerEscalations > maxDesignerEscalations {
+			// Fast-path：只有 design-reviewer 剛跑完（report 為本輪新鮮產物）且主動表態
+			// 同意拆分時才短路，避免讀到 coding/testing/fixing 打回 designing 情境殘留的
+			// 舊 design-review-report。此分支不計入 designerEscalations。
+			if phase == protocol.PhaseDesignReviewing && DesignReviewerAgreedSplit(r.Ws, featureID) {
 				next = protocol.PhaseNeedsAttention
 				nextRole = role
-				stopReason = fmt.Sprintf("escalation-loop: designer escalated %d times in round %d", designerEscalations, s.Round)
-				fmt.Printf("  ⚠ stopping: coder↔designer escalation loop detected (%d times)\n", designerEscalations)
+				stopReason = fmt.Sprintf("escalation-confirmed: design reviewer agreed to split in round %d", s.Round)
+				fmt.Printf("  ⚠ stopping: design reviewer confirmed the feature should be split (escalation-confirmed)\n")
+			} else {
+				designerEscalations++
+				if designerEscalations > maxDesignerEscalations {
+					next = protocol.PhaseNeedsAttention
+					nextRole = role
+					stopReason = fmt.Sprintf("escalation-loop: designer escalated %d times in round %d", designerEscalations, s.Round)
+					fmt.Printf("  ⚠ stopping: coder↔designer escalation loop detected (%d times)\n", designerEscalations)
+				}
 			}
 		}
 
@@ -433,13 +443,7 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 		if stopReason != "" {
 			s.Active = false
 			s.StopMessage = stopReason
-			if strings.HasPrefix(stopReason, "missing-artifact:") {
-				s.StopReason = "missing-artifact"
-			} else if strings.HasPrefix(stopReason, "escalation-loop:") {
-				s.StopReason = "escalation"
-			} else {
-				s.StopReason = "escalation"
-			}
+			s.StopReason = classifyStopReason(stopReason)
 		}
 		// post-phase transition commit 走 CAS 護欄：若磁碟 Active 已被外部清為 false
 		// （run 進行中被 done/abandon/force-done 終結），放棄本次覆寫、採用磁碟終態並
@@ -478,6 +482,25 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 	}
 
 	return &Result{TotalTokens: r.totalTokens, TotalCostUSD: r.totalCostUSD}, nil
+}
+
+// classifyStopReason 依 stopReason 訊息前綴決定落地到 state.json 的 StopReason 分類，
+// 是 RunLoop 設定 s.StopReason 的唯一真相來源：
+//   - `missing-artifact:` 前綴 → "missing-artifact"
+//   - `escalation-confirmed:` 前綴 → "escalation-confirmed"（雙方主動達成共識該拆，有別於純卡住）
+//   - `escalation-loop:` 前綴 → "escalation"
+//   - 其餘 → "escalation"
+func classifyStopReason(stopReason string) string {
+	switch {
+	case strings.HasPrefix(stopReason, "missing-artifact:"):
+		return "missing-artifact"
+	case strings.HasPrefix(stopReason, "escalation-confirmed:"):
+		return "escalation-confirmed"
+	case strings.HasPrefix(stopReason, "escalation-loop:"):
+		return "escalation"
+	default:
+		return "escalation"
+	}
 }
 
 func (r *Runner) initPhase(ctx context.Context, s *protocol.State) error {

@@ -190,3 +190,25 @@ func TestFormatTokens(t *testing.T) {
 		}
 	}
 }
+
+// TestClassifyStopReason 驗證 stopReason 前綴到 state.json StopReason 的分類映射（F179 AC-3）：
+// escalation-confirmed 需獨立成類，escalation-loop 仍映射為 escalation 不受影響。
+func TestClassifyStopReason(t *testing.T) {
+	tests := []struct {
+		name       string
+		stopReason string
+		want       string
+	}{
+		{"missing-artifact", "missing-artifact: task-brief.md", "missing-artifact"},
+		{"escalation-confirmed", "escalation-confirmed: design reviewer agreed to split in round 1", "escalation-confirmed"},
+		{"escalation-loop", "escalation-loop: designer escalated 3 times in round 1", "escalation"},
+		{"other falls back", "something else entirely", "escalation"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := classifyStopReason(tt.stopReason); got != tt.want {
+				t.Errorf("classifyStopReason(%q) = %q, want %q", tt.stopReason, got, tt.want)
+			}
+		})
+	}
+}

@@ -95,11 +95,20 @@ PASS / FAIL
 |---|---|---|
 ## Verdict
 PASS / FAIL
+## Escalation Verdict
+agree-split / disagree / n/a
 
 == Verdict Rules ==
 - PASS only when the design is ready for coding with no blocking architecture risk, overengineering risk, or missing requirement.
 - FAIL when Designer must revise task-brief.md, acceptance-criteria.md, or test-strategy.yaml before coding.
 - The verdict line under `## Verdict` MUST start with exactly `PASS` or `FAIL` so 4x can parse it.
+
+== Escalation Verdict Rules ==
+- The line under `## Escalation Verdict` MUST be exactly one line whose value is one of `agree-split`, `disagree`, or `n/a`. 4x reads only the first non-empty line under that heading.
+- `agree-split`: you (reviewer) judge that this feature should be split into multiple independent features, and you have explained the reasoning in the report. Writing this value makes the system STOP this round and transition to needs-attention, handing off to a human / upper layer to split — it will NOT retry the designer.
+- `disagree`: this round's FAIL is an ordinary design problem (missing AC, architecture risk, etc.); the designer should revise and retry. No split is involved.
+- `n/a`: this round has no split issue (the default value).
+- Reminder: only write `agree-split` when you genuinely argue the feature should be split. For an ordinary FAIL, keep `disagree` or `n/a`.
 
 == Incremental Writing & Resume ==
 Write design-review-report.md incrementally — create the file with the header and section headings first,
