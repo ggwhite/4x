@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.3] - 2026-07-13
+
+### Features
+
+- **Codex round log 可讀化 + token 統計 fallback** — F178：codex runner 的 `--json` round log（dashboard log viewer / CLI 顯示）逐行轉換成人類可讀文字（agent_message、command_execution 進行中/結果、error、turn.failed），原始 JSONL 檔案內容不變；`ParseRunStatsFromLog` 新增 codex `turn.completed.usage` 解析，作為 rollout 累計值的 fallback
+- **Escalation 雙方同意拆分時提早跳出重試迴圈** — F179：design-review-report.md 新增 `Escalation Verdict` 結構化表態（agree-split/disagree/n/a），design-reviewer 主動表態同意拆分時立即轉 needs-attention（新 stopReason `escalation-confirmed`），不用再空轉到燒滿 3 輪才觸發既有的 escalation-loop 偵測
+
 ## [0.5.2] - 2026-07-11
 
 ### Features
