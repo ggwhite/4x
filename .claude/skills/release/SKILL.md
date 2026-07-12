@@ -1,6 +1,8 @@
 ---
 name: release
 description: "Release a new version of 4x: update CHANGELOG.md from git log, tag, and push. Use when the user says 「發布」「release」「發新版」「打 tag」「release new version」or similar. Also use when the user says 「更新 changelog」if they clearly intend to release afterward."
+metadata:
+  internal: true
 ---
 
 # Release
