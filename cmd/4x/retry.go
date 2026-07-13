@@ -15,6 +15,7 @@ import (
 func newRetryCmd() *cobra.Command {
 	var toPhase string
 	var phaseOverrides []string
+	var note string
 
 	cmd := &cobra.Command{
 		Use:   "retry <feature-id>",
@@ -62,7 +63,7 @@ e.g. --to amending to go back to coding.`,
 			if err != nil {
 				return fmt.Errorf("cannot determine executable path: %w", err)
 			}
-			c := exec.Command(exe, buildRetryRunArgs(featureID, phaseOverrides)...)
+			c := exec.Command(exe, buildRetryRunArgs(featureID, phaseOverrides, note)...)
 			c.Stdin = os.Stdin
 			c.Stdout = os.Stdout
 			c.Stderr = os.Stderr
@@ -73,15 +74,20 @@ e.g. --to amending to go back to coding.`,
 
 	cmd.Flags().StringVar(&toPhase, "to", "", "target phase to recover to (default: auto-detect from state.json role, fallback accepting)")
 	cmd.Flags().StringArrayVar(&phaseOverrides, "phase-override", nil, "temporary per-phase runner/model override for the relaunched run, format <phase>:<runner>:<model> (repeatable)")
+	cmd.Flags().StringVar(&note, "note", "", "one-shot free-text note injected into the first role of this run only (not persisted to feature description)")
 	return cmd
 }
 
 // buildRetryRunArgs 組出 retry 轉發給子程序 `4x run` 的參數清單，把 --phase-override
-// 逐筆轉發下去，讓 retry 恢復的執行也能沿用使用者指定的 per-phase runner/model override。
-func buildRetryRunArgs(featureID string, phaseOverrides []string) []string {
+// 逐筆轉發下去，讓 retry 恢復的執行也能沿用使用者指定的 per-phase runner/model override；
+// note 非空時另轉發 --note，讓一次性 note 注入 retry 重啟後的第一個 role。
+func buildRetryRunArgs(featureID string, phaseOverrides []string, note string) []string {
 	args := []string{"run", featureID}
 	for _, po := range phaseOverrides {
 		args = append(args, "--phase-override", po)
+	}
+	if note != "" {
+		args = append(args, "--note", note)
 	}
 	return args
 }

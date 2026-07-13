@@ -84,8 +84,9 @@ func resolveRunParams(featureID string, runnerFlag string, maxRounds int, timeou
 	}, nil
 }
 
-// launchBackgroundJSON 在 --json 模式下背景啟動 run 子程序並回傳 JSON 結果
-func launchBackgroundJSON(ws *protocol.Workspace, featureID, runnerName, profileFlag string, phaseOverrides []string, maxRounds, timeout int, dryRun, allAngles bool) error {
+// buildRunBgArgs 組出 `4x run` 的 --json 背景子程序參數清單。純函式，供單元測試驗證
+// 各 flag（含一次性 --note）的轉發是否正確；launchBackgroundJSON 內改呼叫它取得 bgArgs。
+func buildRunBgArgs(featureID, runnerName, profileFlag string, phaseOverrides []string, maxRounds, timeout int, dryRun, allAngles bool, note string) []string {
 	bgArgs := []string{"run", featureID}
 	if runnerName != "" {
 		bgArgs = append(bgArgs, "--runner", runnerName)
@@ -108,6 +109,15 @@ func launchBackgroundJSON(ws *protocol.Workspace, featureID, runnerName, profile
 	if allAngles {
 		bgArgs = append(bgArgs, "--all-angles")
 	}
+	if note != "" {
+		bgArgs = append(bgArgs, "--note", note)
+	}
+	return bgArgs
+}
+
+// launchBackgroundJSON 在 --json 模式下背景啟動 run 子程序並回傳 JSON 結果
+func launchBackgroundJSON(ws *protocol.Workspace, featureID, runnerName, profileFlag string, phaseOverrides []string, maxRounds, timeout int, dryRun, allAngles bool, note string) error {
+	bgArgs := buildRunBgArgs(featureID, runnerName, profileFlag, phaseOverrides, maxRounds, timeout, dryRun, allAngles, note)
 	if err := ws.InitFeatureDir(featureID); err != nil {
 		return err
 	}
@@ -138,6 +148,7 @@ func newRunCmd() *cobra.Command {
 	var phaseOverrides []string
 	var noNotify bool
 	var allAngles bool
+	var note string
 
 	cmd := &cobra.Command{
 		Use:   "run <feature-id>",
@@ -151,7 +162,7 @@ func newRunCmd() *cobra.Command {
 			ws, feature, cfg, featureID := p.ws, p.feature, p.cfg, p.feature.ID
 
 			if jsonOutput {
-				return launchBackgroundJSON(ws, featureID, p.runnerName, profileFlag, phaseOverrides, p.maxRounds, p.timeout, dryRun, allAngles)
+				return launchBackgroundJSON(ws, featureID, p.runnerName, profileFlag, phaseOverrides, p.maxRounds, p.timeout, dryRun, allAngles, note)
 			}
 
 			if err := orchestrator.CheckDependencies(ws, featureID); err != nil {
@@ -181,6 +192,11 @@ func newRunCmd() *cobra.Command {
 			}
 			s.Profile = profileName
 			s.Pid = os.Getpid()
+			// F185：一次性 note 寫入 state.json（僅當非空，空字串維持 omitempty 不寫欄位）。
+			// fresh 與 resume 兩條路徑都回到同一個 s 再統一 WriteState，故此處一次覆蓋即可。
+			if note != "" {
+				s.RunNote = note
+			}
 			if err := ws.WriteState(featureID, s); err != nil {
 				return err
 			}
@@ -224,6 +240,7 @@ func newRunCmd() *cobra.Command {
 	cmd.Flags().StringArrayVar(&phaseOverrides, "phase-override", nil, "temporary per-phase runner/model override for this run only, format <phase>:<runner>:<model> (repeatable)")
 	cmd.Flags().BoolVar(&noNotify, "no-notify", false, "disable OS notification on run completion (overrides config)")
 	cmd.Flags().BoolVar(&allAngles, "all-angles", false, "force deep review to run all 11 angles (ignore angle mapping)")
+	cmd.Flags().StringVar(&note, "note", "", "one-shot free-text note injected into the first role of this run only (not persisted to feature description)")
 	return cmd
 }
 

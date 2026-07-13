@@ -4,6 +4,14 @@ Do NOT call `memory-mcp`, `mcp__memory__*`, or any external memory store directl
 If you discover reusable lessons, write only the role learnings artifact requested by this
 prompt; the parent session/orchestrator is responsible for durable cross-session memory.
 
+{{- if .ExtraPrompt}}
+== One-Shot Note (this run only) ==
+The user attached the following extra instruction for THIS run only. It is NOT part of the
+permanent feature spec/description — treat it as ad-hoc context for this invocation:
+
+{{.ExtraPrompt}}
+
+{{end -}}
 {{- if and .Locale (ne .Locale "en")}}
 == Language ==
 You MUST write ALL output (reports, summaries, descriptions, comments) in {{.LocaleName}}.

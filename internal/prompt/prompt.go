@@ -22,6 +22,9 @@ type Context struct {
 	// Profile 是已解析的 profile 名稱（如 state.json 的 profile 欄位）。
 	// 空字串代表由 ResolveProfile(cfg, feature, "") 依 feature/default 決定。
 	Profile string
+	// ExtraPrompt 是本次啟動的一次性 note，由 orchestrator 從 State.RunNote 帶入
+	// （只給本次第一個 role）。空字串代表無 note，template 不渲染對應區塊。
+	ExtraPrompt string
 }
 
 // Data 收納一個 role prompt 模板所需的全部資料。
@@ -86,6 +89,9 @@ type Data struct {
 	// StaleReport 非 nil 時代表 resume 情境偵測到本階段報告 mtime 落後本輪最新程式碼變更，
 	// 供 template 注入強制警示；首次執行（報告不存在）或報告較新時為 nil，渲染與現況一致。
 	StaleReport *StaleReportInfo
+	// ExtraPrompt 是本次啟動的一次性 note，由 Generate 從 Context.ExtraPrompt 複製而來；
+	// locale.tmpl 以 {{if .ExtraPrompt}} 區塊渲染，空字串則不輸出。
+	ExtraPrompt string
 }
 
 // IncludeContent 是一個被載入的檔案內容，含路徑與內文。
@@ -168,6 +174,7 @@ func Generate(ctx *Context, role protocol.Role, round, iteration int, runnerName
 		RepoMap:             repoMap,
 		ProfileInstructions: LoadProfiles(ws, feature.ID, cfg),
 		ScreenshotDir:       strings.ReplaceAll(protocol.ScreenshotDir(cfg), "{feature-id}", feature.ID),
+		ExtraPrompt:         ctx.ExtraPrompt,
 	}
 	briefPath := filepath.Join(ws.FeatureDir(feature.ID), protocol.TaskBrief)
 	skippedDesigner := false

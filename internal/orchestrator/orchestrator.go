@@ -55,6 +55,12 @@ type Runner struct {
 	// 檔名。序列主迴圈與平行 review/test（RunReviewTestParallel）共用同一份，避免平行路徑
 	// 先跑過的 tester 與稍後序列 testing phase 重跑的 tester 用同一個檔名互相覆寫。
 	roleRoundIter map[string]int
+	// runNote 是本次 run 的一次性 note（來自 State.RunNote），在 RunLoop 開頭讀入、
+	// 由 promptCtx 帶進「本次第一個實際產生 prompt 的路徑」，該路徑在呼叫 prompt.Generate
+	// 後隨即經 clearRunNote consume-once 清空，保證只有本次第一個 role 收到。清除點不限於
+	// resolvePrompt——所有 consume 入口見 clearRunNote 的說明（序列主迴圈 resolvePrompt、
+	// 平行 review/test RunReviewTestParallel、deep-review fan-out / synthesizer / sub-role）。
+	runNote string
 }
 
 // NewRunner 建立新的 Runner 實例，並以 events.jsonl 的權威加總 seed totalCostUSD，
@@ -81,8 +87,19 @@ func (r *Runner) promptCtx() *prompt.Context {
 	if s, err := r.Ws.ReadState(r.featureID()); err == nil {
 		ctx.Profile = s.Profile
 	}
+	// F185：一次性 note 只從 in-memory r.runNote 帶入（不從 disk 讀 RunNote），由第一個
+	// 產生 prompt 的路徑在產出後呼叫 clearRunNote 清空，確保後續 role 的 prompt 不再帶到。
+	ctx.ExtraPrompt = r.runNote
 	return ctx
 }
+
+// clearRunNote 清空 in-memory 一次性 note（F185）。所有「產生某個 role 的 prompt」的路徑
+// ——序列主迴圈的 resolvePrompt、平行 review/test（RunReviewTestParallel）、deep-review 的
+// parallel sub-reviewer / synthesizer / sub-role——在呼叫 prompt.Generate 後都必須經此
+// consume-once 入口清空 note，使一次性 note 只注入「本次第一個產生 prompt 的 role」，其後
+// 所有路徑（含併發 goroutine、後續 phase 與下一輪）的 promptCtx 都讀到空字串。無條件執行、
+// 重複呼叫為 no-op；集中在單一函式避免消費點在各路徑間漂移而重複注入。
+func (r *Runner) clearRunNote() { r.runNote = "" }
 
 // RunStats 是從 runner log 解析出的執行統計
 type RunStats struct {
@@ -198,6 +215,19 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 		return nil, err
 	}
 	s.Profile = profileName
+
+	// F185：把一次性 note 讀入 in-memory 欄位，並從 disk 清除，避免 crash+resume 或
+	// 下一次 retry 重播。in-memory r.runNote 只在此賦值一次，其後由 promptCtx 帶入本次第一個
+	// 實際產生 prompt 的路徑，該路徑產出後經 clearRunNote 消費清空（consume 入口清單見
+	// clearRunNote，含序列 resolvePrompt 與 review/test / deep-review 特殊路由），
+	// 保證只有本次第一個 role 收到（與 ManualPhase 消費語義一致）。
+	r.runNote = s.RunNote
+	if s.RunNote != "" {
+		s.RunNote = ""
+		if err := r.Ws.WriteState(featureID, s); err != nil {
+			return nil, fmt.Errorf("clear run note: %w", err)
+		}
+	}
 
 	if err := r.initPhase(ctx, &s); err != nil {
 		return nil, err
@@ -864,6 +894,10 @@ func (r *Runner) resolvePrompt(pending **prompt.Prefetch, role protocol.Role, s 
 		}
 		promptText = p
 	}
+	// F185：第一個 role 的 prompt 已透過 r.promptCtx() 把 r.runNote 帶進 ctx.ExtraPrompt
+	// 並複製進 promptText，這裡經 consume-once 入口無條件清空 in-memory 欄位，使之後（含
+	// prefetch goroutine）的 promptCtx() 讀到空字串，確保只有本次第一個 role 收到 note。
+	r.clearRunNote()
 	prompt.MarkLearningsUsed(r.Ws.DotDir(), prompt.LoadLearningsForRole(r.Ws.DotDir(), role))
 	return promptText
 }

@@ -381,26 +381,36 @@ func (r *Runner) runDeepReviewParallel(ctx context.Context, s *protocol.State, r
 	if len(missing) > 0 {
 		fmt.Printf("[round %d] deep-reviewing — running %d parallel sub-reviewers (%s, model: %s)\n", round, len(missing), runnerName, deepModel)
 
+		// F185：deep sub-reviewer 併發 fan-out。若在各自的 goroutine 內呼叫 r.promptCtx() 會
+		// 併發讀 r.runNote（data race）且讓多個 sub-reviewer 都拿到一次性 note。改為在 spawn 前
+		// 依序（第一個 slot 帶入 r.runNote、隨即 clearRunNote 消費，其餘 slot 讀到空字串）預先
+		// 產生每個 sub-reviewer 的 prompt，goroutine 只負責執行 runner，確保 note 只注入第一個。
+		subPrompts := make([]string, len(missing))
+		for slot, idx := range missing {
+			angles := groups[idx-1]
+			partialName := prompt.DeepReviewPartialName(idx)
+			promptText, perr := prompt.Generate(r.promptCtx(), protocol.RoleDeepReviewer, round, 0, runnerName,
+				prompt.WithParallelDeepReviewer(idx, len(groups), angles, partialName))
+			if perr != nil {
+				promptText = fmt.Sprintf("You are deep sub-reviewer %d for feature %s, round %d. Read .4x/%s/ for context.", idx, featureID, round, featureID)
+			}
+			r.clearRunNote()
+			subPrompts[slot] = promptText
+		}
+
 		var wg sync.WaitGroup
 		for slot, idx := range missing {
 			wg.Add(1)
 			go func(slot, idx int) {
 				defer wg.Done()
-				angles := groups[idx-1]
-				partialName := prompt.DeepReviewPartialName(idx)
 				ws.AppendEvent(featureID, protocol.Event{
 					Type: "phase-start", Phase: protocol.PhaseDeepReviewing, Role: protocol.RoleDeepReviewer, Round: round,
 					Runner: runnerName, Model: deepModel, Index: idx,
 				})
-				promptText, perr := prompt.Generate(r.promptCtx(), protocol.RoleDeepReviewer, round, 0, runnerName,
-					prompt.WithParallelDeepReviewer(idx, len(groups), angles, partialName))
-				if perr != nil {
-					promptText = fmt.Sprintf("You are deep sub-reviewer %d for feature %s, round %d. Read .4x/%s/ for context.", idx, featureID, round, featureID)
-				}
 				logPath := filepath.Join(runner.LogDir(ws, featureID), runner.DeepReviewerLogFileName(round, idx))
 				rn := r.NewRunner(runnerName, logPath, deepModel)
 				setReviewerExtraEnv(rn, protocol.RoleDeepReviewer, featureID, filepath.Join(ws.RoundDir(featureID, round), protocol.ReviewPackage))
-				res, runErr := rn.Run(ctx, promptText)
+				res, runErr := rn.Run(ctx, subPrompts[slot])
 				outcomes[slot] = parallelOutcome{index: idx, result: res, err: runErr}
 			}(slot, idx)
 		}
@@ -498,6 +508,9 @@ func (r *Runner) runSynthesizer(ctx context.Context, s *protocol.State, runnerNa
 	if perr != nil {
 		synthPrompt = fmt.Sprintf("You are the deep review synthesizer for feature %s, round %d. Read .4x/%s/ for context.", featureID, round, featureID)
 	}
+	// F185：若 deep-reviewing 是本次第一個 phase 且所有 sub-reviewer partial 皆已存在（無 missing、
+	// 上方 fan-out 未跑），synthesizer 便是本次第一個產生 prompt 的 role，須在此消費一次性 note。
+	r.clearRunNote()
 	synthLog := filepath.Join(runner.LogDir(ws, featureID), runner.LogFileName(round, string(protocol.RoleSynthesizer)))
 	synthRunner := r.NewRunner(runnerName, synthLog, synthModel)
 	fmt.Printf("[round %d] deep-reviewing (synthesizer) — invoking %s (model: %s)\n", round, runnerName, synthModel)
@@ -566,6 +579,10 @@ func (r *Runner) runSubRole(ctx context.Context, s *protocol.State, phase protoc
 	if err != nil {
 		promptText = fmt.Sprintf("You are the %s for feature %s, round %d. Read .4x/%s/ for context.", role, featureID, round, featureID)
 	}
+	// F185：runSubRole 是 deep-reviewing 單 agent 路徑（runDeepSubRole）與同輪收斂 mini-coder /
+	// re-verifier 的共用產 prompt 點；若 deep-reviewing 為本次第一個 phase 且走單 agent，此處即
+	// 第一個產生 prompt 的 role，須消費一次性 note，避免同輪後續 sub-role 重複收到。
+	r.clearRunNote()
 	logPath := filepath.Join(runner.LogDir(ws, featureID), logName)
 	rn := r.NewRunner(runnerName, logPath, model)
 	setReviewerExtraEnv(rn, role, featureID, filepath.Join(ws.RoundDir(featureID, round), protocol.ReviewPackage))

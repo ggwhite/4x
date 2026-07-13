@@ -91,6 +91,9 @@ Run the Design-Code-Review-Test loop for a feature.
 | `--phase-override` | none | Temporary per-phase runner/model override for this run only, format `<phase>:<runner>:<model>` (repeatable); not written back to settings or the feature YAML |
 | `--no-notify` | `false` | Disable the OS notification on run completion (overrides the `notifications` config) |
 | `--all-angles` | `false` | Force deep review to run all 11 angles, ignoring the diff-based angle mapping |
+| `--note` | none | One-shot free-text note injected into the prompt of the **first role** of this run only, then cleared; not persisted to the feature YAML `description` |
+
+The `--note` flag attaches ad-hoc guidance (e.g. "focus on the retry path", "skip the perf angle") to the first role that runs this invocation (designer on a fresh run, or the resumed role on a resume). It is consumed once — later roles in the same run and the next `retry` do not see it — and lives only in `state.json`'s one-shot `runNote` field, never touching the permanent feature `description`.
 
 When the run ends (success, failure, or interruption), 4x sends a native OS notification (`osascript` on macOS, `notify-send` on Linux, PowerShell balloon on Windows). Pass `--no-notify` to suppress it, or set `"notifications": false` in `settings.json`. Missing notification tooling is silently ignored.
 
@@ -234,6 +237,7 @@ When `--to` is omitted, the target phase is **auto-detected** from the `role` re
 |------|-------------|
 | `--to <phase>` | Target phase to recover to (default: auto-detect from `state.json` role, falling back to `accepting`) |
 | `--phase-override <phase>:<runner>:<model>` | Forwarded to the relaunched `4x run` (repeatable) — same format and semantics as `4x run`'s `--phase-override` |
+| `--note <text>` | Forwarded to the relaunched `4x run` as its `--note` — a one-shot free-text note injected into the first (resumed) role only, then cleared; not persisted to the feature `description` |
 
 The phase set by a manual `transition` / `retry --to <phase>` is respected by the subsequent `4x run` recovery: it is marked with a `manualPhase` flag so `SmartResumePhase` does not override it back to an earlier phase derived from on-disk artifacts. This means `retry --to deep-reviewing` actually resumes at `deep-reviewing` instead of being pulled back to `coding`.
 

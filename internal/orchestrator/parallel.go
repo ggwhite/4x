@@ -90,15 +90,27 @@ func RunReviewTestParallel(ctx context.Context, r *Runner, s *protocol.State, pc
 		logPath    string
 	}
 
-	runRole := func(role protocol.Role, runnerName, model, logPath string) runOutcome {
+	// F185：reviewer 是平行 review/test 的語意第一個 role。在 spawn goroutine 前先「同步」
+	// 依序產生兩者的 prompt：先產 reviewer（此時 r.promptCtx() 帶入 r.runNote），呼叫
+	// clearRunNote 消費一次性 note，再產 tester（讀到空字串）。同步產生兼顧兩點：(1) 一次性
+	// note 只注入 reviewer 一人，tester 與後續 phase 都不再收到；(2) 避免兩個 goroutine 併發
+	// 呼叫 r.promptCtx() 讀 r.runNote 造成 data race。
+	genPrompt := func(role protocol.Role, runnerName string) string {
+		p, gerr := prompt.Generate(r.promptCtx(), role, round, 0, runnerName)
+		if gerr != nil {
+			p = fmt.Sprintf("You are the %s for feature %s, round %d. Read .4x/%s/ for context.", role, featureID, round, featureID)
+		}
+		r.clearRunNote()
+		return p
+	}
+	reviewerPrompt := genPrompt(protocol.RoleReviewer, reviewRunner)
+	testerPrompt := genPrompt(protocol.RoleTester, testRunner)
+
+	runRole := func(role protocol.Role, runnerName, model, logPath, promptText string) runOutcome {
 		ws.AppendEvent(featureID, protocol.Event{
 			Type: "phase-start", Phase: protocol.PhaseReviewing, Role: role, Round: round,
 			Runner: runnerName, Model: model,
 		})
-		promptText, err := prompt.Generate(r.promptCtx(), role, round, 0, runnerName)
-		if err != nil {
-			promptText = fmt.Sprintf("You are the %s for feature %s, round %d. Read .4x/%s/ for context.", role, featureID, round, featureID)
-		}
 		rn := newRunner(runnerName, logPath, model)
 		setReviewerExtraEnv(rn, role, featureID, filepath.Join(ws.RoundDir(featureID, round), protocol.ReviewPackage))
 		invokeStart := time.Now()
@@ -133,11 +145,11 @@ func RunReviewTestParallel(ctx context.Context, r *Runner, s *protocol.State, pc
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		outcomes[0] = runRole(protocol.RoleReviewer, reviewRunner, reviewModel, reviewerLogPath)
+		outcomes[0] = runRole(protocol.RoleReviewer, reviewRunner, reviewModel, reviewerLogPath, reviewerPrompt)
 	}()
 	go func() {
 		defer wg.Done()
-		outcomes[1] = runRole(protocol.RoleTester, testRunner, testModel, testerLogPath)
+		outcomes[1] = runRole(protocol.RoleTester, testRunner, testModel, testerLogPath, testerPrompt)
 	}()
 	wg.Wait()
 

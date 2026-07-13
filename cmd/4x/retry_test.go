@@ -210,7 +210,7 @@ func TestRetry_ExplicitOverridesAutodetect(t *testing.T) {
 // TestBuildRetryRunArgs 驗證 --phase-override 會逐筆轉發給子程序 `4x run`，順序與筆數不變，
 // 且無 override 時只有 "run <featureID>"（不多帶空旗標）。
 func TestBuildRetryRunArgs(t *testing.T) {
-	got := buildRetryRunArgs("F177-feature", []string{"reviewing:claude:opus", "testing:codex:"})
+	got := buildRetryRunArgs("F177-feature", []string{"reviewing:claude:opus", "testing:codex:"}, "")
 	want := []string{"run", "F177-feature", "--phase-override", "reviewing:claude:opus", "--phase-override", "testing:codex:"}
 	if len(got) != len(want) {
 		t.Fatalf("buildRetryRunArgs len = %d, want %d (%v)", len(got), len(want), got)
@@ -223,11 +223,36 @@ func TestBuildRetryRunArgs(t *testing.T) {
 }
 
 func TestBuildRetryRunArgs_NoOverrides(t *testing.T) {
-	got := buildRetryRunArgs("F177-feature", nil)
+	got := buildRetryRunArgs("F177-feature", nil, "")
 	want := []string{"run", "F177-feature"}
 	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
 		t.Errorf("buildRetryRunArgs(no overrides) = %v, want %v", got, want)
 	}
+}
+
+// TestBuildRetryRunArgs_Note 驗證 AC-5：note 非空時轉發相鄰的 --note <note>；空時不帶 --note。
+func TestBuildRetryRunArgs_Note(t *testing.T) {
+	got := buildRetryRunArgs("F185-feature", nil, "focus X")
+	if !adjacentArgs(got, "--note", "focus X") {
+		t.Errorf("buildRetryRunArgs with note = %v, want adjacent --note \"focus X\"", got)
+	}
+
+	empty := buildRetryRunArgs("F185-feature", nil, "")
+	for _, a := range empty {
+		if a == "--note" {
+			t.Errorf("buildRetryRunArgs(empty note) should not contain --note: %v", empty)
+		}
+	}
+}
+
+// adjacentArgs 回報 args 中是否存在相鄰的 (flag, val) 一對。
+func adjacentArgs(args []string, flag, val string) bool {
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] == flag && args[i+1] == val {
+			return true
+		}
+	}
+	return false
 }
 
 // TestRetryCLI_InvalidPhaseOverride_RejectsBeforeTransition 驗證 CLI 層級：格式錯誤的

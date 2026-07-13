@@ -41,6 +41,11 @@ type State struct {
 	// 依磁碟 artifacts 重推導，並在消費後清除（避免下一輪真 crash 時仍被當成人為介入）。
 	// 正常 run loop 內部的 state.Transition 不設置此旗標，故 recovery 對真 crash 的行為維持不變。
 	ManualPhase bool `json:"manualPhase,omitempty"`
+	// RunNote 是 `4x run` / `4x retry` 附帶 `--note` 的一次性自由文字指示：只注入本次啟動
+	// 的第一個 role 的 prompt，消費後立即清除（in-memory 由 orchestrator 帶入後清空，disk 上
+	// 由 RunLoop 開頭讀入並 WriteState 抹除），確保後續 role 與下一次 retry 不重播。它是臨時
+	// context，不與 feature YAML 的 description（永久需求）混淆，也不寫回 feature YAML。
+	RunNote string `json:"runNote,omitempty"`
 	// ParallelReview 是 per-run 訊號：為 true 表示本輪 reviewer 與 tester 正並行執行於同一個
 	// reviewing phase（parallel_review_test 模式）。tester agent 的自保啟發式會讀 state.json，
 	// 若發現 phase=reviewing/role=reviewer 而非 tester 便可能拒絕執行；此旗標讓 tester/reviewer

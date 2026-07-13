@@ -216,6 +216,8 @@ init → designing → design-reviewing → coding → reviewing → testing →
 
 `4x retry` without `--to` reverses the role→phase mapping (`RoleToPhase` in `internal/state/machine.go`) to recover the exact phase that was stuck before the feature entered `needs-attention`/`blocked`: it reads the `role` recorded in `state.json` and maps it back to that role's working phase (the coder role disambiguates `coding` vs `amending` by round — `round <= 1` → `coding`, otherwise `amending`). If the role cannot be mapped (empty or unknown), it falls back to `accepting`.
 
+Both `4x run` and `4x retry` accept `--note <text>`, a one-shot free-text instruction stored in `state.json`'s `runNote` field. It follows the same consume-once pattern as `manualPhase`: `RunLoop` reads it into memory at startup and immediately clears it from disk (so a crash/resume or the next `retry` never replays it), then injects it into the prompt of only the first role of that run before clearing the in-memory copy. It is deliberately kept separate from the feature YAML `description` so ad-hoc guidance never pollutes the permanent spec.
+
 ### Round Counter
 
 - Entering `coding` when round is 0 sets round to 1
