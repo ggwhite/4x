@@ -97,6 +97,12 @@ func (m *monoRepo) Merge(featureID, featureName string) MergeResult {
 		return MergeResult{Error: fmt.Sprintf("current branch is %s — switch to main/master first", branch)}
 	}
 
+	// preflight：主工作區若有 tracked 的未 commit 變更，直接中止且不觸碰任何檔案。
+	// 否則下方 merge 失敗路徑的 reset --hard HEAD 會連同這些與本次 merge 無關的既有修改一併抹除。
+	if workingTreeDirty(m.root) {
+		return MergeResult{Error: "main workspace has uncommitted changes, aborting merge"}
+	}
+
 	out, err := exec.Command("git", "-C", m.root, "merge", "--squash", branch).CombinedOutput()
 	if err != nil {
 		files := conflictFiles(m.root)

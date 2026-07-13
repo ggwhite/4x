@@ -1,11 +1,13 @@
 package gitops
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ggwhite/4x/internal/feature"
@@ -321,6 +323,63 @@ func TestMultiRepo_MergeAllOrNothingRollback(t *testing.T) {
 		afterHead := gitOutput(filepath.Join(root, name), "rev-parse", "HEAD")
 		if afterHead != preHeads[name] {
 			t.Errorf("%s HEAD changed after failed merge: was %s, now %s", name, preHeads[name], afterHead)
+		}
+	}
+}
+
+// TestMultiRepo_Merge_DirtyRepoAborts 驗證 AC-5：任一 repo 主工作區有 tracked 未 commit 變更時，
+// preflight 在 preHeads 擷取迴圈內攔截、不觸碰任何 repo：Error 含該 repo 名與 "uncommitted changes"、
+// 所有 repo 的 git status --porcelain 前後一致、無任一 repo 產生 squash commit（HEAD 不變）。
+func TestMultiRepo_Merge_DirtyRepoAborts(t *testing.T) {
+	root, _, ops := setupMultiWorkspace(t)
+	wtPath, err := ops.SetupWorktree("feat-dirtyrepo", nil)
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+
+	// 兩個 repo 的 worktree 都有可 merge 的 commit。
+	writeFile(t, filepath.Join(wtPath, "core", "feature.go"), "package core\n")
+	writeFile(t, filepath.Join(wtPath, "gate", "feature.go"), "package gate\n")
+	if err := ops.Commit(wtPath, "feat-dirtyrepo", "wip(feat-dirtyrepo): round 1"); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+
+	// 只把 core 主工作區的 tracked 檔改髒（unstaged）。
+	writeFile(t, filepath.Join(root, "core", "go.mod"), "module core\n\ngo 1.26\n// dirty\n")
+
+	// 擷取 merge 前各 repo 的 status 與 HEAD。
+	statusBefore := make(map[string][]byte)
+	headBefore := make(map[string]string)
+	for _, name := range []string{"core", "gate"} {
+		repoPath := filepath.Join(root, name)
+		out, err := exec.Command("git", "-C", repoPath, "status", "--porcelain").Output()
+		if err != nil {
+			t.Fatalf("git status %s before: %v", name, err)
+		}
+		statusBefore[name] = out
+		headBefore[name] = gitOutput(repoPath, "rev-parse", "HEAD")
+	}
+
+	result := ops.Merge("feat-dirtyrepo", "Dirty Repo Feature")
+	if result.Conflict {
+		t.Error("dirty preflight abort should not be reported as conflict")
+	}
+	if !strings.Contains(result.Error, "core") || !strings.Contains(result.Error, "uncommitted changes") {
+		t.Errorf("error should name the dirty repo and 'uncommitted changes', got: %q", result.Error)
+	}
+
+	// 所有 repo 的 status 前後一致、HEAD 未變（無 squash commit 產生）。
+	for _, name := range []string{"core", "gate"} {
+		repoPath := filepath.Join(root, name)
+		statusAfter, err := exec.Command("git", "-C", repoPath, "status", "--porcelain").Output()
+		if err != nil {
+			t.Fatalf("git status %s after: %v", name, err)
+		}
+		if !bytes.Equal(statusBefore[name], statusAfter) {
+			t.Errorf("%s git status changed across Merge:\nbefore: %q\nafter:  %q", name, statusBefore[name], statusAfter)
+		}
+		if headAfter := gitOutput(repoPath, "rev-parse", "HEAD"); headAfter != headBefore[name] {
+			t.Errorf("%s HEAD changed after aborted merge: was %s, now %s", name, headBefore[name], headAfter)
 		}
 	}
 }

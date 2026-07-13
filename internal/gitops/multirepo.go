@@ -193,6 +193,13 @@ func (m *multiRepo) Merge(featureID, featureName string) MergeResult {
 			return MergeResult{Error: fmt.Sprintf("%s: current branch is %s — switch to main/master first", name, branch)}
 		}
 
+		// preflight：此迴圈在任何 repo 的 merge --squash 之前就跑完，任一 repo 主工作區有
+		// tracked 的未 commit 變更即中止、不觸碰任何 repo，杜絕下方 reset --hard HEAD / reset
+		// --hard done.head（含跨 repo 回滾）誤刪與本次 merge 無關的既有修改。
+		if workingTreeDirty(repoPath) {
+			return MergeResult{Error: fmt.Sprintf("%s: uncommitted changes in working tree, aborting merge", name)}
+		}
+
 		head := gitOutput(repoPath, "rev-parse", "HEAD")
 		preHeads = append(preHeads, repoHead{name: name, repoPath: repoPath, head: head})
 	}

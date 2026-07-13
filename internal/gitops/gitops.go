@@ -535,6 +535,29 @@ func captureRepoBaseline(fullPath, name, repoPath string) *protocol.BaselineRepo
 	}
 }
 
+// workingTreeDirty 回報 root 的主工作區是否存在「git reset --hard 會摧毀」的 tracked 變更
+// （已追蹤檔案的 staged/unstaged 修改）。供 monorepo/multirepo 的 Merge 在任何
+// merge --squash / reset --hard 之前做 preflight：主工作區髒時直接中止、不觸碰任何檔案，
+// 杜絕 merge 失敗路徑的 reset --hard 誤刪與本次 merge 無關的既有未 commit 修改。
+//
+// 僅偵測 reset --hard 會摧毀的 tracked 變更：git reset --hard 不會刪除 untracked 檔案，
+// 故 git status --porcelain 輸出中純 untracked（"??" 前綴）的行不算髒，放行讓 merge 照舊進行，
+// 避免主工作區剛好有無關 scratch 檔時把正常流程誤擋。
+// git status 執行失敗時保守回傳 false（不新增阻擋），維持既有行為。
+func workingTreeDirty(root string) bool {
+	out, err := exec.Command("git", "-C", root, "status", "--porcelain").Output()
+	if err != nil {
+		return false
+	}
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if line == "" || strings.HasPrefix(line, "??") {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
 func conflictFiles(root string) []string {
 	out, err := exec.Command("git", "-C", root, "diff", "--name-only", "--diff-filter=U").Output()
 	if err != nil {

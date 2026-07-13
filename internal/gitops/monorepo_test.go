@@ -699,18 +699,137 @@ func TestMonoRepo_MergeDirtyWorkingTree(t *testing.T) {
 
 	wtDir := Dir(root, "feat-dirty")
 	// branch also modifies main.go so git will refuse to merge with a dirty working tree
-	os.WriteFile(filepath.Join(wtDir, "main.go"), []byte("package main\n// from branch\n"), 0o644)
+	writeFile(t, filepath.Join(wtDir, "main.go"), "package main\n// from branch\n")
 	runGit(t, wtDir, "add", "main.go")
 	runGit(t, wtDir, "commit", "-m", "feat")
 
-	// dirty main working tree: unstaged modification to a file the branch also changed
-	os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n// dirty\n"), 0o644)
+	// dirty main working tree: unstaged modification to a file the branch also changed.
+	// 這正是 kairos/F181 資料遺失案例的精確重現：main 有與本次 merge 重疊的 tracked 修改，
+	// pre-fix 時 git 會拒絕 merge、走 reset --hard HEAD 抹除這筆髒內容。
+	const dirtyContent = "package main\n// dirty\n"
+	writeFile(t, filepath.Join(root, "main.go"), dirtyContent)
+
+	// 擷取 Merge 前的 git status（含 untracked），供比對 preflight 未觸碰任何檔案。
+	statusBefore, err := exec.Command("git", "-C", root, "status", "--porcelain").Output()
+	if err != nil {
+		t.Fatalf("git status before: %v", err)
+	}
 
 	result := ops.Merge("feat-dirty", "Dirty Feature")
 	if result.Conflict {
 		t.Error("dirty tree should not be reported as conflict")
 	}
-	if result.Error == "" {
-		t.Error("dirty working tree should produce an error")
+	// preflight 應提前攔截並回傳固定錯誤字串，而非走 merge --squash 失敗分支。
+	if result.Error != "main workspace has uncommitted changes, aborting merge" {
+		t.Errorf("unexpected error: %q", result.Error)
+	}
+
+	// 核心回歸斷言：main.go 的髒內容未被 reset --hard 抹除，仍原樣存在。
+	got, err := os.ReadFile(filepath.Join(root, "main.go"))
+	if err != nil {
+		t.Fatalf("read main.go: %v", err)
+	}
+	if string(got) != dirtyContent {
+		t.Errorf("dirty main.go content was destroyed:\ngot:  %q\nwant: %q", string(got), dirtyContent)
+	}
+
+	// git status --porcelain 前後位元組完全一致，證明 preflight 未觸碰任何檔案。
+	statusAfter, err := exec.Command("git", "-C", root, "status", "--porcelain").Output()
+	if err != nil {
+		t.Fatalf("git status after: %v", err)
+	}
+	if !bytes.Equal(statusBefore, statusAfter) {
+		t.Errorf("git status changed across Merge:\nbefore: %q\nafter:  %q", statusBefore, statusAfter)
+	}
+}
+
+// TestMonoRepo_Merge_DirtyMainAborts 驗證 AC-2：worktree 有一筆可 merge 的 commit、main 有一個
+// 被修改的 tracked 檔（與 branch 變更不重疊，pre-fix 時 git 不會拒絕 merge）時，preflight 仍提前
+// 攔截、不觸碰任何檔案：Error 為固定字串、git status 前後一致、feature commit 未進 main、worktree
+// 未被清理。這釘住 R7「對無關 tracked 髒檔一律攔截」的較廣設計面。
+func TestMonoRepo_Merge_DirtyMainAborts(t *testing.T) {
+	root, _, ops := setupMonoWorkspace(t)
+	wtDir, err := ops.SetupWorktree("feat-dirtyabort", nil)
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+
+	// worktree 有一筆可 merge 的 commit（新檔，與 main 髒檔不重疊）。
+	writeFile(t, filepath.Join(wtDir, "feature.go"), "package main\n")
+	runGit(t, wtDir, "add", "feature.go")
+	runGit(t, wtDir, "commit", "-m", "feat")
+
+	// main 有一個被修改的 tracked 檔（unstaged）。
+	writeFile(t, filepath.Join(root, "main.go"), "package main\n// dirty main\n")
+
+	statusBefore, err := exec.Command("git", "-C", root, "status", "--porcelain").Output()
+	if err != nil {
+		t.Fatalf("git status before: %v", err)
+	}
+
+	result := ops.Merge("feat-dirtyabort", "Dirty Abort Feature")
+	if result.Error != "main workspace has uncommitted changes, aborting merge" {
+		t.Errorf("unexpected error: %q", result.Error)
+	}
+	if result.Conflict {
+		t.Error("dirty preflight abort should not be reported as conflict")
+	}
+
+	statusAfter, err := exec.Command("git", "-C", root, "status", "--porcelain").Output()
+	if err != nil {
+		t.Fatalf("git status after: %v", err)
+	}
+	if !bytes.Equal(statusBefore, statusAfter) {
+		t.Errorf("git status changed across Merge:\nbefore: %q\nafter:  %q", statusBefore, statusAfter)
+	}
+
+	// feature commit 未進入 main：feature.go 不應被 tracked。
+	tracked, err := exec.Command("git", "-C", root, "ls-files", "feature.go").Output()
+	if err != nil {
+		t.Fatalf("git ls-files: %v", err)
+	}
+	if len(tracked) != 0 {
+		t.Errorf("feature.go should NOT be merged into main, but it is tracked")
+	}
+
+	// worktree 目錄仍存在（未被 Cleanup）。
+	if _, err := os.Stat(wtDir); err != nil {
+		t.Errorf("worktree should be preserved when preflight aborts: %v", err)
+	}
+}
+
+// TestMonoRepo_Merge_UntrackedMainProceeds 驗證 AC-3（釘住 R2）：main 僅有 untracked 檔時
+// merge 照舊成功——git reset --hard 不會刪除 untracked，擋下它沒有安全收益反而誤擋正常流程。
+func TestMonoRepo_Merge_UntrackedMainProceeds(t *testing.T) {
+	root, _, ops := setupMonoWorkspace(t)
+	wtDir, err := ops.SetupWorktree("feat-untracked", nil)
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+
+	// worktree 有一筆可 merge 的 commit。
+	writeFile(t, filepath.Join(wtDir, "feature.go"), "package main\n")
+	runGit(t, wtDir, "add", "feature.go")
+	runGit(t, wtDir, "commit", "-m", "feat")
+
+	// main 只有一個 untracked 檔（reset --hard 不會刪它，故不算髒）。
+	scratch := filepath.Join(root, "scratch.txt")
+	writeFile(t, scratch, "unrelated scratch\n")
+
+	result := ops.Merge("feat-untracked", "Untracked Main Feature")
+	if result.Error != "" {
+		t.Errorf("merge should proceed with untracked-only main, got error: %q", result.Error)
+	}
+	if result.Conflict {
+		t.Error("merge should not conflict with untracked-only main")
+	}
+
+	// untracked 檔在 merge 後仍存在。
+	if _, err := os.Stat(scratch); err != nil {
+		t.Errorf("untracked scratch file should survive merge: %v", err)
+	}
+	// feature 確實 merge 進 main。
+	if _, err := os.Stat(filepath.Join(root, "feature.go")); err != nil {
+		t.Errorf("feature.go should be merged into main: %v", err)
 	}
 }
