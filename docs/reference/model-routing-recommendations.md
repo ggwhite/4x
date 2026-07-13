@@ -61,26 +61,29 @@
 
 ## 設定方式
 
-model 字串填 runner 自己認得的 model flag 值（claude runner 可用 `opus` / `sonnet` 別名，
-會解析到該 tier 最新版）：
+canonical tier 命名為廠牌無關的 `strong`（強推理、判斷密集 / deep review）與 `fast`（快速、
+例行、量大），這是 `4x init` 產生的中性預設命名。舊的 Claude 中心化命名 `opus` / `sonnet`
+保留為向後相容別名：`strong`↔`opus`、`fast`↔`sonnet` 雙向解析，既有 settings.json 與
+`--phase-override phase:runner:opus` 呼叫方式完全照舊可用，無需改名。model 字串填 runner 自己
+認得的 tier / model flag 值（如 claude runner 的 `strong` 會解析到最新版 Opus）：
 
 ```jsonc
-// .4x/settings.json — profile 的 per-phase model
+// .4x/settings.json — profile 的 per-phase model（canonical 命名；opus/sonnet 別名仍有效）
 "profiles": {
   "full": {
     "phases": [
-      { "phase": "coding",    "model": "opus"   },
-      { "phase": "testing",   "model": "sonnet" },
-      { "phase": "accepting", "model": "sonnet" }
+      { "phase": "coding",    "model": "strong" },
+      { "phase": "testing",   "model": "fast"   },
+      { "phase": "accepting", "model": "fast"   }
     ]
   }
 }
 ```
 
-單次 run 臨時覆寫（不寫回 settings）：
+單次 run 臨時覆寫（不寫回 settings，別名仍有效）：
 
 ```bash
-4x run F0XX --phase-override coding:claude:opus
+4x run F0XX --phase-override coding:claude:strong
 ```
 
 解析優先序：`--phase-override` > feature YAML > profile PhaseSpec.Model >

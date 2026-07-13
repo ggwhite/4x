@@ -42,13 +42,15 @@ You can also edit this file visually from the **4x Live dashboard** — click th
   },
   "default_runner": "claude",
   "roles": {
-    "designer": { "model": "opus" },
-    "coder": { "model": "sonnet" },
-    "reviewer": { "model": "sonnet", "deep_model": "opus" },
-    "tester": { "model": "sonnet" }
+    "designer": { "model": "strong" },
+    "coder": { "model": "fast" },
+    "reviewer": { "model": "fast", "deep_model": "strong" },
+    "tester": { "model": "fast" }
   }
 }
 ```
+
+Tier names are brand-neutral: `strong` (judgement-heavy / deep review) and `fast` (routine, high-volume). These are the canonical defaults `4x init` generates. The older Claude-centric names `opus` / `sonnet` remain valid as backward-compatible aliases (`strong`↔`opus`, `fast`↔`sonnet`), so existing settings.json files and `--phase-override :opus` calls keep working unchanged.
 
 ### Project Section
 
@@ -75,7 +77,7 @@ You can also edit this file visually from the **4x Live dashboard** — click th
 | `command` | Executable name |
 | `args` | Arguments. `{prompt}` and `{promptFile}` are replaced at runtime. `{model}` is replaced with the role's model. |
 | `model` | Default model for this runner |
-| `tiers` | Map of tier names to runner-specific model names (e.g. `{"opus": "claude-opus-4-5-20250514"}`). Lookup order: role model → tiers translation → fallback to original name. |
+| `tiers` | Map of canonical tier names (`strong` / `fast`) to runner-specific model names (e.g. `{"strong": "claude-opus-4-5-20250514"}`). Lookup order: role model → tiers translation (trying the tier name, then its `strong`↔`opus` / `fast`↔`sonnet` alias) → error. The legacy `opus` / `sonnet` keys still resolve via the alias layer. |
 | `output_format` | Set to `"stream-json"` for runners whose stdout should be parsed into readable `.log` plus raw `.stream.jsonl` files. |
 | `tty` | Use PTY for capturing output. Ignored when `output_format` is `"stream-json"`. |
 | `stdin` | Send prompt via stdin instead of argument (used by Codex) |

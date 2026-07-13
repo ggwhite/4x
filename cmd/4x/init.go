@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/templates"
 	"github.com/spf13/cobra"
@@ -46,14 +45,16 @@ func newInitCmd() *cobra.Command {
 
 			ensureUserConfig()
 
+			// init 的 per-role model 預設依 user config 的 default_runner 決定：
+			// 讀不到或為空字串時 fallback "claude"，再交給 DefaultRoleModels 產生 canonical tier 預設。
+			runner := "claude"
+			if uc, err := protocol.ReadUserConfig(); err == nil && uc.DefaultRunner != "" {
+				runner = uc.DefaultRunner
+			}
+
 			cfg := protocol.Config{
 				Project: profile,
-				Roles: map[string]protocol.RoleConfig{
-					"designer": {Model: "opus"},
-					"coder":    {Model: "sonnet"},
-					"reviewer": {Model: "sonnet", DeepModel: "opus"},
-					"tester":   {Model: "sonnet", ScreenshotDir: feature.DefaultScreenshotDir},
-				},
+				Roles:   protocol.DefaultRoleModels(runner),
 			}
 
 			if err := protocol.Init(cwd, cfg); err != nil {
@@ -253,7 +254,10 @@ func ensureUserConfig() {
 	if _, err := protocol.UserConfigPath(); err != nil {
 		return
 	}
-	if existing, err := protocol.ReadUserConfig(); err == nil && (existing.Locale != "" || len(existing.Runners) > 0) {
+	// 只要既有設定含任一有效欄位（Locale、Runners 或 DefaultRunner）就視為使用者已設定，
+	// 不覆寫。DefaultRunner 尤其關鍵：最小設定 {"default_runner":"codex"} 必須被保留，
+	// 否則下游 init 讀回的 runner 會被改寫成內建 claude 預設，違反「依 user config 產生 role 預設」。
+	if existing, err := protocol.ReadUserConfig(); err == nil && (existing.Locale != "" || len(existing.Runners) > 0 || existing.DefaultRunner != "") {
 		return
 	}
 

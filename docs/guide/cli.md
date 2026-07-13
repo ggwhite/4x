@@ -13,6 +13,7 @@ Initialize a `.4x/` workspace in the current directory.
 ```
 
 - Auto-detects project language and build/test/lint commands, plus an initial `project.verify_command_allowlist` derived from those commands
+- Generates per-role model defaults from the user config's `default_runner`: for a runner with tiers (claude, codex, …) it writes canonical `strong` / `fast` tiers (designer→`strong`, coder/reviewer/tester→`fast`, reviewer `deep_model`→`strong`); for a tier-less runner (cursor) or unknown runner it leaves `model` empty so the runner uses its own default
 - Creates `~/.4x/settings.json` with 6 default runners (claude, codex, gemini, agy, copilot, cursor)
 - Deploys embedded plugin files to `.4x/plugins/`
 - Adds `@import` lines to root-level files (CLAUDE.md, AGENTS.md, GEMINI.md, AGY.md, .cursorrules)

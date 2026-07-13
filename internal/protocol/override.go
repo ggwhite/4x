@@ -52,7 +52,8 @@ func ResolvePhaseRunner(cfg Config, f feature.Feature, pc ProfileConfig, phase P
 //   - manual：4x run 手動帶入的 model tier，空字串代表未手動指定。
 //   - f.PhaseOverrides[phase].Model：feature YAML 對此 phase 的覆寫。
 //   - profile 對應 PhaseSpec.Model：profile 對此 phase 的覆寫。
-//   - 以上皆空 → fallback 回 ResolveModel（roles[role].Model → runner.Model → defaultTier）。
+//   - 以上皆空 → fallback 回 ResolveModel（roles[role].Model → runner.Model → defaultTier，
+//     即 canonical TierFast "fast"）。
 //
 // 取得 tier 後一律用 runner 的 tiers / model_tiers 解析為實際 model name；
 // 解析不到回 error（沿用 ResolveModel 的錯誤語意）。

@@ -6,12 +6,21 @@ import (
 	"strings"
 )
 
-const defaultTier = "sonnet"
+// TierStrong 是廠牌無關的「強推理」canonical tier，語意為判斷密集 / deep review 場景，
+// 是原 Claude 中心化命名 "opus" 的中性替代。舊別名 "opus" 仍透過 tierAliases 雙向相容。
+const TierStrong = "strong"
 
-// DefaultDeepTier 是 deep_model 未設定時的 fallback tier。
+// TierFast 是廠牌無關的「快速 / 量大」canonical tier，語意為例行、量大的 coding / review
+// 場景，是原 Claude 中心化命名 "sonnet" 的中性替代。舊別名 "sonnet" 仍透過 tierAliases 雙向相容。
+const TierFast = "fast"
+
+// defaultTier 是 role / runner 均未指定 model 時的 fallback tier（例行場景）。
+const defaultTier = TierFast
+
+// DefaultDeepTier 是 deep_model 未設定時的 fallback tier（判斷密集場景）。
 // full profile 包含 deep-reviewing，即使未明確設定 deep_model，
 // 只要 runner 能解析此 tier 就會自動啟用 deep review。
-const DefaultDeepTier = "opus"
+const DefaultDeepTier = TierStrong
 
 // defaultMaxFixRounds 是 deep-reviewing phase 內自癒循環的預設最大迭代次數。
 const defaultMaxFixRounds = 2
@@ -110,17 +119,39 @@ func ResolveMiniCoderModel(cfg Config, runnerName, fallbackModel string) (string
 	return fallbackModel, nil
 }
 
+// tierAliases 回傳指定 tier 的向後相容別名清單，供 ResolveTierModel 在原名查無對應時依序 fallback。
+// canonical 與舊 Claude 中心化命名雙向對應：strong↔opus、fast↔sonnet；其餘 tier 無別名，回傳 nil。
+func tierAliases(tier string) []string {
+	switch tier {
+	case TierStrong:
+		return []string{"opus"}
+	case "opus":
+		return []string{TierStrong}
+	case TierFast:
+		return []string{"sonnet"}
+	case "sonnet":
+		return []string{TierFast}
+	default:
+		return nil
+	}
+}
+
 // ResolveTierModel 把抽象 tier 解析為指定 runner 認識的實際 model name。
-// 優先序：runners[name].tiers[tier] > model_tiers[tier][runner] > error。
+// 查表順序：先以 tier 原名試 runners[name].tiers[tier] > model_tiers[tier][runner]，
+// 再依序對 tierAliases(tier) 回傳的別名（strong↔opus、fast↔sonnet）重試同兩層。
+// 原名的 exact match 一律優先於別名，確保既有 settings.json 與 --phase-override 呼叫方式無行為回歸；
+// 查無任何名字才回 error（沿用「不 pass through tier name」語意）。
 // 供 ResolveModel、ResolvePhaseModel 共用，也供 caller 對 DefaultDeepTier 做 fallback 解析。
 func ResolveTierModel(cfg Config, runnerName, tier string) (string, error) {
 	runnerCfg := cfg.Runners[runnerName]
-	if model, ok := runnerCfg.Tiers[tier]; ok {
-		return model, nil
-	}
-	if tierMap, ok := cfg.ModelTiers[tier]; ok {
-		if model, ok := tierMap[runnerName]; ok {
+	for _, name := range append([]string{tier}, tierAliases(tier)...) {
+		if model, ok := runnerCfg.Tiers[name]; ok {
 			return model, nil
+		}
+		if tierMap, ok := cfg.ModelTiers[name]; ok {
+			if model, ok := tierMap[runnerName]; ok {
+				return model, nil
+			}
 		}
 	}
 	return "", fmt.Errorf("runner %q has no model for tier %q", runnerName, tier)

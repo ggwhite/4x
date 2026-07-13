@@ -197,7 +197,7 @@ type ProfileAdvisorConfig struct {
 
 // PhaseSpec 描述一個 profile 內某個 phase 的設定：是否啟用該 phase，以及覆寫該 phase 的
 // runner 與 model tier。Runner / Model 為空時代表繼承下層（feature override → default_runner、
-// roles model → runner model → defaultTier）。
+// roles model → runner model → defaultTier，即 canonical TierFast "fast"）。
 type PhaseSpec struct {
 	// Phase 必須屬於 profileSelectablePhases 白名單（designing/coding/reviewing/
 	// deep-reviewing/testing/accepting）。

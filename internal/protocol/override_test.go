@@ -150,3 +150,25 @@ func TestResolvePhaseModel_ResolvesTierPerRunner(t *testing.T) {
 		t.Errorf("got %q, want gpt-5.5", got)
 	}
 }
+
+func TestPhaseOverrideLegacyAlias(t *testing.T) {
+	// canonical claude runner（只含 strong/fast key）下，既有 --phase-override :opus/:sonnet
+	// 呼叫方式解析不變，證明舊呼叫慣例未被破壞。
+	cfg := Config{
+		Default: "claude",
+		Runners: map[string]RunnerConfig{
+			"claude": {Command: "claude", Tiers: map[string]string{TierStrong: "opus", TierFast: "sonnet"}},
+		},
+		Roles: map[string]RoleConfig{"coder": {Model: TierFast}},
+	}
+	pc := ProfileConfig{Phases: []PhaseSpec{{Phase: string(PhaseCoding)}}}
+	for manual, want := range map[string]string{"opus": "opus", "sonnet": "sonnet"} {
+		got, err := ResolvePhaseModel(cfg, feature.Feature{}, pc, PhaseCoding, RoleCoder, "claude", manual)
+		if err != nil {
+			t.Fatalf("manual=%q: %v", manual, err)
+		}
+		if got != want {
+			t.Errorf("manual=%q: got %q, want %q", manual, got, want)
+		}
+	}
+}

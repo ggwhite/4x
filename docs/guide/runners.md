@@ -125,18 +125,18 @@ Configure in `.4x/settings.json`:
 ```json
 {
   "roles": {
-    "designer": { "model": "opus" },
-    "design-reviewer": { "model": "sonnet" },
-    "coder": { "model": "sonnet" },
-    "reviewer": { "model": "sonnet", "deep_model": "opus" },
-    "tester": { "model": "sonnet" },
-    "fixer": { "model": "sonnet" },
+    "designer": { "model": "strong" },
+    "design-reviewer": { "model": "fast" },
+    "coder": { "model": "fast" },
+    "reviewer": { "model": "fast", "deep_model": "strong" },
+    "tester": { "model": "fast" },
+    "fixer": { "model": "fast" },
     "deep-reviewer": { "parallel_reviewers": 3 }
   }
 }
 ```
 
-The `model` and `deep_model` values are abstract tier names (e.g. `"opus"`, `"sonnet"`), not literal model IDs. Each runner has a `tiers` mapping in its config that translates tier names to runner-specific model IDs (e.g. claude maps `"opus"` to `"opus"`, codex maps `"opus"` to `"gpt-5.5"`). See [Configuration](configuration.md) for the full resolution chain.
+The `model` and `deep_model` values are abstract, brand-neutral tier names — `strong` (judgement-heavy / deep review) and `fast` (routine, high-volume) — not literal model IDs. Each runner has a `tiers` mapping in its config that translates tier names to runner-specific model IDs (e.g. claude maps `"strong"` to `"opus"`, codex maps `"strong"` to `"gpt-5.5"`). The legacy Claude-centric names `opus` / `sonnet` stay valid as backward-compatible aliases (`strong`↔`opus`, `fast`↔`sonnet`), so existing configs and `--phase-override :opus` calls keep working. See [Configuration](configuration.md) for the full resolution chain.
 
 > **Note:** `deep_model` is configured on the **reviewer** role, not the deep-reviewer role. If `roles.reviewer.deep_model` is not set, the `deep-reviewing` phase is **skipped entirely** — the run transitions directly from `testing` to `accepting`. This is by design: deep review is opt-in.
 

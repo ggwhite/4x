@@ -116,14 +116,15 @@ func (pc ProfileConfig) HasPhase(phase Phase) bool {
 //
 // 刻意不在此預填各 phase 的 Model tier：PhaseSpec.Model 的消費路徑（ResolvePhaseModel，
 // 見 override.go）已確認存在且正確運作——resolveRunnerAndModel 呼叫它，per-phase/per-feature
-// 的 model 覆寫today就能生效。但把具體 tier 值（如 "opus"）寫死進這裡會是影響所有未自訂
+// 的 model 覆寫today就能生效。但把具體 tier 值（如 TierStrong）寫死進這裡會是影響所有未自訂
 // settings.json 專案的全域預設變更：測試過程中發現，Model tier 名稱與 deep-reviewing 的
 // DefaultDeepTier fallback（見 deep_review.go）共用同一份 runner tiers 設定，導致原本因缺少
-// "opus" tier 而略過 deep-review 的既有測試/部署，會在毫無預警下開始執行 deep-review、
-// 進而影響 phase 數量與流程；且對 coding/testing/fixing/accepting 填 "sonnet" 也是 no-op
-// （defaultTier 本就是 "sonnet"）。故建議 per-role model 路由交由專案 settings.json 的
-// roles/profiles 區塊自行設定（本專案 .4x/settings.json 已這樣做：designer.model=opus、
-// reviewer.deep_model=opus），而非在 Go 內建預設值寫死，避免非預期的全域行為變更。
+// strong tier 而略過 deep-review 的既有測試/部署，會在毫無預警下開始執行 deep-review、
+// 進而影響 phase 數量與流程；且對 coding/testing/fixing/accepting 填 TierFast 也是 no-op
+// （defaultTier 本就是 TierFast "fast"）。故建議 per-role model 路由交由專案 settings.json 的
+// roles/profiles 區塊自行設定（本專案 .4x/settings.json 已這樣做：designer.model 用 strong tier、
+// reviewer.deep_model 用 strong tier；舊別名 opus/sonnet 仍相容），而非在 Go 內建預設值寫死，
+// 避免非預期的全域行為變更。
 func DefaultProfiles() map[string]ProfileConfig {
 	return map[string]ProfileConfig{
 		"full": {Phases: []PhaseSpec{

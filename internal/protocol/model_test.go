@@ -539,3 +539,56 @@ func TestAllAngles(t *testing.T) {
 		}
 	}
 }
+
+func TestTierConstants(t *testing.T) {
+	if TierStrong != "strong" {
+		t.Errorf("TierStrong = %q, want %q", TierStrong, "strong")
+	}
+	if TierFast != "fast" {
+		t.Errorf("TierFast = %q, want %q", TierFast, "fast")
+	}
+	if defaultTier != "fast" {
+		t.Errorf("defaultTier = %q, want %q", defaultTier, "fast")
+	}
+	if DefaultDeepTier != "strong" {
+		t.Errorf("DefaultDeepTier = %q, want %q", DefaultDeepTier, "strong")
+	}
+}
+
+func TestResolveTierModelAlias(t *testing.T) {
+	tests := []struct {
+		name    string
+		tiers   map[string]string
+		request string
+		want    string
+		wantErr bool
+	}{
+		// (a) canonical-only runner，用舊別名請求可解析。
+		{"opus alias hits strong", map[string]string{"strong": "X", "fast": "Y"}, "opus", "X", false},
+		{"sonnet alias hits fast", map[string]string{"strong": "X", "fast": "Y"}, "sonnet", "Y", false},
+		// (b) legacy-only runner（模擬既有 settings.json），用 canonical 請求可解析。
+		{"strong alias hits opus", map[string]string{"opus": "X", "sonnet": "Y"}, "strong", "X", false},
+		{"fast alias hits sonnet", map[string]string{"opus": "X", "sonnet": "Y"}, "fast", "Y", false},
+		// (c) 同時含原名與別名 key，原名 exact match 優先。
+		{"exact name beats alias", map[string]string{"strong": "A", "opus": "B"}, "strong", "A", false},
+		// (d) 完全無對應 tier 回 error。
+		{"no tier errors", map[string]string{"strong": "A"}, "gemini-pro", "", true},
+	}
+	for _, tt := range tests {
+		cfg := Config{Runners: map[string]RunnerConfig{"r": {Tiers: tt.tiers}}}
+		got, err := ResolveTierModel(cfg, "r", tt.request)
+		if tt.wantErr {
+			if err == nil {
+				t.Errorf("%s: expected error, got %q", tt.name, got)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("%s: unexpected error: %v", tt.name, err)
+			continue
+		}
+		if got != tt.want {
+			t.Errorf("%s: got %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}
