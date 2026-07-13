@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.4] - 2026-07-13
+
+### Features
+
+- **AC 驗證證據 untracked/gitignore 警示** — F180：`checkACEvidence` 新增子檢查，ac_checks 命令或 inspection 證據引用的 scope 內路徑若尚未 git-tracked 或被 `.gitignore` 排除，即發出警示，防範 worktree 本地變更未同步回主工作區卻被判為假 PASS（已在 F176、kairos ws-141 各踩過一次真實案例）
+- **跨 repo feature 共用根層路徑宣告機制** — F181：Feature 型別新增 `shared_paths`，讓 Designer 可宣告根層共用檔案（如 Dockerfile、docker-compose.yml）允許 Coder 改動，解決 monorepo hub 架構下根層檔案不屬於任何 repos 宣告、Coder 依角色契約主動跳過的反覆踩坑（ws-140/ws-141/ws-228）
+- **tier 命名去 Claude 中心化 + init 依 runner 給合理預設** — F182：tier 解析機制本為 runner-agnostic，但預設值全寫死 Claude 命名（`opus`/`sonnet`）；改為依 `default_runner` 給合理預設，`4x init` scaffold 出的 roles 設定不再強制假設使用 Claude
+- **Dashboard log 列表顯示 model 名稱** — round log list（`/api/logs/<feature>`）新增每個 round/role 使用的 model，資料源自 `events.jsonl` 既有欄位，與 messages tab 的 modelTag 一致
+
+### Fixes
+
+- **`.cache/` 目錄的 git 追蹤污染清除** — F183：`git rm -r --cached` 清掉加 `.gitignore` 規則前就已被追蹤的 ~2787 個 golangci-lint cache 檔案（保留本地磁碟內容），修掉 lint 每次執行改寫這些檔案導致 reviewer/acceptor 誤判 scope 違規的問題（F178/F180/F181/F182 皆曾踩過）
+- **`4x done` merge 失敗時 `git reset --hard` 誤刪未 commit 修改** — F184：`internal/gitops` 的 monorepo/multirepo `Merge` 新增 preflight 檢查，主工作區有未 commit 的 tracked 變更時直接中止合併、不觸碰任何檔案，避免 merge 失敗分支的 `reset --hard` 連帶抹除與本次合併無關的既有修改（本 repo 與 kairos 專案皆曾實測遺失資料）
+
+### Docs
+
+- **README 補上 npx skills install 說明** — 記錄 `4x-audit`/`4x-autopilot` 兩個 skill 的安裝方式；同時將 `release` skill 標記為 internal-only，不隨 npx skills add/list 一併曝光
+
 ## [0.5.3] - 2026-07-13
 
 ### Features
