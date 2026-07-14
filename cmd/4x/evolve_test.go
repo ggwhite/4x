@@ -84,11 +84,20 @@ func captureStdout(t *testing.T, fn func()) string {
 	old := os.Stdout
 	r, w, _ := os.Pipe()
 	os.Stdout = w
+
+	// os.Pipe() 預設緩衝區僅 64KB；fn() 若輸出超過此上限（如 dryRunLoop 印出多個角色的完整
+	// prompt），同步寫入會在 fn() 內部塞滿緩衝區並卡住等待 reader，但 reader 原本要等 fn()
+	// 返回才啟動，形成死結直到測試逾時。改為並行讀取以邊寫邊清緩衝區，避免此類死結。
+	done := make(chan string, 1)
+	go func() {
+		data, _ := io.ReadAll(r)
+		done <- string(data)
+	}()
+
 	fn()
 	w.Close()
 	os.Stdout = old
-	data, _ := io.ReadAll(r)
-	return string(data)
+	return <-done
 }
 
 func dotFile(ws *protocol.Workspace, name string) string {
