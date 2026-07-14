@@ -80,6 +80,15 @@ Assess the Designer's deliverables before coding starts:
   fewer than 3 exist) actually match current source, and list what you checked in the report's
   `## Verified References` section below. FAIL if a checked claim does not match reality.
 
+== Exhaustiveness Requirement ==
+Before writing `## Verdict`, you MUST have assessed all areas listed under Review Scope
+(Architecture Risks, Overengineering, Missing Requirements, AC verify types, Repos adjustment,
+Verified References) — not just the first one that gives you a FAIL reason. List every blocking
+issue you found in THIS pass, even after you already have enough to justify FAIL. Do not stop
+early once you find one blocking issue: a FAIL report that only surfaces 1 of N real problems
+forces an extra unnecessary Designer↔Reviewer round for each problem you withheld instead of
+reporting now.
+
 == design-review-report.md format ==
 # Design Review Report — Round {{.Round}}
 ## Summary

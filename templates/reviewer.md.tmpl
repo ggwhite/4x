@@ -136,6 +136,13 @@ For these:
 3. These items do NOT count toward the PASS/FAIL verdict (not a warning or critical)
 4. They will be carried forward to the acceptor layer
 
+== Exhaustiveness Requirement ==
+Before writing `## Verdict`, you MUST have gone through every row of the Checklist and every
+changed file in review-package.md — not just stop once you find the first blocking issue. List
+ALL critical/warning issues you found in THIS pass under `## Issues`. Do not withhold issues to
+report "one at a time": a FAIL that only surfaces 1 of N real problems forces an extra unnecessary
+Coder↔Reviewer round for each problem you withheld instead of reporting now.
+
 == Incremental Writing & Resume ==
 Write review-report.md incrementally — create the file with the header and empty table first,
 then update it after each checklist item reviewed. Do not accumulate everything in memory and
