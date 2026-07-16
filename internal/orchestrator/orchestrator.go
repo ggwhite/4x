@@ -370,11 +370,6 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 		logPath := filepath.Join(runner.LogDir(r.Ws, featureID), runner.IterationLogFileName(s.Round, string(role), iteration))
 		rn := r.NewRunner(phaseRunner, logPath, model)
 		setReviewerExtraEnv(rn, role, featureID, filepath.Join(r.Ws.RoundDir(featureID, s.Round), protocol.ReviewPackage))
-		if r.CommitStrategy == "per-round" && r.RunnerWs.Root != r.Ws.Root {
-			setCodexCheckpoint(rn, phaseRunner, role, func() error {
-				return r.Ops.Commit(r.RunnerWs.Root, featureID, fmt.Sprintf("checkpoint(%s): round %d", featureID, s.Round))
-			})
-		}
 
 		commitWG.Wait()
 
