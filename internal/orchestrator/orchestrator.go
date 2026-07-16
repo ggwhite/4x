@@ -3,6 +3,7 @@ package orchestrator
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -133,6 +134,46 @@ func nextRoleIteration(counts map[string]int, round int, role protocol.Role) int
 	return counts[key]
 }
 
+// seedRoleRoundIter 掃描 events.jsonl，依 (round, role) 統計已發生的 phase-start 次數，
+// 產生與 nextRoleIteration 相同 key 格式（"<round>-<role>"）的計數 map。
+//
+// 動機：roleRoundIter 是 in-memory、per-process 計數器，手動 `4x retry` 開新行程時歸零，
+// 使 designer/design-reviewer 在同 round（design-review FAIL 不遞增 round）重跑時，從
+// iteration 1 重新編號、覆蓋前一次 run 的 round-0-designer.log/.stream.jsonl 與 design-rounds
+// 歸檔，真實歷史因此被抹除。RunLoop 啟動時用本函式 seed 計數器，讓新行程接續編號
+// （round-0-designer-4.log…）而非歸零重寫。
+//
+// 計數基準與 dashboard 的 logKeyFromEvent 完全對齊（同樣只數 phase-start），phase-start 事件
+// 與 nextRoleIteration 呼叫在主迴圈中成對發生（AppendEvent 後緊接 nextRoleIteration），故
+// writer 產生的檔名與 reader 推導的檔名一致，retry 後的錯位一併消除。events.jsonl 不存在
+// （全新 feature）時回傳空 map，行為與現況一致（seed 全為 0，等同今日）。
+func seedRoleRoundIter(ws *protocol.Workspace, featureID string) map[string]int {
+	counts := map[string]int{}
+	data, err := os.ReadFile(filepath.Join(ws.FeatureDir(featureID), protocol.EventsFile))
+	if err != nil {
+		return counts
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var ev struct {
+			Type  string `json:"type"`
+			Role  string `json:"role"`
+			Round int    `json:"round"`
+		}
+		if json.Unmarshal([]byte(line), &ev) != nil {
+			continue
+		}
+		if ev.Type != "phase-start" || ev.Role == "" {
+			continue
+		}
+		counts[fmt.Sprintf("%d-%s", ev.Round, ev.Role)]++
+	}
+	return counts
+}
+
 // archiveDesignArtifact 把 designer/design-reviewer 剛寫入的固定檔名 artifact
 // （task-brief.md／acceptance-criteria.md／design-review-report.md）複製一份到
 // design-rounds/round-<round>-<iteration>/。這些檔案不像 coding phase 有
@@ -209,6 +250,12 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 		r.roleRoundIter = map[string]int{}
 	}
 	featureID := r.featureID()
+	// 從 events.jsonl seed 迭代計數器，讓手動 retry（新行程）接續前次 run 的 iteration 編號，
+	// 不覆蓋既有 designer/design-reviewer 等同 round 重跑的 log/stream/歸檔（見 seedRoleRoundIter）。
+	// 僅在計數器為空時 seed，尊重測試預先注入的計數狀態。
+	if len(r.roleRoundIter) == 0 {
+		r.roleRoundIter = seedRoleRoundIter(r.Ws, featureID)
+	}
 
 	profileName, pc, err := protocol.ResolveProfile(r.Cfg, r.Feature, s.Profile)
 	if err != nil {
@@ -323,6 +370,11 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 		logPath := filepath.Join(runner.LogDir(r.Ws, featureID), runner.IterationLogFileName(s.Round, string(role), iteration))
 		rn := r.NewRunner(phaseRunner, logPath, model)
 		setReviewerExtraEnv(rn, role, featureID, filepath.Join(r.Ws.RoundDir(featureID, s.Round), protocol.ReviewPackage))
+		if r.CommitStrategy == "per-round" && r.RunnerWs.Root != r.Ws.Root {
+			setCodexCheckpoint(rn, phaseRunner, role, func() error {
+				return r.Ops.Commit(r.RunnerWs.Root, featureID, fmt.Sprintf("checkpoint(%s): round %d", featureID, s.Round))
+			})
+		}
 
 		commitWG.Wait()
 

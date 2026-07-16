@@ -99,6 +99,48 @@ func TestNextRoleIteration(t *testing.T) {
 	}
 }
 
+// TestSeedRoleRoundIter 驗證從 events.jsonl 依 (round, role) 統計 phase-start 次數，
+// 且新行程（模擬手動 retry）seed 後接續編號、不從 iteration 1 重來覆蓋既有 log。
+func TestSeedRoleRoundIter(t *testing.T) {
+	ws := setupPhaseWorkspace(t, "feat-1")
+
+	// 模擬前一次 run：round 0 designer↔design-reviewer thrash 3 次後 needs-attention。
+	for i := 0; i < 3; i++ {
+		ws.AppendEvent("feat-1", protocol.Event{Type: "phase-start", Phase: protocol.PhaseDesigning, Role: protocol.RoleDesigner, Round: 0})
+		ws.AppendEvent("feat-1", protocol.Event{Type: "phase-start", Phase: protocol.PhaseDesignReviewing, Role: protocol.RoleDesignReviewer, Round: 0})
+	}
+	// 非 phase-start 事件（transition / run-end）不得計入。
+	ws.AppendEvent("feat-1", protocol.Event{Type: "transition", Phase: protocol.PhaseDesigning, Role: protocol.RoleDesigner, Round: 0})
+	ws.AppendEvent("feat-1", protocol.Event{Type: "run-end", Phase: protocol.PhaseDesigning, Role: protocol.RoleDesigner, Round: 0})
+
+	seed := seedRoleRoundIter(ws, "feat-1")
+	if seed["0-designer"] != 3 {
+		t.Errorf("designer seed = %d, want 3（只數 phase-start）", seed["0-designer"])
+	}
+	if seed["0-design-reviewer"] != 3 {
+		t.Errorf("design-reviewer seed = %d, want 3", seed["0-design-reviewer"])
+	}
+
+	// 端到端保證：retry 新行程用 seed 後，下一次 designer 拿到 iteration 4（不是 1），
+	// 對應 round-0-designer-4.log，不覆蓋前次 run 的 round-0-designer.log。
+	if got := nextRoleIteration(seed, 0, protocol.RoleDesigner); got != 4 {
+		t.Errorf("retry 後首次 designer iteration = %d, want 4（接續非歸零）", got)
+	}
+}
+
+// TestSeedRoleRoundIter_NoEvents 驗證全新 feature（無 events.jsonl）seed 為空，
+// 行為與現況一致（iteration 從 1 開始）。
+func TestSeedRoleRoundIter_NoEvents(t *testing.T) {
+	ws := setupPhaseWorkspace(t, "feat-1")
+	seed := seedRoleRoundIter(ws, "feat-1")
+	if len(seed) != 0 {
+		t.Errorf("無 events 應回空 map，得到 %v", seed)
+	}
+	if got := nextRoleIteration(seed, 0, protocol.RoleDesigner); got != 1 {
+		t.Errorf("全新 feature designer iteration = %d, want 1", got)
+	}
+}
+
 // TestArchiveDesignArtifact_Designer 驗證 designer 剛寫入的 task-brief.md／
 // acceptance-criteria.md 會被複製一份到 design-rounds/round-<round>-<iteration>/，
 // 讓 design-reviewing FAIL 打回 designing 之前的版本不會因為下一輪覆寫而消失。
