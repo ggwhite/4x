@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.5] - 2026-07-16
+
+### Features
+
+- **Reviewer 一次審完再下 verdict** — design-reviewer 與 reviewer prompt 要求下 Verdict 前跑完所有檢查項度、一次列出本輪所有 blocking issue，不再抓到第一個 FAIL 就收筆，避免問題分批浮現逼出多輪不必要的往返
+- **Designer 修訂輪收斂** — design-review FAIL 後，designer 改為注入前一版 task-brief/AC/test-strategy 與 review delta，要求就地 Edit 只修被點名項、未點名段落逐字保留，避免每輪拿完整素材從零重做導致 designer↔design-reviewer 迴圈不收斂
+
 ## [0.5.4] - 2026-07-13
 
 ### Features
