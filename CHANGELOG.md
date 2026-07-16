@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.6] - 2026-07-17
+
+### Fixes
+
+- **手動 retry 不再覆蓋既有 designer/reviewer log** — `roleRoundIter` 迭代計數器原為 in-memory per-process，手動 `4x retry` 開新行程時歸零，使 designer/design-reviewer 在同 round（design-review FAIL 不遞增 round）重跑時從 iteration 1 重新編號、覆蓋前次 run 的 `round-0-designer.log`/`.stream.jsonl` 與 design-rounds 歸檔，真實歷史被抹除、dashboard 亦因 writer/reader 計數基準不一致而錯位。改為 RunLoop 啟動時從 `events.jsonl` 統計已發生的 phase-start 次數 seed 計數器，讓 retry 接續編號（`round-0-designer-4.log`…）不覆蓋
+
 ## [0.5.5] - 2026-07-16
 
 ### Features
