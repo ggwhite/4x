@@ -21,6 +21,48 @@ func extractReviewDelta(content string) (string, bool) {
 	return strings.Join(issues, "\n") + "\n" + strings.Join(verdict, "\n"), true
 }
 
+// extractDesignReviewDelta 從 design-review-report.md 抽出 designer 修訂輪真正要處理的 delta：
+// `## Architecture Risks` / `## Overengineering` / `## Missing Requirements` / `## Verdict` 四段
+// （verbatim 串接），丟棄 `## Summary`、`## Verified References`、`## Escalation Verdict`。
+// 目的與 extractReviewDelta 相同：修訂輪只把「要修什麼」餵給 designer，不再灌整份報告，
+// 讓它聚焦被點名的問題、就地修訂，而非拿完整素材從零重新分析（design-review 迴圈才會收斂）。
+//
+// 回傳 (delta, ok)。ok 僅在「Verdict 首行以 FAIL 開頭，且至少抽到一個問題段落」時為 true——
+// 代表這是一次真正的 FAIL 修訂輪，值得觸發 revision 框架；PASS 或報告畸形時回 ("", false)，
+// 呼叫端據此退回一般的首次分析路徑。
+func extractDesignReviewDelta(content string) (string, bool) {
+	lines := strings.Split(content, "\n")
+	verdict := extractSection(lines, "## Verdict")
+	if verdict == nil || !sectionVerdictIsFail(verdict) {
+		return "", false
+	}
+	var parts []string
+	for _, h := range []string{"## Architecture Risks", "## Overengineering", "## Missing Requirements"} {
+		if sec := extractSection(lines, h); sec != nil {
+			parts = append(parts, strings.Join(sec, "\n"))
+		}
+	}
+	if len(parts) == 0 {
+		return "", false
+	}
+	parts = append(parts, strings.Join(verdict, "\n"))
+	return strings.Join(parts, "\n"), true
+}
+
+// sectionVerdictIsFail 判斷 `## Verdict` 段落的第一個實質行（略過 heading 與空行）是否以 FAIL 開頭。
+// 對齊 design-reviewer template 契約（verdict 行必須以 exactly PASS 或 FAIL 起始）與
+// orchestrator 讀首個非空行的比對風格，避免被 "no failing issues" 這類句子誤判。
+func sectionVerdictIsFail(verdictLines []string) bool {
+	for _, l := range verdictLines {
+		t := strings.TrimSpace(l)
+		if t == "" || strings.HasPrefix(t, "## ") {
+			continue
+		}
+		return strings.HasPrefix(strings.ToUpper(t), "FAIL")
+	}
+	return false
+}
+
 // extractTestDelta 從 test-report.md 內容抽出 delta：`## Results` 表格中 Status 欄為
 // FAIL 或 SKIP 的資料列（保留表頭列與 `|---|` 分隔列以維持可讀性），加上 `## Verdict` 段落，
 // verbatim 回傳。丟棄 PASS 列與 `## Summary`。

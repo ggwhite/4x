@@ -58,6 +58,18 @@ type Data struct {
 	TaskBrief string
 	// GuardFeedback 是 guard retry 時的錯誤訊息，供 tester 知道上次哪裡沒做到位。
 	GuardFeedback []string
+	// DesignRevision 為 true 表示這是 designer 的修訂輪（design-review-report.md 存在且 verdict=FAIL）；
+	// template 據此在頂端渲染 REVISION 硬指令，並注入下方 PrevDesignReview / PrevTaskBrief 等前版成品，
+	// 逼 designer 就地 Edit 而非拿完整素材從零重新分析（避免 designer↔design-reviewer 迴圈不收斂）。
+	DesignRevision bool
+	// PrevDesignReview 是 design-review-report.md 抽出的 delta（Architecture Risks / Overengineering /
+	// Missing Requirements / Verdict），僅 designer 修訂輪注入，讓其只聚焦被點名的問題。
+	PrevDesignReview string
+	// PrevTaskBrief / PrevCriteria / PrevTestStrategy 是前一版三個設計產出物的完整內容，
+	// designer 修訂輪注入供其就地 Edit（不是從零重寫）。
+	PrevTaskBrief    string
+	PrevCriteria     string
+	PrevTestStrategy string
 	// PrevReviewReport 是上一輪 review-report.md 的完整內容（amending 時使用）。
 	PrevReviewReport string
 	// PrevTestReport 是上一輪 test-report.md 的完整內容（amending 時使用，可能不存在）。
@@ -205,6 +217,28 @@ func Generate(ctx *Context, role protocol.Role, round, iteration int, runnerName
 				data.PrevTestReport, _ = extractTestDelta(string(b))
 			}
 			data.PrevDiff = BaselineDiff(ws, feature.ID)
+		}
+	}
+	if role == protocol.RoleDesigner && !skippedDesigner {
+		// designer 修訂輪：design-review-report.md 存在且 verdict=FAIL 時，注入前一版三個產出物全文
+		// 與抽出的 review delta，並打開 DesignRevision 讓 template 走「就地 Edit、只修被點名項」的
+		// 硬指令路徑；首次分析（報告不存在）或 PASS/畸形報告時 extractDesignReviewDelta 回 false，
+		// 一切留零值、渲染與現況一致。
+		drrPath := filepath.Join(ws.FeatureDir(feature.ID), protocol.DesignReviewReport)
+		if b, err := os.ReadFile(drrPath); err == nil {
+			if delta, ok := extractDesignReviewDelta(string(b)); ok {
+				data.DesignRevision = true
+				data.PrevDesignReview = delta
+				if pb, err := os.ReadFile(briefPath); err == nil {
+					data.PrevTaskBrief = string(pb)
+				}
+				if pc, err := os.ReadFile(filepath.Join(ws.FeatureDir(feature.ID), protocol.Criteria)); err == nil {
+					data.PrevCriteria = string(pc)
+				}
+				if pt, err := os.ReadFile(filepath.Join(ws.FeatureDir(feature.ID), protocol.TestStratFile)); err == nil {
+					data.PrevTestStrategy = string(pt)
+				}
+			}
 		}
 	}
 	if role == protocol.RoleTester {

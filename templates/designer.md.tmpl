@@ -8,6 +8,40 @@ You MUST create these 3 files before finishing. The system checks they exist.
 3. {{.DotDir}}/run/{{.Feature.ID}}/test-strategy.yaml
 
 Use the Write tool to create each file. Do NOT just print the content — write to disk.
+{{- if .DesignRevision}}
+
+== ⚠ REVISION ROUND — READ THIS FIRST ==
+The Design Reviewer FAILed your previous deliverables. This is a REVISION, not a fresh design.
+Your previous task-brief.md / acceptance-criteria.md / test-strategy.yaml already exist on disk and
+are reproduced below. Your job this round is NARROW: fix ONLY the specific problems the reviewer
+raised, by EDITING those files in place.
+
+Hard rules for this round:
+- Use the Edit tool to modify the existing files. Do NOT re-Write them from scratch.
+- Any section the reviewer did NOT flag MUST stay byte-for-byte identical. Do not re-analyze,
+  re-word, or "improve" approved sections — regenerating them restarts the review from zero and the
+  loop never converges. Leaving them untouched is what makes the fault surface shrink each round.
+- Address every issue in the review delta below; change nothing else.
+- Do NOT re-derive the whole design from the feature description / planning doc / codemap again.
+  You already did that in the first round. Treat all material further down as reference only —
+  consult a specific doc only if fixing a flagged issue genuinely requires it.
+- ESCAPE HATCH: if — and ONLY if — you conclude the ENTIRE design approach is wrong (not just the
+  flagged points), do NOT thrash by rewriting everything. Write an escalation instead:
+    {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/escalation.json
+    {"needed": true, "reason": "scope-change", "detail": "why the whole approach must change"}
+
+=== Reviewer's findings to fix (delta) ===
+{{.PrevDesignReview}}
+
+=== Your previous task-brief.md (edit in place) ===
+{{.PrevTaskBrief}}
+
+=== Your previous acceptance-criteria.md (edit in place) ===
+{{.PrevCriteria}}
+
+=== Your previous test-strategy.yaml (edit in place) ===
+{{.PrevTestStrategy}}
+{{- end}}
 
 == Feature ==
 ID: {{.Feature.ID}}
@@ -233,6 +267,12 @@ been interrupted mid-work. If a file exists, read it:
 Do NOT assume existing files are complete — check each section.
 
 == Design Review Feedback ==
+{{- if .DesignRevision}}
+This is a REVISION round. The reviewer's findings (delta) and your previous deliverables are already
+injected at the TOP of this prompt under "⚠ REVISION ROUND". Follow those rules exactly: Edit the
+existing files in place, fix ONLY the flagged issues, keep every unflagged section byte-for-byte
+identical. Do not re-read the full report or re-analyze from scratch.
+{{- else}}
 Before starting, check if a design review report exists:
   {{.DotDir}}/run/{{.Feature.ID}}/design-review-report.md
 
@@ -240,6 +280,7 @@ If it exists and contains FAIL, you MUST read it carefully. The Design Reviewer
 has rejected your previous deliverables — address EVERY issue listed in the report.
 Do NOT reproduce the same task-brief/AC/test-strategy without fixing the flagged problems.
 Rewrite only the sections that need fixing; keep approved sections unchanged.
+{{- end}}
 
 {{- if .Learnings}}
 

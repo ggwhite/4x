@@ -165,6 +165,119 @@ PASS
 	}
 }
 
+const sampleDesignReviewReport = `# Design Review Report — Round 0
+## Summary
+FAIL
+
+## Architecture Risks
+- ChangeBalance 與 marker Rollback 的順序需明確定義。
+
+## Overengineering
+- 不需為單一平台預先抽 registry。
+
+## Missing Requirements
+- AC-13 的 grep 'float64' 抓不到 .Float64()。
+
+## Verified References
+| Claim | file:line | Verified? |
+|---|---|---|
+| Loader.Get 存在 | loader.go:42 | YES |
+
+## Verdict
+FAIL
+
+## Escalation Verdict
+disagree
+`
+
+func TestExtractDesignReviewDelta(t *testing.T) {
+	delta, ok := extractDesignReviewDelta(sampleDesignReviewReport)
+	if !ok {
+		t.Fatal("expected extracted=true on a FAIL report")
+	}
+	// 保留三個問題段落 + Verdict，verbatim
+	for _, want := range []string{
+		"## Architecture Risks",
+		"ChangeBalance 與 marker Rollback 的順序需明確定義。",
+		"## Overengineering",
+		"## Missing Requirements",
+		"AC-13 的 grep 'float64' 抓不到 .Float64()。",
+		"## Verdict",
+	} {
+		if !strings.Contains(delta, want) {
+			t.Errorf("delta 應含 %q，得到:\n%s", want, delta)
+		}
+	}
+	// 丟棄 Summary / Verified References / Escalation Verdict
+	for _, unwanted := range []string{"## Summary", "## Verified References", "loader.go:42", "## Escalation Verdict", "disagree"} {
+		if strings.Contains(delta, unwanted) {
+			t.Errorf("delta 不應含 %q，得到:\n%s", unwanted, delta)
+		}
+	}
+}
+
+func TestExtractDesignReviewDeltaPassSkips(t *testing.T) {
+	pass := "# Design Review Report — Round 0\n## Missing Requirements\n- none\n## Verdict\nPASS\n"
+	if d, ok := extractDesignReviewDelta(pass); ok || d != "" {
+		t.Errorf("PASS 報告應回 (\"\", false)，得到 ok=%v d=%q", ok, d)
+	}
+	// "no failing issues" 這類句子不得被誤判為 FAIL（首行仍是 PASS）
+	falsePos := "# DR\n## Missing Requirements\n- x\n## Verdict\nPASS — no failing issues\n"
+	if _, ok := extractDesignReviewDelta(falsePos); ok {
+		t.Errorf("PASS 首行含 'failing' 不應誤判為 FAIL")
+	}
+}
+
+func TestExtractDesignReviewDeltaMalformedSkips(t *testing.T) {
+	// FAIL 但無任何問題段落 → 無 delta 可注入，回 false 走一般路徑
+	noSections := "# DR\n## Summary\nFAIL\n## Verdict\nFAIL\n"
+	if d, ok := extractDesignReviewDelta(noSections); ok || d != "" {
+		t.Errorf("無問題段落應回 (\"\", false)，得到 ok=%v", ok)
+	}
+	// 無 Verdict 段落 → 回 false
+	noVerdict := "# DR\n## Architecture Risks\n- x\n"
+	if _, ok := extractDesignReviewDelta(noVerdict); ok {
+		t.Errorf("缺 Verdict 應回 false")
+	}
+}
+
+// TestDesignerTemplateRevisionBlock 驗證 DesignRevision=true 時 template 渲染 REVISION 區塊與注入前版成品，
+// false 時不渲染（避免污染首次分析）。
+func TestDesignerTemplateRevisionBlock(t *testing.T) {
+	tmpl, err := LoadRoleTemplate("", protocol.RoleDesigner)
+	if err != nil {
+		t.Fatalf("load designer template: %v", err)
+	}
+	render := func(d Data) string {
+		var buf bytes.Buffer
+		if err := tmpl.Execute(&buf, d); err != nil {
+			t.Fatalf("execute designer template: %v", err)
+		}
+		return buf.String()
+	}
+
+	rev := render(Data{
+		DesignRevision:   true,
+		PrevDesignReview: "## Missing Requirements\n- FIX-THIS-ITEM",
+		PrevTaskBrief:    "PREV-BRIEF-BODY",
+		PrevCriteria:     "PREV-AC-BODY",
+		PrevTestStrategy: "PREV-TS-BODY",
+	})
+	for _, want := range []string{"REVISION ROUND", "FIX-THIS-ITEM", "PREV-BRIEF-BODY", "PREV-AC-BODY", "PREV-TS-BODY", "Use the Edit tool to modify the existing files"} {
+		if !strings.Contains(rev, want) {
+			t.Errorf("revision render 應含 %q", want)
+		}
+	}
+
+	fresh := render(Data{})
+	if strings.Contains(fresh, "REVISION ROUND") {
+		t.Errorf("非 revision render 不應含 REVISION 區塊")
+	}
+	if strings.Contains(fresh, "{{") {
+		t.Errorf("render 不應外洩未 render 的 {{")
+	}
+}
+
 // TestReviewerTemplateContractComment 驗證 F142 template comment 未破壞 reviewer.md.tmpl render：
 // 輸出仍含 `## Issues` 與 `## Verdict` heading，且不外洩未 render 的 `{{`。
 func TestReviewerTemplateContractComment(t *testing.T) {
