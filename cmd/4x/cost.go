@@ -119,7 +119,9 @@ func parseStreamFileName(name string) (round int, role string, ok bool) {
 	return r, role, true
 }
 
-// streamCost 讀取單一 stream.jsonl，取最後一筆帶 total_cost_usd 的 result 事件成本。
+// streamCost 讀取單一 stream.jsonl，累加所有帶 total_cost_usd 的 result 事件成本。
+// 手動 retry 會 O_APPEND 同一個 stream 檔，每次執行各留一筆 result；只取最後一筆會漏掉
+// 前面幾次 retry 的花費，故累加涵蓋整段（單次執行只有一筆 result，不會重複計）。
 // found 為 false 代表該檔沒有 result 事件或缺 total_cost_usd 欄位（舊 run），呼叫端據此計入 skipped。
 func streamCost(path string) (cost float64, found bool) {
 	f, err := os.Open(path)
@@ -145,7 +147,7 @@ func streamCost(path string) (cost float64, found bool) {
 			continue
 		}
 		if ev.Type == "result" && ev.TotalCostUSD != nil {
-			cost = *ev.TotalCostUSD
+			cost += *ev.TotalCostUSD
 			found = true
 		}
 	}

@@ -1,11 +1,9 @@
 package orchestrator
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -1288,63 +1286,47 @@ func LogSyncErr(err error, featureID string, phase protocol.Phase) {
 //   - codex JSONL: 尾端解析不出 token 時（claude log 無 turn.completed，掃描回 0/false，
 //     故行為不變），整檔掃描 turn.completed.usage 累加為該 round 的 token 數。
 func ParseRunStatsFromLog(logPath string) RunStats {
-	f, err := os.Open(logPath)
-	if err != nil {
+	// 整檔讀取（非尾端 4096 bytes）：手動 retry 會 O_APPEND 同一個 log，每次執行各留一筆
+	// [result]/「tokens used」，只讀尾端會漏掉前面幾次 retry 的花費，導致 cost 嚴重低估
+	// （2h27m 的 duration 卻只算到最後一次 538s 執行的 $）。改為整檔掃描並累加所有筆數，
+	// 讓 cost/token 的統計範圍對齊 duration（涵蓋整段跨所有 retry）。
+	data, err := os.ReadFile(logPath)
+	if err != nil || len(data) == 0 {
 		return RunStats{}
-	}
-	defer f.Close()
-
-	info, err := f.Stat()
-	if err != nil || info.Size() == 0 {
-		return RunStats{}
-	}
-
-	readSize := int64(4096)
-	if info.Size() < readSize {
-		readSize = info.Size()
-	}
-	if _, err := f.Seek(-readSize, io.SeekEnd); err != nil {
-		return RunStats{}
-	}
-
-	var lines []string
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
 	}
 
 	var stats RunStats
+	lines := strings.Split(string(data), "\n")
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
 
 		// stream-json: [result] success (325.5s, $2.2826)
+		// 每次 retry append 一筆，累加為整段花費（單次執行只有一筆 result，不會重複計）。
 		if strings.HasPrefix(trimmed, "[result] ") {
 			if idx := strings.Index(trimmed, "$"); idx >= 0 {
 				costStr := trimmed[idx+1:]
 				costStr = strings.TrimRight(costStr, ")")
 				if c, err := strconv.ParseFloat(costStr, 64); err == nil {
-					stats.CostUSD = c
+					stats.CostUSD += c
 				}
 			}
 		}
 
-		// 傳統 Claude Code: tokens used\n73,204
+		// 傳統 Claude Code: tokens used\n73,204（retry 同樣累加）
 		if trimmed == "tokens used" && i+1 < len(lines) {
 			raw := strings.ReplaceAll(strings.TrimSpace(lines[i+1]), ",", "")
 			if n, err := strconv.Atoi(raw); err == nil {
-				stats.Tokens = n
+				stats.Tokens += n
 			}
 		}
 	}
 
-	// codex round log 的 per-turn usage 需整檔掃描（跨多個 turn.completed 累加），
-	// 無法由尾端 4096 bytes 取得。僅在尾端未解析到 token（含 claude log）時才付出
-	// 整檔讀取成本；claude log 無 turn.completed 事件，SumTurnTokens 回 0/false，行為不變。
+	// codex round log 的 per-turn usage 需整檔掃描（跨多個 turn.completed 累加）。
+	// 僅在上面未解析到 token（含 claude log）時才付出這段成本；claude log 無 turn.completed
+	// 事件，SumTurnTokens 回 0/false，行為不變。
 	if stats.Tokens == 0 {
-		if data, err := os.ReadFile(logPath); err == nil {
-			if n, ok := codexlog.SumTurnTokens(data); ok {
-				stats.Tokens = n
-			}
+		if n, ok := codexlog.SumTurnTokens(data); ok {
+			stats.Tokens = n
 		}
 	}
 	return stats

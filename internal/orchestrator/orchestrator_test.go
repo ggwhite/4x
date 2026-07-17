@@ -29,6 +29,9 @@ func TestParseRunStatsFromLog(t *testing.T) {
 		{"stream-json cost only", "[result] success (10.2s, $0.1500)\n", 0, 0.15},
 		{"stream-json no cost", "[result] success (10.2s, $0.0000)\n", 0, 0},
 		{"both formats", "tokens used\n50000\n[result] success (100.0s, $1.5000)\n", 50000, 1.5},
+		// retry 會 O_APPEND 同一個 log，多筆 [result]/「tokens used」須累加涵蓋整段（非只取最後一筆）。
+		{"stream-json retry sums cost", "[result] success (100.0s, $2.0000)\n--- retry 1 ---\n[result] success (50.0s, $1.5000)\n", 0, 3.5},
+		{"claude retry sums tokens", "tokens used\n10,000\n--- retry 1 ---\ntokens used\n5,000\n", 15000, 0},
 		// codex round log（無 claude token/[result] 行）：整檔掃描累加各 turn.completed 三欄 usage。
 		{
 			"codex single turn",

@@ -65,6 +65,25 @@ func formatFloat(f float64) string {
 	return string(b)
 }
 
+func TestStreamCost_SumsRetryResults(t *testing.T) {
+	dir := t.TempDir()
+	// 手動 retry 會 O_APPEND 同一個 stream 檔，兩次執行各留一筆 result；
+	// 應累加為整段花費（2.3130665 + 3.623235），而非只取最後一筆。
+	path := filepath.Join(dir, "round-3-coder.stream.jsonl")
+	content := resultLine(2.3130665) + resultLine(3.623235)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cost, found := streamCost(path)
+	if !found {
+		t.Fatal("found=false, want true")
+	}
+	want := 2.3130665 + 3.623235
+	if diff := cost - want; diff > 1e-9 || diff < -1e-9 {
+		t.Errorf("cost=%v, want %v (sum of both retries, not last only)", cost, want)
+	}
+}
+
 func TestCollectCost_StreamPrimary(t *testing.T) {
 	ws := costTestWorkspace(t)
 	writeStreamLog(t, ws, "F001-a", "round-1-coder.stream.jsonl", resultLine(2.5))
