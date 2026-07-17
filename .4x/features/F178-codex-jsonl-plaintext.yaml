@@ -1,0 +1,38 @@
+id: F178-codex-jsonl-plaintext
+name: 'F178: codex JSONL 事件轉可讀文字 + token 統計'
+description: |-
+    現狀：F168 已讓 codex runner 加上 --json，round log 從純文字終端輸出改成逐行 JSONL（thread.started/item.completed/turn.completed 等事件），但 4x 目前只解析其中的 thread_id（internal/orchestrator/codex_usage.go 用它對應 rollout 檔案取得 quota %），round log 本身的 agent_message 文字內容、以及 turn.completed.usage 的 per-turn token 拆分完全沒有被解析——dashboard log viewer 顯示的是原始 JSON 行，`ParseRunStatsFromLog`（internal/orchestrator/orchestrator.go:1183）也認不出 codex 格式，只能靠 rollout 累計值補位 token 數。
+
+    2026-07-11 實測補充：codex `--json` 本身就是唯一且正確的 stream 模式（`codex exec --help` 對 `--json` 的說明就是「Print events to stdout as JSONL」，events 是邊執行邊即時吐行，不是等 turn 結束才一次輸出；沒有另外的 `--stream` flag）。實測一個含兩次工具呼叫的 prompt，事件序列為：`thread.started` → `turn.started` → `item.completed`(agent_message，開場白) → `item.started`(command_execution, status:"in_progress") → `item.completed`(command_execution, 含 command/aggregated_output/exit_code) → 重複第二個工具呼叫 → `item.completed`(agent_message，總結) → `turn.completed`(usage)。這代表 `item.started` 與 `item.type == "command_execution"` 是兩個先前未涵蓋、但很重要的事件類型（對應 claude log 裡的 `[tool_use] Bash: ...` 呼叫記錄），下面需求已納入。
+
+    需求：
+    - 新增 codex JSONL 事件解析器，逐行解析 round log，把以下事件轉換為人類可讀文字：
+      - `item.completed`（`item.type == "agent_message"`）→ 輸出 `item.text`
+      - `item.started`（`item.type == "command_execution"`，`status == "in_progress"`）→ 輸出進行中提示（含 `item.command`）
+      - `item.completed`（`item.type == "command_execution"`）→ 輸出指令與結果摘要（`item.command`、`item.exit_code`、`item.aggregated_output`，輸出過長時截斷）
+      - `item.completed`（`item.type == "error"`）→ 輸出警告文字（`item.message`）
+      - `turn.failed` → 輸出對應 `error.message`
+      - 其餘未知 type 事件忽略或精簡摘要，不可讓未知事件使解析器整體失敗
+    - `ParseRunStatsFromLog` 增加 codex 分支：解析 `turn.completed.usage` 累加 input_tokens+output_tokens+reasoning_output_tokens 作為該 round 的 Tokens；與既有 rollout 累計值互為備援（rollout 有值時優先用 rollout，log 內解析失敗才 fallback 這個值）
+    - 使用者明確要求：codex round 執行時維持 `codex exec --json` 直接跑（F168 既有行為不變），但所有面向人類的 log 顯示介面（dashboard log viewer、`4x logs` 或等效 CLI 顯示路徑）**預設**就要顯示解析過後的可讀文字，不能讓使用者看到原始 JSON 行；原始 JSONL log 檔案本身內容不變動（供 codex_usage.go 既有 thread_id/rollout 解析邏輯與 debug 使用），轉換只發生在讀取/顯示當下（on-the-fly），不是另外產生一份需要手動切換查看的文字檔
+
+    約束：
+    - 不改變 codex runner 既有呼叫參數與 F168 已完成的 --json/rollout quota 邏輯
+    - 不影響 claude runner 既有的 stream-json 解析與顯示路徑
+    - 解析失敗（壞 JSON、未知格式）只 warn-and-skip，不阻塞 round 執行、不影響 4x 主流程
+    - 不嘗試把 codex 的 token 使用量換算成 USD 金額（沿用 F168 原則：codex 沒有 USD 概念）
+status: done
+priority: 3
+profile: normal
+subtasks:
+    - id: codex-event-to-text
+      name: 撰寫 codex JSONL 事件轉人類可讀文字函式，覆蓋 agent_message/command_execution(item.started+item.completed)/error/turn.failed 事件
+      status: ""
+    - id: token-stats-fallback
+      name: ParseRunStatsFromLog 增加 codex turn.completed.usage 解析，作為 rollout 累計值的 fallback
+      status: ""
+    - id: display-integration
+      name: dashboard log viewer/CLI 顯示串接轉換後文字，原始 JSONL log 檔案不變
+      status: ""
+depends:
+    - F168

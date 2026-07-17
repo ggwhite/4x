@@ -1,0 +1,42 @@
+id: F182-tier-claude-init-runner
+name: 'F182: tier 命名去 Claude 中心化 + init 依 runner 給合理預設'
+description: |-
+    現狀：
+    4x 的 tier 解析機制（internal/protocol/model.go 的 ResolveTierModel）本質上是 runner-agnostic 的——tier 只是任意字串 key，去查 runners[name].tiers[tier] 這個 map，沒有對 "opus"/"sonnet" 做任何特殊判斷。但整套系統的預設值全部寫死用 Claude 命名：
+    - internal/protocol/model.go：defaultTier = "sonnet"、DefaultDeepTier = "opus"（tier 未設定時的硬編碼 fallback 常數）
+    - cmd/4x/init.go 第 52-55 行：不管使用者選什麼 default_runner，一律 scaffold roles.designer.model="opus"、coder/tester.model="sonnet"、reviewer.model="sonnet"+deep_model="opus"
+    - internal/protocol/config_resolve.go 的內建 runner 預設 registry：codex/gemini/copilot/cursor 等 runner 沒有自訂 tiers 時，也一律用 "opus"/"sonnet" 當 key（對應各自實際 model，例如 codex 預設兩者皆對到同一顆 gpt-5.5，gemini 兩者皆對到 gemini-2.5-flash）
+
+    這導致完全不用 claude 的使用者（default_runner 設 codex/gemini/copilot 等），4x init 生出來的設定檔裡到處都是跟他完全無關的 "opus"/"sonnet" 詞彙，CLI 的 --phase-override phase:runner:opus 語法與文件範例也預設用這套 Claude 命名，造成不必要的認知負擔與混淆。
+
+    需求：
+    - 引入中性、跟廠牌無關的 canonical tier 詞彙取代目前的 opus/sonnet 硬編碼預設（具體命名由 Designer 在設計階段決定，可參考 docs/reference/model-routing-recommendations.md 既有的 T1~T4 判斷密集度分級，或採 strong/fast 這類語意命名，擇一即可，不用兩者並存）
+    - internal/protocol/model.go 的 defaultTier/DefaultDeepTier 改用新的中性 tier 名稱
+    - cmd/4x/init.go 的 role 預設 scaffold 邏輯，改成依照使用者選定的 default_runner 給出合理預設值，不再無條件寫死 opus/sonnet 字面值
+    - 保留 "opus"/"sonnet" 作為向後相容 alias：既有專案 settings.json 裡手動設定的 opus/sonnet tier key 與 --phase-override phase:runner:opus 呼叫方式必須繼續正常運作，不能破壞任何現有設定檔或呼叫慣例
+    - 更新 docs/guide 與 docs/reference/model-routing-recommendations.md 呼應新命名（含五語系同步，跑 make check-docs-sync / check-i18n 確認）
+
+    約束：
+    - 向後相容是硬性要求：不能讓現有專案的 settings.json（已手動設定 opus/sonnet tiers）或既有的 --phase-override phase:runner:opus 呼叫方式失效
+    - 不改變 ResolveTierModel 本身的查表機制（純字串 map lookup 邏輯不變），只改預設值常數與新增別名對應層
+    - 不強制使用者改用新名稱，新舊命名並存，使用者可以繼續全部沿用 opus/sonnet，這個 feature 只解決「新專案 scaffold 出來的預設值」與「系統內部 fallback 常數」的命名，不影響使用者自主選擇
+    - 不在本 feature 內處理 dashboard/web UI 或 CLI 說明文字裡零散出現的 "opus"/"sonnet" 範例字樣全面替換，僅處理程式邏輯層與正式文件
+status: done
+priority: 3
+profile: normal
+subtasks:
+    - id: canonical-tier-naming
+      name: 設計中性 canonical tier 詞彙，決定最終命名方案
+      status: ""
+    - id: model-go-constants
+      name: internal/protocol/model.go 的 defaultTier/DefaultDeepTier 改用新命名
+      status: ""
+    - id: init-runner-aware-defaults
+      name: cmd/4x/init.go 的 role 預設 scaffold 依 default_runner 給合理值
+      status: ""
+    - id: backward-compat-alias
+      name: opus/sonnet 向後相容 alias 層，既有設定檔/呼叫方式不受影響
+      status: ""
+    - id: docs-i18n-sync
+      name: docs/guide 與 model-routing-recommendations.md 更新 + 五語系同步
+      status: ""

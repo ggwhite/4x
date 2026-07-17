@@ -1,0 +1,54 @@
+id: F185-run-retry-extra-prompt
+name: 'F185: F185: run/retry 支援附帶一次性額外 prompt'
+description: |-
+    現狀: |
+      `4x run`/`4x retry` 啟動或恢復一個 feature 時，無法附帶一次性的自由文字指示給該次執行的角色。
+      使用者若想在 retry 時補充「這次重點修 X」或臨時脈絡，目前只能改 feature YAML description（永久生效，
+      且下次任何角色都會重讀）、手動編輯前一輪的 report 檔案、或塞進 escalation.json 的 detail（僅 escalation
+      路徑適用）。dashboard 側同樣沒有這個能力（`/api/run` request body 只有 featureId/runner/profile/overrides/
+      maxRounds，且 server 路由完全沒有 `/api/retry`，dashboard 只能透過 `/api/run` 重跑同一 feature）。
+    需求: |
+      1. `internal/protocol/state.go` 的 State 型別新增 `RunNote string` (json:"runNote,omitempty")，
+         作為一次性、消費後清除的暫存欄位（可參考既有 `ManualPhase` 一次性旗標消費模式：
+         `cmd/4x/run.go` RecoverState 消費後清空、`cmd/4x/retry.go` 設旗標）。
+      2. `cmd/4x/run.go` 的 `newRunCmd()` 新增字串 flag（名稱由 Designer 定案，如 `--note`），在初始化/
+         恢復 state 後寫入 `s.RunNote` 並 WriteState；`launchBackgroundJSON`（run.go:88 附近）的 bgArgs
+         需一併轉發此 flag，確保 `--json` 背景子程序模式也吃得到。
+      3. `cmd/4x/retry.go` 的 `newRetryCmd()` 新增同名 flag，在 `buildRetryRunArgs`（retry.go:81）轉發給
+         子程序 `4x run`（retry 本身不跑 loop，只負責 exec 轉發，見 retry.go:65）。
+      4. `internal/orchestrator/orchestrator.go` 的 `RunLoop` 只在本次啟動的第一個 role 注入 RunNote：
+         注入後立即清空 `s.RunNote` 並 WriteState，確保後續 role（reviewer/tester/acceptor 等）與下次
+         retry 都不會重複收到。需同時處理 `resolvePrompt`（orchestrator.go:290/848）與 `prefetchPrompt`
+         （orchestrator.go:1000）兩條產生 prompt 的路徑，避免 prefetch 搶跑造成漏注入或重複注入
+         （prefetch 觸發點見 orchestrator.go:472）。
+      5. `internal/prompt/prompt.go` 的 `Context`（prompt.go:17）與 `Data`（prompt.go:28）新增
+         `ExtraPrompt string` 欄位，`Generate`（prompt.go:122）內把 state 的 RunNote 值帶入
+         `data.ExtraPrompt`。
+      6. role template 新增 `{{if .ExtraPrompt}}...{{end}}` 渲染區塊（實際共用檔案由 Designer 確認），
+         讓收到的角色在 prompt 裡清楚看到這是使用者臨時補充、非永久 feature 需求。
+      7. `4x run --dry-run` 應顯示這次會注入的 RunNote 內容，方便使用者確認（dryRunLoop，run.go:194 附近）。
+    約束: |
+      - 不修改 feature YAML 的 description 欄位語意，RunNote 是額外、一次性的獨立機制，不與 description 混淆。
+      - 只有本次啟動的第一個 role 收到 RunNote，不擴大到每個 role，避免污染 reviewer/acceptor 的中立判斷。
+      - dashboard `/api/run` 是否同步加此欄位、以及是否補 `/api/retry` 路由，不在本次 scope 內，純 CLI 功能；
+        若 state.json 欄位天然可被兩端共用、加 API 欄位成本極低，Designer 可在 task-brief 提出但不強制做。
+      - 不引入新的暫存檔案（如 round 目錄下的額外 json），一律用 state.json 既有的一次性旗標消費模式。
+status: done
+priority: 3
+profile: normal
+subtasks:
+    - id: state-runnote-field
+      name: State 新增 RunNote 一次性欄位
+      status: ""
+    - id: cli-flag-run-retry
+      name: run/retry CLI 新增 flag 並串接轉發（含 --json 背景子程序）
+      status: ""
+    - id: orchestrator-inject-consume
+      name: orchestrator 只在第一個 role 注入並消費清除，處理 resolvePrompt 與 prefetchPrompt 兩條路徑
+      status: ""
+    - id: prompt-template-render
+      name: prompt.Context/Data 加 ExtraPrompt 欄位並在 template 渲染
+      status: ""
+    - id: dry-run-visibility
+      name: --dry-run 顯示即將注入的 RunNote
+      status: ""

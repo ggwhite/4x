@@ -1,0 +1,30 @@
+id: F180-ac-untracked-gitignore
+name: 'F180: AC 驗證證據 untracked/gitignore 警示'
+description: |-
+    現狀：
+    AC 驗證（ac_checks，internal/verify/accheck.go）與部分 Tester grep 驗證，目前完全沒有檢查「這份證據是否來自 git-tracked、已提交的內容」。已知兩個真實案例因此發生：4x F176 designer 在 worktree 改的 repos 欄位只存在 worktree 本地副本，reviewer 死循環 3 輪才被人工發現根因是同步缺口；Kairos ws-141 Tester 對 .gitignore 排除的 worktree 本地檔案 grep 出假 PASS，實際上這些變更從未進 main，功能缺陷延到後續才被發現。LintACCheck（internal/verify/accheck.go 現有函式）目前只擋「假驗證 pattern」（no-op、echo-only、無 pipe 的 grep Go source），不檢查證據來源是否已提交。
+
+    需求：
+    - internal/guard/check.go 的 checkACEvidence（約 L394 起）新增子檢查：對 ac_checks 命令字串或 inspection 類證據中出現的 scope 內路徑（.go/internal|cmd|pkg 等），比對是否為 git-tracked（用 gitops.ChangedPaths / git ls-files，沿用既有 gitops.ScopeRoots 定位正確 root）
+    - untracked 或被 gitignore 排除的路徑 → 不直接判 FAIL，降級為 WARN 並要求人工複查（避免重演 F176 那種死循環式誤判）
+    - internal/verify/accheck.go 的 LintACCheck 沿用既有 4x-lint:allow 式 allowlist 機制，豁免合法的 build 產物/generated 檔案（bin/4x、dashboard build 輸出、coverage、e2e screenshots、.4x/run/ 下的 verify.json 等）
+    - templates/tester.md.tmpl 補一句角色契約提示：證據路徑須為已提交/tracked 內容
+
+    約束：
+    - 不要求「所有 AC 證據都必須 git-tracked」這種硬性規則；證據字串→路徑的抽取本質是啟發式，只對能明確抽出路徑的情況做檢查
+    - worktree feature 的比對要在正確 root 下跑 git（沿用 gitops.ScopeRoots，不能對主工作區跑）
+    - 不改變 designing/coding/testing 既有的合法狀態轉換
+    - 疑似 untracked 一律降級為 WARN，不可直接判 FAIL，避免造成新的死循環
+status: done
+priority: 3
+profile: normal
+subtasks:
+    - id: guard-tracked-check
+      name: checkACEvidence 新增 untracked/gitignore 路徑偵測子檢查（WARN 不 FAIL）
+      status: ""
+    - id: lint-allowlist
+      name: LintACCheck 沿用 4x-lint:allow 機制豁免合法 build 產物路徑
+      status: ""
+    - id: tester-prompt
+      name: templates/tester.md.tmpl 補充證據須為已提交內容的角色契約提示
+      status: ""

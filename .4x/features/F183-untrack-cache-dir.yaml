@@ -1,0 +1,32 @@
+id: F183-untrack-cache-dir
+name: 'F183: F183: 清除 .cache 目錄的 git 追蹤污染'
+description: |-
+    現狀: |
+      .gitignore 已有 `.cache/` 規則，但該規則加入前就已被 git 追蹤的
+      ~2787 個 golangci-lint cache 檔案（含 `.cache/golangci-lint/trim.txt`）
+      仍留在版控中。golangci-lint 每次執行都會改寫這些檔案內容（含時間戳），
+      導致 `make lint`/`4x check` 的 coding phase 自動跑 lint 後，
+      reviewer/acceptor 看到不相關的 diff，多次觸發 scope 違規誤判
+      （F178 round-1、F180 round-2/round-6、F181 round-2/post-merge、
+      F182 post-merge 皆遇到，見 docs/reference/discovered-feature-gaps.md
+      2026-07-09 與 2026-07-13 兩筆記錄）。
+    需求: |
+      1. 用 `git rm -r --cached .cache/` 移除 .cache/ 目錄下所有既有追蹤，
+         但保留本地磁碟上的實際檔案（不加 -f，不刪除工作目錄內容）
+      2. 確認 `.gitignore` 已含 `.cache/` 規則（已存在，不必重複加）
+      3. 將這次 untrack 動作 commit
+      4. 驗證：untrack 後 `git status --short` 對 `.cache/` 不再顯示任何條目；
+         跑一次 `make lint` 後 `git status --short` 仍乾淨（.cache/ 不再出現）
+    約束: |
+      - 不刪除 `.cache/` 目錄下的實際檔案本身（本地 lint cache 需保留以加速建置）
+      - 不修改 golangci-lint 設定或 lint 規則本身
+      - 不動 `.gitignore` 中其他既有規則
+      - scope 僅限本次 untrack 操作與其驗證，不處理其他既有 gitignore 污染
+    subtasks:
+      - id: untrack-cache-dir
+        name: git rm --cached 移除 .cache/ 追蹤並 commit
+      - id: verify-clean-diff
+        name: 驗證 untrack 後 lint 執行不再產生追蹤內 diff
+status: done
+priority: 4
+profile: quick

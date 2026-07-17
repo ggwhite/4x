@@ -1,0 +1,35 @@
+id: F181-repo-feature
+name: 'F181: 跨 repo feature 共用根層路徑宣告機制'
+description: |-
+    現狀：
+    Kairos（多 repo/monorepo hub 架構的 4x 使用專案）反覆出現同一個坑——新遊戲上線類 feature 需要改動根層共用檔案（Dockerfile、docker-compose.yml、dev.sh），但這些檔案不屬於 feature YAML repos 欄位宣告的任何一個 repo，Coder 依角色契約（.4x/plugins/CLAUDE.md「Stay within the feature's declared repos」）主動跳過，之後才被發現缺漏（已在 ws-140、ws-141、ws-228 三個 feature 各踩過一次）。研究已翻案原始假設：internal/guard/check.go 的 checkScope 其實本來就不會攔這類根層檔案（detectChangedRepos 對不含 / 的路徑直接跳過，因為根目錄檔案不算 repo 名），真正的阻塞點是 Coder 的角色契約指令讓 Coder 主動不去碰，不是 guard 報錯。
+
+    需求：
+    - internal/feature/types.go 的 Feature 型別新增 SharedPaths []string（yaml: shared_paths,omitempty），讓 Designer 可以宣告這個 feature 額外允許 Coder 改動的根層共用路徑
+    - internal/feature/clone.go 深拷貝這個新欄位（clone.go 明列每個 slice 欄位逐一深拷貝，避免 slice aliasing bug）
+    - templates/coder.md.tmpl 與 .4x/plugins/CLAUDE.md 把 shared_paths 灌進 Coder 看得到的 prompt 內容，明示這些根層路徑允許改動——這是解決 bug 的關鍵步驟，只加欄位不灌進 prompt 不會解決問題
+    - templates/designer.md.tmpl 的 Repos Adjustment 段落擴充，允許 Designer 同時宣告 shared_paths 並要求在 task-brief 記錄理由
+    - schemas/feature.schema.json 加上 shared_paths 欄位定義
+    - docs/guide 與五語系同步（跑 make check-docs-sync / check-i18n 確認）
+
+    約束：
+    - internal/guard/designer_yaml.go 的 checkDesignerYAMLMod 不需要改邏輯——新欄位刻意不加進 featureSnapshot，就會自動被視為 Designer 可修改欄位，只需要補註解說明這個設計是刻意的，避免未來有人誤加進 snapshot
+    - 若共用檔案是位於 sibling repo 目錄內（而非 monorepo hub 根目錄），才需要在 checkScope 迴圈加 path 層級白名單比對；hub 根目錄檔案本來就不受 checkScope 限制，這部分不用改
+    - 對單一 repo 專案（含 4x 自己開發自己）沒有實際效果（feature.Repos 通常為空，checkScope 在 len==0 就直接 return），這是預期行為，不用特別處理
+    - 不改變現有 hub_repos / RepoConfig.Hub 的既有語意（repo 層級豁免），shared_paths 是新增的、更細粒度的機制，兩者並存不衝突
+status: done
+priority: 3
+profile: normal
+subtasks:
+    - id: shared-paths-field
+      name: Feature 型別新增 SharedPaths 欄位 + clone.go 深拷貝
+      status: ""
+    - id: coder-prompt-injection
+      name: templates/coder.md.tmpl 與 .4x/plugins/CLAUDE.md 把 shared_paths 灌進 Coder prompt
+      status: ""
+    - id: designer-declaration
+      name: templates/designer.md.tmpl 擴充允許 Designer 宣告 shared_paths
+      status: ""
+    - id: schema-docs-sync
+      name: feature.schema.json 加欄位定義 + docs/guide 五語系同步
+      status: ""

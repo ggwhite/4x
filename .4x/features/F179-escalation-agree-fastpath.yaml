@@ -1,0 +1,36 @@
+id: F179-escalation-agree-fastpath
+name: 'F179: escalation 雙方同意拆分時提早跳出重試迴圈'
+description: |-
+    現狀：
+    design-reviewer 若判定某 feature 該拆分（如 Kairos ws-187 案例），design-reviewing FAIL 後目前一律無條件退回 designing（internal/orchestrator/phase.go:28-36），必須連續退回滿 3 次（designerEscalations > 2，internal/orchestrator/orchestrator.go:212-213,405-413）才會被判定為 escalation-loop 並轉入 needs-attention。即使 designer 與 reviewer 在第 1、2 輪就已經對「該拆分」達成共識，系統仍會空轉到第 3 輪才停下，白白浪費一輪 API 成本（ws-187 案例：3 輪合計 designer $8.10 + reviewer 23萬 tokens，第 3 輪完全在重複第 2 輪已定案的結論）。design-review-report.md 目前的格式（templates/design-reviewer.md.tmpl）只有 PASS/FAIL 這一個會被解析的結構化欄位（internal/orchestrator/artifact.go 的 ParseReviewVerdict），沒有任何欄位能表達「我同意這輪 escalation.json 提出的拆分建議」，只能寫在自由文字段落裡，無法被程式判斷。
+
+    需求：
+    - templates/design-reviewer.md.tmpl 新增一個結構化 marker（例如 `## Escalation Verdict` 下一行需為 `agree-split` / `disagree` / `n/a`），讓 reviewer 明確表態是否同意當輪 escalation.json 的拆分建議；`n/a` 用於當輪根本沒有開 escalation 的情況
+    - internal/orchestrator/artifact.go 新增對應解析函式（比照現有 ParseReviewVerdict 的寫法），從 design-review-report.md 擷取這個 marker 的值，回傳一個明確的三態結果
+    - internal/orchestrator/orchestrator.go 405-413 行的 escalation-loop 計數邏輯新增快速通道：本輪 marker 為 `agree-split` 時，不計入 designerEscalations（或不論次數直接短路判斷），當輪立即轉入 needs-attention，並使用一個新的 stopReason 值（例如 "escalation-confirmed"）取代現行的 "escalation-loop:..."，讓下游（人工或未來的自動化）能區分「雙方主動達成共識該拆」與「單純燒滿次數、卡住放棄」兩種完全不同的情境
+    - state.json 落地的 StopReason 對應也需要區分這兩種情況（現行只有單一 "escalation" 值，internal/orchestrator/orchestrator.go 433-442 行），需讓 "escalation-confirmed" 有自己可辨識的 StopReason 值
+
+    2026-07-12 補充案例佐證：Kairos ws-187（profit-loss-rebate-family）round 0 designer 主張 ID19/ID56/ID110 三個機制彼此不相依、grant 模型完全不同，不應同 feature；design-review-report.md round 0-2 已明確附和「應該拆」，但因當時沒有這個 fast-path，仍燒到第 3 輪才觸發現行 escalation-loop 偵測轉 needs-attention，之後由人工手動建立 ws-230/231/232 並將 ws-187 標記 abandoned。
+
+    約束：
+    - 不改變 designing/design-reviewing/coding 的合法狀態轉換表（internal/state/machine.go 的 transitions 表不用動，既有轉換路徑已足夠）
+    - 既有「雙方未達成共識、純粹卡住」的 escalation-loop 燒滿 3 次行為必須維持不變，新增的 fast-path 只在明確偵測到 marker == agree-split 時才生效，不可誤判導致真正卡住的情境被提早放行到 coding
+    - 不影響 coding/testing/fixing 階段既有的 escalation.json 讀取邏輯（internal/orchestrator/resume.go 的 IsDesignerEscalation），這條快速通道只作用在 designing/design-reviewing 這一段迴圈
+    - 不在本 feature 內修改任何 4x-autopilot skill 檔案（該檔案是使用者全域 skill，位於 repo scope 之外）；「偵測到 escalation-confirmed 後自動建立 sub-feature」是後續由使用者直接在 skill 層處理的工作，不屬於本 feature scope
+    - 不嘗試讓系統自動判斷「拆分方案內容本身」是否合理，那仍是 designer/reviewer 職責；本 feature 只處理「雙方已表態同意時如何提早跳出迴圈」這件事
+status: done
+priority: 3
+profile: normal
+subtasks:
+    - id: reviewer-agreement-marker
+      name: design-reviewer.md.tmpl 新增 Escalation Verdict 結構化 marker（agree-split/disagree/n-a）
+      status: ""
+    - id: agreement-parser
+      name: internal/orchestrator/artifact.go 新增解析 Escalation Verdict marker 的函式
+      status: ""
+    - id: early-exit-loop
+      name: orchestrator.go escalation-loop 計數邏輯加入 agree-split 快速通道，改用新 stopReason escalation-confirmed
+      status: ""
+    - id: stopreason-distinction
+      name: state.json 的 StopReason 落地區分 escalation-confirmed 與既有 escalation-loop 兩種情境
+      status: ""

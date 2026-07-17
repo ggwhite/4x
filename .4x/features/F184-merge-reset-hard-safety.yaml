@@ -1,0 +1,45 @@
+id: F184-merge-reset-hard-safety
+name: 'F184: F184: 修復 4x done merge 失敗時 git reset --hard 誤刪未 commit 修改'
+description: |-
+    現狀: |
+      `internal/gitops/monorepo.go` 的 `Merge` 函式在 `git merge --squash <branch>` 失敗後，
+      無論失敗原因是「真的產生衝突」還是「git 因主工作區本身有未 commit 差異而直接拒絕合併
+      （尚未觸碰任何檔案）」，一律呼叫 `git reset --hard HEAD` 想確保還原乾淨狀態
+      （第 106、113、124 行，三處失敗分支皆同）。當屬於後者情境時，這個 reset --hard
+      會把跟這次 merge 完全無關、本來就存在的未 commit 修改整個抹除，且不留任何警告或備份。
+
+      已有兩個獨立實測案例證實此為真實資料遺失風險：
+      (1) 本 repo 自己開發時，F181 的 `4x done` 因 `docs/reference/discovered-feature-gaps.md`
+          同時有手動未 commit 編輯與 F181 分支自己的異動而觸發此路徑，遺失內容需事後重建。
+      (2) kairos 專案實測更嚴重：`4x done ws-149` 因主工作區有未 commit 的 `idleWindow()`
+          bug 修復導致 merge 被 git 拒絕，隨後整段修復（含測試）被 reset --hard 吃掉，
+          無任何提示，直到重跑前 `git status` 才發現遺失。
+    需求: |
+      1. 在 `Merge` 函式呼叫 `git merge --squash` 之前，先檢查主工作區是否乾淨
+         （`git status --porcelain` 為空，或等效判斷），不乾淨時直接回傳明確錯誤
+         （如 `MergeResult{Error: "main workspace has uncommitted changes, aborting merge"}`），
+         不嘗試 `git merge --squash`，也不執行任何 `reset --hard`
+      2. 三個既有的 `reset --hard` 呼叫點（衝突判定為 0 files、衝突判定 files>0、commit 失敗）
+         只在「確定是本函式自己的 `merge --squash`/`commit` 已經弄髒 working tree」的情境下
+         才執行清理；由於需求 1 已保證進入這些分支前主工作區必然乾淨，這些既有呼叫可以保留，
+         但需補上對應測試證明「乾淨前置 + 各失敗分支」與「不乾淨前置直接擋下、不觸碰任何檔案」
+         兩類情境的行為都符合設計
+      3. 補上單元測試：模擬主工作區有未 commit 差異時呼叫 `Merge`，斷言回傳明確錯誤且
+         `git status --porcelain` 前後內容完全一致（未被清空/還原）
+      4. `internal/gitops/multirepo.go` 若有相同或類似的 merge-failure reset 邏輯，一併檢查
+         是否有同樣的風險並視情況同步修復（設計階段先確認範圍，若不適用則排除並說明原因）
+    約束: |
+      - 不改變「主工作區乾淨時」既有 merge 成功/衝突/commit-fail 的行為與回傳格式
+      - 不引入新的 CLI flag 或使用者可見設定；這是內部安全性修復
+      - 不處理 GitLab MR 流程（`PushAndOpenMR`）除非它有相同的 reset --hard 呼叫模式
+        （設計階段先確認是否在 scope 內）
+    subtasks:
+      - id: preflight-clean-check
+        name: Merge 前置乾淨檢查，不乾淨時明確拒絕不觸碰任何檔案
+      - id: reset-hard-tests
+        name: 補測試涵蓋乾淨/不乾淨兩類前置情境
+      - id: multirepo-audit
+        name: 確認 multirepo.go 是否有同類風險並視情況同步修復
+status: done
+priority: 2
+profile: normal
