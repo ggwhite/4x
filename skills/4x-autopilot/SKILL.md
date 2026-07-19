@@ -373,3 +373,18 @@ skill 會重新讀 4x 狀態，自動接上：
 - 有 pending-review → FINISHING
 - 有 needs-attention → AUTO-FIX
 - 都沒有 → IDLE-PICK
+
+### 自動韌性：ScheduleWakeup 主驅動 + cron 看門狗（選配）
+
+**問題**：`/loop` 靠 ScheduleWakeup 驅動，而 ScheduleWakeup 是**一次性**的（每輪自排下一次）。短暫 API blip 沒事（服務恢復後 pending wakeup 接上）；但**長時間全服務中斷**時，那個在中斷期間 fire 的 wakeup 重新喚醒失敗、又沒東西補排 → **wakeup 鏈斷掉，需使用者手動重跑 `/loop`**。
+
+**解法**：loop 啟動時，額外用 `CronCreate` 排一個**低頻週期看門狗**（例如每 20 分、避開整點，`7,27,47 * * * *`），prompt 就是同一段 autopilot 指令。
+- 為什麼有效：cron **固定週期一直 fire**，不像一次性 wakeup 斷了就沒了。服務恢復後**下一個 cron tick 自動重新 arm 主 loop，不用手動繼續**。
+- 分工：日常巡檢仍由 ScheduleWakeup 自適應驅動（快）；cron 只當「長中斷後的復活鈴」。每輪照常 front-load ScheduleWakeup，cron 只是備援。
+- **caveat（要對使用者講清楚，別把話說滿）**：
+  1. cron 是 **Claude session-only、記憶體內**（不是 OS crontab、不落磁碟）→ 跟 wakeup **同一失效域**：只救「API 掛但 session 活」，**救不了 session/機器整個掛掉**。
+  2. 週期 cron **7 天自動過期**，要續期。
+  3. 與 wakeup 偶爾 double-fire（每看門狗週期一次）→ 無害，loop 無狀態、每次重讀 state.json 冪等。
+- **要連 session 死都自癒**：得走 OS 層（crontab/launchd 定時跑 headless `claude -p`），因 autopilot 無狀態、新 headless session 也能接上。這是另一套較重設定，非本 skill 內建。
+
+管理：`CronList` 查、`CronDelete <id>` 停。
