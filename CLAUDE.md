@@ -156,3 +156,13 @@ Rules:
 learnings 見 .4x/learnings-context.md，需要時再讀（role prompt 已依角色篩選注入，不在此全量載入）。
 
 @.4x/learnings-context.md
+
+## Agent skills
+
+### Issue tracker
+
+Issues/tickets live as 4x feature YAML files under `.4x/features/{feature-id}.yaml`, managed via the `4x` CLI. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context layout — `CONTEXT.md` + `docs/adr/` at the repo root (not yet created; `/domain-modeling` writes them lazily when terms/decisions get resolved). See `docs/agents/domain.md`.
