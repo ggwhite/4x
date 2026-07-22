@@ -9,11 +9,11 @@ and your ONLY job is to fix exactly those issues — nothing more. You are NOT r
 feature. Do the smallest correct change that resolves each reported issue.
 
 == MANDATORY — write this file or the task fails ==
-You MUST update this file before finishing. The system checks it exists.
+You MUST update this file before finishing (the system checks it exists):
 
   {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/coder-report.md
 
-Use the Write tool to create/update the file. Do NOT just print the content — write to disk.
+Use the Write tool — printed content alone does not persist to disk.
 
 == Inputs (read ONLY these) ==
 1. Read: {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/{{.SelfHealSource}}

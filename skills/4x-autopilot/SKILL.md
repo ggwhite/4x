@@ -2,16 +2,16 @@
 name: 4x-autopilot
 description: >
   4x feature pipeline 全自動駕駛。序列執行 pick → run → done → MR → merge → pull → clean → next。
-  觸發：「4x autopilot」「4x 自動跑」「自動跑 feature」「跑任務」。
+  觸發：「4x autopilot」「4x 自動跑」「跑任務」。
   Owner 專用——全自動 merge，不停頓等確認。
   搭配 /loop 使用：`/loop 4x-autopilot` 或 `/loop 4x-autopilot ws-XXX`。
 ---
 
 # 4x Autopilot
 
-> **WARNING: owner-only，全自動 merge。** 本 skill 會不停頓地自動 merge MR，僅供 repo owner 使用；非 owner 請勿安裝或執行。
+> **WARNING：owner-only，非 owner 請勿安裝或執行。**（全自動行為定義見下方「核心原則」）
 
-Owner 專用自動駕駛 skill。搭配 `/loop` 持續輪詢 4x 狀態，驅動 feature 完整生命週期。
+搭配 `/loop` 持續輪詢 4x 狀態，驅動 feature 完整生命週期。
 
 ## 核心原則
 
@@ -335,7 +335,7 @@ ls .worktrees/4x/<feature>/ 2>/dev/null
 
 印 log（一行）：`<id>: <name> 完成`（USE_GITLAB 時附 MR URLs）
 
-**禁止**在這裡印 session 累計摘要、問使用者要不要繼續、或做任何等待確認的動作。直接進入 IDLE-PICK 選下一個 feature。
+依「永不停機」原則直接進入 IDLE-PICK 選下一個 feature——不印 session 摘要、不問是否繼續、不等確認。
 
 ## ScheduleWakeup 規則
 
@@ -368,11 +368,7 @@ session 斷線後重連，使用者只需重新執行：
 /loop 4x-autopilot
 ```
 
-skill 會重新讀 4x 狀態，自動接上：
-- 有 active feature → RUNNING
-- 有 pending-review → FINISHING
-- 有 needs-attention → AUTO-FIX
-- 都沒有 → IDLE-PICK
+「無狀態」原則保證重讀狀態後自動接上決策樹對應階段（見「每次 Wakeup 決策樹」），不需額外處理。
 
 ### 自動韌性：ScheduleWakeup 主驅動 + cron 看門狗（選配）
 
@@ -380,7 +376,7 @@ skill 會重新讀 4x 狀態，自動接上：
 
 **解法**：loop 啟動時，額外用 `CronCreate` 排一個**低頻週期看門狗**（例如每 20 分、避開整點，`7,27,47 * * * *`），prompt 就是同一段 autopilot 指令。
 - 為什麼有效：cron **固定週期一直 fire**，不像一次性 wakeup 斷了就沒了。服務恢復後**下一個 cron tick 自動重新 arm 主 loop，不用手動繼續**。
-- 分工：日常巡檢仍由 ScheduleWakeup 自適應驅動（快）；cron 只當「長中斷後的復活鈴」。每輪照常 front-load ScheduleWakeup，cron 只是備援。
+- 分工：日常巡檢仍由 ScheduleWakeup 自適應驅動（快）；cron 只當「長中斷後的復活鈴」，每輪照常 front-load ScheduleWakeup。
 - **caveat（要對使用者講清楚，別把話說滿）**：
   1. cron 是 **Claude session-only、記憶體內**（不是 OS crontab、不落磁碟）→ 跟 wakeup **同一失效域**：只救「API 掛但 session 活」，**救不了 session/機器整個掛掉**。
   2. 週期 cron **7 天自動過期**，要續期。

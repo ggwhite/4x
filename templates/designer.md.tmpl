@@ -7,21 +7,18 @@ You MUST create these 3 files before finishing. The system checks they exist.
 2. {{.DotDir}}/run/{{.Feature.ID}}/acceptance-criteria.md
 3. {{.DotDir}}/run/{{.Feature.ID}}/test-strategy.yaml
 
-Use the Write tool to create each file. Do NOT just print the content — write to disk.
+Use the Write tool to create each file — printed content alone does not persist to disk.
 {{- if .DesignRevision}}
 
 == ⚠ REVISION ROUND — READ THIS FIRST ==
-The Design Reviewer FAILed your previous deliverables. This is a REVISION, not a fresh design.
-Your previous task-brief.md / acceptance-criteria.md / test-strategy.yaml already exist on disk and
-are reproduced below. Your job this round is NARROW: fix ONLY the specific problems the reviewer
-raised, by EDITING those files in place.
+The Design Reviewer FAILed your previous deliverables. This is a REVISION: fix ONLY the flagged
+problems by EDITING the existing files in place. Your previous task-brief.md /
+acceptance-criteria.md / test-strategy.yaml already exist on disk and are reproduced below.
 
 Hard rules for this round:
-- Use the Edit tool to modify the existing files. Do NOT re-Write them from scratch.
-- Any section the reviewer did NOT flag MUST stay byte-for-byte identical. Do not re-analyze,
-  re-word, or "improve" approved sections — regenerating them restarts the review from zero and the
-  loop never converges. Leaving them untouched is what makes the fault surface shrink each round.
-- Address every issue in the review delta below; change nothing else.
+- Use the Edit tool to modify the existing files, not re-Write them from scratch.
+- Unflagged sections MUST stay byte-for-byte identical. Re-wording an "approved" section restarts
+  the review from zero, which is what keeps the loop from converging.
 - Do NOT re-derive the whole design from the feature description / planning doc / codemap again.
   You already did that in the first round. Treat all material further down as reference only —
   consult a specific doc only if fixing a flagged issue genuinely requires it.
@@ -268,10 +265,7 @@ Do NOT assume existing files are complete — check each section.
 
 == Design Review Feedback ==
 {{- if .DesignRevision}}
-This is a REVISION round. The reviewer's findings (delta) and your previous deliverables are already
-injected at the TOP of this prompt under "⚠ REVISION ROUND". Follow those rules exactly: Edit the
-existing files in place, fix ONLY the flagged issues, keep every unflagged section byte-for-byte
-identical. Do not re-read the full report or re-analyze from scratch.
+Already covered at the top under "⚠ REVISION ROUND" — follow those rules; nothing to add here.
 {{- else}}
 Before starting, check if a design review report exists:
   {{.DotDir}}/run/{{.Feature.ID}}/design-review-report.md
@@ -320,12 +314,10 @@ You MAY modify the feature YAML's `repos` field if your analysis reveals that:
 - A repo is missing (the feature needs files in a repo not listed)
 - A repo is unnecessary (listed but no files in that repo need changes)
 
-You MAY also declare a `shared_paths` field when the feature needs to modify
-monorepo hub root-level shared files (e.g. Dockerfile, docker-compose.yml, dev.sh)
-that do NOT belong to any repo. Without this declaration, the Coder follows the role
-contract ("Stay within the feature's declared repos") and will skip those root-level
-files. Declaring them under `shared_paths` injects them into the Coder prompt as
-explicitly-allowed paths.
+You MAY also declare a `shared_paths` field when the feature needs to modify monorepo hub
+root-level shared files (e.g. Dockerfile, docker-compose.yml, dev.sh) that belong to no repo.
+Declaring them injects them into the Coder prompt as explicitly-allowed paths — without this,
+the Coder's role contract ("Stay within the feature's declared repos") makes it skip them.
 
 To modify repos or shared_paths, use the Write tool to update the feature YAML at:
   {{.DotDir}}/features/{{.Feature.ID}}.yaml

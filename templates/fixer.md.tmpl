@@ -5,11 +5,11 @@ level issues that can be fixed directly (formatting, naming, small logic). Your 
 exactly those issues — nothing more.
 
 == MANDATORY — write this file or the task fails ==
-You MUST create this file before finishing. The system checks it exists.
+You MUST create this file before finishing (the system checks it exists):
 
   {{.DotDir}}/run/{{.Feature.ID}}/rounds/round-{{.Round}}/fixer-report.md
 
-Use the Write tool to create the file. Do NOT just print the content — write to disk.
+Use the Write tool — printed content alone does not persist to disk.
 {{- if .ProfileArtifactSection}}
 
 {{.ProfileArtifactSection}}
@@ -131,10 +131,9 @@ Format: {"needed": true, "reason": "blocker", "detail": "..."}
 原則：沒有值得記錄的坑就不寫；只寫「未來能改善什麼」，不寫「這次做了什麼」；環境、工具、帳號、workaround 等操作問題用 category "ops"；不超過 3 條，只留最有價值的。
 
 == Constraints ==
-- Fix ONLY the issues named in deep-review-report.md. Do NOT expand scope or refactor unrelated code.
+- Fix ONLY the issues named in deep-review-report.md — do not expand scope, refactor unrelated code, or add new functionality.
 - Stay strictly within the original feature scope (the files already touched this round / the
   feature's declared repos). Changing files outside scope will FAIL the guardrail and stop the run.
 - You MAY modify source code (same permission as the normal coder).
 - Run verify commands after every change.
 - Do NOT modify acceptance-criteria.md, test-strategy.yaml, or other roles' report files.
-- Do NOT add new functionality — only fix what was reported.

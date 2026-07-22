@@ -135,8 +135,7 @@ audit 當下已握有「哪些項目其實已解決」的判斷，順手收掉�
 
 ## 注意事項
 
-- 不修改任何原始碼，純讀取分析；唯一的寫入動作在 Step 5（建 feature）與
-  Step 6（reconcile），且都需使用者確認
-- Step 6 以外不改 `.4x/run/` 下的任何 artifact
-- feature YAML 只在使用者確認後才建立
+- 不修改任何原始碼，純讀取分析；所有寫入動作（Step 5 建 feature、Step 6
+  reconcile）都限定在這兩步，且都需使用者先確認
+- `.4x/run/` 下的 artifact 在 Step 6 之外全程保持原封不動
 - Systemic issues 通常需要在 4x CLI repo 修，不是當前專案的 feature

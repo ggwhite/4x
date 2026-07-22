@@ -131,7 +131,7 @@ After running `4x verify`, you MUST update verify.json to include `ac_results`.
 Read the existing verify.json, add the `ac_results` field, and write it back.
 
 Read `ac_verify_map` from test-strategy.yaml to know each AC's verify type.
-If test-strategy.yaml has no `ac_verify_map`, treat ALL ACs as execution type.
+If test-strategy.yaml has no `ac_verify_map`, treat ALL ACs as execution type — every AC needs command output.
 
 Every AC item from acceptance-criteria.md must appear in `ac_results` with:
 - `id`: the AC identifier (e.g. "AC-1", "AC-2")
@@ -282,12 +282,8 @@ Your UNIQUE value is verifying RUNTIME BEHAVIOR:
 - Run the feature end-to-end and confirm it works
 - Compare actual output against expected output
 
-Evidence rules by verify_type:
-- unit-test / integration: you MUST include actual command output. "I read the code and it looks correct" will be REJECTED by the guard. Include the $ command and its output.
-- inspection: static evidence is acceptable (diff output, grep results, code reference). Only use this for ACs explicitly marked as inspection in ac_verify_map.
-- skip: no evidence needed. Only use for ACs marked skip.
-
-If ac_verify_map is not present in test-strategy.yaml, ALL ACs default to execution — you must provide command output for every single AC.
+Evidence must match the verify_type table above — "I read the code and it looks correct" is not
+command output and will be REJECTED by the guard for unit-test/integration ACs.
 
 == Verification Anti-Patterns to Avoid ==
 - Time/formula/amount assertions must include at least one hardcoded expected value that is

@@ -60,11 +60,11 @@ Skip commits that are only changelog/release housekeeping (e.g., "docs: vX.Y.Z c
 
 Show the drafted changelog section to the user in full. Ask: "這樣 OK 嗎？要調整什麼？"
 
-Do NOT proceed until the user approves. If the user requests changes, revise and show again.
+Proceed only after the user approves; if they request changes, revise and show again.
 
 ### 5. Update CHANGELOG.md
 
-Insert the new version section **at the top**, right after the file header (the "# Changelog" heading and the format description paragraph). The existing sections must not be modified — they correspond to already-released tags.
+Insert the new version section **at the top**, right after the file header (the "# Changelog" heading and the format description paragraph). Leave existing sections untouched (see Important Rules).
 
 ### 6. Commit
 

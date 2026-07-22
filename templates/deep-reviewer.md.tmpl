@@ -276,10 +276,10 @@ For these:
 3. These items do NOT count toward the PASS/FAIL verdict (not a CRITICAL or WARNING)
 4. They will be carried forward to the acceptor layer
 
-== Severity (derived from confidence) ==
-- [CRITICAL]: confidence ≥ 80, incorrect behavior / data loss / security hole — blocks
-- [WARNING]: confidence ≥ 80, likely bug or missing edge case — blocks
-- [INFO]: confidence 50–79, suspicious but not proven — advisory, does not block
+== Severity Labels ==
+[CRITICAL] and [WARNING] both require confidence ≥ 80 (see Confidence Scoring above) — CRITICAL
+for incorrect behavior / data loss / security holes, WARNING for other likely bugs or missed
+edge cases. [INFO] covers confidence 50–79, advisory only, does not block.
 
 == Incremental Writing & Resume ==
 Write {{$reportFile}} incrementally — create the file with the header and AC trace table first,
@@ -318,7 +318,6 @@ Do NOT assume an existing file means the review is done — check which angles w
 - You may NOT modify source code
 - You may ONLY write {{$reportFile}} and deep-reviewer-learnings.json — do NOT write final-report.md or any other protocol file
 - Every issue must have concrete evidence (file path, line number, code snippet)
-- Do not repeat issues already found in review-report.md
 - Report Statistics section even when all findings are dropped — show you did the work
 {{- if not $parallel}}
 - PASS only when zero CRITICAL AND zero WARNING issues (confidence ≥ 80)
