@@ -23,15 +23,9 @@
       "docs/architecture/state-machine.md"
     ],
     "rules": [
-      "CLI 層嚴禁呼叫 LLM — 所有 AI 互動由 plugin 負責",
-      "Go 1.26+，遵循 gofmt，go vet 不能有 warning",
-      "每個 subcommand 一個檔案 cmd/4x/{cmd}.go",
-      "內部 package 放 internal/，不 export 給外部",
       "Plugin 指令檔用 //go:embed 打包進 binary，4x init 時部署",
       "所有 role 間通訊走 .4x/ 目錄內的檔案，不走 shared context",
       "State machine 合法轉換定義在 internal/state/machine.go，不可繞過",
-      "docs/ 是權威設計規格；實作與規格衝突時以規格為準",
-      "測試用 Go 標準 testing package，測試檔放與被測程式同目錄",
       "新增 public function 必須有繁體中文 GoDoc 註解",
       "探索既有程式碼結構必須先用工具：codegraph_explore MCP（查 symbol-level，精確定位）或 graphify（看模組耦合、呼叫鏈、God node）。worktree 內沒有 codegraph 索引，需指定主工作區路徑：`codegraph explore \"query\" -p /Users/white/github/4x`；graphify 同理：`graphify query \"問題\" --graph /Users/white/github/4x/graphify-out/graph.json`。禁止跳過直接 grep + Read",
       "找檔案、定位 symbol 時先用 codegraph_explore MCP；MCP 不可用或找不到時，改用 Explore agent（subagent_type: Explore），不可直接 find + Read 迴圈代替",
