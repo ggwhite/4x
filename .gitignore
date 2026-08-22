@@ -14,6 +14,7 @@ vendor/
 .4x/coder-report.md
 .4x/consolidate-*.json
 .4x/consolidate.log
+.4x/consolidate.stream.jsonl
 !.4x/settings.json
 !.4x/features/
 

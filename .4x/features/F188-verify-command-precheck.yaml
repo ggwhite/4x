@@ -1,0 +1,66 @@
+id: F188-verify-command-precheck
+name: 'F188: Designer 產出的 verify 指令未經任何可執行性檢查即進入 coding'
+description: |
+  ## 現狀
+
+  Designer 寫進 `test-strategy.yaml` 的 verify 指令，在進入 coding 前沒有任何可執行性檢查。
+  `internal/verify/verify.go:73` 的 `ResolveGroups` 只做結構驗證
+  （`verify_groups` 與 `verify_commands` 不可並存、不可兩者皆無），
+  不驗指令本身能不能跑。`internal/guard/check.go` 在 designing→coding 轉場也沒有相關 guard。
+
+  結果是 Designer 寫入從沒實跑過的指令，直到 tester 階段才炸，整輪 designer→coder→reviewer→tester
+  成本歸零。Kairos 專案跨 ws-107 / 140 / 296 / 303 / 319 出現 5 次，escalation 全歸類
+  `criteria-wrong`；ws-303 連續空轉 3 輪、ws-319 連續 2 輪。
+
+  已知失敗樣態：`GOWORK` 相對路徑錯、`buf lint` 路徑錯、`ac_ref` 誤寫成 YAML 陣列、
+  e2e 的 `go test -race ./...` 在該情境下永遠不會 exit 0。
+
+  ## 設計難題（必須先裁決）
+
+  designing→coding 轉場時**不能**用「實跑且 exit 0」當判定依據：那個時間點程式碼還沒寫，
+  `go test` 必然失敗，`make build` 也可能失敗。所以本 feature 的檢查只能是**靜態的**：
+  指令可解析、首個 token 是存在的可執行檔、指令中引用的檔案／目錄路徑存在。
+  Designer 端的 dry-run 靠 prompt 約束不可靠，不作為主要防線。
+
+  ## 證據來源
+
+  由 Kairos 專案的 4x audit 回報，並在本 repo 核對 `internal/verify/verify.go` 與
+  `internal/guard/check.go` 確認無此檢查。
+
+  ## 需求
+
+  1. **定義邊界**：明確寫下靜態可執行性檢查涵蓋什麼、排除什麼（尤其排除以 exit code 判定），
+     並記入 `docs/`。
+  2. **實作 precheck**：在 `internal/verify` 實作，涵蓋 `verify_groups`、`verify_commands`
+     與 `ac_checks` 三處。
+  3. **接上 guard**：designing→coding 轉場執行 precheck，失敗即退回 designing，
+     並在 escalation 標明是哪一條指令、失敗原因。
+  4. **回歸測試**：涵蓋上述四種已知失敗樣態。
+
+  ## 約束
+
+  - 不得在 designing→coding 轉場實跑會產生副作用的指令
+  - 不得以 exit code 非 0 作為判定依據
+  - 沿用 `internal/verify` 既有的 shell 控制字元處理（`internal/protocol/config.go:257`），
+    不另造一套 parser
+  - precheck 失敗訊息須指出是哪一條 verify command 與失敗原因，不可只回 generic error
+status: not-started
+priority: 1
+profile: normal
+subtasks:
+    - id: define-static-checks
+      name: 定義靜態可執行性檢查的邊界（指令可解析、首個 token 是存在的可執行檔、引用的檔案/目錄路徑存在），明確排除實跑 exit code
+      status: ""
+    - id: precheck-impl
+      name: 在 internal/verify 實作 precheck，涵蓋 verify_groups、verify_commands 與 ac_checks
+      status: ""
+    - id: guard-wire
+      name: designing→coding 轉場的 guard 接上 precheck，失敗即退回 designing 並在 escalation 標明失敗指令
+      status: ""
+    - id: regression-cases
+      name: 補測試涵蓋歷史失敗樣態（GOWORK 相對路徑錯、buf lint 路徑錯、ac_ref 誤寫成 YAML 陣列）
+      status: ""
+rules:
+    - 不得在 designing→coding 轉場實跑會產生副作用的指令，也不得以 exit code 非 0 作為判定依據（此時程式碼尚未寫，測試必然失敗）
+    - 沿用 internal/verify 既有的 shell 控制字元處理，不另造一套 parser
+    - precheck 失敗訊息須指出是哪一條 verify command 與失敗原因
