@@ -1,56 +1,56 @@
 id: F186-shared-paths-merge
 name: 'F186: shared_paths 改動在 worktree 清理時靜默遺失'
 description: |
-  ## 現狀
+    ## 現狀
 
-  F181 為 feature YAML 加了 `shared_paths` 欄位（宣告 Coder 額外可改的根層共用檔案），
-  但只做到「宣告 + 驗證 + prompt 渲染」，**完全沒有 merge 或 sync 邏輯**。
-  `SharedPaths` 在程式碼只出現 6 處：`internal/feature/types.go:73`（欄位）、
-  `internal/feature/validate.go:137`（路徑合法性）、`internal/feature/clone.go:18`（深拷貝）、
-  `internal/guard/check.go:75`（guard 驗證）、`internal/guard/designer_yaml.go:74`（註解）、
-  `templates/coder.md.tmpl:123`（prompt 渲染）。
+    F181 為 feature YAML 加了 `shared_paths` 欄位（宣告 Coder 額外可改的根層共用檔案），
+    但只做到「宣告 + 驗證 + prompt 渲染」，**完全沒有 merge 或 sync 邏輯**。
+    `SharedPaths` 在程式碼只出現 6 處：`internal/feature/types.go:73`（欄位）、
+    `internal/feature/validate.go:137`（路徑合法性）、`internal/feature/clone.go:18`（深拷貝）、
+    `internal/guard/check.go:75`（guard 驗證）、`internal/guard/designer_yaml.go:74`（註解）、
+    `templates/coder.md.tmpl:123`（prompt 渲染）。
 
-  後果鏈：`internal/gitops/multirepo.go:88` 的 `copyWorkspaceFiles` 用 `copyFileIfExists`
-  把根層檔案「複製」進 worktree（**不是 git worktree，是純檔案副本**）→ Coder 依 prompt 授權
-  改了副本 → `Merge()`（multirepo.go:169）只迭代 `cfg.Workspace.Repos`，
-  `PushAndOpenMR()` 只迭代 `m.targetRepos(feat.Repos)` → 最後 `m.Cleanup(featureID)` 刪掉整個
-  worktree 目錄 → **那些改動連同 worktree 一起消失，零警告、零 exit code 異常**，
-  acceptor 卻仍依 worktree 當下狀態判該 AC PASS。
+    後果鏈：`internal/gitops/multirepo.go:88` 的 `copyWorkspaceFiles` 用 `copyFileIfExists`
+    把根層檔案「複製」進 worktree（**不是 git worktree，是純檔案副本**）→ Coder 依 prompt 授權
+    改了副本 → `Merge()`（multirepo.go:169）只迭代 `cfg.Workspace.Repos`，
+    `PushAndOpenMR()` 只迭代 `m.targetRepos(feat.Repos)` → 最後 `m.Cleanup(featureID)` 刪掉整個
+    worktree 目錄 → **那些改動連同 worktree 一起消失，零警告、零 exit code 異常**，
+    acceptor 卻仍依 worktree 當下狀態判該 AC PASS。
 
-  另有第二個缺陷：`copyWorkspaceFiles` 有 `if e.IsDir() { continue }`，**只複製檔案、跳過目錄**。
-  所以 shared_paths 宣告目錄下的路徑（如 `docker/compose.yml`）時，檔案根本沒被複製進 worktree，
-  Coder 面對的是一個不存在的檔案。
+    另有第二個缺陷：`copyWorkspaceFiles` 有 `if e.IsDir() { continue }`，**只複製檔案、跳過目錄**。
+    所以 shared_paths 宣告目錄下的路徑（如 `docker/compose.yml`）時，檔案根本沒被複製進 worktree，
+    Coder 面對的是一個不存在的檔案。
 
-  反向也沒防護：worktree 根層的改動流進主工作區污染別的 feature，同樣無 guard。
+    反向也沒防護：worktree 根層的改動流進主工作區污染別的 feature，同樣無 guard。
 
-  ## 證據來源
+    ## 證據來源
 
-  由 Kairos 專案（~/Tyche/Kairos，multi-repo workspace，318 feature / 298 done）的 4x audit 回報，
-  並在本 repo 逐行核對屬實。實際損害：5 款遊戲的 docker-compose service 靜默遺失，
-  2026-08-21 用 commit `c4f2d8b` 手動 backfill（baseball / bulllook / honorking / mjhl /
-  serialtreasures）；累積約 15 個手動補救 commit；跨 ws-140 / 291 / 297 / 298 / 300 / 303
-  被報過 6 次。
+    由 Kairos 專案（~/Tyche/Kairos，multi-repo workspace，318 feature / 298 done）的 4x audit 回報，
+    並在本 repo 逐行核對屬實。實際損害：5 款遊戲的 docker-compose service 靜默遺失，
+    2026-08-21 用 commit `c4f2d8b` 手動 backfill（baseball / bulllook / honorking / mjhl /
+    serialtreasures）；累積約 15 個手動補救 commit；跨 ws-140 / 291 / 297 / 298 / 300 / 303
+    被報過 6 次。
 
-  ## 需求
+    ## 需求
 
-  1. **偵測並中止**（最低防線）：`Merge()` 與 `PushAndOpenMR()` 執行前，比對 worktree 根層
-     shared_paths 檔案與主工作區對應檔案；有差異且未被下一項處理時中止並報錯，不得靜默丟棄。
-  2. **合併回主工作區**：把 worktree 根層 shared_paths 檔案的改動複製回主工作區，
-     納入本次 squash commit（MR 流程則納入對應 repo 的 commit 或明確報告無法納入）。
-  3. **修 SetupWorktree 的目錄跳過**：`copyWorkspaceFiles` 對 shared_paths 宣告的路徑，
-     即使位於目錄下也要複製進 worktree（建立必要的中間目錄）。
-  4. **反向污染防護**：`4x check` 加一條，宣告 shared_paths 的 feature 執行期間，
-     主工作區對應檔案須與 HEAD 一致。
-  5. **測試 fixture**：4x 自身是 single repo，此缺陷只在 multi-repo workspace 觸發。
-     須建 multi-repo workspace 測試 fixture 端到端驗證 shared_paths 改動存活過 done。
+    1. **偵測並中止**（最低防線）：`Merge()` 與 `PushAndOpenMR()` 執行前，比對 worktree 根層
+       shared_paths 檔案與主工作區對應檔案；有差異且未被下一項處理時中止並報錯，不得靜默丟棄。
+    2. **合併回主工作區**：把 worktree 根層 shared_paths 檔案的改動複製回主工作區，
+       納入本次 squash commit（MR 流程則納入對應 repo 的 commit 或明確報告無法納入）。
+    3. **修 SetupWorktree 的目錄跳過**：`copyWorkspaceFiles` 對 shared_paths 宣告的路徑，
+       即使位於目錄下也要複製進 worktree（建立必要的中間目錄）。
+    4. **反向污染防護**：`4x check` 加一條，宣告 shared_paths 的 feature 執行期間，
+       主工作區對應檔案須與 HEAD 一致。
+    5. **測試 fixture**：4x 自身是 single repo，此缺陷只在 multi-repo workspace 觸發。
+       須建 multi-repo workspace 測試 fixture 端到端驗證 shared_paths 改動存活過 done。
 
-  ## 約束
+    ## 約束
 
-  - 不改變 `hub_repos` / `RepoConfig.Hub` / `checkScope` 既有語意
-  - 不引入新的外部依賴
-  - feature 未宣告 shared_paths 時行為與現況完全一致（零回歸）
-  - 不得以「靜默跳過」處理任何無法合併的情況——必須報錯或明確輸出
-status: not-started
+    - 不改變 `hub_repos` / `RepoConfig.Hub` / `checkScope` 既有語意
+    - 不引入新的外部依賴
+    - feature 未宣告 shared_paths 時行為與現況完全一致（零回歸）
+    - 不得以「靜默跳過」處理任何無法合併的情況——必須報錯或明確輸出
+status: in-progress
 priority: 0
 profile: full
 subtasks:
