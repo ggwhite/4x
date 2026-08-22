@@ -63,6 +63,17 @@ description: |
   - `internal/prompt/learnings.go:135-140` 的 status 判定式須與 `store.ActiveEntries()` 保持一致
     （該處已有註解要求兩處同步，修改時一併維護）
   - 修完後須能對既有 store 說明遷移行為：已被誤標的 113 條該如何回復
+  ## Kairos 實測分佈（設計驗收標準時的參考基準）
+
+  - 總數 2742（candidate 2626 / active 115 / promoted 1）
+  - `status: stale` = **0** —— `Prune()` 從未執行過
+  - `Ineffective: true` = 113，全數落在 active（佔 active 的 98%）
+  - `used_count == 0` = 2390，其中 1712 條已超過 30 天
+  - (SourceFeature, Category) 桶 >=3 的條目佔 1881/2742（69%）；
+    單一 feature 最高是 ws-302-bab 的 24 條 review 心得
+
+  修好後的合理預期：active 不應再有接近 100% 的 Ineffective 比例；
+  `stale` 應隨 consolidate 開始出現非零值。
 status: not-started
 priority: 1
 profile: full
@@ -82,6 +93,10 @@ subtasks:
     - id: harvest-dedup
       name: harvest 時對同一 (SourceFeature, Category) 桶內的條目先去重，避免單一 feature 灌入數十條同類心得
       status: ""
+    - id: reset-migration
+      name: 修好 recurrence 判定後，一次性把所有現存 Ineffective=true 重設為 false，讓新規則從乾淨狀態重評
+      status: ""
+      description: 現存旗標不是「這條 learning 真的沒用」的判斷結果，而是舊規則 category 字串相撞的副產品（Kairos 實測 115 active 中 113 條命中，98%）。保留它會讓舊誤判與新規則的判斷混在一起，之後無法驗證新規則是否有效。重設須寫進 CHANGELOG，並在 4x learn 提供可查詢被重設條目的方式。
 rules:
     - 不改變 Entry 的 JSON 欄位名，既有 .4x/learnings.json 須能原樣載入
     - 不引入新的外部依賴，相似度計算沿用 internal/learning 既有 helper
