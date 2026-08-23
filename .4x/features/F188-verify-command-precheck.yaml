@@ -66,6 +66,24 @@ description: |
 
   - grep pattern 未錨定行首而可能命中 subtest 行
   - 用 `;` 串接導致前段命令的 exit code 被丟棄（相對於 `&&`）
+  ## Kairos 實測補充（2026-08-23）：pipe 形式與前綴同名
+
+  Kairos 掃了自己的 `.4x/run/*/test-strategy.yaml`，**21 筆中招**
+  （ws-231-daily-profit-gain-jackpot 19 筆、ws-292-carroom 1 筆），
+  但串接方式與本 repo 觀察到的不同——**不是 `;`，是 pipe**：
+
+      cd kairos-core && go test -race -count=1 -v -run 'TestProfitGainEnums' ./model/enums/ 2>&1 | grep -q -- '--- PASS: TestProfitGainEnums'
+
+  後果一樣：pipeline 的 exit code 取自最後一個指令（grep），`go test` 的失敗被吃掉。
+  **precheck 必須同時涵蓋 `;` 與 `|` 兩種形式**，只擋分號會漏掉這 21 筆這種寫法。
+
+  另外這批的 grep pattern 沒有尾隨空白（`'--- PASS: TestProfitGainEnums'`），
+  除了會命中縮排 subtest，還會被 **`TestProfitGainEnumsExtra` 這類前綴同名的另一個測試**命中。
+  正解 `'^--- PASS: TestX '`（錨行首 + 尾隨空白）兩個問題一起解，已在 F186 第八輪
+  design-review 實證採用。
+
+  這 21 筆全在 done feature 裡，代表那些 AC 當初的驗證強度低於報告宣稱的。
+  Kairos 已在自己的 ws-328 加 subtask 修既有筆數並加 lint 擋這個寫法。
 status: not-started
 priority: 1
 profile: normal
