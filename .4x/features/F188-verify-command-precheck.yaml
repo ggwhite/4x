@@ -104,6 +104,7 @@ subtasks:
       name: precheck 涵蓋「命令跑得動但驗不到東西」的樣態——grep 未錨定行首而命中 subtest、用分號串接丟棄前段 exit code
       status: ""
 rules:
+    - precheck 本身必須有元驗證：測試不能只證明「precheck 跑得動」，必須對每個已知失敗樣態各有一筆「precheck 確實判它失敗」的斷言。判準是——把該樣態的指令餵給 precheck，若 precheck 通過就是缺陷。理由：precheck 是驗證器的驗證器，它自己失效時的外觀與正常無異
     - 不得在 designing→coding 轉場實跑會產生副作用的指令，也不得以 exit code 非 0 作為判定依據（此時程式碼尚未寫，測試必然失敗）
     - 沿用 internal/verify 既有的 shell 控制字元處理，不另造一套 parser
     - precheck 失敗訊息須指出是哪一條 verify command 與失敗原因
