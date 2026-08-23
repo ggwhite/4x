@@ -50,6 +50,34 @@ description: |
     - 不引入新的外部依賴
     - feature 未宣告 shared_paths 時行為與現況完全一致（零回歸）
     - 不得以「靜默跳過」處理任何無法合併的情況——必須報錯或明確輸出
+    ## 前置條件已變更（2026-08-23，第一次嘗試後補充）
+
+    本 feature 第一次嘗試時四輪 design-review 全數 FAIL，根因是設計前提有三處斷點
+    而原 scope 只涵蓋最後一處。其中兩處已由後續 feature 解決，重新設計時**必須以
+    下列現況為準，不要沿用第一次的假設**：
+
+    - **已解決（F189-designer-sharedpaths-sync）**：`internal/orchestrator/worktree.go`
+      的 `SyncFeatureFromWorktree` 現在會合併 `SharedPaths`（原本只合併 `Repos`）。
+      Designer 在 worktree 宣告的 `shared_paths` 已能傳回主工作區，
+      `sharedPathsFor(ws, featureID)` 讀主工作區 YAML 不再恆為 nil。
+    - **已解決（F190-merge-preflight-self-block）**：`internal/gitops/selfmanaged.go`
+      的 `commitSelfManaged` 會在兩個 `Merge` 實作的 preflight **之前**，把 4x 自管路徑
+      （feature YAML、`learnings.json`、`learnings-context.md`）path-scoped commit 掉。
+      本 feature 的 merge-back commit 必須與這個既有機制協調，不可各寫一套。
+    - **仍未解決，本 feature 須納入**：見下方需求 6、7。
+
+    ## 需求（第一次嘗試後新增）
+
+    6. **基線取樣時機**（第一次嘗試的 B1）：若設計採用「相對 `SetupWorktree` 當下快照」
+       判斷 drift，必須注意 `shared_paths` 的**主要宣告者是 Designer**
+       （`templates/designer.md.tmpl:317,326-327`、`internal/guard/designer_yaml.go:74`），
+       而 designing phase 在 `SetupWorktree` **之後**（`cmd/4x/run.go:173` setupWorktree
+       → `:177` InitFeatureDir → 之後才進 orchestrator loop）。setup 當下 `len(paths)==0`
+       是**主要流程**而非邊緣情境；基線若只在該時點寫一次，需求 1 與需求 4 會全程 fail-open。
+       不得把這個降級狀態寫成期望行為。
+    7. **`force-done` 路徑**（第一次嘗試的 B2）：`cmd/4x/force_done.go:114` 同樣呼叫
+       `autoMergeFeature`、同樣使用 `doneResult`，必須納入 scope，否則三種「無法納入 commit」
+       的 note 與失敗原因在該路徑上完全不輸出，直接違反本 feature「不得靜默」的約束。
 status: not-started
 depends:
     - F189-designer-sharedpaths-sync
@@ -70,6 +98,9 @@ subtasks:
       status: ""
     - id: multirepo-fixture
       name: 建 multi-repo workspace 測試 fixture，端到端驗證 shared_paths 改動存活過 done
+      status: ""
+    - id: force-done-coverage
+      name: cmd/4x/force_done.go 的 autoMergeFeature 路徑納入 scope，shared_paths 的 merged/notes/error 在該路徑同樣輸出
       status: ""
 rules:
     - 不改變 hub_repos / RepoConfig.Hub / checkScope 既有語意
