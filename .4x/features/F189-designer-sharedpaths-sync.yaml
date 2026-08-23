@@ -41,7 +41,7 @@ description: |
       （避免蓋掉 Consolidator 或人工在主工作區的編輯）
     - 不放寬 `checkDesignerYAMLMod` 的欄位邊界，只讓 sync 與既有邊界一致
     - load 失敗時維持現行的 skip 語意（不 append errs），不改變 live sync 的容錯行為
-status: ready-for-review
+status: done
 priority: 0
 profile: standard
 subtasks:
