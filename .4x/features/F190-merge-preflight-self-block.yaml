@@ -60,7 +60,7 @@ description: |
     - 不得用 `git stash` 繞過——stash 失敗或中斷會造成更難復原的狀態
     - 不引入新的外部依賴
     - 「4x 管理的路徑」清單須有單一來源，不可在 monorepo/multirepo 各寫一份
-status: ready-for-review
+status: done
 priority: 0
 profile: normal
 subtasks:
