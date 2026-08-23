@@ -78,7 +78,7 @@ description: |
     7. **`force-done` 路徑**（第一次嘗試的 B2）：`cmd/4x/force_done.go:114` 同樣呼叫
        `autoMergeFeature`、同樣使用 `doneResult`，必須納入 scope，否則三種「無法納入 commit」
        的 note 與失敗原因在該路徑上完全不輸出，直接違反本 feature「不得靜默」的約束。
-status: ready-for-review
+status: done
 priority: 0
 profile: full
 subtasks:
