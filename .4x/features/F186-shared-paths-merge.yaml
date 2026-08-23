@@ -50,7 +50,9 @@ description: |
     - 不引入新的外部依賴
     - feature 未宣告 shared_paths 時行為與現況完全一致（零回歸）
     - 不得以「靜默跳過」處理任何無法合併的情況——必須報錯或明確輸出
-status: in-progress
+status: not-started
+depends:
+    - F189-designer-sharedpaths-sync
 priority: 0
 profile: full
 subtasks:
