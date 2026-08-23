@@ -72,20 +72,25 @@ func SyncFeatureFromWorktree(wt, main *protocol.Workspace, featureID string, rou
 		}
 	}
 
-	// 把 Designer 在 worktree 內對 feature YAML 的 repos 變更合併回主工作區。
-	// 只合併 Repos 欄位：其餘欄位（name/description/subtasks…）以主工作區為權威來源，
+	// 把 Designer 在 worktree 內對 feature YAML 的變更合併回主工作區。
+	// 只合併 Repos 與 SharedPaths：這兩者即 checkDesignerYAMLMod 允許 Designer 於 designing
+	// phase 修改的完整欄位集（F181 起 shared_paths 與 repos 同級，見 guard/designer_yaml.go
+	// 的 featureSnapshot）。其餘欄位（name/description/subtasks…）以主工作區為權威來源，
 	// 絕不整檔覆蓋，否則會把 worktree 的舊快照蓋掉 Consolidator 或人工在主工作區的編輯，
-	// 等同繞過 checkDesignerYAMLMod「Designer 只能改 repos」的邊界意圖。
+	// 等同繞過該 guard 的欄位邊界意圖。
 	// load 失敗時 skip（不 append errs）：本函式同時被 live sync（每 2s，失敗只 warn）
 	// 與 round 收尾共用，worktree YAML 尚未 copy 或暫態解析失敗不該中斷整輪 sync；
 	// Designer 若把 YAML 改成無法解析，checkDesignerYAMLMod / 4x check 會另行擋下。
 	if wtFeat, wErr := wt.LoadFeature(featureID); wErr == nil {
 		if mainFeat, mErr := main.LoadFeature(featureID); mErr == nil {
-			// repos 相等時不寫入，避免 live sync 每 2s 無謂改寫主 YAML（污染 mtime / cache）。
-			if !slices.Equal(mainFeat.Repos, wtFeat.Repos) {
+			// 兩個欄位都相等時不寫入，避免 live sync 每 2s 無謂改寫主 YAML（污染 mtime / cache）。
+			reposChanged := !slices.Equal(mainFeat.Repos, wtFeat.Repos)
+			sharedChanged := !slices.Equal(mainFeat.SharedPaths, wtFeat.SharedPaths)
+			if reposChanged || sharedChanged {
 				mainFeat.Repos = wtFeat.Repos
+				mainFeat.SharedPaths = wtFeat.SharedPaths
 				if err := main.SaveFeature(mainFeat); err != nil {
-					errs = append(errs, fmt.Sprintf("repos merge: %v", err))
+					errs = append(errs, fmt.Sprintf("repos/shared_paths merge: %v", err))
 				}
 			}
 		}

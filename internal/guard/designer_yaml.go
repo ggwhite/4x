@@ -10,9 +10,10 @@ import (
 )
 
 // checkDesignerYAMLMod verifies that during the designing phase, the Designer
-// only modified the repos field in the feature YAML. Any other field change
-// (name, description, priority, profile, subtasks, rules, depends, etc.) is
-// a guard violation.
+// only modified the repos and shared_paths fields in the feature YAML (F181 put
+// shared_paths on the same footing as repos). Any other field change (name,
+// description, priority, profile, subtasks, rules, depends, etc.) is a guard
+// violation.
 func checkDesignerYAMLMod(ws *protocol.Workspace, featureID string, r *CheckResult) {
 	s, err := ws.ReadState(featureID)
 	if err != nil || s.Phase != protocol.PhaseDesigning {
@@ -63,13 +64,14 @@ func checkDesignerYAMLMod(ws *protocol.Workspace, featureID string, r *CheckResu
 
 	if len(diffs) > 0 {
 		r.Pass = false
-		r.Errors = append(r.Errors, fmt.Sprintf("designer modified non-repos fields in feature YAML: %s", strings.Join(diffs, "; ")))
+		r.Errors = append(r.Errors, fmt.Sprintf("designer modified fields outside repos/shared_paths in feature YAML: %s", strings.Join(diffs, "; ")))
 		r.RetryableErrors++
 	}
 }
 
 // featureSnapshot is a minimal struct for unmarshalling the original YAML to
-// compare non-repos fields. We intentionally omit repos since it's allowed.
+// compare the fields the Designer may not touch. We intentionally omit repos
+// since it's allowed.
 //
 // 注意：shared_paths（Feature.SharedPaths）刻意不列入此 snapshot——比照 repos，
 // 屬 Designer 於 designing phase 可自由修改的欄位。誤加進來會讓 Designer 宣告

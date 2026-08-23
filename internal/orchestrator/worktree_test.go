@@ -156,3 +156,128 @@ func TestSyncFeatureFromWorktree_ReposUnchangedNoRewrite(t *testing.T) {
 		t.Errorf("main YAML was rewritten despite repos unchanged\nbefore:\n%s\nafter:\n%s", before, after)
 	}
 }
+
+// TestSyncFeatureFromWorktree_SharedPathsRoundTrip 涵蓋 F189：Designer 在 worktree 內宣告的
+// shared_paths 必須合併回主工作區（repos 未變也要合併），且下一次 SyncFeatureToWorktree
+// 以主工作區 YAML 覆寫 worktree 時不得把它洗掉——否則 4x done 這類讀主工作區 YAML 的
+// 消費端拿到的 SharedPaths 恆為空。
+func TestSyncFeatureFromWorktree_SharedPathsRoundTrip(t *testing.T) {
+	featureID := "feat-sharedpaths-roundtrip"
+	wt := &protocol.Workspace{Root: t.TempDir()}
+	main := &protocol.Workspace{Root: t.TempDir()}
+
+	writeFeatureYAML(t, main, feature.Feature{
+		ID:          featureID,
+		Name:        "authoritative name",
+		Description: "authoritative description",
+		Status:      feature.StatusInProgress,
+		Repos:       []string{"repoA"},
+	})
+	// worktree 快照：Designer 只加了 shared_paths（repos 維持原值），name/description 為過時值。
+	writeFeatureYAML(t, wt, feature.Feature{
+		ID:          featureID,
+		Name:        "stale worktree name",
+		Description: "stale worktree description",
+		Status:      feature.StatusInProgress,
+		Repos:       []string{"repoA"},
+		SharedPaths: []string{"Dockerfile", "docker-compose.yml"},
+	})
+
+	if err := SyncFeatureFromWorktree(wt, main, featureID, 1); err != nil {
+		t.Fatalf("SyncFeatureFromWorktree: %v", err)
+	}
+
+	got, err := main.LoadFeature(featureID)
+	if err != nil {
+		t.Fatalf("reload main feature: %v", err)
+	}
+	if !slices.Equal(got.SharedPaths, []string{"Dockerfile", "docker-compose.yml"}) {
+		t.Errorf("shared_paths = %v, want [Dockerfile docker-compose.yml]", got.SharedPaths)
+	}
+	if !slices.Equal(got.Repos, []string{"repoA"}) {
+		t.Errorf("repos = %v, want [repoA]", got.Repos)
+	}
+	if got.Name != "authoritative name" || got.Description != "authoritative description" {
+		t.Errorf("worktree snapshot overwrote authoritative fields: name=%q description=%q", got.Name, got.Description)
+	}
+
+	// 下一個 role 起跑前的反向 sync：worktree YAML 被主工作區覆寫，shared_paths 須存活。
+	SyncFeatureToWorktree(main, wt, featureID, 1)
+	wtGot, err := wt.LoadFeature(featureID)
+	if err != nil {
+		t.Fatalf("reload worktree feature: %v", err)
+	}
+	if !slices.Equal(wtGot.SharedPaths, []string{"Dockerfile", "docker-compose.yml"}) {
+		t.Errorf("shared_paths after SyncFeatureToWorktree = %v, want [Dockerfile docker-compose.yml]", wtGot.SharedPaths)
+	}
+}
+
+// TestSyncFeatureFromWorktree_SharedPathsUnchangedNoRewrite 驗證 repos 與 shared_paths 都相同時
+// 不觸發 SaveFeature——live sync 每 2s 呼叫一次，無謂改寫會污染主 YAML 的 mtime / cache。
+func TestSyncFeatureFromWorktree_SharedPathsUnchangedNoRewrite(t *testing.T) {
+	featureID := "feat-sharedpaths-unchanged"
+	wt := &protocol.Workspace{Root: t.TempDir()}
+	main := &protocol.Workspace{Root: t.TempDir()}
+
+	feat := feature.Feature{
+		ID:          featureID,
+		Name:        "same",
+		Status:      feature.StatusInProgress,
+		Repos:       []string{"repoA"},
+		SharedPaths: []string{"Dockerfile"},
+	}
+	writeFeatureYAML(t, main, feat)
+	writeFeatureYAML(t, wt, feat)
+
+	mainYAML := filepath.Join(main.DotDir(), protocol.FeaturesDir, featureID+".yaml")
+	before, err := os.ReadFile(mainYAML)
+	if err != nil {
+		t.Fatalf("read main YAML before: %v", err)
+	}
+
+	if err := SyncFeatureFromWorktree(wt, main, featureID, 1); err != nil {
+		t.Fatalf("SyncFeatureFromWorktree: %v", err)
+	}
+
+	after, err := os.ReadFile(mainYAML)
+	if err != nil {
+		t.Fatalf("read main YAML after: %v", err)
+	}
+	if string(before) != string(after) {
+		t.Errorf("main YAML was rewritten despite repos/shared_paths unchanged\nbefore:\n%s\nafter:\n%s", before, after)
+	}
+}
+
+// TestSyncFeatureFromWorktree_SharedPathsRemoval 驗證 Designer 於 worktree 移除 shared_paths 時，
+// 主工作區同步清空——合併語意對稱，不能只允許新增而讓已移除的路徑殘留在主 YAML。
+func TestSyncFeatureFromWorktree_SharedPathsRemoval(t *testing.T) {
+	featureID := "feat-sharedpaths-removal"
+	wt := &protocol.Workspace{Root: t.TempDir()}
+	main := &protocol.Workspace{Root: t.TempDir()}
+
+	writeFeatureYAML(t, main, feature.Feature{
+		ID:          featureID,
+		Name:        "same",
+		Status:      feature.StatusInProgress,
+		Repos:       []string{"repoA"},
+		SharedPaths: []string{"Dockerfile", "docker-compose.yml"},
+	})
+	writeFeatureYAML(t, wt, feature.Feature{
+		ID:     featureID,
+		Name:   "same",
+		Status: feature.StatusInProgress,
+		Repos:  []string{"repoA"},
+	})
+
+	if err := SyncFeatureFromWorktree(wt, main, featureID, 1); err != nil {
+		t.Fatalf("SyncFeatureFromWorktree: %v", err)
+	}
+
+	got, err := main.LoadFeature(featureID)
+	if err != nil {
+		t.Fatalf("reload main feature: %v", err)
+	}
+	if len(got.SharedPaths) != 0 {
+		t.Errorf("shared_paths = %v, want empty after worktree removal", got.SharedPaths)
+	}
+}
