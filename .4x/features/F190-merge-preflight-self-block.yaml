@@ -1,66 +1,66 @@
 id: F190-merge-preflight-self-block
 name: 'F190: 4x done 的 merge preflight 被 4x 自身 pipeline 寫入擋住'
 description: |
-  ## 現狀（2026-08-23 實測，非推論）
+    ## 現狀（2026-08-23 實測，非推論）
 
-  `4x done` 在 F189-designer-sharedpaths-sync 上實際失敗：
+    `4x done` 在 F189-designer-sharedpaths-sync 上實際失敗：
 
-      level=ERROR msg="merge failed" error="main workspace has uncommitted changes, aborting merge"
-      Worktree preserved at: .worktrees/4x/F189-designer-sharedpaths-sync
+        level=ERROR msg="merge failed" error="main workspace has uncommitted changes, aborting merge"
+        Worktree preserved at: .worktrees/4x/F189-designer-sharedpaths-sync
 
-  當下 `git status --short` 的三個 dirty 檔案**全部是 4x 自己在 pipeline 期間寫的**：
+    當下 `git status --short` 的三個 dirty 檔案**全部是 4x 自己在 pipeline 期間寫的**：
 
-  - `.4x/features/F189-designer-sharedpaths-sync.yaml`（4x 寫的 status 轉換）
-  - `.4x/learnings.json`（retro learnings 合併，實測 312 insert / 194 delete）
-  - `.4x/learnings-context.md`（`GenerateLearningsContext` 重新產生）
+    - `.4x/features/F189-designer-sharedpaths-sync.yaml`（4x 寫的 status 轉換）
+    - `.4x/learnings.json`（retro learnings 合併，實測 312 insert / 194 delete）
+    - `.4x/learnings-context.md`（`GenerateLearningsContext` 重新產生）
 
-  必須人工 `git commit` 這三個檔案後重跑 `4x done` 才能完成 merge。
-  **這代表 autopilot 每跑完一個 feature 都需要人介入一次。**
+    必須人工 `git commit` 這三個檔案後重跑 `4x done` 才能完成 merge。
+    **這代表 autopilot 每跑完一個 feature 都需要人介入一次。**
 
-  ## 失效鏈
+    ## 失效鏈
 
-  1. `internal/gitops/gitops.go:547` `workingTreeDirty()` 依 `git status --porcelain`
-     判定，GoDoc 明寫只放行 `??` untracked 行，tracked 修改一律回 true；
-  2. `internal/gitops/monorepo.go:102`（single repo）與 `internal/gitops/multirepo.go:199`
-     （multi-repo）的 preflight 據此中止 merge；
-  3. `internal/gitops/finalize.go` 的 `MergeAndFinalize` **直接呼叫 `ops.Merge()`，
-     merge 前不 commit 也不 stash**；`learning.CommitIfDirty` 是 merge **成功之後**才跑。
+    1. `internal/gitops/gitops.go:547` `workingTreeDirty()` 依 `git status --porcelain`
+       判定，GoDoc 明寫只放行 `??` untracked 行，tracked 修改一律回 true；
+    2. `internal/gitops/monorepo.go:102`（single repo）與 `internal/gitops/multirepo.go:199`
+       （multi-repo）的 preflight 據此中止 merge；
+    3. `internal/gitops/finalize.go` 的 `MergeAndFinalize` **直接呼叫 `ops.Merge()`，
+       merge 前不 commit 也不 stash**；`learning.CommitIfDirty` 是 merge **成功之後**才跑。
 
-  也就是說 4x 自己寫的 state 沒有被排除在 preflight 之外，4x 擋住了自己的 merge。
+    也就是說 4x 自己寫的 state 沒有被排除在 preflight 之外，4x 擋住了自己的 merge。
 
-  注意：feature YAML 的 `status: in-progress` 那次轉換 4x **有**自動 commit
-  （實測 `bc5d1d38 chore(F186-shared-paths-merge): in-progress`），
-  但 pipeline 後段的 status 轉換與 learnings 寫入沒有對應的 commit 路徑。
+    注意：feature YAML 的 `status: in-progress` 那次轉換 4x **有**自動 commit
+    （實測 `bc5d1d38 chore(F186-shared-paths-merge): in-progress`），
+    但 pipeline 後段的 status 轉換與 learnings 寫入沒有對應的 commit 路徑。
 
-  ## 這個 preflight 本身是對的
+    ## 這個 preflight 本身是對的
 
-  它是 F184 加的（`F184: 修復 4x done merge 失敗時 git reset --hard 誤刪未 commit 修改`），
-  防的是 merge 失敗路徑的 `reset --hard` 抹除使用者無關的未 commit 修改——
-  `docs/reference/discovered-feature-gaps.md` 記錄過 Kairos 因此吃掉一個寫好的 bug 修復。
-  **本 feature 不得放寬這個保護，只要讓它別把 4x 自己的寫入算進去。**
+    它是 F184 加的（`F184: 修復 4x done merge 失敗時 git reset --hard 誤刪未 commit 修改`），
+    防的是 merge 失敗路徑的 `reset --hard` 抹除使用者無關的未 commit 修改——
+    `docs/reference/discovered-feature-gaps.md` 記錄過 Kairos 因此吃掉一個寫好的 bug 修復。
+    **本 feature 不得放寬這個保護，只要讓它別把 4x 自己的寫入算進去。**
 
-  ## 需求
+    ## 需求
 
-  1. 讓 preflight 不因 4x 自身管理的路徑而中止。兩個方向擇一，並在 task-brief
-     明確記錄裁決理由與被否決方案的問題：
-     - (a) preflight 白名單排除 `.4x/features/*.yaml`、`.4x/learnings.json`、
-       `.4x/learnings-context.md`——需處理這些檔案在 `merge --squash` 時
-       與 worktree 版本衝突的情況（`autoResolveFeatureYAML` 已處理 feature YAML 一種）；
-     - (b) `MergeAndFinalize` 在呼叫 `ops.Merge()` 之前先 commit 這些檔案——
-       比照既有的 `learning.CommitIfDirty`，但時機移到 merge 前；需考慮
-       merge 失敗時這個 commit 已經產生的後果。
-  2. `monorepo.go` 與 `multirepo.go` 兩條路徑都要處理。
-  3. 保住 F184 的原始意圖：使用者自己的 tracked 未 commit 修改仍須擋下。
-  4. 整合測試涵蓋兩個方向：「只有 4x 自身寫入為 dirty → merge 應成功」
-     與「使用者檔案 dirty → merge 應中止」。
+    1. 讓 preflight 不因 4x 自身管理的路徑而中止。兩個方向擇一，並在 task-brief
+       明確記錄裁決理由與被否決方案的問題：
+       - (a) preflight 白名單排除 `.4x/features/*.yaml`、`.4x/learnings.json`、
+         `.4x/learnings-context.md`——需處理這些檔案在 `merge --squash` 時
+         與 worktree 版本衝突的情況（`autoResolveFeatureYAML` 已處理 feature YAML 一種）；
+       - (b) `MergeAndFinalize` 在呼叫 `ops.Merge()` 之前先 commit 這些檔案——
+         比照既有的 `learning.CommitIfDirty`，但時機移到 merge 前；需考慮
+         merge 失敗時這個 commit 已經產生的後果。
+    2. `monorepo.go` 與 `multirepo.go` 兩條路徑都要處理。
+    3. 保住 F184 的原始意圖：使用者自己的 tracked 未 commit 修改仍須擋下。
+    4. 整合測試涵蓋兩個方向：「只有 4x 自身寫入為 dirty → merge 應成功」
+       與「使用者檔案 dirty → merge 應中止」。
 
-  ## 約束
+    ## 約束
 
-  - 不得放寬 F184 的保護範圍：非 4x 管理的 tracked 未 commit 修改一律仍要中止 merge
-  - 不得用 `git stash` 繞過——stash 失敗或中斷會造成更難復原的狀態
-  - 不引入新的外部依賴
-  - 「4x 管理的路徑」清單須有單一來源，不可在 monorepo/multirepo 各寫一份
-status: not-started
+    - 不得放寬 F184 的保護範圍：非 4x 管理的 tracked 未 commit 修改一律仍要中止 merge
+    - 不得用 `git stash` 繞過——stash 失敗或中斷會造成更難復原的狀態
+    - 不引入新的外部依賴
+    - 「4x 管理的路徑」清單須有單一來源，不可在 monorepo/multirepo 各寫一份
+status: ready-for-review
 priority: 0
 profile: normal
 subtasks:

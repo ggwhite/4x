@@ -21,15 +21,6 @@
 - best-effort plugin 安裝函數（ensureXxx）中的 os.WriteFile 錯誤應改為 slog.Warn，而非靜默忽略，以確保失敗可被觀察與診斷。
 - 把某個硬編碼列舉改為消費 SoT accessor 時，順手 grep 同一檔案/同一函式內是否還有其他地方（如 CLI flag usage 說明字串）引用了相同列舉但仍硬編碼，一併同步，避免在自己修改的檔案裡留下新的平行清單。
 
-## review
-- 命令層產出多個關聯集合（如 candidates 與其衍生 learnings）時，去重/同步邏輯應同時涵蓋所有關聯集合，避免一方被濾除後另一方變孤兒；設計 AC 時要明確界定關聯資料是否需一對一存活。
-- 孤立單元測試綠燈不等於端到端生效：AC-3 對 MergeConfig 單測通過，但 merged config 從未流到消費點（guard 用 ReadConfig 而非 LoadMergedConfig），驗收應追到資料真正被消費的呼叫鏈。
-- 對 LLM 委託流程做對抗審查時，重點查端到端陷阱：prompt 範例被回顯誤解析（取 marker 用 LastIndex）、grep -m 是 per-file 而非總量上限、byte 截斷切壞 CJK rune。
-- git diff main..HEAD 顯示的「刪除」可能是 branch 落後 main 的比較假象；判定 scope 違規前先用 merge-base（git diff $(git merge-base main HEAD)..HEAD）查證，避免誤報。
-- INFO 等級的 pre-existing 問題應在 review-report 明確標示為「範圍外、不阻擋」，避免 Acceptor 誤判為 OPEN blocking issue
-- CONDITIONAL PASS 的修正項目應在同輪 Coder 階段處理完畢後再交 Reviewer，避免 open warning 進入 Acceptor；若 Acceptor 收到時仍有未處理的 CONDITIONAL PASS 項目，應標記 needs-attention 並列出 open issue，不可因 AC 全數通過而直接 ready-for-review。
-- coder-report 宣稱的 make check-docs-sync/check-i18n 等驗證結果不可照單全收，Reviewer 應以當前分支真正的比對基準（預設 BASE=main，省略 BASE 參數讓腳本自己判斷）親自重跑一次比對，不可只信任先前快取或片面判斷——已多次抓到 coder-report 誤報 check-docs-sync 為 OK，但實際輸出 NEEDS_UPDATE，且點名的 doc 內容確有真實缺口（例如 API 回應形狀破壞性變更未寫進 docs/guide/dashboard.md）。
-
 ## tooling
 - make check-docs-sync 只比對 symbol→doc 的結構化映射，不涵蓋 docs prose 內以純文字寫死的檔案路徑字串（例如「XxxType (internal/pkg/foo.go)」），也不涵蓋非英文翻譯版；刪除或搬遷檔案的 feature 應額外對 docs/guide/**/*.md（含所有語系）跑 grep -rn '<被刪檔案路徑>' 做覆核，不能只信任 check-docs-sync 回報 OK。
 - make check-docs-sync 用 git diff --name-only main...HEAD 比對已提交歷史，未 commit 的 docs 修改不會被判定為「已更新」——改完 docs 後必須先 commit 再重跑該指令確認轉為 OK，否則 coder-report 的驗證聲明會失真。
