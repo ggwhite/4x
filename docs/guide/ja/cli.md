@@ -411,6 +411,8 @@ Feature が `pending-review` フェーズにある場合のみ動作します。
 
 マージコンフリクトまたはマージエラーが発生した場合、Feature は `pending-review` のままとなり、worktree は保持され、ガイダンスが表示されます。マルチリポジトリモードでは、コンフリクトのあるリポジトリ名が `repo: <name>` として表示されます。コンフリクトを解決した後、`4x merge <id>` で完了してください。
 
+マージの前に、4x はメインワークスペース内で自身が書き込んだ pipeline 状態（`.4x/features/*.yaml`、`.4x/learnings.json`、`.4x/learnings-context.md`）を `chore(<feature-id>): 4x pipeline state` としてコミットします。このコミットは対象パスを限定しているため、メインワークスペースにある他の未コミットの tracked 変更はそのまま残り、従来どおりマージを中止させます。`4x merge` も完了前に同じ処理を行います。
+
 ---
 
 ## `4x force-done <feature-id>`

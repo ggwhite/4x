@@ -359,6 +359,8 @@ Dashboard 透過 `GET /api/evolve-report` 呈現最新報告。
 
 如果 merge 發生 conflict 或錯誤，feature 會維持 `pending-review`，worktree 會保留，並印出後續處理指引。解完 conflict 後，用 `4x merge <id>` 完成。
 
+merge 之前，4x 會先把主工作區內自己寫入的 pipeline 狀態（`.4x/features/*.yaml`、`.4x/learnings.json`、`.4x/learnings-context.md`）以 `chore(<feature-id>): 4x pipeline state` commit 掉。這個 commit 只帶指定路徑，主工作區其他未 commit 的 tracked 變更不會被收進去，也依然會中止 merge。`4x merge` 在完成合併前同樣會做這件事。
+
 ---
 
 ## `4x force-done <feature-id>`

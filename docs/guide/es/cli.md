@@ -411,6 +411,8 @@ Solo funciona cuando el feature está en fase `pending-review`. Produce error en
 
 Si ocurre un conflicto de merge o error de merge, el feature permanece en `pending-review`, el worktree se preserva y se muestra orientación. En modo multi-repo, el nombre del repo en conflicto se muestra como `repo: <name>`. Usa `4x merge <id>` para completar después de resolver los conflictos.
 
+Antes del merge, 4x hace commit de su propio estado de pipeline en el workspace principal — `.4x/features/*.yaml`, `.4x/learnings.json` y `.4x/learnings-context.md` — como `chore(<feature-id>): 4x pipeline state`. Ese commit está limitado a esas rutas, así que cualquier otro cambio tracked sin commit en el workspace principal queda intacto y sigue abortando el merge. `4x merge` hace lo mismo antes de completar.
+
 ---
 
 ## `4x force-done <feature-id>`

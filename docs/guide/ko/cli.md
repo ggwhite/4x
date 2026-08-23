@@ -411,6 +411,8 @@ pending-review 기능을 완료로 표시합니다. 기능에 worktree(`.worktre
 
 병합 충돌 또는 병합 오류가 발생하면 기능은 `pending-review` 상태로 유지되고 worktree가 보존되며 안내가 출력됩니다. 멀티 리포 모드에서는 충돌 리포 이름이 `repo: <name>`으로 표시됩니다. 충돌 해결 후 `4x merge <id>`를 사용하여 완료하세요.
 
+병합 전에 4x는 메인 워크스페이스에 자신이 기록한 pipeline 상태(`.4x/features/*.yaml`, `.4x/learnings.json`, `.4x/learnings-context.md`)를 `chore(<feature-id>): 4x pipeline state`로 커밋합니다. 이 커밋은 지정된 경로만 대상으로 하므로, 메인 워크스페이스의 다른 커밋되지 않은 tracked 변경은 그대로 남고 여전히 병합을 중단시킵니다. `4x merge`도 완료 전에 동일하게 동작합니다.
+
 ---
 
 ## `4x force-done <feature-id>`

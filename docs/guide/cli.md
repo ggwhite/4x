@@ -452,6 +452,8 @@ Only works when feature is in `pending-review` phase. Errors on any other phase.
 
 If a merge conflict or merge error occurs, the feature remains in `pending-review`, the worktree is preserved, and guidance is printed. In multi-repo mode, the conflicting repo name is printed as `repo: <name>`. Use `4x merge <id>` to complete after resolving conflicts.
 
+Before merging, 4x commits its own pipeline state in the main workspace — `.4x/features/*.yaml`, `.4x/learnings.json` and `.4x/learnings-context.md` — as `chore(<feature-id>): 4x pipeline state`. That commit is path-scoped, so any other uncommitted tracked change in the main workspace is left untouched and still aborts the merge. `4x merge` does the same before completing.
+
 If the feature touched self-mod protected paths (see the `self_mod_guard` settings), the merge is blocked until you confirm with `--approve-self-mod`; the touched protected paths are printed for review:
 
 ```

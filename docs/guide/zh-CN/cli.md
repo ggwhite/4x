@@ -409,6 +409,8 @@ Dashboard 通过 `GET /api/evolve-report` 呈现最新报告。
 
 如果发生合并冲突或合并错误，feature 保持 `pending-review` 状态，worktree 被保留，并打印指导信息。多仓库模式下，冲突的仓库名会以 `repo: <name>` 形式打印。可使用 `4x merge <id>` 在解决冲突后完成合并。
 
+合并之前，4x 会先把主工作区内自己写入的 pipeline 状态（`.4x/features/*.yaml`、`.4x/learnings.json`、`.4x/learnings-context.md`）以 `chore(<feature-id>): 4x pipeline state` 提交掉。该提交只针对这些路径，主工作区其他未提交的 tracked 变更不会被带入，也依然会中止合并。`4x merge` 在完成合并前同样会执行这一步。
+
 ---
 
 ## `4x force-done <feature-id>`

@@ -212,3 +212,45 @@ func TestMergeAndFinalize_IssueTrackerEnabled_PartialFailureSkipsFinalize(t *tes
 		t.Error("worktree should be preserved on partial failure for retry")
 	}
 }
+
+// TestMergeAndFinalize_SelfManagedDirtyFinalizesDone 驗證 AC-8：端到端重現 F189 的實際失敗——
+// state 為 pending-review、主工作區三個 4x 自管路徑皆 tracked-dirty 時，merge 前置 commit 讓
+// preflight 不再誤擋，MergeAndFinalize 正常把 phase 推進到 done。
+func TestMergeAndFinalize_SelfManagedDirtyFinalizesDone(t *testing.T) {
+	root, ws, ops := setupMonoWorkspace(t)
+	cfg := protocol.Config{Project: protocol.ProjectConfig{Name: "test"}}
+	seedSelfManaged(t, root, "feat-selfdirty")
+
+	wtPath, err := ops.SetupWorktree("feat-selfdirty", nil)
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(wtPath, "new.go"), []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := ops.Commit(wtPath, "feat-selfdirty", "wip(feat-selfdirty): round 1"); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+
+	writeState(t, ws, "feat-selfdirty", protocol.PhasePendingReview)
+	dirtySelfManaged(t, root, "feat-selfdirty")
+
+	result, err := MergeAndFinalize(root, ws, cfg, "feat-selfdirty", "Self Managed Dirty Feature")
+	if err != nil {
+		t.Fatalf("MergeAndFinalize: %v", err)
+	}
+	if result.Error != "" || result.Conflict {
+		t.Fatalf("unexpected result: %+v", result)
+	}
+	if result.FinalState.Phase != protocol.PhaseDone {
+		t.Errorf("FinalState.Phase = %q, want done", result.FinalState.Phase)
+	}
+
+	persisted, err := ws.ReadState("feat-selfdirty")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if persisted.Phase != protocol.PhaseDone {
+		t.Errorf("persisted phase = %q, want done", persisted.Phase)
+	}
+}

@@ -181,6 +181,11 @@ func (m *multiRepo) Merge(featureID, featureName string) MergeResult {
 		head     string
 	}
 
+	// multirepo 佈局的 .4x/ 位於 hub root、不在任何 cfg.Workspace.Repos 的 repo 目錄內，
+	// 下方 preflight 只逐一檢查 repoPath，故此處對 m.root 執行一次自管路徑前置 commit
+	// （root 非 git repo 時 best-effort 靜默略過），讓 preflight 攔截到的必定是使用者的變更。
+	commitSelfManaged(m.root, featureID)
+
 	var preHeads []repoHead
 	for name, rc := range m.cfg.Workspace.Repos {
 		repoPath := filepath.Join(m.root, rc.Path)

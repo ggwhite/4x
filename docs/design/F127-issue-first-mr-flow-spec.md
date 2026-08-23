@@ -122,7 +122,7 @@ if cfg.IssueTracker.Enabled {
 }
 ```
 
-後續「重讀 state 確認未被改動 → `state.FinalizeDone` → `learning.CommitIfDirty`」完全不變，`done` 狀態的語意變成「已開 MR」，不等待遠端實際合併。
+後續「重讀 state 確認未被改動 → `state.FinalizeDone` → `commitSelfManaged`（F190 起取代原本的 `learning` 套件版本）」完全不變，`done` 狀態的語意變成「已開 MR」，不等待遠端實際合併。
 
 `PushAndOpenMR`（monoRepo／multiRepo 各自實作）內部：
 

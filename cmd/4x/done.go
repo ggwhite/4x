@@ -147,7 +147,7 @@ type doneResult struct {
 }
 
 // autoMergeFeature 對 pending-review 的 feature 執行 merge 並標記 done，委派共用編排
-// gitops.MergeAndFinalize（ops.Merge → re-read state → state.FinalizeDone → CommitIfDirty）。
+// gitops.MergeAndFinalize（ops.Merge → re-read state → state.FinalizeDone → commitSelfManaged）。
 // batch 與 done 共用此 helper，不重寫第二份 merge+finalize 流程。回傳 MergeResult 供呼叫端決定後續
 // （衝突→暫停、錯誤→警告續跑、成功→done）。不印任何訊息。
 //

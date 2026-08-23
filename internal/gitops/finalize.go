@@ -3,7 +3,6 @@ package gitops
 import (
 	"fmt"
 
-	"github.com/ggwhite/4x/internal/learning"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/ggwhite/4x/internal/state"
 )
@@ -12,7 +11,11 @@ import (
 // （internal/server/server.go handlePostDone）原本各自實作的 merge+done 編排，是兩端共用的
 // 唯一真實來源：ops.Merge（或 cfg.IssueTracker.Enabled 時改走 ops.PushAndOpenMR，done 語意
 // 變成「已開 MR」而非「已合併」）→ 成功時重讀最新 state 確認仍為 pending-review → state.FinalizeDone
-// → learning.CommitIfDirty。
+// → commitSelfManaged（把 finalize 階段新寫入的 4x 自管路徑收乾淨）。
+//
+// ops.Merge 內另有 merge 前的同名前置 commit（見 monorepo.go / multirepo.go），常態下這裡的
+// post-merge 呼叫是 no-op；保留它是為了 cfg.IssueTracker.Enabled 時走 PushAndOpenMR 的路徑——
+// 該路徑沒有 preflight、也不會經過 Merge 內的前置 commit，仍需要有人把 pipeline 狀態收乾淨。
 //
 // 重讀 state 是為了保留 server 的防 stale 覆寫不變式：merge 可能耗時數秒，期間 runner 或
 // ensureInactive 可能改過 state.json，若用 merge 前的 stale 值 finalize 會覆蓋其他欄位更新。
@@ -55,6 +58,6 @@ func MergeAndFinalize(root string, ws *protocol.Workspace, cfg protocol.Config, 
 	}
 	result.FinalState = finalState
 
-	learning.CommitIfDirty(root, ws.DotDir())
+	commitSelfManaged(root, featureID)
 	return result, nil
 }

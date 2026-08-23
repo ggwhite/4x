@@ -780,3 +780,89 @@ func TestMultiRepo_PushAndOpenMR_ScopedRepos_IgnoresUnrelatedRepo(t *testing.T) 
 		t.Error("worktree should be cleaned up after full success")
 	}
 }
+
+// initHubRootGit 把 multirepo 的 hub root 也初始化成 git repo，並把三個 4x 自管檔 commit 進去。
+// multirepo 佈局的 .4x/ 位於 hub root、不在任何 cfg.Workspace.Repos 的 repo 目錄內，
+// 前置 commit 以 m.root 為目標，故測試必須讓 root 本身是 git repo。
+func initHubRootGit(t *testing.T, root, featureID string) {
+	t.Helper()
+	runGit(t, root, "init", "-b", "main")
+	runGit(t, root, "config", "user.name", "test")
+	runGit(t, root, "config", "user.email", "test@test")
+	seedSelfManaged(t, root, featureID)
+}
+
+// TestMultiRepo_Merge_SelfManagedDirtyProceeds 驗證 AC-6(a)：hub root 的 4x 自管路徑
+// tracked-dirty 時，Merge 前置 commit 把它收乾淨，各子 repo 的 preflight 不受影響、merge 完成。
+func TestMultiRepo_Merge_SelfManagedDirtyProceeds(t *testing.T) {
+	root, _, ops := setupMultiWorkspace(t)
+	initHubRootGit(t, root, "feat-x")
+
+	wtPath, err := ops.SetupWorktree("feat-x", nil)
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+	writeFile(t, filepath.Join(wtPath, "core", "feature.go"), "package core\n")
+	writeFile(t, filepath.Join(wtPath, "gate", "feature.go"), "package gate\n")
+	if err := ops.Commit(wtPath, "feat-x", "wip(feat-x): round 1"); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+
+	writeFile(t, filepath.Join(root, protocol.DirName, protocol.LearningsFile), `{"learnings": [{"id": "L1"}]}`+"\n")
+
+	result := ops.Merge("feat-x", "Self Managed Feature")
+	if result.Error != "" {
+		t.Fatalf("merge should proceed with self-managed-only dirt, got error: %q", result.Error)
+	}
+	if result.Conflict {
+		t.Error("merge should not conflict with self-managed-only dirt")
+	}
+
+	const want = "chore(feat-x): 4x pipeline state"
+	found := false
+	for _, line := range strings.Split(gitOutput(root, "log", "--format=%s"), "\n") {
+		if line == want {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("hub root git log should contain %q, got:\n%s", want, gitOutput(root, "log", "--format=%s"))
+	}
+}
+
+// TestMultiRepo_Merge_UserDirtyStillAborts 驗證 AC-6(b)：hub root 的前置 commit 不影響子 repo
+// 的 preflight，子 repo 內使用者的 tracked-dirty 檔仍讓 merge 中止且該檔內容不變。
+func TestMultiRepo_Merge_UserDirtyStillAborts(t *testing.T) {
+	root, _, ops := setupMultiWorkspace(t)
+	initHubRootGit(t, root, "feat-userdirty")
+
+	wtPath, err := ops.SetupWorktree("feat-userdirty", nil)
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+	writeFile(t, filepath.Join(wtPath, "core", "feature.go"), "package core\n")
+	writeFile(t, filepath.Join(wtPath, "gate", "feature.go"), "package gate\n")
+	if err := ops.Commit(wtPath, "feat-userdirty", "wip(feat-userdirty): round 1"); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+
+	const dirtyContent = "module core\n\ngo 1.26\n// user edit\n"
+	writeFile(t, filepath.Join(root, "core", "go.mod"), dirtyContent)
+
+	result := ops.Merge("feat-userdirty", "User Dirty Feature")
+	if result.Error != "core: uncommitted changes in working tree, aborting merge" {
+		t.Errorf("unexpected error: %q", result.Error)
+	}
+	if result.Conflict {
+		t.Error("preflight abort should not be reported as conflict")
+	}
+
+	got, err := os.ReadFile(filepath.Join(root, "core", "go.mod"))
+	if err != nil {
+		t.Fatalf("read core/go.mod: %v", err)
+	}
+	if !bytes.Equal(got, []byte(dirtyContent)) {
+		t.Errorf("user dirty core/go.mod was modified:\ngot:  %q\nwant: %q", got, dirtyContent)
+	}
+}

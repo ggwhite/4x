@@ -97,6 +97,10 @@ func (m *monoRepo) Merge(featureID, featureName string) MergeResult {
 		return MergeResult{Error: fmt.Sprintf("current branch is %s — switch to main/master first", branch)}
 	}
 
+	// 先把 4x 自己在 pipeline 期間寫入主工作區的自管路徑（feature YAML、learnings）
+	// commit 掉，讓下方 preflight 攔截到的必定是使用者自己的變更。
+	commitSelfManaged(m.root, featureID)
+
 	// preflight：主工作區若有 tracked 的未 commit 變更，直接中止且不觸碰任何檔案。
 	// 否則下方 merge 失敗路徑的 reset --hard HEAD 會連同這些與本次 merge 無關的既有修改一併抹除。
 	if workingTreeDirty(m.root) {

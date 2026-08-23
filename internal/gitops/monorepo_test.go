@@ -833,3 +833,116 @@ func TestMonoRepo_Merge_UntrackedMainProceeds(t *testing.T) {
 		t.Errorf("feature.go should be merged into main: %v", err)
 	}
 }
+
+// TestMonoRepo_Merge_SelfManagedDirtyProceeds 驗證 AC-3：主工作區只有 4x 自管路徑
+// （feature YAML、learnings.json、learnings-context.md）為 tracked-dirty 時，Merge 前置
+// commit 會把它們收乾淨，preflight 不再誤擋，merge 照常完成並留下一筆 pipeline state commit。
+func TestMonoRepo_Merge_SelfManagedDirtyProceeds(t *testing.T) {
+	root, _, ops := setupMonoWorkspace(t)
+	seedSelfManaged(t, root, "feat-x")
+
+	wtDir, err := ops.SetupWorktree("feat-x", nil)
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+	writeFile(t, filepath.Join(wtDir, "feature.go"), "package main\n")
+	runGit(t, wtDir, "add", "--", "feature.go")
+	runGit(t, wtDir, "commit", "-m", "feat")
+
+	dirtySelfManaged(t, root, "feat-x")
+
+	result := ops.Merge("feat-x", "Self Managed Feature")
+	if result.Error != "" {
+		t.Fatalf("merge should proceed with self-managed-only dirt, got error: %q", result.Error)
+	}
+	if result.Conflict {
+		t.Error("merge should not conflict with self-managed-only dirt")
+	}
+
+	if _, err := os.Stat(filepath.Join(root, "feature.go")); err != nil {
+		t.Errorf("feature.go should be merged into main: %v", err)
+	}
+
+	const want = "chore(feat-x): 4x pipeline state"
+	found := false
+	for _, line := range strings.Split(gitOutput(root, "log", "--format=%s"), "\n") {
+		if line == want {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("git log should contain %q, got:\n%s", want, gitOutput(root, "log", "--format=%s"))
+	}
+}
+
+// TestMonoRepo_Merge_UserDirtyStillAborts 驗證 AC-4：前置 commit 只認 4x 自管路徑，使用者
+// 自己的 tracked-dirty 檔仍會讓 preflight 中止，且該檔內容逐位元組不變、worktree 保留。
+func TestMonoRepo_Merge_UserDirtyStillAborts(t *testing.T) {
+	root, _, ops := setupMonoWorkspace(t)
+	wtDir, err := ops.SetupWorktree("feat-userdirty", nil)
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+	writeFile(t, filepath.Join(wtDir, "feature.go"), "package main\n")
+	runGit(t, wtDir, "add", "--", "feature.go")
+	runGit(t, wtDir, "commit", "-m", "feat")
+
+	const dirtyContent = "package main\n// user edit\n"
+	writeFile(t, filepath.Join(root, "main.go"), dirtyContent)
+
+	result := ops.Merge("feat-userdirty", "User Dirty Feature")
+	if result.Error != "main workspace has uncommitted changes, aborting merge" {
+		t.Errorf("unexpected error: %q", result.Error)
+	}
+	if result.Conflict {
+		t.Error("preflight abort should not be reported as conflict")
+	}
+
+	got, err := os.ReadFile(filepath.Join(root, "main.go"))
+	if err != nil {
+		t.Fatalf("read main.go: %v", err)
+	}
+	if !bytes.Equal(got, []byte(dirtyContent)) {
+		t.Errorf("user dirty main.go was modified:\ngot:  %q\nwant: %q", got, dirtyContent)
+	}
+	if _, err := os.Stat(wtDir); err != nil {
+		t.Errorf("worktree should be preserved when preflight aborts: %v", err)
+	}
+}
+
+// TestMonoRepo_Merge_MixedDirtyAbortsButCommitsSelfManaged 驗證 AC-5：4x 自管路徑與使用者
+// 檔同時髒時，前置 commit 只收自管路徑，preflight 仍因使用者檔中止且不觸碰該檔。
+func TestMonoRepo_Merge_MixedDirtyAbortsButCommitsSelfManaged(t *testing.T) {
+	root, _, ops := setupMonoWorkspace(t)
+	seedSelfManaged(t, root, "feat-mixed")
+
+	wtDir, err := ops.SetupWorktree("feat-mixed", nil)
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+	writeFile(t, filepath.Join(wtDir, "feature.go"), "package main\n")
+	runGit(t, wtDir, "add", "--", "feature.go")
+	runGit(t, wtDir, "commit", "-m", "feat")
+
+	writeFile(t, filepath.Join(root, protocol.DirName, protocol.LearningsFile), `{"learnings": [{"id": "L1"}]}`+"\n")
+	const dirtyContent = "package main\n// user edit\n"
+	writeFile(t, filepath.Join(root, "main.go"), dirtyContent)
+
+	result := ops.Merge("feat-mixed", "Mixed Dirty Feature")
+	if result.Error != "main workspace has uncommitted changes, aborting merge" {
+		t.Errorf("unexpected error: %q", result.Error)
+	}
+
+	got, err := os.ReadFile(filepath.Join(root, "main.go"))
+	if err != nil {
+		t.Fatalf("read main.go: %v", err)
+	}
+	if !bytes.Equal(got, []byte(dirtyContent)) {
+		t.Errorf("user dirty main.go was modified:\ngot:  %q\nwant: %q", got, dirtyContent)
+	}
+
+	if status := gitOutput(root, "status", "--porcelain", "--", ".4x/learnings.json"); status != "" {
+		t.Errorf("learnings.json should have been committed by the pre-merge commit, git status = %q", status)
+	}
+}
