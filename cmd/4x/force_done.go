@@ -126,15 +126,20 @@ func forceDone(ws *protocol.Workspace, featureID, reason string, jsonOut bool) e
 	if result.Error != "" {
 		slog.Error("merge failed", "feature", featureID, "error", result.Error)
 		if jsonOut {
-			return printJSON(doneResult{FeatureID: featureID, Phase: string(protocol.PhaseDone)})
+			// 同 done.go：shared_paths abort 走這條，不帶原因等於靜默失敗。
+			return printJSON(doneResult{FeatureID: featureID, Phase: string(protocol.PhaseDone), Error: result.Error})
 		}
 		fmt.Printf("Worktree preserved at: %s\n", gitops.Dir(ws.Root, featureID))
 		return nil
 	}
 
 	if jsonOut {
-		return printJSON(doneResult{FeatureID: featureID, Phase: string(protocol.PhaseDone), Merged: !result.Skipped})
+		return printJSON(doneResult{
+			FeatureID: featureID, Phase: string(protocol.PhaseDone), Merged: !result.Skipped,
+			SharedPaths: result.SharedPathsMerged, SharedPathsNotes: result.SharedPathsNotes,
+		})
 	}
+	printSharedPaths(result)
 	fmt.Printf("Feature %s marked as done.\n", featureID)
 	if !result.Skipped {
 		fmt.Printf("Merged and cleaned up branch %s.\n", gitops.Branch(featureID))

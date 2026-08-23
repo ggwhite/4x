@@ -78,6 +78,11 @@ const (
 	// DeepReviewAnglesFile 是 deep review 角度選擇結果的 artifact，記錄本次選了哪些角度及原因。
 	DeepReviewAnglesFile = "deep-review-angles.json"
 
+	// SharedPathsBaselineFile 是 shared_paths 的快照基線檔，記錄 4x 首次觀測到宣告時
+	// 主工作區各宣告路徑的內容 hash，供 merge preflight 與 4x check 的反向污染偵測比對。
+	// 路徑由 gitops.SharedPathsBaselineFile(mainRoot, featureID) 組出。
+	SharedPathsBaselineFile = "shared-paths-baseline.json"
+
 	// ReviewPackage 是 orchestrator 在 coding/amending → reviewing 轉換時預算的 diff 彙整檔
 	// （commits/file-stat/full-diff），供 reviewer/deep-reviewer 讀檔取代自跑 git diff/log。
 	ReviewPackage = "review-package.md"

@@ -106,8 +106,12 @@ func newMergeCmd() *cobra.Command {
 			}
 
 			if jsonOutput {
-				return printJSON(doneResult{FeatureID: featureID, Merged: true})
+				return printJSON(doneResult{
+					FeatureID: featureID, Merged: true,
+					SharedPaths: result.SharedPathsMerged, SharedPathsNotes: result.SharedPathsNotes,
+				})
 			}
+			printSharedPaths(result)
 			fmt.Printf("Merged and cleaned up branch %s.\n", gitops.Branch(featureID))
 			return nil
 		}),

@@ -52,6 +52,9 @@ func DetectWorktree(dir string) (WorktreeInfo, bool) {
 // fail-open 邊界：本 API 只提供「可證明的主工作區 root」。dir 非 git repo、git 不在 PATH、或
 // git rev-parse 子程序失敗時，DetectWorktree 回 ok=false 或 IsLinked=false，本函式回 ok=false；
 // 呼叫端在 ok=false 時必須維持原本放行（不得阻斷工具），僅在 ok=true 時才據以做 fail-closed deny。
+//
+// multi-repo 的 worktree 組合目錄不是 git repo，本函式對它回 ok=false；該情境改用 MainRootFor
+// （純路徑比對，見 shared_paths.go）。
 func MainWorkspaceRoot(dir string) (string, bool) {
 	info, ok := DetectWorktree(dir)
 	if !ok || !info.IsLinked {

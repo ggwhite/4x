@@ -63,6 +63,11 @@ type MergeResult struct {
 	FinalState   protocol.State
 	// MRUrls 記錄 PushAndOpenMR 成功開出的 MR/PR URL，key 為 monorepo 固定 "."、multirepo 為 repo 名。
 	MRUrls map[string]string
+	// SharedPathsMerged 記錄本次合併回主工作區的 shared_paths（已排序）；無則為 nil。
+	SharedPathsMerged []string
+	// SharedPathsNotes 記錄無法納入 commit 或無法傳播的情況（如 worktree 側檔案被刪除、
+	// 主工作區根層非 git repo）；無則為 nil。不得以靜默跳過取代此欄位。
+	SharedPathsNotes []string
 }
 
 // New 根據 workspace config 建立對應的 Ops 實作。

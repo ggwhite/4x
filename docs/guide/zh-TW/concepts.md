@@ -283,9 +283,15 @@ depends: []
 spec: ""     # 選用的設計 spec 明確路徑（覆蓋 docs/design/ 查找）
 plan: ""     # 選用的實作計畫明確路徑
 hooks: {}    # 選用的 phase hooks（格式與 settings.json 相同）
+shared_paths: []  # 此 feature 可修改的根層共用檔案（如 Dockerfile、docker-compose.yml）
 ```
 
 `status` 反映 `state.json` 的階段以便快速列表。合法值：`not-started`、`in-progress`、`ready-for-review`、`needs-attention`、`blocked`、`done`、`abandoned`。`abandoned` 的 feature 視為已完成（不會阻擋依賴），但在儀表板以刪除線顯示。`depends` 列出必須先 done（或 abandoned）的 feature ID。`repos` 列出此 feature 涉及的 repository 名稱（來自 `workspace.repos`）；空表示所有 repo 都在範圍內。
+`shared_paths` 宣告不屬於任何 repo 的 monorepo hub 根層共用檔案（如 `Dockerfile`、`docker-compose.yml`、`dev.sh`）；宣告後這些路徑會注入 Coder prompt 並明示允許修改，Coder 才不會因為「只能動宣告的 repo」這條角色契約而跳過它們。
+
+multi-repo workspace 下，宣告的 `shared_paths` 會在建 worktree 時複製進去，並在 `4x done` / `4x merge` / `4x force-done` 清掉 worktree 之前合併回主工作區，再以 `feat(<feature-id>): <name>` commit 進主工作區的根 repo。無法 commit 或無法傳播的情況（worktree 側檔案被刪、路徑被 `.gitignore` 排除、主工作區根層不是 git repo）一律明確回報，不靜默跳過。宣告值必須是根層**檔案**：在主工作區根層解析為目錄的值會被拒絕，`go.work` / `go.work.sum` 同樣不得宣告（4x 在每個 worktree 內寫的是裁切過的 `go.work`，合併回去會砍掉真正那份的 use 行）。這兩條規則在 monorepo 與 multi-repo 都生效——它們約束的是宣告值的形式，不是 merge-back 的執行條件。
+
+feature 執行期間，主工作區內這些檔案必須與 4x 首次看到宣告時取的快照（`.4x/run/<feature-id>/shared-paths-baseline.json`）一致。這份快照由第一次讀到宣告的 `4x check` 取樣，不是建 worktree 當下：run loop 只在 coding 之後強制跑 `4x check`，所以取樣時點最晚可能落在 coding 收尾，保護窗口也從那一刻才開始。若期間有人在主工作區改了它們，`4x check` 會失敗、`4x done` 會在觸碰任何 repo 之前中止。解除方式：先把主工作區那幾個檔案的改動併進 worktree 內的同名檔案（或人工合併兩份內容），確認 worktree 版已含對方的內容之後，再刪掉 `.4x/run/<feature-id>/shared-paths-baseline.json` 重新取基線並重跑。**不要用把主工作區改回原內容的方式解除**——merge-back 一律以 worktree 版覆寫主工作區，那樣做只會讓平行 feature 剛落地的內容再度被抹掉。
 
 #### 設計文件解析
 

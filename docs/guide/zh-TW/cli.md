@@ -359,6 +359,8 @@ Dashboard 透過 `GET /api/evolve-report` 呈現最新報告。
 
 如果 merge 發生 conflict 或錯誤，feature 會維持 `pending-review`，worktree 會保留，並印出後續處理指引。解完 conflict 後，用 `4x merge <id>` 完成。
 
+multi-repo workspace 下，feature 宣告的根層 `shared_paths` 會在 worktree 被清掉之前合併回主工作區，並以 `feat(<feature-id>): <name>` commit 進主工作區的根 repo（只帶指定路徑，與上述 `chore(...)` pipeline 狀態 commit 是兩筆各自獨立的 commit）。合併的路徑印成 `shared-path merged: <path>`，無法 commit 或無法傳播的情況印成 `shared-path WARNING: <note>`。加 `--json` 時，`4x done`、`4x force-done` 與 `4x merge` 以 `sharedPaths`（字串陣列）與 `sharedPathsNotes`（字串陣列）回報，兩者為空時省略。`4x done` 與 `4x force-done` 在 merge 失敗時另外回報 `error`（字串），讓消費端分得出「正常的 pending-review」與「被擋下的 merge」——例如被 `shared_paths` drift 中止。`4x merge` 不需要這個欄位：它以非 0 exit code 結束，失敗原因走標準錯誤路徑。
+
 merge 之前，4x 會先把主工作區內自己寫入的 pipeline 狀態（`.4x/features/*.yaml`、`.4x/learnings.json`、`.4x/learnings-context.md`）以 `chore(<feature-id>): 4x pipeline state` commit 掉。這個 commit 只帶指定路徑，主工作區其他未 commit 的 tracked 變更不會被收進去，也依然會中止 merge。`4x merge` 在完成合併前同樣會做這件事。
 
 ---

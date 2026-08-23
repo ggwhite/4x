@@ -101,7 +101,9 @@ func markDone(ws *protocol.Workspace, featureID string, approveSelfMod, jsonOutp
 	if result.Error != "" {
 		slog.Error("merge failed", "feature", featureID, "error", result.Error)
 		if jsonOutput {
-			return printJSON(doneResult{FeatureID: featureID, Phase: string(protocol.PhasePendingReview)})
+			// 帶上 Error：本 feature 的 shared_paths abort 也走這條，autopilot 這類消費端
+			// 必須分得出「正常 pending-review」與「被擋下」，否則就是靜默失敗。
+			return printJSON(doneResult{FeatureID: featureID, Phase: string(protocol.PhasePendingReview), Error: result.Error})
 		}
 		fmt.Printf("Worktree preserved at: %s\n", gitops.Dir(ws.Root, featureID))
 		return nil
@@ -110,8 +112,10 @@ func markDone(ws *protocol.Workspace, featureID string, approveSelfMod, jsonOutp
 	if jsonOutput {
 		return printJSON(doneResult{
 			FeatureID: featureID, Phase: string(protocol.PhaseDone), Merged: !result.Skipped, MRUrls: result.MRUrls,
+			SharedPaths: result.SharedPathsMerged, SharedPathsNotes: result.SharedPathsNotes,
 		})
 	}
+	printSharedPaths(result)
 	fmt.Printf("Feature %s marked as done.\n", featureID)
 	if len(result.MRUrls) > 0 {
 		printMRUrls(result.MRUrls)
@@ -144,6 +148,25 @@ type doneResult struct {
 	Merged    bool              `json:"merged"`
 	Conflict  bool              `json:"conflict"`
 	MRUrls    map[string]string `json:"mrUrls,omitempty"`
+	// SharedPaths 是本次合併回主工作區的 shared_paths。
+	SharedPaths []string `json:"sharedPaths,omitempty"`
+	// SharedPathsNotes 是無法合併或無法 commit 的情況說明。
+	SharedPathsNotes []string `json:"sharedPathsNotes,omitempty"`
+	// Error 是 merge 失敗的原因；成功路徑為零值，omitempty 讓輸出形狀不變。
+	Error string `json:"error,omitempty"`
+}
+
+// printSharedPaths 在非 --json 路徑印出 shared_paths 的合併結果與警告。
+//
+// 刻意不包在 !result.Skipped 內：PushAndOpenMR 的 !anyAhead 路徑回 Skipped: true 卻仍做
+// merge-back，包進去會讓那條路徑整段漏印。欄位為 nil 時兩個迴圈自然不執行。
+func printSharedPaths(result gitops.MergeResult) {
+	for _, p := range result.SharedPathsMerged {
+		fmt.Printf("  shared-path merged: %s\n", p)
+	}
+	for _, n := range result.SharedPathsNotes {
+		fmt.Printf("  shared-path WARNING: %s\n", n)
+	}
 }
 
 // autoMergeFeature 對 pending-review 的 feature 執行 merge 並標記 done，委派共用編排

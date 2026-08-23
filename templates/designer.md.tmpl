@@ -331,6 +331,10 @@ Rules:
   - Reason: [why each repo was added or removed]
 - If you declare `shared_paths`, list each declared root-level path and the reason
   (why the feature must touch that shared file) in the same section or a "## Shared Paths" section.
+- A `shared_paths` value must name a root-level FILE — never a directory (`4x check` rejects
+  any value that resolves to a directory in the workspace root)
+- Never declare `go.work` or `go.work.sum` as `shared_paths` — 4x writes a trimmed `go.work`
+  inside each worktree, so merging it back would truncate the real one
 
 == Constraints ==
 - You may NOT modify any source code

@@ -3,6 +3,7 @@ package gitops
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -28,6 +29,21 @@ func (m *multiRepo) SetupWorktree(featureID string, featureRepos []string) (stri
 	branch := Branch(featureID)
 
 	ensureGitignore(m.root, ".worktrees/")
+
+	// 第二道防線：目錄型與 go.work/go.work.sum 的宣告在此擋下（主 gate 是 4x check 的
+	// checkSharedPaths，兩處呼叫同一個 ValidateSharedPathsInRoot，不寫兩份規則）。
+	// 刻意放在下方 os.Stat(wtDir) 的冪等 early-return 之前，讓 resume 情境也擋得住；
+	// 回錯誤時不得移除既有 worktree——那會刪掉 Coder 尚未 commit 的工作。
+	sharedPaths := sharedPathsFor(m.ws, featureID)
+	if err := ValidateSharedPathsInRoot(m.root, sharedPaths); err != nil {
+		return "", err
+	}
+	// 基線寫入失敗只 warn：沒有基線只會讓 drift 偵測 fail-open，不該讓整個 feature 起不來。
+	// 此時 Designer 多半尚未宣告（len(sharedPaths) == 0 → no-op），真正建出基線的時點
+	// 是 designing 收尾那次 4x check；保留這次呼叫是為了「使用者事先在主工作區宣告」的形態。
+	if err := UpsertSharedPathsBaseline(m.root, featureID, sharedPaths); err != nil {
+		slog.Warn("shared_paths: upsert baseline failed", "feature", featureID, "err", err)
+	}
 
 	if _, err := os.Stat(wtDir); err == nil {
 		m.ensureDotDir(wtDir)
@@ -113,7 +129,7 @@ func (m *multiRepo) copyWorkspaceFiles(wtDir string) {
 			continue
 		}
 		// go.work / go.work.sum 由 copyGoWork 專責處理（裁切 use，避免指向未 checkout 的目錄）。
-		if name == "go.work" || name == "go.work.sum" {
+		if isGoWorkFile(name) {
 			continue
 		}
 		copyFileIfExists(filepath.Join(m.root, name), filepath.Join(wtDir, name)) //nolint:errcheck // best-effort 複製 dot 檔，缺檔可接受
@@ -209,6 +225,16 @@ func (m *multiRepo) Merge(featureID, featureName string) MergeResult {
 		preHeads = append(preHeads, repoHead{name: name, repoPath: repoPath, head: head})
 	}
 
+	// shared_paths preflight：主工作區的宣告檔案相對快照基線有 drift 就中止，不觸碰任何 repo
+	// （語意比照上方 workingTreeDirty 的 per-repo preflight）。merge-back 一律以 worktree 版覆寫
+	// 主工作區，drift 時直接寫下去會蓋掉平行 feature 剛落地的內容，故此處只中止、不做三方合併。
+	// 判定與 note 產生共用 sharedPathsPreflight，與 PushAndOpenMR 同一份實作。
+	sharedPaths := sharedPathsFor(m.ws, featureID)
+	sharedNotes, abortErr := sharedPathsPreflight(m.root, wtDir, featureID, sharedPaths)
+	if abortErr != "" {
+		return MergeResult{Error: abortErr}
+	}
+
 	var merged []repoHead
 	for _, rh := range preHeads {
 		if exec.Command("git", "-C", rh.repoPath, "rev-parse", "--verify", branch).Run() != nil {
@@ -247,8 +273,14 @@ func (m *multiRepo) Merge(featureID, featureName string) MergeResult {
 		merged = append(merged, rh)
 	}
 
+	// merge-back 必須在 Cleanup 之前：worktree 一旦被刪，根層 shared_path 的改動就永久消失。
+	// 衝突與 squash/commit 失敗兩條路徑在上方已 return 而不觸及 Cleanup，worktree 與其中的
+	// 改動都保留，故刻意不在那些路徑做 merge-back。
+	spMerged, spNotes := mergeBackSharedPaths(m.root, wtDir, featureID, msg, sharedPaths)
+	sharedNotes = append(sharedNotes, spNotes...)
+
 	m.Cleanup(featureID) //nolint:errcheck // best-effort worktree 清理，失敗不影響 merge 結果
-	return MergeResult{}
+	return MergeResult{SharedPathsMerged: spMerged, SharedPathsNotes: sharedNotes}
 }
 
 // PushAndOpenMR push feature branch 並對每個有 committed 變更的 repo 開 MR/PR，取代 Merge
@@ -278,6 +310,16 @@ func (m *multiRepo) PushAndOpenMR(featureID, featureName string) MergeResult {
 	}
 
 	title := fmt.Sprintf("feat(%s): %s", featureID, featureName)
+
+	// shared_paths preflight：與 Merge 共用 sharedPathsPreflight，不寫第二份。此路徑沒有
+	// commitSelfManaged 前置呼叫，主工作區的 .4x/ 可能仍是髒的；因為 merge-back 是 path-scoped
+	// commit，不影響正確性。宣告直接取自上方已載入的 feat，不再呼叫 sharedPathsFor 重讀 YAML——
+	// 重讀除了多一次 parse，還會讓 YAML 壞掉時的 log 指錯根因（那邊對同一個失敗是靜默忽略）。
+	sharedPaths := feat.SharedPaths
+	sharedNotes, abortErr := sharedPathsPreflight(m.root, wtDir, featureID, sharedPaths)
+	if abortErr != "" {
+		return MergeResult{Error: abortErr}
+	}
 
 	mrUrls := make(map[string]string)
 	var errs []string
@@ -330,12 +372,24 @@ func (m *multiRepo) PushAndOpenMR(featureID, featureName string) MergeResult {
 	if len(errs) > 0 {
 		return MergeResult{MRUrls: mrUrls, Error: strings.Join(errs, "; ")}
 	}
+
+	// merge-back 放在 len(errs) > 0 之後、兩條 Cleanup 之前：!anyAhead 路徑同樣會刪 worktree，
+	// 根層 shared_path 的改動一樣會消失，故兩條都要做。push/OpenMR 有失敗時不做——
+	// worktree 保留供重試，資料未遺失。
+	spMerged, spNotes := mergeBackSharedPaths(m.root, wtDir, featureID, title, sharedPaths)
+	sharedNotes = append(sharedNotes, spNotes...)
+	if len(spMerged) > 0 {
+		// 這筆 commit 進的是主工作區根 repo，PushAndOpenMR 只 push 各 workspace repo 的
+		// feature branch，它永遠不會出現在任何 MR 裡——必須明講，否則使用者以為 MR 涵蓋全部。
+		sharedNotes = append(sharedNotes, "shared-path commit landed in the main workspace root repo; not pushed and not part of any MR")
+	}
+
 	if !anyAhead {
 		m.Cleanup(featureID) //nolint:errcheck // 無 commit 可失，清理安全
-		return MergeResult{Skipped: true}
+		return MergeResult{Skipped: true, SharedPathsMerged: spMerged, SharedPathsNotes: sharedNotes}
 	}
 	m.Cleanup(featureID) //nolint:errcheck // best-effort worktree 清理，失敗不影響 MR 結果
-	return MergeResult{MRUrls: mrUrls}
+	return MergeResult{MRUrls: mrUrls, SharedPathsMerged: spMerged, SharedPathsNotes: sharedNotes}
 }
 
 func (m *multiRepo) Cleanup(featureID string) error {

@@ -2,11 +2,13 @@ package orchestrator
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"testing"
 
 	"github.com/ggwhite/4x/internal/feature"
+	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -279,5 +281,129 @@ func TestSyncFeatureFromWorktree_SharedPathsRemoval(t *testing.T) {
 	}
 	if len(got.SharedPaths) != 0 {
 		t.Errorf("shared_paths = %v, want empty after worktree removal", got.SharedPaths)
+	}
+}
+
+// sharedPathsGit 在 dir 執行 git 子命令，失敗即 t.Fatalf。
+func sharedPathsGit(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	full := append([]string{"-C", dir}, args...)
+	if out, err := exec.Command("git", full...).CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %s: %v", args, out, err)
+	}
+}
+
+// TestSharedPaths_DeclaredDuringRunSurvivesDone 端到端鎖住「Designer 於 designing 才宣告」
+// 這條鏈路：主工作區 YAML 一開始不含 shared_paths，宣告寫在 worktree 側，經
+// SyncFeatureFromWorktree 合併回主工作區、UpsertSharedPathsBaseline 取樣，
+// 再由 Merge 把 worktree 內的改動 merge-back 進主工作區與 root repo 的 HEAD。
+//
+// F189 的三個測試只驗到 sync 本身、AC-2/AC-10 的 fixture 則預先把宣告寫進主工作區 YAML，
+// 只有本測試把「宣告 → sync → 基線 → merge-back」整條串起來。
+// 放在 orchestrator package：internal/orchestrator 已 import internal/gitops，
+// 反向放進 gitops 會造成 import 循環。
+func TestSharedPaths_DeclaredDuringRunSurvivesDone(t *testing.T) {
+	const composeFile = "docker-compose.yml"
+	featureID := "feat-sp-declared-during-run"
+
+	root := t.TempDir()
+	repoDir := filepath.Join(root, "core")
+	if err := os.MkdirAll(repoDir, 0o755); err != nil {
+		t.Fatalf("mkdir repo: %v", err)
+	}
+	sharedPathsGit(t, repoDir, "init")
+	sharedPathsGit(t, repoDir, "config", "user.name", "test")
+	sharedPathsGit(t, repoDir, "config", "user.email", "test@test")
+	if err := os.WriteFile(filepath.Join(repoDir, "main.go"), []byte("package main\n"), 0o644); err != nil {
+		t.Fatalf("write main.go: %v", err)
+	}
+	sharedPathsGit(t, repoDir, "add", "--", "main.go")
+	sharedPathsGit(t, repoDir, "commit", "-m", "init")
+
+	if err := os.WriteFile(filepath.Join(root, composeFile), []byte("services:\n  app:\n    image: base\n"), 0o644); err != nil {
+		t.Fatalf("write compose: %v", err)
+	}
+	sharedPathsGit(t, root, "init")
+	sharedPathsGit(t, root, "config", "user.name", "test")
+	sharedPathsGit(t, root, "config", "user.email", "test@test")
+	sharedPathsGit(t, root, "add", "--", composeFile)
+	sharedPathsGit(t, root, "commit", "-m", "add compose")
+
+	cfg := protocol.Config{
+		Project: protocol.ProjectConfig{Name: "sp-test"},
+		Workspace: protocol.WorkspaceConfig{
+			Repos: map[string]protocol.RepoConfig{"core": {Path: "core"}},
+		},
+	}
+	if err := protocol.Init(root, cfg); err != nil {
+		t.Fatalf("protocol.Init: %v", err)
+	}
+	main := &protocol.Workspace{Root: root}
+	// 主工作區 YAML 一開始沒有 shared_paths——宣告是 Designer 在 designing phase 才寫的。
+	writeFeatureYAML(t, main, feature.Feature{
+		ID: featureID, Name: "Declared During Run", Description: "desc",
+		Status: feature.StatusInProgress,
+	})
+
+	ops := gitops.New(root, main, cfg)
+	wtDir, err := ops.SetupWorktree(featureID, nil)
+	if err != nil {
+		t.Fatalf("SetupWorktree: %v", err)
+	}
+	if _, err := os.Stat(gitops.SharedPathsBaselineFile(root, featureID)); !os.IsNotExist(err) {
+		t.Fatalf("baseline must not exist before the declaration: %v", err)
+	}
+
+	// role 起跑前 orchestrator 會先把主工作區的 feature 檔同步進 worktree。
+	wt := &protocol.Workspace{Root: wtDir}
+	SyncFeatureToWorktree(main, wt, featureID, 0)
+
+	// Designer 在 worktree 側寫下宣告（templates/designer.md.tmpl 的行為）。
+	wtFeat, err := wt.LoadFeature(featureID)
+	if err != nil {
+		t.Fatalf("load worktree feature: %v", err)
+	}
+	wtFeat.SharedPaths = []string{composeFile}
+	writeFeatureYAML(t, wt, wtFeat)
+
+	if err := SyncFeatureFromWorktree(wt, main, featureID, 1); err != nil {
+		t.Fatalf("SyncFeatureFromWorktree: %v", err)
+	}
+	mainFeat, err := main.LoadFeature(featureID)
+	if err != nil {
+		t.Fatalf("reload main feature: %v", err)
+	}
+	if !slices.Equal(mainFeat.SharedPaths, []string{composeFile}) {
+		t.Fatalf("shared_paths not merged back to main YAML: %v", mainFeat.SharedPaths)
+	}
+	if err := gitops.UpsertSharedPathsBaseline(root, featureID, mainFeat.SharedPaths); err != nil {
+		t.Fatalf("UpsertSharedPathsBaseline: %v", err)
+	}
+
+	const coderVersion = "services:\n  app:\n    image: declared-during-run\n"
+	if err := os.WriteFile(filepath.Join(wtDir, composeFile), []byte(coderVersion), 0o644); err != nil {
+		t.Fatalf("write worktree compose: %v", err)
+	}
+
+	result := ops.Merge(featureID, "Declared During Run")
+	if result.Error != "" {
+		t.Fatalf("merge error: %s", result.Error)
+	}
+	if len(result.SharedPathsMerged) == 0 {
+		t.Fatalf("SharedPathsMerged should be non-empty, notes: %v", result.SharedPathsNotes)
+	}
+	got, err := os.ReadFile(filepath.Join(root, composeFile))
+	if err != nil {
+		t.Fatalf("read main compose: %v", err)
+	}
+	if string(got) != coderVersion {
+		t.Errorf("main workspace %s = %q, want %q", composeFile, got, coderVersion)
+	}
+	out, err := exec.Command("git", "-C", root, "show", "HEAD:"+composeFile).Output()
+	if err != nil {
+		t.Fatalf("git show HEAD:%s: %v", composeFile, err)
+	}
+	if string(out) != coderVersion {
+		t.Errorf("root repo HEAD:%s = %q, want %q", composeFile, out, coderVersion)
 	}
 }

@@ -64,6 +64,7 @@ func Check(ws *protocol.Workspace, featureID string, detector ScopeDetector) Che
 	checkACChecksSchema(ws, featureID, &r)
 	checkDesignerYAMLMod(ws, featureID, &r)
 	checkSharedPaths(ws, featureID, &r)
+	checkSharedPathsPollution(ws, featureID, &r)
 
 	return r
 }
@@ -79,6 +80,20 @@ func checkSharedPaths(ws *protocol.Workspace, featureID string, r *CheckResult) 
 		return
 	}
 	if err := feat.ValidateSharedPaths(feature.SharedPaths); err != nil {
+		r.Pass = false
+		r.Errors = append(r.Errors, err.Error())
+		r.RetryableErrors++
+	}
+	// ValidateSharedPaths 只擋路徑分隔符，擋不掉「根層目錄名」（如 deployments）與 go.work。
+	// 這兩類宣告能通過上面那關，卻在 worktree 內根本不存在或會覆蓋主工作區的完整 go.work，
+	// 故在此以主工作區的實際 filesystem 狀態補判。這是主 gate，SetupWorktree 內同一個
+	// ValidateSharedPathsInRoot 呼叫是第二道防線（同一份規則，不寫兩份）。
+	// 無法判定主工作區（非 worktree 隔離模式）時跳過，由第二道防線兜住。
+	mainRoot := gitops.MainRootFor(ws.Root, featureID)
+	if mainRoot == "" {
+		return
+	}
+	if err := gitops.ValidateSharedPathsInRoot(mainRoot, feature.SharedPaths); err != nil {
 		r.Pass = false
 		r.Errors = append(r.Errors, err.Error())
 		r.RetryableErrors++

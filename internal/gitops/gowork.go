@@ -67,3 +67,13 @@ func unquoteGoWorkPath(s string) string {
 	}
 	return s
 }
+
+// isGoWorkFile 回報根層檔名是否由 copyGoWork 專責管轄。
+//
+// 這份清單是 SoT，兩個消費端共用：copyWorkspaceFiles 據它跳過複製（worktree 內的 go.work
+// 要的是裁切版），ValidateSharedPathsInRoot 據它拒絕宣告（merge-back 會用裁切版覆寫完整版）。
+// 後者的存在完全依附於前者，寫成兩份字面值會讓 copyGoWork 日後擴充管轄範圍時放行一個
+// 會被裁切覆寫的宣告。
+func isGoWorkFile(name string) bool {
+	return name == "go.work" || name == "go.work.sum"
+}
