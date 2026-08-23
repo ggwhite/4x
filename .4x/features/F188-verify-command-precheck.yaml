@@ -44,6 +44,28 @@ description: |
   - 沿用 `internal/verify` 既有的 shell 控制字元處理（`internal/protocol/config.go:257`），
     不另造一套 parser
   - precheck 失敗訊息須指出是哪一條 verify command 與失敗原因，不可只回 generic error
+  ## 實測案例：subtest grep 的假陽性（2026-08-23，F186 第七次 design-review 發現）
+
+  F186 的 test-strategy.yaml 用了一個看似穩健的 ac_checks 模式：先跑測試輸出到 log，
+  再 `grep -q -- '--- PASS: TestX'`。註解明寫其用意是防止「`go test -run '^TestX$'`
+  在 TestX 不存在時仍 exit 0」讓沒寫的測試偽裝成 PASS。
+
+  **但這個模式本身有兩個假陽性來源，reviewer 已實測確認**：
+
+  1. `--- PASS:` 在 `go test -v` 輸出裡**也會出現在縮排的 subtest 行**，
+     grep 不錨定行首就會命中。
+  2. 命令寫成 `go test ... > log 2>&1; grep -q ...`，那個 `;` **丟棄了 go test 的
+     exit code**。
+
+  合起來的後果：parent test FAIL、只要有任一 subtest PASS，該 ac_check 仍 exit 0。
+  F186 有 7 條以具名 subtest 當覆蓋單位的 AC 因此形同虛設。
+
+  **這不是 F186 專屬問題**——任何 feature 的 designer 都可能寫出同樣的 ac_checks，
+  而現行流程沒有任何一關會發現。本 feature 的 precheck 應把這類「命令寫得出來、
+  跑得動，但語意上驗不到東西」的樣態納入檢查範圍，至少涵蓋：
+
+  - grep pattern 未錨定行首而可能命中 subtest 行
+  - 用 `;` 串接導致前段命令的 exit code 被丟棄（相對於 `&&`）
 status: not-started
 priority: 1
 profile: normal
@@ -59,6 +81,9 @@ subtasks:
       status: ""
     - id: regression-cases
       name: 補測試涵蓋歷史失敗樣態（GOWORK 相對路徑錯、buf lint 路徑錯、ac_ref 誤寫成 YAML 陣列）
+      status: ""
+    - id: semantic-false-positive
+      name: precheck 涵蓋「命令跑得動但驗不到東西」的樣態——grep 未錨定行首而命中 subtest、用分號串接丟棄前段 exit code
       status: ""
 rules:
     - 不得在 designing→coding 轉場實跑會產生副作用的指令，也不得以 exit code 非 0 作為判定依據（此時程式碼尚未寫，測試必然失敗）
