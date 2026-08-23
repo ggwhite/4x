@@ -21,21 +21,6 @@
 - best-effort plugin 安裝函數（ensureXxx）中的 os.WriteFile 錯誤應改為 slog.Warn，而非靜默忽略，以確保失敗可被觀察與診斷。
 - 把某個硬編碼列舉改為消費 SoT accessor 時，順手 grep 同一檔案/同一函式內是否還有其他地方（如 CLI flag usage 說明字串）引用了相同列舉但仍硬編碼，一併同步，避免在自己修改的檔案裡留下新的平行清單。
 
-## design
-- task-brief 限制某檔案「只加某常量」時，會逼 Coder 在該檔旁另造局部 helper 而非抽共用 method，造成邏輯重複；設計階段若已知有可重用原語，應在 scope 內明確允許重構或預先抽出 exported helper。
-- task-brief 應主動標出並裁決矛盾——無論是 spec/plan 與現況程式碼不一致（型別名不一致、過時假設、out-of-scope 項目），或 feature 內部兩個需求互相牴觸（如「語意一致」vs「對外行為不變」）——在開頭明列「設計裁決」，列出唯一刻意的行為變更並覆寫 plan，供 Coder/Reviewer/Acceptor 對焦，避免各自猜測、照抄錯誤骨架或重造輪子。
-- 對有語意的 cap 欄位（如 max_accept_per_run），用零值補預設會吃掉「0=不收」的使用者意圖；若 0 是合法輸入應改用 *int 或在 doctor 加 WARN，並在 GoDoc 明示 0 的行為。
-- 讀檔回空 pool 不報錯的 API（LoadCandidates）在編排命令中會把「前置步驟沒跑」遮蔽成「靜默成功 exit 0」；對手動操作的子命令應對缺前置輸入給明確 error。
-- report 的統計欄位（如 deduped）要明確定義來源語意，不要把不同階段的丟棄數（本輪 mine 去重 vs pool-wide PreVeto）相加塞進同一數字，避免多輪累積後誤導使用者。
-
-## process
-- God Object 拆分（大型 cmd 層下沉至 internal/）是低風險重構，一輪即通過；此類 feature 適合用 lite profile 減少不必要的 review 輪次
-- interface-only 或僅含編譯期斷言的檔案無需強制補測試；coder-report 應明確說明跳過的理由，避免 reviewer 誤判為遺漏。
-- Coder 開始前應先執行 `make check-docs`，確認 pre-existing 文件缺漏（如 `4x retry`）不會在本 feature 的 CI 驗證中攔截，避免留給後續 round 修復。
-- 若發現既有 roleCategoryMap 缺少某個 role（如 fixer），應在同一 feature 順手補齊，而非另開 feature，減少技術債累積
-- 自動刷新附帶操作（如 GenerateLearningsContext）應在主流程成功路徑上呼叫，失敗只 warn 不 fatal，這樣才不會因次要功能阻塞核心操作。
-- 在 docs/guide/*.md 新增任何層級的標題（## 或 ###）都會觸發 make check-guide-i18n 的 heading 數量比對失敗（例如對 concepts.md 新增 '### ' 標題會破壞與 es/ja/ko/zh-CN/zh-TW 五語系 concepts.md 的 heading 數量對應），須同步在五個語系檔案補上對應翻譯段落，不能只改英文版；但該檢查只比對 heading（##/###）數量、不比對 prose 內容，若只是新增說明文字或列表項目而未新增標題，則不需要同步語系檔案。
-
 ## review
 - 命令層產出多個關聯集合（如 candidates 與其衍生 learnings）時，去重/同步邏輯應同時涵蓋所有關聯集合，避免一方被濾除後另一方變孤兒；設計 AC 時要明確界定關聯資料是否需一對一存活。
 - 孤立單元測試綠燈不等於端到端生效：AC-3 對 MergeConfig 單測通過，但 merged config 從未流到消費點（guard 用 ReadConfig 而非 LoadMergedConfig），驗收應追到資料真正被消費的呼叫鏈。
@@ -44,20 +29,6 @@
 - INFO 等級的 pre-existing 問題應在 review-report 明確標示為「範圍外、不阻擋」，避免 Acceptor 誤判為 OPEN blocking issue
 - CONDITIONAL PASS 的修正項目應在同輪 Coder 階段處理完畢後再交 Reviewer，避免 open warning 進入 Acceptor；若 Acceptor 收到時仍有未處理的 CONDITIONAL PASS 項目，應標記 needs-attention 並列出 open issue，不可因 AC 全數通過而直接 ready-for-review。
 - coder-report 宣稱的 make check-docs-sync/check-i18n 等驗證結果不可照單全收，Reviewer 應以當前分支真正的比對基準（預設 BASE=main，省略 BASE 參數讓腳本自己判斷）親自重跑一次比對，不可只信任先前快取或片面判斷——已多次抓到 coder-report 誤報 check-docs-sync 為 OK，但實際輸出 NEEDS_UPDATE，且點名的 doc 內容確有真實缺口（例如 API 回應形狀破壞性變更未寫進 docs/guide/dashboard.md）。
-
-## testing
-- 對「重跑/idempotency」類命令，AC 與測試必須明確涵蓋「對未變動輸入重跑結果穩定」案例，且避免用固定 slice 的 fake 掩蓋真實非決定性來源（如 map iteration order）
-- AC 若在 Verification Method 明寫某 package 的整合測試（如 internal/gitops 建 worktree 測 DetectChangedFiles），Coder 必須在該 package 同目錄補測；用其他層的 fake 單元測試代替不算達標。
-- 大型搬遷（900+ 行）搬完後需執行 go test -race 驗證 prompt 輸出未改變，不能只靠 build 成功判斷正確性
-- 搬遷函式時必須同步搬遷對應測試至新 package 目錄，task-brief 若有明確 Step 描述測試搬遷清單，Coder 必須在同一 round 完成，而非留至下一輪
-- MCP SDK 對 jsonschema struct tag 格式敏感（panic），遇到此類 SDK 限制應以 t.Skip 標記並在 coder-report 說明，不可為了通過測試而修改 production code。
-- 新增 guard 邏輯時，既有測試的 VerifyEvidence fixture 應同步補上新增欄位（如 ACResults），以避免測試場景意外觸發額外錯誤路徑，降低後續維護疑慮。
-- refactor 類任務的 Tester 可省略獨立 test-report，改在 review-report 內直接記錄 go test -race 通過結果，減少不必要的輪次開銷。
-- 整合測試應涵蓋「壞 YAML / 非 IsNotExist 錯誤」場景（AC-7），確認 fallback 只在 IsNotExist 觸發，而非吞掉所有解析錯誤
-- Mock runner 在新增會寫出檔案的 guard 後必須同步補上對應的假輸出（如 build-gate.json），否則既有 integration test 會靜默失敗，難以定位。
-- role-to-category mapping 的測試應同時驗證正反兩面：目標 role 含有 ops，以及不該含的 role（designer/reviewer）也明確不含，才能防止誤加
-- CLI 整合測試應同時覆蓋 --json 旗標輸出格式，避免 JSON schema 改動後無測試保護。
-- 新增的 exported accessor／SoT 函式，除了在消費端（白名單、schema 一致性測試）被間接覆蓋外，應在其自身 package 內補一份專屬單元測試（非空、去重、數量與權威清單一致），否則會被 tester 判定 AC 未完整覆蓋。
 
 ## tooling
 - make check-docs-sync 只比對 symbol→doc 的結構化映射，不涵蓋 docs prose 內以純文字寫死的檔案路徑字串（例如「XxxType (internal/pkg/foo.go)」），也不涵蓋非英文翻譯版；刪除或搬遷檔案的 feature 應額外對 docs/guide/**/*.md（含所有語系）跑 grep -rn '<被刪檔案路徑>' 做覆核，不能只信任 check-docs-sync 回報 OK。

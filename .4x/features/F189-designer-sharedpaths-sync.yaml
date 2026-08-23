@@ -1,47 +1,47 @@
 id: F189-designer-sharedpaths-sync
 name: 'F189: Designer 宣告的 shared_paths 無法從 worktree 同步回主工作區'
 description: |
-  ## 現狀
+    ## 現狀
 
-  F181 讓 Designer 可以在 designing phase 宣告 feature YAML 的 `shared_paths`
-  （`internal/guard/designer_yaml.go:74` 的註解、`templates/designer.md.tmpl:317,326-327`
-  皆明文允許，`CHANGELOG.md:26` 也如此記載）。但 Designer 是在 **worktree 內**的那份
-  YAML 寫入的，而 worktree 與主工作區之間的同步函式沒有跟著更新：
+    F181 讓 Designer 可以在 designing phase 宣告 feature YAML 的 `shared_paths`
+    （`internal/guard/designer_yaml.go:74` 的註解、`templates/designer.md.tmpl:317,326-327`
+    皆明文允許，`CHANGELOG.md:26` 也如此記載）。但 Designer 是在 **worktree 內**的那份
+    YAML 寫入的，而 worktree 與主工作區之間的同步函式沒有跟著更新：
 
-  - `internal/orchestrator/worktree.go` 的 `SyncFeatureFromWorktree` 只做
-    `mainFeat.Repos = wtFeat.Repos`，`SharedPaths` 不在合併清單內。該區塊的註解
-    仍寫著「只合併 Repos 欄位」「等同繞過 checkDesignerYAMLMod『Designer 只能改 repos』
-    的邊界意圖」——**這段文字停留在 F181 之前的世界**。
-  - `SyncFeatureToWorktree` 用 `gitops.CopyFileIfExists(srcYAML, dstYAML)`
-    **無條件**以主工作區的 YAML 覆寫 worktree 那份。
+    - `internal/orchestrator/worktree.go` 的 `SyncFeatureFromWorktree` 只做
+      `mainFeat.Repos = wtFeat.Repos`，`SharedPaths` 不在合併清單內。該區塊的註解
+      仍寫著「只合併 Repos 欄位」「等同繞過 checkDesignerYAMLMod『Designer 只能改 repos』
+      的邊界意圖」——**這段文字停留在 F181 之前的世界**。
+    - `SyncFeatureToWorktree` 用 `gitops.CopyFileIfExists(srcYAML, dstYAML)`
+      **無條件**以主工作區的 YAML 覆寫 worktree 那份。
 
-  兩者合起來的後果：Designer 宣告的 `shared_paths` 既到不了主工作區，也活不過
-  下一個 role 的 sync。任何在主工作區讀 feature YAML 的消費端
-  （`4x done` 走 `cmd/4x/done.go:85` → `gitops.MergeAndFinalize(ws.Root, ws, …)`，
-  `ws` 是主工作區）拿到的恆為空。
+    兩者合起來的後果：Designer 宣告的 `shared_paths` 既到不了主工作區，也活不過
+    下一個 role 的 sync。任何在主工作區讀 feature YAML 的消費端
+    （`4x done` 走 `cmd/4x/done.go:85` → `gitops.MergeAndFinalize(ws.Root, ws, …)`，
+    `ws` 是主工作區）拿到的恆為空。
 
-  ## 證據來源
+    ## 證據來源
 
-  F186-shared-paths-merge 第四輪 design-review 發現（標記為 C1），
-  並在本 repo 逐行核對屬實。這是 F186 的前置阻擋：不修此項，F186 設計的
-  merge-back、preflight、反向 guard 全部是 no-op。F186 已透過 `depends` 指向本 feature。
+    F186-shared-paths-merge 第四輪 design-review 發現（標記為 C1），
+    並在本 repo 逐行核對屬實。這是 F186 的前置阻擋：不修此項，F186 設計的
+    merge-back、preflight、反向 guard 全部是 no-op。F186 已透過 `depends` 指向本 feature。
 
-  ## 需求
+    ## 需求
 
-  1. `SyncFeatureFromWorktree` 的欄位合併清單加入 `SharedPaths`，比照 `Repos`
-     用 `slices.Equal` 做相等檢查（live sync 每 2s 呼叫一次，相等時不得寫檔）。
-  2. 更新該區塊註解，讓文字與 F181 之後的欄位邊界一致（repos + shared_paths）。
-  3. 掃描其他假設「Designer 只會改 Repos」的位置，確認沒有同類遺漏。
-  4. 測試涵蓋 round-trip：Designer 在 worktree 宣告 → sync 回主工作區 →
-     下一次 `SyncFeatureToWorktree` 不把它覆寫掉。
+    1. `SyncFeatureFromWorktree` 的欄位合併清單加入 `SharedPaths`，比照 `Repos`
+       用 `slices.Equal` 做相等檢查（live sync 每 2s 呼叫一次，相等時不得寫檔）。
+    2. 更新該區塊註解，讓文字與 F181 之後的欄位邊界一致（repos + shared_paths）。
+    3. 掃描其他假設「Designer 只會改 Repos」的位置，確認沒有同類遺漏。
+    4. 測試涵蓋 round-trip：Designer 在 worktree 宣告 → sync 回主工作區 →
+       下一次 `SyncFeatureToWorktree` 不把它覆寫掉。
 
-  ## 約束
+    ## 約束
 
-  - 不整檔覆蓋主工作區 feature YAML，維持既有的逐欄位合併語意
-    （避免蓋掉 Consolidator 或人工在主工作區的編輯）
-  - 不放寬 `checkDesignerYAMLMod` 的欄位邊界，只讓 sync 與既有邊界一致
-  - load 失敗時維持現行的 skip 語意（不 append errs），不改變 live sync 的容錯行為
-status: not-started
+    - 不整檔覆蓋主工作區 feature YAML，維持既有的逐欄位合併語意
+      （避免蓋掉 Consolidator 或人工在主工作區的編輯）
+    - 不放寬 `checkDesignerYAMLMod` 的欄位邊界，只讓 sync 與既有邊界一致
+    - load 失敗時維持現行的 skip 語意（不 append errs），不改變 live sync 的容錯行為
+status: ready-for-review
 priority: 0
 profile: standard
 subtasks:
