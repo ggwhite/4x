@@ -1,80 +1,80 @@
 id: F187-learnings-gate-deadlock
 name: 'F187: learnings 三閘門互鎖導致 active 條目幾乎全被標 Ineffective'
 description: |
-  ## 現狀
+    ## 現狀
 
-  learnings 系統被三個獨立缺陷串成死結，實測幾乎完全空轉。
-  Kairos 專案的數據：2742 條 learnings，115 條 active 中有 **113 條被標 Ineffective（98%）**，
-  最終只有 **2 條**真的進到 `learnings-context.md`。倖存的 2 條都是 `ops` category，
-  純粹因為那是第二罕見的 category（208/2742）。
+    learnings 系統被三個獨立缺陷串成死結，實測幾乎完全空轉。
+    Kairos 專案的數據：2742 條 learnings，115 條 active 中有 **113 條被標 Ineffective（98%）**，
+    最終只有 **2 條**真的進到 `learnings-context.md`。倖存的 2 條都是 `ops` category，
+    純粹因為那是第二罕見的 category（208/2742）。
 
-  **缺陷 A — `hasCategoryContinuation` 判定過寬（根因）**
-  `internal/learning/store.go:576-601` 往回走 `Entries`，取前 3 個符合
-  「active-or-candidate + `SourceFeature != target.SourceFeature` + `CreatedAt >= target 啟用時間」
-  的條目，其中任一同 category 即判定「這條 learning 沒起作用」。兩個問題：
-  (1) 只排除「與 target 同 feature」，**不要求 3 個 other 彼此是不同 feature**——實測 Kairos
-  最近 6 筆全來自 ws-299 一個 feature，等於只測「最近一個 harvest 過的 feature 有沒有吐出同
-  category 的 candidate」；(2) 只比 `other.Category == target.Category` 字串相等，**零內容相似度**。
-  repo 內已有 `FindSimilar`（store.go:212）與 `JaccardSimilarity`（store.go:624），
-  但只在 `Harvest` 用到，這裡沒用。只有 7 個 category、每個 feature harvest 約 8 條，
-  任何 >30 天且 `UsedCount>=3` 的條目幾乎必中。
+    **缺陷 A — `hasCategoryContinuation` 判定過寬（根因）**
+    `internal/learning/store.go:576-601` 往回走 `Entries`，取前 3 個符合
+    「active-or-candidate + `SourceFeature != target.SourceFeature` + `CreatedAt >= target 啟用時間」
+    的條目，其中任一同 category 即判定「這條 learning 沒起作用」。兩個問題：
+    (1) 只排除「與 target 同 feature」，**不要求 3 個 other 彼此是不同 feature**——實測 Kairos
+    最近 6 筆全來自 ws-299 一個 feature，等於只測「最近一個 harvest 過的 feature 有沒有吐出同
+    category 的 candidate」；(2) 只比 `other.Category == target.Category` 字串相等，**零內容相似度**。
+    repo 內已有 `FindSimilar`（store.go:212）與 `JaccardSimilarity`（store.go:624），
+    但只在 `Harvest` 用到，這裡沒用。只有 7 個 category、每個 feature harvest 約 8 條，
+    任何 >30 天且 `UsedCount>=3` 的條目幾乎必中。
 
-  **缺陷 B — `Ineffective` 是單向旗標，永不重置**
-  `store.go:568` 是全 repo 唯一對 `Ineffective` 的賦值，且是 `= true`；
-  `cmd/4x/learn.go:135` 與 `:172` 都只讀不寫。沒有任何地方設回 false。
-  而 `internal/prompt/learnings.go:135-140` 的 switch，
-  `e.Status == StatusActive && !e.Ineffective` 與 `e.Status == StatusCandidate` 兩個 arm
-  對 ineffective 的 active 條目都不匹配，**直接靜默掉出 switch**：不注入 role prompt、
-  不進 `learnings-context.md`（`GenerateLearningsContext` 走 `ActiveEntries()`，store.go:357）、
-  也不再 `UpdateUsage`。等於永久死重。
+    **缺陷 B — `Ineffective` 是單向旗標，永不重置**
+    `store.go:568` 是全 repo 唯一對 `Ineffective` 的賦值，且是 `= true`；
+    `cmd/4x/learn.go:135` 與 `:172` 都只讀不寫。沒有任何地方設回 false。
+    而 `internal/prompt/learnings.go:135-140` 的 switch，
+    `e.Status == StatusActive && !e.Ineffective` 與 `e.Status == StatusCandidate` 兩個 arm
+    對 ineffective 的 active 條目都不匹配，**直接靜默掉出 switch**：不注入 role prompt、
+    不進 `learnings-context.md`（`GenerateLearningsContext` 走 `ActiveEntries()`，store.go:357）、
+    也不再 `UpdateUsage`。等於永久死重。
 
-  **缺陷 C — consolidate 被 B 餓死，且 no-op 無法觀測**
-  `NeedConsolidate`（prompt/learnings.go:321）用 `len(store.ActiveEntries()) >= ConsolidateThreshold`（30），
-  而 `ActiveEntries()` 正是已濾掉 ineffective 的集合——缺陷 B 把 active 砍到剩 2 條，
-  門檻 30 **永遠不會觸發**。另外 `ApplyConsolidateResult`（prompt/learnings.go:361-392）
-  在 `len(result.Actions) == 0` 時 `return 0, 0, nil`，caller
-  `internal/orchestrator/orchestrator.go:1185-1199` 只在 runner/apply 失敗時 `slog.Warn`，
-  0/0 時一行都不印——「模型判斷不用合併」和「runner 實際壞掉」外觀完全一樣，無重試無升級。
+    **缺陷 C — consolidate 被 B 餓死，且 no-op 無法觀測**
+    `NeedConsolidate`（prompt/learnings.go:321）用 `len(store.ActiveEntries()) >= ConsolidateThreshold`（30），
+    而 `ActiveEntries()` 正是已濾掉 ineffective 的集合——缺陷 B 把 active 砍到剩 2 條，
+    門檻 30 **永遠不會觸發**。另外 `ApplyConsolidateResult`（prompt/learnings.go:361-392）
+    在 `len(result.Actions) == 0` 時 `return 0, 0, nil`，caller
+    `internal/orchestrator/orchestrator.go:1185-1199` 只在 runner/apply 失敗時 `slog.Warn`，
+    0/0 時一行都不印——「模型判斷不用合併」和「runner 實際壞掉」外觀完全一樣，無重試無升級。
 
-  **附帶問題 — harvest 未對同 feature 去重**
-  Kairos 有 1881/2742 條（69%）落在同 `(SourceFeature, Category)` ≥3 的桶，
-  ws-302-bab 單一 feature 就吐了 24 條 review 心得。這同時餵大了缺陷 A 的誤判機率。
+    **附帶問題 — harvest 未對同 feature 去重**
+    Kairos 有 1881/2742 條（69%）落在同 `(SourceFeature, Category)` ≥3 的桶，
+    ws-302-bab 單一 feature 就吐了 24 條 review 心得。這同時餵大了缺陷 A 的誤判機率。
 
-  ## 證據來源
+    ## 證據來源
 
-  由 Kairos 專案的 4x audit 回報，並在本 repo 逐行核對屬實（行號皆為本 repo main 分支現況）。
+    由 Kairos 專案的 4x audit 回報，並在本 repo 逐行核對屬實（行號皆為本 repo main 分支現況）。
 
-  ## 需求
+    ## 需求
 
-  按 CP 值排序：
+    按 CP 值排序：
 
-  1. **缺陷 A 是單一根因，優先修**：`hasCategoryContinuation` 改用內容相似度判定 recurrence
-     （沿用既有 `FindSimilar` / `JaccardSimilarity`，不另造一套），且要求 N 個**彼此不同**的
-     `SourceFeature`。
-  2. 讓 `Ineffective` 可依新證據重置為 false，不再是單向終態。
-  3. `NeedConsolidate` 的門檻改看含 ineffective 的 active 總數。
-  4. `ApplyConsolidateResult` 回 0/0 時至少 `slog.Info` 一行，讓 no-op 與失敗可區分。
-  5. Harvest 時對同一 `(SourceFeature, Category)` 桶先去重。
+    1. **缺陷 A 是單一根因，優先修**：`hasCategoryContinuation` 改用內容相似度判定 recurrence
+       （沿用既有 `FindSimilar` / `JaccardSimilarity`，不另造一套），且要求 N 個**彼此不同**的
+       `SourceFeature`。
+    2. 讓 `Ineffective` 可依新證據重置為 false，不再是單向終態。
+    3. `NeedConsolidate` 的門檻改看含 ineffective 的 active 總數。
+    4. `ApplyConsolidateResult` 回 0/0 時至少 `slog.Info` 一行，讓 no-op 與失敗可區分。
+    5. Harvest 時對同一 `(SourceFeature, Category)` 桶先去重。
 
-  ## 約束
+    ## 約束
 
-  - 不改變 `Entry` 的 JSON 欄位名，既有 `.4x/learnings.json` 須能原樣載入
-  - 不引入新的外部依賴，相似度計算沿用 `internal/learning` 既有 helper
-  - `internal/prompt/learnings.go:135-140` 的 status 判定式須與 `store.ActiveEntries()` 保持一致
-    （該處已有註解要求兩處同步，修改時一併維護）
-  - 修完後須能對既有 store 說明遷移行為：已被誤標的 113 條該如何回復
-  ## Kairos 實測分佈（設計驗收標準時的參考基準）
+    - 不改變 `Entry` 的 JSON 欄位名，既有 `.4x/learnings.json` 須能原樣載入
+    - 不引入新的外部依賴，相似度計算沿用 `internal/learning` 既有 helper
+    - `internal/prompt/learnings.go:135-140` 的 status 判定式須與 `store.ActiveEntries()` 保持一致
+      （該處已有註解要求兩處同步，修改時一併維護）
+    - 修完後須能對既有 store 說明遷移行為：已被誤標的 113 條該如何回復
+    ## Kairos 實測分佈（設計驗收標準時的參考基準）
 
-  - 總數 2742（candidate 2626 / active 115 / promoted 1）
-  - `status: stale` = **0** —— `Prune()` 從未執行過
-  - `Ineffective: true` = 113，全數落在 active（佔 active 的 98%）
-  - `used_count == 0` = 2390，其中 1712 條已超過 30 天
-  - (SourceFeature, Category) 桶 >=3 的條目佔 1881/2742（69%）；
-    單一 feature 最高是 ws-302-bab 的 24 條 review 心得
+    - 總數 2742（candidate 2626 / active 115 / promoted 1）
+    - `status: stale` = **0** —— `Prune()` 從未執行過
+    - `Ineffective: true` = 113，全數落在 active（佔 active 的 98%）
+    - `used_count == 0` = 2390，其中 1712 條已超過 30 天
+    - (SourceFeature, Category) 桶 >=3 的條目佔 1881/2742（69%）；
+      單一 feature 最高是 ws-302-bab 的 24 條 review 心得
 
-  修好後的合理預期：active 不應再有接近 100% 的 Ineffective 比例；
-  `stale` 應隨 consolidate 開始出現非零值。
-status: not-started
+    修好後的合理預期：active 不應再有接近 100% 的 Ineffective 比例；
+    `stale` 應隨 consolidate 開始出現非零值。
+status: ready-for-review
 priority: 1
 profile: full
 subtasks:
