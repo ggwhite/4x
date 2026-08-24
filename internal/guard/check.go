@@ -420,7 +420,9 @@ var acVerifyTypes = map[string]acVerifyType{
 	"e2e-screenshot": {needsExec: false},
 }
 
-var executionPattern = regexp.MustCompile(`(\$\s|\bPASS\b|\bFAIL\b|^ok\s|--- |exit code|→|stdout|stderr|\d+\.\d+s)`)
+// 除了 CLI 執行輸出的慣用詞，也接受瀏覽器 E2E（Playwright 等）敘述式證據的慣用詞彙，
+// 避免 needsExec AC 的合法瀏覽器操作證據被誤判為「無執行證據」（見 F177 gap）。
+var executionPattern = regexp.MustCompile(`(\$\s|\bPASS\b|\bFAIL\b|^ok\s|--- |exit code|→|stdout|stderr|\d+\.\d+s|(?i:\bscreenshot\b|\bplaywright\b|\bDOM\b|\bnavigated\b|\bclicked?\b|\bvisible\b|\brendered\b|\basserted?\b|expect\())`)
 
 // checkACEvidence 檢查 verify.json 的 per-AC evidence mapping：每個 AC 都必須 passed 且有 evidence。
 // ac_results 為空時阻擋（舊格式 verify.json 不通過此檢查）。

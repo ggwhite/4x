@@ -12,6 +12,7 @@ type CreateOpts struct {
 	Depends     []string
 	Priority    *int
 	Repos       []string
+	SharedPaths []string
 	Profile     string
 	IDFormat    IDFormat
 }
@@ -48,6 +49,7 @@ func Create(store Store, opts CreateOpts) (Feature, error) {
 		Description: description,
 		Status:      StatusNotStarted,
 		Repos:       opts.Repos,
+		SharedPaths: opts.SharedPaths,
 		Subtasks:    opts.Subtasks,
 		Rules:       opts.Rules,
 		Depends:     opts.Depends,

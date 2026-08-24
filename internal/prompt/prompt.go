@@ -241,7 +241,15 @@ func Generate(ctx *Context, role protocol.Role, round, iteration int, runnerName
 			}
 		}
 	}
-	if role == protocol.RoleTester {
+	// GuardFeedback 泛化到所有會被 guard retry 打回原 phase 重跑的角色：Tester（既有）與
+	// Designer（F188 designing 出口閘門新增的 precheck 失敗重試路徑）。原本只對 Tester 注入，
+	// Designer 重試時讀不到自己被打回的原因，等於盲跑——多半產出同一份 test-strategy.yaml
+	// 後才再次進 needs-attention（F188 gap）。
+	// GuardFeedback 泛化到所有會被 guard retry 打回原 phase 重跑的角色：Tester（既有）與
+	// Designer（F188 designing 出口閘門新增的 precheck 失敗重試路徑）。原本只對 Tester 注入，
+	// Designer 重試時讀不到自己被打回的原因，等於盲跑——多半產出同一份 test-strategy.yaml
+	// 後才再次進 needs-attention（F188 gap）。
+	if role == protocol.RoleTester || role == protocol.RoleDesigner {
 		data.GuardFeedback = readGuardFeedback(ws, feature.ID, round)
 	}
 	// F150：注入 profile-aware 產出物契約段落。解析出當前 profile 後填 ProfileName/

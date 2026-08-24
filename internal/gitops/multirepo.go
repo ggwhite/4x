@@ -177,7 +177,7 @@ func (m *multiRepo) Commit(wtRoot, featureID, msg string) error {
 		if out, err := exec.Command("git", "-C", repoDir, "commit", "-m", msg).CombinedOutput(); err != nil {
 			return fmt.Errorf("git commit %s: %s: %w", name, string(out), err)
 		}
-		fmt.Printf("  committed [%s]: %s\n", name, msg)
+		slog.Info("committed", "repo", name, "message", msg)
 	}
 	return nil
 }

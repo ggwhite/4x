@@ -144,6 +144,7 @@ evolve-state.json
 consolidate-input.json
 consolidate-result.json
 consolidate.log
+consolidate.stream.jsonl
 `
 	return os.WriteFile(filepath.Join(dotDir, ".gitignore"), []byte(content), 0o644)
 }

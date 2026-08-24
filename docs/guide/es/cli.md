@@ -479,16 +479,20 @@ El Acceptor de cada feature escribe un `retro-learnings.json`; el CLI lo cosecha
 4x learn list --status=active     # filtrar por estado (active, candidate, stale, promoted)
 4x learn list --ineffective       # solo mostrar entradas ineficaces (used≥3 + 30d + contenido similar desde ≥2 features distintas)
 4x learn list --ineffective-reset # solo mostrar entradas cuyo flag ineffective fue restablecido por la migración v2
-4x learn prune                    # marcar entradas obsoletas (>90 días sin uso) y eliminarlas
-4x learn prune --dry-run          # previsualizar entradas obsoletas sin eliminar
+4x learn prune                    # degradar entradas active inactivas a candidate; envejecer candidates inactivos a stale; eliminar stale
+4x learn prune --dry-run          # previsualizar active degradados y eliminación de stale, sin escribir
 4x learn promote <id>             # marcar un learning como promovido (se mantiene pero no se inyecta)
 4x learn remove <id>              # eliminar una entrada de learning
+4x learn context                  # generar snapshot .4x/learnings-context.md
 ```
 
 `learn add` verifica si hay entradas similares existentes (coincidencia exacta, normalizada y similitud Jaccard). Si se encuentra un duplicado aproximado, reporta el ID existente y no escribe.
 
 - Categorías: `design`, `code-quality`, `testing`, `review`, `tooling`, `process`, `ops`
-- Estado: `active` (inyectable), `candidate` (nuevo harvest, pendiente de validación cross-feature), `stale` (>90 días sin uso, marcado automáticamente al leer), `promoted` (actualizado a plantilla/instrucciones)
+- Estado: `active` (inyectable), `candidate` (nuevo harvest, pendiente de validación cross-feature), `stale` (envejecido, pendiente de eliminación), `promoted` (actualizado a plantilla/instrucciones)
+- Cada learning lleva una puntuación `confidence` (0–1) que se refuerza cada vez que la entrada se inyecta en un prompt de rol; la inyección de prompts y `.4x/learnings-context.md` ordenan primero por confidence, luego por recencia, luego por ID, y truncan las entradas con menor puntuación al alcanzar el presupuesto de tokens. Las entradas antiguas sin valor `confidence` recurren a una puntuación determinística derivada de `used_count` (nunca se reescribe al leer)
+- `4x learn prune` primero degrada las entradas active inactivas de vuelta a `candidate`: un learning `active` cuyo último uso (según `last_used`, si no `activated_at`, si no `created_at`) sea anterior a `evolution.active_demote_days` (por defecto 90; 0 desactiva la degradación) vuelve a ser `candidate`, devolviéndolo al proceso de envejecimiento de candidates en vez de eliminarlo. Las entradas `promoted` nunca se degradan
+- Luego `4x learn prune` envejece los candidates nunca usados: un `candidate` con `used_count=0` creado hace más de `evolution.candidate_max_idle_days` (por defecto 30; 0 desactiva el envejecimiento) se marca como `stale` para que el pool de muestras realmente converja. El envejecimiento solo ocurre en `prune` y nunca afecta entradas active/promoted; `--dry-run` previsualiza por separado los active degradados y los candidates envejecidos/stale sin eliminarlos (un active recién degradado nunca se elimina en la misma ejecución)
 - Las entradas candidatas se muestran con sufijo `*` en el ID; se promueven automáticamente a active cuando son producidas independientemente por otra feature o seleccionadas por un Designer
 - Las entradas ineficaces son learnings activos marcados con estado `active!` cuando se cumplen las tres condiciones: usados ≥ 3 veces, activados hace > 30 días, y contenido similar (Jaccard ≥ 0.3) sigue llegando desde al menos 2 features distintas — indicando que el learning no está reduciendo los problemas repetidos. El flag se reevalúa en cada harvest y se retira automáticamente en cuanto alguna condición deja de cumplirse. Los stores escritos antes del formato v2 tuvieron sus flags `ineffective` restablecidos una sola vez en la primera carga; usa `4x learn list --ineffective-reset` para ver qué entradas fueron afectadas (el restablecimiento solo se escribe en disco en la siguiente escritura del store)
 - Un límite flexible de 100 entradas activas activa una advertencia que sugiere `4x learn prune` — las entradas nunca se eliminan automáticamente

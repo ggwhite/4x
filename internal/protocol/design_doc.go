@@ -4,9 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
 
 	"github.com/ggwhite/4x/internal/feature"
+	"github.com/ggwhite/4x/internal/pathutil"
 )
 
 // featurePrefixStripRe 比對 feature ID 的 F{NNN}- 前綴（至少 3 位數字，支援 F1000+ 等
@@ -51,8 +51,7 @@ func ResolveDesignDoc(root string, feature feature.Feature, docType string, extr
 		if err == nil {
 			resolvedRoot, rootErr := filepath.EvalSymlinks(root)
 			if rootErr == nil {
-				cleanRoot := resolvedRoot + string(filepath.Separator)
-				if strings.HasPrefix(resolved, cleanRoot) || resolved == resolvedRoot {
+				if pathutil.WithinRoot(resolvedRoot, resolved) {
 					if content, err := os.ReadFile(resolved); err == nil {
 						return DesignDoc{Content: string(content), Source: yamlPath}
 					}

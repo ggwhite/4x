@@ -479,16 +479,20 @@ Feature が `pending-review` または `done` フェーズにあり、`.worktree
 4x learn list --status=active     # ステータスでフィルタ（active, candidate, stale, promoted）
 4x learn list --ineffective       # 非効果的なエントリのみ表示（used≥3 + 30日 + 2 つ以上の異なる Feature から類似内容）
 4x learn list --ineffective-reset # v2 マイグレーションで ineffective フラグがリセットされたエントリのみ表示
-4x learn prune                    # 古い（90日以上未使用）エントリにマークして削除
-4x learn prune --dry-run          # 削除せずに古いエントリをプレビュー
+4x learn prune                    # 非アクティブな active を candidate に降格、放置された candidate を stale へ老化、stale を削除
+4x learn prune --dry-run          # 降格される active と削除される stale をプレビュー（書き込みなし）
 4x learn promote <id>             # learning を promoted としてマーク（保持するが注入しなくなる）
 4x learn remove <id>              # learning エントリを削除
+4x learn context                  # .4x/learnings-context.md のスナップショットを生成
 ```
 
 `learn add` は既存エントリとの類似チェック（完全一致・正規化・Jaccard 類似度）を行います。ファジー重複が見つかった場合、既存 ID を報告して書き込みません。
 
 - カテゴリ：`design`、`code-quality`、`testing`、`review`、`tooling`、`process`、`ops`
-- ステータス：`active`（注入可能）、`candidate`（新規 harvest、クロスフィーチャー検証待ち）、`stale`（90日以上未使用、読み取り時に自動マーク）、`promoted`（テンプレート/指示として昇格済み）
+- ステータス：`active`（注入可能）、`candidate`（新規 harvest、クロスフィーチャー検証待ち）、`stale`（老化済み、削除待ち）、`promoted`（テンプレート/指示として昇格済み）
+- 各 learning は `confidence` スコア（0〜1）を持ち、エントリがロールのプロンプトに注入されるたびに強化されます。プロンプト注入と `.4x/learnings-context.md` は confidence を最優先、次に新しさ、次に ID の順でランク付けし、トークン予算に達すると最も低いスコアのエントリから切り捨てます。`confidence` 値を持たない旧エントリは `used_count` から算出される決定的なスコアにフォールバックします（読み取り時に書き戻されることはありません）
+- `4x learn prune` はまず、非アクティブな active エントリを `candidate` に降格します：`active` な learning の最終ヒット時刻（`last_used`、なければ `activated_at`、それもなければ `created_at`）が `evolution.active_demote_days`（デフォルト 90 日、0 で降格を無効化）より古い場合、削除されるのではなく再び `candidate` に戻され、candidate の老化フローに委ねられます。`promoted` エントリは決して降格されません
+- 続いて `4x learn prune` は一度も使われていない candidate を老化させます：`used_count=0` の `candidate` が作成されてから `evolution.candidate_max_idle_days`（デフォルト 30 日、0 で老化を無効化）より経過している場合、`stale` としてマークされ、サンプルプールが実際に収束するようにします。老化は `prune` 実行時のみ発生し、active/promoted エントリには影響しません。`--dry-run` は降格される active と老化/stale になる candidate を別々にプレビューし、実際には削除しません（同じ実行で降格されたばかりの active が削除されることはありません）
 - candidate エントリは ID に `*` 接尾辞が付きます。別のフィーチャーで独立に生成されるか、Designer に選択されると自動的に active に昇格します
 - 非効果的なエントリは `active!` ステータスで表示されます：3回以上注入、30日以上経過、かつ類似内容（Jaccard ≥ 0.3）が 2 つ以上の異なる Feature から引き続き発生している——この 3 条件をすべて満たす場合に該当し、その learning が繰り返しの問題を減らせていないことを示します。フラグは harvest のたびに再評価され、いずれかの条件が成立しなくなった時点で自動的に解除されます。v2 形式より前に書かれた store は初回ロード時に `ineffective` フラグが一度だけリセットされます。影響を受けたエントリは `4x learn list --ineffective-reset` で確認できます（リセットがディスクに反映されるのは次回の store 書き込み時です）
 - アクティブエントリが 100 件を超えると `4x learn prune` を促す警告が表示されます（エントリは自動削除されません）

@@ -8,6 +8,18 @@ You MUST create these 3 files before finishing. The system checks they exist.
 3. {{.DotDir}}/run/{{.Feature.ID}}/test-strategy.yaml
 
 Use the Write tool to create each file — printed content alone does not persist to disk.
+{{- if .GuardFeedback}}
+
+== ⚠ GUARD RETRY — Your previous attempt was REJECTED ==
+The guard blocked your previous designing attempt before it ever reached the Design Reviewer,
+because of these errors:
+{{- range .GuardFeedback}}
+- {{.}}
+{{- end}}
+
+You MUST fix ALL of the above issues in this attempt — this is still the same round, not a design
+revision. Do NOT repeat the same test-strategy.yaml verify commands that triggered these errors.
+{{- end}}
 {{- if .DesignRevision}}
 
 == ⚠ REVISION ROUND — READ THIS FIRST ==

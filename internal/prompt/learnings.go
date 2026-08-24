@@ -223,13 +223,49 @@ func HarvestLearnings(ws *protocol.Workspace, featureID string) {
 		return
 	}
 
-	// active 老化改為 demote 回 candidate（F159），不再直接標 stale；
-	// 設定載入失敗只 warn/skip demote，不阻塞 harvest（learnings 屬 nice-to-have）。
+	// active 老化改為 demote 回 candidate（F159），不再直接標 stale；候選老化與 prune
+	// （見下方）沿用同一份設定。設定載入失敗只 warn/skip 這整段，不阻塞 harvest
+	// （learnings 屬 nice-to-have）。
 	demoted := 0
+	staleMarked, pruned := 0, 0
 	if cfg, cerr := ws.LoadMergedConfig(); cerr != nil {
-		slog.Warn("load config for active demote failed, skip demote", "error", cerr)
-	} else if demoted = store.DemoteInactiveActive(evolution.ResolveEvolution(cfg).ActiveDemoteDays); demoted > 0 {
-		slog.Info("demoted inactive active learnings", "feature", featureID, "demoted", demoted)
+		slog.Warn("load config for active demote failed, skip demote/prune", "error", cerr)
+	} else {
+		resolved := evolution.ResolveEvolution(cfg)
+
+		preActive := make(map[string]bool, len(store.Entries))
+		for _, e := range store.Entries {
+			if e.Status == learning.StatusActive {
+				preActive[e.ID] = true
+			}
+		}
+		if demoted = store.DemoteInactiveActive(resolved.ActiveDemoteDays); demoted > 0 {
+			slog.Info("demoted inactive active learnings", "feature", featureID, "demoted", demoted)
+		}
+		demotedThisRound := make(map[string]bool, demoted)
+		for _, e := range store.Entries {
+			if preActive[e.ID] && e.Status == learning.StatusCandidate {
+				demotedThisRound[e.ID] = true
+			}
+		}
+
+		// 正常 4x run 流程從不呼叫 Prune，此前只有 `4x learn prune` 手動觸發，
+		// MarkCandidatesStale 標出的 stale 條目在 store 內無限累積（F187 gap）。
+		// 在每次 harvest 收尾順帶做候選老化 + prune，讓生命週期自動運轉。
+		// 保護本輪剛 demote 回 candidate 的條目，避免同一輪就被老化判 stale 刪除（比照
+		// cmd/4x/learn.go 的 prune 邏輯，同一份 F147 約束）。
+		staleMarked = store.MarkCandidatesStale(resolved.CandidateMaxIdleDays)
+		for i := range store.Entries {
+			if demotedThisRound[store.Entries[i].ID] && store.Entries[i].Status == learning.StatusStale {
+				store.Entries[i].Status = learning.StatusCandidate
+				staleMarked--
+			}
+		}
+		if staleMarked > 0 {
+			pruned = store.Prune()
+			slog.Info("aged and pruned stale candidate learnings", "feature", featureID,
+				"staleMarked", staleMarked, "pruned", pruned)
+		}
 	}
 
 	roleAdded, roleSkipped := harvestRoleLearnings(&store, ws, featureID)
@@ -253,7 +289,11 @@ func HarvestLearnings(ws *protocol.Workspace, featureID string) {
 	// totalSkipped 不納入早退條件——被上限擋掉不代表 store 有變動。
 	// store.MigrationApplied() 為 true 時即使四個計數器全為 0 也必須存檔，
 	// 否則 v1→v2 的一次性重設永遠不會落地。
-	if totalAdded == 0 && marked == 0 && resetCount == 0 && demoted == 0 && !store.MigrationApplied() {
+	// store.CrossFeaturePromoted() 同理：cross-feature fuzzy 升級（candidate→active）
+	// 不計入 totalAdded/skipped，若不檢查會讓一輪全數命中升級路徑的 harvest 略過存檔，
+	// 升級結果被靜默丟棄（F187 gap）。pruned > 0 代表本輪已刪除條目，同樣須存檔。
+	if totalAdded == 0 && marked == 0 && resetCount == 0 && demoted == 0 && pruned == 0 &&
+		!store.MigrationApplied() && !store.CrossFeaturePromoted() {
 		return
 	}
 
@@ -330,13 +370,19 @@ func harvestRoleLearnings(store *learning.Store, ws *protocol.Workspace, feature
 	return totalAdded, totalSkipped
 }
 
-// NeedConsolidate 檢查 active learnings（含 ineffective）是否超過 consolidate 門檻。
+// NeedConsolidate 檢查 active learnings（含 ineffective）是否超過 consolidate 門檻，
+// 且已過冷卻期（ConsolidateCooldown）。冷卻檢查在前：v1→v2 migration 把 ineffective
+// 洗回 false 後，大型 store 的 active 總數恆 ≥ ConsolidateThreshold，若無冷卻，每個
+// feature 走到 pending-review/done 都會觸發一次 120 秒的 LLM consolidate 呼叫（F187 gap）。
 // 以 AllActiveEntries 而非 ActiveEntries 計數：被 consolidate merge/remove 的正是那批 ineffective 條目，
 // 用注入口徑計數會讓 store 塞滿 ineffective 時永遠觸發不了 consolidate。
 func NeedConsolidate(ws *protocol.Workspace) bool {
 	storePath := filepath.Join(ws.DotDir(), protocol.LearningsFile)
 	store, err := learning.LoadStore(storePath)
 	if err != nil {
+		return false
+	}
+	if !store.LastConsolidateAt.IsZero() && time.Since(store.LastConsolidateAt) < learning.ConsolidateCooldown {
 		return false
 	}
 	return len(store.AllActiveEntries()) >= learning.ConsolidateThreshold
@@ -396,10 +442,6 @@ func ApplyConsolidateResult(ws *protocol.Workspace) (int, int, error) {
 	if err := json.Unmarshal(data, &result); err != nil {
 		return 0, 0, err
 	}
-	if len(result.Actions) == 0 {
-		slog.Info("consolidate produced no actions", "path", resultPath)
-		return 0, 0, nil
-	}
 
 	storePath := filepath.Join(ws.DotDir(), protocol.LearningsFile)
 	store, err := learning.LoadStore(storePath)
@@ -407,9 +449,25 @@ func ApplyConsolidateResult(ws *protocol.Workspace) (int, int, error) {
 		return 0, 0, err
 	}
 
+	// LastConsolidateAt 必須在每一條 exit path 都蓋章存檔——包含下面兩個 0/0 早退路徑。
+	// 若只在「真的合併/移除了什麼」的成功路徑蓋章，NeedConsolidate 的冷卻期形同虛設：
+	// 一次 0/0 的 consolidate 呼叫完全不改 store，下一輪 active 數若仍 ≥ 門檻會立刻再觸發（F187 gap）。
+	store.LastConsolidateAt = time.Now()
+
+	if len(result.Actions) == 0 {
+		slog.Info("consolidate produced no actions", "path", resultPath)
+		if err := store.Save(storePath); err != nil {
+			return 0, 0, err
+		}
+		return 0, 0, nil
+	}
+
 	merged, removed := store.ApplyConsolidation(result.Actions)
 	if merged+removed == 0 {
 		slog.Info("consolidate actions matched no entries", "actions", len(result.Actions))
+		if err := store.Save(storePath); err != nil {
+			return 0, 0, err
+		}
 		return 0, 0, nil
 	}
 

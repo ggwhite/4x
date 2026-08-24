@@ -9,6 +9,7 @@ import (
 
 	"github.com/ggwhite/4x/internal/gitops"
 	"github.com/ggwhite/4x/internal/guard"
+	"github.com/ggwhite/4x/internal/pathutil"
 	"github.com/ggwhite/4x/internal/protocol"
 	"github.com/spf13/cobra"
 )
@@ -158,39 +159,12 @@ func mainWorkspaceDeny(cwd, rawPath string) (bool, string) {
 // 兩邊先以 realpathBestEffort 解析 symlink，消除 macOS /var → /private/var 等字面差異，
 // 避免因 root（已 EvalSymlinks）與 target（可能是 raw 絕對路徑）表面不同而漏判。
 func pathWithinRoot(root, target string) bool {
-	root = realpathBestEffort(root)
-	target = realpathBestEffort(target)
-	rel, err := filepath.Rel(root, target)
-	if err != nil {
-		return false
-	}
-	rel = filepath.ToSlash(rel)
-	if rel == "." {
+	root = pathutil.RealpathBestEffort(root)
+	target = pathutil.RealpathBestEffort(target)
+	if root == target {
 		return false // target == root 本身，不是內部檔案
 	}
-	return rel != ".." && !strings.HasPrefix(rel, "../")
-}
-
-// realpathBestEffort 解析 path 的 symlink；path 本身不存在時（如尚未建立的寫入目標檔），
-// 解析其存在的最長祖先目錄再接回剩餘相對段，仍能消除路徑前段的 symlink 差異。
-func realpathBestEffort(path string) string {
-	path = filepath.Clean(path)
-	if resolved, err := filepath.EvalSymlinks(path); err == nil {
-		return resolved
-	}
-	dir := path
-	var tail []string
-	for {
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return path // 走到根仍無法解析
-		}
-		tail = append([]string{filepath.Base(dir)}, tail...)
-		dir = parent
-		if resolved, err := filepath.EvalSymlinks(dir); err == nil {
-			return filepath.Join(append([]string{resolved}, tail...)...)
-		}
-	}
+	return pathutil.WithinRoot(root, target)
 }
 
 // resolvePathFeatureID 依序解析目標 feature-id：位置參數 → FOURX_FEATURE_ID env →

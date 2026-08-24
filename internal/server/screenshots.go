@@ -11,6 +11,7 @@ import (
 
 	"github.com/ggwhite/4x/internal/feature"
 	"github.com/ggwhite/4x/internal/gitops"
+	"github.com/ggwhite/4x/internal/pathutil"
 	"github.com/ggwhite/4x/internal/protocol"
 )
 
@@ -163,7 +164,7 @@ func handleServeScreenshot(ws *protocol.CachedWorkspace, featureID, filename str
 		http.Error(w, "invalid workspace path", http.StatusInternalServerError)
 		return
 	}
-	if resolvedAbs != resolvedRoot && !strings.HasPrefix(resolvedAbs, resolvedRoot+string(filepath.Separator)) {
+	if !pathutil.WithinRoot(resolvedRoot, resolvedAbs) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}

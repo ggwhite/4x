@@ -65,6 +65,10 @@ const (
 	MaxActiveEntries = 100
 	// ConsolidateThreshold 是觸發 AI consolidate 的 active 條目門檻。
 	ConsolidateThreshold = 30
+	// ConsolidateCooldown 是兩次 consolidate 之間的最短間隔。NeedConsolidate 在冷卻期內
+	// 一律回 false，避免 v1→v2 migration 後大型 store 的 active 總數恆 ≥ ConsolidateThreshold，
+	// 導致每個 feature 完成都觸發一次 120 秒的 LLM consolidate 呼叫。
+	ConsolidateCooldown = 24 * time.Hour
 	// FuzzyDupThreshold 是判定 learning 語意重複的 Jaccard 相似度門檻。
 	FuzzyDupThreshold = 0.7
 	// RecurrenceSimilarityThreshold 是 recurrence 判定（見 hasRecurrenceEvidence）使用的 Jaccard 門檻。
@@ -173,14 +177,31 @@ type Store struct {
 	// 已刪除且序號未被回收的 ID 會殘留，但以 ID 反查不到條目，不影響查詢輸出。
 	IneffectiveResetIDs []string `json:"ineffective_reset_ids,omitempty"`
 
+	// LastConsolidateAt 記錄上次 consolidate 完成的時間（無論該次結果是否真的合併/移除任何
+	// 條目），供 NeedConsolidate 判斷冷卻期（見 ConsolidateCooldown）。零值代表從未 consolidate 過。
+	LastConsolidateAt time.Time `json:"last_consolidate_at,omitempty"`
+
 	// migrated 標記本次 LoadStore 是否實際套用過 migration，不參與 JSON 序列化。
 	migrated bool
+
+	// crossFeaturePromoted 標記本次 Harvest 是否曾把既有 candidate 就地升級為 active
+	// （cross-feature fuzzy match，見 Harvest 內 matched.Status = StatusActive 分支）。
+	// 該分支不遞增 added 也不遞增 skipped（AC-12 pin 死 Harvest 簽章為 (added, skipped int)，
+	// 不可再加回傳值），若不另外追蹤，HarvestLearnings 的早退條件會把這次真實變動誤判為
+	// 「store 無變化」而不存檔，升級結果被靜默丟棄（F187 gap）。範圍刻意只涵蓋這一條分支，
+	// 不是涵蓋所有 mutator 的通用 dirty flag。
+	crossFeaturePromoted bool
 }
 
 // MigrationApplied 回傳本次 LoadStore 是否實際套用過 v1→v2 migration。
 // migration 只改記憶體中的 store、不寫檔，呼叫端須以此決定要不要存檔讓重設落地。
 func (s *Store) MigrationApplied() bool {
 	return s.migrated
+}
+
+// CrossFeaturePromoted 回傳本次呼叫 Harvest 是否曾把既有 candidate 就地升級為 active。
+func (s *Store) CrossFeaturePromoted() bool {
+	return s.crossFeaturePromoted
 }
 
 // RetroLearning 是 Acceptor 產出的單一 learning（不含 ID 與 metadata）。
@@ -323,6 +344,7 @@ func (s *Store) Harvest(featureID, sourceRole string, learnings []RetroLearning)
 				matched.Status = StatusActive
 				matched.ActivatedAt = now
 				matched.Confidence = reinforceConfidence(matched.Confidence)
+				s.crossFeaturePromoted = true
 			}
 			continue
 		}

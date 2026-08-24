@@ -477,16 +477,20 @@ Dashboard 通过 `POST /api/force-done` 提供此功能，请求体为 `{id, rea
 4x learn list --status=active     # 按状态过滤（active、candidate、stale、promoted）
 4x learn list --ineffective       # 仅显示无效条目（used≥3 + 30天 + 相似内容来自 ≥2 个不同 feature）
 4x learn list --ineffective-reset # 仅显示被 v2 迁移重置过 ineffective 标记的条目
-4x learn prune                    # 标记陈旧（>90 天未使用）条目并删除
-4x learn prune --dry-run          # 预览陈旧条目，不删除
+4x learn prune                    # 将不活跃的 active 降级为 candidate；让闲置 candidate 老化为 stale；删除 stale
+4x learn prune --dry-run          # 预览降级的 active 与 stale 删除，但不写入
 4x learn promote <id>             # 将某条 learning 标记为 promoted（保留但不再注入）
 4x learn remove <id>              # 删除某条 learning
+4x learn context                  # 生成 .4x/learnings-context.md 快照
 ```
 
 `learn add` 会检查是否有相似的既有条目（完全比对、正规化比对、Jaccard 相似度）。若发现模糊重复，会回报既有 ID 且不写入。
 
 - 类别：`design`、`code-quality`、`testing`、`review`、`tooling`、`process`、`ops`
-- 状态：`active`（可注入）、`candidate`（新 harvest，待跨 feature 验证）、`stale`（>90 天未使用，读取时自动标记）、`promoted`（已升级为模板/指令）
+- 状态：`active`（可注入）、`candidate`（新 harvest，待跨 feature 验证）、`stale`（已老化，待删除）、`promoted`（已升级为模板/指令）
+- 每条 learning 都带有 `confidence` 分数（0–1），每次条目被注入角色 prompt 时都会被强化；prompt 注入与 `.4x/learnings-context.md` 按 confidence 优先排序，其次是新旧程度，再是 ID，超出 token 预算时截断分数最低的条目。没有 `confidence` 值的旧条目会回退到按 `used_count` 推算的确定性分数（读取时不会写回）
+- `4x learn prune` 首先把不活跃的 active 条目降级回 `candidate`：一条 `active` learning 若最后命中时间（依次看 `last_used`、`activated_at`、`created_at`）早于 `evolution.active_demote_days`（默认 90 天；设为 0 停用降级）就会重新变成 `candidate`，交还给 candidate 老化流程处理而非直接删除。`promoted` 条目永不降级
+- 接着 `4x learn prune` 让从未使用过的 candidate 老化：一条 `candidate` 若 `used_count=0` 且创建时间早于 `evolution.candidate_max_idle_days`（默认 30 天；设为 0 停用老化）就会被标记为 `stale`，让样本池真正收敛。老化只在 `prune` 时触发，不会影响 active/promoted 条目；`--dry-run` 会分别预览被降级的 active 与被老化/标记 stale 的 candidate，但不实际删除（同一轮刚被降级的 active 不会在同一轮被删除）
 - candidate 条目 ID 后带 `*` 标记；被不同 feature 独立产出或被 Designer 选中时自动升级为 active
 - 无效条目以 `active!` 状态显示：已注入 ≥ 3 次、激活 > 30 天、且相似内容（Jaccard ≥ 0.3）仍持续从 ≥ 2 个不同 feature 冒出——三个条件全部成立才算，表明该 learning 未能减少重复问题。该标记在每次 harvest 时重新评估，任一条件不再成立即自动撤销。v2 格式之前写入的 store 在首次载入时会把 `ineffective` 标记一次性重置为 false，可用 `4x learn list --ineffective-reset` 查询受影响的条目（重置要等下一次 store 写入才落盘）
 - 100 条活跃条目的软上限会触发建议运行 `4x learn prune` 的警告——不会自动删除条目

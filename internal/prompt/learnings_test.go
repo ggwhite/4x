@@ -763,6 +763,38 @@ func TestNeedConsolidate_CountsIneffective(t *testing.T) {
 	}
 }
 
+// TestNeedConsolidate_CooldownBlocksRetrigger 驗證即使 active 條目數超過門檻，冷卻期內
+// NeedConsolidate 仍回 false——反面案例：若冷卻檢查漏接，v1→v2 migration 後大型 store
+// 會讓每個 feature 完成都觸發一次 120 秒的 LLM consolidate 呼叫（F187 gap）。
+func TestNeedConsolidate_CooldownBlocksRetrigger(t *testing.T) {
+	ws := newTestWorkspace(t)
+	entries := mostlyIneffectiveActives(30, 0)
+	storePath := filepath.Join(ws.DotDir(), protocol.LearningsFile)
+	store := learning.Store{Version: learning.StoreVersion, Entries: entries, LastConsolidateAt: time.Now().Add(-1 * time.Hour)}
+	if err := store.Save(storePath); err != nil {
+		t.Fatal(err)
+	}
+
+	if NeedConsolidate(ws) {
+		t.Error("NeedConsolidate = true within cooldown, want false")
+	}
+}
+
+// TestNeedConsolidate_CooldownExpired 驗證冷卻期過後、active 數仍超過門檻時照常觸發。
+func TestNeedConsolidate_CooldownExpired(t *testing.T) {
+	ws := newTestWorkspace(t)
+	entries := mostlyIneffectiveActives(30, 0)
+	storePath := filepath.Join(ws.DotDir(), protocol.LearningsFile)
+	store := learning.Store{Version: learning.StoreVersion, Entries: entries, LastConsolidateAt: time.Now().Add(-25 * time.Hour)}
+	if err := store.Save(storePath); err != nil {
+		t.Fatal(err)
+	}
+
+	if !NeedConsolidate(ws) {
+		t.Error("NeedConsolidate = false after cooldown expired, want true")
+	}
+}
+
 // TestPrepareConsolidateInput_IncludesIneffective 驗證 consolidate 輸入包含 ineffective 條目，
 // 且該筆帶 ineffective: true 欄位——被 merge/remove 的正是那批條目（AC-10）。
 func TestPrepareConsolidateInput_IncludesIneffective(t *testing.T) {
@@ -817,6 +849,13 @@ func TestApplyConsolidateResult_LogsNoOp(t *testing.T) {
 		if !strings.Contains(out, "consolidate produced no actions") {
 			t.Errorf("missing no-actions log, got %q", out)
 		}
+		reloaded, rerr := learning.LoadStore(filepath.Join(ws.DotDir(), protocol.LearningsFile))
+		if rerr != nil {
+			t.Fatal(rerr)
+		}
+		if reloaded.LastConsolidateAt.IsZero() {
+			t.Error("LastConsolidateAt not stamped on empty-actions path — cooldown would never engage after a 0/0 result")
+		}
 	})
 
 	t.Run("actions match no entries", func(t *testing.T) {
@@ -839,6 +878,13 @@ func TestApplyConsolidateResult_LogsNoOp(t *testing.T) {
 		}
 		if !strings.Contains(out, "consolidate actions matched no entries") {
 			t.Errorf("missing unmatched-actions log, got %q", out)
+		}
+		reloaded, rerr := learning.LoadStore(filepath.Join(ws.DotDir(), protocol.LearningsFile))
+		if rerr != nil {
+			t.Fatal(rerr)
+		}
+		if reloaded.LastConsolidateAt.IsZero() {
+			t.Error("LastConsolidateAt not stamped on matched-nothing path — cooldown would never engage after a 0/0 result")
 		}
 	})
 }
@@ -881,6 +927,84 @@ func TestHarvestLearnings_PersistsMigration(t *testing.T) {
 	}
 	if !got["L001"] || !got["L002"] {
 		t.Errorf("ineffective_reset_ids = %v, want both L001 and L002", reloaded.IneffectiveResetIDs)
+	}
+}
+
+// TestHarvestLearnings_PersistsCrossFeaturePromotion 驗證整輪 harvest 唯一的 store 變動
+// 是 cross-feature fuzzy 升級（candidate→active，不計入 added/skipped/marked/resetCount/demoted）
+// 時仍會被存檔——反面案例：若早退條件漏看這條分支，重載後條目仍是 candidate（升級只停留在
+// 記憶體、從未落地），本測試會抓到（F187 gap）。
+func TestHarvestLearnings_PersistsCrossFeaturePromotion(t *testing.T) {
+	ws := newTestWorkspace(t)
+	storePath := saveLearningsStoreV2(t, ws, []learning.Entry{
+		{ID: "L001", SourceFeature: "F100", Category: learning.CategoryCodeQuality,
+			Content: "always run gofmt and go vet before commit",
+			Status:  learning.StatusCandidate, CreatedAt: time.Now()},
+	})
+
+	featureID := "F101"
+	roundDir := ws.RoundDir(featureID, 0)
+	if err := os.MkdirAll(roundDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	rf := learning.RoleLearningsFile{Role: "reviewer", Learnings: []learning.RetroLearning{
+		{Category: learning.CategoryCodeQuality, Content: "run gofmt and go vet before every commit"},
+	}}
+	data, err := json.Marshal(rf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(roundDir, "reviewer-learnings.json"), data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	HarvestLearnings(ws, featureID)
+
+	reloaded, err := learning.LoadStore(storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reloaded.Entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(reloaded.Entries))
+	}
+	if reloaded.Entries[0].Status != learning.StatusActive {
+		t.Errorf("expected L001 promoted to active and persisted, got status=%s (early-exit likely discarded the promotion)", reloaded.Entries[0].Status)
+	}
+}
+
+// TestHarvestLearnings_AgesAndPrunesStaleCandidates 驗證 harvest 收尾會自動老化並清除
+// 從未被使用、超過 CandidateMaxIdleDays 天的 candidate——反面案例：若這段邏輯沒接上，
+// Store.Prune() 只由 `4x learn prune` 手動觸發，重載後條目仍會存在（F187 gap）。
+func TestHarvestLearnings_AgesAndPrunesStaleCandidates(t *testing.T) {
+	root := t.TempDir()
+	// LoadMergedConfig 需要 Project.Name 非空（見 TestHarvestLearningsDemotesActiveNotStale）；
+	// newTestWorkspace 的空 Config{} 會讓 config 讀取失敗、連帶跳過本測試要驗證的 demote/prune 段。
+	if err := protocol.Init(root, protocol.Config{Project: protocol.ProjectConfig{Name: "test"}}); err != nil {
+		t.Fatal(err)
+	}
+	ws := &protocol.Workspace{Root: root}
+	old := time.Now().Add(-31 * 24 * time.Hour) // 預設門檻 30 天
+	storePath := saveLearningsStoreV2(t, ws, []learning.Entry{
+		{ID: "L001", SourceFeature: "F100", Category: learning.CategoryCodeQuality,
+			Content: "an idle candidate nobody ever used", Status: learning.StatusCandidate,
+			UsedCount: 0, CreatedAt: old},
+	})
+
+	featureID := "F900-test"
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatal(err)
+	}
+
+	HarvestLearnings(ws, featureID)
+
+	reloaded, err := learning.LoadStore(storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range reloaded.Entries {
+		if e.ID == "L001" {
+			t.Errorf("expected L001 pruned after aging to stale, still present with status=%s", e.Status)
+		}
 	}
 }
 

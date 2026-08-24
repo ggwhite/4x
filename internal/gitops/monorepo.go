@@ -3,6 +3,7 @@ package gitops
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -77,7 +78,7 @@ func (m *monoRepo) Commit(wtPath, featureID, msg string) error {
 	if out, err := exec.Command("git", "-C", wtPath, "commit", "-m", msg).CombinedOutput(); err != nil {
 		return fmt.Errorf("git commit: %s: %w", string(out), err)
 	}
-	fmt.Printf("  committed: %s\n", msg)
+	slog.Info("committed", "message", msg)
 	return nil
 }
 

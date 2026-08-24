@@ -78,6 +78,20 @@ func RunReviewTestParallel(ctx context.Context, r *Runner, s *protocol.State, pc
 
 	if runnerWs.Root != ws.Root {
 		SyncFeatureToWorktree(ws, runnerWs, featureID, round)
+		// SyncFeatureToWorktree 是 best-effort（void，複製失敗只 slog.Warn），因為它同時被
+		// 每 2 秒一次的 live sync 共用，那條路徑上單次瞬時失敗不該讓整個 run 中止。但這裡
+		// 複製的 parallelReview:true 是 tester 判斷「我在合法的並行執行中」的唯一依據
+		// （見上方 writeActiveState 註解），marker 沒真的落地會讓 tester 對 phase/role
+		// 錯位失去豁免依據而拒跑——這個特定用途需要比 live sync 更強的保證，故在此明確驗證
+		// 並重試一次，仍失敗才視為 hard error（F151 gap）。
+		if verr := verifyParallelMarkerSynced(runnerWs, featureID); verr != nil {
+			SyncFeatureToWorktree(ws, runnerWs, featureID, round)
+			if verr := verifyParallelMarkerSynced(runnerWs, featureID); verr != nil {
+				msg := fmt.Sprintf("parallel review marker failed to sync to worktree after retry: %v", verr)
+				StopState(ws, featureID, s, "sync-error", msg)
+				return false, fmt.Errorf("%s", msg)
+			}
+		}
 	}
 
 	type runOutcome struct {
@@ -382,4 +396,18 @@ func parallelNeedsAttention(r *Runner, featureID string, s *protocol.State, reas
 	}
 	LogSyncErr(ws.SyncFeatureStatus(featureID, protocol.PhaseNeedsAttention), featureID, protocol.PhaseNeedsAttention)
 	return false, nil
+}
+
+// verifyParallelMarkerSynced 讀 worktree 側的 state.json，確認 ParallelReview 旗標
+// 真的落地。SyncFeatureToWorktree 是 best-effort 複製（見呼叫端註解），本函式把「tester
+// 的並行豁免依據是否存在」這個特定用途的正確性顯式驗證出來，而非信任複製一定成功（F151 gap）。
+func verifyParallelMarkerSynced(wt *protocol.Workspace, featureID string) error {
+	wtState, err := wt.ReadState(featureID)
+	if err != nil {
+		return fmt.Errorf("read worktree state: %w", err)
+	}
+	if !wtState.ParallelReview {
+		return fmt.Errorf("worktree state.json missing parallelReview:true after sync")
+	}
+	return nil
 }

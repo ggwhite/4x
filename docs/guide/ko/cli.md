@@ -479,16 +479,20 @@ pending-review 기능을 완료로 표시합니다. 기능에 worktree(`.worktre
 4x learn list --status=active     # 상태 필터링 (active, candidate, stale, promoted)
 4x learn list --ineffective       # 비효과적 항목만 표시 (used≥3 + 30일 + 서로 다른 2개 이상 feature에서 유사 내용)
 4x learn list --ineffective-reset # v2 마이그레이션으로 ineffective 플래그가 초기화된 항목만 표시
-4x learn prune                    # 오래된 항목(90일 이상 미사용) 표시 및 삭제
-4x learn prune --dry-run          # 삭제 없이 오래된 항목 미리보기
+4x learn prune                    # 비활성 active를 candidate로 강등, 방치된 candidate를 stale로 노화, stale 삭제
+4x learn prune --dry-run          # 강등될 active와 삭제될 stale 미리보기 (쓰기 없음)
 4x learn promote <id>             # 학습 내역을 promoted로 표시 (유지하되 더 이상 주입 안 함)
 4x learn remove <id>              # 학습 내역 항목 삭제
+4x learn context                  # .4x/learnings-context.md 스냅샷 생성
 ```
 
 `learn add`는 기존 항목과의 유사성 검사(정확 일치, 정규화, Jaccard 유사도)를 수행합니다. 퍼지 중복이 발견되면 기존 ID를 보고하고 쓰기하지 않습니다.
 
 - 카테고리: `design`, `code-quality`, `testing`, `review`, `tooling`, `process`, `ops`
-- 상태: `active`(주입 가능), `candidate`(새 harvest, 크로스 피처 검증 대기), `stale`(90일 이상 미사용, 읽을 때 자동 표시), `promoted`(템플릿/지침으로 승격됨)
+- 상태: `active`(주입 가능), `candidate`(새 harvest, 크로스 피처 검증 대기), `stale`(노화됨, 삭제 대기), `promoted`(템플릿/지침으로 승격됨)
+- 각 learning은 `confidence` 점수(0~1)를 가지며, 항목이 역할 프롬프트에 주입될 때마다 강화됩니다. 프롬프트 주입과 `.4x/learnings-context.md`는 confidence를 최우선으로, 그다음 최신성, 그다음 ID 순으로 정렬하며, 토큰 예산에 도달하면 점수가 가장 낮은 항목부터 잘라냅니다. `confidence` 값이 없는 기존 항목은 `used_count`에서 산출한 결정론적 점수로 대체됩니다(읽을 때 다시 기록되지 않음)
+- `4x learn prune`은 먼저 비활성 active 항목을 `candidate`로 다시 강등합니다: `active` learning의 마지막 사용 시점(`last_used`, 없으면 `activated_at`, 그것도 없으면 `created_at`)이 `evolution.active_demote_days`(기본값 90일, 0으로 설정 시 강등 비활성화)보다 오래되면 삭제되는 대신 다시 `candidate`가 되어 candidate 노화 프로세스로 넘겨집니다. `promoted` 항목은 절대 강등되지 않습니다
+- 이어서 `4x learn prune`은 한 번도 사용되지 않은 candidate를 노화시킵니다: `used_count=0`인 `candidate`가 생성된 지 `evolution.candidate_max_idle_days`(기본값 30일, 0으로 설정 시 노화 비활성화)보다 오래되면 `stale`로 표시되어 샘플 풀이 실제로 수렴하도록 합니다. 노화는 `prune` 실행 시에만 발생하며 active/promoted 항목에는 영향을 주지 않습니다. `--dry-run`은 강등될 active와 노화/stale 처리될 candidate를 각각 미리보기만 하고 실제로 삭제하지 않습니다(같은 실행에서 방금 강등된 active가 삭제되는 일은 없습니다)
 - candidate 항목은 ID 뒤에 `*` 접미사가 표시됩니다. 다른 feature에서 독립적으로 생성되거나 Designer가 선택하면 자동으로 active로 승격됩니다
 - 비효과적 항목은 `active!` 상태로 표시됩니다: 3회 이상 주입, 30일 이상 경과, 그리고 유사한 내용(Jaccard ≥ 0.3)이 서로 다른 2개 이상의 feature에서 계속 발생하는 경우 — 세 조건을 모두 만족할 때 해당하며, 해당 learning이 반복 문제를 줄이지 못하고 있음을 뜻합니다. 이 플래그는 harvest마다 재평가되며 어느 한 조건이라도 성립하지 않으면 자동으로 해제됩니다. v2 형식 이전에 기록된 store는 최초 로드 시 `ineffective` 플래그가 한 번 초기화되며, 영향을 받은 항목은 `4x learn list --ineffective-reset`으로 조회할 수 있습니다(초기화는 다음 store 쓰기 시점에 디스크에 반영됩니다)
 - 활성 항목 100개의 소프트 상한에 도달하면 `4x learn prune` 권장 경고가 표시됩니다 — 항목은 절대 자동 삭제되지 않습니다

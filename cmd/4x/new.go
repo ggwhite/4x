@@ -25,6 +25,7 @@ func newNewCmd() *cobra.Command {
 		priority    int
 		profileName string
 		issueRefs   []string
+		sharedPaths []string
 	)
 
 	cmd := &cobra.Command{
@@ -111,6 +112,7 @@ Examples:
 				Rules:       rules,
 				Depends:     depends,
 				Repos:       repos,
+				SharedPaths: sharedPaths,
 				Profile:     profileName,
 				IDFormat:    idf,
 			}
@@ -203,6 +205,7 @@ Examples:
 	}
 
 	cmd.Flags().StringSliceVar(&repos, "repo", nil, "repos involved (can be repeated)")
+	cmd.Flags().StringArrayVar(&sharedPaths, "shared-paths", nil, "root-level shared path Coder may also touch outside declared repos (can be repeated, e.g. Dockerfile)")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 	cmd.Flags().StringVar(&customID, "id", "", "custom slug for feature ID (skips auto-truncation)")
 	cmd.Flags().StringVar(&desc, "desc", "", "feature description (defaults to name)")

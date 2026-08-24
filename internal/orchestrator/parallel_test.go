@@ -280,6 +280,57 @@ func TestRunReviewTestParallel_WorktreeSignalPropagation(t *testing.T) {
 	}
 }
 
+// TestRunReviewTestParallel_WorktreeMarkerSyncFailure 驗證 worktree 模式下，若
+// SyncFeatureToWorktree 無法把 parallelReview:true 真的複製進 worktree 的 state.json
+// （模擬：worktree 的 feature 目錄路徑被一個同名檔案佔用，MkdirAll 必然失敗），
+// RunReviewTestParallel 回傳 hard error 並把 feature 轉 needs-attention，而不是靜默放
+// reviewer/tester 在缺少並行豁免依據的情況下跑下去（F151 gap 的反面案例：若驗證漏接，
+// 這裡會誤判成功繼續往下跑，本測試會抓到）。
+func TestRunReviewTestParallel_WorktreeMarkerSyncFailure(t *testing.T) {
+	mainRoot := t.TempDir()
+	wtRoot := t.TempDir()
+	main, cfg, feature := setupParallelWS(t, mainRoot, "F151-syncfail")
+	if err := protocol.Init(wtRoot, cfg); err != nil {
+		t.Fatalf("Init worktree: %v", err)
+	}
+	wt := &protocol.Workspace{Root: wtRoot}
+
+	// 讓 worktree 側的 feature 目錄路徑被一個同名檔案佔用，SyncFeatureToWorktree 的
+	// os.MkdirAll(dstDir, ...) 必然失敗（best-effort，只 slog.Warn 不中止），state.json
+	// 永遠複製不進去。
+	featureDirPath := wt.FeatureDir(feature.ID)
+	if err := os.MkdirAll(filepath.Dir(featureDirPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(featureDirPath, []byte("blocking file"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	script := &parallelScript{ws: wt, featureID: feature.ID, round: 1, reviewerReports: []string{cleanPassReport}}
+	r := newParallelRunner(main, wt, cfg, feature, fakeConvergeOps{}, script)
+
+	s, _ := main.ReadState(feature.ID)
+	cont, err := RunReviewTestParallel(context.Background(), r, &s, resolvePC(t, cfg, feature))
+	if err == nil {
+		t.Fatal("RunReviewTestParallel returned nil error, want hard error when parallel marker never synced to worktree")
+	}
+	if cont {
+		t.Error("cont = true, want false on marker sync failure")
+	}
+	if script.reviewerCalls > 0 || script.testerCalls > 0 {
+		t.Error("reviewer/tester were invoked despite parallel marker never reaching the worktree")
+	}
+	// StopState 只設 Active=false + StopReason（不動 Phase），與同檔其他 resolveErr 型
+	// hard-error 路徑（如 model resolution 失敗）一致。
+	got, _ := main.ReadState(feature.ID)
+	if got.Active {
+		t.Error("main state.json active = true, want false after hard error")
+	}
+	if got.StopReason != "sync-error" {
+		t.Errorf("main state.json stopReason = %q, want sync-error", got.StopReason)
+	}
+}
+
 // TestRunReviewTestParallel_ConditionalConvergence 驗證 AC-7 + F151 review Finding 1：reviewer
 // 首次 CONDITIONAL PASS 時 RunReviewTestParallel 呼叫 runReviewConvergence，觸發 mini-coder ≥1 次
 // 並重跑 reviewer ≥1 次。收斂套用過程式碼變更，本輪 tester 平行產出的 verify.json 已 stale——

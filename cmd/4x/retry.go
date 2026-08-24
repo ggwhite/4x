@@ -135,6 +135,11 @@ func retryTransition(ws *protocol.Workspace, featureID string, explicitTarget pr
 		// 人為介入旗標：child 的 4x run recovery 要尊重此手動 phase，
 		// 不被 SmartResumePhase 依磁碟 artifacts 重推導覆蓋（RecoverState 消費後清除）。
 		transitioned.ManualPhase = true
+		// retry 是一次明確的人為介入，殘留的 no-progress 計數與 stop reason 不該延續到
+		// 新一輪執行——否則殘留值（如 =3）會讓 retry 後任何 phase 一啟動就被
+		// no-progress 偵測秒殺打回 needs-attention，須手動改 state.json 才能真正重試。
+		transitioned.ConsecutiveNoProgress = 0
+		transitioned.StopReason = ""
 		*cur = transitioned
 		return nil
 	})

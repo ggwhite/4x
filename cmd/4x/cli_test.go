@@ -36,6 +36,10 @@ func TestMain(m *testing.M) {
 func run4x(dir string, args ...string) (string, error) {
 	cmd := exec.Command(binaryPath, args...)
 	cmd.Dir = dir
+	// 剝除 FOURX_ 前綴的繼承環境變數，理由同 run4xIO（check_path_test.go）：避免在 4x
+	// runner 子程序內跑測試時，process 帶有的 FOURX_FEATURE_ID / FOURX_BIN 讓子程序
+	// 誤讀現行 dogfooding feature 的 state.json（F165）。
+	cmd.Env = stripFourxEnv(os.Environ())
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }

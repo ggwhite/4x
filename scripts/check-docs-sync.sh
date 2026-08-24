@@ -228,6 +228,14 @@ fi
 # (all languages + docs/architecture/) for each removed/renamed source path.
 NAME_STATUS=$(git diff --name-status "$BASE"...HEAD 2>/dev/null || git diff --name-status HEAD~1)
 RELOC_OUTPUT=""
+
+# 先收集整批待查路徑，而非邊讀邊對每一條各跑一次全樹 grep：批次刪檔（F183 實測 2790 檔）時
+# 原本的「每條路徑各跑一次 grep -rl 全樹掃描」是 O(n × docs 樹大小)，單次 make check-docs-sync
+# 耗時 7-8 分鐘，曾拖到 coder 耗盡回合未寫出 coder-report.md。改成對整棵 docs 樹只全樹掃描一次
+# （用全部路徑組成的 pattern 一次比對），之後每條路徑只在這次掃描結果（遠小於整棵樹）裡篩選。
+# 用換行分隔的純字串而非 bash 陣列：陣列在空集合 + set -u 下於部分 bash（如 macOS 內建的
+# bash 3.2）有已知相容性地雷，字串沒有這個問題。
+OLDPATHS=""
 while IFS=$'\t' read -r st old new; do
   case "$st" in
     D)  oldpath="$old" ;;
@@ -236,15 +244,45 @@ while IFS=$'\t' read -r st old new; do
   esac
   [ -z "$oldpath" ] && continue
   case "$oldpath" in docs/*) continue ;; esac
-  hits=$(grep -rlF "$oldpath" docs 2>/dev/null || true)
-  [ -z "$hits" ] && continue
-  RELOC_OUTPUT="${RELOC_OUTPUT}  $oldpath (removed/renamed) still referenced in:
+  OLDPATHS="${OLDPATHS}${oldpath}
 "
-  for h in $hits; do
-    RELOC_OUTPUT="${RELOC_OUTPUT}    - $h
-"
-  done
 done <<< "$NAME_STATUS"
+
+if [ -n "$OLDPATHS" ]; then
+  # 兩種「單次掃描」寫法都實測踩坑，記錄下來避免下次重蹈：
+  # (a) 逐條路徑各 spawn 一次 grep/cut/sort 子程序一樣是 O(n) 次外部程序呼叫——在 macOS 上
+  #     process spawn 本身開銷就很可觀，抵銷了省下的全樹掃描（實測 400 條路徑仍要 50+ 秒）。
+  # (b) 改成單一 `grep -rnFf` 一次比對整批 pattern，process 數降到 1，但 macOS 內建 BSD grep
+  #     （2.6.0-FreeBSD）的多 pattern -f 比對本身就是效能瓶頸，實測單這一次呼叫仍要 53 秒，
+  #     跟 (a) 幾乎沒差——瓶頸在 grep 的比對演算法，不在呼叫次數。
+  # 真正有效的寫法：完全不用 grep，讓一支 awk 直接讀整棵 docs 樹逐行跑 index() 比對（同一批
+  # fixture 上實測 10.9 秒，是 (a)/(b) 的 5-6 倍改善，換算到本 gap 原始回報的 2790 檔約可從
+  # 7-8 分鐘降到一分半內）。patterns 用 process substitution 當第一個 awk 輸入檔（FNR==NR
+  # 判斷是否還在讀這個檔），不用 -v 傳多行字串——部分 awk 實作（如 macOS 內建的 one-true-awk）
+  # 的 -v 不接受內嵌換行的變數值，會報 "newline in string" 直接中止。
+  PAIRS=$(find docs -type f -print0 2>/dev/null | xargs -0 awk '
+    FNR==NR { if ($0 != "") pats[++n] = $0; next }
+    {
+      for (i = 1; i <= n; i++) {
+        if (index($0, pats[i]) > 0) print pats[i] "\t" FILENAME
+      }
+    }
+  ' <(printf '%s' "$OLDPATHS") | sort -u)
+
+  if [ -n "$PAIRS" ]; then
+    prev=""
+    while IFS=$'\t' read -r oldpath file; do
+      [ -z "$oldpath" ] && continue
+      if [ "$oldpath" != "$prev" ]; then
+        RELOC_OUTPUT="${RELOC_OUTPUT}  $oldpath (removed/renamed) still referenced in:
+"
+        prev="$oldpath"
+      fi
+      RELOC_OUTPUT="${RELOC_OUTPUT}    - $file
+"
+    done <<< "$PAIRS"
+  fi
+fi
 
 if [ -n "$RELOC_OUTPUT" ]; then
   [ "$needs_update" -gt 0 ] && echo ""

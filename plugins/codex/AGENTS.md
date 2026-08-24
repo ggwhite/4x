@@ -66,6 +66,7 @@ This channel does not affect state, exit code, or guard checks — it is a candi
 ## Key rules
 
 - Stay within the feature's declared `repos` and `scope` paths
+- If the feature YAML declares `shared_paths`, you MAY also modify those root-level shared files (e.g. Dockerfile, docker-compose.yml) even though they are not inside any declared repo — they are explicitly allowed for this feature.
 - Do not invent requirements — escalate ambiguity
 - Do not modify artifacts from other roles
 - Run verify commands from test-strategy.yaml, do not substitute without escalating
