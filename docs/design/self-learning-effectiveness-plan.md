@@ -8,6 +8,8 @@
 
 **依賴:** F117 (candidate-status) — 需要 candidate→active 的升級記錄
 
+> **狀態更新（F187, 2026-08）**：本節描述的 `MarkIneffective()` 已改名為 `ReevaluateIneffective()`，判定條件 3 由「最近 3 個不同 feature 的 entries 中有同 category」改為「相似內容（Jaccard ≥ `RecurrenceSimilarityThreshold`）來自 ≥ `RecurrenceMinDistinctFeatures` 個相異 feature」，且旗標可雙向重評（條件不再成立即撤銷）。以下內容為 F119 當時的設計紀錄，實作以 `internal/learning/store.go` 為準。
+
 **Tech Stack:** Go 1.26+
 
 ---

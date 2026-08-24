@@ -520,7 +520,8 @@ The Acceptor of each feature writes a `retro-learnings.json`; the CLI harvests i
 4x learn list                     # list active + candidate learnings (default)
 4x learn list --category=testing  # filter by category
 4x learn list --status=active     # filter by status (active, candidate, stale, promoted)
-4x learn list --ineffective       # only show ineffective entries (used≥3 + 30d + same-category churn)
+4x learn list --ineffective       # only show ineffective entries (used≥3 + 30d + similar content from ≥2 distinct features)
+4x learn list --ineffective-reset # only show entries whose ineffective flag was reset by the v2 migration
 4x learn prune                    # demote inactive active → candidate; age idle candidates → stale; remove stale
 4x learn prune --dry-run          # preview demoted actives and stale removals without writing
 4x learn promote <id>             # mark a learning as promoted (kept but no longer injected)
@@ -537,7 +538,7 @@ The Acceptor of each feature writes a `retro-learnings.json`; the CLI harvests i
 - `4x learn prune` first demotes inactive active entries back to `candidate`: an `active` learning whose last hit (by `last_used`, else `activated_at`, else `created_at`) is older than `evolution.active_demote_days` (default 90; set to 0 to disable demotion) becomes a `candidate` again, handing it back to the candidate aging path rather than deleting it. `promoted` entries are never demoted
 - `4x learn prune` then ages out never-used candidates: a `candidate` with `used_count=0` created more than `evolution.candidate_max_idle_days` ago (default 30; set to 0 to disable aging) is marked `stale` so the sample pool actually converges. Aging only fires from `prune` and never touches active/promoted entries; `--dry-run` previews demoted actives and aged/stale candidates separately without removing them (a newly demoted active is never removed in the same run)
 - Candidate entries are shown with `*` suffix on ID; they auto-promote to active when independently produced by a different feature or selected by a Designer
-- Ineffective entries are active learnings marked with `active!` status when: used ≥ 3 times, activated > 30 days ago, and the same category keeps producing new learnings — indicating the learning isn't reducing repeat issues
+- Ineffective entries are active learnings marked with `active!` status when all three hold: used ≥ 3 times, activated > 30 days ago, and similar content (Jaccard ≥ 0.3) keeps arriving from at least 2 distinct features — indicating the learning isn't reducing repeat issues. The flag is re-evaluated on every harvest and is automatically cleared once any condition stops holding. Stores written before the v2 format had their `ineffective` flags reset once on first load; use `4x learn list --ineffective-reset` to see which entries were affected (the reset only lands on disk at the next store write)
 - A soft cap of 100 active entries triggers a warning suggesting `4x learn prune` — entries are never auto-deleted
 
 ---

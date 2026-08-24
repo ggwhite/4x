@@ -475,7 +475,8 @@ Dashboard 通过 `POST /api/force-done` 提供此功能，请求体为 `{id, rea
 4x learn list                     # 列出 active + candidate learnings（默认）
 4x learn list --category=testing  # 按类别过滤
 4x learn list --status=active     # 按状态过滤（active、candidate、stale、promoted）
-4x learn list --ineffective       # 仅显示无效条目（used≥3 + 30天 + 同类别持续产出）
+4x learn list --ineffective       # 仅显示无效条目（used≥3 + 30天 + 相似内容来自 ≥2 个不同 feature）
+4x learn list --ineffective-reset # 仅显示被 v2 迁移重置过 ineffective 标记的条目
 4x learn prune                    # 标记陈旧（>90 天未使用）条目并删除
 4x learn prune --dry-run          # 预览陈旧条目，不删除
 4x learn promote <id>             # 将某条 learning 标记为 promoted（保留但不再注入）
@@ -487,7 +488,7 @@ Dashboard 通过 `POST /api/force-done` 提供此功能，请求体为 `{id, rea
 - 类别：`design`、`code-quality`、`testing`、`review`、`tooling`、`process`、`ops`
 - 状态：`active`（可注入）、`candidate`（新 harvest，待跨 feature 验证）、`stale`（>90 天未使用，读取时自动标记）、`promoted`（已升级为模板/指令）
 - candidate 条目 ID 后带 `*` 标记；被不同 feature 独立产出或被 Designer 选中时自动升级为 active
-- 无效条目以 `active!` 状态显示：已注入 ≥ 3 次、激活 > 30 天、且同类别仍持续产出新 learning，表明该 learning 未能减少重复问题
+- 无效条目以 `active!` 状态显示：已注入 ≥ 3 次、激活 > 30 天、且相似内容（Jaccard ≥ 0.3）仍持续从 ≥ 2 个不同 feature 冒出——三个条件全部成立才算，表明该 learning 未能减少重复问题。该标记在每次 harvest 时重新评估，任一条件不再成立即自动撤销。v2 格式之前写入的 store 在首次载入时会把 `ineffective` 标记一次性重置为 false，可用 `4x learn list --ineffective-reset` 查询受影响的条目（重置要等下一次 store 写入才落盘）
 - 100 条活跃条目的软上限会触发建议运行 `4x learn prune` 的警告——不会自动删除条目
 
 ---

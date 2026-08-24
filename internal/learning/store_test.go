@@ -1,6 +1,7 @@
 package learning
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,8 +14,8 @@ func TestLoadStore_NotExist_ReturnsEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if s.Version != 1 {
-		t.Errorf("expected version 1, got %d", s.Version)
+	if s.Version != StoreVersion {
+		t.Errorf("expected version %d, got %d", StoreVersion, s.Version)
 	}
 	if len(s.Entries) != 0 {
 		t.Errorf("expected 0 entries, got %d", len(s.Entries))
@@ -45,7 +46,7 @@ func TestHarvest_AddsAndDeduplicates(t *testing.T) {
 		{Category: CategoryTesting, Content: "test edge cases"},
 		{Category: CategoryCodeQuality, Content: "always wrap errors"}, // 重複
 	}
-	added := s.Harvest("F042-test", "", learnings)
+	added, _ := s.Harvest("F042-test", "", learnings)
 	if added != 2 {
 		t.Errorf("expected 2 added, got %d", added)
 	}
@@ -71,7 +72,7 @@ func TestHarvest_SkipsDuplicateWithExisting(t *testing.T) {
 		{Category: CategoryCodeQuality, Content: "always wrap errors"},
 		{Category: CategoryTesting, Content: "new learning"},
 	}
-	added := s.Harvest("F043", "acceptor", learnings)
+	added, _ := s.Harvest("F043", "acceptor", learnings)
 	if added != 1 {
 		t.Errorf("expected 1 added, got %d", added)
 	}
@@ -90,7 +91,7 @@ func TestHarvest_SkipsInvalidCategory(t *testing.T) {
 		{Category: CategoryDesign, Content: "valid one"},
 		{Category: CategoryDesign, Content: ""}, // 空 content 也跳過
 	}
-	added := s.Harvest("F044", "coder", learnings)
+	added, _ := s.Harvest("F044", "coder", learnings)
 	if added != 1 {
 		t.Errorf("expected 1 added, got %d", added)
 	}
@@ -260,7 +261,7 @@ func TestHarvest_OpsCategory(t *testing.T) {
 	learnings := []RetroLearning{
 		{Category: CategoryOps, Content: "在 worktree 內跑 go build 前必須設 GOWORK=off"},
 	}
-	added := s.Harvest("F115-test", "coder", learnings)
+	added, _ := s.Harvest("F115-test", "coder", learnings)
 	if added != 1 {
 		t.Errorf("expected 1 added for ops category, got %d", added)
 	}
@@ -389,7 +390,7 @@ func TestHarvest_FuzzyDedup_NormalizedMatch(t *testing.T) {
 	s.Harvest("F060", "coder", []RetroLearning{
 		{Category: CategoryCodeQuality, Content: "Always wrap errors with context"},
 	})
-	added := s.Harvest("F061", "reviewer", []RetroLearning{
+	added, _ := s.Harvest("F061", "reviewer", []RetroLearning{
 		{Category: CategoryCodeQuality, Content: "always wrap errors with context"},
 	})
 	if added != 0 {
@@ -405,7 +406,7 @@ func TestHarvest_FuzzyDedup_JaccardMatch(t *testing.T) {
 	s.Harvest("F060", "coder", []RetroLearning{
 		{Category: CategoryCodeQuality, Content: "always run gofmt and go vet before commit"},
 	})
-	added := s.Harvest("F061", "reviewer", []RetroLearning{
+	added, _ := s.Harvest("F061", "reviewer", []RetroLearning{
 		{Category: CategoryCodeQuality, Content: "run gofmt and go vet before every commit"},
 	})
 	if added != 0 {
@@ -418,7 +419,7 @@ func TestHarvest_FuzzyDedup_DifferentContent(t *testing.T) {
 	s.Harvest("F060", "coder", []RetroLearning{
 		{Category: CategoryCodeQuality, Content: "always run gofmt before commit"},
 	})
-	added := s.Harvest("F061", "tester", []RetroLearning{
+	added, _ := s.Harvest("F061", "tester", []RetroLearning{
 		{Category: CategoryTesting, Content: "test database migrations with real schema"},
 	})
 	if added != 1 {
@@ -510,7 +511,7 @@ func TestParseRetroFile(t *testing.T) {
 
 func TestHarvest_NewEntryIsCandidate(t *testing.T) {
 	s := Store{Version: 1}
-	added := s.Harvest("F117-test", "coder", []RetroLearning{
+	added, _ := s.Harvest("F117-test", "coder", []RetroLearning{
 		{Category: CategoryCodeQuality, Content: "new learning for candidate test"},
 	})
 	if added != 1 {
@@ -530,7 +531,7 @@ func TestHarvest_CrossFeatureFuzzyPromotes(t *testing.T) {
 		t.Fatalf("precondition: expected candidate, got %s", s.Entries[0].Status)
 	}
 
-	added := s.Harvest("F101", "reviewer", []RetroLearning{
+	added, _ := s.Harvest("F101", "reviewer", []RetroLearning{
 		{Category: CategoryCodeQuality, Content: "run gofmt and go vet before every commit"},
 	})
 	if added != 0 {
@@ -547,7 +548,7 @@ func TestHarvest_SameFeatureFuzzySkips(t *testing.T) {
 		{Category: CategoryCodeQuality, Content: "always run gofmt and go vet before commit"},
 	})
 
-	added := s.Harvest("F100", "reviewer", []RetroLearning{
+	added, _ := s.Harvest("F100", "reviewer", []RetroLearning{
 		{Category: CategoryCodeQuality, Content: "run gofmt and go vet before every commit"},
 	})
 	if added != 0 {
@@ -632,40 +633,42 @@ func TestHarvest_CrossFeaturePromotion_SetsActivatedAt(t *testing.T) {
 	}
 }
 
-func TestMarkIneffective_MeetsAllConditions(t *testing.T) {
+// recurrenceEvidence 產生「與 target 內容相似（Jaccard >= RecurrenceSimilarityThreshold）、
+// 同 category、來自相異 feature」的 candidate 條目，供 ReevaluateIneffective 的 recurrence 判定使用。
+func recurrenceEvidence(ids, features []string, cat Category) []Entry {
+	out := make([]Entry, 0, len(ids))
+	for i := range ids {
+		out = append(out, Entry{
+			ID: ids[i], Status: StatusCandidate, Category: cat,
+			Content:       "wrap errors from " + features[i] + " helper",
+			SourceFeature: features[i], CreatedAt: time.Now(),
+		})
+	}
+	return out
+}
+
+func TestReevaluateIneffective_MeetsAllConditions(t *testing.T) {
 	old := time.Now().Add(-60 * 24 * time.Hour)
-	s := Store{Version: 1, Entries: []Entry{
+	s := Store{Version: 1, Entries: append([]Entry{
 		{ID: "L001", Status: StatusActive, Category: CategoryCodeQuality, Content: "wrap errors",
 			UsedCount: 5, ActivatedAt: old, SourceFeature: "F001", CreatedAt: old},
-		{ID: "L010", Status: StatusCandidate, Category: CategoryCodeQuality, Content: "new from F050",
-			SourceFeature: "F050", CreatedAt: time.Now()},
-		{ID: "L011", Status: StatusCandidate, Category: CategoryCodeQuality, Content: "new from F051",
-			SourceFeature: "F051", CreatedAt: time.Now()},
-		{ID: "L012", Status: StatusCandidate, Category: CategoryCodeQuality, Content: "new from F052",
-			SourceFeature: "F052", CreatedAt: time.Now()},
-	}}
-	marked := s.MarkIneffective()
-	if marked != 1 {
-		t.Errorf("expected 1 marked, got %d", marked)
+	}, recurrenceEvidence([]string{"L010", "L011", "L012"}, []string{"F050", "F051", "F052"}, CategoryCodeQuality)...)}
+	marked, reset := s.ReevaluateIneffective()
+	if marked != 1 || reset != 0 {
+		t.Errorf("expected marked=1 reset=0, got marked=%d reset=%d", marked, reset)
 	}
 	if !s.Entries[0].Ineffective {
 		t.Error("L001 should be marked ineffective")
 	}
 }
 
-func TestMarkIneffective_NotEnoughUsage(t *testing.T) {
+func TestReevaluateIneffective_NotEnoughUsage(t *testing.T) {
 	old := time.Now().Add(-60 * 24 * time.Hour)
-	s := Store{Version: 1, Entries: []Entry{
+	s := Store{Version: 1, Entries: append([]Entry{
 		{ID: "L001", Status: StatusActive, Category: CategoryCodeQuality, Content: "wrap errors",
 			UsedCount: 2, ActivatedAt: old, SourceFeature: "F001", CreatedAt: old},
-		{ID: "L010", Status: StatusCandidate, Category: CategoryCodeQuality, Content: "new from F050",
-			SourceFeature: "F050", CreatedAt: time.Now()},
-		{ID: "L011", Status: StatusCandidate, Category: CategoryCodeQuality, Content: "new from F051",
-			SourceFeature: "F051", CreatedAt: time.Now()},
-		{ID: "L012", Status: StatusCandidate, Category: CategoryCodeQuality, Content: "new from F052",
-			SourceFeature: "F052", CreatedAt: time.Now()},
-	}}
-	marked := s.MarkIneffective()
+	}, recurrenceEvidence([]string{"L010", "L011", "L012"}, []string{"F050", "F051", "F052"}, CategoryCodeQuality)...)}
+	marked, _ := s.ReevaluateIneffective()
 	if marked != 0 {
 		t.Errorf("expected 0 marked (UsedCount < 3), got %d", marked)
 	}
@@ -674,71 +677,77 @@ func TestMarkIneffective_NotEnoughUsage(t *testing.T) {
 	}
 }
 
-func TestMarkIneffective_TooRecent(t *testing.T) {
+func TestReevaluateIneffective_TooRecent(t *testing.T) {
 	recent := time.Now().Add(-10 * 24 * time.Hour)
-	s := Store{Version: 1, Entries: []Entry{
+	s := Store{Version: 1, Entries: append([]Entry{
 		{ID: "L001", Status: StatusActive, Category: CategoryCodeQuality, Content: "wrap errors",
 			UsedCount: 5, ActivatedAt: recent, SourceFeature: "F001", CreatedAt: recent},
-		{ID: "L010", Status: StatusCandidate, Category: CategoryCodeQuality, Content: "new from F050",
-			SourceFeature: "F050", CreatedAt: time.Now()},
-		{ID: "L011", Status: StatusCandidate, Category: CategoryCodeQuality, Content: "new from F051",
-			SourceFeature: "F051", CreatedAt: time.Now()},
-		{ID: "L012", Status: StatusCandidate, Category: CategoryCodeQuality, Content: "new from F052",
-			SourceFeature: "F052", CreatedAt: time.Now()},
-	}}
-	marked := s.MarkIneffective()
+	}, recurrenceEvidence([]string{"L010", "L011", "L012"}, []string{"F050", "F051", "F052"}, CategoryCodeQuality)...)}
+	marked, _ := s.ReevaluateIneffective()
 	if marked != 0 {
 		t.Errorf("expected 0 marked (too recent), got %d", marked)
 	}
 }
 
-func TestMarkIneffective_NoCategoryContinuation(t *testing.T) {
+func TestReevaluateIneffective_NoCategoryContinuation(t *testing.T) {
 	old := time.Now().Add(-60 * 24 * time.Hour)
 	s := Store{Version: 1, Entries: []Entry{
 		{ID: "L001", Status: StatusActive, Category: CategoryCodeQuality, Content: "wrap errors",
 			UsedCount: 5, ActivatedAt: old, SourceFeature: "F001", CreatedAt: old},
-		{ID: "L010", Status: StatusCandidate, Category: CategoryTesting, Content: "test from F050",
+		{ID: "L010", Status: StatusCandidate, Category: CategoryTesting, Content: "wrap errors from F050 helper",
 			SourceFeature: "F050", CreatedAt: time.Now()},
-		{ID: "L011", Status: StatusCandidate, Category: CategoryDesign, Content: "design from F051",
+		{ID: "L011", Status: StatusCandidate, Category: CategoryDesign, Content: "wrap errors from F051 helper",
 			SourceFeature: "F051", CreatedAt: time.Now()},
-		{ID: "L012", Status: StatusCandidate, Category: CategoryOps, Content: "ops from F052",
+		{ID: "L012", Status: StatusCandidate, Category: CategoryOps, Content: "wrap errors from F052 helper",
 			SourceFeature: "F052", CreatedAt: time.Now()},
 	}}
-	marked := s.MarkIneffective()
+	marked, _ := s.ReevaluateIneffective()
 	if marked != 0 {
-		t.Errorf("expected 0 marked (no same-category continuation), got %d", marked)
+		t.Errorf("expected 0 marked (no same-category recurrence), got %d", marked)
 	}
 }
 
-func TestMarkIneffective_FallsBackToCreatedAt(t *testing.T) {
+func TestReevaluateIneffective_FallsBackToCreatedAt(t *testing.T) {
 	old := time.Now().Add(-60 * 24 * time.Hour)
-	s := Store{Version: 1, Entries: []Entry{
+	s := Store{Version: 1, Entries: append([]Entry{
 		{ID: "L001", Status: StatusActive, Category: CategoryCodeQuality, Content: "wrap errors",
 			UsedCount: 5, CreatedAt: old, SourceFeature: "F001"},
-		{ID: "L010", Status: StatusCandidate, Category: CategoryCodeQuality, Content: "new from F050",
-			SourceFeature: "F050", CreatedAt: time.Now()},
-		{ID: "L011", Status: StatusCandidate, Category: CategoryCodeQuality, Content: "new from F051",
-			SourceFeature: "F051", CreatedAt: time.Now()},
-		{ID: "L012", Status: StatusCandidate, Category: CategoryCodeQuality, Content: "new from F052",
-			SourceFeature: "F052", CreatedAt: time.Now()},
-	}}
-	marked := s.MarkIneffective()
+	}, recurrenceEvidence([]string{"L010", "L011", "L012"}, []string{"F050", "F051", "F052"}, CategoryCodeQuality)...)}
+	marked, _ := s.ReevaluateIneffective()
 	if marked != 1 {
 		t.Errorf("expected 1 marked (fallback to CreatedAt), got %d", marked)
 	}
 }
 
-func TestMarkIneffective_AlreadyMarked(t *testing.T) {
+// TestReevaluateIneffective_AlreadyMarked 驗證雙向重評對「已標記」條目的處置：
+// 證據仍成立則維持 true 且不重複計數；證據不成立（只剩單一相異 feature）則撤銷旗標並計入 reset。
+func TestReevaluateIneffective_AlreadyMarked(t *testing.T) {
 	old := time.Now().Add(-60 * 24 * time.Hour)
-	s := Store{Version: 1, Entries: []Entry{
+
+	// 證據仍成立：兩個相異 feature 提供相似內容。
+	stillValid := Store{Version: 1, Entries: append([]Entry{
 		{ID: "L001", Status: StatusActive, Category: CategoryCodeQuality, Content: "wrap errors",
 			UsedCount: 5, ActivatedAt: old, SourceFeature: "F001", Ineffective: true},
-		{ID: "L010", Status: StatusCandidate, Category: CategoryCodeQuality, Content: "new from F050",
-			SourceFeature: "F050", CreatedAt: time.Now()},
-	}}
-	marked := s.MarkIneffective()
-	if marked != 0 {
-		t.Errorf("already-marked entry should not be counted again, got %d", marked)
+	}, recurrenceEvidence([]string{"L010", "L011"}, []string{"F050", "F051"}, CategoryCodeQuality)...)}
+	marked, reset := stillValid.ReevaluateIneffective()
+	if marked != 0 || reset != 0 {
+		t.Errorf("already-marked entry with standing evidence: marked=%d reset=%d, want 0/0", marked, reset)
+	}
+	if !stillValid.Entries[0].Ineffective {
+		t.Error("L001 should stay ineffective while evidence stands")
+	}
+
+	// 證據不成立：只有單一相異 feature，未達 RecurrenceMinDistinctFeatures。
+	evidenceGone := Store{Version: 1, Entries: append([]Entry{
+		{ID: "L001", Status: StatusActive, Category: CategoryCodeQuality, Content: "wrap errors",
+			UsedCount: 5, ActivatedAt: old, SourceFeature: "F001", Ineffective: true},
+	}, recurrenceEvidence([]string{"L010"}, []string{"F050"}, CategoryCodeQuality)...)}
+	marked, reset = evidenceGone.ReevaluateIneffective()
+	if marked != 0 || reset != 1 {
+		t.Errorf("already-marked entry with evidence gone: marked=%d reset=%d, want 0/1", marked, reset)
+	}
+	if evidenceGone.Entries[0].Ineffective {
+		t.Error("L001 should be reset to false when evidence is gone")
 	}
 }
 
@@ -779,8 +788,8 @@ func TestEntryConfidenceRoundTripAndLegacyFallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("legacy load failed: %v", err)
 	}
-	if ls.Version != 1 {
-		t.Errorf("version bumped by legacy load: %d", ls.Version)
+	if ls.Version != StoreVersion {
+		t.Errorf("legacy load should migrate to v%d, got %d", StoreVersion, ls.Version)
 	}
 	e := ls.Entries[0]
 	if e.Confidence != 0 {
@@ -862,8 +871,10 @@ func TestDemoteInactiveActive(t *testing.T) {
 	})
 }
 
-// TestLoadStoreLegacyConfidenceVersion 驗證舊 store（無 confidence）經 load/save 版本仍為 1，不因遷移失敗（AC-11）。
-func TestLoadStoreLegacyConfidenceVersion(t *testing.T) {
+// TestLoadStore_LegacyConfidenceMigratesToV2 驗證舊 store（無 confidence 欄位）載入時會由 F187 的
+// v1→v2 migration 抬升版本；F119 當初「version 須維持 1」的守門意圖已由 F187 取代。
+// confidence 欄位缺席仍須以零值載入且不報錯——migration 只動 Version 與 Ineffective，不波及 Confidence。
+func TestLoadStore_LegacyConfidenceMigratesToV2(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "learnings.json")
 	legacy := `{"version":1,"entries":[{"id":"L001","category":"testing","content":"x","created_at":"2024-01-01T00:00:00Z","used_count":0,"status":"candidate"}]}`
@@ -874,18 +885,25 @@ func TestLoadStoreLegacyConfidenceVersion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Version != 1 {
-		t.Errorf("version = %d, want 1", s.Version)
+	if s.Version != StoreVersion {
+		t.Errorf("version = %d, want %d", s.Version, StoreVersion)
+	}
+	if s.Entries[0].Confidence != 0 {
+		t.Errorf("legacy confidence should stay 0 after migration, got %v", s.Entries[0].Confidence)
 	}
 	if err := s.Save(path); err != nil {
 		t.Fatal(err)
 	}
+	// 重新載入證明 migration 冪等：版本已是 v2，不會第二次觸發。
 	reloaded, err := LoadStore(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reloaded.Version != 1 {
-		t.Errorf("reloaded version = %d, want 1", reloaded.Version)
+	if reloaded.Version != StoreVersion {
+		t.Errorf("reloaded version = %d, want %d", reloaded.Version, StoreVersion)
+	}
+	if reloaded.MigrationApplied() {
+		t.Error("migration should not re-trigger on an already-v2 store")
 	}
 }
 
@@ -894,7 +912,7 @@ func TestLoadStoreLegacyConfidenceVersion(t *testing.T) {
 func TestHarvestInitialAndFuzzyPromotionConfidence(t *testing.T) {
 	// 新 candidate 初始 confidence。
 	s := Store{Version: 1}
-	added := s.Harvest("F001", "coder", []RetroLearning{
+	added, _ := s.Harvest("F001", "coder", []RetroLearning{
 		{Category: CategoryCodeQuality, Content: "wrap errors with context always"},
 	})
 	if added != 1 {
@@ -926,4 +944,317 @@ func TestHarvestInitialAndFuzzyPromotionConfidence(t *testing.T) {
 	if e.Confidence == 0 {
 		t.Error("promoted candidate must not keep zero-value confidence")
 	}
+}
+
+// distinctHarvestContents 回傳彼此 Jaccard 遠低於 FuzzyDupThreshold 的 learning 內容，
+// 讓桶上限測試不會被 Harvest 的三層去重先攔下而測不到第四層。
+func distinctHarvestContents() []string {
+	return []string{
+		"always run gofmt before committing go code",
+		"prefer table driven tests for enum coverage",
+		"wrap errors with context at every boundary",
+		"avoid global mutable state inside packages",
+		"document exported symbols with godoc comments",
+		"check goroutine leaks in server integration suites",
+		"pin dependency versions in the module file",
+		"measure allocations before optimizing hot loops",
+	}
+}
+
+// reviewLearnings 把 contents 包成 category=review 的 RetroLearning 列表。
+func reviewLearnings(contents []string) []RetroLearning {
+	out := make([]RetroLearning, 0, len(contents))
+	for _, c := range contents {
+		out = append(out, RetroLearning{Category: CategoryReview, Content: c})
+	}
+	return out
+}
+
+// recurrenceTarget 回傳 recurrence 測試共用的 target：active、process、UsedCount=5、
+// ActivatedAt 為 60 天前、SourceFeature=F100。
+func recurrenceTarget() Entry {
+	old := time.Now().Add(-60 * 24 * time.Hour)
+	return Entry{
+		ID: "L001", Status: StatusActive, Category: CategoryProcess,
+		Content: "alpha beta gamma delta", UsedCount: 5,
+		ActivatedAt: old, CreatedAt: old, SourceFeature: "F100",
+	}
+}
+
+// TestHasRecurrenceEvidence_SingleFeatureNotEnough 驗證所有候選證據都來自同一個 SourceFeature 時
+// 不構成 recurrence——舊規則只看「最近 3 筆有同 category」，單一 feature 一輪吐出多條就會誤判（AC-1）。
+func TestHasRecurrenceEvidence_SingleFeatureNotEnough(t *testing.T) {
+	entries := []Entry{recurrenceTarget()}
+	for i := 0; i < 6; i++ {
+		entries = append(entries, Entry{
+			ID: fmt.Sprintf("L1%02d", i), Status: StatusCandidate, Category: CategoryProcess,
+			Content:       fmt.Sprintf("alpha beta gamma epsilon-%d", i),
+			SourceFeature: "F200", CreatedAt: time.Now().Add(-24 * time.Hour),
+		})
+	}
+	s := Store{Version: StoreVersion, Entries: entries}
+
+	marked, _ := s.ReevaluateIneffective()
+	if marked != 0 {
+		t.Errorf("marked = %d, want 0 (all evidence from a single source_feature)", marked)
+	}
+	if s.Entries[0].Ineffective {
+		t.Error("target should not be marked ineffective")
+	}
+}
+
+// TestHasRecurrenceEvidence_SameCategoryDissimilarContent 驗證同 category 但內容不相似不構成
+// recurrence。3 條證據來自相異 feature 且 status 明寫為 candidate，唯一不成立的條件就是 Jaccard
+// < RecurrenceSimilarityThreshold——status 若留零值會被 status 過濾先擋掉，測不到相似度閘門（AC-2）。
+func TestHasRecurrenceEvidence_SameCategoryDissimilarContent(t *testing.T) {
+	entries := []Entry{recurrenceTarget()}
+	for i, feature := range []string{"F201", "F202", "F203"} {
+		entries = append(entries, Entry{
+			ID: fmt.Sprintf("L2%02d", i), Status: StatusCandidate, Category: CategoryProcess,
+			Content:       fmt.Sprintf("zeta eta theta iota-%d", i),
+			SourceFeature: feature, CreatedAt: time.Now().Add(-24 * time.Hour),
+		})
+	}
+	s := Store{Version: StoreVersion, Entries: entries}
+
+	marked, _ := s.ReevaluateIneffective()
+	if marked != 0 {
+		t.Errorf("marked = %d, want 0 (same category but dissimilar content)", marked)
+	}
+	if s.Entries[0].Ineffective {
+		t.Error("target should not be marked ineffective")
+	}
+}
+
+// TestHasRecurrenceEvidence_TwoDistinctFeaturesSimilarContent 驗證恰好
+// RecurrenceMinDistinctFeatures 個相異 feature 各提供一條同 category、相似內容的條目時
+// recurrence 成立（AC-3）。
+func TestHasRecurrenceEvidence_TwoDistinctFeaturesSimilarContent(t *testing.T) {
+	entries := []Entry{recurrenceTarget()}
+	for i, feature := range []string{"F301", "F302"} {
+		entries = append(entries, Entry{
+			ID: fmt.Sprintf("L3%02d", i), Status: StatusCandidate, Category: CategoryProcess,
+			Content:       fmt.Sprintf("alpha beta gamma epsilon-%d", i),
+			SourceFeature: feature, CreatedAt: time.Now().Add(-24 * time.Hour),
+		})
+	}
+	s := Store{Version: StoreVersion, Entries: entries}
+
+	marked, reset := s.ReevaluateIneffective()
+	if marked != 1 || reset != 0 {
+		t.Errorf("marked=%d reset=%d, want 1/0", marked, reset)
+	}
+	if !s.Entries[0].Ineffective {
+		t.Error("target should be marked ineffective when recurrence evidence stands")
+	}
+}
+
+// TestRecurrenceThreshold_BelowFuzzyDupThreshold 釘住兩個門檻的大小關係：harvest 期去重保證
+// store 內任兩條 Jaccard < FuzzyDupThreshold，recurrence 門檻若被調到相撞就永遠不成立（AC-4）。
+func TestRecurrenceThreshold_BelowFuzzyDupThreshold(t *testing.T) {
+	recurrence, fuzzy := float64(RecurrenceSimilarityThreshold), float64(FuzzyDupThreshold)
+	if recurrence >= fuzzy {
+		t.Errorf("RecurrenceSimilarityThreshold (%v) must be strictly below FuzzyDupThreshold (%v)", recurrence, fuzzy)
+	}
+	if RecurrenceMinDistinctFeatures < 2 {
+		t.Errorf("RecurrenceMinDistinctFeatures = %d, want >= 2", RecurrenceMinDistinctFeatures)
+	}
+}
+
+// TestReevaluateIneffective_ResetsWhenEvidenceGone 驗證 Ineffective 可逆：三條件不再全部成立時
+// 旗標被撤銷並計入 reset，而非停留在終態（AC-5）。
+func TestReevaluateIneffective_ResetsWhenEvidenceGone(t *testing.T) {
+	old := time.Now().Add(-60 * 24 * time.Hour)
+	s := Store{Version: StoreVersion, Entries: []Entry{
+		{ID: "L001", Status: StatusActive, Category: CategoryProcess, Content: "alpha beta gamma delta",
+			UsedCount: 5, ActivatedAt: old, CreatedAt: old, SourceFeature: "F100", Ineffective: true},
+	}}
+
+	marked, reset := s.ReevaluateIneffective()
+	if marked != 0 || reset != 1 {
+		t.Errorf("marked=%d reset=%d, want 0/1", marked, reset)
+	}
+	if s.Entries[0].Ineffective {
+		t.Error("ineffective flag should be reset once evidence is gone")
+	}
+}
+
+// TestLoadStore_MigratesIneffectiveReset 驗證 v1 store 載入時執行一次性重設：
+// 所有 ineffective 條目轉 false、ID 依原始順序寫入 IneffectiveResetIDs、版本抬升、MigrationApplied 為 true（AC-6）。
+func TestLoadStore_MigratesIneffectiveReset(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "learnings.json")
+	fixture := `{"version":1,"entries":[
+		{"id":"L001","source_feature":"F1","category":"ops","content":"a one","created_at":"2024-01-01T00:00:00Z","used_count":5,"status":"active","ineffective":true},
+		{"id":"L002","source_feature":"F2","category":"ops","content":"b two","created_at":"2024-01-01T00:00:00Z","used_count":1,"status":"active"},
+		{"id":"L003","source_feature":"F3","category":"ops","content":"c three","created_at":"2024-01-01T00:00:00Z","used_count":5,"status":"active","ineffective":true},
+		{"id":"L004","source_feature":"F4","category":"ops","content":"d four","created_at":"2024-01-01T00:00:00Z","used_count":0,"status":"candidate"},
+		{"id":"L005","source_feature":"F5","category":"ops","content":"e five","created_at":"2024-01-01T00:00:00Z","used_count":5,"status":"active","ineffective":true}
+	]}`
+	if err := os.WriteFile(path, []byte(fixture), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	s, err := LoadStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Version != StoreVersion {
+		t.Errorf("version = %d, want %d", s.Version, StoreVersion)
+	}
+	if !s.MigrationApplied() {
+		t.Error("MigrationApplied() = false, want true for a v1 store")
+	}
+	for _, e := range s.Entries {
+		if e.Ineffective {
+			t.Errorf("%s should have been reset to ineffective=false", e.ID)
+		}
+	}
+	want := []string{"L001", "L003", "L005"}
+	if len(s.IneffectiveResetIDs) != len(want) {
+		t.Fatalf("IneffectiveResetIDs = %v, want %v", s.IneffectiveResetIDs, want)
+	}
+	for i, id := range want {
+		if s.IneffectiveResetIDs[i] != id {
+			t.Errorf("IneffectiveResetIDs[%d] = %s, want %s", i, s.IneffectiveResetIDs[i], id)
+		}
+	}
+}
+
+// TestLoadStore_V2NoMigration 驗證 v2 store 不重跑重設：ineffective 維持 true、
+// IneffectiveResetIDs 維持磁碟原值、MigrationApplied 為 false（AC-7）。
+func TestLoadStore_V2NoMigration(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "learnings.json")
+	fixture := `{"version":2,"entries":[
+		{"id":"L001","source_feature":"F1","category":"ops","content":"a one","created_at":"2024-01-01T00:00:00Z","used_count":5,"status":"active","ineffective":true}
+	],"ineffective_reset_ids":["L900"]}`
+	if err := os.WriteFile(path, []byte(fixture), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	s, err := LoadStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.MigrationApplied() {
+		t.Error("MigrationApplied() = true, want false for a v2 store")
+	}
+	if !s.Entries[0].Ineffective {
+		t.Error("v2 store must keep ineffective=true untouched")
+	}
+	if len(s.IneffectiveResetIDs) != 1 || s.IneffectiveResetIDs[0] != "L900" {
+		t.Errorf("IneffectiveResetIDs = %v, want [L900]", s.IneffectiveResetIDs)
+	}
+}
+
+// TestLoadStore_LegacyFieldsRoundTrip 驗證含全部現行 Entry JSON 欄位名的 v1 fixture 走
+// LoadStore → Save → LoadStore 後，除 Version（1→2）與 Ineffective（migration 轉 false）外
+// 每個欄位值都與原始 fixture 相同，且不出現未知欄位解析錯誤（AC-8）。
+func TestLoadStore_LegacyFieldsRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "learnings.json")
+	fixture := `{"version":1,"entries":[{"id":"L001","source_feature":"F100","source_role":"coder","category":"design","content":"legacy full field entry","created_at":"2024-01-01T00:00:00Z","activated_at":"2024-02-01T00:00:00Z","last_used":"2024-03-01T00:00:00Z","used_count":4,"status":"active","ineffective":true,"confidence":0.55}]}`
+	if err := os.WriteFile(path, []byte(fixture), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := LoadStore(path)
+	if err != nil {
+		t.Fatalf("legacy load failed: %v", err)
+	}
+	if err := first.Save(path); err != nil {
+		t.Fatal(err)
+	}
+	s, err := LoadStore(path)
+	if err != nil {
+		t.Fatalf("reload failed: %v", err)
+	}
+
+	if s.Version != StoreVersion {
+		t.Errorf("version = %d, want %d", s.Version, StoreVersion)
+	}
+	if len(s.Entries) != 1 {
+		t.Fatalf("entries = %d, want 1", len(s.Entries))
+	}
+	e := s.Entries[0]
+	mustTime := func(v string) time.Time {
+		ts, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ts
+	}
+	if e.ID != "L001" || e.SourceFeature != "F100" || e.SourceRole != "coder" {
+		t.Errorf("identity fields lost: %+v", e)
+	}
+	if e.Category != CategoryDesign || e.Content != "legacy full field entry" {
+		t.Errorf("category/content lost: %+v", e)
+	}
+	if !e.CreatedAt.Equal(mustTime("2024-01-01T00:00:00Z")) {
+		t.Errorf("created_at = %v", e.CreatedAt)
+	}
+	if !e.ActivatedAt.Equal(mustTime("2024-02-01T00:00:00Z")) {
+		t.Errorf("activated_at = %v", e.ActivatedAt)
+	}
+	if !e.LastUsed.Equal(mustTime("2024-03-01T00:00:00Z")) {
+		t.Errorf("last_used = %v", e.LastUsed)
+	}
+	if e.UsedCount != 4 || e.Status != StatusActive || e.Confidence != 0.55 {
+		t.Errorf("used_count/status/confidence lost: %+v", e)
+	}
+	if e.Ineffective {
+		t.Error("ineffective should be false after the v1→v2 migration")
+	}
+}
+
+// TestHarvest_CapsPerFeatureCategory 驗證單一 (SourceFeature, Category) 桶最多寫入
+// MaxPerFeatureCategory 條，超出者只計入 skipped 不寫入（AC-12）。
+func TestHarvest_CapsPerFeatureCategory(t *testing.T) {
+	s := Store{Version: StoreVersion}
+	added, skipped := s.Harvest("F300", "coder", reviewLearnings(distinctHarvestContents()))
+	if added != MaxPerFeatureCategory {
+		t.Errorf("added = %d, want %d", added, MaxPerFeatureCategory)
+	}
+	if want := len(distinctHarvestContents()) - MaxPerFeatureCategory; skipped != want {
+		t.Errorf("skipped = %d, want %d", skipped, want)
+	}
+	if len(s.Entries) != MaxPerFeatureCategory {
+		t.Errorf("entries = %d, want %d", len(s.Entries), MaxPerFeatureCategory)
+	}
+}
+
+// TestHarvest_CapCountsExistingEntries 驗證桶上限對既有 store 條目一併計數、跨多次 Harvest
+// 呼叫仍有效，且桶以 SourceFeature 分開計（AC-13）。
+func TestHarvest_CapCountsExistingEntries(t *testing.T) {
+	contents := distinctHarvestContents()
+	s := Store{Version: StoreVersion}
+
+	if added, skipped := s.Harvest("F300", "coder", reviewLearnings(contents[:2])); added != 2 || skipped != 0 {
+		t.Fatalf("first harvest: added=%d skipped=%d, want 2/0", added, skipped)
+	}
+	added, skipped := s.Harvest("F300", "reviewer", reviewLearnings(contents[2:5]))
+	if added != 1 || skipped != 2 {
+		t.Errorf("second harvest: added=%d skipped=%d, want 1/2", added, skipped)
+	}
+	if got := countBucket(s, "F300", CategoryReview); got != MaxPerFeatureCategory {
+		t.Errorf("(F300, review) bucket = %d, want %d", got, MaxPerFeatureCategory)
+	}
+
+	added, skipped = s.Harvest("F301", "coder", reviewLearnings(contents[5:8]))
+	if added != 3 || skipped != 0 {
+		t.Errorf("different feature harvest: added=%d skipped=%d, want 3/0", added, skipped)
+	}
+	if got := countBucket(s, "F301", CategoryReview); got != 3 {
+		t.Errorf("(F301, review) bucket = %d, want 3", got)
+	}
+}
+
+// countBucket 計算 store 內指定 (SourceFeature, Category) 桶的條目數。
+func countBucket(s Store, sourceFeature string, cat Category) int {
+	n := 0
+	for _, e := range s.Entries {
+		if e.SourceFeature == sourceFeature && e.Category == cat {
+			n++
+		}
+	}
+	return n
 }

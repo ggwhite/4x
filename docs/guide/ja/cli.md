@@ -477,7 +477,8 @@ Feature が `pending-review` または `done` フェーズにあり、`.worktree
 4x learn list                     # active + candidate の learning を一覧（デフォルト）
 4x learn list --category=testing  # カテゴリでフィルタ
 4x learn list --status=active     # ステータスでフィルタ（active, candidate, stale, promoted）
-4x learn list --ineffective       # 非効果的なエントリのみ表示（used≥3 + 30日 + 同カテゴリ継続）
+4x learn list --ineffective       # 非効果的なエントリのみ表示（used≥3 + 30日 + 2 つ以上の異なる Feature から類似内容）
+4x learn list --ineffective-reset # v2 マイグレーションで ineffective フラグがリセットされたエントリのみ表示
 4x learn prune                    # 古い（90日以上未使用）エントリにマークして削除
 4x learn prune --dry-run          # 削除せずに古いエントリをプレビュー
 4x learn promote <id>             # learning を promoted としてマーク（保持するが注入しなくなる）
@@ -489,7 +490,7 @@ Feature が `pending-review` または `done` フェーズにあり、`.worktree
 - カテゴリ：`design`、`code-quality`、`testing`、`review`、`tooling`、`process`、`ops`
 - ステータス：`active`（注入可能）、`candidate`（新規 harvest、クロスフィーチャー検証待ち）、`stale`（90日以上未使用、読み取り時に自動マーク）、`promoted`（テンプレート/指示として昇格済み）
 - candidate エントリは ID に `*` 接尾辞が付きます。別のフィーチャーで独立に生成されるか、Designer に選択されると自動的に active に昇格します
-- 非効果的なエントリは `active!` ステータスで表示されます：3回以上注入、30日以上経過、同カテゴリの新 learning が引き続き発生している場合に該当
+- 非効果的なエントリは `active!` ステータスで表示されます：3回以上注入、30日以上経過、かつ類似内容（Jaccard ≥ 0.3）が 2 つ以上の異なる Feature から引き続き発生している——この 3 条件をすべて満たす場合に該当し、その learning が繰り返しの問題を減らせていないことを示します。フラグは harvest のたびに再評価され、いずれかの条件が成立しなくなった時点で自動的に解除されます。v2 形式より前に書かれた store は初回ロード時に `ineffective` フラグが一度だけリセットされます。影響を受けたエントリは `4x learn list --ineffective-reset` で確認できます（リセットがディスクに反映されるのは次回の store 書き込み時です）
 - アクティブエントリが 100 件を超えると `4x learn prune` を促す警告が表示されます（エントリは自動削除されません）
 
 ---

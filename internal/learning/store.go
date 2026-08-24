@@ -67,6 +67,26 @@ const (
 	ConsolidateThreshold = 30
 	// FuzzyDupThreshold 是判定 learning 語意重複的 Jaccard 相似度門檻。
 	FuzzyDupThreshold = 0.7
+	// RecurrenceSimilarityThreshold 是 recurrence 判定（見 hasRecurrenceEvidence）使用的 Jaccard 門檻。
+	// 必須嚴格小於 FuzzyDupThreshold：Harvest 與 FindSimilar 在寫入前已用 FuzzyDupThreshold 去重，
+	// 所以 store 內任兩條經 harvest 進來的條目 Jaccard 必定 < FuzzyDupThreshold；
+	// recurrence 若沿用同一個門檻（或直接呼叫 FindSimilar），判定會永遠不成立而形同死碼。
+	RecurrenceSimilarityThreshold = 0.3
+	// RecurrenceMinDistinctFeatures 是構成 recurrence 所需的相異 SourceFeature 數量下限。
+	// 要求「相異」是為了排除「單一 feature 一次吐出多條同 category 心得」這種不構成證據的情況。
+	RecurrenceMinDistinctFeatures = 2
+	// MaxPerFeatureCategory 是 Harvest 寫入時對單一 (SourceFeature, Category) 桶的准入上限，
+	// 避免單一 feature 一輪吐出大量同 category 心得就把 store 灌爆。
+	// 本上限只擋新寫入，不裁剪既有超額桶——Prune/DemoteInactiveActive/MarkCandidatesStale 都不看它，
+	// 因此「store 內任一桶 <= MaxPerFeatureCategory」不是 store 層級的不變式。
+	MaxPerFeatureCategory = 3
+	// StoreVersion 是目前的 learnings store 格式版本。
+	// v2 代表已跑過 ineffective 旗標的一次性重設（見 LoadStore）。
+	StoreVersion = 2
+	// ManualSourceFeature 是 `4x learn add` 手動新增條目的 SourceFeature 值。
+	// 此來源豁免 MaxPerFeatureCategory 桶上限——手動條目全部擠在固定的 "manual" 桶，
+	// 套上限會讓 `4x learn add` 在達到上限後永久失效。
+	ManualSourceFeature = "manual"
 )
 
 const (
@@ -147,6 +167,20 @@ func (e Entry) SortScore() float64 {
 type Store struct {
 	Version int     `json:"version"`
 	Entries []Entry `json:"entries"`
+	// IneffectiveResetIDs 記錄被 v1→v2 一次性重設過 Ineffective 旗標的條目 ID，
+	// 供 `4x learn list --ineffective-reset` 查詢受影響的條目。
+	// 條目被刪除後 nextID 會回收其序號，故 Harvest 寫入新條目時會用 forgetResetID 把該 ID 移出本清單；
+	// 已刪除且序號未被回收的 ID 會殘留，但以 ID 反查不到條目，不影響查詢輸出。
+	IneffectiveResetIDs []string `json:"ineffective_reset_ids,omitempty"`
+
+	// migrated 標記本次 LoadStore 是否實際套用過 migration，不參與 JSON 序列化。
+	migrated bool
+}
+
+// MigrationApplied 回傳本次 LoadStore 是否實際套用過 v1→v2 migration。
+// migration 只改記憶體中的 store、不寫檔，呼叫端須以此決定要不要存檔讓重設落地。
+func (s *Store) MigrationApplied() bool {
+	return s.migrated
 }
 
 // RetroLearning 是 Acceptor 產出的單一 learning（不含 ID 與 metadata）。
@@ -160,12 +194,19 @@ type RetroFile struct {
 	Learnings []RetroLearning `json:"learnings"`
 }
 
-// LoadStore 讀取 learnings.json；檔案不存在時回傳空 store（version=1），不視為錯誤。
+// LoadStore 讀取 learnings.json；檔案不存在時回傳空 store（version=StoreVersion），不視為錯誤。
+//
+// 注意：本函式有副作用。版本低於 StoreVersion 的 store 會就地套用 v1→v2 migration——
+// 把所有 Ineffective==true 的條目重設為 false、把其 ID 填入 IneffectiveResetIDs、
+// 並把 Version 抬升到 StoreVersion。migration 只改記憶體、不寫檔，
+// 因此唯讀路徑（`4x learn list`、`4x learn context`、dashboard 等）呼叫本函式時
+// 同樣會拿到「已被重設過」的資料，只是磁碟上要等下一次 store 寫入才落地；
+// 在那之前每次載入都重跑同一份重設，冪等無害。呼叫端可用 MigrationApplied 判斷是否需要存檔。
 func LoadStore(path string) (Store, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return Store{Version: 1}, nil
+			return Store{Version: StoreVersion}, nil
 		}
 		return Store{}, fmt.Errorf("read learnings: %w", err)
 	}
@@ -175,6 +216,16 @@ func LoadStore(path string) (Store, error) {
 	}
 	if s.Version == 0 {
 		s.Version = 1
+	}
+	if s.Version < StoreVersion {
+		for i := range s.Entries {
+			if s.Entries[i].Ineffective {
+				s.Entries[i].Ineffective = false
+				s.IneffectiveResetIDs = append(s.IneffectiveResetIDs, s.Entries[i].ID)
+			}
+		}
+		s.Version = StoreVersion
+		s.migrated = true
 	}
 	return s, nil
 }
@@ -230,23 +281,29 @@ func (s *Store) FindSimilar(content string) *Entry {
 	return nil
 }
 
-// Harvest 把 learnings 追加到 store，回傳實際新增數量。
+// Harvest 把 learnings 追加到 store，回傳 (added, skipped)：added 是實際新增數量，
+// skipped 是通過三層去重卻因 (SourceFeature, Category) 桶上限被擋下的數量（去重擋掉的不計入）。
 // sourceRole 標記產出來源角色（"acceptor"、"coder"、"reviewer" 等），空字串表示未知。
 // 三層去重：(1) content 完全比對 (2) 正規化比對（大小寫/空白/標點）(3) 詞集 Jaccard ≥ 0.7。
+// 第四層為桶上限：同一 (SourceFeature, Category) 桶本次寫入後不會超過 MaxPerFeatureCategory 條，
+// 上限對既有 store 條目一併計數（同一 feature 會多次呼叫 Harvest），超出者只計入 skipped、不寫入。
+// featureID == ManualSourceFeature 時完全跳過桶上限檢查（三層去重照舊生效），見 ManualSourceFeature。
 // category 不在白名單或 content 為空的條目跳過。新條目自動分配 L 序號 ID 並標記為 candidate。
 // fuzzy match 到 active entry 時 skip（去重）；match 到同 feature candidate 時 skip；
 // match 到不同 feature 的 candidate 時升級該 candidate 為 active，新的不寫入。
-func (s *Store) Harvest(featureID, sourceRole string, learnings []RetroLearning) int {
+func (s *Store) Harvest(featureID, sourceRole string, learnings []RetroLearning) (added, skipped int) {
 	exactSet := make(map[string]bool, len(s.Entries))
 	normSet := make(map[string]bool, len(s.Entries))
 	tokenSets := make([]indexedTokens, 0, len(s.Entries))
+	bucket := make(map[string]int, len(s.Entries))
 	for i, e := range s.Entries {
 		exactSet[e.Content] = true
 		normSet[normalizeContent(e.Content)] = true
 		tokenSets = append(tokenSets, indexedTokens{idx: i, tokens: tokenize(e.Content)})
+		bucket[bucketKey(e.SourceFeature, e.Category)]++
 	}
 
-	added := 0
+	exemptFromCap := featureID == ManualSourceFeature
 	now := time.Now()
 	for _, l := range learnings {
 		if !IsValidCategory(l.Category) || l.Content == "" {
@@ -270,11 +327,19 @@ func (s *Store) Harvest(featureID, sourceRole string, learnings []RetroLearning)
 			continue
 		}
 
+		key := bucketKey(featureID, l.Category)
+		if !exemptFromCap && bucket[key] >= MaxPerFeatureCategory {
+			skipped++
+			continue
+		}
+
 		exactSet[l.Content] = true
 		normSet[norm] = true
 		newIdx := len(s.Entries)
+		id := s.nextID()
+		s.forgetResetID(id)
 		s.Entries = append(s.Entries, Entry{
-			ID:            s.nextID(),
+			ID:            id,
 			SourceFeature: featureID,
 			SourceRole:    sourceRole,
 			Category:      l.Category,
@@ -284,9 +349,27 @@ func (s *Store) Harvest(featureID, sourceRole string, learnings []RetroLearning)
 			Confidence:    InitialConfidence,
 		})
 		tokenSets = append(tokenSets, indexedTokens{idx: newIdx, tokens: tokens})
+		bucket[key]++
 		added++
 	}
-	return added
+	return added, skipped
+}
+
+// bucketKey 組出 (SourceFeature, Category) 桶的 key，以 NUL 分隔避免兩段內容黏連而誤判同桶。
+func bucketKey(sourceFeature string, category Category) string {
+	return sourceFeature + "\x00" + string(category)
+}
+
+// forgetResetID 把 id 從 IneffectiveResetIDs 移除。nextID 會回收已刪除條目的序號，
+// 新條目若拿到被回收的 ID，`4x learn list --ineffective-reset` 會把這條與 migration 無關的
+// 新條目誤列為「被 v1→v2 一次性重設過」。新條目必定不是被重設的舊條目，故寫入時直接移除。
+func (s *Store) forgetResetID(id string) {
+	for i, rid := range s.IneffectiveResetIDs {
+		if rid == id {
+			s.IneffectiveResetIDs = append(s.IneffectiveResetIDs[:i], s.IneffectiveResetIDs[i+1:]...)
+			return
+		}
+	}
 }
 
 // nextID 掃描現有 ID 取最大序號 +1，產生下一個 L%03d 格式 ID。
@@ -355,6 +438,21 @@ func (s *Store) ActiveEntries() []Entry {
 	var result []Entry
 	for _, e := range s.Entries {
 		if e.Status == StatusActive && !e.Ineffective {
+			result = append(result, e)
+		}
+	}
+	return result
+}
+
+// AllActiveEntries 回傳所有 status==active 的條目（**含** Ineffective==true 者），保持原始順序。
+// 與 ActiveEntries 的差異：ActiveEntries 會過濾掉 ineffective 條目，因為那是 prompt 注入口徑
+// ——ineffective 的語意就是「不要再注入」。本方法供 consolidate 判定與 consolidate 輸入使用：
+// consolidate 衡量的是「該不該合併的資料總量」，被 merge/remove 的正是那批 ineffective 條目，
+// 排除它們會讓 consolidate 永遠拿不到要處理的對象。不供 prompt 注入使用。
+func (s *Store) AllActiveEntries() []Entry {
+	var result []Entry
+	for _, e := range s.Entries {
+		if e.Status == StatusActive {
 			result = append(result, e)
 		}
 	}
@@ -537,50 +635,72 @@ func CategoriesForRole(role string) []Category {
 	return roleCategoryMap[role]
 }
 
-// MarkIneffective 掃描所有 active 條目，滿足以下三條件的標記 Ineffective=true，回傳新標記數：
-// 1. UsedCount >= 3
-// 2. ActivatedAt（零值時用 CreatedAt）距今 > 30 天
-// 3. 最近 3 個來自不同 feature 的 entries 中有同 category 的新 learning
-func (s *Store) MarkIneffective() int {
+// activationRef 回傳條目的啟用時間基準：ActivatedAt 非零時用它，否則退回 CreatedAt。
+// ReevaluateIneffective 的 30 天觀察期閘門與 hasRecurrenceEvidence 的「證據不早於啟用時間」閘門
+// 必須用同一個基準，故集中在此定義，避免兩處各留一份 fallback 而日後靜默錯位。
+func (e Entry) activationRef() time.Time {
+	if e.ActivatedAt.IsZero() {
+		return e.CreatedAt
+	}
+	return e.ActivatedAt
+}
+
+// ReevaluateIneffective 對所有 active 條目**雙向重評** Ineffective 旗標，回傳 (marked, reset)：
+// marked 是本次由 false 轉 true 的數量，reset 是本次由 true 轉 false 的數量。
+// 三條件全部成立才算 ineffective：
+//  1. UsedCount >= 3（已被注入多次）
+//  2. ActivatedAt（零值時用 CreatedAt）距今 > 30 天（有足夠觀察期）
+//  3. hasRecurrenceEvidence 成立（相似內容仍反覆從相異 feature 冒出來）
+//
+// 與舊版 MarkIneffective 的關鍵差異是可逆：條件不再全部成立時立刻把旗標撤銷回 false，
+// 而非把 ineffective 當成「進去就出不來」的終態。非 active 條目一律不碰。
+func (s *Store) ReevaluateIneffective() (marked, reset int) {
 	now := time.Now()
 	cutoff := now.Add(-30 * 24 * time.Hour)
-	marked := 0
+
+	// tokenCache 由此處預建：hasRecurrenceEvidence 對每個 active 條目都要掃全部 Entries，
+	// 不快取就是 O(active × total) 次 tokenize。沿用 Harvest 的 tokenSets 預建模式。
+	tokenCache := make([]map[string]bool, len(s.Entries))
+	for i := range s.Entries {
+		tokenCache[i] = tokenize(s.Entries[i].Content)
+	}
 
 	for i := range s.Entries {
 		e := &s.Entries[i]
 		if e.Status != StatusActive {
 			continue
 		}
-		if e.Ineffective {
-			continue
-		}
-		if e.UsedCount < 3 {
-			continue
-		}
-		activated := e.ActivatedAt
-		if activated.IsZero() {
-			activated = e.CreatedAt
-		}
-		if activated.After(cutoff) {
-			continue
-		}
-		if s.hasCategoryContinuation(i) {
+		want := e.UsedCount >= 3 && !e.activationRef().After(cutoff) && s.hasRecurrenceEvidence(i, tokenCache)
+		switch {
+		case want && !e.Ineffective:
 			e.Ineffective = true
 			marked++
+		case !want && e.Ineffective:
+			e.Ineffective = false
+			reset++
 		}
 	}
-	return marked
+	return marked, reset
 }
 
-// hasCategoryContinuation 檢查最近 3 個來自不同 feature 的 active entries（比 target 更新）是否包含同 category。
-func (s *Store) hasCategoryContinuation(targetIdx int) bool {
+// hasRecurrenceEvidence 判定 target 條目是否仍有「同一教訓反覆重演」的證據：
+// 掃描全部 Entries，找出 status 為 active 或 candidate、SourceFeature 非空且與 target 相異、
+// CreatedAt 不早於 target 啟用時間、同 category、且與 target 內容 Jaccard 相似度
+// >= RecurrenceSimilarityThreshold 的條目，收集其 SourceFeature；
+// 相異 feature 數達 RecurrenceMinDistinctFeatures 即成立。
+//
+// 用獨立的 RecurrenceSimilarityThreshold 而非 FuzzyDupThreshold：harvest 期去重保證
+// store 內任兩條的 Jaccard < FuzzyDupThreshold，沿用該門檻會讓判定永遠不成立（見該常量說明）。
+// 要求「相異 feature」是因為單一 feature 一次吐出多條同 category 心得不構成「反覆重演」的證據。
+//
+// tokenCache 須由呼叫端預建且與 s.Entries 同索引；本函式不呼叫 tokenize。
+func (s *Store) hasRecurrenceEvidence(targetIdx int, tokenCache []map[string]bool) bool {
 	target := s.Entries[targetIdx]
-	activated := target.ActivatedAt
-	if activated.IsZero() {
-		activated = target.CreatedAt
-	}
-	count := 0
-	for j := len(s.Entries) - 1; j >= 0 && count < 3; j-- {
+	activated := target.activationRef()
+	targetTokens := tokenCache[targetIdx]
+
+	features := make(map[string]bool)
+	for j := range s.Entries {
 		if j == targetIdx {
 			continue
 		}
@@ -594,8 +714,15 @@ func (s *Store) hasCategoryContinuation(targetIdx int) bool {
 		if other.CreatedAt.Before(activated) {
 			continue
 		}
-		count++
-		if other.Category == target.Category {
+		// category 是便宜的前置過濾，擋掉大部分不需要算相似度的組合。
+		if other.Category != target.Category {
+			continue
+		}
+		if JaccardSimilarity(targetTokens, tokenCache[j]) < RecurrenceSimilarityThreshold {
+			continue
+		}
+		features[other.SourceFeature] = true
+		if len(features) >= RecurrenceMinDistinctFeatures {
 			return true
 		}
 	}

@@ -1,7 +1,10 @@
 package prompt
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -694,5 +697,278 @@ func TestLoadLearningsForRoleLegacyConfidenceReadOnly(t *testing.T) {
 	}
 	if reloaded.Entries[0].Confidence != 0 {
 		t.Errorf("legacy confidence should remain 0 after read-only load, got %v", reloaded.Entries[0].Confidence)
+	}
+}
+
+// saveLearningsStoreV2 以 version 2 寫入 learnings store：consolidate 相關測試必須避開
+// LoadStore 的 v1→v2 migration，否則 ineffective 會全被洗成 false，斷言退化成假陽性。
+func saveLearningsStoreV2(t *testing.T, ws *protocol.Workspace, entries []learning.Entry) string {
+	t.Helper()
+	storePath := filepath.Join(ws.DotDir(), protocol.LearningsFile)
+	store := learning.Store{Version: learning.StoreVersion, Entries: entries}
+	if err := store.Save(storePath); err != nil {
+		t.Fatal(err)
+	}
+	return storePath
+}
+
+// captureSlog 以 TextHandler 攔截 slog 預設 logger 的輸出，測完還原。
+func captureSlog(t *testing.T, fn func()) string {
+	t.Helper()
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	defer slog.SetDefault(prev)
+	fn()
+	return buf.String()
+}
+
+// mostlyIneffectiveActives 產生 total 條 active 條目，其中前 ineffectiveCount 條為 ineffective。
+func mostlyIneffectiveActives(total, ineffectiveCount int) []learning.Entry {
+	entries := make([]learning.Entry, 0, total)
+	for i := 0; i < total; i++ {
+		entries = append(entries, learning.Entry{
+			ID:            fmt.Sprintf("L%03d", i+1),
+			SourceFeature: fmt.Sprintf("F%03d", i+1),
+			Category:      learning.CategoryCodeQuality,
+			Content:       fmt.Sprintf("consolidate fixture entry number %d", i),
+			Status:        learning.StatusActive,
+			UsedCount:     3,
+			CreatedAt:     time.Now(),
+			Ineffective:   i < ineffectiveCount,
+		})
+	}
+	return entries
+}
+
+// TestNeedConsolidate_CountsIneffective 驗證 consolidate 門檻以 AllActiveEntries（含 ineffective）
+// 計數：ActiveEntries 只剩 2 條時仍應觸發，否則 store 塞滿 ineffective 就永遠餓死 consolidate（AC-9）。
+func TestNeedConsolidate_CountsIneffective(t *testing.T) {
+	ws := newTestWorkspace(t)
+	storePath := saveLearningsStoreV2(t, ws, mostlyIneffectiveActives(30, 28))
+
+	if !NeedConsolidate(ws) {
+		t.Error("NeedConsolidate = false, want true (30 active entries including ineffective)")
+	}
+
+	store, err := learning.LoadStore(storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := len(store.ActiveEntries()); got != 2 {
+		t.Errorf("ActiveEntries() = %d, want 2", got)
+	}
+	if got := len(store.AllActiveEntries()); got != 30 {
+		t.Errorf("AllActiveEntries() = %d, want 30", got)
+	}
+}
+
+// TestPrepareConsolidateInput_IncludesIneffective 驗證 consolidate 輸入包含 ineffective 條目，
+// 且該筆帶 ineffective: true 欄位——被 merge/remove 的正是那批條目（AC-10）。
+func TestPrepareConsolidateInput_IncludesIneffective(t *testing.T) {
+	ws := newTestWorkspace(t)
+	saveLearningsStoreV2(t, ws, mostlyIneffectiveActives(30, 28))
+
+	if err := PrepareConsolidateInput(ws); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(ws.DotDir(), protocol.ConsolidateInputFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var parsed []struct {
+		ID          string `json:"id"`
+		Ineffective bool   `json:"ineffective"`
+	}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("parse consolidate-input.json: %v", err)
+	}
+	if len(parsed) != 30 {
+		t.Fatalf("consolidate input entries = %d, want 30", len(parsed))
+	}
+	n := 0
+	for _, e := range parsed {
+		if e.Ineffective {
+			n++
+		}
+	}
+	if n != 28 {
+		t.Errorf("ineffective entries in consolidate input = %d, want 28", n)
+	}
+}
+
+// TestApplyConsolidateResult_LogsNoOp 驗證兩條回 (0, 0, nil) 的 no-op 路徑各輸出可辨識的
+// slog.Info 訊息，與 runner 失敗的 slog.Warn 可區分（AC-11）。
+func TestApplyConsolidateResult_LogsNoOp(t *testing.T) {
+	t.Run("empty actions", func(t *testing.T) {
+		ws := newTestWorkspace(t)
+		resultPath := filepath.Join(ws.DotDir(), protocol.ConsolidateResultFile)
+		if err := os.WriteFile(resultPath, []byte(`{"actions":[]}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		var merged, removed int
+		var err error
+		out := captureSlog(t, func() {
+			merged, removed, err = ApplyConsolidateResult(ws)
+		})
+		if merged != 0 || removed != 0 || err != nil {
+			t.Errorf("got (%d, %d, %v), want (0, 0, nil)", merged, removed, err)
+		}
+		if !strings.Contains(out, "consolidate produced no actions") {
+			t.Errorf("missing no-actions log, got %q", out)
+		}
+	})
+
+	t.Run("actions match no entries", func(t *testing.T) {
+		ws := newTestWorkspace(t)
+		saveLearningsStoreV2(t, ws, []learning.Entry{
+			{ID: "L001", Category: learning.CategoryOps, Content: "present entry", Status: learning.StatusActive, CreatedAt: time.Now()},
+		})
+		resultPath := filepath.Join(ws.DotDir(), protocol.ConsolidateResultFile)
+		body := `{"actions":[{"id":"L900","action":"remove","reason":"missing"},{"id":"L901","action":"merge","merge_into":"L902","reason":"missing"}]}`
+		if err := os.WriteFile(resultPath, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		var merged, removed int
+		var err error
+		out := captureSlog(t, func() {
+			merged, removed, err = ApplyConsolidateResult(ws)
+		})
+		if merged != 0 || removed != 0 || err != nil {
+			t.Errorf("got (%d, %d, %v), want (0, 0, nil)", merged, removed, err)
+		}
+		if !strings.Contains(out, "consolidate actions matched no entries") {
+			t.Errorf("missing unmatched-actions log, got %q", out)
+		}
+	})
+}
+
+// TestHarvestLearnings_PersistsMigration 驗證即使沒有新增、沒有 mark/reset、沒有 demote，
+// 只要 LoadStore 套用過 v1→v2 migration 就必須存檔，否則一次性重設永遠不落地（AC-14）。
+func TestHarvestLearnings_PersistsMigration(t *testing.T) {
+	ws := newTestWorkspace(t)
+	dayAgo := time.Now().Add(-24 * time.Hour)
+	storePath := saveLearningsStore(t, ws, []learning.Entry{
+		{ID: "L001", SourceFeature: "F001", Category: learning.CategoryCodeQuality, Content: "first legacy ineffective",
+			Status: learning.StatusActive, Ineffective: true, UsedCount: 0,
+			CreatedAt: dayAgo, ActivatedAt: dayAgo, LastUsed: dayAgo},
+		{ID: "L002", SourceFeature: "F002", Category: learning.CategoryCodeQuality, Content: "second legacy ineffective",
+			Status: learning.StatusActive, Ineffective: true, UsedCount: 0,
+			CreatedAt: dayAgo, ActivatedAt: dayAgo, LastUsed: dayAgo},
+	})
+	featureID := "F900-test"
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatal(err)
+	}
+
+	HarvestLearnings(ws, featureID)
+
+	reloaded, err := learning.LoadStore(storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Version != learning.StoreVersion {
+		t.Errorf("persisted version = %d, want %d", reloaded.Version, learning.StoreVersion)
+	}
+	for _, e := range reloaded.Entries {
+		if e.Ineffective {
+			t.Errorf("%s should be persisted with ineffective=false", e.ID)
+		}
+	}
+	got := map[string]bool{}
+	for _, id := range reloaded.IneffectiveResetIDs {
+		got[id] = true
+	}
+	if !got["L001"] || !got["L002"] {
+		t.Errorf("ineffective_reset_ids = %v, want both L001 and L002", reloaded.IneffectiveResetIDs)
+	}
+}
+
+// TestHarvestLearnings_CountsSkippedOverQuota 驗證整輪 learnings 全被桶上限擋掉（added==0）時
+// totalSkipped 仍正確累加並輸出 log——累加若被 `if added > 0` guard 吞掉，這個最需要被觀測的
+// 情境會回報 skipped == 0 且一行 log 都不印（AC-23）。
+func TestHarvestLearnings_CountsSkippedOverQuota(t *testing.T) {
+	ws := newTestWorkspace(t)
+	featureID := "F300"
+	existing := []string{
+		"always run gofmt before committing go code",
+		"prefer table driven tests for enum coverage",
+		"wrap errors with context at every boundary",
+	}
+	entries := make([]learning.Entry, 0, len(existing))
+	for i, c := range existing {
+		entries = append(entries, learning.Entry{
+			ID: fmt.Sprintf("L%03d", i+1), SourceFeature: featureID, Category: learning.CategoryReview,
+			Content: c, Status: learning.StatusCandidate, CreatedAt: time.Now(),
+		})
+	}
+	storePath := saveLearningsStoreV2(t, ws, entries)
+
+	roundDir := ws.RoundDir(featureID, 0)
+	if err := os.MkdirAll(roundDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	incoming := []string{
+		"avoid global mutable state inside packages",
+		"document exported symbols with godoc comments",
+		"check goroutine leaks in server integration suites",
+		"pin dependency versions in the module file",
+		"measure allocations before optimizing hot loops",
+		"validate cli flags at parse time not later",
+		"keep migration scripts idempotent across reruns",
+		"log structured fields rather than formatted strings",
+	}
+	rf := learning.RoleLearningsFile{Role: "coder"}
+	for _, c := range incoming {
+		rf.Learnings = append(rf.Learnings, learning.RetroLearning{Category: learning.CategoryReview, Content: c})
+	}
+	data, err := json.Marshal(rf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(roundDir, "coder-learnings.json"), data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out := captureSlog(t, func() { HarvestLearnings(ws, featureID) })
+	if !strings.Contains(out, "skipped=8") {
+		t.Errorf("expected skipped=8 in log output, got %q", out)
+	}
+
+	reloaded, err := learning.LoadStore(storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, e := range reloaded.Entries {
+		if e.SourceFeature == featureID && e.Category == learning.CategoryReview {
+			n++
+		}
+	}
+	if n != learning.MaxPerFeatureCategory {
+		t.Errorf("(F300, review) bucket = %d, want %d", n, learning.MaxPerFeatureCategory)
+	}
+}
+
+// TestHarvestLearnings_LogsReevaluated 驗證 ReevaluateIneffective 有動到旗標時輸出一行
+// slog.Info，讓「本輪撤銷了幾條 ineffective」可觀測（AC-25）。
+func TestHarvestLearnings_LogsReevaluated(t *testing.T) {
+	ws := newTestWorkspace(t)
+	dayAgo := time.Now().Add(-24 * time.Hour)
+	saveLearningsStoreV2(t, ws, []learning.Entry{
+		{ID: "L001", SourceFeature: "F001", Category: learning.CategoryCodeQuality, Content: "stale ineffective flag",
+			Status: learning.StatusActive, Ineffective: true, UsedCount: 0,
+			CreatedAt: dayAgo, ActivatedAt: dayAgo, LastUsed: dayAgo},
+	})
+	featureID := "F901-test"
+	if err := ws.InitFeatureDir(featureID); err != nil {
+		t.Fatal(err)
+	}
+
+	out := captureSlog(t, func() { HarvestLearnings(ws, featureID) })
+	for _, want := range []string{"reevaluated ineffective learnings", "marked=0", "reset=1"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in log output, got %q", want, out)
+		}
 	}
 }

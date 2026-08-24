@@ -7,7 +7,10 @@ entries to remove.
 == Inputs ==
 
 Read `.4x/consolidate-input.json` — an array of active learnings, each with `id`,
-`source_feature`, `category`, `content`, `used_count`.
+`source_feature`, `category`, `content`, `used_count`, `ineffective`.
+
+Entries with `ineffective: true` have been injected into role prompts at least 3 times
+without reducing repeat issues — prioritize them for `merge` or `remove`.
 
 == Your judgment ==
 

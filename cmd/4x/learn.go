@@ -78,7 +78,8 @@ func newLearnAddCmd() *cobra.Command {
 				return fmt.Errorf("similar learning already exists: %s", existing.ID)
 			}
 
-			added := store.Harvest("manual", "user", []learning.RetroLearning{
+			// ManualSourceFeature 豁免 MaxPerFeatureCategory 桶上限，skipped 在此路徑恆為 0。
+			added, _ := store.Harvest(learning.ManualSourceFeature, "user", []learning.RetroLearning{
 				{Category: cat, Content: content},
 			})
 			if added == 0 {
@@ -111,6 +112,7 @@ func newLearnListCmd() *cobra.Command {
 	var category string
 	var statusFilter string
 	var ineffective bool
+	var ineffectiveReset bool
 	var jsonOutput bool
 
 	cmd := &cobra.Command{
@@ -126,13 +128,21 @@ func newLearnListCmd() *cobra.Command {
 				return err
 			}
 
-			showDefault := statusFilter == "" && !ineffective
+			resetSet := make(map[string]bool, len(store.IneffectiveResetIDs))
+			for _, id := range store.IneffectiveResetIDs {
+				resetSet[id] = true
+			}
+
+			showDefault := statusFilter == "" && !ineffective && !ineffectiveReset
 			var filtered []learning.Entry
 			for _, e := range store.Entries {
 				if category != "" && string(e.Category) != category {
 					continue
 				}
 				if ineffective && !e.Ineffective {
+					continue
+				}
+				if ineffectiveReset && !resetSet[e.ID] {
 					continue
 				}
 				if statusFilter != "" && string(e.Status) != statusFilter {
@@ -185,6 +195,7 @@ func newLearnListCmd() *cobra.Command {
 	cmd.Flags().StringVar(&category, "category", "", "filter by category")
 	cmd.Flags().StringVar(&statusFilter, "status", "", "filter by status (active, candidate, stale, promoted)")
 	cmd.Flags().BoolVar(&ineffective, "ineffective", false, "only show ineffective entries")
+	cmd.Flags().BoolVar(&ineffectiveReset, "ineffective-reset", false, "only show entries whose ineffective flag was reset by the v2 migration")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 	return cmd
 }

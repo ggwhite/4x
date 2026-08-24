@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixes
+
+- **learnings 三閘門互鎖解除，`ineffective` 不再是幾乎必中且不可逆的終態** — `MarkIneffective()` 改名為 `ReevaluateIneffective()` 並改為雙向重評：判定條件 3 從「最近 3 個不同 feature 的條目中有同 category」改為「相似內容（Jaccard ≥ `RecurrenceSimilarityThreshold`＝0.3）來自 ≥ `RecurrenceMinDistinctFeatures`（2）個相異 feature」，條件不再全部成立時旗標自動撤銷。consolidate 的觸發判定與輸入改用 `AllActiveEntries()`（含 ineffective），`consolidate-input.json` 每筆新增 `ineffective` 欄位，consolidate 不再被 ineffective 條目餓死；consolidate 回 0/0 的兩條 no-op 路徑各補一行 `slog.Info`，與 runner 失敗的 `slog.Warn` 可區分
+- **learnings store 升到 v2，首次載入會把所有現存 `ineffective` 旗標一次性重設為 false** — 舊規則誤標的條目在 `LoadStore` 時全部撤銷，受影響的條目 ID 記在 store 層級的 `ineffective_reset_ids`，可用 `4x learn list --ineffective-reset` 查詢。重設只改記憶體，磁碟上要等下一次 store 寫入（harvest / prune / add / promote / remove / consolidate）才落地；在那之前每次載入都重跑同一份重設，冪等無害
+- **harvest 新增 `(source_feature, category)` 桶上限，單一 feature 不再灌爆 store** — 同一 `(source_feature, category)` 桶最多保留 `MaxPerFeatureCategory`（3）條，超出的在 harvest 時被略過並只記入 log（`harvest skipped over-quota learnings`）。這是使用者可見的靜默行為改變：一輪吐出 8 條同 category 心得只會進 3 條。`4x learn add`（`source_feature = manual`）豁免此上限，既有的手動累積用途不受影響
+
+### Known Limitations
+
+- recurrence 的相似度沿用既有 `tokenize`，以空白切詞，中文內容切不出有效詞元，因此以中文為主的 store 幾乎不會再出現 `ineffective` 條目。本次改動不負責改善中文相似度品質
+
 ## [0.5.6] - 2026-07-17
 
 ### Fixes

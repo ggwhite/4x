@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -612,5 +613,103 @@ func TestLearnPruneDryRunTextSeparatesDemoteAndRemove(t *testing.T) {
 	staleIdx := strings.Index(out, "stale entries would be removed")
 	if demoteIdx > staleIdx {
 		t.Errorf("demote preview should precede stale preview: demote=%d stale=%d", demoteIdx, staleIdx)
+	}
+}
+
+// TestLearnList_IneffectiveReset 驗證 `4x learn list --ineffective-reset` 只列出被 v1→v2
+// migration 重設過的條目；不帶旗標時 showDefault 行為不變（AC-15）。
+func TestLearnList_IneffectiveReset(t *testing.T) {
+	root := t.TempDir()
+	if err := protocol.Init(root, protocol.Config{}); err != nil {
+		t.Fatal(err)
+	}
+	storePath := filepath.Join(root, protocol.DirName, protocol.LearningsFile)
+	store := learning.Store{Version: 1, Entries: []learning.Entry{
+		{ID: "L001", Category: learning.CategoryOps, Content: "alpha one", Status: learning.StatusActive, Ineffective: true, CreatedAt: time.Now()},
+		{ID: "L002", Category: learning.CategoryOps, Content: "beta two", Status: learning.StatusActive, CreatedAt: time.Now()},
+		{ID: "L003", Category: learning.CategoryOps, Content: "gamma three", Status: learning.StatusCandidate, Ineffective: true, CreatedAt: time.Now()},
+		{ID: "L004", Category: learning.CategoryOps, Content: "delta four", Status: learning.StatusCandidate, CreatedAt: time.Now()},
+	}}
+	if err := store.Save(storePath); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Chdir(root)
+	listIDs := func(args ...string) []string {
+		out := captureStdout(t, func() {
+			cmd := newLearnListCmd()
+			cmd.SetArgs(args)
+			if err := cmd.Execute(); err != nil {
+				t.Fatal(err)
+			}
+		})
+		var result struct {
+			Entries []learning.Entry `json:"entries"`
+		}
+		if err := json.Unmarshal([]byte(out), &result); err != nil {
+			t.Fatalf("failed to parse JSON output %q: %v", out, err)
+		}
+		ids := make([]string, 0, len(result.Entries))
+		for _, e := range result.Entries {
+			ids = append(ids, e.ID)
+		}
+		return ids
+	}
+
+	got := listIDs("--ineffective-reset", "--json")
+	if len(got) != 2 || got[0] != "L001" || got[1] != "L003" {
+		t.Errorf("--ineffective-reset entries = %v, want [L001 L003]", got)
+	}
+
+	if all := listIDs("--json"); len(all) != 4 {
+		t.Errorf("default listing = %v, want 4 entries (active + candidate)", all)
+	}
+}
+
+// TestLearnAdd_ExemptFromBucketCap 驗證 `4x learn add` 不受 MaxPerFeatureCategory 桶上限影響：
+// manual 來源的條目全部擠在固定的 (manual, category) 桶，套上限會讓該指令在達標後永久失效（AC-22）。
+func TestLearnAdd_ExemptFromBucketCap(t *testing.T) {
+	root := t.TempDir()
+	if err := protocol.Init(root, protocol.Config{}); err != nil {
+		t.Fatal(err)
+	}
+	storePath := filepath.Join(root, protocol.DirName, protocol.LearningsFile)
+	existing := []string{
+		"always run gofmt before committing go code",
+		"prefer table driven tests for enum coverage",
+		"wrap errors with context at every boundary",
+		"avoid global mutable state inside packages",
+	}
+	entries := make([]learning.Entry, 0, len(existing))
+	for i, c := range existing {
+		entries = append(entries, learning.Entry{
+			ID: fmt.Sprintf("L%03d", i+1), SourceFeature: learning.ManualSourceFeature, SourceRole: "user",
+			Category: learning.CategoryOps, Content: c, Status: learning.StatusCandidate, CreatedAt: time.Now(),
+		})
+	}
+	store := learning.Store{Version: learning.StoreVersion, Entries: entries}
+	if err := store.Save(storePath); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Chdir(root)
+	cmd := newLearnAddCmd()
+	cmd.SetArgs([]string{"--category", "ops", "--content", "document exported symbols with godoc comments"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("learn add should be exempt from the bucket cap, got %v", err)
+	}
+
+	reloaded, err := learning.LoadStore(storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, e := range reloaded.Entries {
+		if e.SourceFeature == learning.ManualSourceFeature && e.Category == learning.CategoryOps {
+			n++
+		}
+	}
+	if n != 5 {
+		t.Errorf("(manual, ops) bucket = %d, want 5", n)
 	}
 }

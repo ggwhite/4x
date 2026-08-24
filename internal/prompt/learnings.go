@@ -132,6 +132,8 @@ func LoadLearningsForRole(dotDir string, role protocol.Role) []learning.Entry {
 		}
 		// 此二判定式須與 learning.Store.ActiveEntries()/CandidateEntries() 保持一致；
 		// 此處為在單趟迴圈內同時做 category + status 過濾而 inline，日後任一方調整 status 語意時兩處都要同步。
+		// 注意：learning.Store.AllActiveEntries() 含 ineffective 條目、供 consolidate 判定與輸入使用，
+		// **不是**本 switch 的鏡像對象——本 switch 是 prompt 注入口徑，ineffective 的語意就是不再注入。
 		switch {
 		case e.Status == learning.StatusActive && !e.Ineffective:
 			active = append(active, e)
@@ -230,14 +232,28 @@ func HarvestLearnings(ws *protocol.Workspace, featureID string) {
 		slog.Info("demoted inactive active learnings", "feature", featureID, "demoted", demoted)
 	}
 
-	totalAdded := 0
+	roleAdded, roleSkipped := harvestRoleLearnings(&store, ws, featureID)
+	retroAdded, retroSkipped := harvestRetroLearnings(&store, ws, featureID)
+	totalAdded := roleAdded + retroAdded
+	totalSkipped := roleSkipped + retroSkipped
 
-	totalAdded += harvestRoleLearnings(&store, ws, featureID)
-	totalAdded += harvestRetroLearnings(&store, ws, featureID)
+	// 桶上限的 log 必須在早退檢查之前：added == 0 且 skipped > 0（整輪心得全被上限擋掉）
+	// 正是本 log 最主要的用途，放在早退之後等於永遠不印。
+	if totalSkipped > 0 {
+		slog.Info("harvest skipped over-quota learnings", "feature", featureID,
+			"skipped", totalSkipped, "cap", learning.MaxPerFeatureCategory)
+	}
 
-	ineffective := store.MarkIneffective()
+	marked, resetCount := store.ReevaluateIneffective()
+	if marked > 0 || resetCount > 0 {
+		slog.Info("reevaluated ineffective learnings", "feature", featureID,
+			"marked", marked, "reset", resetCount)
+	}
 
-	if totalAdded == 0 && ineffective == 0 && demoted == 0 {
+	// totalSkipped 不納入早退條件——被上限擋掉不代表 store 有變動。
+	// store.MigrationApplied() 為 true 時即使四個計數器全為 0 也必須存檔，
+	// 否則 v1→v2 的一次性重設永遠不會落地。
+	if totalAdded == 0 && marked == 0 && resetCount == 0 && demoted == 0 && !store.MigrationApplied() {
 		return
 	}
 
@@ -258,31 +274,31 @@ func HarvestLearnings(ws *protocol.Workspace, featureID string) {
 	}
 }
 
-func harvestRetroLearnings(store *learning.Store, ws *protocol.Workspace, featureID string) int {
+func harvestRetroLearnings(store *learning.Store, ws *protocol.Workspace, featureID string) (added, skipped int) {
 	retroPath := filepath.Join(ws.FeatureDir(featureID), protocol.RetroLearningsFile)
 	learnings, err := learning.ParseRetroFile(retroPath)
 	if err != nil {
 		slog.Warn("skip retro learnings harvest", "feature", featureID, "error", err)
-		return 0
+		return 0, 0
 	}
 	if len(learnings) == 0 {
-		return 0
+		return 0, 0
 	}
-	added := store.Harvest(featureID, "acceptor", learnings)
+	added, skipped = store.Harvest(featureID, "acceptor", learnings)
 	if added > 0 {
 		slog.Debug("harvested retro learnings", "feature", featureID, "added", added)
 	}
-	return added
+	return added, skipped
 }
 
-func harvestRoleLearnings(store *learning.Store, ws *protocol.Workspace, featureID string) int {
+func harvestRoleLearnings(store *learning.Store, ws *protocol.Workspace, featureID string) (int, int) {
 	roundsDir := filepath.Join(ws.FeatureDir(featureID), protocol.RoundsDir)
 	entries, err := os.ReadDir(roundsDir)
 	if err != nil {
-		return 0
+		return 0, 0
 	}
 
-	totalAdded := 0
+	totalAdded, totalSkipped := 0, 0
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -301,27 +317,34 @@ func harvestRoleLearnings(store *learning.Store, ws *protocol.Workspace, feature
 			if len(learnings) == 0 {
 				continue
 			}
-			added := store.Harvest(featureID, role, learnings)
+			added, skipped := store.Harvest(featureID, role, learnings)
 			if added > 0 {
 				slog.Debug("harvested role learnings", "feature", featureID, "role", role, "round", entry.Name(), "added", added)
-				totalAdded += added
 			}
+			// 兩個累加都必須在 guard 之外：added == 0、skipped > 0 是整輪心得全被桶上限
+			// 擋掉的樣態，累加寫進 guard 內會讓最需要被觀測的情境回報 skipped == 0。
+			totalAdded += added
+			totalSkipped += skipped
 		}
 	}
-	return totalAdded
+	return totalAdded, totalSkipped
 }
 
-// NeedConsolidate 檢查 active learnings 是否超過 consolidate 門檻。
+// NeedConsolidate 檢查 active learnings（含 ineffective）是否超過 consolidate 門檻。
+// 以 AllActiveEntries 而非 ActiveEntries 計數：被 consolidate merge/remove 的正是那批 ineffective 條目，
+// 用注入口徑計數會讓 store 塞滿 ineffective 時永遠觸發不了 consolidate。
 func NeedConsolidate(ws *protocol.Workspace) bool {
 	storePath := filepath.Join(ws.DotDir(), protocol.LearningsFile)
 	store, err := learning.LoadStore(storePath)
 	if err != nil {
 		return false
 	}
-	return len(store.ActiveEntries()) >= learning.ConsolidateThreshold
+	return len(store.AllActiveEntries()) >= learning.ConsolidateThreshold
 }
 
-// PrepareConsolidateInput 將 active learnings 寫入 .4x/consolidate-input.json，供 consolidate runner 讀取。
+// PrepareConsolidateInput 將 active learnings（含 ineffective）寫入 .4x/consolidate-input.json，
+// 供 consolidate runner 讀取。輸入集合與 NeedConsolidate 的判定集合一致（皆為 AllActiveEntries），
+// 每筆額外帶 ineffective 布林欄位，讓 consolidator 優先處理那批條目。
 func PrepareConsolidateInput(ws *protocol.Workspace) error {
 	storePath := filepath.Join(ws.DotDir(), protocol.LearningsFile)
 	store, err := learning.LoadStore(storePath)
@@ -335,9 +358,12 @@ func PrepareConsolidateInput(ws *protocol.Workspace) error {
 		Category      learning.Category `json:"category"`
 		Content       string            `json:"content"`
 		UsedCount     int               `json:"used_count"`
+		// Ineffective 不加 omitempty：templates/consolidator.md.tmpl 宣告每筆都帶此欄位，
+		// 省略會讓 consolidator 把「缺席」讀成「未知」而非 false，影響 merge/remove 判斷。
+		Ineffective bool `json:"ineffective"`
 	}
 
-	active := store.ActiveEntries()
+	active := store.AllActiveEntries()
 	entries := make([]inputEntry, len(active))
 	for i, e := range active {
 		entries[i] = inputEntry{
@@ -346,6 +372,7 @@ func PrepareConsolidateInput(ws *protocol.Workspace) error {
 			Category:      e.Category,
 			Content:       e.Content,
 			UsedCount:     e.UsedCount,
+			Ineffective:   e.Ineffective,
 		}
 	}
 
@@ -370,6 +397,7 @@ func ApplyConsolidateResult(ws *protocol.Workspace) (int, int, error) {
 		return 0, 0, err
 	}
 	if len(result.Actions) == 0 {
+		slog.Info("consolidate produced no actions", "path", resultPath)
 		return 0, 0, nil
 	}
 
@@ -381,6 +409,7 @@ func ApplyConsolidateResult(ws *protocol.Workspace) (int, int, error) {
 
 	merged, removed := store.ApplyConsolidation(result.Actions)
 	if merged+removed == 0 {
+		slog.Info("consolidate actions matched no entries", "actions", len(result.Actions))
 		return 0, 0, nil
 	}
 
