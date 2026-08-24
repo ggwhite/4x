@@ -74,7 +74,7 @@ description: |
 
     修好後的合理預期：active 不應再有接近 100% 的 Ineffective 比例；
     `stale` 應隨 consolidate 開始出現非零值。
-status: ready-for-review
+status: done
 priority: 1
 profile: full
 subtasks:
