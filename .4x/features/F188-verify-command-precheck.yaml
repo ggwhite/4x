@@ -84,7 +84,7 @@ description: |
 
     這 21 筆全在 done feature 裡，代表那些 AC 當初的驗證強度低於報告宣稱的。
     Kairos 已在自己的 ws-328 加 subtask 修既有筆數並加 lint 擋這個寫法。
-status: ready-for-review
+status: done
 priority: 1
 profile: normal
 subtasks:
