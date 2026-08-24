@@ -62,6 +62,7 @@ func Check(ws *protocol.Workspace, featureID string, detector ScopeDetector) Che
 	checkDocsGate(ws, featureID, &r)
 	checkTestStrategyVerifyTypes(ws, featureID, &r)
 	checkACChecksSchema(ws, featureID, &r)
+	checkVerifyPrecheck(ws, featureID, &r)
 	checkDesignerYAMLMod(ws, featureID, &r)
 	checkSharedPaths(ws, featureID, &r)
 	checkSharedPathsPollution(ws, featureID, &r)

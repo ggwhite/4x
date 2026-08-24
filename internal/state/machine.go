@@ -8,9 +8,13 @@ import (
 
 // 合法的 phase 轉換表
 // blocked 和 needs-attention 是 universal target，由 CanTransition 特殊處理
+// designing 與 testing 的 self-edge 是 guard retry：閘門失敗時寫 guard-feedback.json 並留在
+// 原 phase 重跑同一角色（designing 對應 orchestrator/phase.go 的 verify precheck 出口閘門，
+// testing 對應 CheckTestingToAccepting）。少了 self-edge，NextPhaseAfter 回傳的重試 tuple
+// 會在 state.Transition 被判 invalid transition，重試路徑等同不存在。
 var transitions = map[protocol.Phase][]protocol.Phase{
 	protocol.PhaseInit:            {protocol.PhaseDesigning},
-	protocol.PhaseDesigning:       {protocol.PhaseDesignReviewing},
+	protocol.PhaseDesigning:       {protocol.PhaseDesignReviewing, protocol.PhaseDesigning},
 	protocol.PhaseDesignReviewing: {protocol.PhaseCoding, protocol.PhaseDesigning},
 	protocol.PhaseCoding:          {protocol.PhaseReviewing, protocol.PhaseDesigning},
 	protocol.PhaseReviewing:       {protocol.PhaseTesting, protocol.PhaseAmending},

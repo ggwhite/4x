@@ -13,6 +13,7 @@ func TestCanTransition_Valid(t *testing.T) {
 	}{
 		{protocol.PhaseInit, protocol.PhaseDesigning},
 		{protocol.PhaseDesigning, protocol.PhaseDesignReviewing},
+		{protocol.PhaseDesigning, protocol.PhaseDesigning},
 		{protocol.PhaseDesignReviewing, protocol.PhaseCoding},
 		{protocol.PhaseDesignReviewing, protocol.PhaseDesigning},
 		{protocol.PhaseCoding, protocol.PhaseReviewing},
@@ -385,5 +386,21 @@ func TestTransitions_ReviewingOutEdges_Unchanged(t *testing.T) {
 	}
 	if !CanTransition(protocol.PhaseReviewing, protocol.PhaseAmending) {
 		t.Error("CanTransition(reviewing, amending) = false, want true")
+	}
+}
+
+// TestTransition_DesigningSelfEdgeKeepsRound 固定 designing 出口閘門 guard retry 的轉場語意：
+// designing → designing 合法，且不動 Round（重試留在同一輪，與 testing 的 self-edge 同形）。
+func TestTransition_DesigningSelfEdgeKeepsRound(t *testing.T) {
+	s := protocol.State{Phase: protocol.PhaseDesigning, Role: protocol.RoleDesigner, Round: 3}
+	got, err := Transition(s, protocol.PhaseDesigning, protocol.RoleDesigner)
+	if err != nil {
+		t.Fatalf("Transition(designing, designing) = %v, want nil", err)
+	}
+	if got.Phase != protocol.PhaseDesigning || got.Role != protocol.RoleDesigner {
+		t.Fatalf("got (%s, %s), want (designing, designer)", got.Phase, got.Role)
+	}
+	if got.Round != 3 {
+		t.Errorf("Round = %d, want 3 (guard retry must not advance the round)", got.Round)
 	}
 }

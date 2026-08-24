@@ -30,10 +30,13 @@ var safeFilterTools = map[string]bool{
 	"column": true, "jq": true,
 }
 
-// shellSegment 是切段後的單一命令片段，afterPipe 標記其前導運算子是否為單一 pipe `|`。
+// shellSegment 是切段後的單一命令片段。afterPipe 標記其前導運算子是否為單一 pipe `|`；
+// op 記錄該前導運算子本身（第一段為 ""，其餘為 ";" / "&&" / "||" / "|" / "&" / "\n"），
+// 供 precheck 區分「`&&` 保留 exit code」與「`;` 丟棄 exit code」。
 type shellSegment struct {
 	text      string
 	afterPipe bool
+	op        string
 }
 
 // CommandAllowed 回報 cmd 是否被 allowlist 放行。
@@ -103,40 +106,44 @@ func isSafeFilter(seg string) bool {
 }
 
 // splitShellSegments 依 shell 控制運算子（; & && | || 換行）把 cmd 切成 segment，
-// 並標記每段的前導運算子是否為單一 pipe `|`（供 safeFilterTools 放寬用）。
-// 對 && 與 || 這類雙字元運算子做前瞻消耗第二字元，避免 || 被誤判為 pipe。
+// 並記錄每段的前導運算子（shellSegment.op；afterPipe 即 op == "|" 的捷徑，供
+// safeFilterTools 放寬用）。對 && 與 || 這類雙字元運算子做前瞻消耗第二字元，避免 || 被誤判為 pipe。
 func splitShellSegments(cmd string) []shellSegment {
 	var segs []shellSegment
 	var buf strings.Builder
-	afterPipe := false
+	op := ""
 
-	flush := func(nextAfterPipe bool) {
-		segs = append(segs, shellSegment{text: buf.String(), afterPipe: afterPipe})
+	flush := func(nextOp string) {
+		segs = append(segs, shellSegment{text: buf.String(), afterPipe: op == "|", op: op})
 		buf.Reset()
-		afterPipe = nextAfterPipe
+		op = nextOp
 	}
 
 	runes := []rune(cmd)
 	for i := 0; i < len(runes); i++ {
 		switch runes[i] {
-		case ';', '\n':
-			flush(false)
+		case ';':
+			flush(";")
+		case '\n':
+			flush("\n")
 		case '&':
 			if i+1 < len(runes) && runes[i+1] == '&' {
 				i++
+				flush("&&")
+			} else {
+				flush("&")
 			}
-			flush(false)
 		case '|':
 			if i+1 < len(runes) && runes[i+1] == '|' {
 				i++
-				flush(false)
+				flush("||")
 			} else {
-				flush(true)
+				flush("|")
 			}
 		default:
 			buf.WriteRune(runes[i])
 		}
 	}
-	flush(false)
+	flush("")
 	return segs
 }

@@ -50,6 +50,24 @@ type VerifyCommand struct {
 	// 由 executeCommand 寫入。空字串表示命令正常跑完（exit code 即最終結果）。
 	// guard 據此對 timeout 類失敗給明確錯誤訊息，而非籠統的 AC failed。
 	Error string `json:"error,omitempty"`
+	// Audit 是本條命令的可稽核量，由 executeCommand 從完整 combined output 算出（截斷 Summary 之前）。
+	// 未實際執行的命令（被 allowlist 擋下、Skipped）為 nil。
+	Audit *CommandAudit `json:"audit,omitempty"`
+}
+
+// CommandAudit 是單一 verify command 的可稽核量，由 4x verify 從完整 combined output 算出。
+// 布林 pass/fail 只擋得住已知失效模式；這些數字讓任何讓驗證降級的機制留下痕跡——
+// 例如 `grep -q` 這類無輸出命令算出來全是 0，零本身就是刺眼的量：
+// 「這條 check 通過了，但沒產生任何可稽核的輸出」。
+type CommandAudit struct {
+	// OutputLines 是 combined output 中 TrimSpace 後非空的行數。
+	OutputLines int `json:"outputLines"`
+	// GoTestsRun 是 `=== RUN` 行數，即實際跑起來的 go test 個數。
+	GoTestsRun int `json:"goTestsRun"`
+	// PassLinesTopLevel 是頂層 `--- PASS/FAIL/SKIP: ` 行數（不含縮排的 subtest）。
+	PassLinesTopLevel int `json:"passLinesTopLevel"`
+	// PassLinesIndented 是縮排的 `--- PASS/FAIL/SKIP: ` 行數，即 subtest 結果行。
+	PassLinesIndented int `json:"passLinesIndented"`
 }
 
 // HealthCheck 是 testing phase 啟動前的環境檢查設定。

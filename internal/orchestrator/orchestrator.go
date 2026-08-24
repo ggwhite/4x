@@ -477,7 +477,9 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 			return nil, err
 		}
 
-		if next == protocol.PhaseDesigning && phase != protocol.PhaseInit {
+		// designing → designing 是 verify precheck 出口閘門的 guard retry，不是 escalation：
+		// 排除在外，避免閘門重試被誤記成一次 designer escalation 而提早觸發 escalation-loop。
+		if next == protocol.PhaseDesigning && phase != protocol.PhaseInit && !IsDesigningGuardRetry(phase, next) {
 			// Fast-path：只有 design-reviewer 剛跑完（report 為本輪新鮮產物）且主動表態
 			// 同意拆分時才短路，避免讀到 coding/testing/fixing 打回 designing 情境殘留的
 			// 舊 design-review-report。此分支不計入 designerEscalations。
@@ -509,6 +511,11 @@ func (r *Runner) RunLoop(ctx context.Context, s protocol.State) (*Result, error)
 		if next == protocol.PhaseTesting && phase == protocol.PhaseTesting {
 			newState.GuardRetries++
 			cleanupTesterRetry(r.Ws, featureID, s.Round)
+		}
+		// designing 出口閘門的 guard retry 與 testing 共用同一個跨 round 計數器，
+		// 讓 phase.go 的 s.GuardRetries < state.MaxGuardRetries 條件真的生效。
+		if IsDesigningGuardRetry(phase, next) {
+			newState.GuardRetries++
 		}
 		if next == protocol.PhaseReviewing && (phase == protocol.PhaseCoding || phase == protocol.PhaseAmending) {
 			r.generateReviewPackage(newState.Round, newState.BaseCommit)

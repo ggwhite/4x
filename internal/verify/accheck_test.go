@@ -180,3 +180,25 @@ func TestBackwardCompatNoACChecks(t *testing.T) {
 		t.Errorf("RunGroups should not synthesize ac_results, got %d", len(ev.ACResults))
 	}
 }
+
+// TestRunACChecksAuditVisibleWhenExitCodeSwallowed 是 precheck 對偶的直接證明：
+// 上游命令 exit 1 被 pipe 吞掉，布林 Passed 仍為 true 看不出失效；
+// 但 Audit.OutputLines 為 0——「這條 check 通過了，卻沒產生任何可稽核的輸出」。（AC-14）
+func TestRunACChecksAuditVisibleWhenExitCodeSwallowed(t *testing.T) {
+	results := RunACChecks(context.Background(),
+		map[string][]string{"AC-1": {"sh -c 'echo FAIL; exit 1' | grep -q ."}}, t.TempDir(), nil)
+
+	if len(results) != 1 || len(results[0].Checks) != 1 {
+		t.Fatalf("expected 1 AC with 1 check, got %+v", results)
+	}
+	if !results[0].Passed {
+		t.Fatal("boolean pass/fail must not see the swallowed exit code (that is the point of the dual)")
+	}
+	audit := results[0].Checks[0].Audit
+	if audit == nil {
+		t.Fatal("Audit must be populated for an executed check")
+	}
+	if audit.OutputLines != 0 {
+		t.Fatalf("Audit.OutputLines = %d, want 0 (grep -q produces no auditable output)", audit.OutputLines)
+	}
+}

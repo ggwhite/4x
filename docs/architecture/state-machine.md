@@ -27,6 +27,7 @@
 |---|---|---|
 | `init` | `designing` | `4x run` or `4x transition` |
 | `designing` | `design-reviewing` | Designer outputs verified present |
+| `designing` | `designing` | Verify command precheck failed; guard-feedback written, Designer reruns in the same round |
 | `design-reviewing` | `coding` | Design review verdict: pass |
 | `design-reviewing` | `designing` | Design review verdict: fail |
 | `coding` | `reviewing` | Coder outputs verified present |

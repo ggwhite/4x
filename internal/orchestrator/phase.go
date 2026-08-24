@@ -23,6 +23,18 @@ func NextPhaseAfter(ws *protocol.Workspace, featureID string, s protocol.State) 
 		if _, err := os.Stat(criteria); err != nil {
 			return protocol.PhaseNeedsAttention, "", "missing-artifact: " + protocol.Criteria
 		}
+		// designing 出口閘門：Designer 寫的 verify 命令在離開 designing 之前先過靜態 precheck。
+		// 掛在這裡而非某條 phase 邊上——不論 design-reviewing 是否啟用，designing 都經過此處。
+		if res := guard.PrecheckTestStrategy(ws, featureID); !res.Pass {
+			if !guardFeedbackExists(ws, featureID, s.Round) && s.GuardRetries < state.MaxGuardRetries {
+				writeGuardFeedback(ws, featureID, s.Round, res.Errors)
+				return protocol.PhaseDesigning, protocol.RoleDesigner, ""
+			}
+			return protocol.PhaseNeedsAttention, "", strings.Join(res.Errors, "; ")
+		}
+		// 閘門通過就清掉自己在本輪寫過的 guard-feedback.json。designing 與 testing 兩個閘門
+		// 共用同一個 round 級檔案，殘留會被注進 Tester 的 prompt，並讓 tester 的 guard retry 失效。
+		_ = os.Remove(guardFeedbackPath(ws, featureID, s.Round))
 		return protocol.PhaseDesignReviewing, protocol.RoleDesignReviewer, ""
 
 	case protocol.PhaseDesignReviewing:
@@ -162,6 +174,13 @@ func IsTerminalPhase(phase protocol.Phase) bool {
 // guardFeedbackPath 回傳 guard-feedback.json 的完整路徑。
 func guardFeedbackPath(ws *protocol.Workspace, featureID string, round int) string {
 	return filepath.Join(ws.RoundDir(featureID, round), protocol.GuardFeedback)
+}
+
+// IsDesigningGuardRetry 回報一次轉場是否為 designing 出口閘門的 guard retry
+// （verify precheck 失敗後留在 designing 重跑 Designer），而非 designer escalation。
+// orchestrator 用它區分兩者：guard retry 計入 GuardRetries，escalation 才計入 designerEscalations。
+func IsDesigningGuardRetry(from, to protocol.Phase) bool {
+	return from == protocol.PhaseDesigning && to == protocol.PhaseDesigning
 }
 
 // guardFeedbackExists 檢查是否已有 guard-feedback（代表已重試過一次）。

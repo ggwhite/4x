@@ -170,7 +170,8 @@ func runGroup(ctx context.Context, g Group, workDir string, allowlist []string) 
 }
 
 // executeCommand 用 sh -c 執行單一 command，cwd 設為 workDir，並透過 ctx 套用整體 timeout。
-// Summary 過長（>500 字元）時截頭尾保留前後各 250 字元。
+// Summary 過長（>500 字元）時截頭尾保留前後各 250 字元；Audit 在截斷之前先從完整
+// combined output 算出（見 ComputeAudit）。被 allowlist 擋下的早退分支不填 Audit（維持 nil）。
 // allowlist 非空且 cmdStr 不被 CommandAllowed 放行時，命令不執行，直接回傳
 // ExitCode 126 / Error "blocked" 的顯式失敗紀錄（見 CommandAllowed）。
 func executeCommand(ctx context.Context, cmdStr, group, workDir string, allowlist []string) protocol.VerifyCommand {
@@ -204,6 +205,9 @@ func executeCommand(ctx context.Context, cmdStr, group, workDir string, allowlis
 		}
 	}
 
+	// 在截斷 summary 之前先算 audit——可稽核的量必須反映完整輸出，不是截斷後的殘篇。
+	audit := ComputeAudit(string(out))
+
 	summary := strings.TrimSpace(string(out))
 	if len(summary) > 500 {
 		summary = summary[:250] + "\n...\n" + summary[len(summary)-250:]
@@ -228,5 +232,6 @@ func executeCommand(ctx context.Context, cmdStr, group, workDir string, allowlis
 		FinishedAt: finished,
 		Group:      group,
 		Error:      errMsg,
+		Audit:      &audit,
 	}
 }

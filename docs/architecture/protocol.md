@@ -304,7 +304,10 @@ or if `passed` disagrees with the exit codes.
     "verify_type": "unit-test",
     "evidence": ["$ go test ./internal/foo -run TestBar → exit 0 (12ms)"],
     "checks": [
-      { "command": "go test ./internal/foo -run TestBar", "exitCode": 0, "durationMs": 12 }
+      {
+        "command": "go test ./internal/foo -run TestBar", "exitCode": 0, "durationMs": 12,
+        "audit": { "outputLines": 4, "goTestsRun": 1, "passLinesTopLevel": 1, "passLinesIndented": 0 }
+      }
     ]
   }
 ]
@@ -396,6 +399,66 @@ execution-type AC in `ac_verify_map` must bind at least one check. A fake-verifi
 rejects checks that only grep source code, `echo`/`printf`, `true`, or `:`; append the literal
 token `4x-lint:allow` to a command to bypass the linter (e.g. when legitimately grepping generated
 output). When `ac_checks` is absent, behavior is unchanged (prose-evidence path).
+
+#### Verify command precheck
+
+Every command in `verify_groups`, `verify_commands` and `ac_checks` is run through a purely static
+precheck before the feature leaves the `designing` phase (`internal/verify/precheck.go`, wired into
+`orchestrator.NextPhaseAfter` and `guard.Check`). A failing precheck writes the findings to
+`guard-feedback.json` and sends the feature back to `designing`; once the retry budget is spent the
+feature goes to `needs-attention`. Each finding names the offending command, the rule ID and the
+source (`verify_commands`, `verify_groups[<name>]` or `ac_checks[<AC ID>]`).
+
+`guard.Check` applies the precheck only while `state.phase` is `designing`. Later phases skip it on
+purpose: `test-strategy.yaml` is outside the Coder's writable set, and several orchestrator call
+sites treat a failing `guard.Check` as a hard stop, so a stale violation in an older feature's
+strategy file would halt the run with no role able to fix it.
+
+Rules (the literal `Finding.Rule` values):
+
+- `unparseable` — empty command, unbalanced quotes, or a dangling trailing connector.
+  Example: `make build &&`.
+- `unknown-executable` — the segment's leading command is not a shell builtin and
+  `exec.LookPath` cannot find it. Example: `definitely-not-a-real-binary --check`.
+- `missing-path` — a leading `VAR=<path>` assignment, a `cd` target, or an argument starting with
+  `./` / `../` points at something that does not exist. Example: `GOWORK=../nope/go.work go test ./...`.
+- `exit-code-swallowed` — the exit code of a real command is discarded by a following `;` (or
+  newline), or by a pipe into a read-only filter tool. Example:
+  `go test ./x 2>&1 | grep -q -- '--- PASS: TestX'`.
+- `unanchored-pass-grep` — a quoted grep pattern containing `--- PASS:` / `--- FAIL:` / `--- SKIP:`
+  that is not anchored with `^` and does not end with a space, so it matches indented subtest lines
+  or prefix-sharing test names. Example: `grep -q -- '^--- PASS: TestX' out.log`.
+
+Explicitly out of scope (the precheck is static only):
+
+- It never executes the command under check — the only external calls are `exec.LookPath` and `os.Stat`.
+- It never judges by exit code.
+- It never predicts whether a command will pass at run time. `go test -race ./...` in an e2e setup
+  never exits 0, yet it is statically valid and is deliberately **not** reported; that class of
+  failure is covered by the audit counters below, not by the precheck.
+- It does not check the existence of executables containing `/` (e.g. `bin/4x`) — those are build artifacts.
+- It does not check bare relative paths that do not start with `./` (e.g. `internal/foo/bar.go`) —
+  those may be files the Coder is about to create.
+- It does no quote-aware parsing. A pipe inside quotes (`-run '^TestA$|^TestB$'`) still splits the
+  command into segments; the `exit-code-swallowed` rule therefore only fires when the downstream
+  segment is a known read-only filter tool. A consequence is that `go test ... | tee log` is not caught.
+
+Escape hatch: a command containing the literal token `4x-lint:allow` skips **all** precheck rules
+(the same token `LintACCheck` uses). It is visible in the diff, so the Design Reviewer can see it.
+
+The dual of the precheck is the `audit` object on every `VerifyCommand` that `4x verify` actually
+runs — both `ac_results[].checks[]` and the group/command evidence under `commands[]`, since both
+go through the same executor. It holds four counters computed from the full combined output before
+the summary is truncated (a command that was blocked by the allowlist or skipped has no `audit`):
+
+- `outputLines` — non-blank lines of combined output.
+- `goTestsRun` — `=== RUN` lines, i.e. how many Go tests actually started.
+- `passLinesTopLevel` — top-level `--- PASS/FAIL/SKIP: ` lines.
+- `passLinesIndented` — indented `--- PASS/FAIL/SKIP: ` lines (subtests).
+
+All zeros is the loud case: the check passed but produced nothing auditable — for example
+`grep -q` swallowing an upstream failure. Booleans only stop known failure modes; these counters
+leave a trace whenever verification silently degrades.
 
 #### `coder-report.md` (Coder output)
 
