@@ -5,13 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.5.7] - 2026-08-25
 
 ### Fixes
 
 - **learnings 三閘門互鎖解除，`ineffective` 不再是幾乎必中且不可逆的終態** — `MarkIneffective()` 改名為 `ReevaluateIneffective()` 並改為雙向重評：判定條件 3 從「最近 3 個不同 feature 的條目中有同 category」改為「相似內容（Jaccard ≥ `RecurrenceSimilarityThreshold`＝0.3）來自 ≥ `RecurrenceMinDistinctFeatures`（2）個相異 feature」，條件不再全部成立時旗標自動撤銷。consolidate 的觸發判定與輸入改用 `AllActiveEntries()`（含 ineffective），`consolidate-input.json` 每筆新增 `ineffective` 欄位，consolidate 不再被 ineffective 條目餓死；consolidate 回 0/0 的兩條 no-op 路徑各補一行 `slog.Info`，與 runner 失敗的 `slog.Warn` 可區分
 - **learnings store 升到 v2，首次載入會把所有現存 `ineffective` 旗標一次性重設為 false** — 舊規則誤標的條目在 `LoadStore` 時全部撤銷，受影響的條目 ID 記在 store 層級的 `ineffective_reset_ids`，可用 `4x learn list --ineffective-reset` 查詢。重設只改記憶體，磁碟上要等下一次 store 寫入（harvest / prune / add / promote / remove / consolidate）才落地；在那之前每次載入都重跑同一份重設，冪等無害
 - **harvest 新增 `(source_feature, category)` 桶上限，單一 feature 不再灌爆 store** — 同一 `(source_feature, category)` 桶最多保留 `MaxPerFeatureCategory`（3）條，超出的在 harvest 時被略過並只記入 log（`harvest skipped over-quota learnings`）。這是使用者可見的靜默行為改變：一輪吐出 8 條同 category 心得只會進 3 條。`4x learn add`（`source_feature = manual`）豁免此上限，既有的手動累積用途不受影響
+- **`shared_paths` 改動不再隨 worktree 清理靜默遺失** — F186：`4x done`/`4x merge` 現在會把 `shared_paths` 宣告的根層檔案（如 Dockerfile、docker-compose.yml）合併回主工作區並 commit；先前 `copyWorkspaceFiles` 把這些檔案複製進 worktree（非 git worktree，純檔案副本）但 `Merge()`/`PushAndOpenMR()` 從未回寫，`Cleanup()` 一刪除 worktree 改動就跟著消失，零警告零異常 exit code。同時修掉只複製檔案、跳過目錄的子缺陷
+- **Designer 在 worktree 宣告的 `shared_paths` 能同步回主工作區** — F189：`SyncFeatureFromWorktree` 補上 `SharedPaths` 欄位合併（比照 `Repos` 用 `slices.Equal` 判等，避免無變更也寫檔）。此為 F186 的前置阻擋：不修此項，F186 設計的合併/防護邏輯讀到的恆為空值
+- **`4x done` 不再被自己在 pipeline 期間寫入的 state 檔擋住 merge** — F190：新增 `internal/gitops/selfmanaged.go`，merge preflight 判斷前先對 `.4x/features`、`.4x/learnings.json`、`.4x/learnings-context.md` 三個 4x 自管路徑做 path-scoped commit；F184 對「非自管未 commit 修改一律中止」的保護邏輯不變。先前每跑完一個 feature 都要人工介入 commit 才能繼續，autopilot 無法真正無人值守
+- **`4x merge --json` 輸出不再混入純文字** — `gitops.Commit` 的進度訊息改用 `slog.Info`（寫 stderr），修正 JSON 輸出被 `fmt.Printf` 污染的問題
+- **guard 執行證據偵測補齊瀏覽器 E2E 慣用詞** — `executionPattern` 加入 screenshot/Playwright/DOM/navigated/clicked/rendered 等詞彙，避免真的跑過瀏覽器測試的證據被誤判為「無執行證據」
+- **learnings 交叉 feature 提升不再被早退條件漏接** — `Store` 新增 `CrossFeaturePromoted()` 追蹤旗標，`HarvestLearnings` 的早退判斷補上這個訊號；harvest 收尾同時自動老化候選並觸發 `Prune`，不再只能靠 `4x learn prune` 手動觸發；`NeedConsolidate` 加 24 小時冷卻，`ApplyConsolidateResult` 三條 exit path（含兩條 no-op）皆確保存檔，避免冷卻機制被繞過
+- **平行 review/test 的 worktree 同步失敗不再靜默** — `RunReviewTestParallel` 對 marker 同步新增驗證 + 重試 + fail-fast，取代原本 best-effort 複製失敗也不吭聲的行為
+- **Designer 重試時能讀到 guard-feedback，不再盲跑重複觸發同一個 precheck 失敗** — `GuardFeedback` 注入條件從只有 Tester 擴大到含 Designer
+- **`4x retry` 不再殘留 no-progress 計數立即被秒殺** — 重置 `consecutiveNoProgress`/`stopReason`，避免 retry 後立刻被既有的 no-progress 偵測判定 needs-attention
+
+### Features
+
+- **verify 指令進 coding 前先做靜態可執行性檢查** — F188：新增 `verify.PrecheckCommand`/`PrecheckStrategy`，涵蓋 missing-path、unknown-executable、exit-code-swallowed、unanchored-pass-grep、unparseable 五類失效樣態，接上 designing 出口閘門（不影響已存在 feature 在其他 phase 的行為），`verify.json` 補上可稽核的執行量（OutputLines/GoTestsRun 等）
+- **`4x new` 支援 `--shared-paths` flag** — 建立 feature 時可直接宣告根層共用路徑，不必事後手改 YAML
+
+### Docs
+
+- 五語系（es/ja/ko/zh-CN/zh-TW）`docs/guide/cli.md` 的 `4x learn` 段落補齊 `4x learn context` 指令、confidence 排序說明、兩階段 prune 說明，並修正過時的 `prune`/`stale` 描述
+- 六個 runner plugin（codex/gemini/cursor/agy/opencode/copilot）補齊 `shared_paths` 授權說明，先前只寫進 claude-code 的 CLAUDE.md
 
 ### Known Limitations
 
