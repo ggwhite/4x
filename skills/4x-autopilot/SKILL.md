@@ -26,10 +26,15 @@ description: >
 每次 wakeup 開始時，先讀 `.4x/settings.json` 取得：
 
 ```
-REPOS      = Object.keys(settings.workspace.repos)   # 所有 repo 名稱（動態，不硬寫）
-HUB_REPOS  = settings.hub_repos || []                 # hub repo（同步時包含，scope 檢查時排除）
-USE_GITLAB = settings.issue_tracker?.enabled == true   # 是否啟用 GitLab MR 流程
+REPOS        = Object.keys(settings.workspace.repos)   # 所有 repo 名稱（動態，不硬寫）
+HUB_REPOS    = settings.hub_repos || []                 # hub repo（同步時包含，scope 檢查時排除）
+USE_GITLAB   = settings.issue_tracker?.enabled == true   # 是否啟用 GitLab MR 流程
+POST_CLEANUP = settings.worktree?.post_cleanup || []     # 清 worktree 後要跑的專案清理指令
 ```
+
+`POST_CLEANUP` 每個元素是一行 shell 指令，字串中的 `{feature-id}` 會被替換成當前 feature ID。
+用途是清掉 worktree 以外的 feature 環境資源（Docker 容器/image/volume、測試資料庫、暫存目錄等）——
+這些東西 `git worktree remove` 不會碰，沒清就會逐輪累積。沒設定就跳過。
 
 取得 GitLab group（僅 USE_GITLAB 時需要）：
 
@@ -108,6 +113,22 @@ ls .worktrees/4x/
 1. 對目錄內每個 repo 子目錄：`git -C <main-repo> worktree remove <worktree-path>`
 2. `rm -rf .worktrees/4x/<feature>/`
 3. 對 `REPOS` 中每個存在的 repo 執行 `git -C <repo> worktree prune`
+4. 對該 `<feature>` 執行 `POST_CLEANUP`（見下方「執行 POST_CLEANUP」）
+
+這一步是撿漏：正常情況 FINISHING Step 6 已經清過，但 session 中斷、機器重開、
+或 feature 被手動 abandon 時不會走到那裡，殘骸就留在這裡等著被撿。
+
+### 執行 POST_CLEANUP
+
+`POST_CLEANUP` 非空時，對每個指令把 `{feature-id}` 替換成當前 feature ID 後，
+在 workspace root 執行：
+
+```bash
+cd <workspace-root> && <command with {feature-id} substituted>
+```
+
+**失敗不阻塞**：任一指令失敗只 log 警告（`<id> post_cleanup 失敗: <command>`），
+繼續往下走。清理失敗最多浪費磁碟，不該擋住 pipeline。
 
 ### Step C: 選擇 feature
 
@@ -320,7 +341,7 @@ git -C <repo> rev-list --count main..origin/main   # 應為 0
 任何非 0 → log 警告但不阻塞。
 無 remote 的 repo → 跳過檢查。
 
-### Step 6: 清 worktree
+### Step 6: 清 worktree 與 feature 環境
 
 ```bash
 ls .worktrees/4x/<feature>/ 2>/dev/null
@@ -330,6 +351,14 @@ ls .worktrees/4x/<feature>/ 2>/dev/null
 1. 對目錄內每個 repo 子目錄：`git -C <main-repo> worktree remove .worktrees/4x/<feature>/<repo>`
 2. `rm -rf .worktrees/4x/<feature>/`
 3. 對 `REPOS` 中每個存在的 repo：`git -C <repo> worktree prune`
+
+**接著無條件執行 `POST_CLEANUP`**（見 IDLE-PICK 的「執行 POST_CLEANUP」），
+不管 worktree 目錄存不存在、不管前面步驟成不成功。
+
+這一步不可以省略，也不可以因為「role instructions 已經要求 Tester 收尾關環境」而跳過——
+role 是否真的執行過無法從這裡驗證，而漏清的成本是每個 feature 累積數 GB 的
+Docker image 和 volume，跑幾十輪就吃掉整顆磁碟。清理必須冪等：
+已經清乾淨時再跑一次不應該報錯。
 
 ### Step 7: 完成
 
