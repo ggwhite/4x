@@ -1,148 +1,149 @@
+<div align="center">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/banner-dark.svg">
+  <img src="../assets/banner-light.svg" alt="4X：设计、实现、审查、测试。" width="100%">
+</picture>
+
+**一个 agentic 开发循环：把 Design、Code、Review、Test 拆成彼此隔离的 AI 角色，再用确定性的 guardrail 把关。**
+
+<p>
+  <a href="https://github.com/ggwhite/4x/actions/workflows/ci.yml"><img src="https://github.com/ggwhite/4x/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/ggwhite/4x/releases"><img src="https://img.shields.io/github/v/release/ggwhite/4x" alt="最新版本"></a>
+  <a href="https://pkg.go.dev/github.com/ggwhite/4x"><img src="https://pkg.go.dev/badge/github.com/ggwhite/4x.svg" alt="Go Reference"></a>
+  <a href="https://goreportcard.com/report/github.com/ggwhite/4x"><img src="https://goreportcard.com/badge/github.com/ggwhite/4x" alt="Go Report Card"></a>
+  <a href="../../LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="许可证：MIT"></a>
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="平台：macOS、Linux、Windows">
+</p>
+
+[安装](#安装) · [快速开始](#快速开始) · [功能](#功能) · [循环如何运作](#循环如何运作) · [Guardrail](#确定性-guardrail) · [架构](#架构) · [文档](#文档) · [FAQ](#faq)
+
 [English](../../README.md) | [繁體中文](README.zh-TW.md) | **简体中文** | [日本語](README.ja.md) | [한국어](README.ko.md) | [Español](README.es.md)
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/ggwhite/4x.svg)](https://pkg.go.dev/github.com/ggwhite/4x)
-[![Go Report Card](https://goreportcard.com/badge/github.com/ggwhite/4x)](https://goreportcard.com/report/github.com/ggwhite/4x)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![CI](https://github.com/ggwhite/4x/actions/workflows/ci.yml/badge.svg)](https://github.com/ggwhite/4x/actions/workflows/ci.yml)
-
-<p align="center">
-  <img src="../assets/4x-banner.svg" alt="4X — Design. Code. Review. Test." width="480">
-</p>
-
-<p align="center">
-  <img src="../assets/demo.gif" alt="4x demo" width="720">
-</p>
-
-**4x 是一个多角色 AI 开发框架，将软件工程循环拆分为四个专业阶段** — 设计 (Design)、编码 (Code)、审查 (Review)、测试 (Test) — 每个阶段由一个专属 AI agent 驱动。正如 4X 策略游戏（探索、扩张、开发、征服）一样，这个名字体现了一个系统：不同角色各司其职，协力征服复杂性。
+</div>
 
 ---
 
-## 主要功能
+<div align="center">
+  <a href="../assets/tour.mp4"><img src="../assets/tour.webp" alt="4x 导览，取自一次真实运行并加速播放：(1) 4x init 在一个既有的 Go 项目 greet 上完成设置，并检测出 go build 与 go test 命令；(2) 4x new 创建 feature F001 Greet by name；(3) 4x run F001 让 Claude Code 依次扮演 Designer、Coder、Reviewer、Tester；Tester 的检查被 verify 白名单挡下，feature 因此 escalate 回 Designer 重写，第二轮通过后进入 Accept 与 pending-review，并打印总花费；(4) 4x status 列出处于 pending-review 的 feature，4x done F001 将它标记完成，go run . -name Ada 打印 hello, Ada" width="900"></a>
+  <br>
+  <sub>▶ <a href="../assets/tour.mp4">观看完整导览</a> · 一次真实的 Claude Code 运行（约 4 分钟、$2），agent 等待时间已剪短</sub>
+</div>
 
-| 类别 | 亮点 |
-|---|---|
-| **多角色循环** | Design → Code → Review → Test → Deep Review → Accept，角色隔离。Adaptive pipeline 按功能复杂度选择 profile（full / mini / quick）。 |
-| **6 种 AI Runner** | Claude Code · Codex · Gemini CLI · Antigravity · Copilot · Cursor — 统一 `.4x/` 文件协议，可按角色混搭。 |
-| **Dashboard（4x Live）** | macOS 原生（Swift）+ Windows / Linux（Tauri）。实时 SSE 监控、依赖图、Runner log streaming、截图 gallery、设置 UI、批量监控。6 语言 i18n、系统通知、menu bar 集成。 |
-| **确定性护栏** | 状态机、scope lock、baseline snapshot、证据测试关卡、依赖关卡 — 由 Go CLI 强制执行，不是靠 LLM prompt。 |
-| **Crash Recovery** | Runner 中断 → 从最后保存的状态自动恢复。暂态 API 错误（网络、rate limit）→ 自动 backoff 重试。 |
-| **批量模式** | 依赖感知 DAG 调度、完成后自动合并、批量报告、优雅停止。几十个 feature 排入夜间执行，早上再 review。 |
-| **MCP Server** | Model Context Protocol server，可与 MCP 兼容的 client 集成。 |
-| **Issue-First MR Flow** | 可选的 `issue_tracker` 模式：`4x new` 创建或关联 issue，`4x done` 改为 push branch 并开 PR/MR，取代本地合并。依各 repo 的 remote 自动检测 GitHub 或 GitLab（含自建），无需额外配置。 |
-| **20+ CLI 命令** | `run`、`batch`、`live`、`doctor`、`clean`、`verify`、`mcp`、phase hooks、health check、structured logging 等。 |
-| **自我进化** | 从历史 run 挖掘改进信号、自动发现 feature 充实化、evolution value gate + anti-hack、自我修改 scope guard、持续改进驱动器（`4x evolve`）。4x 从自身失败中学习并自我迭代。 |
+## 为什么
 
-## 为什么选择 4x？
+单一 agent 写代码很快，但很脆弱。你让同一个 AI 设计、实现、审查、测试，一口气做完，带着同样的偏见。小任务还行，碰到真正的功能就撑不住。
 
-单 agent 编码快但脆弱。你让一个 AI 同时设计、实现、审查和测试 — 一口气完成，带着相同的偏见。小任务可以凑合，真正的功能开发就会崩盘。
+4x 把循环拆开。每个角色职责专一、范围有限，也看不到其他角色的推理过程：Designer 不写代码，Coder 不评判自己的成果，Reviewer 天生就站在对立面，Tester 则依照实现前就写好的验收标准来验证。决定下一步能做什么的是 Go CLI，不是 LLM。就像 4X 策略游戏（eXplore、eXpand、eXploit、eXterminate），各有所长的不同角色朝同一个目标前进：做出经得起上线考验的功能。
 
-4x 拆分了这个循环。每个角色都有明确的职责、有限的范围，且无法接触其他角色的推理过程。设计者不写代码，编码者不评判自己的成果，审查者天生是对抗性的，测试者按照实现前编写的标准进行验证。
+## 功能
 
-最终结果：经得起生产环境考验的功能。
+<table>
+<tr>
+<td width="42%" valign="middle">
 
-## 权衡取舍
+### 四个隔离的角色
 
-选择 4x 意味着用速度和成本换取结构和正确性。请诚实评估你的项目是否需要这种取舍。
+**Designer → Coder → Reviewer → Tester → Accept**，每个角色都是独立的 runner 进程，彼此只通过 `.4x/` 里的文件沟通。Reviewer 判定 **FAIL** 或验证失败，代码会送去 **amending**；规格有误则 **escalate** 回 Designer。Pipeline **profile**（`full`、`normal`、`lite`、`quick` 或自定义）决定要跑哪些阶段。
 
-### 优势
+</td>
+<td><img src="../assets/feature-loop.webp" alt="演示运行时的 4x Live Messages 标签页：先出现 Designer 产出 task-brief.md 与 acceptance-criteria.md 的消息，接着 Coder、Reviewer、Tester 的报告依次出现，每则都标注模型与花费；Tester 发起 escalation，Designer 重写 brief，第二轮 Coder、Reviewer、Tester 跑完后，Acceptor 把 feature 收进 Review"></td>
+</tr>
+<tr>
+<td width="42%" valign="middle">
 
-- **角色隔离消除自我审查偏见。** 编码者永远不评判自己的成果。审查者天生是对抗性的。单 agent 工作流让同一个模型编写并审批代码 — 4x 不会。
-- **确定性护栏不依赖 AI 判断。** 范围锁定、状态机、证据要求 — 这些由 Go 编写的 CLI 强制执行，而不是靠提示 LLM "请不要超出范围"。
-- **基于文件的协议使其与 LLM 无关。** 在 Claude、Gemini、Codex 之间自由切换，或按角色混合使用。无供应商锁定，无 SDK 依赖。
-- **抗崩溃的状态。** 一切保存在 `.4x/` 文件中。会话中断、机器重启 — `4x run` 从中断处精确恢复。
-- **人始终在环中。** `pending-review` 关卡确保人类始终在 AI 工作被标记完成前进行审查。AI 提议，你决定。
-- **驾驭大规模重构。** 单一 AI 会话无法处理的大型改动 — 拆分 God Object、提取 package、迁移 API — 可以拆成有依赖关系的多个 feature，各自指定合适的 profile。4x 负责调度、review 和跨阶段验证，不会超出单一 context window 的极限。
-- **批量模式可扩展。** 依赖感知的调度让你可以把几十个功能排入队列过夜运行，早上再审查。
+### 确定性的 guardrail
 
-### 劣势
+Guardrail 是 **Go 代码，不是 prompt**。`4x check` 检查 **scope**、**baseline** 快照、必要文件与 **verify 证据**；**状态机**拒绝不合法的阶段跳转；`4x verify` 只运行项目**白名单**内的命令。Runner 怎么说都绕不过去。
 
-- **显著更高的 token 消耗。** 每个功能至少经过 4 次以上的独立 LLM 调用。审查失败会翻倍。预期同一任务的 token 消耗是单 agent 方法的 3-10 倍。参见[使用技巧](../guide/zh-CN/usage-tips.md)了解成本估算。
-- **简单任务更慢。** 一行的 bug 修复不需要设计者、审查者和测试者。完整循环的开销在琐碎改动上是浪费的。简单修复请使用单 agent 工具。
-- **初始化成本。** `4x init`、feature YAML、设置配置 — 开始前需要一些仪式性操作。对于一次性脚本不值得。
-- **固定的循环结构。** 设计 → 编码 → 审查 → 测试的顺序是固定的。如果你的工作流不适合四个角色，你会在跟框架对抗而不是使用它。
-- **质量取决于 prompt 质量。** 模糊的功能描述产生模糊的规格，进而产生错误的代码。4x 增加了结构，但垃圾输入仍然意味着垃圾输出 — 只是步骤更多。
+</td>
+<td><img src="../assets/feature-guardrails.webp" alt="终端：4x check F001 回报已完成的演示 feature 通过所有 guardrail 检查；4x transition F001 --to coding --json 被拒，消息为 invalid transition: pending-review to coding；4x verify F001 依每条验收标准运行 test-strategy.yaml 里的 go build、go vet、go test 检查并打印 PASSED"></td>
+</tr>
+<tr>
+<td width="42%" valign="middle">
 
-### 何时使用 4x
+### 4x Live 仪表板
 
-- 需要正确性的功能（支付、认证、数据管道）
-- 受益于对抗性审查的工作（安全敏感代码）
-- 功能积压的批量处理
-- 需要 AI 生成代码审计追踪的团队
+`4x live` 通过 REST + **SSE** 提供**多项目仪表板**：feature 卡片随阶段变化从 Todo 移到 Running 再到 Review，并显示每个 feature 的轮次、runner 与花费。同一套 web UI 内嵌在 binary 里，也包装成 **macOS（Swift）** 与 **Windows / Linux（Tauri）** 应用程序。
 
-### 何时不该使用 4x
+</td>
+<td><img src="../assets/feature-live.webp" alt="演示运行时的 4x Live 项目总览：F001 Greet by name 卡片从 Todo 移到 Running，阶段标签依次切换 designing、coding、reviewing、testing，Running 计数、状态环形图与 Currently running 面板同步更新；最后卡片停在 Review 并出现 Mark Done 按钮，Pending review 面板也列出它"></td>
+</tr>
+<tr>
+<td width="42%" valign="middle">
 
-- 快速的一次性修复或探索性原型
-- 速度比正确性更重要的任务
-- token 预算紧张的项目
-- 你自己会审查代码的独立开发场景
+### 依角色与轮次计算花费
 
-## 架构
+每次 runner 调用都会记录模型、耗时与 **USD 花费或 token 数**。`4x cost` 依**角色**汇总，`--by-round` 显示有多少花在**重试**上，`--feature` 则把单一 feature 逐轮拆开，让你看清一次 review 失败实际花了多少。
 
-```
- You
-  |
-  v
-+--------------------------------------------------+
-|  4x CLI (Go)                                     |
-|  Deterministic guardrails. No LLM calls.         |
-|  Scope checks, protocol, state machine, batch    |
-+--------+-----------------------------------------+
-         |  .4x/ directory (file-based protocol)
-         v
-+--------------------------------------------------+
-|  Runners                                         |
-|  Claude Code | Codex | Gemini | Antigravity      |
-|  Copilot | Cursor                                |
-|  Each uses native platform capabilities          |
-+--------+-----------------------------------------+
-         |  SSE events
-         v
-+--------------------------------------------------+
-|  4x Live (Dashboard)                             |
-|  Multi-project real-time monitoring              |
-+--------------------------------------------------+
-```
+</td>
+<td><img src="../assets/feature-cost.webp" alt="终端：4x cost 打印演示项目依角色（designer、coder、reviewer、tester、acceptor）的花费，含调用次数、总额、平均与占比；接着 4x cost --feature F001-greet-by-name 依轮次与角色列出同样的调用"></td>
+</tr>
+</table>
 
-**第一层 — CLI** 处理所有确定性操作：范围验证、状态转换、基线快照、证据收集。它从不调用 LLM。护栏不依赖 AI 判断。
+### 更多功能
 
-**第二层 — Runner** 将 CLI 协议桥接到你选择的 AI 工具。Claude Code、Codex、Gemini、Antigravity、Copilot、Cursor — 每个都使用相同的 `.4x/` 文件协议，但使用各自平台的原生能力。
-
-**第三层 — Live** 是多项目仪表盘。实时观察 AI agent 的工作进度，查看阶段转换，流式传输日志。REST + SSE API。
+- **7 种 runner**：Claude Code、Codex、Gemini CLI、Antigravity、Copilot、Cursor 与 OpenCode 共用同一套 `.4x/` 文件协议，可依角色或阶段混搭（`--phase-override`）。
+- **自适应 pipeline**：profile 顾问依 feature 复杂度建议 `full` / `normal` / `quick`；各角色的模型使用 `strong` / `fast` 两种等级。
+- **崩溃恢复**：runner 崩溃后从最后保存的状态接续；暂时性的 API 错误（网络、rate limit）会以 backoff 重试。
+- **人工审批**：每个 feature 都会停在 `pending-review`；`4x done` 将它标记完成并合并分支（启用 `issue_tracker` 时则改为开 PR/MR）。
+- **Issue-first MR 流程**：可选的 `issue_tracker` 模式。`4x new` 创建或关联 issue，`4x done` 推送分支并开 PR/MR，而不是在本地合并。GitHub 或 GitLab（含自托管）依各 repo 的 remote 自动判断。
+- **依赖关系**：`4x new --depends F001` 让 feature 等到依赖项目完成才能开始；仪表板会画出依赖图。
+- **自我演化**：`4x mine` / `4x gate` / `4x evolve` 从过去的运行挖掘失败信号，经过价值闸门筛选候选项目，再排入改进用的 feature。回顾心得（`4x learn`）会注入之后的角色 prompt。
+- **MCP server** 与 **Claude Code skill**（`4x-audit`、`4x-autopilot`），见下方说明。
+- **30 个以上的 CLI 命令**：`run`、`status`、`check`、`verify`、`retry`、`cost`、`live`、`doctor`、`clean`、`mcp`、`skills`、phase hook、结构化日志 等。详见 [CLI 参考](../guide/zh-CN/cli.md)。
 
 ## 安装
 
-### Homebrew (macOS / Linux)
+### Homebrew（macOS / Linux）
 
 ```bash
 brew install ggwhite/tap/fourx
 ```
 
-### Go Install
+### Go install
 
 ```bash
 go install github.com/ggwhite/4x/cmd/4x@latest
 ```
 
-### Shell Script
+### Shell 脚本
 
 ```bash
 curl -sSfL https://raw.githubusercontent.com/ggwhite/4x/main/install.sh | sh
 ```
 
-### 下载 Binary
+### 下载 binary
 
-macOS、Linux、Windows（amd64 / arm64）的预编译 binary 可在 [Releases](https://github.com/ggwhite/4x/releases) 页面下载。
+macOS、Linux、Windows（amd64 / arm64）的预编译 binary 都在 [Releases](https://github.com/ggwhite/4x/releases) 页面。
+
+<details>
+<summary><b>验证 checksum</b>（手动下载时）</summary>
+
+Shell 脚本会自动验证下载文件的 checksum，不符就中止。若从 [Releases](https://github.com/ggwhite/4x/releases) 页面手动下载压缩包或 binary，请在解压缩前自行验证：把该版本的 `checksums.txt` 下载到同一个目录，然后运行以下其中一个命令：
+
+```bash
+# Linux (and macOS with coreutils)
+sha256sum --check --ignore-missing checksums.txt
+
+# macOS (default)
+shasum -a 256 --ignore-missing --check checksums.txt
+```
+
+确认 checksum 显示 `OK` 后，再解压缩并运行 binary。
+
+</details>
 
 ## 快速开始
 
 ```bash
-# 在你的项目中初始化
+# Initialize in your project
 cd my-project
 4x init
 
 # Create a feature
 4x new "User authentication with OAuth2"
-# => Created: F001-user-authentication-w
+# => Created feature: F001-user-authentication (User authentication with OAuth2)
 
 # Run the full loop
 4x run F001 --runner claude
@@ -157,97 +158,185 @@ cd my-project
 4x live -w
 ```
 
-`4x run` 自动驱动 设计-编码-审查-测试 循环。如果审查发现问题，编码者会再做一轮。如果测试失败，循环会迭代。你可以通过 `--max-rounds` 和 `--timeout` 标志保持控制。
+`4x run` 会自动驱动 Design-Code-Review-Test 循环。Review 发现问题，Code 就再跑一次；Test 失败，循环就再迭代。你可以用 `--max-rounds`、`--profile` 与 `--timeout` 掌控整个流程。
 
 ## 四个角色
 
 | 角色 | 职责 | 产出 |
 |---|---|---|
-| **设计者 (Designer)** | 分析需求，产出规格和验收标准 | `task-brief.md`、`acceptance-criteria.md` |
-| **编码者 (Coder)** | 严格按照规格实现 | 源代码、`coder-report.md` |
-| **审查者 (Reviewer)** | 发现 bug 和规格违规（检查清单 + 对抗性审查） | `review-report.md`（含裁定结果） |
-| **测试者 (Tester)** | 基于验收标准用证据验证 | `test-report.md`、`verify.json` |
+| **Designer** | 分析需求，产出规格与验收标准 | `task-brief.md`、`acceptance-criteria.md`、`test-strategy.yaml` |
+| **Coder** | 完全照规格实现 | 源代码、`coder-report.md` |
+| **Reviewer** | 抓出 bug 与违反规格之处（检查清单 + 对抗式审查） | 附判定结果的 `review-report.md` |
+| **Tester** | 依验收标准验证并附上证据 | `test-report.md`、`verify.json` |
 
-每个角色都是**隔离的**。编码者看不到审查者之前的反馈。测试者按照设计者（而非编码者）编写的标准进行验证。这种隔离防止了单 agent 工作流中常见的盲点。
+每个角色都是**隔离**的。Coder 看不到 Reviewer 先前的反馈；Tester 依照 Designer 写的标准验证，而不是 Coder 写的。这种分工能避开单一 agent 工作流常见的盲点。`full` profile 会在四个核心角色之外，再加上 Design Reviewer、多角度的 Deep Reviewer、Fixer 与 Acceptor。
 
 ## 循环如何运作
 
-```
-Designer → Coder → Reviewer → Tester → Accept → Pending Review → Done
-                      ↓           ↓                                 ↑
-                   amending ←─────┘                          human sign-off
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/loop-dark.svg">
+  <img src="../assets/loop-light.svg" alt="Designer、Coder、Reviewer、Tester、Accept、Pending Review 与 Done 排成一列。Reviewer 判定 FAIL 或验证失败时，代码送去 amending，再回到 Reviewer；escalation 回到 Designer；进入 Done 前需由人以 4x done 审批。" width="100%">
+</picture>
 
-- **审查失败**（裁定 FAIL 或 CRITICAL 级发现）将代码送回修改
-- **测试失败**（验证未通过）将代码送回修改
-- **升级 (Escalation)**（规格不匹配、标准错误）路由回设计者
-- **Pending review** 关卡确保人类始终在标记完成前进行审查
-- **轮次预算**（默认 5）防止无限循环
+- **Review 失败**（判定 FAIL 或有 CRITICAL 发现）会把代码送回 amending
+- **Test 失败**（verify 未通过）会把代码送回 amending
+- **Escalation**（规格不符、验收标准有误）会转回 Designer
+- **Pending review** 闸门确保标记完成前一定有人审查
+- **轮次上限**（默认 5）避免无限循环
 
-## 确定性护栏
+合法的状态转换定义在 [`internal/state/machine.go`](../../internal/state/machine.go)；完整状态机请见 [核心概念](../guide/zh-CN/concepts.md)。
 
-由 CLI 强制执行，不依赖 AI 判断：
+## 确定性 Guardrail
 
-| 护栏 | 功能 |
+由 CLI 强制运行，不靠 AI 判断：
+
+| Guardrail | 作用 |
 |---|---|
-| **范围检查** | 修改的文件必须在声明的仓库范围内 |
-| **基线快照** | 编码前捕获状态，用于安全回滚 |
-| **状态机** | 阶段必须按合法顺序推进 |
-| **证据要求** | 测试者必须提供带有命令输出的 verify.json |
-| **测试关卡** | 必须有 verify.json + test-report + final-report |
-| **依赖关卡** | 未满足依赖的功能不能启动 |
+| **Scope 检查** | 变更的文件必须在声明的 repo 范围内 |
+| **Baseline 快照** | 编码前先保存状态，方便安全回滚 |
+| **状态机** | 阶段必须依合法顺序推进 |
+| **证据要求** | Tester 必须提供含命令输出的 `verify.json` |
+| **测试闸门** | 需要 `verify.json` + 测试报告 + 最终报告 |
+| **Verify 白名单** | `4x verify` 只运行 `verify_command_allowlist` 列出的命令 |
+| **依赖闸门** | 依赖项目未完成的 feature 不能开始 |
 
-## 批量模式
+## 架构
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/architecture-dark.svg">
+  <img src="../assets/architecture-light.svg" alt="你操作 4x CLI（Go）：确定性的 guardrail，不调用 LLM，负责 scope 检查、协议、状态机与依赖闸门。它通过 .4x/ 目录的文件协议把工作交给 runner（Claude Code、Codex、Gemini、Antigravity、Copilot、Cursor、OpenCode）。4x Live 接收 SSE 事件，提供多项目实时监控。" width="100%">
+</picture>
+
+**第 1 层：CLI** 处理所有确定性的工作：scope 验证、状态转换、baseline 快照、证据收集。它从不调用 LLM，所以 guardrail 不依赖 AI 的判断。
+
+**第 2 层：Runner** 把 CLI 协议接到你选择的 AI 工具。每个 runner 都使用同一套 `.4x/` 文件协议，但各自发挥原生平台的能力。
+
+**第 3 层：Live** 是多项目仪表板。实时看 agent 工作、看阶段转换、流式查看日志。提供 REST + SSE API。
+
+## Autopilot
+
+先排好多个 feature（用 `--depends` 决定顺序），再交给 `4x-autopilot` 这个 Claude Code skill 驱动：它会挑出下一个可运行的 feature，运行、审批、合并后接着做下一个，全程无人值守。它取代了原本的 `4x batch` 命令。
+
+## MCP server
+
+`4x mcp` 通过 stdio 启动 Model Context Protocol server，把 CLI 以 tool 的形式提供给 MCP client，例如 `4x_status`、`4x_new`、`4x_run`、`4x_stop`、`4x_check`、`4x_verify`、`4x_done`、`4x_doctor` 与 `4x_learn_*`。
 
 ```bash
-4x batch plan            # generate dependency-aware execution plan
-4x batch run --runner claude  # run all eligible features in order
-4x batch stop            # graceful shutdown after current feature
+4x mcp
 ```
+
+## Claude Code skill
+
+4x 附带两个可选的 [Claude Code Skills](https://docs.anthropic.com/en/docs/claude-code)，让你在 Claude Code session 里驱动 pipeline。用 [`npx skills`](https://github.com/vercel-labs/skills) 安装即可，不必 clone 这个 repo：
+
+```bash
+npx skills add ggwhite/4x --skill 4x-audit       # scan past run artifacts, report + optionally file gap features
+npx skills add ggwhite/4x --skill 4x-autopilot   # drive the full pick → run → merge → next loop unattended
+npx skills add ggwhite/4x --all                  # install both
+```
+
+- **`4x-audit`**：扫描 discovered-feature-gaps、escalation／review 报告与反复出现的 learnings 模式，产出分类好的 HTML 报告，也可选择批量创建 feature YAML。
+- **`4x-autopilot`**：轮询 4x 状态，驱动 feature 走完整个生命周期（design → code → review → test → merge），过程中不停下来确认，连合并也会自动完成。**仅限 repo 拥有者**：在共用 repo 上使用前，请先读过 skill 里的警告。
+
+若是从这个 repo 的 clone 安装，可改用 `4x skills install <name>` 把 skill 以 symlink 连到 `~/.claude/skills/`。
 
 ## 权限模型
 
-**4x 以非交互模式运行 AI agent。** 在 `4x init` 时，runner 配置了跳过权限提示的标志（`--dangerously-skip-permissions`、`-y`、`approval: full-auto`），使循环自主运行。
+> [!WARNING]
+> **4x 会以非交互模式运行 AI agent。** 请只在你能接受 AI agent 自主运行的项目中使用 4x。
 
-CLI 的确定性护栏（范围锁定、基线快照、状态机）提供安全边界。
+<details>
+<summary>这代表什么</summary>
 
-**请仅在你能接受自主 AI agent 执行的项目中运行 4x。**
+`4x init` 时，runner 会被设置成带有略过权限询问的 flag（`--dangerously-skip-permissions`、`-y`、`--yolo`），让循环能自主运作。
+
+安全边界由 CLI 的确定性 guardrail 提供（scope 锁定、baseline 快照、状态机、verify 白名单）。在启动 runner 之前，4x 也会从它的环境中滤掉敏感的环境变量（`*_TOKEN`、`*_KEY`、`*_SECRET`、`AWS_*` 等）；详见 [Runner 与 Plugin](../guide/zh-CN/runners.md)。
+
+</details>
+
+## 取舍
+
+选择 4x，就是用速度与成本换取结构与正确性。请老实评估你的项目是否需要这样的取舍。
+
+<details>
+<summary><b>优势、劣势，以及何时（不）该用 4x</b></summary>
+
+### 优势
+
+- **角色隔离消除自我审查的偏见。** Coder 从不评判自己的成果，Reviewer 天生站在对立面。单一 agent 工作流让同一个模型写代码又批准代码；4x 不会。
+- **确定性的 guardrail 不依赖 AI 判断。** Scope 锁定、状态机、证据要求：这些都由 Go 写的 CLI 强制运行，而不是靠 prompt 恳请 LLM「请待在范围内」。
+- **以文件为基础的协议，不绑特定 LLM。** 可在 Claude、Gemini、Codex 之间切换，或依角色混搭。没有厂商锁定，也不依赖 SDK。
+- **抗崩溃的状态。** 一切都存在 `.4x/` 文件里。Session 挂了、机器重启：`4x run` 会从停下的地方精准接续。
+- **人始终在循环里。** `pending-review` 闸门确保 AI 的成果在标记完成前一定经过人审查。AI 提案，由你拍板。
+- **驾驭大规模重构。** 单一 AI session 吃不下的大型改动（拆分 god object、抽出 package、迁移 API），可以拆成彼此依赖、各配合适 profile 的 feature。4x 负责跨多个阶段的排序、审查与验证，这些工作塞进单一 context window 会撑不住。
+- **能扩展到整份 backlog。** 搭配依赖关系与 autopilot skill，你可以在晚上排进几十个 feature，隔天早上再来审查。
+
+### 劣势
+
+- **Token 成本明显更高。** 每个 feature 至少要经过 4 次以上独立的 LLM 调用，一次 review 失败就翻倍。同样的任务，预期 token 成本是单一 agent 做法的 3 到 10 倍。成本估算见 [使用技巧](../guide/zh-CN/usage-tips.md)。
+- **简单任务反而更慢。** 一行的 bug 修正不需要 Designer、Reviewer 和 Tester，完整循环的开销在琐碎变更上是浪费。快速修正请用单一 agent 工具。
+- **前置设置成本。** `4x init`、feature YAML、配置文件：开工前有一套仪式要走。一次性的脚本不值得。
+- **循环结构固定。** Design → Code → Review → Test 的顺序是固定的。如果你的工作流程塞不进四个角色，你会一直在跟框架搏斗，而不是在使用它。
+- **质量取决于 prompt 质量。** 模糊的 feature 描述产出模糊的规格，模糊的规格产出错误的代码。4x 增加了结构，但垃圾进、垃圾出依然成立，只是多了几个步骤。
+
+### 何时使用 4x
+
+- 必须正确的功能（支付、认证、数据 pipeline）
+- 需要对抗式审查的工作（安全敏感的代码）
+- 消化整份 feature backlog
+- 需要 AI 产生代码审计轨迹的团队
+
+### 何时不该使用 4x
+
+- 一次性的快速修正或探索性原型
+- 速度比正确性重要的任务
+- Token 预算吃紧的项目
+- 反正你会自己审查代码的个人 hacking 时
+
+</details>
 
 ## 文档
 
 | 文档 | 说明 |
 |---|---|
-| **[用户指南](../guide/zh-CN/)** | 完整的使用文档 |
-| [快速开始](../guide/zh-CN/getting-started.md) | 安装与首次运行 |
-| [CLI 参考](../guide/zh-CN/cli.md) | 所有命令和标志 |
-| [核心概念](../guide/zh-CN/concepts.md) | 角色、状态机、协议、护栏 |
-| [配置](../guide/zh-CN/configuration.md) | 设置、模型、语言、runner |
-| [Runner 与插件](../guide/zh-CN/runners.md) | 支持的 runner 和插件合约 |
-| [仪表盘](../guide/zh-CN/dashboard.md) | 4x Live 多项目仪表盘 |
-| [批量模式](../guide/zh-CN/batch.md) | 依赖感知的批量执行 |
+| **[用户指南](../guide/zh-CN/)** | 完整的使用说明 |
+| [入门](../guide/zh-CN/getting-started.md) | 安装与第一次运行 |
+| [CLI 参考](../guide/zh-CN/cli.md) | 所有命令与 flag |
+| [核心概念](../guide/zh-CN/concepts.md) | 角色、状态机、协议、guardrail |
+| [设置](../guide/zh-CN/configuration.md) | 配置文件、模型、语言、runner |
+| [Runner 与 Plugin](../guide/zh-CN/runners.md) | 支持的 runner 与 plugin 合约 |
+| [仪表板](../guide/zh-CN/dashboard.md) | 4x Live 多项目仪表板 |
+| [使用技巧](../guide/zh-CN/usage-tips.md) | 模型选择、成本、疑难排解 |
 
-## 项目结构
+<details>
+<summary><b>项目结构</b></summary>
 
 ```
 4x/
-  cmd/4x/              CLI entry point (Cobra)
+  cmd/4x/              CLI entry point (Cobra), one file per subcommand
   internal/
     protocol/           .4x/ file format, workspace, types
     state/              State machine (phase transitions)
     guard/              Guardrail checks (scope, baseline, evidence)
-    batch/              Dependency DAG, batch scheduler
+    orchestrator/       Run loop orchestration
     runner/             Subprocess runner interface
     server/             SSE + REST server for Live dashboard
+    mcp/                MCP server (stdio)
   plugins/
-    claude-code/        Claude Code skill + workflow
+    claude-code/        Claude Code runner instructions
     codex/              Codex runner instructions
     gemini/             Gemini runner instructions
     agy/                Antigravity runner instructions
-    copilot/            Copilot runner instructions + workflow
+    copilot/            Copilot runner instructions
     cursor/             Cursor rules
+    opencode/           OpenCode runner instructions
     embed.go            go:embed plugin files into binary
   dashboard/
-    macos/              Swift native app (planned)
+    web/                Dashboard UI, embedded into the binary
+    macos/              Swift native app
+    tauri/              Windows / Linux app
+  skills/               4x-audit, 4x-autopilot Claude Code skills
+  templates/            Role prompt templates
   docs/
     guide/              User documentation
     architecture/       System-level design docs
@@ -255,36 +344,71 @@ CLI 的确定性护栏（范围锁定、基线快照、状态机）提供安全�
     reference/          Plugin contract
 ```
 
+</details>
+
 ## FAQ
 
-**Q: 4x 是否直接调用任何 LLM API？**
-不。CLI 是纯 Go 实现，零 LLM 依赖。Runner 使用各自平台的原生能力处理所有 AI 交互。
+<details>
+<summary><b>4x 会直接调用任何 LLM API 吗？</b></summary>
 
-**Q: 可以为不同角色使用不同的 LLM 吗？**
-可以。在 `.4x/settings.json` 中配置每个角色的模型。用 Claude 做设计、Gemini 做编码 — 每个都读取相同的 `.4x/` 文件。
+不会。CLI 是纯 Go，完全不依赖 LLM。所有 AI 交互都由 runner 通过其原生平台能力处理。
 
-**Q: 4x 与 Devin / SWE-agent / OpenHands 有什么不同？**
-它们是一次性完成所有工作的自主 agent。4x 是一个*框架*，通过确定性护栏来组织多角色协作。它更接近 AI 的 CI 管道，而不是一个单一的自主 agent。
+</details>
 
-## 起源故事
+<details>
+<summary><b>可以让不同角色使用不同的 LLM 吗？</b></summary>
 
-4x 诞生于一个名为 DCT（Designer-Coder-Tester）的生产系统，该系统为一次大规模平台重写交付了 60 多个功能。存活下来的模式 — 角色隔离、基于文件的协议、确定性范围检查、基于证据的测试 — 成为了 4x。没有存活下来的部分 — LLM 特定的 hack、共享上下文假设、基于信任的护栏 — 被刻意排除了。
+可以。在 `.4x/settings.json` 设置各角色的模型。Design 用 Claude、Code 用 Gemini：大家读的都是同一批 `.4x/` 文件。
 
-## 贡献
+</details>
+
+<details>
+<summary><b>这跟 Devin / SWE-agent / OpenHands 有什么不同？</b></summary>
+
+那些是一次包办所有事的自主 agent。4x 是一套*框架*，用确定性的 guardrail 组织多角色协作。它比较像是给 AI 用的 CI pipeline，而不是单一的自主 agent。
+
+</details>
+
+## 开发
 
 ```bash
 git clone https://github.com/ggwhite/4x.git
 cd 4x
-go build ./cmd/4x
-go test ./...
+make build      # bin/4x
+make test       # go test -race ./...
+make lint       # go vet + gofmt + golangci-lint
 ```
+
+完整流程请见 [CONTRIBUTING.md](../../CONTRIBUTING.md)。
+
+<details>
+<summary><b>重新录制 README 的片段与图表</b></summary>
+
+所有片段都来自从源代码编译的真实 binary，在 `/tmp/4xdemo` 底下的一次性项目与 `HOME` 中录制。录制全程 headless：终端用 [`vhs`](https://github.com/charmbracelet/vhs)，仪表板用 Python Playwright（headless Chromium）。需要 `vhs`、`ffmpeg`、`img2webp`（libwebp）、Python `playwright`，录制导览视频时还需要已登录的 `claude` CLI。
+
+```bash
+docs/assets/record/render.sh tour      # fresh /tmp/4xdemo, ONE real 4x run (about $2 of tokens), all clips
+docs/assets/record/render.sh recut     # re-encode the clips from the last run's frames, no agent run
+python3 docs/assets/diagrams/gen.py    # architecture / loop SVGs (light + dark)
+python3 docs/assets/diagrams/snapshot.py /tmp/svg docs/assets/*-light.svg   # check frames + reduced motion
+```
+
+`render.sh tour` 会运行 [`setup-demo.sh`](../assets/record/setup-demo.sh)（从源代码编译 4x，创建一个小小的 Go 项目「greet」），在 [`capture-live.py`](../assets/record/capture-live.py) 截图 `4x live` 画面的同时录制 [`tour.tape`](../assets/record/tour.tape)，接着录制各功能片段，最后由 [`tour-end.tape`](../assets/record/tour-end.tape) 审批该 feature。[`retime.py`](../assets/record/retime.py) 会剪掉漫长的 agent 等待时间，并用 `img2webp` 编码成 WebP。Claude Code runner 通过一个 wrapper 调用，略过用户设置、hook、plugin 与 MCP server。
+
+提交新片段前，请对每一帧做 OCR（`swiftc docs/assets/record/ocr.swift -o /tmp/ocr`，接着 `magick clip.webp -coalesce f-%03d.png` 与 `/tmp/ocr f-*.png`），并 grep 文字中是否出现用户名、主机名、email 与 token。
+
+</details>
+
+## 缘起
+
+4x 诞生于一个名为 DCT（Designer-Coder-Tester）的生产系统，它为一次大规模平台改写交付了 60 个以上的功能。存活下来的模式（角色隔离、以文件为基础的协议、确定性的 scope 检查、以证据为本的测试）成了 4x；没能存活的部分（针对特定 LLM 的 hack、共享 context 的假设、靠信任的 guardrail）则被刻意舍弃。
 
 ## 许可证
 
-[MIT](LICENSE)
+[MIT](../../LICENSE)
 
 ---
 
 <p align="center">
-  <strong>别再指望你的 AI 写出正确的代码。开始验证它。</strong>
+  <strong>别再祈祷 AI 写出正确的代码，开始验证它。</strong>
 </p>

@@ -1,253 +1,342 @@
+<div align="center">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/banner-dark.svg">
+  <img src="../assets/banner-light.svg" alt="4X：設計、実装、レビュー、テスト。" width="100%">
+</picture>
+
+**Design・Code・Review・Test を互いに隔離された AI ロールに分割し、決定的なガードレールで制御するエージェント型開発ループ。**
+
+<p>
+  <a href="https://github.com/ggwhite/4x/actions/workflows/ci.yml"><img src="https://github.com/ggwhite/4x/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/ggwhite/4x/releases"><img src="https://img.shields.io/github/v/release/ggwhite/4x" alt="最新リリース"></a>
+  <a href="https://pkg.go.dev/github.com/ggwhite/4x"><img src="https://pkg.go.dev/badge/github.com/ggwhite/4x.svg" alt="Go Reference"></a>
+  <a href="https://goreportcard.com/report/github.com/ggwhite/4x"><img src="https://goreportcard.com/badge/github.com/ggwhite/4x" alt="Go Report Card"></a>
+  <a href="../../LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="ライセンス：MIT"></a>
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="プラットフォーム：macOS、Linux、Windows">
+</p>
+
+[インストール](#インストール) · [クイックスタート](#クイックスタート) · [機能](#機能) · [ループの仕組み](#ループの仕組み) · [ガードレール](#決定的なガードレール) · [アーキテクチャ](#アーキテクチャ) · [ドキュメント](#ドキュメント) · [FAQ](#faq)
+
 [English](../../README.md) | [繁體中文](README.zh-TW.md) | [简体中文](README.zh-CN.md) | **日本語** | [한국어](README.ko.md) | [Español](README.es.md)
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/ggwhite/4x.svg)](https://pkg.go.dev/github.com/ggwhite/4x)
-[![Go Report Card](https://goreportcard.com/badge/github.com/ggwhite/4x)](https://goreportcard.com/report/github.com/ggwhite/4x)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![CI](https://github.com/ggwhite/4x/actions/workflows/ci.yml/badge.svg)](https://github.com/ggwhite/4x/actions/workflows/ci.yml)
-
-<p align="center">
-  <img src="../assets/4x-banner.svg" alt="4X — Design. Code. Review. Test." width="480">
-</p>
-
-<p align="center">
-  <img src="../assets/demo.gif" alt="4x demo" width="720">
-</p>
-
-**4x は、ソフトウェア開発ループを4つの専門フェーズに分割するマルチロール AI 開発フレームワークです** -- Design（設計）、Code（実装）、Review（レビュー）、Test（テスト） -- それぞれ専用の AI エージェントが担当します。4X ストラテジーゲーム（eXplore, eXpand, eXploit, eXterminate）のように、異なる強みを持つ異なる役割が連携して複雑さを克服するシステムを表しています。
+</div>
 
 ---
 
-## 主な機能
+<div align="center">
+  <a href="../assets/tour.mp4"><img src="../assets/tour.webp" alt="1 回の実際の実行を早送りした 4x ツアー：(1) 4x init が既存の Go プロジェクト greet をセットアップし、go build と go test のコマンドを検出する。(2) 4x new が feature F001 Greet by name を作成する。(3) 4x run F001 が Claude Code を Designer、Coder、Reviewer、Tester の順に動かす。Tester のチェックが verify 許可リストでブロックされたため feature は Designer にエスカレーションされ、Designer がチェックを書き直し、2 ラウンド目は Accept と pending-review まで通過して合計コストが表示される。(4) 4x status が pending-review の feature を一覧表示し、4x done F001 で完了にすると、go run . -name Ada が hello, Ada を出力する" width="900"></a>
+  <br>
+  <sub>▶ <a href="../assets/tour.mp4">ツアー全編を見る</a> · Claude Code による 1 回の実際の実行（約 4 分、$2）、エージェントの待ち時間は短縮</sub>
+</div>
 
-| カテゴリ | ハイライト |
-|---|---|
-| **マルチロールループ** | Design → Code → Review → Test → Deep Review → Accept、ロール分離。Adaptive pipeline が機能の複雑さに応じて profile を選択（full / mini / quick）。 |
-| **6種類の AI ランナー** | Claude Code · Codex · Gemini CLI · Antigravity · Copilot · Cursor — 統一された `.4x/` ファイルプロトコル、ロールごとに混在可能。 |
-| **ダッシュボード（4x Live）** | macOS ネイティブ（Swift）+ Windows / Linux（Tauri）。リアルタイム SSE モニタリング、依存関係グラフ、ランナーログストリーミング、スクリーンショットギャラリー、設定 UI、バッチモニタリング。6言語 i18n、システム通知、メニューバー統合。 |
-| **決定的ガードレール** | ステートマシン、スコープロック、ベースラインスナップショット、エビデンスベースのテストゲート、依存関係ゲート — Go CLI で強制、LLM プロンプトに依存しない。 |
-| **クラッシュリカバリー** | ランナー中断 → 最後に保存された状態から自動復旧。一時的な API エラー（ネットワーク、レート制限）→ 自動バックオフリトライ。 |
-| **バッチモード** | 依存関係を考慮した DAG スケジューリング、完了時の自動マージ、バッチレポート、グレースフルストップ。数十の Feature を夜間にキューイングし、翌朝レビュー。 |
-| **MCP サーバー** | Model Context Protocol サーバー、MCP 互換クライアントとの統合用。 |
-| **Issue-First MR フロー** | オプションの `issue_tracker` モード：`4x new` が issue を作成またはリンクし、`4x done` はローカルマージの代わりに branch を push して PR/MR を開く。各リポジトリの remote から GitHub か GitLab（セルフホストを含む）かを自動判定、追加設定は不要。 |
-| **20以上の CLI コマンド** | `run`、`batch`、`live`、`doctor`、`clean`、`verify`、`mcp`、フェーズフック、ヘルスチェック、構造化ログなど。 |
-| **自己進化** | 過去のランからの改善シグナルのマイニング、自動発見 Feature の充実化、evolution value gate + アンチハック、自己修正スコープガード、継続的改善ドライバー（`4x evolve`）。4x は自らの失敗から学び、自己改善を繰り返す。 |
+## なぜ 4x か
 
-## なぜ 4x なのか？
+シングルエージェントのコーディングは速いが脆い。1 つの AI に設計・実装・レビュー・テストを、同じ流れのまま同じバイアスで任せることになる。小さなタスクならそれで回るが、本格的な機能開発では破綻する。
 
-シングルエージェントによるコーディングは速いが脆い。一つの AI に設計・実装・レビュー・テストのすべてを同じ呼吸で、同じバイアスのまま依頼する。小さなタスクには有効だが、本格的な機能開発では破綻する。
+4x はこのループを分割する。各ロールは担当が明確で、範囲が限定され、他のロールの推論にはアクセスできない。Designer はコードを書かず、Coder は自分の成果物を評価せず、Reviewer は設計上あえて敵対的で、Tester は実装前に書かれた基準に対して検証する。次に何が起きてよいかを決めるのは LLM ではなく Go CLI だ。4X ストラテジーゲーム（eXplore、eXpand、eXploit、eXterminate）のように、それぞれ異なる強みを持つロールが 1 つのゴールに向かって収束する。本番環境で通用する機能を作るというゴールだ。
 
-4x はループを分割する。各ロールには専念すべき仕事、限定されたスコープがあり、他のロールの推論にアクセスできない。Designer はコードを書かない。Coder は自分の成果物を評価しない。Reviewer は設計上、敵対的である。Tester は実装前に書かれた基準に対して検証する。
+## 機能
 
-その結果：本番環境に耐える機能が生まれる。
+<table>
+<tr>
+<td width="42%" valign="middle">
 
-## トレードオフ
+### 隔離された 4 つのロール
 
-4x を選ぶということは、スピードとコストを構造と正確性と引き換えにすることを意味する。あなたのプロジェクトにそのトレードが必要かどうか、正直に判断してほしい。
+**Designer → Coder → Reviewer → Tester → Accept**。各ロールは独立した runner プロセスで、`.4x/` 内のファイルを介してのみやり取りする。Reviewer の **FAIL** や検証失敗でコードは **amending** に送られ、仕様の誤りは Designer へ**エスカレーション**される。パイプラインの **profile**（`full`、`normal`、`lite`、`quick` または独自定義）で実行するフェーズを選べる。
 
-### 強み
+</td>
+<td><img src="../assets/feature-loop.webp" alt="デモ実行中の 4x Live の Messages タブ：task-brief.md と acceptance-criteria.md に関する Designer のメッセージが表示され、続いて Coder、Reviewer、Tester のレポートが順に現れる。それぞれにモデルとコストが付く。Tester がエスカレーションし、Designer が brief を書き直し、2 回目の Coder、Reviewer、Tester を経て Acceptor が feature を Review でクローズする"></td>
+</tr>
+<tr>
+<td width="42%" valign="middle">
 
-- **ロール分離がセルフレビューのバイアスを排除する。** Coder は自分の成果物を評価しない。Reviewer は設計上、敵対的である。シングルエージェントのワークフローでは同じモデルがコードを書いて承認するが、4x ではそうならない。
-- **決定的なガードレール（guardrail）は AI の判断に依存しない。** スコープロック、ステートマシン、エビデンス要件 -- これらは Go で書かれた CLI によって強制され、LLM に「スコープ内に留まってください」とプロンプトするのではない。
-- **ファイルベースのプロトコルにより LLM に依存しない。** Claude、Gemini、Codex を切り替えたり、ロールごとに混在させたりできる。ベンダーロックインなし、SDK 依存なし。
-- **クラッシュに強い状態管理。** すべてが `.4x/` ファイルに保存される。セッションが終了しても、マシンが再起動しても -- `4x run` は中断した場所から正確に再開する。
-- **人間がループ内に留まる。** `pending-review` ゲートにより、AI の成果物が完了と見なされる前に必ず人間がレビューする。AI が提案し、あなたが決定する。
-- **大規模リファクタリングを制御できる。** 単一の AI セッションでは処理しきれない大きな変更 — God Object の分割、パッケージの抽出、API の移行 — を依存関係のある複数の feature に分割し、それぞれに適切な profile を指定できる。4x がフェーズ間の順序制御、レビュー、検証を担うため、単一のコンテキストウィンドウの限界を超えない。
-- **バッチ（batch）モードがスケールする。** 依存関係を考慮したスケジューリングにより、数十の機能を一晩中キューに入れ、翌朝レビューできる。
+### 決定的なガードレール
 
-### 弱み
+ガードレールは**プロンプトではなく Go のコード**だ。`4x check` は **scope**、**baseline** スナップショット、必須ファイル、**verify のエビデンス**を検証する。**ステートマシン**は不正なフェーズ遷移を拒否し、`4x verify` はプロジェクトの**許可リスト**にあるコマンドしか実行しない。runner が言葉巧みにすり抜けることはできない。
 
-- **トークンコストが大幅に増加する。** 各機能は最低でも4回以上の個別 LLM 呼び出しを経る。レビュー失敗でさらに倍増する。同じタスクに対してシングルエージェントの3〜10倍のトークンコストを見込むこと。[使い方のヒント](../guide/ja/usage-tips.md)でコスト見積もりを参照。
-- **シンプルなタスクには遅い。** 1行のバグ修正に Designer、Reviewer、Tester は不要。フルループのオーバーヘッドは些細な変更には無駄になる。クイックフィックスにはシングルエージェントツールを使うこと。
-- **セットアップコストがかかる。** `4x init`、feature YAML、settings 設定 -- 開始前に準備が必要。使い捨てのスクリプトには割に合わない。
-- **ループ構造が固定的。** Design → Code → Review → Test のシーケンスは固定。ワークフローが4つのロールに合わない場合、フレームワークと戦うことになる。
-- **品質はプロンプトの品質に依存する。** 曖昧な機能説明は曖昧な仕様を生み、それが誤ったコードを生む。4x は構造を追加するが、ゴミを入れればゴミが出る -- ステップが増えるだけ。
+</td>
+<td><img src="../assets/feature-guardrails.webp" alt="ターミナル：4x check F001 が完了したデモ feature のガードレールチェックがすべて通過したと報告する。4x transition F001 --to coding --json は invalid transition: pending-review to coding で拒否される。4x verify F001 が test-strategy.yaml の go build、go vet、go test チェックを受け入れ基準ごとに実行し PASSED を出力する"></td>
+</tr>
+<tr>
+<td width="42%" valign="middle">
 
-### 4x を使うべき場面
+### 4x Live ダッシュボード
 
-- 正確性が求められる機能（決済、認証、データパイプライン）
-- 敵対的レビューが効果的な場面（セキュリティに敏感なコード）
-- 機能バックログのバッチ処理
-- AI 生成コードの監査証跡が必要なチーム
+`4x live` は REST + **SSE** で**マルチプロジェクトダッシュボード**を提供する。フェーズの変化に合わせて feature カードが Todo から Running、Review へと移動し、feature ごとのラウンド数、runner、コストが表示される。同じ Web UI がバイナリに埋め込まれており、**macOS（Swift）** と **Windows / Linux（Tauri）** のアプリにもラップされている。
 
-### 4x を使うべきでない場面
+</td>
+<td><img src="../assets/feature-live.webp" alt="デモ実行中の 4x Live プロジェクト概要：F001 Greet by name のカードが Todo から Running に移り、フェーズラベルが designing、coding、reviewing、testing と切り替わる。Running カウンター、ステータスのドーナツグラフ、Currently running パネルもそれに追従する。最後にカードは Mark Done ボタン付きで Review に留まり、Pending review パネルにも表示される"></td>
+</tr>
+<tr>
+<td width="42%" valign="middle">
 
-- 一回限りのクイックフィックスや探索的プロトタイピング
-- 正確性よりスピードが重要なタスク
-- トークン予算が厳しいプロジェクト
-- 自分でコードをレビューするソロハッキングセッション
+### ロール別・ラウンド別のコスト
 
-## アーキテクチャ
+すべての runner 呼び出しが、モデル、所要時間、**USD コストまたはトークン数**とともに記録される。`4x cost` は**ロールごと**に集計し、`--by-round` は**リトライ**にどれだけ費やしたかを示し、`--feature` は 1 つの feature をラウンドごとに分解する。レビュー失敗が実際にいくらかかったのかが分かる。
 
-```
- You
-  |
-  v
-+--------------------------------------------------+
-|  4x CLI (Go)                                     |
-|  Deterministic guardrails. No LLM calls.         |
-|  Scope checks, protocol, state machine, batch    |
-+--------+-----------------------------------------+
-         |  .4x/ directory (file-based protocol)
-         v
-+--------------------------------------------------+
-|  Runners                                         |
-|  Claude Code | Codex | Gemini | Antigravity      |
-|  Copilot | Cursor                                |
-|  Each uses native platform capabilities          |
-+--------+-----------------------------------------+
-         |  SSE events
-         v
-+--------------------------------------------------+
-|  4x Live (Dashboard)                             |
-|  Multi-project real-time monitoring              |
-+--------------------------------------------------+
-```
+</td>
+<td><img src="../assets/feature-cost.webp" alt="ターミナル：4x cost がデモプロジェクトのロール別（designer、coder、reviewer、tester、acceptor）支出を、呼び出し回数、合計、平均、割合とともに表示する。続いて 4x cost --feature F001-greet-by-name が同じ呼び出しをラウンドとロールごとに一覧表示する"></td>
+</tr>
+</table>
 
-**レイヤー 1 -- CLI** は決定的な処理をすべて担当する：スコープ検証、状態遷移、ベースラインスナップショット、エビデンス収集。LLM を呼び出すことはない。ガードレールは AI の判断に依存しない。
+### その他の機能
 
-**レイヤー 2 -- ランナー（Runner）** は CLI プロトコルとあなたが選んだ AI ツールを橋渡しする。Claude Code、Codex、Gemini、Antigravity、Copilot、Cursor -- いずれも同じ `.4x/` ファイルプロトコルを使いつつ、各プラットフォーム固有の機能を活用する。
-
-**レイヤー 3 -- Live** はマルチプロジェクトダッシュボード。AI エージェントの作業をリアルタイムで監視し、フェーズ遷移を確認し、ログをストリーミングする。REST + SSE API。
+- **7 つの runner**：Claude Code、Codex、Gemini CLI、Antigravity、Copilot、Cursor、OpenCode が同じ `.4x/` ファイルプロトコルを共有する。ロールごと、フェーズごとに組み合わせられる（`--phase-override`）。
+- **適応型パイプライン**：profile アドバイザーが feature の複雑さから `full` / `normal` / `quick` を提案する。ロールごとのモデルは `strong` / `fast` の 2 段階で指定する。
+- **クラッシュリカバリー**：runner がクラッシュしても最後に保存した状態から再開する。一時的な API エラー（ネットワーク、レート制限）はバックオフ付きでリトライする。
+- **人による承認**：すべての feature は `pending-review` で止まる。`4x done` で完了にしてブランチをマージする（`issue_tracker` を使う場合は PR/MR を作成する）。
+- **Issue ファーストの MR フロー**：オプションの `issue_tracker` モード。`4x new` が issue を作成またはリンクし、`4x done` はローカルでマージする代わりにブランチを push して PR/MR を作成する。GitHub か GitLab（セルフホスト含む）かは各リポジトリの remote から判定する。
+- **依存関係**：`4x new --depends F001` で、依存先が完了するまで feature の開始を止める。ダッシュボードには依存グラフが描画される。
+- **自己進化**：`4x mine` / `4x gate` / `4x evolve` が過去の実行から失敗シグナルを掘り起こし、候補を価値ゲートでふるい分け、改善用の feature をキューに積む。振り返りの学び（`4x learn`）は以降のロールプロンプトに注入される。
+- **MCP サーバー**と **Claude Code スキル**（`4x-audit`、`4x-autopilot`）、詳細は後述。
+- **30 以上の CLI コマンド**：`run`、`status`、`check`、`verify`、`retry`、`cost`、`live`、`doctor`、`clean`、`mcp`、`skills`、フェーズフック、構造化ログなど。[CLI リファレンス](../guide/ja/cli.md)を参照。
 
 ## インストール
 
-### Homebrew (macOS / Linux)
+### Homebrew（macOS / Linux）
 
 ```bash
 brew install ggwhite/tap/fourx
 ```
 
-### Go Install
+### Go install
 
 ```bash
 go install github.com/ggwhite/4x/cmd/4x@latest
 ```
 
-### Shell Script
+### シェルスクリプト
 
 ```bash
 curl -sSfL https://raw.githubusercontent.com/ggwhite/4x/main/install.sh | sh
 ```
 
-### バイナリダウンロード
+### バイナリをダウンロード
 
-macOS、Linux、Windows（amd64 / arm64）のビルド済みバイナリは [Releases](https://github.com/ggwhite/4x/releases) ページからダウンロードできます。
+macOS、Linux、Windows（amd64 / arm64）向けのビルド済みバイナリは [Releases](https://github.com/ggwhite/4x/releases) ページにある。
+
+<details>
+<summary><b>チェックサムの検証</b>（手動ダウンロードの場合）</summary>
+
+シェルスクリプトはダウンロードしたファイルのチェックサムを自動で検証し、失敗すれば中断する。[Releases](https://github.com/ggwhite/4x/releases) ページからアーカイブやバイナリを手動でダウンロードした場合は、展開する前に自分で検証すること。そのリリースの `checksums.txt` を同じディレクトリにダウンロードし、次のいずれかを実行する：
+
+```bash
+# Linux (and macOS with coreutils)
+sha256sum --check --ignore-missing checksums.txt
+
+# macOS (default)
+shasum -a 256 --ignore-missing --check checksums.txt
+```
+
+チェックサムが `OK` と表示されてから、バイナリを展開して実行すること。
+
+</details>
 
 ## クイックスタート
 
 ```bash
-# プロジェクトで初期化
+# Initialize in your project
 cd my-project
 4x init
 
-# Feature を作成
+# Create a feature
 4x new "User authentication with OAuth2"
-# => Created: F001-user-authentication-w
+# => Created feature: F001-user-authentication (User authentication with OAuth2)
 
-# フルループを実行
+# Run the full loop
 4x run F001 --runner claude
 
-# ステータスを確認
+# Check status
 4x status
 
-# レビューして完了
+# Review and complete
 4x done F001
 
-# またはリアルタイムで監視
+# Or watch it live
 4x live -w
 ```
 
-`4x run` は Design-Code-Review-Test ループを自動的に駆動する。Review で問題が見つかれば、Code が再実行される。Test が失敗すれば、ループが反復される。`--max-rounds` と `--timeout` フラグで制御を維持できる。
+`4x run` は Design-Code-Review-Test ループを自動で回す。Review で問題が見つかれば Code がもう一度走り、Test が失敗すればループが繰り返される。`--max-rounds`、`--profile`、`--timeout` で制御はあなたの手に残る。
 
-## 4つのロール
+## 4 つのロール
 
 | ロール | 仕事 | 出力 |
 |---|---|---|
-| **Designer** | 要件を分析し、仕様 + 受け入れ基準を作成 | `task-brief.md`, `acceptance-criteria.md` |
-| **Coder** | 仕様に従って正確に実装 | ソースコード, `coder-report.md` |
-| **Reviewer** | バグと仕様違反を検出（チェックリスト + 敵対的） | `review-report.md`（判定付き） |
-| **Tester** | 受け入れ基準に対してエビデンスで検証 | `test-report.md`, `verify.json` |
+| **Designer** | 要件を分析し、仕様と受け入れ基準を作成する | `task-brief.md`、`acceptance-criteria.md`、`test-strategy.yaml` |
+| **Coder** | 仕様どおりに正確に実装する | ソースコード、`coder-report.md` |
+| **Reviewer** | バグと仕様違反を検出する（チェックリスト + 敵対的レビュー） | 判定付きの `review-report.md` |
+| **Tester** | 受け入れ基準に対してエビデンス付きで検証する | `test-report.md`、`verify.json` |
 
-各ロールは**分離**されている。Coder は Reviewer の過去のフィードバックを見ない。Tester は Coder ではなく Designer が書いた基準に対して検証する。この分離が、シングルエージェントのワークフローを悩ませる盲点を防ぐ。
+各ロールは**隔離**されている。Coder は Reviewer の過去のフィードバックを見ない。Tester は Coder ではなく Designer が書いた基準に対して検証する。この分離が、シングルエージェントのワークフローにつきまとう盲点を防ぐ。`full` profile では、4 つのコアロールに加えて Design Reviewer、多角的な Deep Reviewer、Fixer、Acceptor が入る。
 
-## ループの動作
+## ループの仕組み
 
-```
-Designer → Coder → Reviewer → Tester → Accept → Pending Review → Done
-                      ↓           ↓                                 ↑
-                   amending ←─────┘                          human sign-off
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/loop-dark.svg">
+  <img src="../assets/loop-light.svg" alt="Designer、Coder、Reviewer、Tester、Accept、Pending Review、Done が横一列に並ぶ。Reviewer の FAIL や検証失敗でコードは amending に送られ、Reviewer に戻る。エスカレーションは Designer に戻る。Done の前に人が 4x done で承認する。" width="100%">
+</picture>
 
-- **Review 失敗**（判定 FAIL または CRITICAL 所見）はコードを修正に差し戻す
-- **Test 失敗**（verify が不合格）はコードを修正に差し戻す
-- **エスカレーション**（仕様不一致、基準不正）は Designer に差し戻す
-- **Pending review** ゲートにより、完了マーク前に必ず人間がレビューする
-- **ラウンド予算**（デフォルト5）が無限ループを防止する
+- **Review 失敗**（判定 FAIL または CRITICAL の指摘）でコードは amending に差し戻される
+- **Test 失敗**（verify が不合格）でコードは amending に差し戻される
+- **エスカレーション**（仕様の不一致、基準の誤り）は Designer に戻される
+- **Pending review** ゲートにより、完了にする前に必ず人がレビューする
+- **ラウンド上限**（デフォルト 5）が無限ループを防ぐ
+
+正当な遷移は [`internal/state/machine.go`](../../internal/state/machine.go) に定義されている。ステートマシンの全体は[コアコンセプト](../guide/ja/concepts.md)を参照。
 
 ## 決定的なガードレール
 
-CLI によって強制され、AI の判断には依存しない：
+AI の判断ではなく CLI が強制する：
 
-| ガードレール | 機能 |
+| ガードレール | 役割 |
 |---|---|
-| **スコープチェック** | 変更されたファイルが宣言済みリポジトリ内にあることを確認 |
-| **ベースラインスナップショット** | コーディング前の状態を安全なロールバックのために記録 |
-| **ステートマシン** | フェーズが正当な順序で進行することを保証 |
-| **エビデンス要件** | Tester はコマンド出力を含む verify.json を提供する必要がある |
-| **テスティングゲート** | verify.json + test-report + final-report が必要 |
-| **依存関係ゲート** | 未完了の依存関係がある Feature は開始できない |
+| **スコープチェック** | 変更ファイルは宣言されたリポジトリ内になければならない |
+| **ベースラインスナップショット** | 安全にロールバックできるよう、コーディング前の状態を記録する |
+| **ステートマシン** | フェーズは正当な順序でしか進めない |
+| **エビデンス要件** | Tester はコマンド出力を含む `verify.json` を提出しなければならない |
+| **テストゲート** | `verify.json` + テストレポート + 最終レポートが必須 |
+| **verify 許可リスト** | `4x verify` は `verify_command_allowlist` にあるコマンドしか実行しない |
+| **依存関係ゲート** | 依存先が未完了の feature は開始できない |
 
-## バッチモード
+## アーキテクチャ
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/architecture-dark.svg">
+  <img src="../assets/architecture-light.svg" alt="あなたが 4x CLI（Go）を操作する。CLI は決定的なガードレールで LLM を呼ばず、スコープチェック、プロトコル、ステートマシン、依存関係ゲートを担う。作業は .4x/ ディレクトリのファイルプロトコルを通じて runner（Claude Code、Codex、Gemini、Antigravity、Copilot、Cursor、OpenCode）に渡される。4x Live は SSE イベントを受け取り、マルチプロジェクトのリアルタイム監視を表示する。" width="100%">
+</picture>
+
+**レイヤー 1：CLI** は決定的な処理をすべて担う。スコープ検証、状態遷移、ベースラインスナップショット、エビデンス収集。LLM を一切呼ばないので、ガードレールは AI の判断に依存しない。
+
+**レイヤー 2：Runner** は CLI のプロトコルと好みの AI ツールを橋渡しする。どの runner も同じ `.4x/` ファイルプロトコルを話すが、それぞれのプラットフォーム固有の機能を使う。
+
+**レイヤー 3：Live** はマルチプロジェクトダッシュボードだ。エージェントの作業をリアルタイムで見て、フェーズ遷移を確認し、ログをストリーミングできる。REST + SSE API。
+
+## Autopilot
+
+複数の feature をキューに積み（順序は `--depends` で指定）、あとは Claude Code スキル `4x-autopilot` に任せる。次に実行可能な feature を選び、実行し、承認し、マージして次へ進む。すべて無人で行う。これは以前の `4x batch` コマンドを置き換えるものだ。
+
+## MCP サーバー
+
+`4x mcp` は stdio 上で Model Context Protocol サーバーを起動する。CLI を `4x_status`、`4x_new`、`4x_run`、`4x_stop`、`4x_check`、`4x_verify`、`4x_done`、`4x_doctor`、`4x_learn_*` などのツールとして MCP クライアントに公開する。
 
 ```bash
-4x batch plan            # 依存関係を考慮した実行計画を生成
-4x batch run --runner claude  # 対象の Feature をすべて順番に実行
-4x batch stop            # 現在の Feature 完了後にグレースフルシャットダウン
+4x mcp
 ```
 
-## パーミッションモデル
+## Claude Code スキル
 
-**4x は AI エージェントを非対話モードで実行する。** `4x init` の際に、ランナーはパーミッションプロンプトをスキップするフラグ（`--dangerously-skip-permissions`、`-y`、`approval: full-auto`）付きで設定され、ループが自律的に動作する。
+4x には、Claude Code のセッションからパイプラインを操作するためのオプションの [Claude Code Skills](https://docs.anthropic.com/en/docs/claude-code) が 2 つ付属する。[`npx skills`](https://github.com/vercel-labs/skills) でインストールでき、このリポジトリを clone する必要はない：
 
-CLI の決定的なガードレール（スコープロック、ベースラインスナップショット、ステートマシン）が安全境界を提供する。
+```bash
+npx skills add ggwhite/4x --skill 4x-audit       # scan past run artifacts, report + optionally file gap features
+npx skills add ggwhite/4x --skill 4x-autopilot   # drive the full pick → run → merge → next loop unattended
+npx skills add ggwhite/4x --all                  # install both
+```
 
-**自律的な AI エージェント実行に問題がないプロジェクトでのみ 4x を使用すること。**
+- **`4x-audit`**：discovered-feature-gaps、エスカレーション／レビューのレポート、繰り返し現れる learnings のパターンをスキャンし、カテゴリ別の HTML レポートを生成する。feature YAML を一括作成することもできる。
+- **`4x-autopilot`**：4x の状態をポーリングし、feature をライフサイクル全体（design → code → review → test → merge）にわたって確認なしで進める。マージも含む。**オーナー専用**：共有リポジトリで使う前に、スキル内の警告を必ず読むこと。
+
+このリポジトリを clone している場合は、代わりに `4x skills install <name>` でスキルを `~/.claude/skills/` にシンボリックリンクできる。
+
+## 権限モデル
+
+> [!WARNING]
+> **4x は AI エージェントを非対話モードで実行する。** AI エージェントの自律実行を許容できるプロジェクトでのみ 4x を使うこと。
+
+<details>
+<summary>これが意味すること</summary>
+
+`4x init` の際、ループが自律的に回るよう、runner には権限確認をスキップするフラグ（`--dangerously-skip-permissions`、`-y`、`--yolo`）が設定される。
+
+安全境界は CLI の決定的なガードレール（スコープロック、ベースラインスナップショット、ステートマシン、verify 許可リスト）が担う。runner を起動する前に、4x は機密性の高い環境変数（`*_TOKEN`、`*_KEY`、`*_SECRET`、`AWS_*` など）を環境から除外する。詳しくは [Runner とプラグイン](../guide/ja/runners.md)を参照。
+
+</details>
+
+## トレードオフ
+
+4x を選ぶことは、速度とコストを構造と正確性に引き換えることだ。自分のプロジェクトにそのトレードオフが必要かどうか、正直に見極めてほしい。
+
+<details>
+<summary><b>強み、弱み、そして 4x を使うべき（でない）とき</b></summary>
+
+### 強み
+
+- **ロールの隔離がセルフレビューのバイアスをなくす。** Coder は自分の成果物を評価しない。Reviewer は設計上あえて敵対的だ。シングルエージェントのワークフローでは同じモデルがコードを書いて承認するが、4x はそうしない。
+- **決定的なガードレールは AI の判断に依存しない。** スコープロック、ステートマシン、エビデンス要件。これらは LLM に「スコープ内に留まってください」とプロンプトでお願いするのではなく、Go で書かれた CLI が強制する。
+- **ファイルベースのプロトコルで LLM に依存しない。** Claude、Gemini、Codex を切り替えたり、ロールごとに組み合わせたりできる。ベンダーロックインも SDK への依存もない。
+- **クラッシュに強い状態管理。** すべては `.4x/` のファイルにある。セッションが落ちても、マシンが再起動しても、`4x run` は止まった場所から正確に再開する。
+- **人がループの中に残る。** `pending-review` ゲートにより、AI の成果物は完了にする前に必ず人がレビューする。AI が提案し、あなたが決める。
+- **大規模リファクタリングを手なずける。** 1 回の AI セッションには大きすぎる変更（ゴッドオブジェクトの分割、パッケージの抽出、API の移行）を、適切な profile を持つ依存関係付きの feature に分解できる。1 つのコンテキストウィンドウでは抱えきれない、複数フェーズにわたる順序付け、レビュー、検証を 4x が引き受ける。
+- **バックログ規模まで拡張できる。** 依存関係と autopilot スキルを組み合わせれば、何十もの feature を夜のうちにキューに積み、朝にまとめてレビューできる。
+
+### 弱み
+
+- **トークンコストが大幅に高い。** 1 つの feature は最低でも 4 回以上の独立した LLM 呼び出しを経る。レビューが失敗すればそれが倍になる。同じタスクでシングルエージェント方式の 3〜10 倍のトークンコストを見込んでおくこと。コストの見積もりは[使い方のヒント](../guide/ja/usage-tips.md)を参照。
+- **単純なタスクでは遅い。** 1 行のバグ修正に Designer、Reviewer、Tester は要らない。ささいな変更ではループ全体のオーバーヘッドが無駄になる。簡単な修正にはシングルエージェントのツールを使うこと。
+- **セットアップのコスト。** `4x init`、feature YAML、設定ファイル。始める前に踏むべき手順がある。使い捨てのスクリプトには見合わない。
+- **ループ構造が固定。** Design → Code → Review → Test の順序は固定されている。ワークフローが 4 つのロールに収まらなければ、フレームワークを使うどころか戦うことになる。
+- **品質はプロンプトの質で決まる。** あいまいな feature の説明はあいまいな仕様を生み、それが間違ったコードを生む。4x は構造を加えるが、ゴミを入れればゴミが出ることに変わりはない。手順が増えるだけだ。
+
+### 4x を使うべきとき
+
+- 正しさが求められる機能（決済、認証、データパイプライン）
+- 敵対的レビューが効く作業（セキュリティに敏感なコード）
+- feature のバックログを片付けるとき
+- AI が生成したコードの監査証跡がほしいチーム
+
+### 4x を使うべきでないとき
+
+- その場限りの簡単な修正や探索的なプロトタイピング
+- 正確さよりスピードが重要なタスク
+- トークン予算が厳しいプロジェクト
+- どのみち自分でコードをレビューする、一人でのハッキング
+
+</details>
 
 ## ドキュメント
 
 | ドキュメント | 説明 |
 |---|---|
-| **[ユーザーガイド](../guide/ja/)** | 完全な使用方法ドキュメント |
+| **[ユーザーガイド](../guide/ja/)** | 使い方の完全なドキュメント |
 | [はじめに](../guide/ja/getting-started.md) | インストールと初回実行 |
 | [CLI リファレンス](../guide/ja/cli.md) | すべてのコマンドとフラグ |
-| [基本コンセプト](../guide/ja/concepts.md) | ロール、ステートマシン、プロトコル、ガードレール |
-| [設定](../guide/ja/configuration.md) | Settings、モデル、ロケール、ランナー |
-| [ランナー & プラグイン](../guide/ja/runners.md) | サポートされるランナーとプラグイン規約 |
+| [コアコンセプト](../guide/ja/concepts.md) | ロール、ステートマシン、プロトコル、ガードレール |
+| [設定](../guide/ja/configuration.md) | 設定、モデル、ロケール、runner |
+| [Runner とプラグイン](../guide/ja/runners.md) | 対応 runner とプラグイン契約 |
 | [ダッシュボード](../guide/ja/dashboard.md) | 4x Live マルチプロジェクトダッシュボード |
-| [バッチモード](../guide/ja/batch.md) | 依存関係を考慮したバッチ実行 |
+| [使い方のヒント](../guide/ja/usage-tips.md) | モデル選択、コスト、トラブルシューティング |
 
-## プロジェクト構造
+<details>
+<summary><b>プロジェクト構成</b></summary>
 
 ```
 4x/
-  cmd/4x/              CLI entry point (Cobra)
+  cmd/4x/              CLI entry point (Cobra), one file per subcommand
   internal/
     protocol/           .4x/ file format, workspace, types
     state/              State machine (phase transitions)
     guard/              Guardrail checks (scope, baseline, evidence)
-    batch/              Dependency DAG, batch scheduler
+    orchestrator/       Run loop orchestration
     runner/             Subprocess runner interface
     server/             SSE + REST server for Live dashboard
+    mcp/                MCP server (stdio)
   plugins/
-    claude-code/        Claude Code skill + workflow
+    claude-code/        Claude Code runner instructions
     codex/              Codex runner instructions
     gemini/             Gemini runner instructions
     agy/                Antigravity runner instructions
-    copilot/            Copilot runner instructions + workflow
+    copilot/            Copilot runner instructions
     cursor/             Cursor rules
+    opencode/           OpenCode runner instructions
     embed.go            go:embed plugin files into binary
   dashboard/
-    macos/              Swift native app (planned)
+    web/                Dashboard UI, embedded into the binary
+    macos/              Swift native app
+    tauri/              Windows / Linux app
+  skills/               4x-audit, 4x-autopilot Claude Code skills
+  templates/            Role prompt templates
   docs/
     guide/              User documentation
     architecture/       System-level design docs
@@ -255,36 +344,71 @@ CLI の決定的なガードレール（スコープロック、ベースライ�
     reference/          Plugin contract
 ```
 
+</details>
+
 ## FAQ
 
-**Q: 4x は LLM API を直接呼び出しますか？**
-いいえ。CLI は LLM 依存のない純粋な Go で書かれています。ランナーが各プラットフォーム固有の機能を使ってすべての AI 対話を処理します。
+<details>
+<summary><b>4x は LLM の API を直接呼び出す？</b></summary>
 
-**Q: ロールごとに異なる LLM を使えますか？**
-はい。`.4x/settings.json` でロールごとのモデルを設定できます。設計に Claude、実装に Gemini を使用する -- いずれも同じ `.4x/` ファイルを読み書きします。
+いいえ。CLI は純粋な Go で、LLM への依存はゼロだ。AI とのやり取りはすべて、runner がそれぞれのプラットフォーム固有の機能を使って行う。
 
-**Q: Devin / SWE-agent / OpenHands とはどう違いますか？**
-それらはすべてを一回で実行する自律型エージェントです。4x は決定的なガードレールを備えたマルチロール協調を構造化する *フレームワーク* です。単一の自律型エージェントというよりも、AI のための CI パイプラインに近いです。
+</details>
 
-## 開発の経緯
+<details>
+<summary><b>ロールごとに別の LLM を使える？</b></summary>
 
-4x は、大規模プラットフォーム刷新プロジェクトで 60 以上の機能を出荷した DCT（Designer-Coder-Tester）という本番システムの中から生まれました。生き残ったパターン -- ロール分離、ファイルベースプロトコル、決定的なスコープチェック、エビデンスベースのテスト -- が 4x になりました。生き残らなかった部分 -- LLM 固有のハック、共有コンテキストの前提、信頼ベースのガードレール -- は意図的に除外されました。
+使える。`.4x/settings.json` でロールごとのモデルを設定する。Design には Claude、Code には Gemini、といった具合だ。どれも同じ `.4x/` ファイルを読む。
 
-## コントリビュート
+</details>
+
+<details>
+<summary><b>Devin / SWE-agent / OpenHands とは何が違う？</b></summary>
+
+それらはすべてを一度にこなす自律型エージェントだ。4x は、決定的なガードレールでマルチロールの協調を構造化する*フレームワーク*である。単一の自律型エージェントというより、AI のための CI パイプラインに近い。
+
+</details>
+
+## 開発
 
 ```bash
 git clone https://github.com/ggwhite/4x.git
 cd 4x
-go build ./cmd/4x
-go test ./...
+make build      # bin/4x
+make test       # go test -race ./...
+make lint       # go vet + gofmt + golangci-lint
 ```
+
+ワークフロー全体は [CONTRIBUTING.md](../../CONTRIBUTING.md) を参照。
+
+<details>
+<summary><b>README のクリップと図を録り直す</b></summary>
+
+クリップはすべて、ソースからビルドした実際のバイナリを使い、`/tmp/4xdemo` 配下の使い捨てプロジェクトと `HOME` で録画している。録画はヘッドレスで行う。ターミナルは [`vhs`](https://github.com/charmbracelet/vhs)、ダッシュボードは Python Playwright（ヘッドレス Chromium）。`vhs`、`ffmpeg`、`img2webp`（libwebp）、Python の `playwright` が必要で、ツアーにはログイン済みの `claude` CLI も必要だ。
+
+```bash
+docs/assets/record/render.sh tour      # fresh /tmp/4xdemo, ONE real 4x run (about $2 of tokens), all clips
+docs/assets/record/render.sh recut     # re-encode the clips from the last run's frames, no agent run
+python3 docs/assets/diagrams/gen.py    # architecture / loop SVGs (light + dark)
+python3 docs/assets/diagrams/snapshot.py /tmp/svg docs/assets/*-light.svg   # check frames + reduced motion
+```
+
+`render.sh tour` は [`setup-demo.sh`](../assets/record/setup-demo.sh)（ソースから 4x をビルドし、小さな Go プロジェクト「greet」を作る）を実行し、[`capture-live.py`](../assets/record/capture-live.py) が `4x live` のスクリーンショットを撮る間に [`tour.tape`](../assets/record/tour.tape) を録画し、各機能のクリップを録り、最後に [`tour-end.tape`](../assets/record/tour-end.tape) で feature を承認する。[`retime.py`](../assets/record/retime.py) が長いエージェントの待ち時間をカットし、`img2webp` で WebP にエンコードする。Claude Code runner は、ユーザー設定、フック、プラグイン、MCP サーバーをスキップするラッパー経由で呼び出される。
+
+新しいクリップをコミットする前に、すべてのフレームを OCR し（`swiftc docs/assets/record/ocr.swift -o /tmp/ocr` のあと `magick clip.webp -coalesce f-%03d.png` と `/tmp/ocr f-*.png`）、テキストにユーザー名、ホスト名、メールアドレス、トークンが含まれていないか grep すること。
+
+</details>
+
+## 誕生の経緯
+
+4x は、大規模なプラットフォーム刷新で 60 以上の機能を出荷した DCT（Designer-Coder-Tester）という本番システムの中から生まれた。生き残ったパターン（ロールの隔離、ファイルベースのプロトコル、決定的なスコープチェック、エビデンスに基づくテスト）が 4x になった。生き残らなかった部分（特定の LLM 向けのハック、コンテキスト共有の前提、信頼頼みのガードレール）は意図的に外した。
 
 ## ライセンス
 
-[MIT](LICENSE)
+[MIT](../../LICENSE)
 
 ---
 
 <p align="center">
-  <strong>AI が正しいコードを書くことを祈るのはやめよう。検証しよう。</strong>
+  <strong>AI が正しいコードを書くことを祈るのはやめよう。検証を始めよう。</strong>
 </p>
