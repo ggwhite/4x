@@ -116,23 +116,7 @@ func NewServer(version, workspaceRoot string) *mcp.Server {
 		return wrapResult(res, err)
 	})
 
-	// --- mcp-mgmt: batch and maintenance tools ---
-
-	mcp.AddTool(server, &mcp.Tool{
-		Name:        "4x_batch_next",
-		Description: "Show the next eligible feature to run from the batch plan",
-	}, func(ctx context.Context, req *mcp.CallToolRequest, input struct{}) (*mcp.CallToolResult, any, error) {
-		res, err := h.BatchNext(ctx, input)
-		return wrapResult(res, err)
-	})
-
-	mcp.AddTool(server, &mcp.Tool{
-		Name:        "4x_batch_stop",
-		Description: "Signal a running batch to stop after the current feature completes",
-	}, func(ctx context.Context, req *mcp.CallToolRequest, input struct{}) (*mcp.CallToolResult, any, error) {
-		res, err := h.BatchStop(ctx, input)
-		return wrapResult(res, err)
-	})
+	// --- mcp-mgmt: maintenance tools ---
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "4x_clean",

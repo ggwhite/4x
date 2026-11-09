@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixes
+
+- **移除 MCP 殘留的 `4x_batch_next` / `4x_batch_stop` tool** — `4x batch` 子命令已在 0.3.15 由 4x-autopilot skill 取代並刪除，但 MCP server 仍註冊這兩個 tool 並 shell out 到 `4x batch next/stop`，一呼叫就回 `unknown command "batch"`；刪除 tool 註冊與 `Handlers.BatchNext`/`BatchStop`。CLAUDE.md 的 `internal/` 樹狀圖同步移除已不存在的 `batch/`，補上 advisor/codexlog/docscheck/pathutil
+
 ## [0.5.7] - 2026-08-25
 
 ### Fixes

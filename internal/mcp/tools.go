@@ -265,16 +265,6 @@ func (h *Handlers) Subtask(ctx context.Context, input SubtaskInput) (json.RawMes
 	return h.Exec(ctx, "subtask", input.FeatureID, input.SubtaskID, "--status", input.Status, "--json")
 }
 
-// BatchNext 查詢下一個可執行的 feature。
-func (h *Handlers) BatchNext(ctx context.Context, _ struct{}) (json.RawMessage, error) {
-	return h.Exec(ctx, "batch", "next", "--json")
-}
-
-// BatchStop 送出 batch 停止信號。
-func (h *Handlers) BatchStop(ctx context.Context, _ struct{}) (json.RawMessage, error) {
-	return h.Exec(ctx, "batch", "stop", "--json")
-}
-
 // Clean 清理已完成 feature 的 workspace artifacts。未帶 force 時只列出 candidates 不刪除。
 func (h *Handlers) Clean(ctx context.Context, input CleanInput) (json.RawMessage, error) {
 	args := []string{"clean"}

@@ -22,13 +22,12 @@ internal/
   guard/             Guardrail 檢查（scope/baseline/required files）
   orchestrator/      Run loop 核心編排邏輯
   runner/            Runner 介面與子程序執行
-  batch/             Batch DAG 排程
   feature/           Feature CRUD 操作
   doctor/            專案健康檢查
   prompt/            Role prompt 模板渲染
   gitops/            Git 操作（diff/worktree/changed files）
   server/            SSE + REST server（Dashboard 用）
-  ...                （其餘：enrich, envutil, evolution, health, hook, learning, logging, mcp, schemasync, vcshub, verify）
+  ...                （其餘：advisor, codexlog, docscheck, enrich, envutil, evolution, health, hook, learning, logging, mcp, pathutil, schemasync, vcshub, verify）
 plugins/
   claude-code/       Claude Code runner instructions
   gemini/            Gemini CLI runner instructions

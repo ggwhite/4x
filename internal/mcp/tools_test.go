@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -13,14 +14,14 @@ import (
 )
 
 // cmdKey 從 handler 組出的 args 推導出指令路徑作為 mockExec 的 key。
-// 對已知的多層 subcommand（batch/config/learn）取前兩段（如 "batch next"、"config get"），
+// 對已知的多層 subcommand（config/learn）取前兩段（如 "config get"、"learn list"），
 // 其餘取首段（如 "status"、"check"），確保既有單段 key 測試與新增 subcommand tool 皆可分別 mock。
 func cmdKey(args []string) string {
 	if len(args) == 0 {
 		return ""
 	}
 	first := args[0]
-	multi := map[string]bool{"batch": true, "config": true, "learn": true}
+	multi := map[string]bool{"config": true, "learn": true}
 	if multi[first] && len(args) >= 2 && !strings.HasPrefix(args[1], "--") {
 		return first + " " + args[1]
 	}
@@ -193,8 +194,6 @@ func TestCmdKey(t *testing.T) {
 		{[]string{"status", "--json"}, "status"},
 		{[]string{"status", "F001", "--json"}, "status"},
 		{[]string{"check", "F001", "--json"}, "check"},
-		{[]string{"batch", "next", "--json"}, "batch next"},
-		{[]string{"batch", "stop", "--json"}, "batch stop"},
 		{[]string{"config", "get", "locale", "--json"}, "config get"},
 		{[]string{"learn", "list", "--json"}, "learn list"},
 	}
@@ -207,15 +206,26 @@ func TestCmdKey(t *testing.T) {
 
 func TestMockExec_SubcommandsDoNotCollide(t *testing.T) {
 	exec := mockExec(map[string]string{
-		"batch next": `{"featureId":"F001"}`,
-		"batch stop": `{"stopped":true}`,
+		"learn list":  `{"entries":[],"active":0,"total":0}`,
+		"learn prune": `{"removed":0,"dryRun":true,"staleIds":[]}`,
 	})
 	h := &Handlers{Exec: exec}
 
-	next, err := h.BatchNext(context.Background(), struct{}{})
-	assertJSON(t, next, err)
-	stop, err := h.BatchStop(context.Background(), struct{}{})
-	assertJSON(t, stop, err)
+	list, err := h.LearnList(context.Background(), LearnListInput{})
+	assertJSON(t, list, err)
+	prune, err := h.LearnPrune(context.Background(), LearnPruneInput{DryRun: true})
+	assertJSON(t, prune, err)
+}
+
+// TestHandlers_NoRemovedBatchTools 驗證 Handlers 不再提供 `4x batch` 對應的 tool handler。
+// `4x batch` 子命令已移除（由 4x-autopilot skill 取代），殘留的 handler 一呼叫就會 shell out 失敗。
+func TestHandlers_NoRemovedBatchTools(t *testing.T) {
+	typ := reflect.TypeFor[*Handlers]()
+	for _, name := range []string{"BatchNext", "BatchStop"} {
+		if _, ok := typ.MethodByName(name); ok {
+			t.Errorf("Handlers.%s still exists but `4x batch` no longer exists", name)
+		}
+	}
 }
 
 // --- mcp-core ---
@@ -305,26 +315,6 @@ func TestSubtaskTool(t *testing.T) {
 }
 
 // --- mcp-mgmt ---
-
-func TestBatchNextTool(t *testing.T) {
-	exec, got := captureExec(`{"featureId":"F002"}`)
-	h := &Handlers{Exec: exec}
-	res, err := h.BatchNext(context.Background(), struct{}{})
-	assertJSON(t, res, err)
-	if cmdKey(*got) != "batch next" {
-		t.Errorf("expected 'batch next' command, got %v", *got)
-	}
-}
-
-func TestBatchStopTool(t *testing.T) {
-	exec, got := captureExec(`{"stopped":true}`)
-	h := &Handlers{Exec: exec}
-	res, err := h.BatchStop(context.Background(), struct{}{})
-	assertJSON(t, res, err)
-	if cmdKey(*got) != "batch stop" {
-		t.Errorf("expected 'batch stop' command, got %v", *got)
-	}
-}
 
 func TestCleanTool(t *testing.T) {
 	exec, got := captureExec(`{"cleaned":["F001"],"freedBytes":100,"dryRun":false,"candidates":[]}`)
