@@ -50,7 +50,7 @@
 - AC 若在 Verification Method 明寫某 package 的整合測試（如 internal/gitops 建 worktree 測 DetectChangedFiles），Coder 必須在該 package 同目錄補測；用其他層的 fake 單元測試代替不算達標。
 - 大型搬遷（900+ 行）搬完後需執行 go test -race 驗證 prompt 輸出未改變，不能只靠 build 成功判斷正確性
 - 搬遷函式時必須同步搬遷對應測試至新 package 目錄，task-brief 若有明確 Step 描述測試搬遷清單，Coder 必須在同一 round 完成，而非留至下一輪
-- MCP SDK 對 jsonschema struct tag 格式敏感（panic），遇到此類 SDK 限制應以 t.Skip 標記並在 coder-report 說明，不可為了通過測試而修改 production code。
+- MCP go-sdk 的 jsonschema struct tag 整段即 description、不可寫成 description=...,required（required 由沒有 omitempty 推導），格式錯誤時 AddTool 會 panic；NEVER 用 t.Skip 掩蓋此 panic，應修正 tag 讓 TestNewServer 通過。
 - 新增 guard 邏輯時，既有測試的資料 fixture 與 mock runner 輸出都要同步更新——fixture 補上新欄位（如 VerifyEvidence 的 ACResults），mock runner 補上新 guard 會寫出的檔案（如 build-gate.json）——否則既有測試會走進非預期錯誤路徑或靜默失敗，難以定位。
 - refactor 類任務的 Tester 可省略獨立 test-report，改在 review-report 內直接記錄 go test -race 通過結果，減少不必要的輪次開銷。
 - 整合測試應涵蓋「壞 YAML / 非 IsNotExist 錯誤」場景（AC-7），確認 fallback 只在 IsNotExist 觸發，而非吞掉所有解析錯誤

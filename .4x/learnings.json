@@ -329,7 +329,7 @@
       "id": "L040",
       "source_feature": "F107-add-internal-tests",
       "category": "testing",
-      "content": "MCP SDK 對 jsonschema struct tag 格式敏感（panic），遇到此類 SDK 限制應以 t.Skip 標記並在 coder-report 說明，不可為了通過測試而修改 production code。",
+      "content": "MCP go-sdk 的 jsonschema struct tag 整段即 description、不可寫成 description=...,required（required 由沒有 omitempty 推導），格式錯誤時 AddTool 會 panic；NEVER 用 t.Skip 掩蓋此 panic，應修正 tag 讓 TestNewServer 通過。",
       "created_at": "2026-06-27T17:43:56.973238+08:00",
       "activated_at": "0001-01-01T00:00:00Z",
       "last_used": "2026-08-24T12:30:30.410208+08:00",

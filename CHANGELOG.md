@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixes
 
 - **移除 MCP 殘留的 `4x_batch_next` / `4x_batch_stop` tool** — `4x batch` 子命令已在 0.3.15 由 4x-autopilot skill 取代並刪除，但 MCP server 仍註冊這兩個 tool 並 shell out 到 `4x batch next/stop`，一呼叫就回 `unknown command "batch"`；刪除 tool 註冊與 `Handlers.BatchNext`/`BatchStop`。CLAUDE.md 的 `internal/` 樹狀圖同步移除已不存在的 `batch/`，補上 advisor/codexlog/docscheck/pathutil
+- **`4x mcp` 啟動不再 panic，所有 MCP tool 恢復可用** — go-sdk v1.6.1（底層 `google/jsonschema-go`）規定 `jsonschema` struct tag 整段就是 description，且不得以 `WORD=` 開頭；`internal/mcp/tools.go` 的 input struct 用的是 `jsonschema:"description=...,required"` 格式，`AddTool` 推導 schema 時直接 panic。tag 改為純 description，required 照 SDK 規則由「欄位沒有 `omitempty`」推導（與原本標 `required` 的欄位一致）；`4x_gate` 的 `enum=pre,enum=post` 隨之移除，phase 仍由 handler 驗證。`TestNewServer` 原本遇 panic 就 `t.Skip` 讓 CI 看不見，改為 `t.Fatalf`，並新增 in-memory session 測試逐一核對 25 個 tool 與各自的 required 欄位。`scripts/check-docs-sync.sh` 同步移除已不存在的 `internal/batch/` → `docs/guide/batch.md` 對應
 
 ## [0.5.7] - 2026-08-25
 

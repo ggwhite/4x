@@ -16,36 +16,36 @@ type Handlers struct {
 
 // StatusInput 為 4x_status 工具的輸入參數。
 type StatusInput struct {
-	FeatureID string `json:"featureId,omitempty" jsonschema:"description=Feature ID (optional — omit to list all)"`
+	FeatureID string `json:"featureId,omitempty" jsonschema:"Feature ID (optional — omit to list all)"`
 }
 
 // NewInput 為 4x_new 工具的輸入參數。
 type NewInput struct {
-	Name        string `json:"name" jsonschema:"description=Feature name,required"`
-	Description string `json:"description,omitempty" jsonschema:"description=Feature description"`
+	Name        string `json:"name" jsonschema:"Feature name"`
+	Description string `json:"description,omitempty" jsonschema:"Feature description"`
 }
 
 // RunInput 為 4x_run 工具的輸入參數。
 type RunInput struct {
-	FeatureID string `json:"featureId" jsonschema:"description=Feature ID,required"`
-	Runner    string `json:"runner,omitempty" jsonschema:"description=Runner plugin name"`
-	MaxRounds int    `json:"maxRounds,omitempty" jsonschema:"description=Max iteration rounds"`
+	FeatureID string `json:"featureId" jsonschema:"Feature ID"`
+	Runner    string `json:"runner,omitempty" jsonschema:"Runner plugin name"`
+	MaxRounds int    `json:"maxRounds,omitempty" jsonschema:"Max iteration rounds"`
 }
 
 // StopInput 為 4x_stop 工具的輸入參數。
 type StopInput struct {
-	FeatureID string `json:"featureId" jsonschema:"description=Feature ID,required"`
+	FeatureID string `json:"featureId" jsonschema:"Feature ID"`
 }
 
 // CheckInput 為 4x_check 工具的輸入參數。
 type CheckInput struct {
-	FeatureID string `json:"featureId" jsonschema:"description=Feature ID,required"`
+	FeatureID string `json:"featureId" jsonschema:"Feature ID"`
 }
 
 // TransitionInput 為 4x_transition 工具的輸入參數。
 type TransitionInput struct {
-	FeatureID string `json:"featureId" jsonschema:"description=Feature ID,required"`
-	To        string `json:"to" jsonschema:"description=Target phase (designing/coding/reviewing/deep-reviewing/testing/fixing/accepting/done/blocked),required"`
+	FeatureID string `json:"featureId" jsonschema:"Feature ID"`
+	To        string `json:"to" jsonschema:"Target phase (designing/coding/reviewing/deep-reviewing/testing/fixing/accepting/done/blocked)"`
 }
 
 // Status 列出所有 feature 狀態，或查詢單一 feature 的詳細資訊。
@@ -113,105 +113,105 @@ func (h *Handlers) Transition(ctx context.Context, input TransitionInput) (json.
 
 // DoneInput 為 4x_done 工具的輸入參數。
 type DoneInput struct {
-	FeatureID      string `json:"featureId" jsonschema:"description=Feature ID,required"`
-	ApproveSelfMod bool   `json:"approveSelfMod,omitempty" jsonschema:"description=Approve self-modification of protected paths so the feature can be merged"`
+	FeatureID      string `json:"featureId" jsonschema:"Feature ID"`
+	ApproveSelfMod bool   `json:"approveSelfMod,omitempty" jsonschema:"Approve self-modification of protected paths so the feature can be merged"`
 }
 
 // VerifyInput 為 4x_verify 工具的輸入參數。
 type VerifyInput struct {
-	FeatureID string `json:"featureId" jsonschema:"description=Feature ID,required"`
-	Round     int    `json:"round,omitempty" jsonschema:"description=Round number (default: current round from state.json)"`
+	FeatureID string `json:"featureId" jsonschema:"Feature ID"`
+	Round     int    `json:"round,omitempty" jsonschema:"Round number (default: current round from state.json)"`
 }
 
 // ApproveInput 為 4x_approve 工具的輸入參數。
 type ApproveInput struct {
-	FeatureID string `json:"featureId" jsonschema:"description=Feature ID,required"`
+	FeatureID string `json:"featureId" jsonschema:"Feature ID"`
 }
 
 // RejectInput 為 4x_reject 工具的輸入參數。
 type RejectInput struct {
-	FeatureID string `json:"featureId" jsonschema:"description=Feature ID,required"`
+	FeatureID string `json:"featureId" jsonschema:"Feature ID"`
 }
 
 // MineInput 為 4x_mine 工具的輸入參數。
 type MineInput struct {
-	MinOccurrences int    `json:"minOccurrences,omitempty" jsonschema:"description=Distinct-feature threshold to promote a fail-pattern into a candidate"`
-	Output         string `json:"output,omitempty" jsonschema:"description=Candidate pool output path (default .4x/candidates.json)"`
-	DryRun         bool   `json:"dryRun,omitempty" jsonschema:"description=Only print summary without writing the pool"`
+	MinOccurrences int    `json:"minOccurrences,omitempty" jsonschema:"Distinct-feature threshold to promote a fail-pattern into a candidate"`
+	Output         string `json:"output,omitempty" jsonschema:"Candidate pool output path (default .4x/candidates.json)"`
+	DryRun         bool   `json:"dryRun,omitempty" jsonschema:"Only print summary without writing the pool"`
 }
 
 // SubtaskInput 為 4x_subtask 工具的輸入參數。
 type SubtaskInput struct {
-	FeatureID string `json:"featureId" jsonschema:"description=Feature ID,required"`
-	SubtaskID string `json:"subtaskId" jsonschema:"description=Subtask ID,required"`
-	Status    string `json:"status" jsonschema:"description=New subtask status (not-started/in-progress/blocked/done/ready-for-review),required"`
+	FeatureID string `json:"featureId" jsonschema:"Feature ID"`
+	SubtaskID string `json:"subtaskId" jsonschema:"Subtask ID"`
+	Status    string `json:"status" jsonschema:"New subtask status (not-started/in-progress/blocked/done/ready-for-review)"`
 }
 
 // CleanInput 為 4x_clean 工具的輸入參數。
 type CleanInput struct {
-	FeatureID string `json:"featureId,omitempty" jsonschema:"description=Feature ID to clean (omit to consider all cleanable features)"`
-	DryRun    bool   `json:"dryRun,omitempty" jsonschema:"description=List cleanable features without deleting"`
-	Force     bool   `json:"force,omitempty" jsonschema:"description=Actually delete artifacts (without this only candidates are listed)"`
+	FeatureID string `json:"featureId,omitempty" jsonschema:"Feature ID to clean (omit to consider all cleanable features)"`
+	DryRun    bool   `json:"dryRun,omitempty" jsonschema:"List cleanable features without deleting"`
+	Force     bool   `json:"force,omitempty" jsonschema:"Actually delete artifacts (without this only candidates are listed)"`
 }
 
 // LearnListInput 為 4x_learn_list 工具的輸入參數。
 type LearnListInput struct {
-	Category string `json:"category,omitempty" jsonschema:"description=Filter by learning category"`
+	Category string `json:"category,omitempty" jsonschema:"Filter by learning category"`
 }
 
 // LearnAddInput 為 4x_learn_add 工具的輸入參數。
 type LearnAddInput struct {
-	Category string `json:"category" jsonschema:"description=Learning category (design/code-quality/testing/review/tooling/process/ops),required"`
-	Content  string `json:"content" jsonschema:"description=Learning content text,required"`
+	Category string `json:"category" jsonschema:"Learning category (design/code-quality/testing/review/tooling/process/ops)"`
+	Content  string `json:"content" jsonschema:"Learning content text"`
 }
 
 // LearnPruneInput 為 4x_learn_prune 工具的輸入參數。
 type LearnPruneInput struct {
-	DryRun bool `json:"dryRun,omitempty" jsonschema:"description=Preview stale entries without removing"`
+	DryRun bool `json:"dryRun,omitempty" jsonschema:"Preview stale entries without removing"`
 }
 
 // LearnPromoteInput 為 4x_learn_promote 工具的輸入參數。
 type LearnPromoteInput struct {
-	ID string `json:"id" jsonschema:"description=Learning entry ID,required"`
+	ID string `json:"id" jsonschema:"Learning entry ID"`
 }
 
 // LearnRemoveInput 為 4x_learn_remove 工具的輸入參數。
 type LearnRemoveInput struct {
-	ID string `json:"id" jsonschema:"description=Learning entry ID,required"`
+	ID string `json:"id" jsonschema:"Learning entry ID"`
 }
 
 // EvolveInput 為 4x_evolve 工具的輸入參數。
 // 注意：autoRun=true 會對排入的 feature 立即跑完整 meta-loop，屬長時間阻塞操作。
 type EvolveInput struct {
-	DryRun         bool   `json:"dryRun,omitempty" jsonschema:"description=Read-only analysis: print mine/dedupe summary without writing or spawning runners"`
-	MinOccurrences int    `json:"minOccurrences,omitempty" jsonschema:"description=Distinct-feature threshold to promote a fail-pattern into a candidate"`
-	Runner         string `json:"runner,omitempty" jsonschema:"description=Runner plugin for gate/enrich/auto-run"`
-	AutoRun        bool   `json:"autoRun,omitempty" jsonschema:"description=Immediately run the meta-loop for enqueued features (long-blocking operation)"`
-	Force          bool   `json:"force,omitempty" jsonschema:"description=Override anti-spin halt and force another round"`
-	MaxRounds      int    `json:"maxRounds,omitempty" jsonschema:"description=Max rounds per feature during auto-run"`
-	Timeout        int    `json:"timeout,omitempty" jsonschema:"description=LLM subprocess timeout in seconds"`
+	DryRun         bool   `json:"dryRun,omitempty" jsonschema:"Read-only analysis: print mine/dedupe summary without writing or spawning runners"`
+	MinOccurrences int    `json:"minOccurrences,omitempty" jsonschema:"Distinct-feature threshold to promote a fail-pattern into a candidate"`
+	Runner         string `json:"runner,omitempty" jsonschema:"Runner plugin for gate/enrich/auto-run"`
+	AutoRun        bool   `json:"autoRun,omitempty" jsonschema:"Immediately run the meta-loop for enqueued features (long-blocking operation)"`
+	Force          bool   `json:"force,omitempty" jsonschema:"Override anti-spin halt and force another round"`
+	MaxRounds      int    `json:"maxRounds,omitempty" jsonschema:"Max rounds per feature during auto-run"`
+	Timeout        int    `json:"timeout,omitempty" jsonschema:"LLM subprocess timeout in seconds"`
 }
 
 // ConfigGetInput 為 4x_config_get 工具的輸入參數。
 type ConfigGetInput struct {
-	Key string `json:"key" jsonschema:"description=Config key (e.g. locale, runner.claude.model, role.coder.model),required"`
+	Key string `json:"key" jsonschema:"Config key (e.g. locale, runner.claude.model, role.coder.model)"`
 }
 
 // ConfigSetInput 為 4x_config_set 工具的輸入參數。
 type ConfigSetInput struct {
-	Key   string `json:"key" jsonschema:"description=Config key,required"`
-	Value string `json:"value" jsonschema:"description=Config value,required"`
+	Key   string `json:"key" jsonschema:"Config key"`
+	Value string `json:"value" jsonschema:"Config value"`
 }
 
 // GateInput 為 4x_gate 工具的輸入參數。
 type GateInput struct {
-	Phase string `json:"phase" jsonschema:"description=Gate phase: pre or post,required,enum=pre,enum=post"`
+	Phase string `json:"phase" jsonschema:"Gate phase: pre or post"`
 }
 
 // MergeInput 為 4x_merge 工具的輸入參數。
 type MergeInput struct {
-	FeatureID      string `json:"featureId" jsonschema:"description=Feature ID,required"`
-	ApproveSelfMod bool   `json:"approveSelfMod,omitempty" jsonschema:"description=Approve self-modification of protected paths so the feature can be merged"`
+	FeatureID      string `json:"featureId" jsonschema:"Feature ID"`
+	ApproveSelfMod bool   `json:"approveSelfMod,omitempty" jsonschema:"Approve self-modification of protected paths so the feature can be merged"`
 }
 
 // Done 將 pending-review 的 feature 推進到 done（含自動 merge）。

@@ -34,8 +34,7 @@ internal/state/machine.go	docs/guide/concepts.md
 internal/protocol/	docs/guide/concepts.md
 internal/runner/	docs/guide/runners.md
 plugins/	docs/guide/runners.md
-internal/server/	docs/guide/dashboard.md
-internal/batch/	docs/guide/batch.md"
+internal/server/	docs/guide/dashboard.md"
 
 # source prefixes of every RULES entry (first tab-separated column). Used to
 # reject any .docsyncignore glob that would disable a whole rule (see .docsyncignore).
