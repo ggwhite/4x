@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="400" viewBox="0 0 1100 400" role="img" aria-labelledby="title desc">
+<title id="title">4x architecture</title>
+<desc id="desc">You drive the 4x CLI (Go), which enforces deterministic guardrails and never calls an LLM. It hands work to runners (Claude Code, Codex, Gemini, Antigravity, Copilot, Cursor, OpenCode) through the .4x/ file protocol. 4x Live streams the same state over SSE to a multi-project dashboard.</desc>
+<style>.sans{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.b{font-weight:600}.cap{font-size:13px;letter-spacing:1.2px;font-weight:600}</style>
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 Z" fill="#59636E"/></marker><marker id="aha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 Z" fill="#8250DF"/></marker></defs>
+<rect width="1100" height="400" fill="#FFFFFF"/>
+<text x="40" y="40" class="sans cap" fill="#59636E" font-size="13" text-anchor="start">OPERATOR</text>
+<text x="180" y="40" class="sans cap" fill="#59636E" font-size="13" text-anchor="start">LAYER 1 · CLI</text>
+<text x="500" y="40" class="sans cap" fill="#59636E" font-size="13" text-anchor="start">LAYER 2 · RUNNERS</text>
+<text x="820" y="40" class="sans cap" fill="#59636E" font-size="13" text-anchor="start">LAYER 3 · LIVE</text>
+<rect x="40" y="150" width="100" height="72" rx="10" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1.5"/>
+<text x="90" y="192" class="sans b" fill="#1F2328" font-size="17" text-anchor="middle">You</text>
+<rect x="180" y="92" width="270" height="188" rx="10" fill="#F3EEFF" stroke="#C9B3F5" stroke-width="1.5"/>
+<text x="200" y="124" class="sans b" fill="#8250DF" font-size="18" text-anchor="start">4x CLI (Go)</text>
+<text x="200" y="148" class="sans" fill="#1F2328" font-size="14" text-anchor="start">Deterministic guardrails.</text>
+<text x="200" y="168" class="sans" fill="#1F2328" font-size="14" text-anchor="start">No LLM calls.</text>
+<rect x="200" y="190" width="112" height="28" rx="14" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1.5"/>
+<text x="256" y="209" class="sans" fill="#8250DF" font-size="13" text-anchor="middle">scope checks</text>
+<rect x="320" y="190" width="112" height="28" rx="14" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1.5"/>
+<text x="376" y="209" class="sans" fill="#8250DF" font-size="13" text-anchor="middle">protocol</text>
+<rect x="200" y="228" width="112" height="28" rx="14" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1.5"/>
+<text x="256" y="247" class="sans" fill="#8250DF" font-size="13" text-anchor="middle">state machine</text>
+<rect x="320" y="228" width="112" height="28" rx="14" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1.5"/>
+<text x="376" y="247" class="sans" fill="#8250DF" font-size="13" text-anchor="middle">dependencies</text>
+<rect x="500" y="92" width="270" height="188" rx="10" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1.5"/>
+<text x="520" y="124" class="sans b" fill="#1F2328" font-size="18" text-anchor="start">Runners</text>
+<text x="520" y="148" class="sans" fill="#59636E" font-size="13" text-anchor="start">Each uses native platform capabilities</text>
+<text x="520" y="183" class="mono" fill="#1F2328" font-size="13" text-anchor="start">▸ Claude Code</text>
+<text x="640" y="183" class="mono" fill="#1F2328" font-size="13" text-anchor="start">▸ Codex</text>
+<text x="520" y="210" class="mono" fill="#1F2328" font-size="13" text-anchor="start">▸ Gemini</text>
+<text x="640" y="210" class="mono" fill="#1F2328" font-size="13" text-anchor="start">▸ Antigravity</text>
+<text x="520" y="237" class="mono" fill="#1F2328" font-size="13" text-anchor="start">▸ Copilot</text>
+<text x="640" y="237" class="mono" fill="#1F2328" font-size="13" text-anchor="start">▸ Cursor</text>
+<text x="520" y="264" class="mono" fill="#1F2328" font-size="13" text-anchor="start">▸ OpenCode</text>
+<rect x="820" y="92" width="240" height="188" rx="10" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1.5"/>
+<text x="840" y="124" class="sans b" fill="#1F2328" font-size="18" text-anchor="start">4x Live</text>
+<text x="840" y="148" class="sans" fill="#59636E" font-size="13" text-anchor="start">Dashboard</text>
+<text x="840" y="180" class="sans" fill="#1F2328" font-size="14" text-anchor="start">• multi-project</text>
+<text x="840" y="204" class="sans" fill="#1F2328" font-size="14" text-anchor="start">• real-time monitoring</text>
+<text x="840" y="228" class="sans" fill="#1F2328" font-size="14" text-anchor="start">• phase transitions</text>
+<text x="840" y="252" class="sans" fill="#1F2328" font-size="14" text-anchor="start">• log streaming</text>
+<path d="M140,186 L178,186" fill="none" stroke="#59636E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah)"/>
+<path d="M450,186 L498,186" fill="none" stroke="#8250DF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#aha)"/>
+<text x="475" y="312" class="mono" fill="#8250DF" font-size="13" text-anchor="middle">.4x/ directory</text>
+<text x="475" y="330" class="sans" fill="#59636E" font-size="13" text-anchor="middle">file-based protocol</text>
+<path d="M475,196 L475,296" fill="none" stroke="#59636E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="6 5"/>
+<path d="M770,186 L818,186" fill="none" stroke="#8250DF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#aha)"/>
+<text x="795" y="312" class="mono" fill="#8250DF" font-size="13" text-anchor="middle">SSE events</text>
+<path d="M795,196 L795,296" fill="none" stroke="#59636E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="6 5"/>
+<text x="40" y="376" class="sans" fill="#59636E" font-size="14" text-anchor="start">The CLI owns state and guardrails; runners only read and write files under .4x/; REST + SSE API for the dashboard.</text>
+<style>.fx .h{fill:#8250DF;opacity:.28}.fx .c{fill:#8250DF}.fx .pko .h{opacity:.14}.fx .pko .c{opacity:.6}.fx .eg{fill:none;stroke:#8250DF;stroke-width:4;stroke-linecap:round;stroke-linejoin:round}.fx .ego{fill:none;stroke:#8250DF;stroke-width:2;stroke-dasharray:6 5;stroke-linecap:round}.fx .bx{fill:none;stroke:#8250DF;stroke-width:2.5}@media (prefers-reduced-motion:reduce){.fx *{animation:none!important;opacity:0!important}}@keyframes e1{0%{opacity:0}2.00%{opacity:0}3.00%{opacity:.5}10.00%{opacity:.5}22.00%{opacity:0}100%{opacity:0}}.e1{animation:e1 10.0s linear infinite}@keyframes p2{0%{opacity:0;transform:translate(140px,186px)}2.50%{opacity:0;transform:translate(140px,186px)}3.00%{opacity:1;transform:translate(140px,186px)}10.00%{opacity:0;transform:translate(178px,186px)}100%{opacity:0;transform:translate(178px,186px)}}.p2{animation:p2 10.0s linear infinite}@keyframes b3{0%{opacity:0}10.00%{opacity:0}11.20%{opacity:.85}17.00%{opacity:.85}23.00%{opacity:0}100%{opacity:0}}.b3{animation:b3 10.0s ease-in-out infinite}@keyframes e4{0%{opacity:0}21.00%{opacity:0}22.00%{opacity:.5}30.00%{opacity:.5}42.00%{opacity:0}100%{opacity:0}}.e4{animation:e4 10.0s linear infinite}@keyframes p5{0%{opacity:0;transform:translate(450px,186px)}21.50%{opacity:0;transform:translate(450px,186px)}22.00%{opacity:1;transform:translate(450px,186px)}30.00%{opacity:0;transform:translate(498px,186px)}100%{opacity:0;transform:translate(498px,186px)}}.p5{animation:p5 10.0s linear infinite}@keyframes b6{0%{opacity:0}30.00%{opacity:0}31.20%{opacity:.85}37.00%{opacity:.85}43.00%{opacity:0}100%{opacity:0}}.b6{animation:b6 10.0s ease-in-out infinite}@keyframes e7{0%{opacity:0}43.00%{opacity:0}44.00%{opacity:.5}48.00%{opacity:.5}60.00%{opacity:0}100%{opacity:0}}.e7{animation:e7 10.0s linear infinite}@keyframes p8{0%{opacity:0;transform:translate(770px,206px)}43.50%{opacity:0;transform:translate(770px,206px)}44.00%{opacity:1;transform:translate(770px,206px)}48.00%{opacity:0;transform:translate(800px,206px)}100%{opacity:0;transform:translate(800px,206px)}}.p8{animation:p8 10.0s linear infinite}@keyframes e9{0%{opacity:0}49.00%{opacity:0}50.00%{opacity:.5}58.00%{opacity:.5}70.00%{opacity:0}100%{opacity:0}}.e9{animation:e9 10.0s linear infinite}@keyframes p10{0%{opacity:0;transform:translate(770px,186px)}49.50%{opacity:0;transform:translate(770px,186px)}50.00%{opacity:1;transform:translate(770px,186px)}58.00%{opacity:0;transform:translate(818px,186px)}100%{opacity:0;transform:translate(818px,186px)}}.p10{animation:p10 10.0s linear infinite}@keyframes b11{0%{opacity:0}58.00%{opacity:0}59.20%{opacity:.85}65.00%{opacity:.85}71.00%{opacity:0}100%{opacity:0}}.b11{animation:b11 10.0s ease-in-out infinite}@keyframes e12{0%{opacity:0}71.00%{opacity:0}72.00%{opacity:.5}80.00%{opacity:.5}92.00%{opacity:0}100%{opacity:0}}.e12{animation:e12 10.0s linear infinite}@keyframes p13{0%{opacity:0;transform:translate(498px,186px)}71.50%{opacity:0;transform:translate(498px,186px)}72.00%{opacity:1;transform:translate(498px,186px)}80.00%{opacity:0;transform:translate(450px,186px)}100%{opacity:0;transform:translate(450px,186px)}}.p13{animation:p13 10.0s linear infinite}@keyframes b14{0%{opacity:0}80.00%{opacity:0}81.20%{opacity:.85}87.00%{opacity:.85}93.00%{opacity:0}100%{opacity:0}}.b14{animation:b14 10.0s ease-in-out infinite}</style>
+<g class="fx" aria-hidden="true"><path class="eg e1" d="M140,186 L178,186" opacity="0"/><g class="pk p2" opacity="0"><circle r="7" class="h"/><circle r="3.5" class="c"/></g><rect class="bx b3" opacity="0" x="180" y="92" width="270" height="188" rx="10"/><path class="eg e4" d="M450,186 L498,186" opacity="0"/><g class="pk p5" opacity="0"><circle r="7" class="h"/><circle r="3.5" class="c"/></g><rect class="bx b6" opacity="0" x="500" y="92" width="270" height="188" rx="10"/><path class="ego e7" d="M770,206 L800,206" opacity="0"/><g class="pko p8" opacity="0"><circle r="7" class="h"/><circle r="3.5" class="c"/></g><path class="eg e9" d="M770,186 L818,186" opacity="0"/><g class="pk p10" opacity="0"><circle r="7" class="h"/><circle r="3.5" class="c"/></g><rect class="bx b11" opacity="0" x="820" y="92" width="240" height="188" rx="10"/><path class="ego e12" d="M498,186 L450,186" opacity="0"/><g class="pko p13" opacity="0"><circle r="7" class="h"/><circle r="3.5" class="c"/></g><rect class="bx b14" opacity="0" x="180" y="92" width="270" height="188" rx="10"/></g>
+</svg>
